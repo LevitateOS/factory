@@ -3,6 +3,215 @@ use super::*;
 use soda_desktop_runtime::credentials::{Account, CredentialState, Error, Provider, Token};
 use std::io::Read;
 
+/// Publish only the same public prompt already rendered by the production UI.
+/// The device code and grants never enter the observer's files or JS arguments.
+pub fn publish_consent_prompt(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<Desktop>();
+    let view = serde_json::to_value(state.signin.view()).map_err(|_| "prompt unavailable")?;
+    ensure(view["phase"] == "waiting", "sign-in is not waiting")?;
+    write_consent_evidence(app, "user-code.json", &view["prompt"])
+}
+fn write_consent_evidence(
+    app: &tauri::AppHandle,
+    name: &str,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(root.join(name))
+        .map_err(|_| "owned consent evidence unavailable")?;
+    file.write_all(&serde_json::to_vec(value).map_err(|_| "evidence encoding failed")?)
+        .map_err(|_| "evidence write failed".into())
+}
+pub fn start_consent_checks(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        match consent_checks(&app).await {
+            Ok(()) => check::consent_done(&app),
+            Err(error) => {
+                eprintln!("Native approved sign-in check failed: {error}");
+                app.exit(1);
+            }
+        }
+    });
+}
+async fn consent_read(
+    app: &tauri::AppHandle,
+    connection: &str,
+    query: soda_desktop_runtime::github::Read,
+) -> Result<serde_json::Value, String> {
+    let state = app.state::<Desktop>();
+    let store = state.credentials()?;
+    let cap = store
+        .capability(connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    let read = state
+        .runtime
+        .lock()
+        .unwrap()
+        .as_ref()
+        .ok_or("runtime missing")?
+        .github_read(&store, &cap, query);
+    let reply = read.await.map_err(|e| e.to_string())?;
+    ensure(reply.status == 200, "authenticated native read refused")?;
+    Ok(reply.body)
+}
+async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
+    use soda_desktop_runtime::github::Read as GitHubRead;
+    let state = app.state::<Desktop>();
+    let store = state.credentials()?;
+    let accounts = store.status().await.map_err(|e| e.to_string())?;
+    ensure(accounts.len() == 1, "approved account not uniquely stored")?;
+    let account = &accounts[0];
+    ensure(
+        account.provider == Provider::Github
+            && account.origin == "https://github.com"
+            && matches!(account.state, CredentialState::Stored)
+            && account.label.is_some(),
+        "approved account metadata incomplete",
+    )?;
+    let grant = account
+        .grant
+        .as_ref()
+        .ok_or("complete OAuth grant not stored")?;
+    let namespace = state
+        .status
+        .lock()
+        .unwrap()
+        .profile
+        .clone()
+        .ok_or("profile missing")?;
+    let reopened =
+        Credentials::open(&state.paths.profile, &namespace).map_err(|e| e.to_string())?;
+    ensure(
+        reopened
+            .status()
+            .await
+            .map_err(|e| e.to_string())?
+            .iter()
+            .any(|a| {
+                a.connection == account.connection
+                    && a.account == account.account
+                    && a.grant.is_some()
+            }),
+        "encrypted account reload failed",
+    )?;
+    let identity = consent_read(app, &account.connection, GitHubRead::Identity).await?;
+    ensure(
+        identity["account"]["external_id"] == account.account,
+        "remote identity mismatch",
+    )?;
+    let mut page = 1;
+    let mut pages = 0;
+    let mut private = None;
+    loop {
+        let response = consent_read(
+            app,
+            &account.connection,
+            GitHubRead::Repositories { page, limit: 10 },
+        )
+        .await?;
+        let items = response["items"]
+            .as_array()
+            .ok_or("repository page missing")?;
+        ensure(items.len() <= 10, "repository page unbounded")?;
+        pages += 1;
+        for repo in items {
+            if repo["private"] == true {
+                private = repo["external_id"].as_str().map(str::to_owned);
+            }
+        }
+        let next = response["next_page"].as_u64().ok_or("pagination missing")?;
+        if next == 0 || pages >= 10 || private.is_some() && pages >= 2 {
+            break;
+        }
+        ensure(
+            next > u64::from(page) && next <= u64::from(u32::MAX),
+            "invalid next page",
+        )?;
+        page = next as u32;
+    }
+    let mut private_read = false;
+    if let Some(repository) = private {
+        let result = consent_read(
+            app,
+            &account.connection,
+            GitHubRead::Repository { repository },
+        )
+        .await?;
+        ensure(
+            result["repository"]["private"] == true,
+            "private repository detail mismatch",
+        )?;
+        private_read = true;
+    }
+    let refresh_available = grant.refresh_available;
+    if refresh_available {
+        let cap = store
+            .capability(&account.connection)
+            .await
+            .map_err(|e| e.to_string())?;
+        let refresh = state
+            .runtime
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("runtime missing")?
+            .github_refresh(&store, &cap);
+        let rotated = refresh.await.map_err(|e| e.to_string())?;
+        ensure(
+            rotated.connection == account.connection && rotated.account == account.account,
+            "provider refresh changed identity",
+        )?;
+        ensure(
+            store.with_token(&cap, |_| ()).await.is_err(),
+            "old local revision survived refresh",
+        )?;
+        let identity = consent_read(app, &account.connection, GitHubRead::Identity).await?;
+        ensure(
+            identity["account"]["external_id"] == account.account,
+            "post-refresh identity mismatch",
+        )?;
+    }
+    let cap = store
+        .capability(&account.connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    store
+        .withdraw(&account.connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure(
+        store.status().await.map_err(|e| e.to_string())?.is_empty(),
+        "owned test account not removed",
+    )?;
+    ensure(
+        store.with_token(&cap, |_| ()).await.is_err(),
+        "withdrawn local capability survived",
+    )?;
+    write_consent_evidence(
+        app,
+        "consent-result.json",
+        &serde_json::json!({
+            "approved_native_signin":true, "verified_identity":true, "encrypted_grant_reload":true,
+            "repository_pages":pages, "private_repository_read":private_read,
+            "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
+            "owned_local_account_removed":true, "remote_revocation_exercised":false,
+            "canonical_factory_binding":false
+        }),
+    )
+}
+
 pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String> {
     let state = app.state::<Desktop>();
     let root = state
@@ -80,7 +289,7 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         _ => Err("unknown native sign-in control".into()),
     }
 }
-pub fn start_signin(app: tauri::AppHandle, live: bool) {
+pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
     let Some(window) = app.get_webview_window("main") else {
         app.exit(1);
         return;
@@ -88,7 +297,7 @@ pub fn start_signin(app: tauri::AppHandle, live: bool) {
     let _ = window.show();
     let _ = window.set_focus();
     let script=r#"(async()=>{
-      const live=__LIVE__, invoke=window.__TAURI__.core.invoke;
+      const live=__LIVE__, consent=__CONSENT__, invoke=window.__TAURI__.core.invoke;
       const assert=(ok,message)=>{if(!ok)throw Error(message);};
       const report=stage=>invoke('report',{stage,error:null});
       const view=()=>invoke('github_sign_in_status');
@@ -109,6 +318,20 @@ pub fn start_signin(app: tauri::AppHandle, live: bool) {
         document.querySelector('#github-open').click();await control('signin-browser-opened');
         await report('signin-close-secondary');assert((await view()).phase==='waiting','closing another window cancelled owner sign-in');
         if(!live)await control('signin-entered');
+        if(consent){
+          await report('signin-consent-prompt');
+          const deadline=Date.now()+950000;
+          for(;;){
+            document.querySelector('#refresh').click();const s=await view();
+            if(s.phase==='complete')break;
+            assert(s.phase!=='failed'&&s.phase!=='cancelled'&&s.phase!=='idle','approved native sign-in failed');
+            assert(Date.now()<deadline,'browser consent deadline');
+            await new Promise(r=>setTimeout(r,250));
+          }
+          await until(()=>document.querySelector('#github-accounts').children.length===1);
+          assert((await invoke('factory_query',{query:{kind:'identity'}})).status===503,'OAuth login silently admitted Factory work');
+          await report('signin-consent-complete');return;
+        }
         await cancel();if(!live)await control('signin-upstream-cancelled');
         assert((await invoke('credential_status')).length===0,'unapproved/cancelled sign-in saved credentials');
         if(live){await report('signin-done');return;}
@@ -142,7 +365,8 @@ pub fn start_signin(app: tauri::AppHandle, live: bool) {
         assert((await invoke('credential_status')).length===0,'retired sign-in saved credentials after restart');
         await report('signin-done');
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
-    })()"#.replace("__LIVE__",if live {"true"} else {"false"});
+    })()"#.replace("__LIVE__",if mode != check::SignInMode::Declared {"true"} else {"false"})
+    .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"});
     let _ = window.eval(&script);
 }
 

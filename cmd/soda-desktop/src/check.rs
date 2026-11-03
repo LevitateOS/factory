@@ -1,13 +1,19 @@
 //! Opt-in native acceptance hook; absent from the normal application build.
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[derive(Clone, Copy, PartialEq)]
+pub enum SignInMode {
+    Declared,
+    Live,
+    Consent,
+}
 pub struct Check {
     pub enabled: bool,
     startup_error: bool,
     crash: bool,
     resume: bool,
     credentials: bool,
-    signin: Option<bool>,
+    signin: Option<SignInMode>,
     stage: AtomicUsize,
     instance: Mutex<Option<String>>,
 }
@@ -18,7 +24,7 @@ impl Check {
         crash: bool,
         resume: bool,
         credentials: bool,
-        signin: Option<bool>,
+        signin: Option<SignInMode>,
     ) -> Self {
         Self {
             enabled,
@@ -39,7 +45,9 @@ pub fn timeout(app: &tauri::AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(
-            if app.state::<Desktop>().check.signin.is_some() {
+            if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
+                1000
+            } else if app.state::<Desktop>().check.signin.is_some() {
                 90
             } else {
                 45
@@ -50,6 +58,14 @@ pub fn timeout(app: &tauri::AppHandle) {
             app.exit(1);
         }
     });
+}
+pub fn consent_done(app: &tauri::AppHandle) {
+    app.state::<Desktop>()
+        .check
+        .stage
+        .store(2, Ordering::SeqCst);
+    println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
+    quit(app.clone());
 }
 pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
     if window.label() != "main" || !window.state::<Desktop>().check.enabled {
@@ -118,8 +134,15 @@ pub fn report(
         quit(app);
         return Ok(());
     }
+    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-prompt" {
+        return crate::check_credentials::publish_consent_prompt(&app);
+    }
+    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-complete" {
+        crate::check_credentials::start_consent_checks(app);
+        return Ok(());
+    }
     if state.check.signin.is_some() && stage.starts_with("signin-") {
-        if state.check.signin == Some(true) && stage.starts_with("signin-mode-") {
+        if state.check.signin != Some(SignInMode::Declared) && stage.starts_with("signin-mode-") {
             return Err("declared modes unavailable in live sign-in check".into());
         }
         return crate::check_credentials::signin_control(&app, &stage);
@@ -165,8 +188,8 @@ pub fn report(
         crate::check_credentials::start(app);
         return Ok(());
     }
-    if let Some(live) = state.check.signin {
-        crate::check_credentials::start_signin(app, live);
+    if let Some(mode) = state.check.signin {
+        crate::check_credentials::start_signin(app, mode);
         return Ok(());
     }
     if state.check.resume {

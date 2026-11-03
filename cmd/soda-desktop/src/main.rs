@@ -447,9 +447,18 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
         #[cfg(feature = "native-check")]
-        if arg == "--check-signin" || arg == "--check-signin-live" {
+        if arg == "--check-signin"
+            || arg == "--check-signin-live"
+            || arg == "--check-signin-consent"
+        {
             checking = true;
-            signin_check = Some(arg == "--check-signin-live");
+            signin_check = Some(if arg == "--check-signin-consent" {
+                check::SignInMode::Consent
+            } else if arg == "--check-signin-live" {
+                check::SignInMode::Live
+            } else {
+                check::SignInMode::Declared
+            });
             continue;
         }
         #[cfg(feature = "native-check")]
