@@ -92,9 +92,15 @@ its duplicate Go owners, preserving appliance composition and native Fountain
 adapters. Forge commit `a1cd0499` passes production builds, integration compilation,
 vet, dependency checks and the real issue-editor/native write/recovery journey.
 The broader SQL-locality check remains red on existing Forge adapter/test usage;
-no exemption or full-source pass is claimed. T04-REPO-UI must still remove the old
-UI copies and qualify a shared-component change in both source builds; installed
-parity remains later. Fountain's SDK distribution remains its owning integration
+no exemption or full-source pass is claimed. T04-REPO-UI now removes the old UI,
+Storybook and shared-design/build copies and consumes Factory through a standard
+Bun source link. Forge commit `5e695dfb` passes actual asset/physical-source graph,
+single-Lit, browser/native-write and native staging checks. Local setup uses an
+editable checkout; clean/CI setup fetches the published commit selected by go.mod.
+The dev browser activation refused because no development deployment is active,
+so deployed parity remains unqualified. T04-REPO-NATIVE now owns the observed
+remaining Rust runtime/desktop/workbench/Unix-transport copies and their consumers.
+Installed parity remains later. Fountain's SDK distribution remains its owning integration
 task; the SDK is not copied into the standalone dependency closure. Historical
 coordinator tests that instantiate appliance/SDK owners are retained as source
 under `integrations/soda-forge/`, while store tests remain active in `pkg/store/`.

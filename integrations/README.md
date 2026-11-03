@@ -20,8 +20,10 @@ They are archival source snapshots, not patches that should be applied during
 normal Factory builds, nor active duplicate owners of product components.
 
 The Go consumer cutover is committed in Forge as `a1cd0499`, using the pinned
-published Factory module and removing duplicate Go owners. Shared UI consumption,
-SDK distribution and connected product journeys remain unfinished. These
+published Factory module and removing duplicate Go owners. The shared UI consumer
+cutover is Forge commit `5e695dfb`: it removes the component/story/design/build
+copies and reads the linked Factory source package. Rust consumer cutover, SDK
+distribution, deployed parity and connected product journeys remain unfinished. These
 recovery patches describe the initial import, not the subsequent consumer commit.
 A standalone build does not establish parity with an installed Forge.
 Fountain's retained server changes keep their GPL-3.0-or-later license. Original
