@@ -32,6 +32,12 @@ and Store to that factory once. Connector construction performs no provider I/O
 or account activation. The production executable composes GitHub canonical
 observation ports here; a caller cannot claim another profile in read JSON.
 
+`RunNativeWithBinding` uses the same defining runner with the existing trusted
+per-request product binding port. It creates no actor from readiness or IPC;
+account authority must be established independently on every bound request.
+The normal executable still supplies no active product binding. Native control
+acceptance supplies a declared blocking binding to exercise cancellation/drain.
+
 The runtime owns the Go network/store lifetime from those inputs. It
 claims only `backend.lock` for one network process, opens the canonical store
 under a bounded cancellable startup context, and serves authenticated readiness
@@ -51,6 +57,8 @@ store and returns only readiness plus profile and process-instance IDs, with
 no-store; it makes no execution-readiness claim. The Rust bridge retains the
 capability and owns account/resource admission. The native application mounts
 shared product routes behind this private channel, independently of readiness.
+Those product routes also require exactly one matching captured native-instance
+header. Missing, stale or duplicate instances refuse before product binding.
 Without a current connector binding, those routes return unavailable; IPC
 capability never becomes a provider login or an empty successful feed/account.
 

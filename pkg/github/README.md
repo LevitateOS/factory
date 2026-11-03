@@ -1,5 +1,12 @@
 # GitHub collaboration adapter
 
+The selected [language allocation](../../docs/development/factory-products/language-allocation.md)
+moves the complete authenticated desktop session to Rust. This Go provider code
+is a retained migration input; `T06-GITHUB-RUST` must cut over OAuth, refresh,
+authenticated HTTP and provider decoding together and retire its Go native
+token routes. Canonical mapping/SQL/product authority remain in Go. Do not extend
+this transitional authenticated Go connector with the next desktop feature.
+
 This package owns the GitHub REST client and its later collaboration adapters.
 The current client uses go-github v93.0.0 (BSD-3-Clause), selected from official
 release metadata on 2026-11-02, with the supported `2026-03-10` REST API version.

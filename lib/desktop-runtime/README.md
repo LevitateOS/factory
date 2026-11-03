@@ -32,6 +32,19 @@ children. Linux parent-death signals retire them after abrupt supervisor death;
 normal stop waits for Go admission/drain and exit before stopping PostgreSQL.
 Timeouts force retirement and report failure, never a clean stop.
 
+Product I/O has a separate joined current-thread runtime. `product_request()`
+owns its inputs and can be awaited without borrowing the supervisor; dropping
+even an unpolled future cancels its request. The blocking `product()` adapter
+uses the same admission and I/O owner. Sixteen permits bound queued/in-flight
+requests and unread native completions. Bodies remain limited to 64 KiB in and
+2 MiB out, with a 15-second wire deadline and 20-second caller wait limit.
+
+Product requests carry the captured process instance as well as the private key.
+Retirement closes admission, cancels and joins request tasks, and drops their
+runtime/HTTP drivers before stopping Go and PostgreSQL. Caller-side lifetime
+checks refuse buffered late replies. Child monitoring does not wait for product
+I/O; the existing bounded health probe retains its separate readiness timeout.
+
 `health()` freshly checks owned child exits and authenticated bounded Unix HTTP
 readiness. The response must bind the retained profile and the same captured
 process instance. Readiness is store/process availability, not an account login,

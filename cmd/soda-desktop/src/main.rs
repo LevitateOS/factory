@@ -35,6 +35,11 @@ struct Reply {
     status: u16,
     body: Value,
 }
+struct Observation {
+    window: String,
+    active: Arc<AtomicBool>,
+    task: tauri::async_runtime::JoinHandle<()>,
+}
 struct Desktop {
     paths: Paths,
     runtime: Mutex<Option<NativeSupervisor>>,
@@ -44,7 +49,7 @@ struct Desktop {
     quitting: AtomicBool,
     generation: AtomicU64,
     windows: AtomicU64,
-    streams: Mutex<HashMap<String, (String, Arc<AtomicBool>)>>,
+    streams: Mutex<HashMap<String, Observation>>,
     signin: signin::SignIn,
     #[cfg(feature = "native-check")]
     check: check::Check,
@@ -103,9 +108,24 @@ impl Desktop {
         });
     }
     fn cancel_streams(&self) {
-        for (_, (_, active)) in self.streams.lock().unwrap().drain() {
-            active.store(false, Ordering::SeqCst);
+        join_streams(self.take_streams(None));
+    }
+    fn take_streams(&self, window: Option<&str>) -> Vec<tauri::async_runtime::JoinHandle<()>> {
+        let mut streams = self.streams.lock().unwrap();
+        let ids: Vec<_> = streams
+            .iter()
+            .filter(|(_, s)| window.is_none_or(|w| s.window == w))
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut tasks = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(stream) = streams.remove(&id) {
+                stream.active.store(false, Ordering::SeqCst);
+                stream.task.abort();
+                tasks.push(stream.task);
+            }
         }
+        tasks
     }
     fn retire_credentials(&self) {
         if let Some(store) = self.credentials.lock().unwrap().take() {
@@ -126,7 +146,7 @@ impl Desktop {
             .clone()
             .ok_or("native credential storage is unavailable".into())
     }
-    fn call(&self, method: &str, path: &str, body: Value) -> Result<Reply, String> {
+    async fn call(&self, method: &str, path: &str, body: Value) -> Result<Reply, String> {
         if self.quitting.load(Ordering::SeqCst) || self.starting.load(Ordering::SeqCst) {
             return Err("Factory is unavailable".into());
         }
@@ -139,17 +159,20 @@ impl Desktop {
             return Err("request body exceeds the native limit".into());
         }
         let epoch = self.generation.load(Ordering::SeqCst);
-        let runtime = self.runtime.lock().unwrap();
-        if epoch != self.generation.load(Ordering::SeqCst)
-            || self.starting.load(Ordering::SeqCst)
-            || self.quitting.load(Ordering::SeqCst)
-        {
-            return Err("Factory binding retired".into());
-        }
-        let response = runtime
-            .as_ref()
-            .ok_or("Factory is unavailable")?
-            .product(method, path, &bytes)?;
+        let request = {
+            let runtime = self.runtime.lock().unwrap();
+            if epoch != self.generation.load(Ordering::SeqCst)
+                || self.starting.load(Ordering::SeqCst)
+                || self.quitting.load(Ordering::SeqCst)
+            {
+                return Err("Factory binding retired".into());
+            }
+            runtime
+                .as_ref()
+                .ok_or("Factory is unavailable")?
+                .product_request(method, path, &bytes)
+        };
+        let response = request.await?;
         if epoch != self.generation.load(Ordering::SeqCst) || self.quitting.load(Ordering::SeqCst) {
             return Err("Factory binding retired".into());
         }
@@ -162,6 +185,15 @@ impl Desktop {
             status: response.status,
             body,
         })
+    }
+}
+fn join_streams(tasks: Vec<tauri::async_runtime::JoinHandle<()>>) {
+    if !tasks.is_empty() {
+        tauri::async_runtime::spawn(async move {
+            for task in tasks {
+                let _ = task.await;
+            }
+        });
     }
 }
 fn caller(window: &WebviewWindow) -> Result<(), String> {
@@ -250,11 +282,7 @@ async fn factory_query(
 ) -> Result<Reply, String> {
     caller(&window)?;
     let path = query.target()?;
-    tauri::async_runtime::spawn_blocking(move || {
-        app.state::<Desktop>().call("GET", &path, Value::Null)
-    })
-    .await
-    .map_err(|_| "native query unavailable")?
+    app.state::<Desktop>().call("GET", &path, Value::Null).await
 }
 #[tauri::command]
 async fn factory_command(
@@ -264,9 +292,7 @@ async fn factory_command(
 ) -> Result<Reply, String> {
     caller(&window)?;
     let (path, body) = command.request()?;
-    tauri::async_runtime::spawn_blocking(move || app.state::<Desktop>().call("POST", &path, body))
-        .await
-        .map_err(|_| "native command unavailable")?
+    app.state::<Desktop>().call("POST", &path, body).await
 }
 #[tauri::command]
 fn factory_stream(
@@ -284,23 +310,26 @@ fn factory_stream(
     }
     let id = state.windows.fetch_add(1, Ordering::SeqCst).to_string();
     let active = Arc::new(AtomicBool::new(true));
-    streams.insert(id.clone(), (window.label().into(), active.clone()));
     let epoch = state.generation.load(Ordering::SeqCst);
-    drop(streams);
     let observed = id.clone();
-    std::thread::spawn(move || {
+    let stream_app = app.clone();
+    let stream_active = active.clone();
+    let task = tauri::async_runtime::spawn(async move {
         loop {
-            let state = app.state::<Desktop>();
-            if !active.load(Ordering::SeqCst)
+            let state = stream_app.state::<Desktop>();
+            if !stream_active.load(Ordering::SeqCst)
                 || epoch != state.generation.load(Ordering::SeqCst)
                 || state.quitting.load(Ordering::SeqCst)
             {
                 break;
             }
-            match state.call("GET", &format!("/api/factory/runs/{run}"), Value::Null) {
+            match state
+                .call("GET", &format!("/api/factory/runs/{run}"), Value::Null)
+                .await
+            {
                 Ok(reply) => {
                     let stop = reply.status >= 400;
-                    if !active.load(Ordering::SeqCst)
+                    if !stream_active.load(Ordering::SeqCst)
                         || epoch != state.generation.load(Ordering::SeqCst)
                         || channel.send(reply).is_err()
                         || stop
@@ -310,14 +339,23 @@ fn factory_stream(
                 }
                 Err(_) => break,
             }
-            std::thread::sleep(Duration::from_secs(1));
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        app.state::<Desktop>()
+        stream_app
+            .state::<Desktop>()
             .streams
             .lock()
             .unwrap()
             .remove(&observed);
     });
+    streams.insert(
+        id.clone(),
+        Observation {
+            window: window.label().into(),
+            active,
+            task,
+        },
+    );
     Ok(id)
 }
 #[tauri::command]
@@ -328,13 +366,16 @@ fn cancel_stream(
 ) -> Result<(), String> {
     caller(&window)?;
     let mut streams = state.streams.lock().unwrap();
-    if let Some((owner, active)) = streams.get(&id) {
-        if owner != window.label() {
+    if let Some(stream) = streams.get(&id) {
+        if stream.window != window.label() {
             return Err("observation belongs to another window".into());
         }
-        active.store(false, Ordering::SeqCst);
     }
-    streams.remove(&id);
+    if let Some(stream) = streams.remove(&id) {
+        stream.active.store(false, Ordering::SeqCst);
+        stream.task.abort();
+        join_streams(vec![stream.task]);
+    }
     Ok(())
 }
 fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
@@ -388,18 +429,25 @@ fn quit(app: tauri::AppHandle) {
     app.state::<Desktop>()
         .generation
         .fetch_add(1, Ordering::SeqCst);
-    app.state::<Desktop>().cancel_streams();
+    let streams = app.state::<Desktop>().take_streams(None);
     app.state::<Desktop>().retire_credentials();
     app.state::<Desktop>().status.lock().unwrap().phase = "stopping".into();
-    std::thread::spawn(move || {
-        let result = app
-            .state::<Desktop>()
-            .runtime
-            .lock()
-            .unwrap()
-            .take()
-            .map(|owner| owner.stop());
-        let code = if result.is_some_and(|result| result.is_err()) {
+    tauri::async_runtime::spawn(async move {
+        let runtime_app = app.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            runtime_app
+                .state::<Desktop>()
+                .runtime
+                .lock()
+                .unwrap()
+                .take()
+                .map(|owner| owner.stop())
+        })
+        .await;
+        for stream in streams {
+            let _ = stream.await;
+        }
+        let code = if result.map_or(true, |r| r.is_some_and(|r| r.is_err())) {
             1
         } else {
             0
@@ -444,8 +492,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut credential_check = false;
     #[cfg(feature = "native-check")]
     let mut signin_check = None;
+    #[cfg(feature = "native-check")]
+    let mut control_check = false;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        #[cfg(feature = "native-check")]
+        if arg == "--check-control" {
+            checking = true;
+            control_check = true;
+            continue;
+        }
         #[cfg(feature = "native-check")]
         if arg == "--check-signin"
             || arg == "--check-signin-live"
@@ -536,6 +592,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             resume_check,
             credential_check,
             signin_check,
+            control_check,
         ),
     };
     let builder = tauri::Builder::default()
@@ -609,15 +666,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .await;
                 });
                 let state = window.state::<Desktop>();
-                let mut streams = state.streams.lock().unwrap();
-                streams.retain(|_, (owner, active)| {
-                    if owner == window.label() {
-                        active.store(false, Ordering::SeqCst);
-                        false
-                    } else {
-                        true
-                    }
-                });
+                join_streams(state.take_streams(Some(window.label())));
             }
         })
         .on_page_load(|_window, _payload| {

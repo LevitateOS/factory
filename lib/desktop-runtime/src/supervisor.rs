@@ -29,12 +29,6 @@ pub struct NativeReady {
 }
 enum Control {
     Probe(Sender<Result<NativeReady>>),
-    Product {
-        method: String,
-        target: String,
-        body: Vec<u8>,
-        reply: Sender<Result<soda_unix_http::Response>>,
-    },
     Stop,
     GithubChannel(tokio::sync::oneshot::Sender<Result<NativeChannel>>),
 }
@@ -57,6 +51,7 @@ pub struct NativeSupervisor {
     control: Sender<Control>,
     owner: Option<JoinHandle<Result<()>>>,
     alive: Arc<AtomicBool>,
+    products: Option<crate::product::Products>,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -78,16 +73,39 @@ impl NativeSupervisor {
                         return Err(error);
                     }
                 };
-                let initial = children.health();
-                if started.send(initial.clone()).is_err() || initial.is_err() {
+                let ready = match children.health() {
+                    Ok(ready) => ready,
+                    Err(error) => {
+                        let _ = started.send(Err(error));
+                        return children.stop();
+                    }
+                };
+                let mut products = match crate::product::Owner::start(
+                    NativeChannel {
+                        socket: children.profile.join("backend.sock"),
+                        key: zeroize::Zeroizing::new(children.key.clone()),
+                        instance: ready.instance,
+                        profile: ready.profile,
+                    },
+                    owner_alive.clone(),
+                ) {
+                    Ok(products) => products,
+                    Err(error) => {
+                        let _ = started.send(Err(error));
+                        return children.stop();
+                    }
+                };
+                if started.send(Ok(products.handle.clone())).is_err() {
+                    products.stop()?;
                     return children.stop();
                 }
-                let failure = run_owner(&mut children, commands);
+                let failure = run_owner(&mut children, &products, commands);
                 owner_alive.store(false, Ordering::SeqCst);
+                let requests_stopped = products.stop();
                 let stopped = children.stop();
                 match (failure, stopped) {
                     (Some(error), _) => Err(error),
-                    (None, stopped) => stopped,
+                    (None, stopped) => requests_stopped.and(stopped),
                 }
             })
             .map_err(|_| "native supervisor owner could not start")?;
@@ -95,9 +113,13 @@ impl NativeSupervisor {
             control,
             owner: Some(owner),
             alive,
+            products: None,
         };
         match ready.recv() {
-            Ok(Ok(_)) => Ok(supervisor),
+            Ok(Ok(products)) => {
+                supervisor.products = Some(products);
+                Ok(supervisor)
+            }
             Ok(Err(error)) => {
                 let _ = supervisor.stop_inner();
                 Err(error)
@@ -126,26 +148,24 @@ impl NativeSupervisor {
         target: &str,
         body: &[u8],
     ) -> Result<soda_unix_http::Response> {
-        if !matches!(method, "GET" | "POST")
-            || target.len() > 2048
-            || !target.starts_with("/api/factory/")
-            || target.bytes().any(|b| b.is_ascii_control())
-            || body.len() > 65536
-        {
-            return Err("unsupported native product request".into());
-        }
-        let (reply, response) = mpsc::channel();
-        self.control
-            .send(Control::Product {
-                method: method.into(),
-                target: target.into(),
-                body: body.into(),
-                reply,
-            })
-            .map_err(|_| "native runtime is unavailable")?;
-        response
-            .recv_timeout(Duration::from_secs(20))
-            .map_err(|_| "native product request timed out")?
+        self.products
+            .as_ref()
+            .ok_or("native runtime is unavailable")?
+            .blocking(method, target, body)
+    }
+    /// Owns request inputs and never borrows the supervisor while I/O is pending.
+    /// Dropping the future cancels its request; retirement joins the request owner.
+    pub fn product_request(
+        &self,
+        method: &str,
+        target: &str,
+        body: &[u8],
+    ) -> impl std::future::Future<Output = Result<soda_unix_http::Response>> {
+        let request = self
+            .products
+            .as_ref()
+            .map(|products| products.request(method, target, body));
+        async move { request.ok_or("native runtime is unavailable")?.await }
     }
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
@@ -169,6 +189,10 @@ impl NativeSupervisor {
         let Some(owner) = self.owner.take() else {
             return Ok(());
         };
+        self.alive.store(false, Ordering::SeqCst);
+        if let Some(products) = &self.products {
+            products.retire();
+        }
         let _ = self.control.send(Control::Stop);
         owner.join().map_err(|_| "native supervisor owner failed")?
     }
@@ -180,34 +204,14 @@ impl Drop for NativeSupervisor {
         }
     }
 }
-fn run_owner(children: &mut Children, commands: Receiver<Control>) -> Option<String> {
+fn run_owner(
+    children: &mut Children,
+    products: &crate::product::Owner,
+    commands: Receiver<Control>,
+) -> Option<String> {
     loop {
         match commands.recv_timeout(Duration::from_millis(100)) {
             Ok(Control::Stop) | Err(mpsc::RecvTimeoutError::Disconnected) => return None,
-            Ok(Control::Product {
-                method,
-                target,
-                body,
-                reply,
-            }) => {
-                let result = children.health().and_then(|_| {
-                    request_authenticated(
-                        &children.profile.join("backend.sock"),
-                        &method,
-                        &target,
-                        "soda-native",
-                        &body,
-                        &children.key,
-                        Duration::from_secs(15),
-                        Limits {
-                            header_bytes: 16384,
-                            body_bytes: 2 * 1024 * 1024,
-                        },
-                    )
-                    .map_err(|_| "native product response is unavailable".into())
-                });
-                let _ = reply.send(result);
-            }
             Ok(Control::Probe(reply)) => {
                 let result = children.health();
                 let failed = result.as_ref().err().cloned();
@@ -228,6 +232,9 @@ fn run_owner(children: &mut Children, commands: Receiver<Control>) -> Option<Str
             Err(mpsc::RecvTimeoutError::Timeout) => (),
         }
         if let Err(error) = children.check_children() {
+            return Some(error);
+        }
+        if let Err(error) = products.check_running() {
             return Some(error);
         }
     }

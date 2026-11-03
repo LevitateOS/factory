@@ -13,6 +13,7 @@ pub struct Check {
     crash: bool,
     resume: bool,
     credentials: bool,
+    control: bool,
     signin: Option<SignInMode>,
     stage: AtomicUsize,
     instance: Mutex<Option<String>>,
@@ -25,6 +26,7 @@ impl Check {
         resume: bool,
         credentials: bool,
         signin: Option<SignInMode>,
+        control: bool,
     ) -> Self {
         Self {
             enabled,
@@ -33,6 +35,7 @@ impl Check {
             resume,
             credentials,
             signin,
+            control,
             stage: AtomicUsize::new(0),
             instance: Mutex::new(None),
         }
@@ -47,7 +50,9 @@ pub fn timeout(app: &tauri::AppHandle) {
         std::thread::sleep(Duration::from_secs(
             if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
                 1000
-            } else if app.state::<Desktop>().check.signin.is_some() {
+            } else if app.state::<Desktop>().check.signin.is_some()
+                || app.state::<Desktop>().check.control
+            {
                 90
             } else {
                 45
@@ -66,6 +71,271 @@ pub fn consent_done(app: &tauri::AppHandle) {
         .store(2, Ordering::SeqCst);
     println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
     quit(app.clone());
+}
+fn control_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.state::<Desktop>()
+        .paths
+        .profile
+        .parent()
+        .map(PathBuf::from)
+        .ok_or("control fixture root missing".into())
+}
+fn control_mode(app: &tauri::AppHandle, mode: &str) -> Result<(), String> {
+    if !matches!(mode, "pause" | "release") {
+        return Err("invalid control fixture mode".into());
+    }
+    let io = control_root(app)?.join("io");
+    if mode == "pause" {
+        let _ = std::fs::remove_file(io.join("cancelled"));
+        for entry in std::fs::read_dir(io.join("entered"))
+            .map_err(|_| "control entry markers unavailable")?
+        {
+            let entry = entry.map_err(|_| "control entry marker unavailable")?;
+            if !entry
+                .file_type()
+                .map_err(|_| "control marker type unavailable")?
+                .is_file()
+                || entry
+                    .file_name()
+                    .to_str()
+                    .is_none_or(|s| !s.bytes().all(|b| b.is_ascii_digit() || b == b'-'))
+            {
+                return Err("unexpected control fixture entry".into());
+            }
+            std::fs::remove_file(entry.path()).map_err(|_| "control marker cleanup failed")?;
+        }
+    }
+    std::fs::write(io.join("mode"), mode).map_err(|_| "control fixture mode failed".into())
+}
+fn control_entered(app: &tauri::AppHandle, count: usize) -> bool {
+    std::fs::read_dir(control_root(app).unwrap().join("io/entered"))
+        .is_ok_and(|v| v.count() >= count)
+}
+fn control(app: &tauri::AppHandle, stage: &str) -> Result<(), String> {
+    if let Some(mode) = stage.strip_prefix("control-mode-") {
+        return control_mode(app, mode);
+    }
+    match stage {
+        "control-entered" if control_entered(app, 1) => Ok(()),
+        "control-cancelled" if control_root(app)?.join("io/cancelled").is_file() => Ok(()),
+        "control-pool-done" if control_root(app)?.join("control-pool.json").is_file() => Ok(()),
+        "control-reopen" => app
+            .get_webview_window("main")
+            .ok_or("main window missing")?
+            .show()
+            .map_err(|_| "control window show failed".into()),
+        "control-pool-start" => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = control_pool(&app).await {
+                    eprintln!("Native control check failed: {error}");
+                    app.exit(1);
+                }
+            });
+            Ok(())
+        }
+        "control-done" => {
+            app.state::<Desktop>()
+                .check
+                .stage
+                .store(2, Ordering::SeqCst);
+            println!("PASS: native product/control independence, bounded requests, cancellation, joined retirement and child crash; Quit with a pending actual shell query");
+            quit(app.clone());
+            Ok(())
+        }
+        _ => Err("native control observation pending".into()),
+    }
+}
+async fn control_wait(app: &tauri::AppHandle, count: usize) -> Result<(), String> {
+    for _ in 0..150 {
+        if control_entered(app, count) {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    Err("native product did not enter fixture".into())
+}
+async fn control_pool(app: &tauri::AppHandle) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::time::Instant;
+    let paths = app.state::<Desktop>().paths.clone();
+    let root = control_root(app)?;
+    let profile = root.join("aux-profile");
+    control_mode(app, "release")?;
+    let start_paths = paths.clone();
+    let start_profile = profile.clone();
+    let owner = tauri::async_runtime::spawn_blocking(move || {
+        NativeSupervisor::start(&start_paths.payload, &start_paths.backend, &start_profile)
+    })
+    .await
+    .map_err(|_| "control supervisor start failed")??;
+    // Native-only acceptance reads this owned fixture key without exporting it
+    // to the webview or evidence. Test all instance-header admission shapes.
+    let ready = owner.health()?;
+    let mut key =
+        std::fs::read(profile.join("backend.key")).map_err(|_| "fixture IPC key unavailable")?;
+    for headers in [
+        vec![],
+        vec![("X-Soda-Native-Instance", "00000000000000000000000000000000")],
+        vec![
+            ("X-Soda-Native-Instance", ready.instance.as_str()),
+            ("X-Soda-Native-Instance", ready.instance.as_str()),
+        ],
+    ] {
+        let reply = soda_unix_http::request_authenticated_async(
+            &profile.join("backend.sock"),
+            "GET",
+            "/api/factory/identity",
+            "soda-native",
+            &[],
+            std::str::from_utf8(&key).map_err(|_| "fixture IPC key invalid")?,
+            &headers,
+            Duration::from_secs(2),
+            soda_unix_http::Limits {
+                header_bytes: 8192,
+                body_bytes: 4096,
+            },
+        )
+        .await
+        .map_err(|_| "native product instance probe failed")?;
+        if reply.status != 401 {
+            key.fill(0);
+            return Err("native product accepted missing/wrong/duplicate instance".into());
+        }
+    }
+    key.fill(0);
+    if owner.product("GET", "/api/factory/identity", &[])?.status != 503 {
+        return Err("blocking native product compatibility changed authority".into());
+    }
+    control_mode(app, "pause")?;
+    let mut requests = Vec::new();
+    for _ in 0..16 {
+        requests.push(owner.product_request("GET", "/api/factory/identity", &[]));
+    }
+    control_wait(app, 16).await?;
+    let refused = Instant::now();
+    if owner
+        .product_request("GET", "/api/factory/identity", &[])
+        .await
+        .is_ok()
+        || refused.elapsed() > Duration::from_secs(1)
+    {
+        return Err("native product admission was not bounded".into());
+    }
+    let health = Instant::now();
+    owner.health()?;
+    let health_ms = health.elapsed().as_millis();
+    if health.elapsed() > Duration::from_secs(2) {
+        return Err("pending product requests blocked readiness".into());
+    }
+    drop(requests.pop());
+    for _ in 0..150 {
+        if root.join("io/cancelled").is_file() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    if !root.join("io/cancelled").is_file() {
+        return Err("dropping an unpolled request did not cancel provider I/O".into());
+    }
+    requests.push(owner.product_request("GET", "/api/factory/identity", &[]));
+    control_wait(app, 17).await?;
+    let (stopped, stop_ms) = tauri::async_runtime::spawn_blocking(move || {
+        let t = Instant::now();
+        (owner.stop(), t.elapsed().as_millis())
+    })
+    .await
+    .map_err(|_| "control stop task failed")?;
+    stopped?;
+    if stop_ms > 3000 {
+        return Err("product I/O delayed native stop".into());
+    }
+    for request in requests {
+        if request.await.is_ok() {
+            return Err("retired native product reply escaped".into());
+        }
+    }
+    if profile.join("data/postmaster.pid").is_file() {
+        return Err("joined stop retained PostgreSQL".into());
+    }
+    control_mode(app, "release")?;
+    let start_profile = profile.clone();
+    let owner = tauri::async_runtime::spawn_blocking(move || {
+        NativeSupervisor::start(&paths.payload, &paths.backend, &start_profile)
+    })
+    .await
+    .map_err(|_| "control restart failed")??;
+    let ready = owner.health()?;
+    control_mode(app, "pause")?;
+    let pending = owner.product_request("GET", "/api/factory/identity", &[]);
+    control_wait(app, 1).await?;
+    if !std::process::Command::new("/usr/bin/kill")
+        .args(["-KILL", &ready.backend_process.to_string()])
+        .status()
+        .map_err(|_| "owned control crash failed")?
+        .success()
+    {
+        return Err("owned control crash refused".into());
+    }
+    let crash = Instant::now();
+    let mut failed = false;
+    for _ in 0..100 {
+        if owner.health().is_err() {
+            failed = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    if !failed || pending.await.is_ok() {
+        return Err("pending product masked native child failure".into());
+    }
+    if tauri::async_runtime::spawn_blocking(move || owner.stop())
+        .await
+        .map_err(|_| "crashed control stop failed")?
+        .is_ok()
+    {
+        return Err("crashed native child reported clean retirement".into());
+    }
+    if profile.join("data/postmaster.pid").is_file() {
+        return Err("child crash retained PostgreSQL".into());
+    }
+    control_mode(app, "release")?;
+    let value = serde_json::json!({"bounded_requests":16,"unpolled_drop_cancelled":true,"slot_reclaimed":true,"health_ms":health_ms,"stop_ms":stop_ms,"retired_replies_refused":true,"child_failure_observed":true,"crash_retirement_ms":crash.elapsed().as_millis(),"owned_pg_stopped":true});
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(root.join("control-pool.json"))
+        .map_err(|_| "control proof unavailable")?
+        .write_all(&serde_json::to_vec(&value).unwrap())
+        .map_err(|_| "control proof failed".into())
+}
+fn start_control(app: tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        app.exit(1);
+        return;
+    };
+    let _=window.eval(r#"(async()=>{
+      const invoke=window.__TAURI__.core.invoke,report=stage=>invoke('report',{stage,error:null});
+      const assert=(ok,message)=>{if(!ok)throw Error(message);};
+      const until=async check=>{const deadline=Date.now()+15000;for(;;){if(await check())return;if(Date.now()>deadline)throw Error('native control observation deadline');await new Promise(r=>setTimeout(r,25));}};
+      const observe=stage=>until(async()=>{try{await report(stage);return true;}catch{return false;}});
+      try{
+        await report('control-mode-pause');
+        const pending=invoke('factory_query',{query:{kind:'identity'}});await observe('control-entered');
+        const t=performance.now(),s=await invoke('runtime_status');assert(s.phase==='ready'&&performance.now()-t<2000,'pending shell query blocked native status');
+        await report('control-mode-release');assert((await pending).status===503,'fixture query changed unavailable authority');
+        let replies=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>replies++;
+        await report('control-mode-pause');const stream=await invoke('factory_stream',{run:'a'.repeat(32),channel});await observe('control-entered');
+        await invoke('cancel_stream',{id:stream});await observe('control-cancelled');assert(replies===0,'cancelled stream published a reply');
+        await report('control-mode-pause');await invoke('factory_stream',{run:'b'.repeat(32),channel});await observe('control-entered');
+        await invoke('close_window');await observe('control-cancelled');await report('control-reopen');assert(replies===0,'closed window received a stream reply');
+        await report('control-pool-start');await observe('control-pool-done');
+        await report('control-mode-pause');void invoke('factory_query',{query:{kind:'identity'}}).catch(()=>{});await observe('control-entered');
+        await report('control-done');
+      }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+    })()"#);
 }
 pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
     if window.label() != "main" || !window.state::<Desktop>().check.enabled {
@@ -128,6 +398,9 @@ pub fn report(
         app.exit(1);
         return Ok(());
     }
+    if state.check.control && stage.starts_with("control-") {
+        return control(&app, &stage);
+    }
     if state.check.signin.is_some() && stage == "signin-done" {
         state.check.stage.store(2, Ordering::SeqCst);
         println!("PASS: actual Linux Tauri/WebKit desktop sign-in, native prompt/metadata custody and cancellation; declared positive authorization is separate from real human consent");
@@ -186,6 +459,10 @@ pub fn report(
     );
     if state.check.credentials {
         crate::check_credentials::start(app);
+        return Ok(());
+    }
+    if state.check.control {
+        start_control(app);
         return Ok(());
     }
     if let Some(mode) = state.check.signin {

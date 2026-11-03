@@ -22,7 +22,10 @@ staging script enables the `native-ui` feature.
 
 Closing windows hides them and keeps the runtime alive. Launching again for the
 same profile activates its main window. Quit stops admission and observations,
-then stops Go before PostgreSQL. Startup failure is visible in the toolbar;
+joins cancelled request/observation tasks, then stops Go before PostgreSQL.
+Product calls await outside the lifecycle mutex. Stream cancellation or closure
+of its owning window aborts and joins that polling task and its pending request.
+Startup failure is visible in the toolbar;
 Retry startup retries the same retained profile. UI refresh and visibility changes
 request fresh native readiness. A dead backend or database retires the binding.
 
@@ -54,6 +57,14 @@ after runtime restart. A locked or absent keyring reports an error; there is no
 file fallback. Native refresh transport/custody exists; automatic connection
 management, canonical account/repository binding and connected browsing remain
 later consumers. A saved GitHub account does not itself admit Factory work.
+
+`--check-control` extends the opt-in native acceptance root with a declared slow
+trusted Go product binding over real private PostgreSQL/Go/IPC. It checks shell
+status during a pending query, polling cancellation/window closure, bounded
+native admission, dropped-future cancellation, request retirement, child failure,
+instance-header refusal and Quit while a real shell query is pending. Its fixture
+markers and control observer are absent from normal builds. It does not qualify
+provider login, execution or an installed distribution.
 
 For a real compositor/WebKit integration run, build with `--check`, then launch
 the staged executable with `--check`. This feature alone includes a native

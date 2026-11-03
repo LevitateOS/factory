@@ -11,3 +11,5 @@ pub mod github_device;
 pub mod database;
 #[cfg(target_os = "linux")]
 pub mod supervisor;
+#[cfg(target_os = "linux")]
+mod product;

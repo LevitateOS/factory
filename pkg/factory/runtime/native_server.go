@@ -29,6 +29,17 @@ type NativeConnector func(collaboration.Profile, *store.Store) http.Handler
 // process recovers proved interrupted assessments before readiness, without
 // adopting a ledger, reconciling unobserved runs or starting background work.
 func RunNative(ctx context.Context, path string, connector NativeConnector) (runErr error) {
+	return runNative(ctx, path, connector, nil)
+}
+
+// RunNativeWithBinding composes the existing per-request trusted product port.
+// It supplies no actor from readiness/IPC: the binding must freshly establish
+// its own account authority. Product binding remains inside coordinator admission.
+func RunNativeWithBinding(ctx context.Context, path string, connector NativeConnector, binding NativeProductBinding) error {
+	return runNative(ctx, path, connector, binding)
+}
+
+func runNative(ctx context.Context, path string, connector NativeConnector, binding NativeProductBinding) (runErr error) {
 	config, err := LoadNative(path)
 	if err != nil {
 		return err
@@ -51,7 +62,7 @@ func RunNative(ctx context.Context, path string, connector NativeConnector) (run
 		return errors.New("native Factory database startup failed")
 	}
 	defer func() { runErr = errors.Join(runErr, db.Close()) }()
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db}, nil)
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {
@@ -103,8 +114,15 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 	instance := collaboration.NewID()
 	mux := http.NewServeMux()
 	db := application.application.Store
-	mux.Handle("/api/factory/", application)
-	mux.Handle("/api/repositories/", application)
+	product := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {
+			nativeResponse(w, 401, map[string]string{"error": "retired_native_instance"})
+			return
+		}
+		application.ServeHTTP(w, r)
+	})
+	mux.Handle("/api/factory/", product)
+	mux.Handle("/api/repositories/", product)
 	if connector != nil {
 		nativeConnector := application.application.Coordinator.AdmitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {
