@@ -18,6 +18,16 @@ pub enum Read {
         page: u32,
         limit: u32,
     },
+    CanonicalIssues {
+        repository: String,
+        page: u32,
+        limit: u32,
+        state: String,
+    },
+    CanonicalIssue {
+        repository: String,
+        number: u32,
+    },
     Repositories {
         page: u32,
         limit: u32,
@@ -242,6 +252,88 @@ fn canonical_page_matches(body: &Value, page: u64, limit: u64) -> bool {
         })
 }
 
+fn canonical_actor_matches(value: &Value, host: &Value) -> bool {
+    value.is_null()
+        || canonical_id(&value["id"])
+            && canonical_id(&value["external_id"])
+            && value["host"] == *host
+            && value["login"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty() && !s.chars().any(char::is_control))
+}
+fn canonical_issue_page_matches(
+    body: &Value,
+    repository: &Value,
+    number: Option<u64>,
+    page: u64,
+    limit: u64,
+    state: &str,
+) -> bool {
+    let p = &body["issues"];
+    let Some(items) = p["items"].as_array().filter(|v| v.len() as u64 <= limit) else {
+        return false;
+    };
+    let Some(next) = p["next"].as_str() else {
+        return false;
+    };
+    let host = &body["binding"]["host"]["id"];
+    let observed = |v: &Value| {
+        v["state"] == "available"
+            && v["revision"]
+                .as_str()
+                .is_some_and(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+            && v["observed_at"].as_str().is_some_and(|s| !s.is_empty())
+    };
+    let mut ids = std::collections::HashSet::new();
+    let mut numbers = std::collections::HashSet::new();
+    body["repository"] == *repository
+        && observed(&p["observation"])
+        && p["complete"] == next.is_empty()
+        && (next.is_empty()
+            || next
+                .parse::<u64>()
+                .is_ok_and(|n| n > page && n <= 1_000_000 && n.to_string() == next))
+        && number.is_none_or(|_| next.is_empty() && items.len() == 1)
+        && items.iter().all(|item| {
+            let r = &item["ref"];
+            r["kind"] == "issue"
+                && r["repository"] == *repository
+                && canonical_id(&r["external_id"])
+                && canonical_id(&r["number"])
+                && ids.insert(r["external_id"].as_str().unwrap())
+                && numbers.insert(r["number"].as_str().unwrap())
+                && number.is_none_or(|n| r["number"] == n.to_string())
+                && observed(&item["observation"])
+                && item["title"].is_string()
+                && item["body"].is_string()
+                && matches!(item["state"].as_str(), Some("open" | "closed"))
+                && (number.is_some()
+                    || state == "all"
+                    || item["state"] == if state.is_empty() { "open" } else { state })
+                && (item["locked"].is_null() || item["locked"].is_boolean())
+                && canonical_actor_matches(&item["author"], host)
+                && (item["assignees"].is_null()
+                    || item["assignees"].as_array().is_some_and(|a| {
+                        a.len() <= 1000
+                            && a.iter()
+                                .all(|v| !v.is_null() && canonical_actor_matches(v, host))
+                    }))
+                && (item["labels"].is_null()
+                    || item["labels"].as_array().is_some_and(|a| {
+                        a.len() <= 1000
+                            && a.iter().all(|v| {
+                                canonical_id(&v["external_id"])
+                                    && v["name"].is_string()
+                                    && v["color"].is_string()
+                            })
+                    }))
+                && ["created_at", "updated_at", "closed_at"]
+                    .iter()
+                    .all(|key| item[*key].is_null() || item[*key].is_string())
+                && item["capabilities"].is_null()
+        })
+}
+
 impl NativeSupervisor {
     /// Preserve the complete unpersisted grant while verifying its access token.
     /// Failure drops access and refresh secrets together; storage remains native.
@@ -314,6 +406,7 @@ impl NativeSupervisor {
             match &query {
                 Read::Repositories { page, limit }
                 | Read::CanonicalRepositories { page, limit }
+                | Read::CanonicalIssues { page, limit, .. }
                 | Read::Issues { page, limit, .. }
                 | Read::Pulls { page, limit, .. }
                 | Read::PullReviews { page, limit, .. }
@@ -355,6 +448,8 @@ impl NativeSupervisor {
             }
             match &query {
                 Read::Repository { repository }
+                | Read::CanonicalIssues { repository, .. }
+                | Read::CanonicalIssue { repository, .. }
                 | Read::Issues { repository, .. }
                 | Read::Issue { repository, .. }
                 | Read::Pulls { repository, .. }
@@ -379,6 +474,7 @@ impl NativeSupervisor {
             }
             match &query {
                 Read::Issue { number: 0, .. }
+                | Read::CanonicalIssue { number: 0, .. }
                 | Read::Pull { number: 0, .. }
                 | Read::PullDiff { number: 0, .. }
                 | Read::PullFiles { number: 0, .. }
@@ -390,7 +486,9 @@ impl NativeSupervisor {
                 | Read::PullCommitStatuses { number: 0, .. }
                 | Read::IssueComments { number: 0, .. }
                 | Read::PullComments { number: 0, .. } => return Err(Error::Invalid),
-                Read::Issues { state, .. } | Read::Pulls { state, .. }
+                Read::Issues { state, .. }
+                | Read::CanonicalIssues { state, .. }
+                | Read::Pulls { state, .. }
                     if !matches!(state.as_str(), "" | "open" | "closed" | "all") =>
                 {
                     return Err(Error::Invalid)
@@ -421,7 +519,20 @@ impl NativeSupervisor {
             body["account"] = Value::String(account.account.clone());
             body["connection"] = Value::String(account.connection.clone());
             let kind = body["kind"].clone();
-            let canonical = kind == "binding" || kind == "canonical_repositories";
+            let canonical = matches!(
+                kind.as_str(),
+                Some("binding" | "canonical_repositories" | "canonical_issues" | "canonical_issue")
+            );
+            let canonical_issue =
+                matches!(kind.as_str(), Some("canonical_issues" | "canonical_issue")).then(|| {
+                    (
+                        body["repository"].clone(),
+                        body["number"].as_u64(),
+                        body["page"].as_u64().unwrap_or(1),
+                        body["limit"].as_u64().unwrap_or(1),
+                        body["state"].as_str().unwrap_or("").to_owned(),
+                    )
+                });
             let canonical_page = (kind == "canonical_repositories").then(|| {
                 (
                     body["page"].as_u64().unwrap(),
@@ -559,6 +670,13 @@ impl NativeSupervisor {
                             || canonical_page.is_some_and(|(page, limit)| {
                                 !canonical_page_matches(&body, page, limit)
                             })
+                            || canonical_issue.as_ref().is_some_and(
+                                |(repository, number, page, limit, state)| {
+                                    !canonical_issue_page_matches(
+                                        &body, repository, *number, *page, *limit, state,
+                                    )
+                                },
+                            )
                             || resource_scope.as_ref().is_some_and(|(field, repository)| {
                                 body[*field]["repository"] != *repository
                             })

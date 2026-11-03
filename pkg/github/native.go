@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/strictjson"
 )
 
@@ -75,9 +76,9 @@ func newNativeReadHandler(network http.RoundTripper, scope *NativeAccountScope) 
 		files := query.Kind == "pull_files"
 		reviews := query.Kind == "pull_reviews" || query.Kind == "pull_review" || query.Kind == "pull_review_comments" || query.Kind == "pull_review_comment"
 		checks := query.Kind == "pull_check_runs" || query.Kind == "pull_commit_statuses"
-		numbered := query.Kind == "issue" || query.Kind == "pull" || query.Kind == "pull_diff" || files || reviews || checks || discussion
-		paged := query.Kind == "issues" || query.Kind == "pulls" || files || query.Kind == "pull_reviews" || query.Kind == "pull_review_comments" || checks || discussion
-		stateful := query.Kind == "issues" || query.Kind == "pulls"
+		numbered := query.Kind == "issue" || query.Kind == "canonical_issue" || query.Kind == "pull" || query.Kind == "pull_diff" || files || reviews || checks || discussion
+		paged := query.Kind == "issues" || query.Kind == "canonical_issues" || query.Kind == "pulls" || files || query.Kind == "pull_reviews" || query.Kind == "pull_review_comments" || checks || discussion
+		stateful := query.Kind == "issues" || query.Kind == "canonical_issues" || query.Kind == "pulls"
 		if !stateful && query.State != "" || !numbered && query.Number != 0 {
 			fail(400, "invalid_native_read")
 			return
@@ -138,7 +139,7 @@ func newNativeReadHandler(network http.RoundTripper, scope *NativeAccountScope) 
 				fail(400, "invalid_native_read")
 				return
 			}
-		case "repository", "issues", "issue", "pulls", "pull", "pull_diff", "pull_files", "pull_reviews", "pull_review", "pull_review_comments", "pull_review_comment", "pull_check_runs", "pull_commit_statuses", "issue_comments", "pull_comments":
+		case "repository", "issues", "issue", "canonical_issues", "canonical_issue", "pulls", "pull", "pull_diff", "pull_files", "pull_reviews", "pull_review", "pull_review_comments", "pull_review_comment", "pull_check_runs", "pull_commit_statuses", "issue_comments", "pull_comments":
 			repository, err = strconv.ParseInt(query.Repository, 10, 64)
 			if err != nil || repository < 1 || strconv.FormatInt(repository, 10) != query.Repository ||
 				paged && !pageQuery(query.Page, query.Limit) || !paged && (query.Page != 0 || query.Limit != 0) || numbered && query.Number < 1 ||
@@ -192,7 +193,7 @@ func newNativeReadHandler(network http.RoundTripper, scope *NativeAccountScope) 
 			fail(409, "github_account_changed")
 			return
 		}
-		if query.Kind == "binding" || query.Kind == "canonical_repositories" {
+		if query.Kind == "binding" || query.Kind == "canonical_repositories" || query.Kind == "canonical_issues" || query.Kind == "canonical_issue" {
 			if scope == nil || !scope.valid() {
 				fail(503, "canonical_account_unavailable")
 				return
@@ -206,6 +207,29 @@ func newNativeReadHandler(network http.RoundTripper, scope *NativeAccountScope) 
 			return map[string]any{"external_id": strconv.FormatInt(id, 10), "name": name, "private": private, "default_branch": branch}
 		}
 		switch query.Kind {
+		case "canonical_issues", "canonical_issue":
+			binding, err := scope.bind(ctx, query.Connection, strconv.FormatInt(user.GetID(), 10), user.GetLogin())
+			if err != nil {
+				bindingError(w, err)
+				return
+			}
+			q := factoryservice.CollaborationIssueQuery{Limit: query.Limit, State: query.State}
+			if query.Kind == "canonical_issue" {
+				q.Limit, q.Number = 1, int64(query.Number)
+			} else if query.Page != 1 {
+				q.Cursor = strconv.Itoa(query.Page)
+			}
+			reader := factoryservice.CollaborationIssues{Source: CanonicalIssueSource{Client: client, Scope: *scope, Binding: binding}}
+			page, err := reader.Read(ctx, binding.Actor.ID, collaboration.RepositoryID(repository), q)
+			if err != nil {
+				if errors.Is(err, collaboration.ErrIdentityConflict) || errors.Is(err, collaboration.ErrUnboundLedger) {
+					bindingError(w, err)
+				} else {
+					providerError(err)
+				}
+				return
+			}
+			result["binding"], result["repository"], result["issues"] = binding, query.Repository, page
 		case "binding":
 			binding, err := scope.bind(ctx, query.Connection, strconv.FormatInt(user.GetID(), 10), user.GetLogin())
 			if err != nil {

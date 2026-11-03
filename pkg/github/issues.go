@@ -151,7 +151,13 @@ func validIssue(issue *sdk.Issue, owner, name string) bool {
 		issue.GetRepositoryURL() == "https://api.github.com/repos/"+owner+"/"+name
 }
 func issueRecord(issue *sdk.Issue) (IssueRecord, error) {
-	record := IssueRecord{ExternalID: strconv.FormatInt(issue.GetID(), 10), Number: issue.GetNumber(), Title: issue.GetTitle(), Body: issue.GetBody(), State: issue.GetState(), Locked: issue.Locked, Assignees: []IssueActor{}, Labels: []IssueLabel{}, CreatedAt: issueTime(issue.CreatedAt), UpdatedAt: issueTime(issue.UpdatedAt), ClosedAt: issueTime(issue.ClosedAt)}
+	record := IssueRecord{ExternalID: strconv.FormatInt(issue.GetID(), 10), Number: issue.GetNumber(), Title: issue.GetTitle(), Body: issue.GetBody(), State: issue.GetState(), Locked: issue.Locked, CreatedAt: issueTime(issue.CreatedAt), UpdatedAt: issueTime(issue.UpdatedAt), ClosedAt: issueTime(issue.ClosedAt)}
+	if issue.Assignees != nil {
+		record.Assignees = []IssueActor{}
+	}
+	if issue.Labels != nil {
+		record.Labels = []IssueLabel{}
+	}
 	if issue.User != nil {
 		author, err := issueActor(issue.User)
 		if err != nil {

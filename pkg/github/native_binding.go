@@ -18,6 +18,8 @@ import (
 type NativeAccountRegistry interface {
 	BindCollaborationConnection(context.Context, collaboration.ConnectionObservation) (collaboration.ConnectionBinding, error)
 	ObserveCollaborationConnectionRepository(context.Context, collaboration.ConnectionRef, string, string) (collaboration.RepositoryRef, error)
+	CollaborationRepositoryOnHost(context.Context, collaboration.HostID, collaboration.RepositoryID) (collaboration.RepositoryRef, error)
+	ObserveCollaborationActor(context.Context, collaboration.HostID, string, string) (collaboration.ActorRef, error)
 }
 
 // NativeAccountScope is fixed by trusted runtime composition for its lifetime.
@@ -54,14 +56,19 @@ func canonicalRepositoryPage(binding collaboration.ConnectionBinding, items []co
 	}
 	// A content-derived version of this account/page observation, not a global
 	// inventory version or permission receipt. Include scope and pagination.
-	facts, _ := json.Marshal(struct {
+	facts := struct {
 		Connection        collaboration.ConnectionRef
 		Items             []collaboration.RepositoryRef
 		Page, Limit, Next int
-	}{binding.Connection, items, page, limit, next})
-	digest := sha256.Sum256(facts)
+	}{binding.Connection, items, page, limit, next}
 	return collaboration.Page[collaboration.RepositoryRef]{
-		Observation: collaboration.Observation{State: collaboration.ReadAvailable, Revision: collaboration.Revision(hex.EncodeToString(digest[:])), ObservedAt: time.Now().UTC()},
+		Observation: collaboration.Observation{State: collaboration.ReadAvailable, Revision: canonicalRevision(facts), ObservedAt: time.Now().UTC()},
 		Items:       items, Next: cursor, Complete: next == 0,
 	}
+}
+
+func canonicalRevision(facts any) collaboration.Revision {
+	encoded, _ := json.Marshal(facts)
+	digest := sha256.Sum256(encoded)
+	return collaboration.Revision(hex.EncodeToString(digest[:]))
 }

@@ -300,3 +300,14 @@ active Factory account, admit execution or add browser token commands. Native
 acceptance uses actual keyring/PG/Go/IPC with declared positive provider facts
 and actual GitHub invalid-credential refusals; full live canonical UI
 qualification remains downstream.
+
+`Read::CanonicalIssues` and `Read::CanonicalIssue` select a canonical local
+repository ID; `Read::Issues`/`Issue` retain remote-ID semantics. Canonical issue
+operations share owned-profile and current credential guards with canonical
+account/catalogue reads. Go resolves host-scoped repository identity and rechecks
+current account/provider visibility. Rust checks returned local repository,
+issue kind/number, opaque record identity, participants, filters, nullable facts
+and paging. Empty filtered pages may have a continuation; PR wrappers cannot
+become ordinary issue detail. Capabilities remain unknown. Native acceptance
+qualifies declared positives and real authentication refusal, cancellation and
+retained IDs after restart. Connected UI/live canonical journeys remain consumers.

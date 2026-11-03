@@ -116,7 +116,8 @@ type Issue struct {
 	Observation  Observation   `json:"observation"`
 	Title        string        `json:"title"`
 	Body         string        `json:"body"`
-	State        string        `json:"state"` // open, closed, unknown
+	State        string        `json:"state"`  // open, closed, unknown
+	Locked       *bool         `json:"locked"` // null means not observed
 	Author       *ActorRef     `json:"author"`
 	Assignees    []ActorRef    `json:"assignees"`
 	Labels       []Label       `json:"labels"`

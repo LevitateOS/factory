@@ -85,6 +85,7 @@ export interface Issue {
   title: string;
   body: string;
   state: 'open' | 'closed' | 'unknown';
+  locked?: boolean | null;
   author: ActorRef | null;
   assignees: readonly ActorRef[] | null;
   labels: readonly Label[] | null;

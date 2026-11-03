@@ -147,20 +147,34 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
             .capability(&saved.connection)
             .await
             .map_err(|e| e.to_string())?;
-        let read = state
-            .runtime
-            .lock()
-            .unwrap()
-            .as_ref()
-            .ok_or("runtime missing")?
-            .github_read(&other, &other_cap, GitHubRead::Binding);
-        ensure(
-            matches!(
-                read.await,
-                Err(soda_desktop_runtime::github::Error::Invalid)
-            ),
-            "foreign credential profile bound runtime ledger",
-        )?;
+        for query in [
+            GitHubRead::Binding,
+            GitHubRead::CanonicalIssues {
+                repository: "1".into(),
+                page: 1,
+                limit: 2,
+                state: "open".into(),
+            },
+            GitHubRead::CanonicalIssue {
+                repository: "1".into(),
+                number: 7,
+            },
+        ] {
+            let read = state
+                .runtime
+                .lock()
+                .unwrap()
+                .as_ref()
+                .ok_or("runtime missing")?
+                .github_read(&other, &other_cap, query);
+            ensure(
+                matches!(
+                    read.await,
+                    Err(soda_desktop_runtime::github::Error::Invalid)
+                ),
+                "foreign credential profile reached canonical operation",
+            )?;
+        }
         other
             .withdraw(&saved.connection)
             .await
@@ -191,6 +205,7 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
             binding == proof["binding"] && page["items"][0] == proof["repository"],
             "runtime restart changed canonical account/repository",
         )?;
+        issue_checks(app, connection, &binding, &page["items"][0], true).await?;
         return write_consent_evidence(
             app,
             "canonical-binding-retained.json",
@@ -315,12 +330,293 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
         restored["binding"] == binding && restored["repositories"]["items"][0] == page["items"][0],
         "refusal/cancellation rebound native mappings",
     )?;
+    issue_checks(app, connection, &binding, &page["items"][0], false).await?;
     write_consent_evidence(
         app,
         "canonical-binding.json",
         &serde_json::json!({
             "binding":binding,"repository":page["items"][0],"declared_positive_provider":true,
             "actual_github_refusals":2,"paging":true,"rename_reconnect":true,"cancellation":true
+        }),
+    )
+}
+async fn issue_checks(
+    app: &tauri::AppHandle,
+    connection: &str,
+    binding: &serde_json::Value,
+    repo: &serde_json::Value,
+    retained: bool,
+) -> Result<(), String> {
+    use soda_desktop_runtime::github::Read as GitHubRead;
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    let repository = repo["id"]
+        .as_str()
+        .ok_or("canonical repository missing")?
+        .to_owned();
+    let query = |page, state: &str| GitHubRead::CanonicalIssues {
+        repository: repository.clone(),
+        page,
+        limit: 2,
+        state: state.into(),
+    };
+    let first = consent_read(app, connection, query(1, "open")).await?;
+    let item = &first["issues"]["items"][0];
+    let expected = format!(
+        "# Context\n\n<script>never run</script>\n\n{}",
+        "Full Markdown survives.\n".repeat(4096)
+    );
+    ensure(
+        first["repository"] == repository
+            && first["issues"]["items"]
+                .as_array()
+                .is_some_and(|a| a.len() == 1)
+            && first["issues"]["next"] == "2"
+            && first["issues"]["complete"] == false
+            && item["ref"]["repository"] == repository
+            && item["ref"]["number"] == "7"
+            && item["ref"]["external_id"] == "9007199254741001"
+            && item["body"] == expected
+            && item["author"]["external_id"] == "9007199254740997"
+            && item["author"]["id"] != item["author"]["external_id"]
+            && item["author"]["host"] == binding["host"]["id"]
+            && item["assignees"][0]["id"] == binding["actor"]["id"]
+            && item["labels"][0]["external_id"] == "9007199254740999"
+            && item["created_at"] == "2026-11-02T09:00:00Z"
+            && item["capabilities"].is_null(),
+        "canonical issue content/participants/page scope invalid",
+    )?;
+    if retained {
+        let proof: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("canonical-issues.json"))
+                .map_err(|_| "issue proof missing")?,
+        )
+        .map_err(|_| "issue proof invalid")?;
+        ensure(
+            item["ref"] == proof["issue"] && item["author"] == proof["author"],
+            "restart lost canonical issue/author mapping",
+        )?;
+        return write_consent_evidence(
+            app,
+            "canonical-issues-retained.json",
+            &serde_json::json!({"retained_issue_scope":true,"retained_participant":true}),
+        );
+    }
+    let empty = consent_read(app, connection, query(2, "open")).await?;
+    ensure(
+        empty["issues"]["items"]
+            .as_array()
+            .is_some_and(|a| a.is_empty())
+            && empty["issues"]["next"] == "3"
+            && empty["issues"]["complete"] == false,
+        "PR filtering invented end-of-list",
+    )?;
+    let last = consent_read(app, connection, query(3, "open")).await?;
+    let unknown = &last["issues"]["items"][0];
+    ensure(
+        last["issues"]["next"] == ""
+            && last["issues"]["complete"] == true
+            && unknown["ref"]["number"] == "10"
+            && [
+                "author",
+                "assignees",
+                "labels",
+                "locked",
+                "created_at",
+                "updated_at",
+                "closed_at",
+                "capabilities",
+            ]
+            .iter()
+            .all(|key| unknown[*key].is_null()),
+        "canonical issue invented unknown metadata",
+    )?;
+    let closed = consent_read(app, connection, query(1, "closed")).await?;
+    ensure(
+        closed["issues"]["items"][0]["state"] == "closed",
+        "closed issue filter lost",
+    )?;
+    let all = consent_read(app, connection, query(1, "all")).await?;
+    ensure(
+        all["issues"]["items"]
+            .as_array()
+            .is_some_and(|a| a.len() == 2)
+            && all["issues"]["items"][0]["state"] == "closed"
+            && all["issues"]["items"][1]["state"] == "open",
+        "all issue filter lost",
+    )?;
+    let detail = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalIssue {
+            repository: repository.clone(),
+            number: 7,
+        },
+    )
+    .await?;
+    ensure(
+        detail["issues"]["items"][0]["state"] == "closed"
+            && detail["issues"]["items"][0]["locked"] == true
+            && detail["issues"]["items"][0]["body"] == expected
+            && detail["issues"]["next"] == "",
+        "any-state issue detail lost content/lock facts",
+    )?;
+    for number in [8, 404] {
+        let reply = native_github_read(
+            app,
+            connection,
+            GitHubRead::CanonicalIssue {
+                repository: repository.clone(),
+                number,
+            },
+        )
+        .await?;
+        ensure(
+            reply.status == 404 && reply.body.get("issues").is_none(),
+            "PR wrapper/missing issue became ordinary issue detail",
+        )?;
+    }
+    let reply = native_github_read(
+        app,
+        connection,
+        GitHubRead::CanonicalIssues {
+            repository: repo["external_id"].as_str().unwrap().into(),
+            page: 1,
+            limit: 2,
+            state: "open".into(),
+        },
+    )
+    .await?;
+    ensure(
+        reply.status == 404 && reply.body.get("issues").is_none(),
+        "remote repository number bypassed canonical lookup",
+    )?;
+    let foreign: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(io.join("foreign-repository.json"))
+            .map_err(|_| "foreign fixture mapping missing")?,
+    )
+    .map_err(|_| "foreign fixture mapping invalid")?;
+    let reply = native_github_read(
+        app,
+        connection,
+        GitHubRead::CanonicalIssues {
+            repository: foreign["id"]
+                .as_str()
+                .ok_or("foreign repository ID missing")?
+                .into(),
+            page: 1,
+            limit: 2,
+            state: "open".into(),
+        },
+    )
+    .await?;
+    ensure(
+        reply.status == 404 && reply.body.get("issues").is_none(),
+        "foreign provider repository reached issue source",
+    )?;
+    std::fs::write(io.join("mode"), "issues-rename").map_err(|_| "fixture mode failed")?;
+    let renamed = consent_read(app, connection, query(1, "open")).await?;
+    ensure(
+        renamed["issues"]["items"][0]["ref"] == item["ref"]
+            && renamed["issues"]["items"][0]["author"]["id"] == item["author"]["id"]
+            && renamed["issues"]["items"][0]["author"]["login"] == "renamed-author"
+            && renamed["issues"]["items"][0]["observation"]["revision"]
+                != item["observation"]["revision"],
+        "repository/participant rename changed canonical issue identity",
+    )?;
+    for (mode, status) in [
+        ("issues-denied", 403),
+        ("issues-final-denied", 404),
+        ("issues-name-reused", 404),
+        ("issues-live-refusal", 401),
+    ] {
+        std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed")?;
+        let reply = native_github_read(app, connection, query(1, "open")).await?;
+        ensure(
+            reply.status == status && reply.body.get("issues").is_none(),
+            "failed canonical issue read released cached records",
+        )?;
+        if mode == "issues-live-refusal" {
+            let reply = native_github_read(
+                app,
+                connection,
+                GitHubRead::CanonicalIssue {
+                    repository: repository.clone(),
+                    number: 7,
+                },
+            )
+            .await?;
+            ensure(
+                reply.status == 401 && reply.body.get("issues").is_none(),
+                "actual GitHub refusal admitted canonical issue detail",
+            )?;
+        }
+    }
+    for name in ["entered", "cancelled"] {
+        let _ = std::fs::remove_file(io.join(name));
+    }
+    std::fs::write(io.join("mode"), "issues-pause").map_err(|_| "fixture mode failed")?;
+    let task_app = app.clone();
+    let task_connection = connection.to_owned();
+    let task_repository = repository.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        native_github_read(
+            &task_app,
+            &task_connection,
+            GitHubRead::CanonicalIssues {
+                repository: task_repository,
+                page: 1,
+                limit: 2,
+                state: "open".into(),
+            },
+        )
+        .await
+    });
+    for _ in 0..100 {
+        if io.join("entered").is_file() {
+            break;
+        }
+        tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(20)))
+            .await
+            .map_err(|_| "issue pause observer stopped")?;
+    }
+    ensure(
+        io.join("entered").is_file(),
+        "canonical issue read never entered provider",
+    )?;
+    task.abort();
+    let _ = task.await;
+    for _ in 0..100 {
+        if io.join("cancelled").is_file() {
+            break;
+        }
+        tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(20)))
+            .await
+            .map_err(|_| "issue cancel observer stopped")?;
+    }
+    ensure(
+        io.join("cancelled").is_file(),
+        "canonical issue cancellation did not reach provider",
+    )?;
+    std::fs::write(io.join("mode"), "grant").map_err(|_| "fixture mode failed")?;
+    let restored = consent_read(app, connection, query(1, "open")).await?;
+    ensure(
+        restored["issues"]["items"][0]["ref"] == item["ref"]
+            && restored["issues"]["items"][0]["author"] == item["author"],
+        "refusal/rename/cancel rebound issue participant",
+    )?;
+    write_consent_evidence(
+        app,
+        "canonical-issues.json",
+        &serde_json::json!({
+            "issue":item["ref"],"author":item["author"],"full_markdown_bytes":expected.len(),
+            "declared_positive_provider":true,"actual_github_refusals":2,"filtered_empty_continuation":true,
+            "nullable_facts":true,"unknown_mutation_capabilities":true,"rename_stable":true,"cancellation":true
         }),
     )
 }

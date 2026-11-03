@@ -42,8 +42,8 @@ visibility failure and cancelled/expired reads refuse rather than return an
 unverified page. The whole list/detail operation shares an eight-second budget.
 
 IssueRecord/IssuePage contain provider-local facts, not canonical product IDs.
-Canonical repository/participant mapping belongs to the connected consumer;
-reading public provider facts does not authenticate or admit a product account.
+`CanonicalIssueSource` maps current-account repository/participant identity through
+the existing registry. Public provider reads alone still do not admit an account.
 
 `Discussion` reads one ordinary issue or PR comment page for an explicit parent
 kind/number and stable repository ID. It verifies the parent using the matching
@@ -302,3 +302,31 @@ acceptance qualifies the actual Rust/Go/OS-keyring/PostgreSQL path with declared
 positive provider responses, account/repository rename, reconnect, cancellation,
 refusal and backend restart, plus actual GitHub invalid-credential 401s. It does
 not relabel declared positive canonical reads as successful live GitHub reads.
+
+## Canonical issues
+
+`CanonicalIssueSource` implements the neutral `CollaborationIssueSource` inside
+one current native credential operation. It validates actor/query scope, freshly
+verifies `/user`, resolves the selected canonical repository on its configured
+host, and reuses the existing stable-ID/locator-checked SDK issue reads. Only then
+does it re-observe repository/connection and map actual author/assignee identities.
+Missing/query errors retain neutral service and provider classifications.
+
+`canonical_issues`/`canonical_issue` take canonical local repository IDs; the
+existing `issues`/`issue` selectors retain remote-ID semantics. Canonical replies
+contain binding, explicit local repository scope and neutral issue pages. Rust
+checks profile/connection/host, issue kind/repository/number, participant scope,
+requested state/detail and bounded paging. Cross-provider collisions refuse.
+
+Full Markdown, labels, dates and nullable author/lock facts are preserved. Absent
+SDK assignee/label arrays remain null; observed empty arrays remain empty. The
+neutral issue contract carries nullable `locked` (optional for older TypeScript
+producers). Capabilities remain null until their current actor/resource source
+observes them. Content versions describe scoped reads, never mutation authority.
+
+PR wrappers are filtered without scanning. An empty page may have a continuation;
+the canonical service/native transport accepts this. The connected UI consumer
+must remove its current empty-nonterminal parser refusal before claiming parity.
+Actual native acceptance covers declared positive issues over real keyring/PG/
+Go/Rust, real authentication refusal, cancellation, rename and restart. Live
+positive canonical issue reads, discussion, PR normalization and UI remain pending.
