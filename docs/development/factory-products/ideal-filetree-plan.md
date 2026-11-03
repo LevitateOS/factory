@@ -117,8 +117,10 @@ client ID, and T06-GITHUB-DEVICE now qualifies a real unapproved challenge plus
 the private native authorization transport. T06-GITHUB-CUSTODY retains complete
 encrypted grants and enforces access/refresh expiry at native use.
 T06-GITHUB-ROTATION reserves one durable attempt and conditionally publishes a
-complete replacement without replaying uncertain refreshes. Provider refresh
-exchange, successful consent, desktop login and authenticated GitHub qualification remain consumers;
+complete replacement without replaying uncertain refreshes. T06-GITHUB-REFRESH
+wires fixed-origin exchange and fresh account verification to that custody owner,
+qualified with actual provider refusal and declared positive responses. Successful
+real consent/refresh, desktop login and authenticated GitHub qualification remain consumers;
 they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
