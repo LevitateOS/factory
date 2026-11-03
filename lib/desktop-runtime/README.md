@@ -324,3 +324,13 @@ and paging. Empty filtered pages may have a continuation; PR wrappers cannot
 become ordinary issue detail. Capabilities remain unknown. Native acceptance
 qualifies declared positives and real authentication refusal, cancellation and
 retained IDs after restart. Connected UI/live canonical journeys remain consumers.
+
+The adopted provider migration starts in `github_provider`: a headless Rust
+session owner with fixed-origin HTTPS, explicit no-retry/no-redirect behavior,
+16 bounded outstanding requests, safe errors, opaque device authorization and
+refresh decoding. Its own runtime retires and joins DNS/TLS/HTTP work separately
+from child control. A direct check observed actual GitHub invalid-token refusal,
+an unapproved device challenge and refusal after joined retirement. This is an
+inactive producer until the read decoder and canonical-observation cutover;
+desktop still uses the transitional Go connector at this checkpoint. No real
+refresh, stored sign-in, private read or complete connector parity is claimed yet.
