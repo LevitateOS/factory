@@ -119,11 +119,15 @@ encrypted grants and enforces access/refresh expiry at native use.
 T06-GITHUB-ROTATION reserves one durable attempt and conditionally publishes a
 complete replacement without replaying uncertain refreshes. T06-GITHUB-REFRESH
 wires fixed-origin exchange and fresh account verification to that custody owner,
-qualified with actual provider refusal and declared positive responses. Successful
-real consent/refresh and authenticated GitHub qualification remain consumers.
+qualified with actual provider refusal and declared positive responses.
 T06-GITHUB-SIGNIN now provides native desktop sign-in/browser handoff, cancellation
 and saved-account controls, qualified with actual WebKit and an unapproved GitHub
-challenge plus declared positive authorization. Canonical account/repository binding,
+challenge plus declared positive authorization. T06-GITHUB-LIVE now additionally
+qualifies owner-approved sign-in, verified identity, encrypted grant reload, two
+authenticated repository pages, private repository detail and an actual successful
+provider refresh followed by another authenticated read. The isolated test account
+was removed locally; remote OAuth revocation has not been exercised.
+Canonical account/repository binding,
 connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
