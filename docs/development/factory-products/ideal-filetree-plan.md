@@ -150,6 +150,19 @@ normalization, successful live canonical issues and connected UI remain consumer
 Connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
+The selected language allocation now requires the complete authenticated desktop
+connector in Rust. The queue maps N1 to T05-CONTROL, P1/C1 to T06-GITHUB-RUST,
+N2 to T06-CONNECT, N3 to T09-NATIVE-EXECUTOR and N4 to T09-EXECUTION.
+T05-CONTROL is complete: bounded product I/O has a separate joined native owner,
+desktop calls release the lifecycle mutex before awaiting, cancellation retires
+polling I/O, and native product routes enforce captured instance scope. Actual
+Linux acceptance holds 16 requests while exercising health, cancellation,
+ordered stop, child failure and Quit. Existing sign-in/canonical-read acceptance
+also passes after transient upstream transport failures were recorded. The full
+Rust connector cutover is next; retained Go provider implementations/token routes
+must retire together after behavioral parity. This does not complete connected
+UI, native execution, automation or installed journeys.
+
 Extraction checks on 2026-11-03, using the imported dependency versions:
 
 - The native Go executable builds with no special build tag; `go vet ./...`
