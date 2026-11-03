@@ -100,6 +100,30 @@ because the new repository builds. The missing owned GitHub OAuth client ID and
 real consent still gate authenticated GitHub qualification; they do not block
 independent Fountain implementation or source preservation.
 
+Extraction checks on 2026-11-03, using the imported dependency versions:
+
+- The native Go executable builds with no special build tag; `go vet ./...`
+  and the transitive provider/appliance boundary check pass.
+- The production shared UI emits 20 assets from 76 shared sources. Desktop UI,
+  TypeScript, Lit analysis and the existing Go/TypeScript test-root guards pass.
+- Storybook builds 195 entries, including all five issue-editor states.
+- The independent Rust workspace checks, and the Linux Tauri `native-ui`
+  executable builds using the existing owned GTK/WebKit sysroot. This is build
+  evidence, not a new window/input or installed-app qualification.
+- Factory's own PostgreSQL driver, Go backend and store integration binary pass
+  the real managed native journey: retained transactions/restart, duplicate-owner
+  refusal, backend/database/owner crashes, startup failure, key rotation and
+  ordered shutdown. The new private profile is retained and stopped.
+- Both complete recovery patches pass `git apply --cached --check` against their
+  recorded base revisions using separate temporary indexes. The original
+  worktrees and indexes are not modified.
+
+Local extraction logs are under
+`/home/vince/Projects/.factory-extraction-checks/`; the owned stopped native
+profile is `/home/vince/Projects/.fx-pg1`. These local artifacts and private
+profile are excluded from the repository. No real provider login, model run,
+issue/PR mutation or deployment was performed for the extraction.
+
 ## Decisions that gate specific work
 
 | ID | Required conclusion | Dependent work; independent work can continue |

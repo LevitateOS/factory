@@ -5269,11 +5269,13 @@
     },
     {
       "source": "tools/acceptance/src/bin/factory-fountain-host-check.rs",
-      "destination": "tools/native-checks/src/bin/factory-fountain-host-check.rs"
+      "destination": "tools/native-checks/src/bin/factory-fountain-host-check.rs",
+      "sha256": "11ca5d41ffc160145317296c335e82a02d1a2c9ff57464b706eeea1c111c868f"
     },
     {
       "source": "tools/acceptance/src/bin/factory-credential-operation-check.rs",
-      "destination": "tools/native-checks/src/bin/factory-credential-operation-check.rs"
+      "destination": "tools/native-checks/src/bin/factory-credential-operation-check.rs",
+      "sha256": "ecb145d0bf179972b108d0910e05804d09d8348b97637b3af4fb00be96b8819a"
     },
     {
       "source": "tools/acceptance/src/native_github_transport.rs",
