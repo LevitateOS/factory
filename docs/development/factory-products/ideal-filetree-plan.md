@@ -32,6 +32,7 @@ architecture; cross-compilation is not that evidence.
 | --- | --- |
 | [Seams and source map](seams-and-source-map.md) | Current evidence, canonical owners, conflicts and workflow boundaries |
 | [Reuse decisions](reuse.md) | Existing source donors, upstream libraries, licenses and selection spikes |
+| [Go and Rust allocation audit](language-allocation.md) | Responsibility-level language fit, ownership findings, alternatives and proposed cutovers |
 | [Target tree](proposed-tree.md) | New defining files, retained owners and cutover joins |
 | [Implementation tasks](implementation-tasks.md) | Canonical slice dependency graph, sequential queue, progress and completion journeys |
 
