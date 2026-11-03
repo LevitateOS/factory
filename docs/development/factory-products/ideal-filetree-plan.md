@@ -138,7 +138,12 @@ these mappings through runtime-owned profile/store composition and current nativ
 credential/account verification. Typed canonical account and neutral repository
 pages preserve scope and reject cross-profile use. Actual native acceptance
 uses declared positive provider facts plus real GitHub 401s; successful live
-canonical collaboration and issue/PR/review/check normalization remain consumers.
+canonical collaboration remains a consumer. T06-GITHUB-CANONICAL-ISSUES now
+provides host-scoped neutral issue lists/detail and canonical participants,
+preserving full Markdown, nullable metadata and empty filtered continuations.
+Actual native acceptance uses declared positive issues plus real GitHub refusal,
+with cross-provider/profile checks, rename and restart. Discussion, PR/review/check
+normalization, successful live canonical issues and connected UI remain consumers.
 Connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
