@@ -1,5 +1,3 @@
-//go:build factory_native
-
 package main
 
 import (
@@ -11,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	factoryruntime "github.com/levitateos/sodaos/internal/factory/runtime"
-	githubprovider "github.com/levitateos/sodaos/internal/github"
+	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
+	githubprovider "github.com/levitateos/factory/pkg/github"
 )
 
 func run() error {

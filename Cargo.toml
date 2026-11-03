@@ -1,6 +1,10 @@
-# SodaOS Rust workspace. Builds are online: `cargo build --workspace`.
-# Dependencies resolve from the network; Cargo.lock stays committed for
-# reproducibility. Never vendor dependencies.
 [workspace]
 resolver = "2"
-members = ["lib/provider-tools", "cmd/soda-provider-update", "lib/wire-time", "lib/unix-http", "tools/release-assets", "lib/release-inputs", "cmd/soda-factory", "cmd/soda-setup", "lib/host", "cmd/soda-identity-compose", "tools/pg-fixture", "cmd/soda-forgejo-migrate", "cmd/soda-pg-maintenance", "cmd/soda-console-welcome", "cmd/soda-activate", "cmd/soda-forgejo-domain", "tools/candidate-setup", "cmd/soda-image-import", "cmd/soda-muse", "tools/test-vm", "cmd/soda-project-maintain", "cmd/soda-identity", "tools/acceptance", "cmd/soda-install", "cmd/soda-project-terminal", "lib/soda-release-build", "lib/soda-release-image", "lib/soda-release-tools", "lib/soda-release-deliver", "tools/factory-ui", "lib/desktop-runtime", "cmd/soda-desktop"]
+members = [
+  "cmd/soda-desktop",
+  "lib/desktop-runtime",
+  "lib/unix-http",
+  "tools/factory-ui",
+  "tools/pg-fixture",
+  "tools/native-checks",
+]

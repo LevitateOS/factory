@@ -192,7 +192,7 @@ Writes use owned `0600` temporary files, sync and atomic rename within the
 The database password, accounts and retained store are not reset. The future
 backend socket is `backend.sock` in that same profile.
 
-The Go [runtime loader](../../internal/factory/runtime/README.md) validates
+The Go [runtime loader](../../pkg/factory/runtime/README.md) validates
 this exact private layout and owned PostgreSQL socket without appliance config.
 Configuration and secret inputs stay out of the webview. They establish no
 provider login, canonical ledger adoption, runtime placement or work authority.
@@ -242,7 +242,7 @@ From the repository root, with an already built payload and a **new** profile:
 ```sh
 cargo run --locked -p soda-pg-fixture --bin soda-native-pg-check -- \
   /absolute/native-postgres /home/USER/new-native-pg-profile -- \
-  go test -count=1 -v -run '^TestNativePostgresRetainedTransaction$' ./internal/store
+  go test -count=1 -v -run '^TestNativePostgresRetainedTransaction$' ./pkg/store
 ```
 
 The driver prepares backend inputs before each selected Go command and supplies

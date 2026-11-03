@@ -9,10 +9,45 @@ execution, automatic intake, full PR journeys and installed distribution remain
 unfinished. The dependency-ordered backlog is in
 [the implementation plan](docs/development/factory-products/implementation-tasks.md).
 
-The initial commit preserves the product source before adapting its build
-boundaries. Subsequent extraction commits make this checkout independent of the
-original source trees. Existing versions and lockfiles are imported as working
-source, without claiming a fresh release baseline.
+The Go engine lives in public `pkg/` packages under
+`github.com/levitateos/factory`. The native backend does not depend on the SodaOS
+module, an appliance, Fountain or its SDK. Existing versions and lockfiles are
+imported as working source, without claiming a fresh release baseline.
+
+## Development
+
+Use Go, Bun and Rust. Native Tauri builds also need the usual Linux GTK/WebKit
+development dependencies. Keep temporary files and build output under `/home`.
+
+```sh
+export TMPDIR=/home/USER/tmp
+mkdir -p "$TMPDIR"
+bun install --frozen-lockfile
+bun run build:server
+bun run build:factory-ui
+bun run build:desktop-ui
+bun run typecheck
+bun run check:boundaries
+bun run build:storybook
+cargo check --locked --workspace
+```
+
+The shared browser module is `.artifacts/factory-ui/factory-app.js`, with its CSS,
+fonts, portraits and notices alongside it. Both hosts consume the defining source
+in `frontend/factory/`. Storybook uses those production components directly.
+
+To stage the native development app, supply a native PostgreSQL payload as
+described in [the runtime guide](lib/desktop-runtime/README.md):
+
+```sh
+bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/factory-stage
+/home/USER/factory-stage/soda-desktop
+```
+
+This is a development stage, not an installer. The app currently opens its shared
+disconnected screen; readiness alone does not establish a provider connection or
+authorize work. [The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
+credential custody and opt-in native acceptance checks.
 
 ## Source and integration history
 

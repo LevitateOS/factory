@@ -23,3 +23,12 @@ The Forge/Fountain consumer cutover and connected product journeys remain
 unfinished. A standalone build does not establish parity with an installed Forge.
 Fountain's retained server changes keep their GPL-3.0-or-later license. Original
 SodaOS changes keep their existing license and inherited per-file notices.
+
+`soda-forge/control-integration-sources.tar.gz` preserves the original coordinator
+integration tests and fixtures with their original paths. Those tests currently
+instantiate appliance hosts and native Fountain adapters; they still run in their
+original SodaOS owner. They are archived here rather than introducing the
+appliance and SDK into the standalone module. The first import commit also
+retains their unmodified source. Retargeting these journeys to the extracted
+module is part of the consumer cutover, not a claimed passing Factory check.
+Store integration tests remain active in `pkg/store/`.

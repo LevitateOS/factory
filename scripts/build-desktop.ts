@@ -21,7 +21,6 @@ await run([
   'go',
   'build',
   '-mod=readonly',
-  '-tags=factory_native',
   '-o',
   resolve(out, 'factory-runtime/soda-factory-server'),
   './cmd/soda-factory-server',

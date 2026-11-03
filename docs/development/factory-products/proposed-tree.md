@@ -1,5 +1,14 @@
 # Target defining tree and cutovers
 
+The product was extracted to `LevitateOS/factory` on 2026-11-03. Current defining
+Go owners are `factory/pkg/{factory,store,application,collaboration,github,identity,project,strictjson,filelock}`;
+the frontend and native Rust owners keep their relative paths in Factory. The
+diagram below retains the original in-repository allocation and unfinished
+consumer targets. Appliance/Fountain files stay with those products; their
+working source is preserved under `integrations/` rather than selected by the
+standalone build. See [source provenance](../../source-import.json) and the
+[current extraction boundary](ideal-filetree-plan.md#separate-public-repository).
+
 This is the target delta for the [product extraction](ideal-filetree-plan.md),
 not a replacement listing of all 2,697 repository files. Existing unlisted leaves
 retain their current owner. The [source map](seams-and-source-map.md) allocates

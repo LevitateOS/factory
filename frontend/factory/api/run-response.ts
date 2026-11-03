@@ -309,4 +309,3 @@ export function factoryStatusFrame(value: unknown, runId: string): FactoryStatus
 /** Opaque Factory run identity; unrelated native terminal ownership stays host-side. */
 export const factoryRunID = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{32}$/.test(value);
-

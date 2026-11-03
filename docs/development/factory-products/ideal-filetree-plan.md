@@ -1,8 +1,9 @@
 # Factory products implementation plan
 
-Status: implementation in progress, 2026-10-31. The owner selected Linux first
-with Tauri. Shared feed extraction, Storybook and a native component workbench
-are implemented in the working tree; the standalone desktop runtime is pending.
+Status: implementation in progress, 2026-11-03. The owner selected Linux first
+with Tauri. The source now lives in the public Factory repository. Shared UI,
+Storybook, native lifecycle and provider/service producers are implemented;
+connected execution and installed product journeys remain unfinished.
 
 ## Outcome and scope
 
@@ -73,37 +74,31 @@ engineering selections for this plan, rather than claims of implemented behavior
 
 ## Separate public repository
 
-The owner is considering an eventual public Factory repository. Source extraction
-can precede completion of the installed desktop product, and does not depend on
-having the GitHub OAuth client ID. Keep implementation in this checkout until
-the following extraction dependencies have been addressed in order:
+The owner requested a public [Factory repository](https://github.com/LevitateOS/factory)
+before finishing the product. The initial import commits preserve the current
+product source and both complete integration working-tree patches. Original
+checkouts remain untouched. Source provenance and patch base revisions are
+recorded in [`docs/source-import.json`](../../source-import.json).
 
-1. Define consumable product boundaries for the remaining appliance joins.
-   Factory Go packages currently live under this module's `internal/` directory;
-   a different module cannot import them. Move the defining owners and their
-   consumers together, using public contracts or the existing service boundary,
-   while keeping one engine and one shared UI implementation.
-2. Carry the actual source/build closure into the product layout. Inspection on
-   2026-11-02 finds sixteen local Go packages in the `factory_native` executable
-   closure, including store, collaboration, application, identity and project
-   definitions. Rust needs desktop, desktop-runtime and unix-http. The Lit build
-   also needs its build helpers, canonical fonts/theme, role portraits, notices
-   and Storybook development inputs. Copying only `internal/factory` is insufficient.
-3. Replace the appliance/Fountain integration's sibling-checkout dependency
-   (`replace forgejo.org/extension-sdk => ../forgejo-ext/sdk`) with an explicit
-   SDK distribution boundary. The native executable's inspected package closure
-   already excludes that SDK. Keep Fountain server implementation in Fountain;
-   do not pull the server into the desktop repository.
-4. Build the native executable, production UI and Linux Tauri shell from an
-   isolated checkout, then build the Forge consumer against those same product
-   sources/artifacts. Preserve shared-component update parity and existing notices.
-   This qualifies source extraction; connected/installed journeys still have
-   their existing later gates.
+The extracted Go module is `github.com/levitateos/factory`. Its public `pkg/`
+owners include the engine, services, store, application, collaboration and required
+identity/project definitions. The native server is the default build; its
+dependency graph excludes SodaOS, Fountain and the extension SDK. Rust has its
+own desktop/runtime, Unix transport, workbench and native-check workspace. Shared
+UI/Storybook inputs include the actual fonts, theme, portraits and notices.
 
-The current checkout has separate product builds, but has not passed that clean
-source-repository boundary. No public repository has been created or populated.
-The missing owned GitHub OAuth client ID and real consent still gate authenticated
-GitHub qualification; they do not block independent Fountain implementation.
+This snapshot does not yet switch the original Forge checkout to the extracted
+module and UI artifacts. That consumer cutover must remove the old defining
+copies, preserve the appliance service boundary and qualify a shared-component
+change in both hosts. Fountain's SDK distribution remains its owning integration
+task; the SDK is not copied into the standalone dependency closure. Historical
+coordinator tests that instantiate appliance/SDK owners are retained as source
+under `integrations/soda-forge/`, while store tests remain active in `pkg/store/`.
+
+Do not mark connected, installed, extraction-parity or product gates complete
+because the new repository builds. The missing owned GitHub OAuth client ID and
+real consent still gate authenticated GitHub qualification; they do not block
+independent Fountain implementation or source preservation.
 
 ## Decisions that gate specific work
 
