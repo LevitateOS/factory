@@ -112,9 +112,11 @@ coordinator tests that instantiate appliance/SDK owners are retained as source
 under `integrations/soda-forge/`, while store tests remain active in `pkg/store/`.
 
 Do not mark connected, installed, extraction-parity or product gates complete
-because the new repository builds. The missing owned GitHub OAuth client ID and
-real consent still gate authenticated GitHub qualification; they do not block
-independent Fountain implementation or source preservation.
+because the new repository builds. The owner supplied the public GitHub OAuth
+client ID, and T06-GITHUB-DEVICE now qualifies a real unapproved challenge plus
+the private native authorization transport. Successful consent, expiry/refresh
+custody, desktop login and authenticated GitHub qualification remain consumers;
+they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
 
