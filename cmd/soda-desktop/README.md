@@ -37,10 +37,23 @@ readiness does not create an account or authorize provider work.
 
 Linux account tokens use the login session's OS Secret Service through the
 [native credential owner](../../lib/desktop-runtime/README.md#native-account-credentials).
-The two browser commands expose metadata and withdrawal, never a token getter,
-token writer or keyring passphrase. A locked or absent keyring reports an error;
-there is no file fallback. Native provider login/refresh and connected browsing
-remain later slices.
+Click **Sign in to GitHub**, then **Open GitHub**, and enter the displayed code in
+your default browser. Factory requests repository and profile access using its
+public device-flow client ID. Grant exchange, account verification and complete
+access/refresh credential storage stay native. The webview receives the short
+user code, fixed verification URL, expiration and safe account metadata; it has no
+token getter, token writer, arbitrary opener or keyring-passphrase command.
+Native metadata shows the provider-observed account name while stable provider
+IDs remain the identity. **Remove from Factory** durably denies local use and
+removes the saved credential; it does not revoke the GitHub OAuth app grant.
+
+Cancel sign-in or close its owning window to stop pending authorization. Startup,
+backend failure and Quit retire the attempt. Cancellation and the bounded save
+have one ordering: an already completed save remains saved. Saved accounts remain
+after runtime restart. A locked or absent keyring reports an error; there is no
+file fallback. Native refresh transport/custody exists; automatic connection
+management, canonical account/repository binding and connected browsing remain
+later consumers. A saved GitHub account does not itself admit Factory work.
 
 For a real compositor/WebKit integration run, build with `--check`, then launch
 the staged executable with `--check`. This feature alone includes a native
@@ -75,3 +88,14 @@ checks cover custody, metadata-only commands, owner/profile isolation,
 reauthentication, withdrawal across reopen, locked/unavailable errors, encrypted
 retention across daemon restart and actual capability expiry. Run it with a fresh
 profile and a private session bus/data directory, preserving the personal keyring.
+
+`--check-signin` extends the same native acceptance hook for declared authorization
+responses through actual Linux WebKit, native Go/PostgreSQL and an isolated Secret
+Service. It checks production controls, fixed browser handoff, prompt/metadata
+custody, cancellation, stale attempts, multiple windows, verification/storage,
+retained account names, removal and backend restart. `--check-signin-live` uses an
+actual unapproved GitHub challenge and cancels it without saving an account. Both
+need an external owned fixture driver; the browser opener receiver and positive
+provider responses in the declared run are explicit substitutes. Neither proves
+successful real consent, connected repositories or an installed package. These
+observers are absent from normal `native-ui` builds.

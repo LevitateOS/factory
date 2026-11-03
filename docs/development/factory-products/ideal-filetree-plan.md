@@ -120,7 +120,11 @@ T06-GITHUB-ROTATION reserves one durable attempt and conditionally publishes a
 complete replacement without replaying uncertain refreshes. T06-GITHUB-REFRESH
 wires fixed-origin exchange and fresh account verification to that custody owner,
 qualified with actual provider refusal and declared positive responses. Successful
-real consent/refresh, desktop login and authenticated GitHub qualification remain consumers;
+real consent/refresh and authenticated GitHub qualification remain consumers.
+T06-GITHUB-SIGNIN now provides native desktop sign-in/browser handoff, cancellation
+and saved-account controls, qualified with actual WebKit and an unapproved GitHub
+challenge plus declared positive authorization. Canonical account/repository binding,
+connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:

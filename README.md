@@ -50,8 +50,11 @@ bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/f
 /home/USER/factory-stage/soda-desktop
 ```
 
-This is a development stage, not an installer. The app currently opens its shared
-disconnected screen; readiness alone does not establish a provider connection or
+This is a development stage, not an installer. The desktop shell supports GitHub
+device sign-in, verification, native encrypted credential storage and saved-account
+removal. Click **Sign in to GitHub**, open the verification page in your browser
+and enter the displayed code. The shared application remains disconnected until
+canonical account/repository binding is implemented; signing in alone does not
 authorize work. [The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
 credential custody and opt-in native acceptance checks.
 
