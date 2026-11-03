@@ -127,8 +127,12 @@ qualifies owner-approved sign-in, verified identity, encrypted grant reload, two
 authenticated repository pages, private repository detail and an actual successful
 provider refresh followed by another authenticated read. The isolated test account
 was removed locally; remote OAuth revocation has not been exercised.
-Canonical account/repository binding,
-connected feed and installed journeys remain unfinished;
+T06-GITHUB-IDENTITIES now atomically records observed account/connection bindings
+and repository associations in the existing registry, preserving reconnect/rename
+and refusing scope changes or unadopted retained data. Real native PostgreSQL
+checks prove concurrency, rollback, restart and WAL recovery. Provider-verified
+native composition and normalized collaboration reads still need to consume
+these mappings. Connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
