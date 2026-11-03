@@ -19,8 +19,11 @@ fixtures; they exclude ignored build artifacts, account tokens and local profile
 They are archival source snapshots, not patches that should be applied during
 normal Factory builds, nor active duplicate owners of product components.
 
-The Forge/Fountain consumer cutover and connected product journeys remain
-unfinished. A standalone build does not establish parity with an installed Forge.
+The Go consumer cutover is committed in Forge as `a1cd0499`, using the pinned
+published Factory module and removing duplicate Go owners. Shared UI consumption,
+SDK distribution and connected product journeys remain unfinished. These
+recovery patches describe the initial import, not the subsequent consumer commit.
+A standalone build does not establish parity with an installed Forge.
 Fountain's retained server changes keep their GPL-3.0-or-later license. Original
 SodaOS changes keep their existing license and inherited per-file notices.
 

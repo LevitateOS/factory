@@ -77,7 +77,7 @@ engineering selections for this plan, rather than claims of implemented behavior
 The owner requested a public [Factory repository](https://github.com/LevitateOS/factory)
 before finishing the product. The initial import commits preserve the current
 product source and both complete integration working-tree patches. Original
-checkouts remain untouched. Source provenance and patch base revisions are
+checkouts were preserved at import. Source provenance and patch base revisions are
 recorded in [`docs/source-import.json`](../../source-import.json).
 
 The extracted Go module is `github.com/levitateos/factory`. Its public `pkg/`
@@ -87,10 +87,14 @@ dependency graph excludes SodaOS, Fountain and the extension SDK. Rust has its
 own desktop/runtime, Unix transport, workbench and native-check workspace. Shared
 UI/Storybook inputs include the actual fonts, theme, portraits and notices.
 
-This snapshot does not yet switch the original Forge checkout to the extracted
-module and UI artifacts. That consumer cutover must remove the old defining
-copies, preserve the appliance service boundary and qualify a shared-component
-change in both hosts. Fountain's SDK distribution remains its owning integration
+T04-REPO-GO now switches Forge to the pinned published Factory module and removes
+its duplicate Go owners, preserving appliance composition and native Fountain
+adapters. Forge commit `a1cd0499` passes production builds, integration compilation,
+vet, dependency checks and the real issue-editor/native write/recovery journey.
+The broader SQL-locality check remains red on existing Forge adapter/test usage;
+no exemption or full-source pass is claimed. T04-REPO-UI must still remove the old
+UI copies and qualify a shared-component change in both source builds; installed
+parity remains later. Fountain's SDK distribution remains its owning integration
 task; the SDK is not copied into the standalone dependency closure. Historical
 coordinator tests that instantiate appliance/SDK owners are retained as source
 under `integrations/soda-forge/`, while store tests remain active in `pkg/store/`.

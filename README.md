@@ -33,8 +33,10 @@ cargo check --locked --workspace
 ```
 
 The shared browser module is `.artifacts/factory-ui/factory-app.js`, with its CSS,
-fonts, portraits and notices alongside it. Both hosts consume the defining source
-in `frontend/factory/`. Storybook uses those production components directly.
+fonts, portraits and notices alongside it. The defining source lives in
+`frontend/factory/`, and Storybook uses those production components directly.
+Forge's shared UI source cutover is the next slice; its current copy does not yet
+receive changes from this repository automatically.
 
 To stage the native development app, supply a native PostgreSQL payload as
 described in [the runtime guide](lib/desktop-runtime/README.md):
@@ -55,7 +57,10 @@ credential custody and opt-in native acceptance checks.
 SHA-256 hashes of imported product files. The `integrations/` directory also
 preserves the complete tracked and untracked source changes from both working
 trees as Git binary patches. These include unfinished integration code and
-existing human work; the original working trees have not been reset or committed.
+existing human work. The initial import preserved the original working trees;
+the subsequent Forge Go consumer cutover is committed separately as `a1cd0499`.
+Forge now uses the pinned public Factory Go module. Unrelated staged work remains
+preserved in the original checkout.
 They are recovery snapshots, not a second active implementation of Factory.
 
 Fountain server implementation belongs to Fountain. Its retained patch and
