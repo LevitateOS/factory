@@ -115,8 +115,10 @@ Do not mark connected, installed, extraction-parity or product gates complete
 because the new repository builds. The owner supplied the public GitHub OAuth
 client ID, and T06-GITHUB-DEVICE now qualifies a real unapproved challenge plus
 the private native authorization transport. T06-GITHUB-CUSTODY retains complete
-encrypted grants and enforces access/refresh expiry at native use. Provider refresh
-exchange/conditional publication, successful consent, desktop login and authenticated GitHub qualification remain consumers;
+encrypted grants and enforces access/refresh expiry at native use.
+T06-GITHUB-ROTATION reserves one durable attempt and conditionally publishes a
+complete replacement without replaying uncertain refreshes. Provider refresh
+exchange, successful consent, desktop login and authenticated GitHub qualification remain consumers;
 they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
