@@ -13,6 +13,11 @@ use std::time::Duration;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Read {
     Identity,
+    Binding,
+    CanonicalRepositories {
+        page: u32,
+        limit: u32,
+    },
     Repositories {
         page: u32,
         limit: u32,
@@ -167,6 +172,76 @@ fn file_page_matches(value: &Value, page: u64, limit: u64) -> bool {
             .is_some_and(|items| items.len() as u64 == count)
 }
 
+fn canonical_id(value: &Value) -> bool {
+    value.as_str().is_some_and(|s| {
+        s.parse::<i64>()
+            .is_ok_and(|id| id > 0 && id.to_string() == s)
+    })
+}
+fn registry_id(value: &Value) -> bool {
+    value.as_str().is_some_and(|s| {
+        s.len() == 32
+            && s.bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    })
+}
+fn canonical_binding_matches(
+    body: &Value,
+    account: &crate::credentials::AccountStatus,
+    profile: &str,
+) -> bool {
+    let b = &body["binding"];
+    let host = &b["host"]["id"];
+    registry_id(host)
+        && b["host"]["provider"] == "github"
+        && b["host"]["api_base"] == "https://api.github.com"
+        && b["profile"]["id"] == profile
+        && b["connection"]["profile"] == profile
+        && b["connection"]["id"] == account.connection
+        && b["connection"]["host"] == *host
+        && b["actor"]["host"] == *host
+        && canonical_id(&b["actor"]["id"])
+        && b["connection"]["actor"] == b["actor"]["id"]
+        && b["actor"]["external_id"] == account.account
+        && b["actor"]["login"] == body["account"]["login"]
+        && b["actor"]["login"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty() && s.len() <= 512 && !s.chars().any(char::is_control))
+}
+fn canonical_page_matches(body: &Value, page: u64, limit: u64) -> bool {
+    let p = &body["repositories"];
+    let Some(items) = p["items"].as_array().filter(|v| v.len() as u64 <= limit) else {
+        return false;
+    };
+    let Some(next) = p["next"].as_str() else {
+        return false;
+    };
+    let mut ids = std::collections::HashSet::new();
+    let mut external = std::collections::HashSet::new();
+    p["observation"]["state"] == "available"
+        && p["observation"]["revision"]
+            .as_str()
+            .is_some_and(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+        && p["observation"]["observed_at"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty())
+        && p["complete"] == next.is_empty()
+        && (next.is_empty()
+            || next
+                .parse::<u64>()
+                .is_ok_and(|n| n > page && n <= 1_000_000 && n.to_string() == next))
+        && items.iter().all(|r| {
+            canonical_id(&r["id"])
+                && canonical_id(&r["external_id"])
+                && r["host"] == body["binding"]["host"]["id"]
+                && ids.insert(r["id"].as_str().unwrap())
+                && external.insert(r["external_id"].as_str().unwrap())
+                && r["name"].as_str().is_some_and(|s| {
+                    !s.is_empty() && s.chars().count() <= 512 && !s.chars().any(char::is_control)
+                })
+        })
+}
+
 impl NativeSupervisor {
     /// Preserve the complete unpersisted grant while verifying its access token.
     /// Failure drops access and refresh secrets together; storage remains native.
@@ -238,6 +313,7 @@ impl NativeSupervisor {
             }
             match &query {
                 Read::Repositories { page, limit }
+                | Read::CanonicalRepositories { page, limit }
                 | Read::Issues { page, limit, .. }
                 | Read::Pulls { page, limit, .. }
                 | Read::PullReviews { page, limit, .. }
@@ -345,6 +421,13 @@ impl NativeSupervisor {
             body["account"] = Value::String(account.account.clone());
             body["connection"] = Value::String(account.connection.clone());
             let kind = body["kind"].clone();
+            let canonical = kind == "binding" || kind == "canonical_repositories";
+            let canonical_page = (kind == "canonical_repositories").then(|| {
+                (
+                    body["page"].as_u64().unwrap(),
+                    body["limit"].as_u64().unwrap(),
+                )
+            });
             let resource_scope = match kind.as_str() {
                 Some("issues" | "issue") => Some(("issues", body["repository"].clone())),
                 Some("pulls" | "pull") => Some(("pulls", body["repository"].clone())),
@@ -431,6 +514,9 @@ impl NativeSupervisor {
             if !alive.load(Ordering::SeqCst) {
                 return Err(Error::Unavailable);
             }
+            if canonical && !credentials.is_profile(&channel.profile) {
+                return Err(Error::Invalid);
+            }
             let response = credentials
                 .with_token_operation(capability, async |token| {
                     if !alive.load(Ordering::SeqCst) {
@@ -468,6 +554,11 @@ impl NativeSupervisor {
                         && (body["connection"] != account.connection
                             || body["account"]["external_id"] != account.account
                             || body["kind"] != kind
+                            || canonical
+                                && !canonical_binding_matches(&body, account, &channel.profile)
+                            || canonical_page.is_some_and(|(page, limit)| {
+                                !canonical_page_matches(&body, page, limit)
+                            })
                             || resource_scope.as_ref().is_some_and(|(field, repository)| {
                                 body[*field]["repository"] != *repository
                             })

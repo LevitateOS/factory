@@ -189,6 +189,9 @@ pub struct Credentials {
     gate: tokio::sync::Mutex<()>,
 }
 impl Credentials {
+    pub(crate) fn is_profile(&self, profile: &str) -> bool {
+        self.profile == profile
+    }
     pub fn open(profile_dir: &Path, profile: &str) -> Result<Self> {
         if !id(profile) {
             return Err(Error::Invalid);

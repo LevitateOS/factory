@@ -43,6 +43,7 @@ pub(crate) struct NativeChannel {
     pub socket: PathBuf,
     pub key: zeroize::Zeroizing<String>,
     pub instance: String,
+    pub profile: String,
 }
 struct Retire(Arc<AtomicBool>);
 impl Drop for Retire {
@@ -220,6 +221,7 @@ fn run_owner(children: &mut Children, commands: Receiver<Control>) -> Option<Str
                     socket: children.profile.join("backend.sock"),
                     key: zeroize::Zeroizing::new(children.key.clone()),
                     instance: ready.instance,
+                    profile: ready.profile,
                 });
                 let _ = reply.send(result);
             }

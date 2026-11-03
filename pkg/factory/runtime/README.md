@@ -26,7 +26,13 @@ composition must explicitly consume these inputs and supply current account and
 resource admission to shared services. Non-Linux native file admission currently
 refuses; macOS qualification remains deferred.
 
-`RunNative(ctx, path, connector)` owns the Go network/store lifetime from those inputs. It
+`RunNative(ctx, path, connector)` takes a trusted `NativeConnector` factory. After
+opening/recovering the owned Store, it supplies the validated bootstrap profile
+and Store to that factory once. Connector construction performs no provider I/O
+or account activation. The production executable composes GitHub canonical
+observation ports here; a caller cannot claim another profile in read JSON.
+
+The runtime owns the Go network/store lifetime from those inputs. It
 claims only `backend.lock` for one network process, opens the canonical store
 under a bounded cancellable startup context, and serves authenticated readiness
 on `backend.sock` (`0600`) with no TCP listener. Before serving, shared

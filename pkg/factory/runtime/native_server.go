@@ -19,11 +19,16 @@ import (
 
 type nativePeerKey struct{}
 
+// NativeConnector composes private provider ports after the owned Store opens.
+// The profile comes from Rust's validated bootstrap, never a browser payload.
+// Construction must perform no provider I/O or select an active product actor.
+type NativeConnector func(collaboration.Profile, *store.Store) http.Handler
+
 // RunNative owns the Go network/store lifetime inside an existing Rust-owned
 // native database profile. Rust owns provisioning and child supervision. This
 // process recovers proved interrupted assessments before readiness, without
 // adopting a ledger, reconciling unobserved runs or starting background work.
-func RunNative(ctx context.Context, path string, connector http.Handler) (runErr error) {
+func RunNative(ctx context.Context, path string, connector NativeConnector) (runErr error) {
 	config, err := LoadNative(path)
 	if err != nil {
 		return err
@@ -55,8 +60,12 @@ func RunNative(ctx context.Context, path string, connector http.Handler) (runErr
 		return errors.New("native Factory retained recovery failed")
 	}
 	cancelStartup()
+	var nativeProvider http.Handler
+	if connector != nil {
+		nativeProvider = connector(collaboration.Profile{ID: config.Profile, Name: "This computer"}, db)
+	}
 	var closing atomic.Bool
-	server := &http.Server{Handler: nativeHandler(config, application, connector, &closing),
+	server := &http.Server{Handler: nativeHandler(config, application, nativeProvider, &closing),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384,
 		BaseContext: func(net.Listener) context.Context { return ctx }, ConnContext: nativePeerContext,

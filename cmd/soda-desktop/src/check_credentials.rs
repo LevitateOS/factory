@@ -49,6 +49,15 @@ async fn consent_read(
     connection: &str,
     query: soda_desktop_runtime::github::Read,
 ) -> Result<serde_json::Value, String> {
+    let reply = native_github_read(app, connection, query).await?;
+    ensure(reply.status == 200, "authenticated native read refused")?;
+    Ok(reply.body)
+}
+async fn native_github_read(
+    app: &tauri::AppHandle,
+    connection: &str,
+    query: soda_desktop_runtime::github::Read,
+) -> Result<soda_desktop_runtime::github::Reply, String> {
     let state = app.state::<Desktop>();
     let store = state.credentials()?;
     let cap = store
@@ -62,9 +71,258 @@ async fn consent_read(
         .as_ref()
         .ok_or("runtime missing")?
         .github_read(&store, &cap, query);
-    let reply = read.await.map_err(|e| e.to_string())?;
-    ensure(reply.status == 200, "authenticated native read refused")?;
-    Ok(reply.body)
+    read.await.map_err(|e| e.to_string())
+}
+
+fn start_binding_checks(app: tauri::AppHandle, retained: bool) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = binding_checks(&app, retained).await {
+            eprintln!("Native canonical binding check failed: {error}");
+            app.exit(1);
+        }
+    });
+}
+async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), String> {
+    use soda_desktop_runtime::github::Read as GitHubRead;
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    let accounts = state
+        .credentials()?
+        .status()
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure(accounts.len() == 1, "canonical check account missing")?;
+    let connection = &accounts[0].connection;
+    let profile = state
+        .status
+        .lock()
+        .unwrap()
+        .profile
+        .clone()
+        .ok_or("profile missing")?;
+    let binding = consent_read(app, connection, GitHubRead::Binding).await?["binding"].clone();
+    ensure(
+        binding["profile"]["id"] == profile
+            && binding["actor"]["external_id"] == "123"
+            && binding["connection"]["id"] == *connection
+            && binding["actor"]["id"] != "123",
+        "native canonical binding scope missing",
+    )?;
+    if !retained {
+        // Use an actually verified declared token in a second owned credential
+        // profile. That valid credential must still not bind this runtime's DB.
+        let store = state.credentials()?;
+        let cap = store
+            .capability(connection)
+            .await
+            .map_err(|e| e.to_string())?;
+        let token = store
+            .with_token(&cap, |bytes| Token::new(bytes.to_vec()))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?;
+        let verify = state
+            .runtime
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("runtime missing")?
+            .github_verify(token);
+        let (remote, token) = verify.await.map_err(|e| e.to_string())?;
+        let other_dir = state.paths.profile.join("other-canonical-profile");
+        prepare_profile(&other_dir)?;
+        let other_profile = String::from_utf8(fixture()).map_err(|_| "fixture profile invalid")?;
+        let other =
+            Credentials::open(&other_dir, &other_profile[..32]).map_err(|e| e.to_string())?;
+        let saved = other
+            .store(remote, token)
+            .await
+            .map_err(|e| e.to_string())?;
+        let other_cap = other
+            .capability(&saved.connection)
+            .await
+            .map_err(|e| e.to_string())?;
+        let read = state
+            .runtime
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("runtime missing")?
+            .github_read(&other, &other_cap, GitHubRead::Binding);
+        ensure(
+            matches!(
+                read.await,
+                Err(soda_desktop_runtime::github::Error::Invalid)
+            ),
+            "foreign credential profile bound runtime ledger",
+        )?;
+        other
+            .withdraw(&saved.connection)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    let first = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+    )
+    .await?;
+    let page = &first["repositories"];
+    ensure(
+        page["items"].as_array().is_some_and(|v| v.len() == 1)
+            && page["items"][0]["external_id"] == "9007199254740993"
+            && page["items"][0]["id"] != page["items"][0]["external_id"]
+            && page["next"] == "2"
+            && page["complete"] == false,
+        "canonical first repository page invalid",
+    )?;
+    if retained {
+        let proof: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("canonical-binding.json"))
+                .map_err(|_| "binding proof missing")?,
+        )
+        .map_err(|_| "binding proof invalid")?;
+        ensure(
+            binding == proof["binding"] && page["items"][0] == proof["repository"],
+            "runtime restart changed canonical account/repository",
+        )?;
+        return write_consent_evidence(
+            app,
+            "canonical-binding-retained.json",
+            &serde_json::json!({"retained_mapping":true}),
+        );
+    }
+    let second = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalRepositories { page: 2, limit: 1 },
+    )
+    .await?;
+    ensure(
+        second["repositories"]["next"] == ""
+            && second["repositories"]["complete"] == true
+            && second["repositories"]["items"][0]["external_id"] == "9007199254740995",
+        "canonical next page invalid",
+    )?;
+    let repeat = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+    )
+    .await?;
+    ensure(
+        repeat["binding"] == binding
+            && repeat["repositories"]["observation"]["revision"] == page["observation"]["revision"],
+        "reconnect forked canonical account/catalogue",
+    )?;
+    std::fs::write(io.join("mode"), "binding-rename").map_err(|_| "fixture mode failed")?;
+    let renamed = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+    )
+    .await?;
+    ensure(
+        renamed["binding"]["actor"]["id"] == binding["actor"]["id"]
+            && renamed["binding"]["actor"]["login"] == "renamed-native"
+            && renamed["repositories"]["items"][0]["id"] == page["items"][0]["id"]
+            && renamed["repositories"]["items"][0]["name"] == "owner/renamed"
+            && renamed["repositories"]["observation"]["revision"]
+                != page["observation"]["revision"],
+        "rename changed identity or retained stale page revision",
+    )?;
+    for (mode, expected) in [
+        ("identity-denied", 401),
+        ("binding-wrong-account", 409),
+        ("binding-catalog-denied", 403),
+        ("binding-bad-page", 503),
+        ("binding-live-refusal", 401),
+    ] {
+        std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed")?;
+        let reply = native_github_read(
+            app,
+            connection,
+            GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+        )
+        .await?;
+        ensure(
+            reply.status == expected
+                && reply.body.get("binding").is_none()
+                && reply.body.get("repositories").is_none(),
+            "failed canonical read became cached inventory",
+        )?;
+        if mode == "binding-live-refusal" {
+            let reply = native_github_read(app, connection, GitHubRead::Binding).await?;
+            ensure(
+                reply.status == 401 && reply.body.get("binding").is_none(),
+                "real GitHub refusal admitted canonical account",
+            )?;
+        }
+    }
+    for name in ["entered", "cancelled"] {
+        let _ = std::fs::remove_file(io.join(name));
+    }
+    std::fs::write(io.join("mode"), "binding-pause").map_err(|_| "fixture mode failed")?;
+    let task_app = app.clone();
+    let task_connection = connection.clone();
+    let task = tauri::async_runtime::spawn(async move {
+        native_github_read(
+            &task_app,
+            &task_connection,
+            GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+        )
+        .await
+    });
+    for _ in 0..100 {
+        if io.join("entered").is_file() {
+            break;
+        }
+        tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(20)))
+            .await
+            .map_err(|_| "pause observer stopped")?;
+    }
+    ensure(
+        io.join("entered").is_file(),
+        "canonical native read did not enter provider",
+    )?;
+    task.abort();
+    let _ = task.await;
+    for _ in 0..100 {
+        if io.join("cancelled").is_file() {
+            break;
+        }
+        tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(20)))
+            .await
+            .map_err(|_| "cancel observer stopped")?;
+    }
+    ensure(
+        io.join("cancelled").is_file(),
+        "native canonical cancellation did not reach provider",
+    )?;
+    std::fs::write(io.join("mode"), "grant").map_err(|_| "fixture mode failed")?;
+    let restored = consent_read(
+        app,
+        connection,
+        GitHubRead::CanonicalRepositories { page: 1, limit: 1 },
+    )
+    .await?;
+    ensure(
+        restored["binding"] == binding && restored["repositories"]["items"][0] == page["items"][0],
+        "refusal/cancellation rebound native mappings",
+    )?;
+    write_consent_evidence(
+        app,
+        "canonical-binding.json",
+        &serde_json::json!({
+            "binding":binding,"repository":page["items"][0],"declared_positive_provider":true,
+            "actual_github_refusals":2,"paging":true,"rename_reconnect":true,"cancellation":true
+        }),
+    )
 }
 async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
     use soda_desktop_runtime::github::Read as GitHubRead;
@@ -237,6 +495,18 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
     }
     match stage {
+        "signin-binding-start" | "signin-binding-retained-start" => {
+            start_binding_checks(app.clone(), stage == "signin-binding-retained-start");
+            Ok(())
+        }
+        "signin-binding-done" => ensure(
+            root.join("canonical-binding.json").is_file(),
+            "canonical binding still pending",
+        ),
+        "signin-binding-retained-done" => ensure(
+            root.join("canonical-binding-retained.json").is_file(),
+            "retained canonical binding still pending",
+        ),
         "signin-entered" => ensure(
             io.join("entered").is_file(),
             "declared transport not entered",
@@ -351,9 +621,11 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
         assert(!/factory-declared-(access|refresh)/.test(JSON.stringify(saved)),'saved account metadata leaked a token');
         await until(()=>document.querySelector('#github-accounts').textContent.includes('declared-native'));
         assert((await invoke('factory_query',{query:{kind:'identity'}})).status===503,'OAuth login silently admitted Factory work');
+        await report('signin-binding-start');await control('signin-binding-done');
         await report('signin-crash');await until(async()=>(await invoke('runtime_status')).phase==='failed');
         await invoke('runtime_retry');await until(async()=>(await invoke('runtime_status')).phase==='ready');
         const retained=await invoke('credential_status');assert(retained.length===1&&retained[0].connection===saved[0].connection&&retained[0].label==='declared-native','runtime restart lost saved account/label');
+        await report('signin-binding-retained-start');await control('signin-binding-retained-done');
         await until(()=>document.querySelector('#github-accounts').textContent.includes('declared-native'));
         document.querySelector('#github-accounts button').click();await until(async()=>(await invoke('credential_status')).length===0);
         await until(()=>document.querySelector('#github-accounts').children.length===0);

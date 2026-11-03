@@ -11,7 +11,9 @@ token string, token file or environment credential. Native composition must
 freshly bind/admit the selected connection through the existing Rust credential
 custody and honor the request context. A stored credential alone is not a
 verified account or Factory execution authority. Native transport is wired below;
-login, account binding and the production desktop connection remain consumers.
+Native desktop login is implemented and live consent/storage/private reads/refresh
+were qualified in T06-GITHUB-LIVE. Product account selection and normalized
+issue/PR/review/check surfaces remain consumers.
 
 The client makes only GETs to `https://api.github.com`, with no redirects,
 cookies or alternate origins. Reads have an eight-second deadline and an 8 MiB
@@ -247,15 +249,13 @@ opaque `Account`/`Token` pair to native login code for OS custody. Refusals retu
 only HTTP status; neither token nor raw response reaches the browser. This
 bootstrap does not create a saved account or admit Factory work. The other read
 operations still require a stored connection and matching actual account.
-Successful OAuth verification/storage and canonical binding remain pending;
-never store a guessed placeholder account to bootstrap the existing-account port.
+Successful real OAuth verification/storage is qualified separately. Never store a
+guessed placeholder account to bootstrap the existing-account port.
 
-T06-GITHUB still owns public-client/device login, remotely verified account
-binding, normalized issue/PR/review/check/capability adapters, authenticated
-private paging and revocation. It needs a Factory-owned OAuth app public client
-ID with device flow enabled; no client secret or shared app key belongs in the
-desktop. The owner has no registration yet. Registration does not require first
-moving Factory to a public repository. No connected-plugin, GitHub CLI or
+T06-GITHUB still owns complete normalized issue/PR/review/check/capability
+adapters, connected canonical private reads and remote revocation. The owned
+public OAuth client ID with device flow enabled is configured; no client secret
+or shared app key belongs in the desktop. No connected-plugin, GitHub CLI or
 personal account credentials are silently borrowed by this package.
 
 The first live component observation made seven read-only requests to actual
@@ -269,3 +269,36 @@ real isolated keyring/PG/Go and actual GitHub 401 replies with generated invalid
 tokens. A diagnostic composition uses the same host/handler/SDK and observes
 headers/pauses before real HTTPS to prove rotation, withdrawal and cancellation.
 It does not replace GitHub responses or qualify an authenticated account.
+
+## Canonical native account and repository observations
+
+`NewNativeAccountHandler(network, NativeAccountScope)` composes the same private
+handler with the runtime-owned profile and canonical registry port. The runtime
+creates that scope after opening its Store; neither profile nor provider endpoint
+comes from a browser or read payload. `NewNativeHandler`/`NewNativeReadHandler`
+without that scope retain their provider-local behavior and refuse canonical
+operations. All operations remain behind the same peer/key/instance/admission
+gates and fixed GitHub network origin.
+
+Typed `binding` and `canonical_repositories` reads first verify `/user` against
+the expected current native credential account. Only that observed ID/login can
+enter atomic Store binding. GitHub web origin `https://github.com` remains the
+credential locator; canonical host API base is `https://api.github.com`. A stored
+connection remains distinct from an active product actor or permission.
+
+The canonical repository operation makes one authenticated provider page read,
+then maps each actually observed repository and exact connection association.
+It returns the neutral `collaboration.Page[RepositoryRef]`, with local string IDs,
+opaque remote IDs, numeric-string next-page cursor and a content-derived version
+of that connection/page observation. Limits and numeric continuation checks are
+bounded; the revision is not a global inventory version. Failed provider reads
+return sanitized failures instead of cached observations or public fallback.
+
+Rust checks the owned credential/runtime profile, current owner/revision/lease,
+returned binding scope, host origin, remote/local ID separation, page bounds,
+continuation and duplicate identities before exposing successful native results.
+No token command or browser direct-provider route is introduced. Current
+acceptance qualifies the actual Rust/Go/OS-keyring/PostgreSQL path with declared
+positive provider responses, account/repository rename, reconnect, cancellation,
+refusal and backend restart, plus actual GitHub invalid-credential 401s. It does
+not relabel declared positive canonical reads as successful live GitHub reads.

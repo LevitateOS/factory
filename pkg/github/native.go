@@ -33,6 +33,10 @@ type nativeRead struct {
 // admission lifetime gates. It neither binds a Factory account nor stores a
 // credential. The native host supplies the token for this one bounded read.
 func NewNativeReadHandler(network http.RoundTripper) http.Handler {
+	return newNativeReadHandler(network, nil)
+}
+
+func newNativeReadHandler(network http.RoundTripper, scope *NativeAccountScope) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -124,12 +128,12 @@ func NewNativeReadHandler(network http.RoundTripper) http.Handler {
 				fail(400, "invalid_native_read")
 				return
 			}
-		case "identity":
+		case "identity", "binding":
 			if query.Repository != "" || query.Page != 0 || query.Limit != 0 {
 				fail(400, "invalid_native_read")
 				return
 			}
-		case "repositories":
+		case "repositories", "canonical_repositories":
 			if query.Repository != "" || !pageQuery(query.Page, query.Limit) {
 				fail(400, "invalid_native_read")
 				return
@@ -188,6 +192,12 @@ func NewNativeReadHandler(network http.RoundTripper) http.Handler {
 			fail(409, "github_account_changed")
 			return
 		}
+		if query.Kind == "binding" || query.Kind == "canonical_repositories" {
+			if scope == nil || !scope.valid() {
+				fail(503, "canonical_account_unavailable")
+				return
+			}
+		}
 		result := map[string]any{"kind": query.Kind, "account": map[string]string{"external_id": strconv.FormatInt(user.GetID(), 10), "login": user.GetLogin()}}
 		if query.Kind != "verify" {
 			result["connection"] = query.Connection
@@ -196,11 +206,43 @@ func NewNativeReadHandler(network http.RoundTripper) http.Handler {
 			return map[string]any{"external_id": strconv.FormatInt(id, 10), "name": name, "private": private, "default_branch": branch}
 		}
 		switch query.Kind {
-		case "repositories":
+		case "binding":
+			binding, err := scope.bind(ctx, query.Connection, strconv.FormatInt(user.GetID(), 10), user.GetLogin())
+			if err != nil {
+				bindingError(w, err)
+				return
+			}
+			result["binding"] = binding
+		case "repositories", "canonical_repositories":
 			repos, page, err := client.Repositories(ctx, query.Page, query.Limit)
 			if err != nil {
 				providerError(err)
 				return
+			}
+			if query.Kind == "canonical_repositories" {
+				if page.NextPage != 0 && (page.NextPage <= query.Page || page.NextPage > 1_000_000) {
+					providerError(ErrInvalidResponse)
+					return
+				}
+				// Failed provider reads never become successful cached inventory.
+				// Each item is a current remote observation, not an access grant.
+				binding, err := scope.bind(ctx, query.Connection, strconv.FormatInt(user.GetID(), 10), user.GetLogin())
+				if err != nil {
+					bindingError(w, err)
+					return
+				}
+				items := make([]collaboration.RepositoryRef, 0, len(repos))
+				for _, repo := range repos {
+					ref, err := scope.Registry.ObserveCollaborationConnectionRepository(ctx, binding.Connection, strconv.FormatInt(repo.GetID(), 10), repo.GetFullName())
+					if err != nil {
+						bindingError(w, err)
+						return
+					}
+					items = append(items, ref)
+				}
+				result["binding"] = binding
+				result["repositories"] = canonicalRepositoryPage(binding, items, query.Page, query.Limit, page.NextPage)
+				break
 			}
 			items := make([]map[string]any, 0, len(repos))
 			for _, repo := range repos {

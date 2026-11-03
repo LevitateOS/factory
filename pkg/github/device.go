@@ -27,9 +27,19 @@ type deviceAttempt struct {
 
 // NewNativeHandler composes private GitHub reads, device authorization and refresh. It
 // must only be mounted behind the native peer/key/instance/admission gates.
-// No browser route, persistence, canonical binding or account claim is added.
+// Without a trusted account scope, canonical operations are unavailable.
 func NewNativeHandler(network http.RoundTripper) http.Handler {
-	read := NewNativeReadHandler(network)
+	return newNativeHandler(network, nil)
+}
+
+// NewNativeAccountHandler adds canonical observations under the owned runtime's
+// profile/registry scope. It does not activate an account or admit Factory work.
+func NewNativeAccountHandler(network http.RoundTripper, scope NativeAccountScope) http.Handler {
+	return newNativeHandler(network, &scope)
+}
+
+func newNativeHandler(network http.RoundTripper, scope *NativeAccountScope) http.Handler {
+	read := newNativeReadHandler(network, scope)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/native/github/refresh" {
 			refreshAuthorization(network, w, r)

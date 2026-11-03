@@ -171,10 +171,10 @@ failure or retired runtime drops the token and cannot return an account.
 The new-token request uses the same peer/key/instance/admission gates, sensitive
 header and cancellable Go SDK path as stored reads. It accepts no claimed account,
 connection or repository selector; stored reads still require their captured
-account/connection. Live OAuth consent and successful verify/store, canonical
-account binding and desktop UI selection remain with the login/connection
-consumer. Generated invalid credentials qualify refusal only, not successful
-login or private repository access.
+account/connection. Real native OAuth consent, complete encrypted storage, private
+reads and provider refresh were qualified in T06-GITHUB-LIVE. Product account
+selection and connected canonical surfaces remain consumers. Generated invalid
+credentials qualify refusal only, not successful login or private access.
 
 ## Private backend inputs
 
@@ -286,3 +286,17 @@ and payload, not every Linux distribution, an installed app or other CPU
 architectures. T14 selects/qualifies the distribution baseline. The new crate
 reuses current getrandom/url; the freshness check selected libc 0.2.191, requiring
 the workspace's exact libc selectors and lock to advance together.
+
+`Read::Binding` and `Read::CanonicalRepositories { page, limit }` consume the
+runtime-owned canonical registry composition. They share the same credential
+borrowing, per-request `/user` verification, instance and retirement gates as
+provider-local reads. Canonical operations additionally refuse a credential
+owner from another profile before provider dispatch. Rust checks profile, host,
+connection, local actor and actual remote account scope in the returned binding.
+Neutral repository pages retain canonical local IDs as strings, opaque remote
+IDs, bounded numeric continuation and observation metadata; duplicates, wrong
+host/profile and invalid identity/page shapes refuse. This does not select an
+active Factory account, admit execution or add browser token commands. Native
+acceptance uses actual keyring/PG/Go/IPC with declared positive provider facts
+and actual GitHub invalid-credential refusals; full live canonical UI
+qualification remains downstream.
