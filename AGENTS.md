@@ -5,9 +5,12 @@
   completed slice with a finished product.
 - Commit early and often: checkpoint each coherent, verified change locally.
   Do not accumulate completed implementation slices in the working tree.
-- Go owns servers, domain and PostgreSQL storage; Rust owns native lifecycle,
-  credentials and system operations; Lit owns the shared UI. Preserve these
-  dependency directions and keep one defining implementation.
+- Follow the selected ownership in
+  `docs/development/factory-products/language-allocation.md`: Go owns product
+  APIs, durable workflows, canonical identity and PostgreSQL product transactions.
+  Rust owns native execution, resource lifetime, credential custody and complete
+  authenticated desktop provider connectors. Lit owns the shared UI. Preserve
+  these dependency directions and keep one defining implementation.
 - Preserve existing work, retained profiles, credentials and historical evidence.
   All builds, caches, state and scratch belong under `/home`; set TMPDIR there.
 - No authored Python, new unit tests, Rust test modules in `src/`, or new unit-test

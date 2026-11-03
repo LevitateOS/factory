@@ -32,7 +32,7 @@ architecture; cross-compilation is not that evidence.
 | --- | --- |
 | [Seams and source map](seams-and-source-map.md) | Current evidence, canonical owners, conflicts and workflow boundaries |
 | [Reuse decisions](reuse.md) | Existing source donors, upstream libraries, licenses and selection spikes |
-| [Go and Rust allocation audit](language-allocation.md) | Responsibility-level language fit, ownership findings, alternatives and proposed cutovers |
+| [Selected Go and Rust allocation](language-allocation.md) | Adopted responsibility owners, audit evidence, rejected alternatives and required cutovers |
 | [Target tree](proposed-tree.md) | New defining files, retained owners and cutover joins |
 | [Implementation tasks](implementation-tasks.md) | Canonical slice dependency graph, sequential queue, progress and completion journeys |
 
@@ -43,8 +43,11 @@ experience with local execution, shared changes across desktop/Forge, automatic
 repository-driven work, and first-class issue/PR screens. The following are
 engineering selections for this plan, rather than claims of implemented behavior:
 
-1. Keep Go workflow/domain/storage ownership and Rust system ownership. Use Lit
-   throughout the product UI. Do not port the engine to Rust or introduce React.
+1. Follow the [selected language allocation](language-allocation.md): Go owns
+   durable product workflows, domain state and product SQL transactions; Rust
+   owns native execution, resources, credentials and complete authenticated
+   desktop provider connectors. Use Lit throughout the product UI. Keep one
+   defining owner per responsibility.
 2. Use Tauri as the native shell with a bundled Go executable. One Rust supervisor
    owns the local database, executor and backend lifetime. Close-window keeps the
    application running; explicit Quit stops admission, retires work, then stops

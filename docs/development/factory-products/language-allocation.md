@@ -7,7 +7,11 @@ API/provider boundaries. Their conclusions were challenged across those scopes.
 This is a source-based allocation audit, not implementation or runtime qualification.
 No builds or test suites were run. Existing work in progress was preserved.
 
-## Recommendation
+## Selected allocation
+
+The owner has adopted this allocation as the implementation target. The owners
+below are decisions, including Rust ownership of the complete authenticated
+desktop GitHub connector. Remaining migration work does not reopen ownership.
 
 Keep one Go owner for durable product decisions and transactions. Give Rust
 substantial ownership of native execution, resource lifetimes, and the complete
@@ -20,12 +24,12 @@ Rust performs bounded native operations, enforces its local capability/resource
 constraints, and returns observations and receipts. Neither language should
 duplicate the other's authoritative state machine.
 
-This recommendation is based on responsibility cohesion, not the existing
+This allocation is based on responsibility cohesion, not the existing
 language policy or the amount of code already written. Both languages can
 implement workflows, networking, and SQL. The inspected source does not establish
 a performance or memory requirement that warrants replacing the whole Go engine.
 
-## Recommended allocation
+## Responsibility owners
 
 | Responsibility | Owner | Why | Current action |
 | --- | --- | --- | --- |
@@ -38,7 +42,7 @@ a performance or memory requirement that warrants replacing the whole Go engine.
 | Native worker processes, process trees, PTYs, hard deadlines and retirement | Rust | Explicit handle ownership, bounded native resources and independent cleanup | Implement the missing native executor behind semantic operation contracts |
 | Worktrees, Git effects, local artifacts, executable inspection and output collection | Rust | These effects share workspace/process/resource custody with execution | Implement with the executor; Go requests operations and retains returned facts |
 | OS keyring, withdrawal, refresh reservation, secret derivation/delivery | Rust | Keep native credential and capability lifetime under one authority | Retain existing custody; resolve dormant signing-key ownership before enabling execution |
-| Native GitHub OAuth, refresh, authenticated requests and provider-local decoding | Rust preferred | Co-locates the complete authenticated operation with credential lifetime; removes the token round trip through Go | Proposed cohesive connector migration, with its existing behavior preserved |
+| Native GitHub OAuth, refresh, authenticated requests and provider-local decoding | Rust | Co-locates the complete authenticated operation with credential lifetime; removes the token round trip through Go | Move the complete connector as one cohesive cutover, preserving its existing behavior |
 | Fountain native collaboration adapter | Go in its owning host integration | Uses Fountain's Go SDK and server authority; it is not a desktop keyring session | Retain outside the standalone engine's dependency closure |
 | Tauri windows, IPC caller admission, native events and runtime generations | Rust | Direct native host integration and resource lifetime | Retain; keep product policy out of the shell |
 | Shared presentation and drafts | TypeScript/Lit | Existing shared UI for both hosts | Retain; keep authority and secrets outside browser state |
@@ -55,7 +59,7 @@ reconciles recorded work; dispatch records admission before asking the host to
 launch. [RecordDispatchPacket](../../../pkg/store/factory_dispatch_packet.go#L36)
 atomically owns assignment, reservation, run and display binding.
 
-Recommendation: keep service scheduling, spending and durable workflow transitions
+Allocation: keep service scheduling, spending and durable workflow transitions
 together in Go. Rust owns process scheduling, containment and deadlines even if
 the Go process becomes unavailable. Moving just the scheduler while retaining
 its transactional state in Go would add a communication boundary without moving
@@ -78,7 +82,7 @@ and clears its context on retirement, but does not assign a connected product
 context. The [Tauri query surface](../../../cmd/soda-desktop/src/bridge.rs#L4)
 is also only a subset of the shared product API.
 
-Recommendation: implement actual Rust execution and complete native account,
+Allocation: implement actual Rust execution and complete native account,
 product and runtime-port composition. Go's execution records and ports must not
 be mistaken for an existing Go implementation of worktree/process control.
 A language rewrite would not supply these missing connections by itself.
@@ -91,7 +95,7 @@ child monitoring, and ordered retirement. [Database provisioning](../../../lib/d
 owns the private cluster and its process. [Credential custody](../../../lib/desktop-runtime/src/credentials.rs#L181)
 owns OS keyring access, capability lifetime, withdrawal and bounded token use.
 
-Recommendation: retain and extend these Rust owners into a headless native
+Allocation: retain and extend these Rust owners into a headless native
 execution service. Keep process exit, process-tree retirement, artifact sealing
 and credential release distinct; one successful process exit cannot stand in
 for all four observations.
@@ -108,7 +112,7 @@ Implication: ordinary requests can delay stop and health handling. This is a
 source-derived blocking risk, not a reproduced runtime failure or evidence
 against Rust.
 
-Recommendation: retain one owner of children and capabilities, while moving
+Allocation: retain one owner of children and capabilities, while moving
 bounded request I/O into cancellable work whose retirement is joined explicitly.
 The [async Unix transport](../../../lib/unix-http/src/lib.rs#L109) already supplies
 a useful primitive. Address this before attaching a busy native executor.
@@ -123,7 +127,7 @@ uses it in the outgoing provider request. Device exchange and
 route. Rust also interprets the replies. This is deliberately bounded, but
 credential-bearing operations are split across both languages.
 
-Recommendation: prefer a complete Rust native GitHub connector: authorization,
+Allocation: Rust owns the complete native GitHub connector: authorization,
 refresh, current-account verification, authenticated transport and provider-local
 response decoding together. Go receives bounded nonsecret observations bound
 to the selected connection, and alone applies canonical registry transactions.
@@ -161,7 +165,7 @@ Observed: [Store](../../../pkg/store/store.go#L27) owns its pool, schema and row
 operations. [Reservation transitions](../../../pkg/store/factory_reservations.go#L55)
 and dispatch admission rely on locks, uniqueness and conditional SQL.
 
-Recommendation: Rust may own the PostgreSQL *process* without owning the product
+Allocation: Rust owns the PostgreSQL *process*; Go owns the product
 *transactions*. Rust ownership rules do not prove freshness or atomicity across
 two independent writers. If an aggregate ever moves to Rust, move its complete
 transition, persistence, migration and recovery together. Do not split admission
@@ -174,7 +178,7 @@ and validates [private bootstrap input](../../../pkg/factory/runtime/native_conf
 Its coordinator uses a local ownership lock; product transactions use database
 locks for their different scope.
 
-Recommendation: retain coherent endpoint lifecycle in Go. Moving every file read
+Allocation: retain coherent endpoint lifecycle in Go. Moving every file read
 or lock into Rust would increase coupling. A local file lock is also not a
 distributed lease, regardless of its implementation language; multi-host
 coordination would require an explicit different ownership design.
@@ -191,20 +195,21 @@ when those workflow ports are enabled.
 
 | Design | Assessment |
 | --- | --- |
-| Keep the current split exactly | Retains useful service ownership, but leaves native execution/composition gaps, lifecycle blocking and split authenticated-provider operations unresolved |
-| Thin Go API over a complete Rust engine | Technically coherent if domain, scheduling, registry, transactions and recovery move together, with the same Rust engine serving headless Forge consumers. Keeping a Go forwarding process still retains IPC and deployment complexity. No inspected workload requirement currently justifies that broad port |
-| Targeted redistribution | Recommended: preserve Go's durable service owner, implement substantive Rust native execution, isolate lifecycle control, and move a complete native authenticated connector rather than isolated helper calls |
+| Keep the current split exactly | Rejected: leaves native execution/composition gaps, lifecycle blocking and split authenticated-provider operations unresolved |
+| Thin Go API over a complete Rust engine | Rejected: requires moving domain, scheduling, registry, transactions and recovery together, including headless Forge consumers, while retaining IPC and deployment complexity if Go remains a forwarding process. No inspected workload requirement justifies that broad port |
+| Targeted redistribution | Selected: preserve Go's durable service owner, implement substantive Rust native execution, isolate lifecycle control, and move the complete native authenticated connector |
 
 Tauri supports [external binaries](https://v2.tauri.app/develop/sidecar/), so using
 it neither requires nor forbids a Go engine. Go's [HTTP](https://pkg.go.dev/net/http)
 and [SQL](https://pkg.go.dev/database/sql) facilities make service ownership a
 natural fit. Rust's [ownership and scope-based cleanup](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)
 support native resource lifetime. These are technical capabilities; the allocation
-above is the reviewers' engineering judgment, not a language benchmark result.
+above is the adopted engineering decision, not a language benchmark result.
 
 ## Dependency-ordered implementation packets
 
-These are proposed follow-up packets, not work performed by this audit. Integrate
+These packets implement the selected allocation; they are not work performed by
+this audit. Integrate
 them into the canonical task queue before implementing; do not create a competing
 progress ledger.
 
@@ -214,7 +219,7 @@ progress ledger.
 | N2: native product composition | Current account/registry producers | Bind the shared UI and Go product services to the selected account/repository; supply explicit unavailable states for missing execution |
 | N3: Rust execution authority | N1 and admitted execution contract | Implement complete local process/workspace/Git/custody operations; keep hard deadlines and cleanup enforceable without Go progress polling |
 | N4: execution consumer cutover | N2, N3 | Supply the Go native execution ports and explicitly start the single coordinator only when dependencies are admitted; preserve one ledger and reconcile returned evidence |
-| P1: cohesive native provider session | Account contract and explicit decision to adopt the proposed connector move | Move the complete authenticated GitHub connector to Rust; keep canonical mapping and SQL in Go; retire the old native provider implementation and token-carrying route together |
+| P1: cohesive native provider session | Account contract | Move the complete authenticated GitHub connector to Rust; keep canonical mapping and SQL in Go; retire the old native provider implementation and token-carrying route together |
 | C1: shared contract consolidation | Relevant operation owner selected | Keep current wire bounds and typed outcomes; remove duplicated product semantics while preserving independent boundary checks |
 
 Native work and the connector work can be developed independently only with
@@ -233,8 +238,9 @@ dormant. Independent review also rejected treating an older SodaOS API caller as
 a defect solely because it differs from Factory HEAD: its pinned module revision
 must be considered.
 
-The connector move is a recommendation with a real migration cost. It is not
-implemented or required merely to use Tauri. No measurements establish that
+The connector move is selected and has a real migration cost. It is not yet
+implemented; the decision follows responsibility ownership, rather than a Tauri
+requirement. No measurements establish that
 either language would make the current engine faster. This audit covers the named
 language boundaries and representative state/effect paths, not every source file
 or every correctness question. Provider source was changing during inspection;
