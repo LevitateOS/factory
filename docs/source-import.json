@@ -13,7 +13,7 @@
     },
     {
       "name": "fountain",
-      "repository": "https://github.com/veighnsche/forgejo-ext",
+      "repository": "https://github.com/veighnsche/fountain",
       "revision": "fd5d4db12daf291cdaa5cbde8cb9dee52a0e2b11",
       "patch": "integrations/fountain/working-tree.patch",
       "sha256": "e1ca5b5e7dd27fe8993c518bbe75abe82be3d2fb59875e8d8e154c72a937a895",
