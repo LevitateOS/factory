@@ -1,0 +1,106 @@
+.soda-feed-filters {
+  display: grid;
+  gap: 0.65rem;
+  margin-block: 0.75rem 1rem;
+}
+.soda-feed-filters nav,
+.soda-feed-filters form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+.soda-feed-filters nav button {
+  border: 1px solid var(--soda-feed-edge, var(--color-secondary, #d6d8de));
+  border-radius: var(--soda-control-radius, 4px);
+  padding: 0.3rem 0.75rem;
+  background: transparent;
+  color: inherit;
+}
+.soda-feed-filters nav button[aria-pressed='true'] {
+  background: var(--soda-button-primary-bg, var(--color-primary, #395cba));
+  border-color: var(--soda-button-primary-border, var(--color-primary, #395cba));
+  color: var(--soda-button-primary-text, white);
+}
+.soda-feed-filters input[type='search'] {
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--soda-feed-edge, var(--color-secondary, #d6d8de));
+  background: var(--soda-page-surface, transparent);
+  color: var(--soda-page-text, inherit);
+  font: inherit;
+  border-radius: var(--soda-control-radius, 4px);
+  min-width: 9rem;
+  flex: 1 1 10rem;
+  max-width: 22rem;
+}
+.soda-feed-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.soda-feed-empty {
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--color-secondary, #d6d8de);
+  border-radius: 0.6rem;
+  margin-block: 1rem;
+}
+.soda-feed-empty h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+.soda-feed-empty p {
+  margin: 0.5rem 0;
+  max-width: 42rem;
+  line-height: 1.5;
+}
+.soda-feed-empty button {
+  margin-top: 0.5rem;
+}
+.soda-feed-comment-main {
+  min-width: 0;
+}
+.soda-feed-comment .soda-feed-avatar img {
+  border-radius: 50%;
+  object-fit: cover;
+}
+.soda-feed-consultation {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.92em;
+}
+.soda-feed-consultation p {
+  margin: 0.25rem 0;
+}
+.soda-feed-consultation-question {
+  border-left: 2px solid var(--color-secondary, #d6d8de);
+  padding-left: 0.75rem;
+}
+.soda-feed-consultation details {
+  max-width: 100%;
+}
+.soda-feed-consultation summary {
+  cursor: pointer;
+}
+.soda-feed-consultation pre {
+  overflow: auto;
+  max-width: 100%;
+  max-height: 24rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 0.65rem;
+  border-radius: 0.4rem;
+  background: var(--color-box-body, #f4f5f8);
+}
+.soda-feed-consultation code {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .soda-feed-filters form {
+    align-items: stretch;
+  }
+  .soda-feed-filters label {
+    flex-basis: 100%;
+  }
+}

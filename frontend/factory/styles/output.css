@@ -1,0 +1,122 @@
+/* Canonical output geometry shared by read-only Watch and Fountain terminals. */
+.soda-terminal {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  padding: 0;
+  border: 0;
+}
+.soda-terminal-screen {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--soda-space-1);
+  box-sizing: content-box;
+  background: var(--soda-terminal-screen);
+  overflow: hidden;
+}
+.soda-terminal-screen[hidden] {
+  display: none;
+}
+.soda-terminal-screen .xterm {
+  height: 100%;
+}
+.soda-terminal-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  min-height: var(--soda-workspace-control);
+  flex-shrink: 0;
+  gap: var(--soda-space-2);
+  padding: var(--soda-space-1) var(--soda-space-2);
+}
+.soda-terminal-context .soda-menu > div {
+  max-height: min(60dvh, calc(var(--soda-terminal-height, 70dvh) - 60px));
+}
+.soda-terminal-context > .soda-terminal-status {
+  grid-column: 1;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  max-height: min(9em, 30dvh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  font: var(--soda-font-meta);
+  color: var(--soda-page-warning);
+}
+.soda-terminal-context > .soda-terminal-connect {
+  grid-column: 2;
+  white-space: nowrap;
+}
+.soda-terminal-context > .soda-menu {
+  grid-column: 3;
+}
+.soda-factory > .soda-terminal-context {
+  padding-block: 0;
+  padding-right: 0;
+}
+.soda-factory .soda-terminal-context > span {
+  grid-column: 1 / 3;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.soda-factory > .soda-terminal-status {
+  margin: 0;
+  padding: var(--soda-space-1) var(--soda-space-2);
+  max-height: 30%;
+  overflow: auto;
+  font: var(--soda-font-meta);
+  color: var(--soda-page-muted);
+}
+soda-factory-watch {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.soda-factory-root soda-factory-watch {
+  height: 60vh;
+  min-height: 360px;
+}
+.soda-factory-root .soda-factory .soda-menu {
+  position: relative;
+}
+.soda-factory-root .soda-factory .soda-menu > div {
+  position: absolute;
+  z-index: 10;
+  right: 0;
+  padding: var(--soda-space-3);
+  border: 1px solid var(--soda-page-edge);
+  background: var(--soda-page-canvas);
+  min-width: 180px;
+}
+.soda-factory-root .soda-factory .soda-menu:not([open]) > div {
+  display: none;
+}
+.soda-factory-root .soda-factory > .soda-terminal-status {
+  flex-shrink: 0;
+}
+.soda-factory-root .soda-factory > .ui.primary.button {
+  align-self: flex-start;
+}
+.soda-factory-root .soda-factory-technical {
+  overflow: auto;
+  max-height: 40vh;
+}
+.soda-factory-root .soda-factory-technical pre {
+  white-space: pre-wrap;
+  font: var(--soda-font-mono);
+}
+.soda-factory-root .soda-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

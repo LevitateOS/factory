@@ -1,0 +1,61 @@
+[
+  {
+    "issue_id": 101,
+    "issue_index": 1,
+    "title": "Request entry",
+    "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest entry\n\nAcceptance outcomes:\n- Capture requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: daaaaaaaaaaaaaaaaaaaaaaaa\nTask digest: ea24e935afc278e23cf9af983113460266d196db661d76ad5185cfa09f9d01c4\nProduct choices: d333333333333333333333333\n",
+    "content_version": 0,
+    "is_closed": true,
+    "depends_on": [],
+    "title_digest": "4635e50c0bacfcecbe8c1f8261ddb1f996805e628b5bc5a40ad55ea78a2c06cf",
+    "content_digest": "79ee0fc847b365cc40bacb59415be8e970b05b9398dc85b013889d1548ec8102"
+  },
+  {
+    "issue_id": 102,
+    "issue_index": 2,
+    "title": "Request list",
+    "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest list\n\nAcceptance outcomes:\n- Show requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: dbbbbbbbbbbbbbbbbbbbbbbbb\nTask digest: c009be6a27d9e40e05b40185a69b5764fe66392996d48f9c665fd7271c17de0e\nProduct choices: d333333333333333333333333\n",
+    "content_version": 0,
+    "is_closed": true,
+    "depends_on": [],
+    "title_digest": "a4e224e002de1842472dbb99715fd3d2ed9f5b158c33a674f4902de0c1ab6235",
+    "content_digest": "f869e408c48d5e8a20c70cb7c46bb5745e25e631a8d7da6110bbb12ba1114aba"
+  },
+  {
+    "issue_id": 103,
+    "issue_index": 3,
+    "title": "Request search",
+    "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest search\n\nAcceptance outcomes:\n- Find requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: dcccccccccccccccccccccccc\nTask digest: f0467b7af1839bc0154a38b6933509f1e2c0098cef43f0d72861ab0e7404cd0c\nProduct choices: d333333333333333333333333\n",
+    "content_version": 0,
+    "is_closed": true,
+    "depends_on": [],
+    "title_digest": "f704dc85ed5495b697c0e6078a9877877f241b34c2d7265bd2e492db3322d58d",
+    "content_digest": "615b4afb19b518feab09683b615ea6fe87aa8b151794cd08d3a43e8862a6663c"
+  },
+  {
+    "issue_id": 104,
+    "issue_index": 4,
+    "title": "Request list with filters",
+    "body": "Accepted product objective:\nBuild a request tracker with exports\n\nTask objective:\nRequest list with filters\n\nAcceptance outcomes:\n- Show requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d777777777777777777777777\nIntent digest: ce56549aa8308a03d2e16fc75e308c32d1915c93ba5ccc99654a6afc4bea8eac\nTask: dbbbbbbbbbbbbbbbbbbbbbbbb\nTask digest: e98a60f9b74014d1b971c36458e6b368d2372a1dd4b4d1f8bfef9d4a0842220c\nProduct choices: d333333333333333333333333\n",
+    "content_version": 0,
+    "is_closed": true,
+    "depends_on": [
+      101
+    ],
+    "title_digest": "fc99a8bd75f1640a9ae313cce806273b0f71af3dbe4f20a653f542260e80cf69",
+    "content_digest": "f76749cdb7203724c7b9325bd5b5b80b27ea97df6e8861aed3f8d124b174d419"
+  },
+  {
+    "issue_id": 105,
+    "issue_index": 5,
+    "title": "Request export",
+    "body": "Accepted product objective:\nBuild a request tracker with exports\n\nTask objective:\nRequest export\n\nAcceptance outcomes:\n- Export requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d777777777777777777777777\nIntent digest: ce56549aa8308a03d2e16fc75e308c32d1915c93ba5ccc99654a6afc4bea8eac\nTask: ddddddddddddddddddddddddd\nTask digest: 2c921be3274cd05b428ac5952914dacec66e06e6601d5cc28e843cf38a60e9f6\nProduct choices: d333333333333333333333333\n",
+    "content_version": 0,
+    "is_closed": true,
+    "depends_on": [
+      101
+    ],
+    "title_digest": "c2b7ea6e50679e346fc6a7205f5c45e67b58e82a17af889e8080600c6820b940",
+    "content_digest": "ce30737b7d7dc939dbdc23a862aaf1cec4823ef2fd45aa923cea6ecdea8ff3bc"
+  }
+]

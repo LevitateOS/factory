@@ -1,0 +1,41 @@
+{
+  "creates": [
+    {
+      "key": "dbbbbbbbbbbbbbbbbbbbbbbbb",
+      "title": "Request list with filters",
+      "body": "Accepted product objective:\nBuild a request tracker with exports\n\nTask objective:\nRequest list with filters\n\nAcceptance outcomes:\n- Show requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d777777777777777777777777\nIntent digest: ce56549aa8308a03d2e16fc75e308c32d1915c93ba5ccc99654a6afc4bea8eac\nTask: dbbbbbbbbbbbbbbbbbbbbbbbb\nTask digest: e98a60f9b74014d1b971c36458e6b368d2372a1dd4b4d1f8bfef9d4a0842220c\nProduct choices: d333333333333333333333333\n"
+    },
+    {
+      "key": "ddddddddddddddddddddddddd",
+      "title": "Request export",
+      "body": "Accepted product objective:\nBuild a request tracker with exports\n\nTask objective:\nRequest export\n\nAcceptance outcomes:\n- Export requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d777777777777777777777777\nIntent digest: ce56549aa8308a03d2e16fc75e308c32d1915c93ba5ccc99654a6afc4bea8eac\nTask: ddddddddddddddddddddddddd\nTask digest: 2c921be3274cd05b428ac5952914dacec66e06e6601d5cc28e843cf38a60e9f6\nProduct choices: d333333333333333333333333\n"
+    }
+  ],
+  "dependencies": [
+    {
+      "issue": {
+        "key": "dbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "prerequisite": {
+        "issue_id": 101
+      }
+    },
+    {
+      "issue": {
+        "key": "ddddddddddddddddddddddddd"
+      },
+      "prerequisite": {
+        "issue_id": 101
+      }
+    },
+    {
+      "issue": {
+        "issue_id": 102
+      },
+      "prerequisite": {
+        "issue_id": 101
+      },
+      "remove": true
+    }
+  ]
+}

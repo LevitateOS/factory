@@ -1,0 +1,78 @@
+[
+  {
+    "package": "@fontsource-variable/fraunces",
+    "version": "5.3.0",
+    "url": "https://registry.npmjs.org/@fontsource-variable/fraunces/-/fraunces-5.3.0.tgz",
+    "integrity": "sha512-9BYGySn4AHEJdgp9Z28tQ3X+laJMEOITXkQarZXeloWQZDq5oOvXJ3kDA8c7MGIfpogIaZfjrQBqmda8POOCKA==",
+    "license": "OFL-1.1",
+    "files": {
+      "fraunces/fraunces-latin-wght-normal.woff2": {
+        "sha256": "7f9d191d999336d3b9790afa72e1358e50a13b06d4f289341e92a311967a80f9",
+        "bytes": 36620
+      },
+      "fraunces/LICENSE": {
+        "sha256": "cd3384cafac6f2bddc3955273958a2e029f97027c8037ac539ef5744a77b579e",
+        "bytes": 4504
+      }
+    }
+  },
+  {
+    "package": "@fontsource/barlow",
+    "version": "5.3.0",
+    "url": "https://registry.npmjs.org/@fontsource/barlow/-/barlow-5.3.0.tgz",
+    "integrity": "sha512-tGR0y6QObRtKv71MOth44222+mdNFM/ZWFWDV1VLzNbG4oK9PNRlyJzmkck4vHAi9ibHBXgt4SlY51amFP55CA==",
+    "license": "OFL-1.1",
+    "files": {
+      "barlow/barlow-latin-400-normal.woff2": {
+        "sha256": "b0a8ad37ac45f5fb22ced461576db72e44e295107aad7a9c8a7a4bad728fd03b",
+        "bytes": 22196
+      },
+      "barlow/barlow-latin-600-normal.woff2": {
+        "sha256": "4b52ddd4836b592df0e4832b8286956883cdc651b015126bdd18f184b7f90cc3",
+        "bytes": 22772
+      },
+      "barlow/LICENSE": {
+        "sha256": "4877e0c1b66f0b16cc3ebc4801c4def24c06252f618b9229428b20c7387aa0c0",
+        "bytes": 6014
+      }
+    }
+  },
+  {
+    "package": "@fontsource/ibm-plex-mono",
+    "version": "5.3.0",
+    "url": "https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.3.0.tgz",
+    "integrity": "sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==",
+    "license": "OFL-1.1",
+    "files": {
+      "ibm-plex-mono/ibm-plex-mono-latin-400-normal.woff2": {
+        "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
+        "bytes": 14708
+      },
+      "ibm-plex-mono/ibm-plex-mono-latin-500-normal.woff2": {
+        "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22",
+        "bytes": 14888
+      },
+      "ibm-plex-mono/LICENSE": {
+        "sha256": "23b0a9d0c6d3f140a0b77e483c5cfa6bba574325ef5cb189ed9f2fec4884533f",
+        "bytes": 5299
+      }
+    }
+  },
+  {
+    "package": "@fontsource/barlow-condensed",
+    "version": "5.3.0",
+    "url": "https://registry.npmjs.org/@fontsource/barlow-condensed/-/barlow-condensed-5.3.0.tgz",
+    "integrity": "sha512-RA7MmIx0v3eQ6Gcf74qLVLOwLB0GpPOzx+eU9iG/AmCnSJGcIWYeU8y6CEMGZ210MGwGg5CZhzLkkvyZdTTk1g==",
+    "license": "OFL-1.1",
+    "files": {
+      "barlow-condensed/barlow-condensed-latin-800-normal.woff2": {
+        "sha256": "2515494e8cc2ca07c86ea78766cfa104b796aa6ed5d66821c01d51dbb0b52bce",
+        "bytes": 22464
+      },
+      "barlow-condensed/LICENSE": {
+        "sha256": "046ee27d8bddc6b6ee08eee53c96dbf3ec1f6df561644e018507dd8ffcb11d31",
+        "bytes": 6167
+      }
+    }
+  }
+]

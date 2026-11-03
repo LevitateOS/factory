@@ -1,0 +1,2 @@
+# Preserve recovery patches byte-for-byte, including their context whitespace.
+integrations/**/working-tree.patch -whitespace

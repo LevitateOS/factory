@@ -1,0 +1,63 @@
+import {SodaFactoryApp} from '../factory/app/browser.js';
+interface RuntimeStatus {
+  phase: 'starting' | 'ready' | 'failed' | 'stopping';
+  profile: string | null;
+  instance: string | null;
+  generation: number;
+}
+const core = (window as unknown as {__TAURI__: {core: {invoke: <T>(command: string, args?: unknown) => Promise<T>}}})
+  .__TAURI__.core;
+const app = new SodaFactoryApp();
+document.querySelector('#application')!.replaceChildren(app);
+const status = document.querySelector<HTMLElement>('#runtime-status')!;
+const retry = document.querySelector<HTMLButtonElement>('#retry')!;
+let reading = false,
+  epoch = -1;
+async function refresh() {
+  if (reading) return;
+  reading = true;
+  try {
+    const value = await core.invoke<RuntimeStatus>('runtime_status');
+    if (value.generation !== epoch) {
+      epoch = value.generation;
+      app.context = undefined;
+    }
+    status.textContent =
+      value.phase === 'ready'
+        ? 'Ready'
+        : value.phase === 'starting'
+          ? 'Opening Factory…'
+          : value.phase === 'stopping'
+            ? 'Closing Factory…'
+            : 'Factory could not start. Retry when the local runtime is available.';
+    retry.hidden = value.phase !== 'failed';
+  } catch {
+    status.textContent = 'Factory is unavailable. Your saved work is kept.';
+    app.context = undefined;
+  } finally {
+    reading = false;
+  }
+}
+for (const [id, command] of [
+  ['refresh', 'runtime_status'],
+  ['retry', 'runtime_retry'],
+  ['new-window', 'open_window'],
+  ['close', 'close_window'],
+  ['quit', 'quit_factory'],
+] as const) {
+  document.querySelector('#' + id)!.addEventListener('click', () => {
+    void core
+      .invoke(command)
+      .then(() => refresh())
+      .catch(() => {
+        status.textContent = 'This action could not finish. Your saved work is kept.';
+      });
+  });
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) void refresh();
+});
+setInterval(() => {
+  if (!document.hidden) void refresh();
+}, 2000);
+void refresh();

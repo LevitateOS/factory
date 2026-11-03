@@ -1,0 +1,18 @@
+[package]
+name = "soda-desktop-runtime"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Native Factory desktop process and storage lifecycle"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "=0.2.191"
+getrandom = { version = "=0.4.3", features = ["std"] }
+url = "=2.5.8"
+serde_json = "=1.0.154"
+soda-unix-http = { path = "../unix-http" }
+serde = { version = "=1.0.229", features = ["derive"] }
+secret-service = { version = "=5.2.0", default-features = false, features = ["rt-tokio-crypto-rust"] }
+tokio = { version = "=1.54.1", features = ["sync", "time"] }
+zeroize = "=1.9.1"

@@ -1,0 +1,105 @@
+{
+  "note": "Production Soda packets for the I07 native join. packet bytes are the durable submitted payloads; receipt files are the fixture receipts recorded by Soda (shape reference only, never native proof). Fixture issue IDs are local: L seeds its writer by applying r1-fresh, builds key-\u003enative-ID from its own receipt, and translates ID-bearing entries (dependency removals) in r2/r3 onto native allocations before applying. Operation IDs are deterministic intent-\u003crevision\u003e; resubmission must return the recorded result. Authority context per case: the submitting actor must own the repository; native writer validates every edit anchor before any create (atomic).",
+  "fixture_ids_local": true,
+  "cases": [
+    {
+      "name": "r1-fresh",
+      "revision": "d666666666666666666666666",
+      "predecessor": "d111111111111111111111111",
+      "operation": "intent-d666666666666666666666666",
+      "actor_id": 91,
+      "repository": 42,
+      "submitted_keys": [
+        "daaaaaaaaaaaaaaaaaaaaaaaa",
+        "dbbbbbbbbbbbbbbbbbbbbbbbb",
+        "dcccccccccccccccccccccccc"
+      ],
+      "packet_file": "r1-fresh.packet.json",
+      "receipt_file": "r1-fresh.receipt.json",
+      "soda_assertions": [
+        "3 creates for submitted keys A/B/C",
+        "1 dependency edge B-\u003eA",
+        "receipt carries 3 keyed entries"
+      ]
+    },
+    {
+      "name": "r2-delta",
+      "revision": "d777777777777777777777777",
+      "predecessor": "d666666666666666666666666",
+      "operation": "intent-d777777777777777777777777",
+      "actor_id": 91,
+      "repository": 42,
+      "submitted_keys": [
+        "daaaaaaaaaaaaaaaaaaaaaaaa",
+        "dbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ddddddddddddddddddddddddd"
+      ],
+      "delivered": {
+        "daaaaaaaaaaaaaaaaaaaaaaaa": {
+          "issue_id": "101",
+          "issue_index": "1",
+          "content_version": 0
+        }
+      },
+      "packet_file": "r2-delta.packet.json",
+      "receipt_file": "r2-delta.receipt.json",
+      "native_file": "pre-r2.native.json",
+      "soda_assertions": [
+        "0 edits: unchanged closed A omitted, changed closed B recreated, removed closed C silent",
+        "creates exactly keys B/D",
+        "delivered map pins A only",
+        "dependency removal drops old B-\u003eA edge; new B/D-\u003eA edges added",
+        "receipt carries 2 keyed entries and no row for the delivered issue"
+      ]
+    },
+    {
+      "name": "r3-redelta",
+      "revision": "d888888888888888888888888",
+      "predecessor": "d777777777777777777777777",
+      "operation": "intent-d888888888888888888888888",
+      "actor_id": 91,
+      "repository": 42,
+      "submitted_keys": [
+        "daaaaaaaaaaaaaaaaaaaaaaaa",
+        "dbbbbbbbbbbbbbbbbbbbbbbbb",
+        "ddddddddddddddddddddddddd"
+      ],
+      "delivered": {
+        "dbbbbbbbbbbbbbbbbbbbbbbbb": {
+          "issue_id": "104",
+          "issue_index": "4",
+          "content_version": 0
+        },
+        "ddddddddddddddddddddddddd": {
+          "issue_id": "105",
+          "issue_index": "5",
+          "content_version": 0
+        }
+      },
+      "packet_file": "r3-redelta.packet.json",
+      "receipt_file": "r3-redelta.receipt.json",
+      "native_file": "pre-r3.native.json",
+      "soda_assertions": [
+        "0 edits across the second delta",
+        "creates exactly key A",
+        "delivered map pins B/D",
+        "dependent edges rewired onto the recreated A",
+        "prior closed natives byte-identical"
+      ]
+    },
+    {
+      "name": "tampered-closed",
+      "revision": "",
+      "operation": "",
+      "actor_id": 0,
+      "repository": 0,
+      "submitted_keys": null,
+      "expected_refusal": "objective_changed",
+      "soda_assertions": [
+        "closed record with drifted content refuses objective_changed",
+        "refused delta submits zero packets",
+        "only pinned-stable closed records rebind; rebinding preserves history without claiming verified merged work"
+      ]
+    }
+  ]
+}

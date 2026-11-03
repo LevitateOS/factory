@@ -1,0 +1,77 @@
+# Factory desktop host
+
+The Linux Tauri executable owns a private native profile, PostgreSQL and the Go
+Factory server through [`soda-desktop-runtime`](../../lib/desktop-runtime/README.md).
+It loads the production `SodaFactoryApp` entry used by the shared Factory UI.
+Storybook remains the separate component workbench in `tools/factory-ui/`.
+
+Build with Bun, Go, Rust and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
+Supply a native PostgreSQL payload prepared as described by the runtime owner:
+
+```sh
+bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/factory-stage
+/home/USER/factory-stage/soda-desktop
+```
+
+This stages a source development build, not an installer or a qualified Linux
+distribution package. The default profile is `$XDG_DATA_HOME/soda-factory`, or
+`$HOME/.local/share/soda-factory`. Native `--profile`, `--postgres` and `--backend`
+options accept absolute paths. The profile must be privately owned, with no
+symlink components. Normal workspace builds omit GTK/WebKit requirements; the
+staging script enables the `native-ui` feature.
+
+Closing windows hides them and keeps the runtime alive. Launching again for the
+same profile activates its main window. Quit stops admission and observations,
+then stops Go before PostgreSQL. Startup failure is visible in the toolbar;
+Retry startup retries the same retained profile. UI refresh and visibility changes
+request fresh native readiness. A dead backend or database retires the binding.
+
+The webview receives opaque readiness IDs and typed product operations. It never
+receives the bootstrap key, database credentials, socket paths, arbitrary HTTP
+targets or filesystem/shell access. Query and mutation bodies are bounded, as
+are responses. Observations currently poll recorded run status over Tauri
+channels, with cancellation scoped to each window and binding generation; these
+are not executor terminal streams. Account/connector binding is a later slice,
+so the application currently displays its shared disconnected state. Runtime
+readiness does not create an account or authorize provider work.
+
+Linux account tokens use the login session's OS Secret Service through the
+[native credential owner](../../lib/desktop-runtime/README.md#native-account-credentials).
+The two browser commands expose metadata and withdrawal, never a token getter,
+token writer or keyring passphrase. A locked or absent keyring reports an error;
+there is no file fallback. Native provider login/refresh and connected browsing
+remain later slices.
+
+For a real compositor/WebKit integration run, build with `--check`, then launch
+the staged executable with `--check`. This feature alone includes a native
+acceptance hook that checks shared UI/themes, private bridge refusals, bounded
+observations, multiple windows, close/reopen, second-launch activation and Quit.
+`--check-startup-error` checks visible failure with a deliberately unavailable
+`--backend` or `--postgres`; `--check-crash` reports its exact ready process ID
+for an external driver to kill and relaunch against the retained profile. These
+hooks are absent from the normal `native-ui` executable. They do not qualify an
+installed package, OS sleep/wake, connected providers or executor retirement.
+
+`--check-resume` adds an observer for an external, isolated OS sleep/wake
+driver. With a fresh profile it writes `wake-ready` after native UI/IPC checks,
+then waits for `wake-complete`. The driver must commit/check real store data,
+suspend the **guest OS**, observe suspension and wake it before creating that
+second marker. The observer checks fresh readiness, the original PG/Go process
+identities, binding generation and retained webview state before Quit. The
+markers alone do not prove OS suspension. The Linux kernel's
+[sleep-state interface](https://kernel.org/doc/html/latest/admin-guide/pm/sleep-states.html)
+and QEMU's [suspend/wakeup observations](https://www.qemu.org/docs/master/interop/qemu-ga-ref.html)
+provide that external evidence. This hook never suspends the user's machine.
+
+The desktop staging copy preserves the PostgreSQL payload's relative symlinks.
+Rewriting them to absolute source paths breaks relocation onto a computer that
+does not have the build cache.
+
+`--check-credentials` extends the same opt-in native acceptance hook against an
+isolated real Secret Service daemon. It uses generated fixture tokens, never
+provider credentials. The external driver locks/stops/restarts only that daemon
+through the existing `credential-*-ready` marker handshake. The native/webview
+checks cover custody, metadata-only commands, owner/profile isolation,
+reauthentication, withdrawal across reopen, locked/unavailable errors, encrypted
+retention across daemon restart and actual capability expiry. Run it with a fresh
+profile and a private session bus/data directory, preserving the personal keyring.

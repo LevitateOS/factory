@@ -1,0 +1,29 @@
+{
+  "creates": [
+    {
+      "key": "daaaaaaaaaaaaaaaaaaaaaaaa",
+      "title": "Request entry",
+      "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest entry\n\nAcceptance outcomes:\n- Capture requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: daaaaaaaaaaaaaaaaaaaaaaaa\nTask digest: ea24e935afc278e23cf9af983113460266d196db661d76ad5185cfa09f9d01c4\nProduct choices: d333333333333333333333333\n"
+    },
+    {
+      "key": "dbbbbbbbbbbbbbbbbbbbbbbbb",
+      "title": "Request list",
+      "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest list\n\nAcceptance outcomes:\n- Show requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: dbbbbbbbbbbbbbbbbbbbbbbbb\nTask digest: c009be6a27d9e40e05b40185a69b5764fe66392996d48f9c665fd7271c17de0e\nProduct choices: d333333333333333333333333\n"
+    },
+    {
+      "key": "dcccccccccccccccccccccccc",
+      "title": "Request search",
+      "body": "Accepted product objective:\nBuild a request tracker\n\nTask objective:\nRequest search\n\nAcceptance outcomes:\n- Find requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d666666666666666666666666\nIntent digest: 35be93f13d7a96f946ee68fb2eafeaa2f81fcbedb258f31e9a62750520268b2d\nTask: dcccccccccccccccccccccccc\nTask digest: f0467b7af1839bc0154a38b6933509f1e2c0098cef43f0d72861ab0e7404cd0c\nProduct choices: d333333333333333333333333\n"
+    }
+  ],
+  "dependencies": [
+    {
+      "issue": {
+        "key": "dbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "prerequisite": {
+        "key": "daaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}

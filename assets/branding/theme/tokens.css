@@ -1,0 +1,72 @@
+/* Canonical Soda product tokens. Host adapters own scheme selection. */
+:root {
+  --border-radius: 0px;
+  --border-radius-medium: 0px;
+  --border-radius-large: 0px;
+  --soda-page-canvas: light-dark(var(--soda-light-canvas), var(--soda-dark-canvas));
+  --soda-page-surface: light-dark(var(--soda-light-surface), var(--soda-dark-surface));
+  --soda-page-text: light-dark(var(--soda-light-text), var(--soda-dark-text));
+  --soda-page-muted: light-dark(var(--soda-light-muted), var(--soda-dark-muted));
+  --soda-page-edge: light-dark(var(--soda-light-border), var(--soda-dark-border));
+  --soda-page-link: light-dark(var(--soda-light-link), var(--soda-dark-link));
+  --soda-page-selected: light-dark(var(--soda-light-selected), var(--soda-dark-selected));
+  --soda-page-action: light-dark(var(--soda-light-action), var(--soda-dark-action));
+  --soda-page-action-hover: light-dark(var(--soda-light-action-hover), var(--soda-dark-action-hover));
+  --soda-page-action-pressed: light-dark(var(--soda-light-action-pressed), var(--soda-dark-action-pressed));
+  --soda-page-on-action: light-dark(var(--soda-light-on-action), var(--soda-dark-on-action));
+  --soda-page-hover: light-dark(var(--soda-light-hover), var(--soda-dark-hover));
+  --soda-panel-radius: 0px;
+  --soda-panel-inset: 16px;
+  --soda-control-height: 44px;
+  --soda-control-radius: 0px;
+  --soda-button-radius: 0px;
+  --soda-button-primary-text: var(--soda-page-on-action);
+  --soda-button-primary-bg: var(--soda-page-action);
+  --soda-button-primary-border: var(--soda-page-action);
+  --soda-button-primary-hover: var(--soda-page-action-hover);
+  --soda-button-danger: light-dark(var(--soda-light-danger), var(--soda-dark-danger));
+  --soda-font-button: 500 13px/20px "IBM Plex Mono", monospace;
+  --soda-font-button-prominent: 500 13px/20px "IBM Plex Mono", monospace;
+  --soda-space-1: 4px;
+  --soda-space-2: 8px;
+  --soda-space-3: 12px;
+  --soda-space-4: 16px;
+  --soda-space-6: 24px;
+  --soda-space-8: 32px;
+  --soda-control-compact: 44px;
+  --soda-control-icon: 44px;
+  --soda-sidebar-width: 240px;
+  /* Spaces page compositions share Soda's native content alignment. */
+  --soda-spaces-setup-width: 1240px;
+  --soda-spaces-form-width: 720px;
+  --soda-spaces-page-inset: clamp(16px, 3vw, 48px);
+  --soda-spaces-panel-inset: clamp(16px, 3vw, 32px);
+  --soda-font-title: 800 clamp(30px, 4vw, 42px)/1.12 "Barlow Condensed", "Arial Narrow", sans-serif;
+  --soda-font-workspace-title: 800 28px/1.1 "Barlow Condensed", "Arial Narrow", sans-serif;
+  --soda-font-heading: 700 24px/1.2 "Barlow Condensed", "Arial Narrow", sans-serif;
+  --soda-font-body: 400 16px/1.6 Barlow, Arial, sans-serif;
+  --soda-font-label: 600 15px/1.5 Barlow, Arial, sans-serif;
+  --soda-font-meta: 400 14px/1.5 Barlow, Arial, sans-serif;
+  --soda-page-focus: light-dark(var(--soda-light-focus), var(--soda-dark-focus));
+  --soda-page-success: light-dark(var(--soda-light-success-text), var(--soda-dark-success-text));
+  --soda-page-warning: light-dark(var(--soda-light-warning-text), var(--soda-dark-warning-text));
+  --soda-page-warning-bg: light-dark(var(--soda-light-warning-bg), var(--soda-dark-warning-bg));
+  --soda-page-warning-edge: light-dark(var(--soda-light-warning-border), var(--soda-dark-warning-border));
+  --soda-space-half: 2px;
+  --soda-font-workspace: 400 14px/1.4 Barlow, Arial, sans-serif;
+  --soda-font-caption: 400 12px/1.4 Barlow, Arial, sans-serif;
+  /* Dense desktop chrome; compact projection uses the ordinary 44px control. */
+  --soda-workspace-control: 36px;
+  --soda-workspace-tab: 36px;
+  --soda-workspace-radius: 0px;
+  --soda-elevation-menu: none;
+  --soda-elevation-dialog: none;
+  --soda-font-mono-family: 'IBM Plex Mono', monospace;
+  --soda-font-mono-size: 14px;
+  --soda-font-mono-line: 1.4;
+  --soda-font-mono: var(--soda-font-mono-size)/var(--soda-font-mono-line) var(--soda-font-mono-family);
+  /* Terminal contrast stays independent of light/dark page selection. ANSI
+     colors remain xterm's native palette; Soda owns screen/text/cursor only. */
+  --soda-terminal-screen: #000000;
+  --soda-terminal-text: #ffffff;
+}

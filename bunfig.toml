@@ -1,0 +1,3 @@
+[run]
+# Dependency executables with Node shebangs also run on the selected Bun runtime.
+bun = true

@@ -1,0 +1,12 @@
+/.artifacts/
+/.local/
+/node_modules/
+/tools/lit-check/node_modules/
+target/
+**/gen/schemas/
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*

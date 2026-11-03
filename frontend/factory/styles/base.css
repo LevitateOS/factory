@@ -1,0 +1,65 @@
+@import '../../../assets/branding/fonts/fonts.css';
+@import '../../../assets/branding/theme/palette.css';
+@import '../../../assets/branding/theme/tokens.css';
+@import './feed.css';
+@import './output.css';
+@import './issues.css';
+
+/* The standalone product supplies its own envelope. Fountain keeps its native
+   document/theme envelope and imports the same component CSS independently. */
+.soda-factory-root {
+  color-scheme: light dark;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  color: var(--soda-page-text);
+  background: var(--soda-page-canvas);
+  font: var(--soda-font-body);
+}
+.soda-factory-root[data-factory-scheme='light'] {
+  color-scheme: light;
+}
+.soda-factory-root[data-factory-scheme='dark'] {
+  color-scheme: dark;
+}
+.soda-factory-root *,
+.soda-factory-root *::before,
+.soda-factory-root *::after {
+  box-sizing: border-box;
+}
+.soda-factory-root a {
+  color: var(--soda-page-link);
+}
+.soda-factory-root button,
+.soda-factory-root input,
+.soda-factory-root select,
+.soda-factory-root textarea {
+  font: inherit;
+}
+.soda-factory-root button:not(:disabled),
+.soda-factory-root summary {
+  cursor: pointer;
+}
+.soda-factory-root :focus-visible {
+  outline: 2px solid var(--soda-page-focus);
+  outline-offset: 2px;
+}
+.soda-factory-app > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.soda-factory-app > nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.soda-factory-app > nav [aria-current='page'] {
+  font-weight: bold;
+}
+.soda-factory-app > main {
+  min-width: 0;
+}

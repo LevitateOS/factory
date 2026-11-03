@@ -1,0 +1,505 @@
+//! Linux login-session credential custody. No browser token getter or file fallback.
+use crate::database::{private_dir, private_file};
+use secret_service::{EncryptionType, Item, SecretService};
+use serde::Serialize;
+use std::collections::{BTreeSet, HashMap};
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use zeroize::Zeroizing;
+
+const APP: &str = "dev.soda.factory";
+const DEADLINE: Duration = Duration::from_secs(5);
+const LEASE: Duration = Duration::from_secs(30);
+const OPERATION: Duration = Duration::from_secs(8);
+type Result<T> = std::result::Result<T, Error>;
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Error {
+    Unavailable,
+    Locked,
+    Missing,
+    Invalid,
+    Ambiguous,
+    Withdrawn,
+    Retired,
+    Storage,
+    Deadline,
+}
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Unavailable => "desktop credential service unavailable",
+            Self::Locked => "unlock your desktop keyring and retry",
+            Self::Missing => "saved account is unavailable",
+            Self::Invalid => "invalid native credential descriptor",
+            Self::Ambiguous => "multiple saved credentials require reconciliation",
+            Self::Withdrawn => "account credential withdrawn",
+            Self::Retired => "native token capability retired",
+            Self::Storage => "credential storage is unavailable",
+            Self::Deadline => "native credential operation timed out",
+        })
+    }
+}
+impl std::error::Error for Error {}
+impl From<secret_service::Error> for Error {
+    fn from(value: secret_service::Error) -> Self {
+        match value {
+            secret_service::Error::Locked => Self::Locked,
+            secret_service::Error::NoResult => Self::Missing,
+            _ => Self::Unavailable,
+        }
+    }
+}
+#[derive(Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Provider {
+    Github,
+    Fountain,
+}
+impl Provider {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Github => "github",
+            Self::Fountain => "fountain",
+        }
+    }
+}
+#[derive(Clone)]
+pub struct Account {
+    provider: Provider,
+    origin: String,
+    account: String,
+}
+impl Account {
+    /// Only a native connector may supply a remotely verified account identity.
+    pub fn new(provider: Provider, origin: &str, account: &str) -> Result<Self> {
+        let parsed = url::Url::parse(origin).map_err(|_| Error::Invalid)?;
+        if parsed.scheme() != "https"
+            || parsed.host_str().is_none()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || parsed.path() != "/"
+            || origin.len() > 512
+            || account.is_empty()
+            || account.len() > 256
+            || account.chars().any(char::is_control)
+        {
+            return Err(Error::Invalid);
+        }
+        let origin = parsed.origin().ascii_serialization();
+        if provider == Provider::Github && origin != "https://github.com" {
+            return Err(Error::Invalid);
+        }
+        Ok(Self {
+            provider,
+            origin,
+            account: account.into(),
+        })
+    }
+}
+/// Intentionally has neither Serialize nor Debug. Consumed by native login code.
+pub struct Token(Zeroizing<Vec<u8>>);
+impl Token {
+    pub fn new(value: Vec<u8>) -> Result<Self> {
+        let value = Zeroizing::new(value);
+        if value.is_empty() || value.len() > 8192 || !value.iter().all(|b| (33..=126).contains(b)) {
+            return Err(Error::Invalid);
+        }
+        Ok(Self(value))
+    }
+    /// Crate-private borrowing for the native connector; never a browser getter.
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialState {
+    Stored,
+    Locked,
+    Withdrawn,
+}
+#[derive(Clone, Serialize)]
+pub struct AccountStatus {
+    pub connection: String,
+    pub provider: Provider,
+    pub origin: String,
+    pub account: String,
+    pub state: CredentialState,
+}
+/// Rust-only, profile/owner/revision scoped, finite authority. Never serialized.
+pub struct TokenCapability {
+    connection: String,
+    revision: String,
+    owner: String,
+    expires: Instant,
+    account: AccountStatus,
+}
+impl TokenCapability {
+    /// Captured non-secret scope; this is not remote account verification.
+    pub fn account(&self) -> &AccountStatus {
+        &self.account
+    }
+}
+pub struct Credentials {
+    profile: String,
+    markers: PathBuf,
+    owner: String,
+    retired: AtomicBool,
+    withdrawn: Mutex<BTreeSet<String>>,
+    gate: tokio::sync::Mutex<()>,
+}
+impl Credentials {
+    pub fn open(profile_dir: &Path, profile: &str) -> Result<Self> {
+        if !id(profile) {
+            return Err(Error::Invalid);
+        }
+        private_dir(profile_dir).map_err(|_| Error::Storage)?;
+        let markers = profile_dir.join("withdrawn-credentials");
+        private_dir(&markers).map_err(|_| Error::Storage)?;
+        Ok(Self {
+            profile: profile.into(),
+            markers,
+            owner: random()?,
+            retired: AtomicBool::new(false),
+            withdrawn: Mutex::new(BTreeSet::new()),
+            gate: tokio::sync::Mutex::new(()),
+        })
+    }
+    pub fn retire(&self) {
+        self.retired.store(true, Ordering::SeqCst);
+    }
+    fn alive(&self) -> Result<()> {
+        if self.retired.load(Ordering::SeqCst) {
+            Err(Error::Retired)
+        } else {
+            Ok(())
+        }
+    }
+    async fn bounded<T>(&self, work: impl Future<Output = Result<T>>) -> Result<T> {
+        self.alive()?;
+        let result = tokio::time::timeout(DEADLINE, work)
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        self.alive()?;
+        result
+    }
+    fn blocked(&self, connection: &str) -> Result<bool> {
+        if !id(connection) {
+            return Err(Error::Invalid);
+        }
+        if self.withdrawn.lock().unwrap().contains(connection) {
+            return Ok(true);
+        }
+        let path = self.markers.join(connection);
+        match std::fs::symlink_metadata(&path) {
+            Ok(_) => {
+                private_file(&path, false).map_err(|_| Error::Storage)?;
+                Ok(true)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(Error::Storage),
+        }
+    }
+    fn block(&self, connection: &str) -> Result<()> {
+        if !id(connection) {
+            return Err(Error::Invalid);
+        }
+        self.withdrawn.lock().unwrap().insert(connection.into());
+        private_file(&self.markers.join(connection), false)
+            .and_then(|file| Ok(file.sync_all()?))
+            .map_err(|_| Error::Storage)?;
+        self.sync_markers()
+    }
+    fn sync_markers(&self) -> Result<()> {
+        std::fs::File::open(&self.markers)
+            .and_then(|file| file.sync_all())
+            .map_err(|_| Error::Storage)
+    }
+    fn unblock(&self, connection: &str) -> Result<()> {
+        match std::fs::remove_file(self.markers.join(connection)) {
+            Ok(()) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(_) => return Err(Error::Storage),
+        }
+        self.sync_markers()?;
+        self.withdrawn.lock().unwrap().remove(connection);
+        Ok(())
+    }
+    async fn items<'a>(
+        &self,
+        service: &'a SecretService<'a>,
+        connection: Option<&str>,
+    ) -> Result<Vec<(Item<'a>, bool)>> {
+        let mut attrs = HashMap::from([("application", APP), ("profile", self.profile.as_str())]);
+        if let Some(connection) = connection {
+            if !id(connection) {
+                return Err(Error::Invalid);
+            }
+            attrs.insert("connection", connection);
+        }
+        let found = service.search_items(attrs).await?;
+        if found.unlocked.len() + found.locked.len() > 32 {
+            return Err(Error::Ambiguous);
+        }
+        Ok(found
+            .unlocked
+            .into_iter()
+            .map(|i| (i, false))
+            .chain(found.locked.into_iter().map(|i| (i, true)))
+            .collect())
+    }
+    async fn metadata(&self, item: &Item<'_>, locked: bool) -> Result<(AccountStatus, String)> {
+        let attrs = item.get_attributes().await?;
+        let get = |key: &str| attrs.get(key).map(String::as_str).ok_or(Error::Invalid);
+        if get("application")? != APP || get("profile")? != self.profile {
+            return Err(Error::Invalid);
+        }
+        let provider = match get("provider")? {
+            "github" => Provider::Github,
+            "fountain" => Provider::Fountain,
+            _ => return Err(Error::Invalid),
+        };
+        let account = Account::new(provider, get("origin")?, get("account")?)?;
+        let connection = get("connection")?.to_owned();
+        let revision = get("revision")?.to_owned();
+        if !id(&connection) || !id(&revision) {
+            return Err(Error::Invalid);
+        }
+        let state = if self.blocked(&connection)? {
+            CredentialState::Withdrawn
+        } else if locked {
+            CredentialState::Locked
+        } else {
+            CredentialState::Stored
+        };
+        Ok((
+            AccountStatus {
+                connection,
+                provider,
+                origin: account.origin,
+                account: account.account,
+                state,
+            },
+            revision,
+        ))
+    }
+    pub async fn status(&self) -> Result<Vec<AccountStatus>> {
+        self.bounded(async {
+            let _guard = self.gate.lock().await;
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut statuses = Vec::new();
+            let mut seen = BTreeSet::new();
+            for (item, locked) in self.items(&service, None).await? {
+                let (status, _) = self.metadata(&item, locked).await?;
+                if !seen.insert(status.connection.clone()) {
+                    return Err(Error::Ambiguous);
+                }
+                statuses.push(status);
+            }
+            statuses.sort_by(|a, b| a.connection.cmp(&b.connection));
+            Ok(statuses)
+        })
+        .await
+    }
+    /// Login writes come from a native connector, never a webview command.
+    pub async fn store(&self, account: Account, token: Token) -> Result<AccountStatus> {
+        self.bounded(async {
+            let _guard = self.gate.lock().await;
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut existing = None;
+            for (item, locked) in self.items(&service, None).await? {
+                let (status, _) = self.metadata(&item, locked).await?;
+                if status.provider == account.provider
+                    && status.origin == account.origin
+                    && status.account == account.account
+                {
+                    if locked {
+                        return Err(Error::Locked);
+                    }
+                    if existing.replace((status.connection, item)).is_some() {
+                        return Err(Error::Ambiguous);
+                    }
+                }
+            }
+            let (connection, existing) = match existing {
+                Some((id, item)) => (id, Some(item)),
+                None => (random()?, None),
+            };
+            self.block(&connection)?;
+            let revision = random()?;
+            let attrs = HashMap::from([
+                ("application", APP),
+                ("profile", self.profile.as_str()),
+                ("connection", connection.as_str()),
+                ("provider", account.provider.name()),
+                ("origin", account.origin.as_str()),
+                ("account", account.account.as_str()),
+                ("revision", revision.as_str()),
+            ]);
+            if let Some(item) = existing {
+                item.set_secret(&token.0, "application/octet-stream")
+                    .await?;
+                item.set_attributes(attrs).await?;
+            } else {
+                let collection = service.get_default_collection().await?;
+                if collection.is_locked().await? {
+                    return Err(Error::Locked);
+                }
+                collection
+                    .create_item(
+                        "Factory account",
+                        attrs,
+                        &token.0,
+                        false,
+                        "application/octet-stream",
+                    )
+                    .await?;
+            }
+            self.alive()?;
+            self.unblock(&connection)?;
+            Ok(AccountStatus {
+                connection,
+                provider: account.provider,
+                origin: account.origin,
+                account: account.account,
+                state: CredentialState::Stored,
+            })
+        })
+        .await
+    }
+    pub async fn capability(&self, connection: &str) -> Result<TokenCapability> {
+        self.bounded(async {
+            let _guard = self.gate.lock().await;
+            if self.blocked(connection)? {
+                return Err(Error::Withdrawn);
+            }
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut found = self.items(&service, Some(connection)).await?;
+            if found.len() > 1 {
+                return Err(Error::Ambiguous);
+            }
+            let (item, locked) = found.pop().ok_or(Error::Missing)?;
+            let (account, revision) = self.metadata(&item, locked).await?;
+            if locked {
+                return Err(Error::Locked);
+            }
+            Ok(TokenCapability {
+                connection: connection.into(),
+                revision,
+                owner: self.owner.clone(),
+                expires: Instant::now() + LEASE,
+                account,
+            })
+        })
+        .await
+    }
+    /// Only trusted native code receives this borrowed token. It must apply its
+    /// own finite operation deadline; the token is cleared when the callback ends.
+    pub async fn with_token<T>(
+        &self,
+        cap: &TokenCapability,
+        consume: impl FnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        self.bounded(async {
+            let _guard = self.gate.lock().await;
+            if cap.owner != self.owner || cap.expires <= Instant::now() {
+                return Err(Error::Retired);
+            }
+            if self.blocked(&cap.connection)? {
+                return Err(Error::Withdrawn);
+            }
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut found = self.items(&service, Some(&cap.connection)).await?;
+            if found.len() > 1 {
+                return Err(Error::Ambiguous);
+            }
+            let (item, locked) = found.pop().ok_or(Error::Missing)?;
+            let (account, revision) = self.metadata(&item, locked).await?;
+            if locked {
+                return Err(Error::Locked);
+            }
+            if revision != cap.revision
+                || account.provider != cap.account.provider
+                || account.origin != cap.account.origin
+                || account.account != cap.account.account
+                || account.connection != cap.account.connection
+            {
+                return Err(Error::Retired);
+            }
+            let token = Token::new(item.get_secret().await?)?;
+            self.alive()?;
+            if cap.expires <= Instant::now() {
+                return Err(Error::Retired);
+            }
+            if self.blocked(&cap.connection)? {
+                return Err(Error::Withdrawn);
+            }
+            Ok(consume(&token.0))
+        })
+        .await
+    }
+    /// A native connector can await one operation without holding the keyring
+    /// gate. Withdrawal/reauthentication may proceed while I/O is pending. Before
+    /// releasing a result, re-read the same capability's actual OS state.
+    ///
+    /// The borrowed bytes and future stay native-only. Dropping this future
+    /// cancels its callback and clears the owned token; transports must honor
+    /// cancellation rather than detach work or retain credential copies.
+    pub async fn with_token_operation<T>(
+        &self,
+        cap: &TokenCapability,
+        operation: impl AsyncFnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        let deadline = cap.expires.min(Instant::now() + OPERATION);
+        let work = async {
+            let token = self
+                .with_token(cap, |bytes| Token(Zeroizing::new(bytes.to_vec())))
+                .await?;
+            let result = operation(&token.0).await;
+            // A successful provider reply cannot revive withdrawn/replaced
+            // credentials, a retired native owner, or an expired capability.
+            self.with_token(cap, |_| ()).await?;
+            Ok(result)
+        };
+        match tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), work).await {
+            Ok(result) => result,
+            Err(_) if cap.expires <= Instant::now() => Err(Error::Retired),
+            Err(_) => Err(Error::Deadline),
+        }
+    }
+    /// Persist denial before OS deletion. Locked/unavailable deletion remains
+    /// visible and retryable, but never re-enables this account on restart.
+    pub async fn withdraw(&self, connection: &str) -> Result<()> {
+        self.alive()?;
+        self.block(connection)?;
+        self.bounded(async {
+            let _guard = self.gate.lock().await;
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            for (item, locked) in self.items(&service, Some(connection)).await? {
+                if locked {
+                    return Err(Error::Locked);
+                }
+                item.delete().await?;
+            }
+            Ok(())
+        })
+        .await
+    }
+}
+fn id(value: &str) -> bool {
+    value.len() == 32
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+fn random() -> Result<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).map_err(|_| Error::Unavailable)?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}

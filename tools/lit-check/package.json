@@ -1,0 +1,9 @@
+{
+  "name": "@soda/lit-check",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "lit-analyzer": "2.0.3",
+    "typescript": "5.9.3"
+  }
+}

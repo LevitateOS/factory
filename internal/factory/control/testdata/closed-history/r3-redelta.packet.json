@@ -1,0 +1,45 @@
+{
+  "creates": [
+    {
+      "key": "daaaaaaaaaaaaaaaaaaaaaaaa",
+      "title": "Request entry with validation",
+      "body": "Accepted product objective:\nBuild a request tracker with exports and audit\n\nTask objective:\nRequest entry with validation\n\nAcceptance outcomes:\n- Capture requests\n\nAccepted product choice (requested, human) (d333333333333333333333333):\nTrack requests\nConsequence: Clear ownership\n\nAccepted product intent: d222222222222222222222222\nAccepted revision: d888888888888888888888888\nIntent digest: 1d2f7b9c1e19983b675bde829757c8333e1d0da3ce721b1ba83631e886f3be5a\nTask: daaaaaaaaaaaaaaaaaaaaaaaa\nTask digest: c1e881ccff77dc951b4df8de37a1baf5918193d5dda03a5d62f86dae02ea5580\nProduct choices: d333333333333333333333333\n"
+    }
+  ],
+  "dependencies": [
+    {
+      "issue": {
+        "issue_id": 104
+      },
+      "prerequisite": {
+        "key": "daaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "issue": {
+        "issue_id": 105
+      },
+      "prerequisite": {
+        "key": "daaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "issue": {
+        "issue_id": 104
+      },
+      "prerequisite": {
+        "issue_id": 101
+      },
+      "remove": true
+    },
+    {
+      "issue": {
+        "issue_id": 105
+      },
+      "prerequisite": {
+        "issue_id": 101
+      },
+      "remove": true
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Working on Factory
+
+- Implement one dependency-ready slice at a time using
+  `docs/development/factory-products/implementation-tasks.md`. Do not confuse a
+  completed slice with a finished product.
+- Commit early and often: checkpoint each coherent, verified change locally.
+  Do not accumulate completed implementation slices in the working tree.
+- Go owns servers, domain and PostgreSQL storage; Rust owns native lifecycle,
+  credentials and system operations; Lit owns the shared UI. Preserve these
+  dependency directions and keep one defining implementation.
+- Preserve existing work, retained profiles, credentials and historical evidence.
+  All builds, caches, state and scratch belong under `/home`; set TMPDIR there.
+- No authored Python, new unit tests, Rust test modules in `src/`, or new unit-test
+  roots. Use the smallest useful existing real integration/native check.
+- Keep dependencies and providers current following
+  `docs/development/freshness.md`. Imported source/locks are historical working
+  inputs, not proof of a fresh or qualified release.
+- Do not publish credentials, profiles, generated state or process artifacts.
+  Keep coordination logs and temporary evidence outside this repository.
+- Preserve the shared UI for the native app and Fountain. Fountain server
+  implementation and native-provider authority stay outside the standalone
+  engine's dependency closure.
+- Report what actually ran and what is unfinished. Do not invent completion
+  percentages or treat local builds as connected/installed qualification.

@@ -1,0 +1,19 @@
+[package]
+name = "soda-factory-ui"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+native-ui = ["dep:tauri", "dep:tauri-build"]
+
+[[bin]]
+name = "soda-factory-ui"
+path = "src/main.rs"
+required-features = ["native-ui"]
+
+[dependencies]
+tauri = { version = "2.12.5", features = [], optional = true }
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [], optional = true }
