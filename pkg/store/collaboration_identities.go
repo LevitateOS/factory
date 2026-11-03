@@ -66,12 +66,19 @@ func (s *Store) InitializeEmptyCollaborationLedger(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := initializeEmptyCollaborationLedger(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func initializeEmptyCollaborationLedger(ctx context.Context, tx *sql.Tx) error {
 	var adopted bool
 	if err := tx.QueryRowContext(ctx, `SELECT adopted FROM collaboration_ledger WHERE singleton FOR UPDATE`).Scan(&adopted); err != nil {
 		return err
 	}
 	if adopted {
-		return tx.Commit()
+		return nil
 	}
 	empty, err := emptyCollaborationLedger(ctx, tx)
 	if err != nil {
@@ -83,8 +90,18 @@ func (s *Store) InitializeEmptyCollaborationLedger(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE collaboration_ledger SET adopted=true WHERE singleton`); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
+
+const observeCollaborationRepositorySQL = `INSERT INTO collaboration_repositories(host,external_id,name) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
+ ON CONFLICT(host,external_id) DO UPDATE SET name=CASE WHEN $3='' THEN collaboration_repositories.name ELSE excluded.name END RETURNING id,host,external_id,name`
+
+const observeCollaborationActorSQL = `INSERT INTO collaboration_actors(host,external_id,login) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
+ ON CONFLICT(host,external_id) DO UPDATE SET login=CASE WHEN $3='' THEN collaboration_actors.login ELSE excluded.login END RETURNING id,host,external_id,login`
+
+const putCollaborationConnectionSQL = `INSERT INTO collaboration_connections(id,profile,host,actor) VALUES($1,$2,$3,$4)
+ ON CONFLICT(id) DO UPDATE SET id=excluded.id WHERE collaboration_connections.profile=excluded.profile
+ AND collaboration_connections.host=excluded.host AND collaboration_connections.actor=excluded.actor RETURNING id`
 
 // Empty display metadata ensures the observed identity with an external-ID
 // placeholder, preserving any existing label even across concurrent observers.
@@ -93,8 +110,7 @@ func (s *Store) ObserveCollaborationRepository(ctx context.Context, host collabo
 	if !collaboration.ValidID(string(host)) || !collaboration.ValidText(externalID, 512) || name != "" && !collaboration.ValidText(name, 512) {
 		return ref, errors.New("invalid collaboration repository observation")
 	}
-	err := s.observeCollaborationIdentity(ctx, `INSERT INTO collaboration_repositories(host,external_id,name) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
- ON CONFLICT(host,external_id) DO UPDATE SET name=CASE WHEN $3='' THEN collaboration_repositories.name ELSE excluded.name END RETURNING id,host,external_id,name`, []any{host, externalID, name}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
+	err := s.observeCollaborationIdentity(ctx, observeCollaborationRepositorySQL, []any{host, externalID, name}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
 	return ref, registryWriteError(err)
 }
 
@@ -110,8 +126,7 @@ func (s *Store) ObserveCollaborationActor(ctx context.Context, host collaboratio
 	if !collaboration.ValidID(string(host)) || !collaboration.ValidText(externalID, 512) || login != "" && !collaboration.ValidText(login, 512) {
 		return ref, errors.New("invalid collaboration actor observation")
 	}
-	err := s.observeCollaborationIdentity(ctx, `INSERT INTO collaboration_actors(host,external_id,login) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
- ON CONFLICT(host,external_id) DO UPDATE SET login=CASE WHEN $3='' THEN collaboration_actors.login ELSE excluded.login END RETURNING id,host,external_id,login`, []any{host, externalID, login}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Login)
+	err := s.observeCollaborationIdentity(ctx, observeCollaborationActorSQL, []any{host, externalID, login}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Login)
 	return ref, registryWriteError(err)
 }
 
@@ -145,9 +160,7 @@ func (s *Store) PutCollaborationConnection(ctx context.Context, ref collaboratio
 		return errors.New("invalid collaboration connection")
 	}
 	var id string
-	err := s.db.QueryRowContext(ctx, `INSERT INTO collaboration_connections(id,profile,host,actor) VALUES($1,$2,$3,$4)
- ON CONFLICT(id) DO UPDATE SET id=excluded.id WHERE collaboration_connections.profile=excluded.profile
- AND collaboration_connections.host=excluded.host AND collaboration_connections.actor=excluded.actor RETURNING id`, ref.ID, ref.Profile, ref.Host, ref.Actor).Scan(&id)
+	err := s.db.QueryRowContext(ctx, putCollaborationConnectionSQL, ref.ID, ref.Profile, ref.Host, ref.Actor).Scan(&id)
 	return registryWriteError(err)
 }
 

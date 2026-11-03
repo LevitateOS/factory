@@ -84,6 +84,10 @@ func TestNativePostgresRetainedTransaction(t *testing.T) {
 	}
 	phase := os.Getenv("SODA_NATIVE_PG_PHASE")
 	identityFile := os.Getenv("SODA_NATIVE_PG_POST_ID_FILE")
+	if os.Getenv("SODA_NATIVE_COLLABORATION_BINDINGS") == "1" {
+		checkNativeCollaborationBindings(t, s, string(raw), phase, identityFile+".bindings.json")
+		return
+	}
 	if directory := os.Getenv("SODA_NATIVE_HUMAN_PULL_CREATE_OBSERVATIONS"); directory != "" {
 		checkNativeHumanPullCreateObservations(t, s, phase, directory, identityFile+".pull-create-observations.json")
 		return
@@ -221,6 +225,286 @@ func TestNativePostgresRetainedTransaction(t *testing.T) {
 	}
 	t.Logf("%s verified native post/intake transaction and idempotent command", phase)
 	checkNativePostRetryReceipt(t, s, phase, identityFile+".retry.json")
+}
+
+// The existing retained native transaction drives this through actual graceful
+// restart and abrupt WAL recovery. Inputs are explicitly declared observations;
+// this does not impersonate provider verification or current permissions.
+func checkNativeCollaborationBindings(t *testing.T, s *Store, dsn, phase, file string) {
+	t.Helper()
+	ctx := t.Context()
+	type proof struct {
+		Binding    collaboration.ConnectionBinding
+		Other      collaboration.ConnectionBinding
+		Repository collaboration.RepositoryRef
+	}
+	var retained proof
+	if phase != "write" {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &retained); err != nil {
+			t.Fatal(err)
+		}
+		for _, binding := range []collaboration.ConnectionBinding{retained.Binding, retained.Other} {
+			observed := collaboration.ConnectionObservation{Profile: binding.Profile, Provider: binding.Host.Provider,
+				APIBase: binding.Host.APIBase, Connection: binding.Connection.ID, Account: binding.Actor.ExternalID, Login: binding.Actor.Login}
+			if got, err := s.BindCollaborationConnection(ctx, observed); err != nil || got != binding {
+				t.Fatalf("retained reconnect changed binding: %+v %v", got, err)
+			}
+		}
+		if got, err := s.CollaborationRepository(ctx, retained.Repository.ID); err != nil || got != retained.Repository {
+			t.Fatalf("retained repository changed: %+v %v", got, err)
+		}
+		var links int
+		if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM collaboration_repository_connections WHERE repository=$1`, retained.Repository.ID).Scan(&links); err != nil || links != 2 {
+			t.Fatalf("retained repository account associations: %d %v", links, err)
+		}
+		t.Log("canonical account/repository IDs and associations survived", phase)
+		return
+	}
+	observed := collaboration.ConnectionObservation{
+		Profile:  collaboration.Profile{ID: collaboration.ProfileID(collaboration.NewID()), Name: "Native profile"},
+		Provider: collaboration.GitHub, APIBase: "https://API.GITHUB.COM:443/", Connection: collaboration.ConnectionID(collaboration.NewID()),
+		Account: "9007199254740993", Login: "observed-account",
+	}
+	// A late DB failure must roll back the initial adoption and all partial rows.
+	for _, ddl := range []string{
+		`CREATE FUNCTION binding_fixture_refuse() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'declared late failure'; END $$`,
+		`CREATE TRIGGER binding_fixture_refuse BEFORE INSERT ON collaboration_connections FOR EACH ROW EXECUTE FUNCTION binding_fixture_refuse()`,
+	} {
+		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := s.BindCollaborationConnection(ctx, observed); !errors.Is(err, collaboration.ErrIdentityConflict) || got != (collaboration.ConnectionBinding{}) {
+		t.Fatalf("late failed bind returned partial identity: %+v %v", got, err)
+	}
+	var adopted bool
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT adopted FROM collaboration_ledger WHERE singleton`).Scan(&adopted); err != nil || adopted {
+		t.Fatalf("failed bind adopted ledger: %v %v", adopted, err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM collaboration_hosts)+(SELECT count(*) FROM collaboration_profiles)+(SELECT count(*) FROM collaboration_actors)+(SELECT count(*) FROM collaboration_connections)`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("failed bind left partial rows: %d %v", count, err)
+	}
+	for _, ddl := range []string{`DROP TRIGGER binding_fixture_refuse ON collaboration_connections`, `DROP FUNCTION binding_fixture_refuse()`} {
+		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	otherOwner, err := Open(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer otherOwner.Close()
+	type result struct {
+		binding collaboration.ConnectionBinding
+		err     error
+	}
+	results := make(chan result, 8)
+	for i := range 8 {
+		owner := s
+		if i%2 != 0 {
+			owner = otherOwner
+		}
+		go func() { b, err := owner.BindCollaborationConnection(ctx, observed); results <- result{b, err} }()
+	}
+	for i := range 8 {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if i == 0 {
+			retained.Binding = r.binding
+		} else if r.binding != retained.Binding {
+			t.Fatal("concurrent first binding forked canonical IDs")
+		}
+	}
+	binding := retained.Binding
+	if binding.Host.APIBase != "https://api.github.com" || binding.Actor.ExternalID != observed.Account || binding.Actor.ID < 1 || binding.Connection.Actor != binding.Actor.ID {
+		t.Fatal("binding lost canonical/provider identity distinction")
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM collaboration_hosts)+(SELECT count(*) FROM collaboration_profiles)+(SELECT count(*) FROM collaboration_actors)+(SELECT count(*) FROM collaboration_connections)`).Scan(&count); err != nil || count != 4 {
+		t.Fatalf("concurrent binding left extras: %d %v", count, err)
+	}
+	// Same account reconnects and renames; preserve a locally edited profile name.
+	profile := binding.Profile
+	profile.Name = "Locally renamed profile"
+	if err := s.PutCollaborationProfile(ctx, profile); err != nil {
+		t.Fatal(err)
+	}
+	observed.Profile.Name = "Connector default"
+	observed.Login = "renamed-account"
+	renamed, err := s.BindCollaborationConnection(ctx, observed)
+	if err != nil || renamed.Profile != profile || renamed.Actor.ID != binding.Actor.ID || renamed.Connection != binding.Connection {
+		t.Fatalf("rename replaced canonical scope: %+v %v", renamed, err)
+	}
+	observed.Login = ""
+	if got, err := s.BindCollaborationConnection(ctx, observed); err != nil || got != renamed {
+		t.Fatalf("identity-only reconnect lost metadata: %+v %v", got, err)
+	}
+	retained.Binding = renamed
+	// A new native credential connection for the same provider account shares
+	// actor/repository identities, without merging distinct connection ownership.
+	second := observed
+	second.Connection = collaboration.ConnectionID(collaboration.NewID())
+	secondBinding, err := s.BindCollaborationConnection(ctx, second)
+	if err != nil || secondBinding.Actor != renamed.Actor || secondBinding.Host != renamed.Host || secondBinding.Connection.ID == renamed.Connection.ID {
+		t.Fatalf("reauthentication forked account: %+v %v", secondBinding, err)
+	}
+	// Provider collisions never alias remote IDs or display names.
+	foreign := observed
+	foreign.Provider = collaboration.Fountain
+	foreign.APIBase = "https://forge.example.test"
+	foreign.Connection = collaboration.ConnectionID(collaboration.NewID())
+	retained.Other, err = s.BindCollaborationConnection(ctx, foreign)
+	if err != nil || retained.Other.Host.ID == renamed.Host.ID || retained.Other.Actor.ID == renamed.Actor.ID {
+		t.Fatalf("provider identity collision: %+v %v", retained.Other, err)
+	}
+	for _, change := range []string{"profile", "account", "provider", "locator"} {
+		wrong := observed
+		wrong.Login = "must-roll-back"
+		switch change {
+		case "profile":
+			wrong.Profile.ID = collaboration.ProfileID(collaboration.NewID())
+		case "account":
+			wrong.Account = "other-account"
+		case "provider":
+			wrong.Provider = collaboration.Fountain
+		case "locator":
+			wrong.APIBase = "https://other-api.example.test"
+		}
+		if got, err := s.BindCollaborationConnection(ctx, wrong); !errors.Is(err, collaboration.ErrIdentityConflict) || got != (collaboration.ConnectionBinding{}) {
+			t.Fatalf("connection rebound %s: %+v %v", change, got, err)
+		}
+	}
+	if got, err := s.CollaborationActor(ctx, renamed.Actor.ID); err != nil || got != renamed.Actor {
+		t.Fatalf("failed bind changed display metadata: %+v %v", got, err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM collaboration_hosts)+(SELECT count(*) FROM collaboration_profiles)+(SELECT count(*) FROM collaboration_actors)+(SELECT count(*) FROM collaboration_connections)`).Scan(&count); err != nil || count != 8 {
+		t.Fatalf("refused scope changes left partial identities: %d %v", count, err)
+	}
+	type repoResult struct {
+		ref collaboration.RepositoryRef
+		err error
+	}
+	repos := make(chan repoResult, 8)
+	for i := range 8 {
+		owner := s
+		if i%2 != 0 {
+			owner = otherOwner
+		}
+		go func() {
+			r, err := owner.ObserveCollaborationConnectionRepository(ctx, renamed.Connection, "9007199254740995", "owner/repo")
+			repos <- repoResult{r, err}
+		}()
+	}
+	for i := range 8 {
+		r := <-repos
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		if i == 0 {
+			retained.Repository = r.ref
+		} else if r.ref != retained.Repository {
+			t.Fatal("concurrent repository observation forked canonical IDs")
+		}
+	}
+	repo, err := s.ObserveCollaborationConnectionRepository(ctx, secondBinding.Connection, retained.Repository.ExternalID, "new-owner/renamed")
+	if err != nil || repo.ID != retained.Repository.ID {
+		t.Fatalf("repository rename/second account changed ID: %+v %v", repo, err)
+	}
+	retained.Repository = repo
+	if got, err := s.ObserveCollaborationConnectionRepository(ctx, renamed.Connection, repo.ExternalID, ""); err != nil || got != repo {
+		t.Fatalf("identity-only repo observation lost name: %+v %v", got, err)
+	}
+	wrong := renamed.Connection
+	wrong.Actor = retained.Other.Actor.ID
+	if got, err := s.ObserveCollaborationConnectionRepository(ctx, wrong, "not-observed", "bad/repo"); !errors.Is(err, collaboration.ErrIdentityConflict) || got != (collaboration.RepositoryRef{}) {
+		t.Fatalf("foreign connection scope observed repo: %+v %v", got, err)
+	}
+	for _, ddl := range []string{
+		`CREATE FUNCTION binding_fixture_refuse() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'declared association failure'; END $$`,
+		`CREATE TRIGGER binding_fixture_refuse BEFORE INSERT ON collaboration_repository_connections FOR EACH ROW EXECUTE FUNCTION binding_fixture_refuse()`,
+	} {
+		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, external := range []string{repo.ExternalID, "not-observed"} {
+		if got, err := s.ObserveCollaborationConnectionRepository(ctx, renamed.Connection, external, "must-roll-back"); !errors.Is(err, collaboration.ErrIdentityConflict) || got != (collaboration.RepositoryRef{}) {
+			t.Fatalf("failed association returned partial repo: %+v %v", got, err)
+		}
+	}
+	for _, ddl := range []string{`DROP TRIGGER binding_fixture_refuse ON collaboration_repository_connections`, `DROP FUNCTION binding_fixture_refuse()`} {
+		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := s.CollaborationRepository(ctx, repo.ID); err != nil || got != repo {
+		t.Fatalf("failed association changed repo metadata: %+v %v", got, err)
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM collaboration_repositories`).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("failed association left orphan repo: %d %v", count, err)
+	}
+	// An already-running old ledger writer must finish before the empty native
+	// composition can decide whether initialization is safe.
+	legacy, _, cleanup, err := OpenEphemeral(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	tx, err := legacy.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,login) VALUES(42,'retained-person')`); err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	waiting := make(chan result, 1)
+	go func() { b, err := legacy.BindCollaborationConnection(waitCtx, observed); waiting <- result{b, err} }()
+	blocked := false
+	for range 200 {
+		if err := legacy.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='relation' AND relation='users'::regclass AND NOT granted AND database=(SELECT oid FROM pg_database WHERE datname=current_database()))`).Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if blocked {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !blocked {
+		t.Fatal("empty composition did not wait for retained writer")
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	r := <-waiting
+	if !errors.Is(r.err, collaboration.ErrUnboundLedger) || r.binding != (collaboration.ConnectionBinding{}) {
+		t.Fatalf("claimed concurrently retained ledger: %+v %v", r.binding, r.err)
+	}
+	if got, err := legacy.User(ctx, 42); err != nil || got.Login != "retained-person" {
+		t.Fatalf("retained data changed: %+v %v", got, err)
+	}
+	if err := legacy.db.QueryRowContext(ctx, `SELECT adopted FROM collaboration_ledger WHERE singleton`).Scan(&adopted); err != nil || adopted {
+		t.Fatalf("retained refusal adopted ledger: %v %v", adopted, err)
+	}
+	if err := legacy.db.QueryRowContext(ctx, `SELECT count(*) FROM collaboration_hosts`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("retained refusal left partial host: %d %v", count, err)
+	}
+	raw, err := json.Marshal(retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("atomic account/repository mappings, concurrency, rename, rollback, scope and retained-writer refusal passed")
 }
 
 // Exercise the existing command journal on the native server across independent

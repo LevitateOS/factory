@@ -136,6 +136,14 @@ func emptyCollaborationLedger(ctx context.Context, tx *sql.Tx) (bool, error) {
 		return false, err
 	}
 	for _, table := range tables {
+		// An old writer may have begun before composition took the ledger gate.
+		// Wait for it before testing emptiness, then keep writes excluded until
+		// the binding commits. The lock order is stable across initializers.
+		if _, err := tx.ExecContext(ctx, `LOCK TABLE public.`+quoteCollaborationIdentifier(table)+` IN SHARE MODE`); err != nil {
+			return false, err
+		}
+	}
+	for _, table := range tables {
 		var present bool
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM public."`+strings.ReplaceAll(table, `"`, `""`)+`" LIMIT 1)`).Scan(&present); err != nil {
 			return false, err

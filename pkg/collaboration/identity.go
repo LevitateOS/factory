@@ -82,6 +82,27 @@ type ConnectionRef struct {
 	Actor   ActorID      `json:"actor,string"`
 }
 
+// ConnectionObservation is supplied by a trusted connector after observing the
+// provider account. It contains neither credentials nor permission evidence.
+// APIBase is the configured API locator, not the credential's web origin.
+type ConnectionObservation struct {
+	Profile    Profile
+	Provider   Provider
+	APIBase    string
+	Connection ConnectionID
+	Account    string
+	Login      string
+}
+
+// ConnectionBinding preserves both canonical local IDs and opaque provider IDs.
+// A saved binding alone never admits a request or proves current remote access.
+type ConnectionBinding struct {
+	Host       Host          `json:"host"`
+	Profile    Profile       `json:"profile"`
+	Actor      ActorRef      `json:"actor"`
+	Connection ConnectionRef `json:"connection"`
+}
+
 type RuntimeRef struct {
 	ID      RuntimeID   `json:"id"`
 	Profile ProfileID   `json:"profile"`
