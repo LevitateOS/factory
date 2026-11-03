@@ -22,6 +22,55 @@ fn invalid() -> Result<Vec<u8>> {
     value.extend(fixture()?);
     Ok(value)
 }
+/// Declared transport only; proves that full grants compose across the native
+/// device/verifier/custody boundaries without dropping refresh or expiration.
+pub(super) async fn run_grant(observed: &Path, payload: &Path, profile: &Path) -> Result<()> {
+    prepare(profile)?;
+    let io = profile.parent().ok_or("fixture parent missing")?.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    fs::write(io.join("mode"), b"grant")?;
+    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    let ready = runtime.health()?;
+    let store = Credentials::open(profile, &ready.profile)?;
+    let grant = runtime.github_device_start().await?.wait().await?;
+    let expected_expiry = grant.expires_at;
+    let expected_refresh_expiry = grant.refresh_expires_at;
+    let (account, grant) = runtime.github_verify_grant(grant).await?;
+    let saved = store.store_grant(account, grant).await?;
+    let info = saved
+        .grant
+        .as_ref()
+        .ok_or("stored grant metadata missing")?;
+    ensure(
+        saved.account == "123"
+            && info.expires_at == expected_expiry
+            && info.refresh_expires_at == expected_refresh_expiry
+            && info.refresh_available,
+        "verified grant lost identity or expiry on storage",
+    )?;
+    let reopened = Credentials::open(profile, &ready.profile)?;
+    let cap = reopened.capability(&saved.connection).await?;
+    ensure(
+        reopened
+            .with_token(&cap, |bytes| bytes == b"factory-declared-access")
+            .await?
+            && reopened
+                .with_refresh_operation(&cap, async |bytes| bytes == b"factory-declared-refresh")
+                .await?,
+        "device/verifier/store/reopen lost a declared grant secret",
+    )?;
+    store.withdraw(&saved.connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "declared grant cleanup failed",
+    )?;
+    store.retire();
+    reopened.retire();
+    runtime.stop()?;
+    println!("PASS: declared upstream device grant crosses private Go/Rust transport, identity verification, full encrypted storage and native reopen without losing refresh/expiry; real private PG/backend stop; actual GitHub consent/login remains unqualified");
+    Ok(())
+}
 
 /// Device authorization producer only. Controlled transport grants are labelled
 /// explicitly; no human consent, real token or successful login is asserted.

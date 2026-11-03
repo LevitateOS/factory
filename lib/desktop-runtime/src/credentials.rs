@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
+mod grant;
+use grant::Secret;
+pub use grant::{Grant, GrantStatus};
 
 const APP: &str = "dev.soda.factory";
 const DEADLINE: Duration = Duration::from_secs(5);
@@ -27,6 +30,7 @@ pub enum Error {
     Retired,
     Storage,
     Deadline,
+    Expired,
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -40,6 +44,7 @@ impl std::fmt::Display for Error {
             Self::Retired => "native token capability retired",
             Self::Storage => "credential storage is unavailable",
             Self::Deadline => "native credential operation timed out",
+            Self::Expired => "saved credential expired; refresh or sign in again",
         })
     }
 }
@@ -121,6 +126,7 @@ impl Token {
 #[serde(rename_all = "snake_case")]
 pub enum CredentialState {
     Stored,
+    Expired,
     Locked,
     Withdrawn,
 }
@@ -131,6 +137,8 @@ pub struct AccountStatus {
     pub origin: String,
     pub account: String,
     pub state: CredentialState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grant: Option<GrantStatus>,
 }
 /// Rust-only, profile/owner/revision scoped, finite authority. Never serialized.
 pub struct TokenCapability {
@@ -144,6 +152,13 @@ impl TokenCapability {
     /// Captured non-secret scope; this is not remote account verification.
     pub fn account(&self) -> &AccountStatus {
         &self.account
+    }
+    fn admits(&self, account: &AccountStatus, revision: &str) -> bool {
+        revision == self.revision
+            && account.provider == self.account.provider
+            && account.origin == self.account.origin
+            && account.account == self.account.account
+            && account.connection == self.account.connection
     }
 }
 pub struct Credentials {
@@ -285,6 +300,7 @@ impl Credentials {
                 origin: account.origin,
                 account: account.account,
                 state,
+                grant: None,
             },
             revision,
         ))
@@ -296,7 +312,16 @@ impl Credentials {
             let mut statuses = Vec::new();
             let mut seen = BTreeSet::new();
             for (item, locked) in self.items(&service, None).await? {
-                let (status, _) = self.metadata(&item, locked).await?;
+                let (mut status, revision) = self.metadata(&item, locked).await?;
+                if matches!(status.state, CredentialState::Stored) {
+                    let secret = Secret::load(&item, &revision).await?;
+                    status.grant = secret.status()?;
+                    match secret.access() {
+                        Err(Error::Expired) => status.state = CredentialState::Expired,
+                        Err(error) => return Err(error),
+                        Ok(_) => (),
+                    }
+                }
                 if !seen.insert(status.connection.clone()) {
                     return Err(Error::Ambiguous);
                 }
@@ -309,7 +334,17 @@ impl Credentials {
     }
     /// Login writes come from a native connector, never a webview command.
     pub async fn store(&self, account: Account, token: Token) -> Result<AccountStatus> {
+        self.store_secret(account, Secret::Token(token)).await
+    }
+    /// Store the complete verified native grant, never just its access token.
+    /// Identity verification remains the connector's prerequisite.
+    pub async fn store_grant(&self, account: Account, grant: Grant) -> Result<AccountStatus> {
+        self.store_secret(account, Secret::Grant(grant)).await
+    }
+    async fn store_secret(&self, account: Account, secret: Secret) -> Result<AccountStatus> {
         self.bounded(async {
+            secret.validate()?;
+            secret.access()?;
             let _guard = self.gate.lock().await;
             let service = SecretService::connect(EncryptionType::Dh).await?;
             let mut existing = None;
@@ -333,6 +368,7 @@ impl Credentials {
             };
             self.block(&connection)?;
             let revision = random()?;
+            let bytes = secret.encode(&revision)?;
             let attrs = HashMap::from([
                 ("application", APP),
                 ("profile", self.profile.as_str()),
@@ -341,10 +377,10 @@ impl Credentials {
                 ("origin", account.origin.as_str()),
                 ("account", account.account.as_str()),
                 ("revision", revision.as_str()),
+                ("format", secret.format()),
             ]);
             if let Some(item) = existing {
-                item.set_secret(&token.0, "application/octet-stream")
-                    .await?;
+                item.set_secret(&bytes, "application/octet-stream").await?;
                 item.set_attributes(attrs).await?;
             } else {
                 let collection = service.get_default_collection().await?;
@@ -355,13 +391,14 @@ impl Credentials {
                     .create_item(
                         "Factory account",
                         attrs,
-                        &token.0,
+                        &bytes,
                         false,
                         "application/octet-stream",
                     )
                     .await?;
             }
             self.alive()?;
+            secret.access()?;
             self.unblock(&connection)?;
             Ok(AccountStatus {
                 connection,
@@ -369,6 +406,7 @@ impl Credentials {
                 origin: account.origin,
                 account: account.account,
                 state: CredentialState::Stored,
+                grant: secret.status()?,
             })
         })
         .await
@@ -406,6 +444,14 @@ impl Credentials {
         cap: &TokenCapability,
         consume: impl FnOnce(&[u8]) -> T,
     ) -> Result<T> {
+        self.with_secret(cap, false, consume).await
+    }
+    async fn with_secret<T>(
+        &self,
+        cap: &TokenCapability,
+        refresh: bool,
+        consume: impl FnOnce(&[u8]) -> T,
+    ) -> Result<T> {
         self.bounded(async {
             let _guard = self.gate.lock().await;
             if cap.owner != self.owner || cap.expires <= Instant::now() {
@@ -424,15 +470,14 @@ impl Credentials {
             if locked {
                 return Err(Error::Locked);
             }
-            if revision != cap.revision
-                || account.provider != cap.account.provider
-                || account.origin != cap.account.origin
-                || account.account != cap.account.account
-                || account.connection != cap.account.connection
-            {
+            if !cap.admits(&account, &revision) {
                 return Err(Error::Retired);
             }
-            let token = Token::new(item.get_secret().await?)?;
+            let secret = Secret::load(&item, &revision).await?;
+            let (current, current_revision) = self.metadata(&item, false).await?;
+            if !cap.admits(&current, &current_revision) {
+                return Err(Error::Retired);
+            }
             self.alive()?;
             if cap.expires <= Instant::now() {
                 return Err(Error::Retired);
@@ -440,6 +485,11 @@ impl Credentials {
             if self.blocked(&cap.connection)? {
                 return Err(Error::Withdrawn);
             }
+            let token = if refresh {
+                secret.refresh()?
+            } else {
+                secret.access()?
+            };
             Ok(consume(&token.0))
         })
         .await
@@ -456,15 +506,33 @@ impl Credentials {
         cap: &TokenCapability,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
+        self.with_secret_operation(cap, false, operation).await
+    }
+    /// Native refresh transport only. Expired access authority is never borrowed
+    /// here; the independent refresh expiration and current revision still gate
+    /// both sides of I/O. No refresh secret is returned to a browser.
+    pub async fn with_refresh_operation<T>(
+        &self,
+        cap: &TokenCapability,
+        operation: impl AsyncFnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        self.with_secret_operation(cap, true, operation).await
+    }
+    async fn with_secret_operation<T>(
+        &self,
+        cap: &TokenCapability,
+        refresh: bool,
+        operation: impl AsyncFnOnce(&[u8]) -> T,
+    ) -> Result<T> {
         let deadline = cap.expires.min(Instant::now() + OPERATION);
         let work = async {
             let token = self
-                .with_token(cap, |bytes| Token(Zeroizing::new(bytes.to_vec())))
+                .with_secret(cap, refresh, |bytes| Token(Zeroizing::new(bytes.to_vec())))
                 .await?;
             let result = operation(&token.0).await;
             // A successful provider reply cannot revive withdrawn/replaced
             // credentials, a retired native owner, or an expired capability.
-            self.with_token(cap, |_| ()).await?;
+            self.with_secret(cap, refresh, |_| ()).await?;
             Ok(result)
         };
         match tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), work).await {

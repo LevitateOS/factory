@@ -153,6 +153,36 @@ fn file_page_matches(value: &Value, page: u64, limit: u64) -> bool {
 }
 
 impl NativeSupervisor {
+    /// Preserve the complete unpersisted grant while verifying its access token.
+    /// Failure drops access and refresh secrets together; storage remains native.
+    pub fn github_verify_grant(
+        &self,
+        grant: crate::credentials::Grant,
+    ) -> impl std::future::Future<Output = Result<(Account, crate::credentials::Grant), Error>>
+    {
+        let crate::credentials::Grant {
+            access,
+            refresh,
+            expires_at,
+            refresh_expires_at,
+            scope,
+        } = grant;
+        let verify = self.github_verify(access);
+        async move {
+            let (account, access) = verify.await?;
+            Ok((
+                account,
+                crate::credentials::Grant {
+                    access,
+                    refresh,
+                    expires_at,
+                    refresh_expires_at,
+                    scope,
+                },
+            ))
+        }
+    }
+
     /// Verify an unpersisted token before native login calls Credentials::store.
     /// Account and Token have neither Serialize nor Debug; no browser receives
     /// them. Refusal/cancellation drops the token without touching OS custody.

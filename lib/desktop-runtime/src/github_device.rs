@@ -1,6 +1,6 @@
 //! Native-only device authorization. This produces an unverified, unpersisted
 //! grant; the login consumer must verify identity and own expiry/refresh custody.
-use crate::credentials::Token;
+use crate::credentials::{Grant as CredentialGrant, Token};
 use crate::github::Error;
 use crate::supervisor::{NativeChannel, NativeSupervisor};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -24,16 +24,6 @@ pub struct DeviceAuthorization {
     interval: u64,
     channel: NativeChannel,
     alive: Arc<AtomicBool>,
-}
-
-/// Tokens deliberately have neither Serialize nor Debug. Do not store the access
-/// token alone: the login consumer must preserve the optional refresh/expiry.
-pub struct DeviceGrant {
-    pub access: Token,
-    pub refresh: Option<Token>,
-    pub expires_at: Option<u64>,
-    pub refresh_expires_at: Option<u64>,
-    pub scope: String,
 }
 
 struct Secret(Zeroizing<String>);
@@ -175,7 +165,7 @@ impl DeviceAuthorization {
     /// Poll with upstream interval/backoff until authorization/refusal/expiry.
     /// Cancellation drops the socket and zeroizes native request/response data.
     /// A grant still needs github_verify before any native account persistence.
-    pub async fn wait(self) -> Result<DeviceGrant, Error> {
+    pub async fn wait(self) -> Result<CredentialGrant, Error> {
         let remaining = self
             .prompt
             .expires_at
@@ -214,7 +204,7 @@ impl DeviceAuthorization {
         {
             return Err(Error::Protocol);
         }
-        Ok(DeviceGrant {
+        Ok(CredentialGrant {
             access: Token::new(raw.access_token.0.as_bytes().to_vec())
                 .map_err(|_| Error::Protocol)?,
             refresh: raw
