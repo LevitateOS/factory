@@ -97,13 +97,16 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 	mux.Handle("/api/factory/", application)
 	mux.Handle("/api/repositories/", application)
 	if connector != nil {
-		mux.Handle("/api/native/github/read", application.application.Coordinator.AdmitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nativeConnector := application.application.Coordinator.AdmitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {
 				nativeResponse(w, 401, map[string]string{"error": "retired_native_instance"})
 				return
 			}
 			connector.ServeHTTP(w, r)
-		})))
+		}))
+		for _, path := range []string{"/api/native/github/read", "/api/native/github/device/start", "/api/native/github/device/wait"} {
+			mux.Handle(path, nativeConnector)
+		}
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

@@ -27,5 +27,5 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	return factoryruntime.RunNative(ctx, *config, githubprovider.NewNativeReadHandler(http.DefaultTransport))
+	return factoryruntime.RunNative(ctx, *config, githubprovider.NewNativeHandler(http.DefaultTransport))
 }

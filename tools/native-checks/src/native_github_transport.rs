@@ -22,6 +22,154 @@ fn invalid() -> Result<Vec<u8>> {
     value.extend(fixture()?);
     Ok(value)
 }
+
+/// Device authorization producer only. Controlled transport grants are labelled
+/// explicitly; no human consent, real token or successful login is asserted.
+pub(super) async fn run_device(
+    production: &Path,
+    observed: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    prepare(profile)?;
+    let io = profile.parent().ok_or("fixture parent missing")?.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let ready = runtime.health()?;
+    let store = Credentials::open(profile, &ready.profile)?;
+    ensure(
+        store.status().await?.is_empty(),
+        "device profile is not empty",
+    )?;
+    let authorization = runtime.github_device_start().await?;
+    ensure(
+        authorization.prompt().verification_uri == "https://github.com/login/device"
+            && authorization.prompt().user_code.len() == 9,
+        "actual GitHub challenge is invalid",
+    )?;
+    ensure(
+        tokio::time::timeout(Duration::from_secs(7), authorization.wait())
+            .await
+            .is_err(),
+        "unapproved GitHub device challenge did not remain pending",
+    )?;
+    let stale = runtime.github_device_start();
+    runtime.stop()?;
+    ensure(
+        matches!(stale.await, Err(Error::Unavailable)),
+        "retired device start survived",
+    )?;
+    println!("PASS: actual GitHub device challenge with owned public client ID; unapproved polling stays pending and cancels; retired start refuses; no consent/token/login claimed");
+
+    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    let set_mode = |mode: &str| -> Result<()> {
+        fs::write(io.join("mode"), mode)?;
+        for name in ["entered", "cancelled", "calls"] {
+            match fs::remove_file(io.join(name)) {
+                Ok(()) => (),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(())
+    };
+    for mode in ["grant", "long-lived", "backoff"] {
+        set_mode(mode)?;
+        let authorization = runtime.github_device_start().await?;
+        let prompt = serde_json::to_string(authorization.prompt())?;
+        ensure(
+            !prompt.contains("device_code") && !prompt.contains("token"),
+            "prompt exposes a native field",
+        )?;
+        let before = Instant::now();
+        let grant = authorization.wait().await?;
+        ensure(grant.scope == "repo,read:user", "declared grant lost scope")?;
+        if mode == "long-lived" {
+            ensure(
+                grant.expires_at.is_none()
+                    && grant.refresh.is_none()
+                    && grant.refresh_expires_at.is_none(),
+                "invented expiry or refresh",
+            )?;
+        } else {
+            ensure(
+                grant.expires_at.is_some()
+                    && grant.refresh.is_some()
+                    && grant.refresh_expires_at.is_some(),
+                "lost expiry/refresh data",
+            )?;
+        }
+        if mode == "backoff" {
+            ensure(
+                before.elapsed() >= Duration::from_secs(12)
+                    && fs::read_to_string(io.join("calls"))? == "3",
+                "polling ignored slow_down or long native deadline",
+            )?;
+        }
+        let (_account, _token) = runtime.github_verify(grant.access).await?;
+    }
+    println!("PASS: declared transport grants preserve expiring/refresh and long-lived facts; native identity verifier composes; upstream slow_down takes >12 seconds across the normal 10-second server deadline");
+    for (mode, status) in [
+        ("denied", 403),
+        ("expired", 408),
+        ("deadline", 408),
+        ("invalid-token", 502),
+    ] {
+        set_mode(mode)?;
+        let authorization = runtime.github_device_start().await?;
+        ensure(
+            matches!(authorization.wait().await, Err(Error::Provider(code)) if code == status),
+            "device refusal/expiry was not preserved",
+        )?;
+    }
+    for mode in ["bad-uri", "oversized", "redirect"] {
+        set_mode(mode)?;
+        ensure(
+            matches!(
+                runtime.github_device_start().await,
+                Err(Error::Provider(502))
+            ),
+            "invalid upstream challenge was accepted",
+        )?;
+    }
+    set_mode("pause-start")?;
+    let mut start = Box::pin(runtime.github_device_start());
+    entered(start.as_mut(), &io).await?;
+    drop(start);
+    cancelled(&io).await?;
+    set_mode("pause-wait")?;
+    let authorization = runtime.github_device_start().await?;
+    let mut wait = Box::pin(authorization.wait());
+    entered(wait.as_mut(), &io).await?;
+    drop(wait);
+    cancelled(&io).await?;
+    set_mode("grant")?;
+    let authorization = runtime.github_device_start().await?;
+    runtime.stop()?;
+    ensure(
+        matches!(authorization.wait().await, Err(Error::Unavailable)),
+        "captured authorization survived instance retirement",
+    )?;
+    ensure(
+        store.status().await?.is_empty(),
+        "authorization producer saved a credential",
+    )?;
+    store.retire();
+    println!("PASS: declared transport denial, expiry, local deadline, invalid token/URI/body/redirect, in-flight start/wait cancellation and retired authorization refuse; isolated OS custody remains empty; private native PG/backend stop cleanly");
+    Ok(())
+}
+async fn cancelled(io: &Path) -> Result<()> {
+    let until = Instant::now() + Duration::from_secs(4);
+    while !io.join("cancelled").exists() {
+        ensure(
+            Instant::now() < until,
+            "device cancellation did not reach Go network request",
+        )?;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    Ok(())
+}
 fn mark(path: &Path) -> Result<()> {
     fs::write(path, b"")?;
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;

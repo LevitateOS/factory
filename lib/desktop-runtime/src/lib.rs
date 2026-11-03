@@ -6,6 +6,8 @@ pub mod credentials;
 #[cfg(target_os = "linux")]
 pub mod github;
 #[cfg(target_os = "linux")]
+pub mod github_device;
+#[cfg(target_os = "linux")]
 pub mod database;
 #[cfg(target_os = "linux")]
 pub mod supervisor;
