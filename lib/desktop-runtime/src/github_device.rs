@@ -262,6 +262,11 @@ impl NativeSupervisor {
 }
 
 impl DeviceAuthorization {
+    /// Capture the same native instance for post-authorization verification.
+    /// Retiring the host invalidates this verifier without borrowing its owner.
+    pub fn verifier(&self) -> crate::github::Verifier {
+        crate::github::Verifier::new(self.channel.clone(), self.alive.clone())
+    }
     pub fn prompt(&self) -> &DevicePrompt {
         &self.prompt
     }

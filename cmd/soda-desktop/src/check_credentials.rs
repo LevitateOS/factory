@@ -3,6 +3,149 @@ use super::*;
 use soda_desktop_runtime::credentials::{Account, CredentialState, Error, Provider, Token};
 use std::io::Read;
 
+pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String> {
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    if let Some(mode) = stage.strip_prefix("signin-mode-") {
+        if !matches!(
+            mode,
+            "grant" | "pause-wait" | "denied" | "expired" | "identity-denied"
+        ) {
+            return Err("unknown declared sign-in mode".into());
+        }
+        for name in ["entered", "cancelled", "release"] {
+            match std::fs::remove_file(io.join(name)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(_) => return Err("fixture marker cleanup failed".into()),
+            }
+        }
+        return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
+    }
+    match stage {
+        "signin-entered" => ensure(
+            io.join("entered").is_file(),
+            "declared transport not entered",
+        ),
+        "signin-upstream-cancelled" => ensure(
+            io.join("cancelled").is_file(),
+            "native cancellation not observed upstream",
+        ),
+        "signin-browser-opened" => ensure(
+            std::fs::read_to_string(root.join("browser-url"))
+                .ok()
+                .as_deref()
+                == Some("https://github.com/login/device\n"),
+            "fixed browser handoff not observed",
+        ),
+        "signin-close-secondary" => app
+            .webview_windows()
+            .into_values()
+            .find(|window| window.label() != "main")
+            .ok_or_else(|| {
+                format!(
+                    "secondary window missing; labels={:?}",
+                    app.webview_windows().keys().collect::<Vec<_>>()
+                )
+            })?
+            .close()
+            .map_err(|_| "secondary closure failed".into()),
+        "signin-reopen" => {
+            let window = app
+                .get_webview_window("main")
+                .ok_or("main window missing")?;
+            window.show().map_err(|_| "main window show failed")?;
+            window.set_focus().map_err(|_| "main focus failed".into())
+        }
+        "signin-crash" => {
+            let pid = state
+                .runtime
+                .lock()
+                .unwrap()
+                .as_ref()
+                .ok_or("fixture runtime missing")?
+                .health()?
+                .backend_process;
+            let status = std::process::Command::new("/usr/bin/kill")
+                .args(["-KILL", &pid.to_string()])
+                .status()
+                .map_err(|_| "owned backend crash failed")?;
+            ensure(status.success(), "owned backend crash refused")
+        }
+        _ => Err("unknown native sign-in control".into()),
+    }
+}
+pub fn start_signin(app: tauri::AppHandle, live: bool) {
+    let Some(window) = app.get_webview_window("main") else {
+        app.exit(1);
+        return;
+    };
+    let _ = window.show();
+    let _ = window.set_focus();
+    let script=r#"(async()=>{
+      const live=__LIVE__, invoke=window.__TAURI__.core.invoke;
+      const assert=(ok,message)=>{if(!ok)throw Error(message);};
+      const report=stage=>invoke('report',{stage,error:null});
+      const view=()=>invoke('github_sign_in_status');
+      const until=async check=>{for(let i=0;i<300;i++){document.querySelector('#refresh').click();if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('sign-in observation deadline');};
+      const control=async stage=>{await until(async()=>{try{await report(stage);return true;}catch{return false;}});};
+      const mode=value=>report('signin-mode-'+value);
+      const begin=async()=>{await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();await until(async()=>{const s=await view();return s.phase==='waiting'&&!document.querySelector('#github-prompt').hidden;});return view();};
+      const cancel=async()=>{document.querySelector('#github-cancel').click();await until(async()=>(await view()).phase==='cancelled');};
+      try{
+        if(!live)await mode('pause-wait');
+        const first=await begin();
+        assert(Object.keys(first).sort().join(',')==='attempt,error,phase,prompt','sign-in state exposes extra data');
+        assert(Object.keys(first.prompt).sort().join(',')==='expires_at,user_code,verification_uri','prompt exposes native authority');
+        assert(first.prompt.verification_uri==='https://github.com/login/device'&&document.querySelector('#github-user-code').textContent===first.prompt.user_code,'real native prompt not rendered');
+        assert(!/device_code|access_token|refresh_token/.test(JSON.stringify(first)),'prompt leaked a secret field');
+        let refused=false;try{await invoke('github_sign_in');}catch{refused=true;}assert(refused,'duplicate native sign-in replaced the active attempt');
+        refused=false;try{await invoke('plugin:opener|open_url',{url:'file:///etc/passwd'});}catch{refused=true;}assert(refused,'generic browser opener authority admitted');
+        document.querySelector('#github-open').click();await control('signin-browser-opened');
+        await report('signin-close-secondary');assert((await view()).phase==='waiting','closing another window cancelled owner sign-in');
+        if(!live)await control('signin-entered');
+        await cancel();if(!live)await control('signin-upstream-cancelled');
+        assert((await invoke('credential_status')).length===0,'unapproved/cancelled sign-in saved credentials');
+        if(live){await report('signin-done');return;}
+
+        await mode('pause-wait');const second=await begin();await control('signin-entered');
+        const stale=await invoke('github_sign_in_cancel',{attempt:first.attempt});assert(stale.attempt===second.attempt&&stale.phase==='waiting','stale cancellation retired newer sign-in');
+        await invoke('close_window');await until(async()=>(await view()).phase==='cancelled');await control('signin-upstream-cancelled');await report('signin-reopen');
+        for(const value of ['denied','expired','identity-denied']){
+          await mode(value);await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();
+          await until(async()=>(await view()).phase==='failed');
+          assert((await invoke('credential_status')).length===0,'failed/unverified login saved credentials');
+          await until(()=>document.querySelector('#github-status').textContent.includes((value==='denied'?'declined':value==='expired'?'expired':'unavailable')));
+        }
+        await mode('grant');await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();
+        await until(async()=>(await view()).phase==='complete');
+        const saved=await invoke('credential_status');assert(saved.length===1&&saved[0].account==='123'&&saved[0].label==='declared-native'&&saved[0].grant.refresh_available,'verified complete account was not stored');
+        assert(!/factory-declared-(access|refresh)/.test(JSON.stringify(saved)),'saved account metadata leaked a token');
+        await until(()=>document.querySelector('#github-accounts').textContent.includes('declared-native'));
+        assert((await invoke('factory_query',{query:{kind:'identity'}})).status===503,'OAuth login silently admitted Factory work');
+        await report('signin-crash');await until(async()=>(await invoke('runtime_status')).phase==='failed');
+        await invoke('runtime_retry');await until(async()=>(await invoke('runtime_status')).phase==='ready');
+        const retained=await invoke('credential_status');assert(retained.length===1&&retained[0].connection===saved[0].connection&&retained[0].label==='declared-native','runtime restart lost saved account/label');
+        await until(()=>document.querySelector('#github-accounts').textContent.includes('declared-native'));
+        document.querySelector('#github-accounts button').click();await until(async()=>(await invoke('credential_status')).length===0);
+        await until(()=>document.querySelector('#github-accounts').children.length===0);
+
+        await mode('pause-wait');await begin();await control('signin-entered');await report('signin-crash');
+        await until(async()=>(await invoke('runtime_status')).phase==='failed');
+        assert((await view()).phase==='idle','failed runtime retained sign-in authority');
+        await invoke('runtime_retry');await until(async()=>(await invoke('runtime_status')).phase==='ready');
+        assert((await invoke('credential_status')).length===0,'retired sign-in saved credentials after restart');
+        await report('signin-done');
+      }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+    })()"#.replace("__LIVE__",if live {"true"} else {"false"});
+    let _ = window.eval(&script);
+}
+
 pub fn start(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         if let Err(error) = run(&app).await {

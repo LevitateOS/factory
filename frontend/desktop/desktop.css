@@ -1,1 +1,64 @@
-html,body{margin:0;min-height:100%;color-scheme:light dark;color:var(--soda-page-text);background:var(--soda-page-canvas);font:var(--soda-font-body)}.desktop-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px 24px;border-bottom:1px solid var(--soda-page-edge)}.desktop-toolbar nav{display:flex;gap:8px;flex-wrap:wrap}.desktop-toolbar button{font:inherit}
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color-scheme: light dark;
+  color: var(--soda-page-text);
+  background: var(--soda-page-canvas);
+  font: var(--soda-font-body);
+}
+.desktop-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.desktop-toolbar nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.desktop-toolbar button {
+  font: inherit;
+}
+.desktop-accounts {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.desktop-accounts h1 {
+  font-size: 1rem;
+  margin: 0;
+}
+.desktop-accounts p {
+  margin: 8px 0;
+}
+.desktop-accounts button {
+  font: inherit;
+}
+.desktop-accounts ul {
+  padding: 0;
+  list-style: none;
+}
+.desktop-accounts li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+#github-user-code {
+  display: block;
+  width: max-content;
+  padding: 12px 16px;
+  border: 1px solid var(--soda-page-edge);
+  border-radius: 6px;
+  font-size: 1.4rem;
+  letter-spacing: 0.15em;
+  user-select: all;
+}
+#github-cancel {
+  margin-left: 8px;
+}

@@ -1,4 +1,5 @@
 import {SodaFactoryApp} from '../factory/app/browser.js';
+import {mountAccounts} from './accounts.js';
 interface RuntimeStatus {
   phase: 'starting' | 'ready' | 'failed' | 'stopping';
   profile: string | null;
@@ -7,6 +8,7 @@ interface RuntimeStatus {
 }
 const core = (window as unknown as {__TAURI__: {core: {invoke: <T>(command: string, args?: unknown) => Promise<T>}}})
   .__TAURI__.core;
+const refreshAccounts = mountAccounts(core);
 const app = new SodaFactoryApp();
 document.querySelector('#application')!.replaceChildren(app);
 const status = document.querySelector<HTMLElement>('#runtime-status')!;
@@ -31,9 +33,11 @@ async function refresh() {
             ? 'Closing Factory…'
             : 'Factory could not start. Retry when the local runtime is available.';
     retry.hidden = value.phase !== 'failed';
+    await refreshAccounts(value.phase === 'ready', value.generation);
   } catch {
     status.textContent = 'Factory is unavailable. Your saved work is kept.';
     app.context = undefined;
+    await refreshAccounts(false, epoch);
   } finally {
     reading = false;
   }

@@ -2,10 +2,11 @@
 use crate::credentials::{
     Account, Credentials, Error as CredentialError, Provider, Token, TokenCapability,
 };
-use crate::supervisor::NativeSupervisor;
+use crate::supervisor::{NativeChannel, NativeSupervisor};
 use serde::Serialize;
 use serde_json::Value;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Serialize)]
@@ -136,7 +137,9 @@ pub(crate) fn verified_account(remote: &str, login: &str) -> Result<Account, Err
     {
         return Err(Error::Protocol);
     }
-    Account::new(Provider::Github, "https://github.com", remote).map_err(|_| Error::Protocol)
+    Account::new(Provider::Github, "https://github.com", remote)
+        .and_then(|account| account.with_label(login))
+        .map_err(|_| Error::Protocol)
 }
 
 fn commit_id(value: &str) -> bool {
@@ -211,52 +214,7 @@ impl NativeSupervisor {
                     .await
                     .map_err(|_| Error::Unavailable)?
                     .map_err(|_| Error::Unavailable)?;
-                if !alive.load(Ordering::SeqCst) {
-                    return Err(Error::Unavailable);
-                }
-                let value = std::str::from_utf8(token.as_bytes()).map_err(|_| Error::Invalid)?;
-                let response = soda_unix_http::request_authenticated_async(
-                    &channel.socket,
-                    "POST",
-                    "/api/native/github/read",
-                    "soda-native",
-                    br#"{"kind":"verify"}"#,
-                    &channel.key,
-                    &[
-                        ("X-Soda-Native-Instance", &channel.instance),
-                        ("X-Soda-GitHub-Credential", value),
-                    ],
-                    Duration::from_secs(7),
-                    soda_unix_http::Limits {
-                        header_bytes: 16384,
-                        body_bytes: 4096,
-                    },
-                )
-                .await
-                .map_err(|_| Error::Unavailable)?;
-                if !alive.load(Ordering::SeqCst) {
-                    return Err(Error::Unavailable);
-                }
-                if response.status != 200 {
-                    return Err(if (400..=599).contains(&response.status) {
-                        Error::Provider(response.status)
-                    } else {
-                        Error::Protocol
-                    });
-                }
-                let body: Value =
-                    serde_json::from_slice(&response.body).map_err(|_| Error::Protocol)?;
-                let remote = body["account"]["external_id"]
-                    .as_str()
-                    .ok_or(Error::Protocol)?;
-                if body["kind"] != "verify" || body.get("connection").is_some() {
-                    return Err(Error::Protocol);
-                }
-                let account = verified_account(
-                    remote,
-                    body["account"]["login"].as_str().ok_or(Error::Protocol)?,
-                )?;
-                Ok((account, token))
+                verify_on(&channel, &alive, token).await
             })
             .await
             .map_err(|_| Error::Unavailable)?
@@ -581,5 +539,76 @@ impl NativeSupervisor {
             }
             Ok(response)
         }
+    }
+}
+
+async fn verify_on(
+    channel: &NativeChannel,
+    alive: &AtomicBool,
+    token: Token,
+) -> Result<(Account, Token), Error> {
+    if !alive.load(Ordering::SeqCst) {
+        return Err(Error::Unavailable);
+    }
+    let value = std::str::from_utf8(token.as_bytes()).map_err(|_| Error::Invalid)?;
+    let response = soda_unix_http::request_authenticated_async(
+        &channel.socket,
+        "POST",
+        "/api/native/github/read",
+        "soda-native",
+        br#"{"kind":"verify"}"#,
+        &channel.key,
+        &[
+            ("X-Soda-Native-Instance", &channel.instance),
+            ("X-Soda-GitHub-Credential", value),
+        ],
+        Duration::from_secs(7),
+        soda_unix_http::Limits {
+            header_bytes: 16384,
+            body_bytes: 4096,
+        },
+    )
+    .await
+    .map_err(|_| Error::Unavailable)?;
+    if !alive.load(Ordering::SeqCst) {
+        return Err(Error::Unavailable);
+    }
+    if response.status != 200 {
+        return Err(if (400..=599).contains(&response.status) {
+            Error::Provider(response.status)
+        } else {
+            Error::Protocol
+        });
+    }
+    let body: Value = serde_json::from_slice(&response.body).map_err(|_| Error::Protocol)?;
+    let remote = body["account"]["external_id"]
+        .as_str()
+        .ok_or(Error::Protocol)?;
+    if body["kind"] != "verify" || body.get("connection").is_some() {
+        return Err(Error::Protocol);
+    }
+    let account = verified_account(
+        remote,
+        body["account"]["login"].as_str().ok_or(Error::Protocol)?,
+    )?;
+    Ok((account, token))
+}
+
+/// Captured native identity verification. Not serializable and independent of
+/// the supervisor mutex while device authorization or remote I/O is pending.
+pub struct Verifier {
+    channel: NativeChannel,
+    alive: Arc<AtomicBool>,
+}
+impl Verifier {
+    pub(crate) fn new(channel: NativeChannel, alive: Arc<AtomicBool>) -> Self {
+        Self { channel, alive }
+    }
+    pub async fn verify(
+        self,
+        grant: crate::credentials::Grant,
+    ) -> Result<(Account, crate::credentials::Grant), Error> {
+        let (account, access) = verify_on(&self.channel, &self.alive, grant.access).await?;
+        Ok((account, crate::credentials::Grant { access, ..grant }))
     }
 }

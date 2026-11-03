@@ -1,1 +1,39 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Factory</title><link rel="icon" href="data:,"><link rel="stylesheet" href="factory.css"><link rel="stylesheet" href="desktop.css"></head><body><header class="desktop-toolbar"><p id="runtime-status" role="status">Opening Factory…</p><nav aria-label="Application"><button id="refresh" type="button">Refresh</button><button id="retry" type="button" hidden>Retry startup</button><button id="new-window" type="button">New window</button><button id="close" type="button">Close window</button><button id="quit" type="button">Quit Factory</button></nav></header><div id="application"></div><script type="module" src="desktop.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Factory</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="factory.css" />
+    <link rel="stylesheet" href="desktop.css" />
+  </head>
+  <body>
+    <header class="desktop-toolbar">
+      <p id="runtime-status" role="status">Opening Factory…</p>
+      <nav aria-label="Application">
+        <button id="refresh" type="button">Refresh</button>
+        <button id="retry" type="button" hidden>Retry startup</button>
+        <button id="new-window" type="button">New window</button>
+        <button id="close" type="button">Close window</button>
+        <button id="quit" type="button">Quit Factory</button>
+      </nav>
+    </header>
+    <section class="desktop-accounts" aria-labelledby="github-heading">
+      <h1 id="github-heading">GitHub</h1>
+      <p id="github-status" role="status">Opening saved accounts…</p>
+      <button id="github-sign-in" type="button" disabled>Sign in to GitHub</button>
+      <div id="github-prompt" hidden>
+        <p>Enter this code at <span>github.com/login/device</span>:</p>
+        <code id="github-user-code" tabindex="0" aria-label="GitHub verification code"></code>
+        <p id="github-expiry"></p>
+        <p>GitHub will ask for repository and profile access.</p>
+        <button id="github-open" type="button">Open GitHub</button>
+      </div>
+      <button id="github-cancel" type="button" hidden>Cancel sign-in</button>
+      <ul id="github-accounts" aria-label="Saved GitHub accounts"></ul>
+    </section>
+    <div id="application"></div>
+    <script type="module" src="desktop.js"></script>
+  </body>
+</html>

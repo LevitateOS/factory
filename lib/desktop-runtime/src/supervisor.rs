@@ -38,6 +38,7 @@ enum Control {
     Stop,
     GithubChannel(tokio::sync::oneshot::Sender<Result<NativeChannel>>),
 }
+#[derive(Clone)]
 pub(crate) struct NativeChannel {
     pub socket: PathBuf,
     pub key: zeroize::Zeroizing<String>,

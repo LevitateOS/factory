@@ -1,4 +1,6 @@
 mod bridge;
+mod signin;
+use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
 #[cfg(feature = "native-check")]
 mod check;
 #[cfg(feature = "native-check")]
@@ -43,6 +45,7 @@ struct Desktop {
     generation: AtomicU64,
     windows: AtomicU64,
     streams: Mutex<HashMap<String, (String, Arc<AtomicBool>)>>,
+    signin: signin::SignIn,
     #[cfg(feature = "native-check")]
     check: check::Check,
 }
@@ -108,6 +111,7 @@ impl Desktop {
         if let Some(store) = self.credentials.lock().unwrap().take() {
             store.retire();
         }
+        self.signin.retire();
     }
     fn credentials(&self) -> Result<Arc<Credentials>, String> {
         if self.starting.load(Ordering::SeqCst)
@@ -231,6 +235,8 @@ async fn credential_withdraw(
     caller(&window)?;
     let state = app.state::<Desktop>();
     let store = state.credentials()?;
+    state.signin.cancel(None, None).await;
+    state.signin.retire();
     let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     state.cancel_streams();
     state.status.lock().unwrap().generation = generation;
@@ -436,8 +442,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut resume_check = false;
     #[cfg(feature = "native-check")]
     let mut credential_check = false;
+    #[cfg(feature = "native-check")]
+    let mut signin_check = None;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        #[cfg(feature = "native-check")]
+        if arg == "--check-signin" || arg == "--check-signin-live" {
+            checking = true;
+            signin_check = Some(arg == "--check-signin-live");
+            continue;
+        }
         #[cfg(feature = "native-check")]
         if arg == "--check" {
             checking = true;
@@ -504,6 +518,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         generation: AtomicU64::new(0),
         windows: AtomicU64::new(1),
         streams: Mutex::new(HashMap::new()),
+        signin: signin::SignIn::new(),
         #[cfg(feature = "native-check")]
         check: check::Check::new(
             checking,
@@ -511,9 +526,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             crash_check,
             resume_check,
             credential_check,
+            signin_check,
         ),
     };
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_single_instance::Builder::new()
                 .dbus_id(bus)
@@ -531,6 +548,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         runtime_retry,
         credential_status,
         credential_withdraw,
+        github_sign_in,
+        github_sign_in_status,
+        github_sign_in_cancel,
+        github_sign_in_open,
         factory_query,
         factory_command,
         factory_stream,
@@ -546,6 +567,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         runtime_retry,
         credential_status,
         credential_withdraw,
+        github_sign_in,
+        github_sign_in_status,
+        github_sign_in_cancel,
+        github_sign_in_open,
         factory_query,
         factory_command,
         factory_stream,
@@ -566,6 +591,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+                let app = window.app_handle().clone();
+                let label = window.label().to_string();
+                tauri::async_runtime::spawn(async move {
+                    app.state::<Desktop>()
+                        .signin
+                        .cancel(None, Some(&label))
+                        .await;
+                });
                 let state = window.state::<Desktop>();
                 let mut streams = state.streams.lock().unwrap();
                 streams.retain(|_, (owner, active)| {

@@ -81,6 +81,7 @@ pub struct Account {
     provider: Provider,
     origin: String,
     account: String,
+    label: Option<String>,
 }
 impl Account {
     /// Only a native connector may supply a remotely verified account identity.
@@ -108,7 +109,16 @@ impl Account {
             provider,
             origin,
             account: account.into(),
+            label: None,
         })
+    }
+    /// A provider-observed display name, never a stable identity or authority.
+    pub fn with_label(mut self, label: &str) -> Result<Self> {
+        if label.is_empty() || label.len() > 256 || label.chars().any(char::is_control) {
+            return Err(Error::Invalid);
+        }
+        self.label = Some(label.into());
+        Ok(self)
     }
 }
 /// Intentionally has neither Serialize nor Debug. Consumed by native login code.
@@ -141,6 +151,8 @@ pub struct AccountStatus {
     pub provider: Provider,
     pub origin: String,
     pub account: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub state: CredentialState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grant: Option<GrantStatus>,
@@ -291,7 +303,10 @@ impl Credentials {
             "fountain" => Provider::Fountain,
             _ => return Err(Error::Invalid),
         };
-        let account = Account::new(provider, get("origin")?, get("account")?)?;
+        let mut account = Account::new(provider, get("origin")?, get("account")?)?;
+        if let Some(label) = attrs.get("label").filter(|label| !label.is_empty()) {
+            account = account.with_label(label)?;
+        }
         let connection = get("connection")?.to_owned();
         let revision = get("revision")?.to_owned();
         if !id(&connection) || !id(&revision) {
@@ -312,6 +327,7 @@ impl Credentials {
                 provider,
                 origin: account.origin,
                 account: account.account,
+                label: account.label,
                 state,
                 grant: None,
             },
@@ -406,6 +422,7 @@ impl Credentials {
             ("origin", account.origin.as_str()),
             ("account", account.account.as_str()),
             ("revision", revision.as_str()),
+            ("label", account.label.as_deref().unwrap_or("")),
             ("format", secret.format()),
         ]);
         if let Some(item) = existing {
@@ -438,6 +455,7 @@ impl Credentials {
             provider: account.provider,
             origin: account.origin,
             account: account.account,
+            label: account.label,
             state: CredentialState::Stored,
             grant: secret.status()?,
         })

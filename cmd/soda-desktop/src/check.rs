@@ -7,6 +7,7 @@ pub struct Check {
     crash: bool,
     resume: bool,
     credentials: bool,
+    signin: Option<bool>,
     stage: AtomicUsize,
     instance: Mutex<Option<String>>,
 }
@@ -17,6 +18,7 @@ impl Check {
         crash: bool,
         resume: bool,
         credentials: bool,
+        signin: Option<bool>,
     ) -> Self {
         Self {
             enabled,
@@ -24,6 +26,7 @@ impl Check {
             crash,
             resume,
             credentials,
+            signin,
             stage: AtomicUsize::new(0),
             instance: Mutex::new(None),
         }
@@ -35,7 +38,13 @@ pub fn timeout(app: &tauri::AppHandle) {
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(45));
+        std::thread::sleep(Duration::from_secs(
+            if app.state::<Desktop>().check.signin.is_some() {
+                90
+            } else {
+                45
+            },
+        ));
         if app.state::<Desktop>().check.stage.load(Ordering::SeqCst) != 2 {
             eprintln!("Native desktop acceptance timed out");
             app.exit(1);
@@ -103,6 +112,18 @@ pub fn report(
         app.exit(1);
         return Ok(());
     }
+    if state.check.signin.is_some() && stage == "signin-done" {
+        state.check.stage.store(2, Ordering::SeqCst);
+        println!("PASS: actual Linux Tauri/WebKit desktop sign-in, native prompt/metadata custody and cancellation; declared positive authorization is separate from real human consent");
+        quit(app);
+        return Ok(());
+    }
+    if state.check.signin.is_some() && stage.starts_with("signin-") {
+        if state.check.signin == Some(true) && stage.starts_with("signin-mode-") {
+            return Err("declared modes unavailable in live sign-in check".into());
+        }
+        return crate::check_credentials::signin_control(&app, &stage);
+    }
     if state.check.credentials && stage == "credential-withdrawn" {
         std::fs::OpenOptions::new()
             .write(true)
@@ -142,6 +163,10 @@ pub fn report(
     );
     if state.check.credentials {
         crate::check_credentials::start(app);
+        return Ok(());
+    }
+    if let Some(live) = state.check.signin {
+        crate::check_credentials::start_signin(app, live);
         return Ok(());
     }
     if state.check.resume {
