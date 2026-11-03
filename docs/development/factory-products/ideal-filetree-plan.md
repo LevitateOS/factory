@@ -130,9 +130,13 @@ was removed locally; remote OAuth revocation has not been exercised.
 T06-GITHUB-IDENTITIES now atomically records observed account/connection bindings
 and repository associations in the existing registry, preserving reconnect/rename
 and refusing scope changes or unadopted retained data. Real native PostgreSQL
-checks prove concurrency, rollback, restart and WAL recovery. Provider-verified
-native composition and normalized collaboration reads still need to consume
-these mappings. Connected feed and installed journeys remain unfinished;
+checks prove concurrency, rollback, restart and WAL recovery. T06-GITHUB-BINDING now consumes
+these mappings through runtime-owned profile/store composition and current native
+credential/account verification. Typed canonical account and neutral repository
+pages preserve scope and reject cross-profile use. Actual native acceptance
+uses declared positive provider facts plus real GitHub 401s; successful live
+canonical collaboration and issue/PR/review/check normalization remain consumers.
+Connected feed and installed journeys remain unfinished;
 they do not block independent Fountain implementation or source preservation.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
