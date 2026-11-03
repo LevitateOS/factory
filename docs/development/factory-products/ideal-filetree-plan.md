@@ -98,8 +98,14 @@ Bun source link. Forge commit `5e695dfb` passes actual asset/physical-source gra
 single-Lit, browser/native-write and native staging checks. Local setup uses an
 editable checkout; clean/CI setup fetches the published commit selected by go.mod.
 The dev browser activation refused because no development deployment is active,
-so deployed parity remains unqualified. T04-REPO-NATIVE now owns the observed
-remaining Rust runtime/desktop/workbench/Unix-transport copies and their consumers.
+so deployed parity remains unqualified. T04-REPO-NATIVE now removes the remaining
+Rust runtime/desktop/workbench/Unix-transport copies in Forge commit `6bb9b60d`.
+Six retained native consumers use the defining Factory Git crates at the same
+published source revision. Workspace/driver compilation and Cargo graph checks
+pass; the rebuilt Forge driver passes the actual managed PG/Go retained-data,
+restart, crash, key-rotation and ordered-shutdown journey. Generated schemas and
+unrelated staged work remain preserved. This proves local native source
+consumption, not connected credentials/execution or an installed package.
 Installed parity remains later. Fountain's SDK distribution remains its owning integration
 task; the SDK is not copied into the standalone dependency closure. Historical
 coordinator tests that instantiate appliance/SDK owners are retained as source

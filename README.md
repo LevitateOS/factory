@@ -65,7 +65,10 @@ existing human work. The initial import preserved the original working trees;
 the subsequent Forge Go consumer cutover is committed separately as `a1cd0499`.
 Forge now uses the pinned public Factory Go module and the shared UI source
 package (UI consumer commit `5e695dfb`). Unrelated staged work remains preserved
-in the original checkout. The remaining Rust consumer cutover is still pending.
+in the original checkout. Forge's native consumer cutover is `6bb9b60d`: its
+retained native consumers use this repository's pinned Git crates, and its
+duplicate desktop/runtime/workbench/transport owners are removed. Connected
+product journeys, SDK distribution and installed parity remain unfinished.
 They are recovery snapshots, not a second active implementation of Factory.
 
 Fountain server implementation belongs to Fountain. Its retained patch and
