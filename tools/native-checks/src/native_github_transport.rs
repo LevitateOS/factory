@@ -2,7 +2,7 @@
 //! qualify credential forwarding/refusal, never a successful OAuth grant.
 use super::{ensure, fixture, prepare, Result};
 use soda_desktop_runtime::credentials::{
-    Account, Credentials, Error as CredentialError, Provider, Token,
+    Account, CredentialState, Credentials, Error as CredentialError, Provider, Token,
 };
 use soda_desktop_runtime::github::{Error, Read};
 use soda_desktop_runtime::supervisor::NativeSupervisor;
@@ -21,6 +21,228 @@ fn invalid() -> Result<Vec<u8>> {
     let mut value = b"factory-check-invalid-".to_vec();
     value.extend(fixture()?);
     Ok(value)
+}
+pub(super) async fn run_refresh(
+    production: &Path,
+    observed: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    prepare(profile)?;
+    let io = profile.parent().ok_or("fixture parent missing")?.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let ready = runtime.health()?;
+    let store = Credentials::open(profile, &ready.profile)?;
+    let invalid = invalid()?;
+    let saved = store
+        .store_grant(account(), super::grant(&invalid, &invalid, 120, 180)?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let actual = runtime.github_refresh(&store, &cap).await;
+    if !matches!(actual, Err(Error::Provider(502))) {
+        return Err(format!(
+            "actual GitHub invalid refresh returned {}",
+            actual
+                .err()
+                .map_or_else(|| "unexpected success".into(), |e| e.to_string())
+        )
+        .into());
+    }
+    ensure(
+        matches!(
+            store.status().await?[0].state,
+            CredentialState::RefreshPending
+        ),
+        "actual refused refresh remained usable",
+    )?;
+    ensure(
+        matches!(
+            runtime.github_refresh(&store, &cap).await,
+            Err(Error::Credential(CredentialError::RefreshPending))
+        ),
+        "actual refused refresh implicitly replayed",
+    )?;
+    store.withdraw(&saved.connection).await?;
+    store.retire();
+    runtime.stop()?;
+    println!("PASS: actual GitHub rejects a generated non-GitHub refresh fixture through private native Go/Rust/keyring/PG (unconfirmed provider refusal, not a verified bad_refresh_token classification); old pair stays blocked and a second request refuses before network; no successful real refresh claimed");
+
+    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    let store = Credentials::open(profile, &runtime.health()?.profile)?;
+    let observed_account = || Account::new(Provider::Github, "https://github.com", "123").unwrap();
+    let fixture_grant = || {
+        super::grant(
+            b"factory-declared-access",
+            b"factory-declared-refresh",
+            120,
+            180,
+        )
+    };
+    let mode = |value: &str| -> Result<()> {
+        fs::write(io.join("mode"), value)?;
+        for name in ["entered", "release", "cancelled", "calls", "verified"] {
+            match fs::remove_file(io.join(name)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(())
+    };
+    for value in ["success", "form"] {
+        mode(value)?;
+        let saved = store
+            .store_grant(observed_account(), fixture_grant()?)
+            .await?;
+        let cap = store.capability(&saved.connection).await?;
+        let rotated = runtime.github_refresh(&store, &cap).await?;
+        let info = rotated.grant.as_ref().ok_or("refresh metadata missing")?;
+        ensure(
+            rotated.connection == saved.connection
+                && rotated.account == "123"
+                && info.expires_at.is_some()
+                && info.refresh_expires_at.is_some()
+                && info.refresh_available
+                && info.scope == "repo,read:user",
+            "refresh lost account/expiry/scope",
+        )?;
+        let current = store.capability(&saved.connection).await?;
+        ensure(
+            store
+                .with_token(&current, |bytes| bytes == b"factory-refreshed-access")
+                .await?
+                && store
+                    .with_refresh_operation(&current, async |bytes| {
+                        bytes == b"factory-refreshed-refresh"
+                    })
+                    .await?,
+            "refreshed complete pair was not stored",
+        )?;
+        ensure(
+            store.with_token(&cap, |_| ()).await == Err(CredentialError::Retired)
+                && fs::read_to_string(io.join("calls"))? == "1"
+                && io.join("verified").exists(),
+            "refresh replayed or skipped identity/revision validation",
+        )?;
+    }
+    println!("PASS: declared JSON and form token refresh cross real private runtime and keyring, verify replacement identity, preserve complete expiry/scope/pair, rotate revision and dispatch once without client secret/scope parameters");
+    for (value, status) in [
+        ("bad-refresh", 401),
+        ("missing-refresh", 502),
+        ("same-refresh", 502),
+        ("invalid-scope", 502),
+        ("invalid-expiry", 502),
+        ("oversized", 502),
+        ("redirect", 502),
+        ("identity-denied", 401),
+        ("wrong-account", 0),
+    ] {
+        mode(value)?;
+        let saved = store
+            .store_grant(observed_account(), fixture_grant()?)
+            .await?;
+        let cap = store.capability(&saved.connection).await?;
+        let result = runtime.github_refresh(&store, &cap).await;
+        ensure(
+            if status == 0 {
+                matches!(result, Err(Error::Credential(CredentialError::Retired)))
+            } else {
+                matches!(result,Err(Error::Provider(code)) if code==status)
+            },
+            "declared refresh/identity refusal was lost",
+        )?;
+        ensure(
+            matches!(
+                store.status().await?[0].state,
+                CredentialState::RefreshPending
+            ) && store.with_token(&cap, |_| ()).await == Err(CredentialError::RefreshPending)
+                && fs::read_to_string(io.join("calls"))? == "1",
+            "refused refresh exposed old credentials or replayed",
+        )?;
+    }
+    mode("pause-refresh")?;
+    let saved = store
+        .store_grant(observed_account(), fixture_grant()?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let mut future = Box::pin(runtime.github_refresh(&store, &cap));
+    entered(future.as_mut(), &io).await?;
+    drop(future);
+    cancelled(&io).await?;
+    ensure(
+        matches!(
+            store.status().await?[0].state,
+            CredentialState::RefreshPending
+        ),
+        "cancelled network refresh lost uncertainty",
+    )?;
+    println!("PASS: declared provider/refreshed-identity/malformed/redirect refusals retain uncertainty; actual caller cancellation reaches the Go OAuth transport");
+
+    mode("pause-identity")?;
+    let saved = store
+        .store_grant(observed_account(), fixture_grant()?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let mut future = Box::pin(runtime.github_refresh(&store, &cap));
+    entered(future.as_mut(), &io).await?;
+    store.withdraw(&saved.connection).await?;
+    mark(&io.join("release"))?;
+    ensure(
+        matches!(
+            future.await,
+            Err(Error::Credential(CredentialError::Withdrawn))
+        ) && store.status().await?.is_empty(),
+        "refreshed identity resurrected withdrawn credentials",
+    )?;
+
+    mode("pause-refresh")?;
+    let saved = store
+        .store_grant(observed_account(), fixture_grant()?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let mut future = Box::pin(runtime.github_refresh(&store, &cap));
+    entered(future.as_mut(), &io).await?;
+    let newer = store
+        .store_grant(
+            observed_account(),
+            super::grant(b"factory-newer-access", b"factory-newer-refresh", 120, 180)?,
+        )
+        .await?;
+    mark(&io.join("release"))?;
+    ensure(
+        matches!(
+            future.await,
+            Err(Error::Credential(CredentialError::Retired))
+        ),
+        "stale native refresh replaced a newer sign-in",
+    )?;
+    let current = store.capability(&newer.connection).await?;
+    ensure(
+        store
+            .with_token(&current, |bytes| bytes == b"factory-newer-access")
+            .await?,
+        "newer credential damaged by late native refresh",
+    )?;
+
+    mode("pause-refresh")?;
+    let saved = store
+        .store_grant(observed_account(), fixture_grant()?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let mut future = Box::pin(runtime.github_refresh(&store, &cap));
+    entered(future.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        matches!(future.await, Err(Error::Unavailable)),
+        "retired native instance released refresh",
+    )?;
+    cancelled(&io).await?;
+    store.withdraw(&saved.connection).await?;
+    store.retire();
+    println!("PASS: withdrawal during actual identity I/O and replacement during token I/O survive late replies; native stop cancels upstream refresh and retires the captured result; real private PG/backend cleanly stop; actual successful GitHub login/refresh remains unqualified");
+    Ok(())
 }
 /// Declared transport only; proves that full grants compose across the native
 /// device/verifier/custody boundaries without dropping refresh or expiration.

@@ -104,7 +104,7 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 			}
 			connector.ServeHTTP(w, r)
 		}))
-		for _, path := range []string{"/api/native/github/read", "/api/native/github/device/start", "/api/native/github/device/wait"} {
+		for _, path := range []string{"/api/native/github/read", "/api/native/github/device/start", "/api/native/github/device/wait", "/api/native/github/refresh"} {
 			mux.Handle(path, nativeConnector)
 		}
 	}

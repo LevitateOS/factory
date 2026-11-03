@@ -127,6 +127,18 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 
+pub(crate) fn verified_account(remote: &str, login: &str) -> Result<Account, Error> {
+    if remote
+        .parse::<i64>()
+        .ok()
+        .is_none_or(|id| id < 1 || id.to_string() != remote)
+        || login.is_empty()
+    {
+        return Err(Error::Protocol);
+    }
+    Account::new(Provider::Github, "https://github.com", remote).map_err(|_| Error::Protocol)
+}
+
 fn commit_id(value: &str) -> bool {
     matches!(value.len(), 40 | 64)
         && value
@@ -237,20 +249,13 @@ impl NativeSupervisor {
                 let remote = body["account"]["external_id"]
                     .as_str()
                     .ok_or(Error::Protocol)?;
-                if body["kind"] != "verify"
-                    || body.get("connection").is_some()
-                    || remote
-                        .parse::<i64>()
-                        .ok()
-                        .is_none_or(|id| id < 1 || id.to_string() != remote)
-                    || body["account"]["login"]
-                        .as_str()
-                        .is_none_or(|login| login.is_empty())
-                {
+                if body["kind"] != "verify" || body.get("connection").is_some() {
                     return Err(Error::Protocol);
                 }
-                let account = Account::new(Provider::Github, "https://github.com", remote)
-                    .map_err(|_| Error::Protocol)?;
+                let account = verified_account(
+                    remote,
+                    body["account"]["login"].as_str().ok_or(Error::Protocol)?,
+                )?;
                 Ok((account, token))
             })
             .await

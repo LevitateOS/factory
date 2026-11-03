@@ -25,12 +25,16 @@ type deviceAttempt struct {
 	Interval int64  `json:"interval"`
 }
 
-// NewNativeHandler composes private GitHub reads and device authorization. It
+// NewNativeHandler composes private GitHub reads, device authorization and refresh. It
 // must only be mounted behind the native peer/key/instance/admission gates.
 // No browser route, persistence, canonical binding or account claim is added.
 func NewNativeHandler(network http.RoundTripper) http.Handler {
 	read := NewNativeReadHandler(network)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/native/github/refresh" {
+			refreshAuthorization(network, w, r)
+			return
+		}
 		if r.URL.Path == "/api/native/github/read" {
 			read.ServeHTTP(w, r)
 			return
@@ -46,7 +50,7 @@ func deviceAuthorization(network http.RoundTripper, w http.ResponseWriter, r *ht
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": code})
 	}
-	if r.Method != http.MethodPost || (r.URL.Path != devicePath+"start" && r.URL.Path != devicePath+"wait") || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" || len(r.Header.Values(NativeCredentialHeader)) != 0 {
+	if r.Method != http.MethodPost || (r.URL.Path != devicePath+"start" && r.URL.Path != devicePath+"wait") || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" || len(r.Header.Values(NativeCredentialHeader)) != 0 || len(r.Header.Values(NativeRefreshHeader)) != 0 {
 		fail(400, "invalid_device_request")
 		return
 	}
@@ -83,13 +87,8 @@ func deviceAuthorization(network http.RoundTripper, w http.ResponseWriter, r *ht
 	}
 	ctx, cancel := context.WithDeadline(r.Context(), deadline)
 	defer cancel()
-	client := &http.Client{Transport: deviceNetwork{context: ctx, network: network}, Timeout: 8 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, client)
-	config := &oauth2.Config{ClientID: DefaultOAuthClientID, Scopes: []string{"repo", "read:user"},
-		Endpoint: oauth2.Endpoint{DeviceAuthURL: "https://github.com/login/device/code", TokenURL: "https://github.com/login/oauth/access_token", AuthStyle: oauth2.AuthStyleInParams},
-	}
+	ctx, config := nativeOAuth(ctx, network)
+	config.Scopes = []string{"repo", "read:user"}
 	if r.URL.Path == devicePath+"start" {
 		challenge, err := config.DeviceAuth(ctx)
 		if err != nil {
@@ -117,38 +116,72 @@ func deviceAuthorization(network http.RoundTripper, w http.ResponseWriter, r *ht
 	}
 	// Preserve optional refresh and expiration facts for native custody. Neither
 	// this endpoint nor its opaque Rust consumer can claim a stored login yet.
-	if grant == nil || !deviceSecret(grant.AccessToken) || !strings.EqualFold(grant.TokenType, "bearer") || (grant.RefreshToken != "" && !deviceSecret(grant.RefreshToken)) {
+	value, err := nativeOAuthGrant(grant, start)
+	if err != nil {
 		fail(502, "invalid_device_response")
 		return
+	}
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+type nativeGrant struct {
+	Access         string `json:"access_token"`
+	Refresh        string `json:"refresh_token,omitempty"`
+	Expires        int64  `json:"expires_at,omitempty"`
+	RefreshExpires int64  `json:"refresh_expires_at,omitempty"`
+	Scope          string `json:"scope"`
+}
+
+func nativeOAuthGrant(grant *oauth2.Token, start time.Time) (nativeGrant, error) {
+	invalid := func() (nativeGrant, error) { return nativeGrant{}, errors.New("invalid GitHub grant") }
+	if grant == nil || !deviceSecret(grant.AccessToken) || !strings.EqualFold(grant.TokenType, "bearer") || (grant.RefreshToken != "" && !deviceSecret(grant.RefreshToken)) {
+		return invalid()
 	}
 	var expires, refreshExpires int64
 	if !grant.Expiry.IsZero() {
 		expires = grant.Expiry.Unix()
 		if expires <= time.Now().Unix() || grant.RefreshToken == "" {
-			fail(502, "invalid_device_response")
-			return
+			return invalid()
 		}
 	}
 	if value := grant.Extra("refresh_token_expires_in"); value != nil {
-		seconds, ok := value.(float64)
-		if !ok || seconds <= 0 || seconds > 366*24*60*60 || float64(int64(seconds)) != seconds || grant.RefreshToken == "" {
-			fail(502, "invalid_device_response")
-			return
+		var seconds int64
+		switch value := value.(type) {
+		case float64:
+			if value <= 0 || value > 366*24*60*60 || float64(int64(value)) != value {
+				return invalid()
+			}
+			seconds = int64(value)
+		case int64:
+			seconds = value
+		default:
+			return invalid()
+		}
+		if seconds <= 0 || seconds > 366*24*60*60 || grant.RefreshToken == "" {
+			return invalid()
 		}
 		refreshExpires = start.Add(time.Duration(seconds) * time.Second).Unix()
+		if refreshExpires <= time.Now().Unix() {
+			return invalid()
+		}
 	}
-	scope, _ := grant.Extra("scope").(string)
-	if len(scope) > 1024 {
-		fail(502, "invalid_device_response")
-		return
+	scope, ok := grant.Extra("scope").(string)
+	if grant.Extra("scope") != nil && !ok {
+		return invalid()
 	}
-	_ = json.NewEncoder(w).Encode(struct {
-		Access         string `json:"access_token"`
-		Refresh        string `json:"refresh_token,omitempty"`
-		Expires        int64  `json:"expires_at,omitempty"`
-		RefreshExpires int64  `json:"refresh_expires_at,omitempty"`
-		Scope          string `json:"scope"`
-	}{grant.AccessToken, grant.RefreshToken, expires, refreshExpires, scope})
+	if len(scope) > 1024 || strings.ContainsAny(scope, "\r\n\x00") {
+		return invalid()
+	}
+	return nativeGrant{grant.AccessToken, grant.RefreshToken, expires, refreshExpires, scope}, nil
+}
+
+func nativeOAuth(ctx context.Context, network http.RoundTripper) (context.Context, *oauth2.Config) {
+	client := &http.Client{Transport: oauthNetwork{context: ctx, network: network}, Timeout: 8 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	return context.WithValue(ctx, oauth2.HTTPClient, client), &oauth2.Config{ClientID: DefaultOAuthClientID,
+		Endpoint: oauth2.Endpoint{DeviceAuthURL: "https://github.com/login/device/code", TokenURL: "https://github.com/login/oauth/access_token", AuthStyle: oauth2.AuthStyleInParams},
+	}
 }
 
 func deviceSecret(value string) bool {
@@ -183,19 +216,19 @@ func deviceFailure(fail func(int, string), err error, ctx context.Context) {
 // Bind cancellation even for oauth2.DeviceAuth's request without a context.
 // Bound upstream bodies before the library decodes them and refuse redirects,
 // arbitrary origins, cookies and any secret-bearing authentication header.
-type deviceNetwork struct {
+type oauthNetwork struct {
 	context context.Context
 	network http.RoundTripper
 }
 
-func (t deviceNetwork) RoundTrip(r *http.Request) (*http.Response, error) {
+func (t oauthNetwork) RoundTrip(r *http.Request) (*http.Response, error) {
 	if r.Method != http.MethodPost || r.URL.Scheme != "https" || r.URL.Host != "github.com" || r.URL.User != nil || r.URL.RawQuery != "" || r.URL.RawPath != "" || (r.URL.Path != "/login/device/code" && r.URL.Path != "/login/oauth/access_token") || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 		return nil, errors.New("invalid device endpoint")
 	}
 	ctx, cancel := context.WithTimeout(t.context, 8*time.Second)
 	defer cancel()
 	response, err := t.network.RoundTrip(r.Clone(ctx))
-	if err != nil {
+	if err != nil || response == nil || response.Body == nil {
 		return nil, errors.New("device network unavailable")
 	}
 	defer response.Body.Close()

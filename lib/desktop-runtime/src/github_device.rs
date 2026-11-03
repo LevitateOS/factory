@@ -1,7 +1,11 @@
-//! Native-only device authorization. This produces an unverified, unpersisted
-//! grant; the login consumer must verify identity and own expiry/refresh custody.
-use crate::credentials::{Grant as CredentialGrant, Token};
-use crate::github::Error;
+//! Native-only device-issued OAuth. Initial authorization produces an opaque
+//! unverified grant; refresh verifies identity and conditionally rotates custody.
+//! Desktop login lifecycle and all browser-facing commands remain consumers.
+use crate::credentials::{
+    AccountStatus, Credentials, Error as CredentialError, Grant as CredentialGrant, Provider,
+    Token, TokenCapability,
+};
+use crate::github::{verified_account, Error};
 use crate::supervisor::{NativeChannel, NativeSupervisor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -100,6 +104,106 @@ async fn exchange(
 }
 
 impl NativeSupervisor {
+    /// One explicitly requested native refresh, never an automatic HTTP retry.
+    /// Custody reserves before network dispatch and conditionally publishes only
+    /// the same freshly verified account. No future borrows the supervisor.
+    pub fn github_refresh<'a>(
+        &self,
+        credentials: &'a Credentials,
+        capability: &'a TokenCapability,
+    ) -> impl std::future::Future<Output = Result<AccountStatus, Error>> + 'a {
+        let channel = self.github_channel();
+        async move {
+            let account = capability.account();
+            if account.provider != Provider::Github || account.origin != "https://github.com" {
+                return Err(Error::Invalid);
+            }
+            let (receive, alive) = channel.map_err(|_| Error::Unavailable)?;
+            let channel = tokio::time::timeout(Duration::from_secs(2), receive)
+                .await
+                .map_err(|_| Error::Unavailable)?
+                .map_err(|_| Error::Unavailable)?
+                .map_err(|_| Error::Unavailable)?;
+            if !alive.load(Ordering::SeqCst) {
+                return Err(Error::Unavailable);
+            }
+            let mut provider_failure = None;
+            let result = credentials
+                .rotate_grant(capability, async |refresh| {
+                    let result = async {
+                        if !alive.load(Ordering::SeqCst) {
+                            return Err(Error::Unavailable);
+                        }
+                        let value = std::str::from_utf8(refresh).map_err(|_| Error::Invalid)?;
+                        let response = soda_unix_http::request_authenticated_async(
+                            &channel.socket,
+                            "POST",
+                            "/api/native/github/refresh",
+                            "soda-native",
+                            b"{}",
+                            &channel.key,
+                            &[
+                                ("X-Soda-Native-Instance", &channel.instance),
+                                ("X-Soda-GitHub-Refresh", value),
+                            ],
+                            Duration::from_secs(7),
+                            soda_unix_http::Limits {
+                                header_bytes: 16384,
+                                body_bytes: 32768,
+                            },
+                        )
+                        .await
+                        .map_err(|_| Error::Unavailable)?;
+                        let bytes = Zeroizing::new(response.body);
+                        if !alive.load(Ordering::SeqCst) {
+                            return Err(Error::Unavailable);
+                        }
+                        if response.status != 200 {
+                            return Err(if (400..=599).contains(&response.status) {
+                                Error::Provider(response.status)
+                            } else {
+                                Error::Protocol
+                            });
+                        }
+                        #[derive(Deserialize)]
+                        #[serde(deny_unknown_fields)]
+                        struct User {
+                            external_id: String,
+                            login: String,
+                        }
+                        #[derive(Deserialize)]
+                        #[serde(deny_unknown_fields)]
+                        struct Refreshed {
+                            account: User,
+                            grant: Grant,
+                        }
+                        let raw: Refreshed =
+                            serde_json::from_slice(&bytes).map_err(|_| Error::Protocol)?;
+                        let account =
+                            verified_account(&raw.account.external_id, &raw.account.login)?;
+                        let grant = decode_grant(raw.grant)?;
+                        if grant.refresh.is_none()
+                            || grant.expires_at.is_none()
+                            || grant.refresh_expires_at.is_none()
+                        {
+                            return Err(Error::Protocol);
+                        }
+                        Ok((account, grant))
+                    }
+                    .await;
+                    result.map_err(|error| {
+                        provider_failure = Some(error);
+                        CredentialError::RefreshPending
+                    })
+                })
+                .await;
+            match result {
+                Ok(status) => Ok(status),
+                Err(error) => Err(provider_failure.unwrap_or(Error::Credential(error))),
+            }
+        }
+    }
+
     /// Does not borrow the supervisor while awaiting I/O. Dropping the future
     /// closes the private socket; stopping the host retires its captured channel.
     pub fn github_device_start(
@@ -195,26 +299,29 @@ impl DeviceAuthorization {
         )
         .await?;
         let raw: Grant = serde_json::from_slice(&bytes).map_err(|_| Error::Protocol)?;
-        let time = now()?;
-        if raw.scope.len() > 1024
-            || raw.expires_at.is_some_and(|expiry| expiry <= time)
-            || raw.refresh_expires_at.is_some_and(|expiry| expiry <= time)
-            || (raw.expires_at.is_some() || raw.refresh_expires_at.is_some())
-                && raw.refresh_token.is_none()
-        {
-            return Err(Error::Protocol);
-        }
-        Ok(CredentialGrant {
-            access: Token::new(raw.access_token.0.as_bytes().to_vec())
-                .map_err(|_| Error::Protocol)?,
-            refresh: raw
-                .refresh_token
-                .map(|secret| Token::new(secret.0.as_bytes().to_vec()))
-                .transpose()
-                .map_err(|_| Error::Protocol)?,
-            expires_at: raw.expires_at,
-            refresh_expires_at: raw.refresh_expires_at,
-            scope: raw.scope,
-        })
+        decode_grant(raw)
     }
+}
+
+fn decode_grant(raw: Grant) -> Result<CredentialGrant, Error> {
+    let time = now()?;
+    if raw.scope.len() > 1024
+        || raw.expires_at.is_some_and(|expiry| expiry <= time)
+        || raw.refresh_expires_at.is_some_and(|expiry| expiry <= time)
+        || (raw.expires_at.is_some() || raw.refresh_expires_at.is_some())
+            && raw.refresh_token.is_none()
+    {
+        return Err(Error::Protocol);
+    }
+    Ok(CredentialGrant {
+        access: Token::new(raw.access_token.0.as_bytes().to_vec()).map_err(|_| Error::Protocol)?,
+        refresh: raw
+            .refresh_token
+            .map(|secret| Token::new(secret.0.as_bytes().to_vec()))
+            .transpose()
+            .map_err(|_| Error::Protocol)?,
+        expires_at: raw.expires_at,
+        refresh_expires_at: raw.refresh_expires_at,
+        scope: raw.scope,
+    })
 }
