@@ -39,7 +39,8 @@ macOS native execution/qualification remains deferred.
 
 ## Forge integration
 
-The appliance entrypoint and native Fountain adapters remain owned by Soda Forge.
-Their complete in-progress source changes are retained under `integrations/`.
-They are not selected by this standalone command. The extracted public packages
-provide the shared engine/service boundary for the pending Forge consumer cutover.
+The appliance entrypoint and native Fountain adapters remain owned by
+[SodaOS](https://github.com/LevitateOS/sodaos). Forge consumes the extracted public
+Factory module for its shared engine and services. Fountain's native server
+implementation belongs to [Fountain](https://github.com/veighnsche/fountain/tree/main).
+This standalone command does not select either product's host implementation.

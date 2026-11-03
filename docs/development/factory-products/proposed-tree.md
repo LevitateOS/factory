@@ -4,9 +4,10 @@ The product was extracted to `LevitateOS/factory` on 2026-11-03. Current definin
 Go owners are `factory/pkg/{factory,store,application,collaboration,github,identity,project,strictjson,filelock}`;
 the frontend and native Rust owners keep their relative paths in Factory. The
 diagram below retains the original in-repository allocation and unfinished
-consumer targets. Appliance/Fountain files stay with those products; their
-working source is preserved under `integrations/` rather than selected by the
-standalone build. See [source provenance](../../source-import.json) and the
+consumer targets. Appliance/Fountain files stay in their owning repositories.
+The initial extraction snapshots remain in Git history; recovery patches and
+inactive archived coordinator tests are retired from the working tree.
+See [source provenance](../../source-import.json) and the
 [current extraction boundary](ideal-filetree-plan.md#separate-public-repository).
 
 This is the target delta for the [product extraction](ideal-filetree-plan.md),

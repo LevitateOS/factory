@@ -76,9 +76,11 @@ engineering selections for this plan, rather than claims of implemented behavior
 
 The owner requested a public [Factory repository](https://github.com/LevitateOS/factory)
 before finishing the product. The initial import commits preserve the current
-product source and both complete integration working-tree patches. Original
-checkouts were preserved at import. Source provenance and patch base revisions are
-recorded in [`docs/source-import.json`](../../source-import.json).
+product source and both complete integration working-tree patches in Git history.
+Original checkouts were preserved at import. Recovery patches and inactive
+archived coordinator tests are now retired from the working tree. Source
+provenance and the historical snapshot commit are recorded in
+[`docs/source-import.json`](../../source-import.json).
 
 The extracted Go module is `github.com/levitateos/factory`. Its public `pkg/`
 owners include the engine, services, store, application, collaboration and required
@@ -107,9 +109,9 @@ restart, crash, key-rotation and ordered-shutdown journey. Generated schemas and
 unrelated staged work remain preserved. This proves local native source
 consumption, not connected credentials/execution or an installed package.
 Installed parity remains later. Fountain's SDK distribution remains its owning integration
-task; the SDK is not copied into the standalone dependency closure. Historical
-coordinator tests that instantiate appliance/SDK owners are retained as source
-under `integrations/soda-forge/`, while store tests remain active in `pkg/store/`.
+task; the SDK is not copied into the standalone dependency closure. The inactive
+historical coordinator-test archive is retired and remains recoverable in Git
+history. Existing store checks remain in `pkg/store/`.
 
 Do not mark connected, installed, extraction-parity or product gates complete
 because the new repository builds. The owner supplied the public GitHub OAuth

@@ -61,23 +61,20 @@ credential custody and opt-in native acceptance checks.
 ## Source and integration history
 
 [Source provenance](docs/source-import.json) records the original revisions and
-SHA-256 hashes of imported product files. The `integrations/` directory also
-preserves the complete tracked and untracked source changes from both working
-trees as Git binary patches. These include unfinished integration code and
-existing human work. The initial import preserved the original working trees;
-the subsequent Forge Go consumer cutover is committed separately as `a1cd0499`.
+SHA-256 hashes of imported product files. The initial extraction snapshots remain
+in [Git history](https://github.com/LevitateOS/factory/tree/870c784024c4b194cc5f3bf503ccf37d12e36879).
+The recovery patches and inactive coordinator-test archive have been retired
+from the working tree. The Forge Go consumer cutover is committed as `a1cd0499`.
 Forge now uses the pinned public Factory Go module and the shared UI source
 package (UI consumer commit `5e695dfb`). Unrelated staged work remains preserved
 in the original checkout. Forge's native consumer cutover is `6bb9b60d`: its
 retained native consumers use this repository's pinned Git crates, and its
 duplicate desktop/runtime/workbench/transport owners are removed. Connected
 product journeys, SDK distribution and installed parity remain unfinished.
-They are recovery snapshots, not a second active implementation of Factory.
-
-Fountain server implementation belongs to Fountain. Its retained patch and
-license remain under `integrations/fountain/`; they are not dependencies of the
-standalone backend. See [integration notes](integrations/README.md).
+Fountain server implementation belongs to
+[Fountain](https://github.com/veighnsche/fountain/tree/main), and appliance
+composition belongs to [SodaOS](https://github.com/LevitateOS/sodaos).
 
 Original SodaOS work remains Apache-2.0. Existing third-party and inherited
 notices remain applicable; see [LICENSE](LICENSE), [NOTICE](NOTICE), and the
-licenses alongside the imported integration material.
+licenses alongside the retained source and assets.

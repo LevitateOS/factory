@@ -6,8 +6,6 @@
       "name": "soda-forge",
       "repository": "https://github.com/LevitateOS/sodaos",
       "revision": "c5370e1bafee95adb3274042d3c8f45d774ea365",
-      "patch": "integrations/soda-forge/working-tree.patch",
-      "sha256": "1cfc615034699a8713e14e5aa53b8ef11387c441382a42b494c76141ef18f3eb",
       "untrackedPaths": 191,
       "changedPaths": 1134
     },
@@ -15,8 +13,6 @@
       "name": "fountain",
       "repository": "https://github.com/veighnsche/fountain",
       "revision": "fd5d4db12daf291cdaa5cbde8cb9dee52a0e2b11",
-      "patch": "integrations/fountain/working-tree.patch",
-      "sha256": "e1ca5b5e7dd27fe8993c518bbe75abe82be3d2fb59875e8d8e154c72a937a895",
       "untrackedPaths": 145,
       "changedPaths": 198
     }
@@ -1860,8 +1856,7 @@
     {
       "source": "internal/factory/control/acceptance_withdrawal_stop_test.go",
       "destination": null,
-      "sha256": "ea66aa78e12051da5ecd13cffd6f3e47b09de73a7ad7112a52393f9220d6eb10",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "ea66aa78e12051da5ecd13cffd6f3e47b09de73a7ad7112a52393f9220d6eb10"
     },
     {
       "source": "internal/factory/control/app_verification.go",
@@ -1871,8 +1866,7 @@
     {
       "source": "internal/factory/control/app_verification_test.go",
       "destination": null,
-      "sha256": "e39c8bc1423f9ff605d28ecf2598d1e16d95d060d062018cf03df666f0635fc7",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e39c8bc1423f9ff605d28ecf2598d1e16d95d060d062018cf03df666f0635fc7"
     },
     {
       "source": "internal/factory/control/assumption_advice.go",
@@ -1942,8 +1936,7 @@
     {
       "source": "internal/factory/control/completion_serving_pg_test.go",
       "destination": null,
-      "sha256": "a85459e1277a6cf04c13ed3e338001e45aeac5c1db2f9cba73351aa1b33f3d86",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "a85459e1277a6cf04c13ed3e338001e45aeac5c1db2f9cba73351aa1b33f3d86"
     },
     {
       "source": "internal/factory/control/consistency_advice.go",
@@ -1963,8 +1956,7 @@
     {
       "source": "internal/factory/control/context_bundle_gap_test.go",
       "destination": null,
-      "sha256": "dde140c61501654c4868c4f7d463f0e82470575606f38e1c6bab5b56b47da749",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "dde140c61501654c4868c4f7d463f0e82470575606f38e1c6bab5b56b47da749"
     },
     {
       "source": "internal/factory/control/context_bundle_prepare.go",
@@ -1989,8 +1981,7 @@
     {
       "source": "internal/factory/control/coordinator_test.go",
       "destination": null,
-      "sha256": "274a72df0a7484aaeb72012031198f799a83b390710b4723e9f7b83daad8e734",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "274a72df0a7484aaeb72012031198f799a83b390710b4723e9f7b83daad8e734"
     },
     {
       "source": "internal/factory/control/correction.go",
@@ -2035,8 +2026,7 @@
     {
       "source": "internal/factory/control/delivery_admission_test.go",
       "destination": null,
-      "sha256": "360050f28789fd12dad440b1ccd89abe08d3b60a0d258feea6e9abaa1f106209",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "360050f28789fd12dad440b1ccd89abe08d3b60a0d258feea6e9abaa1f106209"
     },
     {
       "source": "internal/factory/control/delivery_judgment_material.go",
@@ -2086,14 +2076,12 @@
     {
       "source": "internal/factory/control/dispatch_accounting_test.go",
       "destination": null,
-      "sha256": "40e0f88b14a7c3bd23e12010c2594188673f278aa497e2c866ca85d3646bc1e8",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "40e0f88b14a7c3bd23e12010c2594188673f278aa497e2c866ca85d3646bc1e8"
     },
     {
       "source": "internal/factory/control/dispatch_advance_stale_test.go",
       "destination": null,
-      "sha256": "f9f477d6e4727b13fc7a6ede7ada0ad700cb7a7077aa759972b13209469be215",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "f9f477d6e4727b13fc7a6ede7ada0ad700cb7a7077aa759972b13209469be215"
     },
     {
       "source": "internal/factory/control/dispatch_attempt.go",
@@ -2103,8 +2091,7 @@
     {
       "source": "internal/factory/control/dispatch_concurrency_test.go",
       "destination": null,
-      "sha256": "be9c3e044075d751788246c6574ec015902cf019a740fea417a53dfa3c30b2c6",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "be9c3e044075d751788246c6574ec015902cf019a740fea417a53dfa3c30b2c6"
     },
     {
       "source": "internal/factory/control/dispatch_context.go",
@@ -2119,8 +2106,7 @@
     {
       "source": "internal/factory/control/dispatch_fixture_test.go",
       "destination": null,
-      "sha256": "e039c6701d5fdb7e7bde3208a1e6f15e0812a2d3e563f80b0504ef7992458bb2",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e039c6701d5fdb7e7bde3208a1e6f15e0812a2d3e563f80b0504ef7992458bb2"
     },
     {
       "source": "internal/factory/control/dispatch_inputs.go",
@@ -2145,8 +2131,7 @@
     {
       "source": "internal/factory/control/dispatch_preparation_test.go",
       "destination": null,
-      "sha256": "e99aac22eb8e2a454ad2c67ceb55f7ad7199f58066f51f678eadee2ace91a3a1",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e99aac22eb8e2a454ad2c67ceb55f7ad7199f58066f51f678eadee2ace91a3a1"
     },
     {
       "source": "internal/factory/control/dispatch_recovery.go",
@@ -2156,14 +2141,12 @@
     {
       "source": "internal/factory/control/dispatch_recovery_test.go",
       "destination": null,
-      "sha256": "2666c5ff88dc752ede2e02126e994a696ab017e1ee2bd0a019cae4dc6a745684",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "2666c5ff88dc752ede2e02126e994a696ab017e1ee2bd0a019cae4dc6a745684"
     },
     {
       "source": "internal/factory/control/dispatch_restore_helpers_test.go",
       "destination": null,
-      "sha256": "986eeda8d18ffebc55fd029a7f6f7315d57e3bc39fb2e5672d9f5f21daeb5ffb",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "986eeda8d18ffebc55fd029a7f6f7315d57e3bc39fb2e5672d9f5f21daeb5ffb"
     },
     {
       "source": "internal/factory/control/dispatch_result.go",
@@ -2173,8 +2156,7 @@
     {
       "source": "internal/factory/control/dispatch_result_timeonly_test.go",
       "destination": null,
-      "sha256": "219f53e0bad588de579f0ecfceeea3b8a7ffc82c65ebbfc7eb77ad9210c263ff",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "219f53e0bad588de579f0ecfceeea3b8a7ffc82c65ebbfc7eb77ad9210c263ff"
     },
     {
       "source": "internal/factory/control/dispatch_selection.go",
@@ -2184,26 +2166,22 @@
     {
       "source": "internal/factory/control/dispatch_settlement_race_test.go",
       "destination": null,
-      "sha256": "009facc9812b222ad210546fb4c98c7d30f3ffab2b69f97e35dfe9af3125fee9",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "009facc9812b222ad210546fb4c98c7d30f3ffab2b69f97e35dfe9af3125fee9"
     },
     {
       "source": "internal/factory/control/dispatch_source_preparation_test.go",
       "destination": null,
-      "sha256": "c31da4463b5392057deccc3227bf2aa6d032950eac91d489d8f9dd4234d89bcf",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "c31da4463b5392057deccc3227bf2aa6d032950eac91d489d8f9dd4234d89bcf"
     },
     {
       "source": "internal/factory/control/dispatch_terminal_phase_test.go",
       "destination": null,
-      "sha256": "d6cad7ba2e227ad6ffd61506a0026b58c1355c124aae4771a601dfe0c0c45bd7",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "d6cad7ba2e227ad6ffd61506a0026b58c1355c124aae4771a601dfe0c0c45bd7"
     },
     {
       "source": "internal/factory/control/dispatch_test.go",
       "destination": null,
-      "sha256": "82b34584b0312e71e7d8f63602b804b74247f26e454fb41b39faf15e5335c436",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "82b34584b0312e71e7d8f63602b804b74247f26e454fb41b39faf15e5335c436"
     },
     {
       "source": "internal/factory/control/dispatch_timeonly.go",
@@ -2213,14 +2191,12 @@
     {
       "source": "internal/factory/control/dispatch_timeonly_test.go",
       "destination": null,
-      "sha256": "943371046868523a8e5e67f9e3326d82332cc88e348dad9f1b9779445105344c",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "943371046868523a8e5e67f9e3326d82332cc88e348dad9f1b9779445105344c"
     },
     {
       "source": "internal/factory/control/dispatch_wait_test.go",
       "destination": null,
-      "sha256": "0a8f9b19668fc2587def41af03c0542c5c85ec3b86d05ebbb6e9a3a890cba250",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "0a8f9b19668fc2587def41af03c0542c5c85ec3b86d05ebbb6e9a3a890cba250"
     },
     {
       "source": "internal/factory/control/grant_authority.go",
@@ -2240,8 +2216,7 @@
     {
       "source": "internal/factory/control/integration_helpers_test.go",
       "destination": null,
-      "sha256": "850380d5addbb6642fddfaef5114060c54fcd7b68fc02e9e267ee68836d704df",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "850380d5addbb6642fddfaef5114060c54fcd7b68fc02e9e267ee68836d704df"
     },
     {
       "source": "internal/factory/control/intent_bound.go",
@@ -2266,14 +2241,12 @@
     {
       "source": "internal/factory/control/intent_generation_binding_test.go",
       "destination": null,
-      "sha256": "bb19eba0579933c17eba7688d08e062f9391bebebfd49e75de6ca68d79f7a22b",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "bb19eba0579933c17eba7688d08e062f9391bebebfd49e75de6ca68d79f7a22b"
     },
     {
       "source": "internal/factory/control/intent_generation_mechanics_test.go",
       "destination": null,
-      "sha256": "144adc1e7e31e36a5d38dda57c22b317352a1a468b63854d384b469307d85895",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "144adc1e7e31e36a5d38dda57c22b317352a1a468b63854d384b469307d85895"
     },
     {
       "source": "internal/factory/control/intent_generation_recovery.go",
@@ -2288,8 +2261,7 @@
     {
       "source": "internal/factory/control/intent_plan_assembly_test.go",
       "destination": null,
-      "sha256": "1ee4044d0222049ed47c001b66293360ad84b8150cd30f971a17f1fecf40fd04",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "1ee4044d0222049ed47c001b66293360ad84b8150cd30f971a17f1fecf40fd04"
     },
     {
       "source": "internal/factory/control/intent_plan_choice.go",
@@ -2299,8 +2271,7 @@
     {
       "source": "internal/factory/control/intent_plan_choice_test.go",
       "destination": null,
-      "sha256": "6a05b0fe572063e0a562ebb8b5be8e396cfaf456102c6f8ca62e4f98cf5bbb7b",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "6a05b0fe572063e0a562ebb8b5be8e396cfaf456102c6f8ca62e4f98cf5bbb7b"
     },
     {
       "source": "internal/factory/control/intent_planning.go",
@@ -2345,8 +2316,7 @@
     {
       "source": "internal/factory/control/mcp_capability_producer_test.go",
       "destination": null,
-      "sha256": "bbe23cb9aa16acf1481a77693a4a3cac04b3515492d46830b6368a01eca287d0",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "bbe23cb9aa16acf1481a77693a4a3cac04b3515492d46830b6368a01eca287d0"
     },
     {
       "source": "internal/factory/control/mcp_checkpoint_finish.go",
@@ -2371,8 +2341,7 @@
     {
       "source": "internal/factory/control/mcp_settle_pg_test.go",
       "destination": null,
-      "sha256": "e97e6c38105c0deae2bb0d2a4895710ba38ef002229c1aefd24a12f8e02100cb",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e97e6c38105c0deae2bb0d2a4895710ba38ef002229c1aefd24a12f8e02100cb"
     },
     {
       "source": "internal/factory/control/merge.go",
@@ -2392,14 +2361,12 @@
     {
       "source": "internal/factory/control/merge_fixture_test.go",
       "destination": null,
-      "sha256": "e40fd9ff8959fcf99ab92c2631fe02370f4a7192ae188ced8a9642442bc338e8",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e40fd9ff8959fcf99ab92c2631fe02370f4a7192ae188ced8a9642442bc338e8"
     },
     {
       "source": "internal/factory/control/merge_generations_test.go",
       "destination": null,
-      "sha256": "5c1f0a9fc4559d240e6afc7cf50f6aa4ea19c75861e26a6a5a498616b2a155f1",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "5c1f0a9fc4559d240e6afc7cf50f6aa4ea19c75861e26a6a5a498616b2a155f1"
     },
     {
       "source": "internal/factory/control/merge_judgment_gate.go",
@@ -2409,20 +2376,17 @@
     {
       "source": "internal/factory/control/merge_judgment_gate_test.go",
       "destination": null,
-      "sha256": "0271c68d9c1b0b28d212d02ca3d22bc2ee52810c77f0a2a5e82d243367ecc08d",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "0271c68d9c1b0b28d212d02ca3d22bc2ee52810c77f0a2a5e82d243367ecc08d"
     },
     {
       "source": "internal/factory/control/merge_native_deadline_test.go",
       "destination": null,
-      "sha256": "8138792ed9313790396b3496cde90dba435cfbcad6f2adb486cf1fdf4f69a233",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "8138792ed9313790396b3496cde90dba435cfbcad6f2adb486cf1fdf4f69a233"
     },
     {
       "source": "internal/factory/control/merge_native_fixture_test.go",
       "destination": null,
-      "sha256": "ccc08eac5d95e360f54cbf371a7f0dc702e0333e5856fcfeefac0a252158d0cf",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "ccc08eac5d95e360f54cbf371a7f0dc702e0333e5856fcfeefac0a252158d0cf"
     },
     {
       "source": "internal/factory/control/merge_reconcile.go",
@@ -2452,14 +2416,12 @@
     {
       "source": "internal/factory/control/planning_admission_test.go",
       "destination": null,
-      "sha256": "98e18021ae46b1acd808df60a033857261c587698d13109fd1dcf195468f1700",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "98e18021ae46b1acd808df60a033857261c587698d13109fd1dcf195468f1700"
     },
     {
       "source": "internal/factory/control/postgres_fixture_test.go",
       "destination": null,
-      "sha256": "d33ec815867d29c74ac8cc7c56d1b51244bebff03f3d5046ee5d7e51bf95b678",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "d33ec815867d29c74ac8cc7c56d1b51244bebff03f3d5046ee5d7e51bf95b678"
     },
     {
       "source": "internal/factory/control/preparation_decisions.go",
@@ -2474,8 +2436,7 @@
     {
       "source": "internal/factory/control/preparation_start_test.go",
       "destination": null,
-      "sha256": "14f8a16ee4f9fd059bd4da5c57a65dbf9ee4157251775e677a95525cf980d197",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "14f8a16ee4f9fd059bd4da5c57a65dbf9ee4157251775e677a95525cf980d197"
     },
     {
       "source": "internal/factory/control/prerequisites.go",
@@ -2495,8 +2456,7 @@
     {
       "source": "internal/factory/control/priority_test.go",
       "destination": null,
-      "sha256": "e4277c35aa345a17ecd348faa361bd98c90cb371eb0441e4470e79e99f0718a7",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "e4277c35aa345a17ecd348faa361bd98c90cb371eb0441e4470e79e99f0718a7"
     },
     {
       "source": "internal/factory/control/priority_typesafe.go",
@@ -2541,14 +2501,12 @@
     {
       "source": "internal/factory/control/publication_fixture_test.go",
       "destination": null,
-      "sha256": "ce81042d4b86a93a2de49f77c436a35cf22b008ff5d31a0c88541fe989fc83e6",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "ce81042d4b86a93a2de49f77c436a35cf22b008ff5d31a0c88541fe989fc83e6"
     },
     {
       "source": "internal/factory/control/publication_native_fixture_test.go",
       "destination": null,
-      "sha256": "916c1e37d1de0649627db9de74c8ac9bcd01a4c616c8736684ec994d2e247c3b",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "916c1e37d1de0649627db9de74c8ac9bcd01a4c616c8736684ec994d2e247c3b"
     },
     {
       "source": "internal/factory/control/publication_plan_gate.go",
@@ -2573,14 +2531,12 @@
     {
       "source": "internal/factory/control/readiness_fixture_test.go",
       "destination": null,
-      "sha256": "176e873fec96a548d9f3a7391ac155d66c3f73f11525464ddb94d63b1037a9b2",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "176e873fec96a548d9f3a7391ac155d66c3f73f11525464ddb94d63b1037a9b2"
     },
     {
       "source": "internal/factory/control/readiness_sweep_test.go",
       "destination": null,
-      "sha256": "ff419a8be10b1f40e6a0bbac70ebd4442e4ffd5c4fad24290f5e0ca10cb95d0e",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "ff419a8be10b1f40e6a0bbac70ebd4442e4ffd5c4fad24290f5e0ca10cb95d0e"
     },
     {
       "source": "internal/factory/control/readiness_work.go",
@@ -2600,8 +2556,7 @@
     {
       "source": "internal/factory/control/repair_admit_test.go",
       "destination": null,
-      "sha256": "a7f2e425703b1f5da14d8c6f3430faeb2ca2ecfcc4e11067982cb5aada5b6e29",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "a7f2e425703b1f5da14d8c6f3430faeb2ca2ecfcc4e11067982cb5aada5b6e29"
     },
     {
       "source": "internal/factory/control/repair_adoption.go",
@@ -2631,8 +2586,7 @@
     {
       "source": "internal/factory/control/review_carried_history_test.go",
       "destination": null,
-      "sha256": "64e3e033bdd4726bae58a897a3a76d35d9a87da389806b97ede9f1962ae124df",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "64e3e033bdd4726bae58a897a3a76d35d9a87da389806b97ede9f1962ae124df"
     },
     {
       "source": "internal/factory/control/review_cycle.go",
@@ -2647,8 +2601,7 @@
     {
       "source": "internal/factory/control/review_tuple_test.go",
       "destination": null,
-      "sha256": "bb847c6cfce2f079dd6c8430d269c26549190a477d260b76f3f96c596c4bfe42",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "bb847c6cfce2f079dd6c8430d269c26549190a477d260b76f3f96c596c4bfe42"
     },
     {
       "source": "internal/factory/control/run_observation.go",
@@ -2658,14 +2611,12 @@
     {
       "source": "internal/factory/control/serving_due_work_test.go",
       "destination": null,
-      "sha256": "ebac6dd01b9fc4bb5fa660609b473866f95f2432cda8f2f659cbab26d939faa9",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "ebac6dd01b9fc4bb5fa660609b473866f95f2432cda8f2f659cbab26d939faa9"
     },
     {
       "source": "internal/factory/control/serving_priority_starvation_test.go",
       "destination": null,
-      "sha256": "f5b9492ec427225ac1ff86b6b0686c506f301e7dc6f7d11d021e2732577c60e8",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "f5b9492ec427225ac1ff86b6b0686c506f301e7dc6f7d11d021e2732577c60e8"
     },
     {
       "source": "internal/factory/control/settle.go",
@@ -2675,14 +2626,12 @@
     {
       "source": "internal/factory/control/st15_demo_accept_test.go",
       "destination": null,
-      "sha256": "6a438d7c56dd335e67d7d02a9b2d3b108a493e2cfd664070e7fed7fc3ff0da76",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "6a438d7c56dd335e67d7d02a9b2d3b108a493e2cfd664070e7fed7fc3ff0da76"
     },
     {
       "source": "internal/factory/control/st15_demo_runs_test.go",
       "destination": null,
-      "sha256": "6a438d7c56dd335e67d7d02a9b2d3b108a493e2cfd664070e7fed7fc3ff0da76",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "6a438d7c56dd335e67d7d02a9b2d3b108a493e2cfd664070e7fed7fc3ff0da76"
     },
     {
       "source": "internal/factory/control/stall_detect.go",
@@ -2692,8 +2641,7 @@
     {
       "source": "internal/factory/control/stall_detect_test.go",
       "destination": null,
-      "sha256": "7f4297d188300fef075205a344a84486ada4e7cc39fae93c68444bd2c75db3ff",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "7f4297d188300fef075205a344a84486ada4e7cc39fae93c68444bd2c75db3ff"
     },
     {
       "source": "internal/factory/control/stall_serve.go",
@@ -2703,8 +2651,7 @@
     {
       "source": "internal/factory/control/stall_serve_test.go",
       "destination": null,
-      "sha256": "029b35abe3bc5c6c93713c3945832eb55eb49721bd8b27f3d27e9e6f6f190398",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "029b35abe3bc5c6c93713c3945832eb55eb49721bd8b27f3d27e9e6f6f190398"
     },
     {
       "source": "internal/factory/control/systemone_typesafe.go",
@@ -2714,8 +2661,7 @@
     {
       "source": "internal/factory/control/systemone_typesafe_test.go",
       "destination": null,
-      "sha256": "c0b9ee6ed2f8c475c50265f25e421b067db7c73c2cbcdb984431f26d808b21b0",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "c0b9ee6ed2f8c475c50265f25e421b067db7c73c2cbcdb984431f26d808b21b0"
     },
     {
       "source": "internal/factory/control/task_checkpoint.go",
@@ -2735,56 +2681,47 @@
     {
       "source": "internal/factory/control/testdata/closed-history/manifest.json",
       "destination": null,
-      "sha256": "09f1899975bf327eef106e2167d64ae44a37cdbe94a5f63335a7a5a47efe9834",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "09f1899975bf327eef106e2167d64ae44a37cdbe94a5f63335a7a5a47efe9834"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/pre-r2.native.json",
       "destination": null,
-      "sha256": "1c2ec26b0a2044b5905d4be79f381efdf69aa7b92848fcb1ccc53168fdb25bc2",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "1c2ec26b0a2044b5905d4be79f381efdf69aa7b92848fcb1ccc53168fdb25bc2"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/pre-r3.native.json",
       "destination": null,
-      "sha256": "dae830d541f2dc485a43c4aa5b856743faed0cbe0795837543046bd1f702ef4a",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "dae830d541f2dc485a43c4aa5b856743faed0cbe0795837543046bd1f702ef4a"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r1-fresh.packet.json",
       "destination": null,
-      "sha256": "44fbe1da174c247f21b225c64df5ccf30d4b0d5a2755c216a38954619bbbcfa4",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "44fbe1da174c247f21b225c64df5ccf30d4b0d5a2755c216a38954619bbbcfa4"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r1-fresh.receipt.json",
       "destination": null,
-      "sha256": "a4efbbb0fb4cd35ca7a9c4ab1489aa408e3b91b86bd6cc91202ab1a2b0aa5714",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "a4efbbb0fb4cd35ca7a9c4ab1489aa408e3b91b86bd6cc91202ab1a2b0aa5714"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r2-delta.packet.json",
       "destination": null,
-      "sha256": "b0a7a3f02f52c9d2681ef1a6ab9dfb339bb8d79796b9113e77ca8bda1c9eb0e5",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "b0a7a3f02f52c9d2681ef1a6ab9dfb339bb8d79796b9113e77ca8bda1c9eb0e5"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r2-delta.receipt.json",
       "destination": null,
-      "sha256": "60a70471a2cb78583ac22b2b38893f52703b0fcf5d6a8d31b8f9bb9b0c5ef30f",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "60a70471a2cb78583ac22b2b38893f52703b0fcf5d6a8d31b8f9bb9b0c5ef30f"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r3-redelta.packet.json",
       "destination": null,
-      "sha256": "92a06cf9c6dde7ad736dbbd6096b4def5673b8326c535f7e3124ea674436f730",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "92a06cf9c6dde7ad736dbbd6096b4def5673b8326c535f7e3124ea674436f730"
     },
     {
       "source": "internal/factory/control/testdata/closed-history/r3-redelta.receipt.json",
       "destination": null,
-      "sha256": "d52bbeae01a5a96ee3f0c4d3d8cb6e1823ca40b387a2c5a82eb8f019ca680389",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "d52bbeae01a5a96ee3f0c4d3d8cb6e1823ca40b387a2c5a82eb8f019ca680389"
     },
     {
       "source": "internal/factory/control/traversal.go",
@@ -2794,8 +2731,7 @@
     {
       "source": "internal/factory/control/traversal_test.go",
       "destination": null,
-      "sha256": "d8c1fd1179ed0522bfe74b8958a3c93c210cc53ef103f98c8a8f2c1e9c47eb6c",
-      "archive": "integrations/soda-forge/control-integration-sources.tar.gz"
+      "sha256": "d8c1fd1179ed0522bfe74b8958a3c93c210cc53ef103f98c8a8f2c1e9c47eb6c"
     },
     {
       "source": "internal/factory/control/verification_catalog.go",
@@ -5302,5 +5238,6 @@
       "destination": "tools/native-checks/src/fountain_read_pull_code.rs",
       "sha256": "3a4df5fa768b58878610dd2280dd64a3e87ab0dc9fe6885404249ed33178736a"
     }
-  ]
+  ],
+  "snapshot_commit": "870c784024c4b194cc5f3bf503ccf37d12e36879"
 }

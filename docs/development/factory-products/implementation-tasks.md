@@ -4,11 +4,11 @@ Current product owner: [LevitateOS/factory](https://github.com/LevitateOS/factor
 extracted on 2026-11-03. Continue this queue in the Factory checkout. Go owners
 formerly under `internal/` now live under `pkg/`. Earlier completed rows retain
 their original SodaOS/Fountain evidence; extraction does not rerun or extend that
-qualification. The original worktrees and retained integration snapshots preserve
-the unfinished Forge/Fountain consumers. Complete their module/artifact cutover
-before claiming a single live implementation or shared-change parity across
-repositories. See the [current repository guide](../../../README.md) and
-[integration notes](../../../integrations/README.md).
+qualification. Forge's Go, UI and native consumer cutovers are committed in its
+own repository. Initial extraction snapshots remain in Git history; recovery
+patches and inactive archived coordinator tests are retired from the working
+tree. Connected and installed parity still require their stated journeys.
+See the [current repository guide](../../../README.md).
 
 This is the executable backlog for the [plan](ideal-filetree-plan.md), now being
 implemented Linux first with Tauri. Slice completion requires the stated result,
