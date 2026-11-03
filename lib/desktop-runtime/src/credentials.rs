@@ -10,8 +10,10 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
 mod grant;
+mod rotation;
 use grant::Secret;
 pub use grant::{Grant, GrantStatus};
+use rotation::Reservation;
 
 const APP: &str = "dev.soda.factory";
 const DEADLINE: Duration = Duration::from_secs(5);
@@ -31,6 +33,7 @@ pub enum Error {
     Storage,
     Deadline,
     Expired,
+    RefreshPending,
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -45,6 +48,7 @@ impl std::fmt::Display for Error {
             Self::Storage => "credential storage is unavailable",
             Self::Deadline => "native credential operation timed out",
             Self::Expired => "saved credential expired; refresh or sign in again",
+            Self::RefreshPending => "credential refresh is unconfirmed; sign in again",
         })
     }
 }
@@ -127,6 +131,7 @@ impl Token {
 pub enum CredentialState {
     Stored,
     Expired,
+    RefreshPending,
     Locked,
     Withdrawn,
 }
@@ -164,6 +169,8 @@ impl TokenCapability {
 pub struct Credentials {
     profile: String,
     markers: PathBuf,
+    refreshes: PathBuf,
+    mutation: PathBuf,
     owner: String,
     retired: AtomicBool,
     withdrawn: Mutex<BTreeSet<String>>,
@@ -177,9 +184,13 @@ impl Credentials {
         private_dir(profile_dir).map_err(|_| Error::Storage)?;
         let markers = profile_dir.join("withdrawn-credentials");
         private_dir(&markers).map_err(|_| Error::Storage)?;
+        let refreshes = profile_dir.join("refreshing-credentials");
+        private_dir(&refreshes).map_err(|_| Error::Storage)?;
         Ok(Self {
             profile: profile.into(),
             markers,
+            refreshes,
+            mutation: profile_dir.join("credential-mutation.lock"),
             owner: random()?,
             retired: AtomicBool::new(false),
             withdrawn: Mutex::new(BTreeSet::new()),
@@ -290,6 +301,8 @@ impl Credentials {
             CredentialState::Withdrawn
         } else if locked {
             CredentialState::Locked
+        } else if self.refresh_pending(&connection)? {
+            CredentialState::RefreshPending
         } else {
             CredentialState::Stored
         };
@@ -345,6 +358,7 @@ impl Credentials {
         self.bounded(async {
             secret.validate()?;
             secret.access()?;
+            let _mutation = self.mutation().await?;
             let _guard = self.gate.lock().await;
             let service = SecretService::connect(EncryptionType::Dh).await?;
             let mut existing = None;
@@ -366,50 +380,67 @@ impl Credentials {
                 Some((id, item)) => (id, Some(item)),
                 None => (random()?, None),
             };
-            self.block(&connection)?;
-            let revision = random()?;
-            let bytes = secret.encode(&revision)?;
-            let attrs = HashMap::from([
-                ("application", APP),
-                ("profile", self.profile.as_str()),
-                ("connection", connection.as_str()),
-                ("provider", account.provider.name()),
-                ("origin", account.origin.as_str()),
-                ("account", account.account.as_str()),
-                ("revision", revision.as_str()),
-                ("format", secret.format()),
-            ]);
-            if let Some(item) = existing {
-                item.set_secret(&bytes, "application/octet-stream").await?;
-                item.set_attributes(attrs).await?;
-            } else {
-                let collection = service.get_default_collection().await?;
-                if collection.is_locked().await? {
-                    return Err(Error::Locked);
-                }
-                collection
-                    .create_item(
-                        "Factory account",
-                        attrs,
-                        &bytes,
-                        false,
-                        "application/octet-stream",
-                    )
-                    .await?;
-            }
-            self.alive()?;
-            secret.access()?;
-            self.unblock(&connection)?;
-            Ok(AccountStatus {
-                connection,
-                provider: account.provider,
-                origin: account.origin,
-                account: account.account,
-                state: CredentialState::Stored,
-                grant: secret.status()?,
-            })
+            self.persist_secret(&service, account, connection, existing, secret, None)
+                .await
         })
         .await
+    }
+    // Caller holds the cross-owner mutation lease and this owner's keyring gate.
+    async fn persist_secret(
+        &self,
+        service: &SecretService<'_>,
+        account: Account,
+        connection: String,
+        existing: Option<Item<'_>>,
+        secret: Secret,
+        cap: Option<&TokenCapability>,
+    ) -> Result<AccountStatus> {
+        self.block(&connection)?;
+        let revision = random()?;
+        let bytes = secret.encode(&revision)?;
+        let attrs = HashMap::from([
+            ("application", APP),
+            ("profile", self.profile.as_str()),
+            ("connection", connection.as_str()),
+            ("provider", account.provider.name()),
+            ("origin", account.origin.as_str()),
+            ("account", account.account.as_str()),
+            ("revision", revision.as_str()),
+            ("format", secret.format()),
+        ]);
+        if let Some(item) = existing {
+            item.set_secret(&bytes, "application/octet-stream").await?;
+            item.set_attributes(attrs).await?;
+        } else {
+            let collection = service.get_default_collection().await?;
+            if collection.is_locked().await? {
+                return Err(Error::Locked);
+            }
+            collection
+                .create_item(
+                    "Factory account",
+                    attrs,
+                    &bytes,
+                    false,
+                    "application/octet-stream",
+                )
+                .await?;
+        }
+        self.alive()?;
+        secret.access()?;
+        if cap.is_some_and(|cap| cap.expires <= Instant::now()) {
+            return Err(Error::Retired);
+        }
+        self.clear_refresh(&connection)?;
+        self.unblock(&connection)?;
+        Ok(AccountStatus {
+            connection,
+            provider: account.provider,
+            origin: account.origin,
+            account: account.account,
+            state: CredentialState::Stored,
+            grant: secret.status()?,
+        })
     }
     pub async fn capability(&self, connection: &str) -> Result<TokenCapability> {
         self.bounded(async {
@@ -452,6 +483,15 @@ impl Credentials {
         refresh: bool,
         consume: impl FnOnce(&[u8]) -> T,
     ) -> Result<T> {
+        self.with_secret_in(cap, refresh, None, consume).await
+    }
+    async fn with_secret_in<T>(
+        &self,
+        cap: &TokenCapability,
+        refresh: bool,
+        reservation: Option<&Reservation>,
+        consume: impl FnOnce(&[u8]) -> T,
+    ) -> Result<T> {
         self.bounded(async {
             let _guard = self.gate.lock().await;
             if cap.owner != self.owner || cap.expires <= Instant::now() {
@@ -460,6 +500,7 @@ impl Credentials {
             if self.blocked(&cap.connection)? {
                 return Err(Error::Withdrawn);
             }
+            self.check_refresh(&cap.connection, reservation)?;
             let service = SecretService::connect(EncryptionType::Dh).await?;
             let mut found = self.items(&service, Some(&cap.connection)).await?;
             if found.len() > 1 {
@@ -485,6 +526,7 @@ impl Credentials {
             if self.blocked(&cap.connection)? {
                 return Err(Error::Withdrawn);
             }
+            self.check_refresh(&cap.connection, reservation)?;
             let token = if refresh {
                 secret.refresh()?
             } else {
@@ -547,6 +589,10 @@ impl Credentials {
         self.alive()?;
         self.block(connection)?;
         self.bounded(async {
+            let _mutation = self.mutation().await?;
+            // A preceding writer may have cleared the early denial while this
+            // withdrawal waited. Reassert it under the shared mutation lease.
+            self.block(connection)?;
             let _guard = self.gate.lock().await;
             let service = SecretService::connect(EncryptionType::Dh).await?;
             for (item, locked) in self.items(&service, Some(connection)).await? {

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fs;
 use std::io::Read;
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -618,12 +619,427 @@ async fn run_grant_custody(profile: &Path) -> Result<()> {
     println!("PASS: actual encrypted Linux keyring contains no plaintext access/refresh fixtures; withdrawal removes complete grant; no provider consent/login claimed");
     Ok(())
 }
+async fn run_rotation_probe(profile: &Path, connection: &str) -> Result<()> {
+    let store = Credentials::open(profile, "123456789abcdef0123456789abcdef0")?;
+    let cap = store.capability(connection).await?;
+    let called = AtomicBool::new(false);
+    ensure(
+        store.with_token(&cap, |_| ()).await == Err(Error::RefreshPending),
+        "reopened process reused uncertain access",
+    )?;
+    ensure(
+        matches!(
+            store
+                .rotate_grant(&cap, async |_| {
+                    called.store(true, Ordering::SeqCst);
+                    Err(Error::Unavailable)
+                })
+                .await,
+            Err(Error::RefreshPending)
+        ) && !called.load(Ordering::SeqCst),
+        "reopened process replayed uncertain refresh",
+    )?;
+    println!(
+        "PASS: separate native process refuses retained uncertain access/refresh without dispatch"
+    );
+    Ok(())
+}
+async fn run_rotation_writer(profile: &Path, connection: &str) -> Result<()> {
+    let store = Credentials::open(profile, "123456789abcdef0123456789abcdef0")?;
+    fs::write(profile.join("rotation-writer-entered"), b"")?;
+    let token = fixture()?;
+    let saved = store
+        .store_grant(account(), grant(&token, &token, 120, 180)?)
+        .await?;
+    ensure(
+        saved.connection == connection,
+        "serialized writer changed connection",
+    )?;
+    println!("PASS: separate credential writer resumes after the OS mutation lease is released");
+    Ok(())
+}
+async fn run_rotation_crash(profile: &Path, connection: &str) -> Result<()> {
+    let store = Credentials::open(profile, "123456789abcdef0123456789abcdef0")?;
+    let cap = store.capability(connection).await?;
+    store
+        .rotate_grant(&cap, async |_| {
+            fs::write(profile.join("rotation-crash-entered"), b"").map_err(|_| Error::Storage)?;
+            std::future::pending::<()>().await;
+            Err(Error::Unavailable)
+        })
+        .await?;
+    Err("crash fixture returned unexpectedly".into())
+}
+async fn run_rotation(profile: &Path) -> Result<()> {
+    prepare(profile)?;
+    let namespace = "123456789abcdef0123456789abcdef0";
+    let store = Arc::new(Credentials::open(profile, namespace)?);
+    let other = Credentials::open(profile, namespace)?;
+    let access = fixture()?;
+    let refresh = fixture()?;
+    let next = fixture()?;
+    let saved = store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(profile.join("credential-mutation.lock"))?;
+    ensure(
+        unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
+        "fixture mutation lease failed",
+    )?;
+    let mut child = std::process::Command::new(std::env::current_exe()?)
+        .arg("--rotation-writer")
+        .arg(profile)
+        .arg(&saved.connection)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    let until = Instant::now() + Duration::from_secs(2);
+    while !profile.join("rotation-writer-entered").exists() {
+        ensure(
+            child.try_wait()?.is_none() && Instant::now() < until,
+            "writer did not enter mutation lease check",
+        )?;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    ensure(
+        child.try_wait()?.is_none(),
+        "independent writer bypassed an owned OS mutation lease",
+    )?;
+    drop(lock);
+    let output = child.wait_with_output()?;
+    ensure(
+        output.status.success(),
+        "writer failed after releasing mutation lease",
+    )?;
+    print!("{}", String::from_utf8(output.stdout)?);
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    let cap = store.capability(&saved.connection).await?;
+    let replacement = grant(&next, &next, 120, 180)?;
+    let rotated = store
+        .rotate_grant(&cap, async |bytes| {
+            if bytes != refresh {
+                return Err(Error::Invalid);
+            }
+            Ok((account(), replacement))
+        })
+        .await?;
+    ensure(
+        rotated.connection == saved.connection
+            && !profile
+                .join("refreshing-credentials")
+                .join(&saved.connection)
+                .exists(),
+        "rotation changed identity or left a successful intent",
+    )?;
+    ensure(
+        store.with_token(&cap, |_| ()).await == Err(Error::Retired),
+        "rotation retained the old revision",
+    )?;
+    let cap = other.capability(&saved.connection).await?;
+    ensure(
+        other.with_token(&cap, |bytes| bytes == next).await?
+            && other
+                .with_refresh_operation(&cap, async |bytes| bytes == next)
+                .await?,
+        "rotation dropped a complete replacement secret",
+    )?;
+    println!("PASS: complete conditional grant rotation preserves connection, advances revision and clears its durable intent only after publication");
+
+    let mut child = std::process::Command::new(std::env::current_exe()?)
+        .arg("--rotation-crash")
+        .arg(profile)
+        .arg(&saved.connection)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    let until = Instant::now() + Duration::from_secs(2);
+    while !profile.join("rotation-crash-entered").exists() {
+        ensure(
+            child.try_wait()?.is_none() && Instant::now() < until,
+            "crash fixture never dispatched after reservation",
+        )?;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    child.kill()?;
+    ensure(!child.wait()?.success(), "crash fixture did not terminate")?;
+    let result = std::process::Command::new(std::env::current_exe()?)
+        .arg("--rotation-probe")
+        .arg(profile)
+        .arg(&saved.connection)
+        .output()?;
+    ensure(
+        result.status.success(),
+        "killed owner left replayable refresh",
+    )?;
+    print!("{}", String::from_utf8(result.stdout)?);
+    println!("PASS: actual native credential process dies after dispatch; another process refuses its durable uncertain revision");
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+
+    let cap = store.capability(&saved.connection).await?;
+    ensure(
+        matches!(
+            store
+                .rotate_grant(&cap, async |_| Err(Error::Unavailable))
+                .await,
+            Err(Error::Unavailable)
+        ),
+        "declared lost reply was accepted",
+    )?;
+    ensure(
+        matches!(
+            store.status().await?[0].state,
+            CredentialState::RefreshPending
+        ),
+        "lost reply was shown as usable",
+    )?;
+    let result = std::process::Command::new(std::env::current_exe()?)
+        .arg("--rotation-probe")
+        .arg(profile)
+        .arg(&saved.connection)
+        .output()?;
+    ensure(
+        result.status.success(),
+        "separate process replayed retained uncertain refresh",
+    )?;
+    print!("{}", String::from_utf8(result.stdout)?);
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    let incomplete = fs::OpenOptions::new().write(true).create_new(true).open(
+        profile
+            .join("refreshing-credentials")
+            .join(&saved.connection),
+    )?;
+    incomplete.set_permissions(fs::Permissions::from_mode(0o600))?;
+    incomplete.sync_all()?;
+    let cap = other.capability(&saved.connection).await?;
+    ensure(
+        other.with_token(&cap, |_| ()).await == Err(Error::RefreshPending),
+        "incomplete durable reservation admitted access",
+    )?;
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+
+    let cap = Arc::new(store.capability(&saved.connection).await?);
+    let (entered, start) = oneshot::channel();
+    let (release, finish) = oneshot::channel();
+    let worker = store.clone();
+    let pending_cap = cap.clone();
+    let replacement = grant(&next, &next, 120, 180)?;
+    let task = tokio::spawn(async move {
+        worker
+            .rotate_grant(&pending_cap, async |_| {
+                let _ = entered.send(());
+                let _ = finish.await;
+                Ok((account(), replacement))
+            })
+            .await
+    });
+    start.await?;
+    ensure(
+        profile
+            .join("refreshing-credentials")
+            .join(&saved.connection)
+            .is_file(),
+        "callback preceded durable reservation",
+    )?;
+    let other_cap = other.capability(&saved.connection).await?;
+    let called = AtomicBool::new(false);
+    ensure(
+        matches!(
+            other
+                .rotate_grant(&other_cap, async |_| {
+                    called.store(true, Ordering::SeqCst);
+                    Err(Error::Unavailable)
+                })
+                .await,
+            Err(Error::RefreshPending)
+        ) && !called.load(Ordering::SeqCst),
+        "concurrent owner dispatched a duplicate refresh",
+    )?;
+    let newer = other
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    release
+        .send(())
+        .map_err(|_| "old refresh stopped before reply")?;
+    ensure(
+        matches!(task.await?, Err(Error::Retired)),
+        "stale refresh overwrote reauthentication",
+    )?;
+    let current = other.capability(&newer.connection).await?;
+    ensure(
+        other.with_token(&current, |bytes| bytes == access).await?,
+        "stale refresh damaged newer credentials",
+    )?;
+    println!("PASS: reservation is durable before I/O; a second owner cannot dispatch; independent reauthentication proceeds during I/O and survives the stale reply");
+
+    let cap = Arc::new(store.capability(&saved.connection).await?);
+    let (entered, start) = oneshot::channel();
+    let (release, finish) = oneshot::channel();
+    let worker = store.clone();
+    let replacement = grant(&next, &next, 120, 180)?;
+    let task = tokio::spawn(async move {
+        worker
+            .rotate_grant(&cap, async |_| {
+                let _ = entered.send(());
+                let _ = finish.await;
+                Ok((account(), replacement))
+            })
+            .await
+    });
+    start.await?;
+    other.withdraw(&saved.connection).await?;
+    release
+        .send(())
+        .map_err(|_| "withdrawn refresh stopped early")?;
+    ensure(
+        matches!(task.await?, Err(Error::Withdrawn)) && other.status().await?.is_empty(),
+        "refresh resurrected a withdrawn/deleted credential",
+    )?;
+    let saved = store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+
+    let cap = Arc::new(store.capability(&saved.connection).await?);
+    let (entered, start) = oneshot::channel();
+    let (_release, finish) = oneshot::channel::<()>();
+    let dropped = Arc::new(AtomicBool::new(false));
+    let marker = dropped.clone();
+    let worker = store.clone();
+    let task = tokio::spawn(async move {
+        worker
+            .rotate_grant(&cap, async |_| {
+                let _marker = Dropped(marker);
+                let _ = entered.send(());
+                let _ = finish.await;
+                Err(Error::Unavailable)
+            })
+            .await
+    });
+    start.await?;
+    task.abort();
+    ensure(
+        task.await.is_err_and(|e| e.is_cancelled()) && dropped.load(Ordering::SeqCst),
+        "cancelled rotation retained callback",
+    )?;
+    let reopened = Credentials::open(profile, namespace)?;
+    let cap = reopened.capability(&saved.connection).await?;
+    ensure(
+        reopened.with_refresh_operation(&cap, async |_| ()).await == Err(Error::RefreshPending),
+        "cancelled rotation replayed refresh after reopen",
+    )?;
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+
+    let cap = store.capability(&saved.connection).await?;
+    let wrong = Account::new(
+        Provider::Github,
+        "https://github.com",
+        "different-remote-account",
+    )?;
+    let replacement = grant(&next, &next, 120, 180)?;
+    ensure(
+        matches!(
+            store
+                .rotate_grant(&cap, async |_| Ok((wrong, replacement)))
+                .await,
+            Err(Error::Retired)
+        ),
+        "rotation changed verified account",
+    )?;
+    store
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    println!("PASS: withdrawal cannot be resurrected, cancelled I/O drops, retained uncertainty cannot replay, and a different verified account cannot replace the captured identity");
+
+    let cap = Arc::new(store.capability(&saved.connection).await?);
+    let (entered, start) = oneshot::channel();
+    let (release, finish) = oneshot::channel();
+    let worker = store.clone();
+    let replacement = grant(&next, &next, 120, 180)?;
+    let task = tokio::spawn(async move {
+        worker
+            .rotate_grant(&cap, async |_| {
+                let _ = entered.send(());
+                let _ = finish.await;
+                Ok((account(), replacement))
+            })
+            .await
+    });
+    start.await?;
+    store.retire();
+    release
+        .send(())
+        .map_err(|_| "retired rotation ended early")?;
+    ensure(
+        matches!(task.await?, Err(Error::Retired)),
+        "retired owner published rotation",
+    )?;
+    reopened
+        .store_grant(account(), grant(&access, &refresh, 120, 180)?)
+        .await?;
+    let cap = reopened.capability(&saved.connection).await?;
+    let before = Instant::now();
+    ensure(
+        matches!(
+            reopened
+                .rotate_grant(&cap, async |_| {
+                    std::future::pending::<()>().await;
+                    Err(Error::Unavailable)
+                })
+                .await,
+            Err(Error::Deadline)
+        ) && before.elapsed() >= Duration::from_secs(7)
+            && before.elapsed() < Duration::from_secs(10),
+        "rotation has no actual bounded operation deadline",
+    )?;
+    ensure(
+        matches!(
+            reopened.status().await?[0].state,
+            CredentialState::RefreshPending
+        ),
+        "timed-out rotation lost its durable uncertainty",
+    )?;
+    reopened.withdraw(&saved.connection).await?;
+    ensure(
+        reopened.status().await?.is_empty(),
+        "rotation fixture cleanup failed",
+    )?;
+    println!("PASS: retired owner refuses publication, actual eight-second deadline leaves durable uncertainty, and complete fixture withdrawal succeeds; no real provider refresh/login claimed");
+    Ok(())
+}
 fn main() {
     let result = (|| -> Result<()> {
         let args: Vec<_> = std::env::args_os().skip(1).collect();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
+        if args.len() == 2 && args[0] == "--grant-rotation" {
+            return runtime.block_on(run_rotation(Path::new(&args[1])));
+        }
+        if args.len() == 3 && args[0] == "--rotation-probe" {
+            let connection = args[2].to_str().ok_or("invalid connection")?;
+            return runtime.block_on(run_rotation_probe(Path::new(&args[1]), connection));
+        }
+        if args.len() == 3 && args[0] == "--rotation-writer" {
+            let connection = args[2].to_str().ok_or("invalid connection")?;
+            return runtime.block_on(run_rotation_writer(Path::new(&args[1]), connection));
+        }
+        if args.len() == 3 && args[0] == "--rotation-crash" {
+            let connection = args[2].to_str().ok_or("invalid connection")?;
+            return runtime.block_on(run_rotation_crash(Path::new(&args[1]), connection));
+        }
         if args.len() == 2 && args[0] == "--grant-custody" {
             return runtime.block_on(run_grant_custody(Path::new(&args[1])));
         }
