@@ -1,6 +1,6 @@
 //! Desktop-owned, run-specific Unix endpoint. The relay system unit mounts
 //! this socket; only its attested UID may request fixed Meta HTTPS I/O.
-use super::{Admitted, Policy, Route};
+use super::{Admitted, Broker, Policy, RelayAttestation, Route};
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use reqwest::{header, redirect, Client};
 use std::fs::{self, DirBuilder, Metadata};
@@ -145,10 +145,19 @@ impl BoundOwner {
         &self.placeholder
     }
 
-    pub fn activate(mut self, relay_uid: u32) -> io::Result<Owner> {
-        if relay_uid == 0 || relay_uid == self.desktop_uid {
+    pub fn activate(mut self, attestation: RelayAttestation) -> io::Result<Owner> {
+        let policy = self
+            .policy
+            .as_ref()
+            .ok_or_else(|| refused("provider run already active"))?;
+        if attestation.run() != policy.run()
+            || attestation.candidate() != policy.candidate()
+            || attestation.relay_uid() == 0
+            || attestation.relay_uid() == self.desktop_uid
+        {
             return Err(refused("provider relay identity invalid"));
         }
+        let relay_uid = attestation.relay_uid();
         let listener = self
             .listener
             .take()
@@ -196,6 +205,7 @@ impl BoundOwner {
                     parent: self.parent.clone(),
                     original: self.original.clone(),
                     placeholder: self.placeholder.clone(),
+                    attestation: Some(attestation),
                     retired,
                     thread: Some(thread),
                 })
@@ -222,6 +232,7 @@ pub struct Owner {
     parent: PathBuf,
     original: Metadata,
     placeholder: Zeroizing<String>,
+    attestation: Option<RelayAttestation>,
     retired: watch::Sender<bool>,
     thread: Option<JoinHandle<io::Result<()>>>,
 }
@@ -248,10 +259,23 @@ impl Owner {
         cleanup(&self.path, &self.parent, &self.original);
         result
     }
+
+    /// Retire local token use first, then ask the broker to stop the exact
+    /// relay and remove its staged run. A failed broker call remains retryable.
+    pub fn retire(&mut self) -> io::Result<()> {
+        let stopped = self.stop();
+        let attestation = self
+            .attestation
+            .as_ref()
+            .ok_or_else(|| refused("provider run already retired"))?;
+        Broker::retire_bundle(attestation.run(), attestation.sha256())?;
+        self.attestation.take();
+        stopped
+    }
 }
 impl Drop for Owner {
     fn drop(&mut self) {
-        let _ = self.stop();
+        let _ = self.retire();
     }
 }
 

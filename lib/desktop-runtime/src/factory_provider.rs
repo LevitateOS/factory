@@ -1,7 +1,9 @@
 //! Native-only provider request admission for one broker-attested Factory run.
 //! The eventual desktop owner applies this before borrowing an OS credential;
 //! no worker-supplied URL, model, tool namespace or spend limit is authority.
+mod broker;
 mod owner;
+pub use broker::{Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
 use serde_json::Value;
 use std::collections::BTreeSet;

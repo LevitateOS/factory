@@ -590,8 +590,11 @@ body. An invalid fixture token reached Meta's model catalog and yielded a
 sanitized 401. Local withdrawal made the same request return 503; stopping
 removed the socket. The check did not exercise the actual systemd relay because
 the system manager required interactive administrator authentication. The
-desktop broker client, verified Muse account enrollment, confined agent and
-finite provider task remain to be connected and qualified before D3 closes.
+desktop broker client now parses only root-peer, exact framed run replies; a
+private mapped-UID service proved its stage/prepare/attest/retire protocol and
+mismatched-candidate refusal. The production desktop caller, verified Muse
+account enrollment, confined agent and finite provider task remain to be
+connected and qualified before D3 closes.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only

@@ -190,16 +190,19 @@ also retain `write_file`, `edit_file`, `bash` and `bash_input`. Unknown top-leve
 request fields, built-in tool namespaces and duplicate tool names fail closed.
 `factory_provider::BoundOwner` now binds a per-run Unix socket under the
 desktop user's `0700` runtime directory. It does not serve until `activate`
-receives a distinct relay UID. The owner checks that UID with `SO_PEERCRED`,
+consumes an exact `RelayAttestation` from the native broker client. That client
+checks the fixed broker socket in a root-owned directory, its root peer, framed replies and
+run/digest/candidate identity. The owner checks the attested relay UID with `SO_PEERCRED`,
 requires a random non-account placeholder bearer, applies the run policy,
 renews the same OS credential revision and borrows the token only inside a
 revocable native streaming operation. It sends the bearer to fixed Meta HTTPS
 routes with no proxy, redirect or retry. Requests, concurrent work, response
 wire bytes and lifetime are bounded; provider errors return generic local
-bodies. Stopping the owner cancels active work and removes the exact socket.
-The future desktop caller must bind before relay start, obtain the UID from
-the broker's exact-run attestation, activate, and stop on run retirement.
-Neither that caller nor an agent launch is connected yet.
+bodies. `Owner::retire` cancels active work, removes the exact socket, then
+asks the broker to retire the exact bundle and relay; Drop attempts the same
+sequence. The future desktop caller must bind before broker relay attestation,
+activate with the returned identity, and handle retirement failures. Neither
+that caller nor an agent launch is connected yet.
 
 A dummy-key Muse 1.4.14 request to a local fake provider showed that the CLI
 advertised `workflow`, memory, monitoring and reminder functions even with
@@ -220,6 +223,12 @@ body. An admitted model-catalog request reached Meta and returned a sanitized
 401. After keyring withdrawal, the same request returned 503; stopping removed
 the socket and its directory. This proves the owner/keyring/UID path for that
 fixture. It did not use the broker's actual systemd relay or a real Muse grant.
+
+The native broker client was exercised against a disposable framed service in
+a private user and mount namespace. Distinct mapped UIDs represented the root
+service and desktop client; exact staging, preparation, relay attestation and
+retirement succeeded, while a mismatched candidate reply was refused. This
+checked the client protocol and peer check, not the installed system broker.
 
 ## Native GitHub connector
 

@@ -3,8 +3,9 @@
 `soda-factory-broker` is a narrow, socket-activated system service for the
 first N3 workspace-transfer boundary. The installer must render the socket
 template for the selected desktop account and install the root-owned binary
-and units. The current desktop runtime does not connect to it and no installer
-enables it. The broker stages bytes, prepares a fixed checkout and activates a
+and units. The native desktop library has a bounded, peer-checked client, but
+the production runtime does not call it and no installer enables the service.
+The broker stages bytes, prepares a fixed checkout and activates a
 credential-free reviewer attestation; it cannot admit or launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 256), then
