@@ -103,6 +103,24 @@ An additional isolated bundle probe rejected an escaping symlink after clone
 and accepted a contained relative symlink. Both temporary checkouts and their
 source bundles were removed.
 
+The dormant `soda-factory-preparer@.service` template fixes the unprivileged
+identity, source and output bind destinations, private network/keyring/IPC and
+CPU, memory, task and runtime limits. For instance `<run>`, a future broker
+must create `/run/soda-factory-broker/preparations/<run>` mode `0700` and
+root-owned, with `manifest.env` mode `0400` containing only the validated
+`FACTORY_CANDIDATE` and `FACTORY_BUNDLE_SHA256` hex values, and an empty
+root-owned mode-`0777` `output` child. The manager reads the manifest before
+starting the dynamic UID; the worker sees only the fixed source and output
+binds. The broker must stop or reconcile that unit, freeze a successful output,
+and clean partial output before retiring or reusing the run. There is no broker
+request that starts it yet.
+
+`systemd-analyze verify` accepted a temporary rendering of the template. A
+live instance read a local root-owned manifest and staged bundle, prepared the
+exact candidate as a dynamic UID, then exited successfully with the checkout
+under the expected private run path. The temporary unit, binary, source,
+checkout and scratch repository were removed.
+
 A transient check also confirmed that a root service with no capabilities, no
 new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged
 service. The staging broker has no such request yet; future launch code must

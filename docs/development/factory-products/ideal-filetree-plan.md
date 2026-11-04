@@ -434,6 +434,15 @@ escape the checkout lexically. Under the same transient isolated service
 profile, an escaping-symlink bundle was refused and a contained relative
 symlink bundle was accepted. The partial and successful checkouts, mounts,
 service instances and scratch source were removed.
+The dormant `soda-factory-preparer@.service` template now fixes the selected
+source/output binds and an unprivileged dynamic identity with private network,
+keyring and IPC, plus CPU, memory, task and runtime ceilings. A future broker
+must create the root-private per-run manifest and empty output, start only the
+validated instance, freeze successful output, and stop/reconcile and clean
+failed or retired instances. The production broker has no start request.
+`systemd-analyze verify` accepted a temporary rendering; a live instance
+prepared an exact candidate from its root-owned manifest and staged bundle as
+a separate UID, then exited successfully. The unit and proof state were removed.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
