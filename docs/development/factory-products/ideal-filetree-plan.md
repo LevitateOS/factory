@@ -363,6 +363,10 @@ transient units were stopped. This proves an address allowlist is enforced on
 this host, but allowing `127.0.0.1` permits other services on that address; it
 does not yet confine an agent to one authenticated broker endpoint or prove
 provider credential withdrawal.
+The inert worker service now sets `IPAddressDeny=any` so it has no inherited IP
+egress while it only serves attestation. Its rendered units passed verification,
+and a live Unix socket activation still attested worker UID 61739 for desktop
+UID 1000 with execution unavailable. The temporary installation was removed.
 
 ## Inspection identity and evidence limits
 

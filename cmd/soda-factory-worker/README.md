@@ -19,6 +19,12 @@ with one length-prefixed JSON attestation and `execution_available:false`. It
 also checks that its runtime directory is owned by the worker and mode `0700`.
 Unknown versions, fields and requests fail closed. No executable, path, token,
 worktree, role or provider selector is accepted.
+The inert service denies all IP traffic. A future provider run must gain a
+separately reviewed, run-bound network path instead of inheriting host egress.
+The rendered units passed `systemd-analyze verify` after this setting was
+added. A live socket activation still returned attestation from worker UID
+61739 for desktop UID 1000 with execution unavailable; the temporary units,
+binary and socket were removed.
 
 This is the first D3 worker boundary, not an admitted native executor. The
 production desktop does not connect to this socket, and the units are not

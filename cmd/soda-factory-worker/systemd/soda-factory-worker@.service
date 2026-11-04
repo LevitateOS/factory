@@ -18,6 +18,7 @@ PrivateIPC=yes
 KeyringMode=private
 PrivateDevices=yes
 ProtectProc=invisible
+IPAddressDeny=any
 ProtectSystem=strict
 ProtectControlGroups=no
 ProtectKernelTunables=yes
