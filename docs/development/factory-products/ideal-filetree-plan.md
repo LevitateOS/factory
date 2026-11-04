@@ -394,6 +394,19 @@ and state were removed. The broker does not parse Git as root or authorize a
 role, snapshot, worker launch, credential, retirement or provider run. D3
 remains open; this staging endpoint is not installed by the current desktop.
 
+A separate transient two-identity reviewer checkout probe then mounted a small
+Git bundle read-only into a preparation service running as `nobody`. That
+service cloned into a designated writable child beneath a root-private parent;
+Git itself did not run as root. After the root-owned child was frozen, a second
+service with `DynamicUser=yes` ran as UID 61755 with only the finished checkout
+bound read-only. It read the candidate file, could not traverse the original
+root-private path, and could neither change the file nor create another. The
+temporary source and checkout were removed. This proves a possible preparation
+layout, not current run admission. Production needs a dedicated static staging
+UID distinct from the dynamic worker range, a root-controlled fixed unit and
+mount selection, exact Git HEAD/commit validation, and retirement of the
+staging/worker lifetimes before this role boundary can be used.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

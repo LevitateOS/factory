@@ -36,6 +36,15 @@ could read the bundle through a read-only bind while the original source path
 was inaccessible, and it cloned that bundle into a disposable private runtime.
 The temporary units, binary, state and scratch repository were removed.
 
+A follow-up transient proof used a separate unprivileged Git preparation
+service to clone a mounted bundle into a writable child under a root-private
+parent. After freezing that child, a dynamic reviewer UID could read only the
+finished checkout through a read-only bind and could not change or add files.
+The proof used `nobody` for preparation; an installed preparer needs a dedicated
+static UID so unrelated processes cannot share that identity. The temporary
+checkout and source were removed. No preparation service or reviewer launch is
+currently wired to this broker.
+
 This is a staging primitive, not the D3 broker closure. It does not check a
 Go-admitted profile/role/preparation, prepare an immutable reviewer checkout,
 select a worker unit, mediate provider credentials, retire active runs or
