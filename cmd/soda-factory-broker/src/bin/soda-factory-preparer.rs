@@ -434,6 +434,12 @@ fn prepare() -> io::Result<()> {
     private_process()?;
     bundle(&args[3])?;
     directory(Path::new(OUTPUT), 0, 0o777)?;
+    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    if unsafe { libc::statfs(c"/run/factory-output".as_ptr(), filesystem.as_mut_ptr()) } != 0
+        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+    {
+        return Err(refused("preparer output filesystem is not tmpfs"));
+    }
     if fs::read_dir(OUTPUT)?.next().is_some() {
         return Err(refused("preparer output is not empty"));
     }

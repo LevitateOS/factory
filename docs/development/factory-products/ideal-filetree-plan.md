@@ -452,6 +452,15 @@ state was removed. This bounds output charged to one preparation activation;
 aggregate retained checkouts across runs and available `/run` capacity remain
 security gates.
 
+The broker now checks `/run` is tmpfs and, under its run lock, reserves the
+larger of 25% of total space or 256 MiB plus 128 MiB for each new preparer
+activation. It rechecks the reserve before retaining the checkout; the
+preparer verifies its bound output mount is tmpfs. A disposable actual broker
+socket staged a tiny local bundle and prepared the exact candidate through
+these checks, then its units and run state were removed. Low-free-space
+refusal under a constrained mount and races with unrelated `/run` writers
+remain unverified; this is an admission reserve, not a global hard quota.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first

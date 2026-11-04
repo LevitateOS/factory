@@ -334,3 +334,14 @@ both limits and prepared a tiny exact candidate successfully; its temporary
 unit, binary, bundle and checkout were removed. This covers one preparation
 activation. The broker still needs a bound on aggregate retained checkouts
 across runs and the free capacity of `/run` before D3 closure.
+
+Under its serialized run lock, the root broker now requires `/run` to be
+tmpfs and checks free blocks before each new preparation. It keeps the larger
+of one quarter of that filesystem or 256 MiB free, plus the preparer's 128 MiB
+per-activation ceiling, and rechecks the reserve before retaining a completed
+checkout. The preparer separately verifies its bound output mount is tmpfs.
+A disposable installation of the actual broker socket and preparer accepted a
+tiny local bundle, prepared the exact candidate and was removed afterward.
+This verifies the normal path through the checks. A low-free-space refusal
+under a constrained `/run` mount has not been exercised; concurrent non-Factory
+writers can also consume free space after admission.

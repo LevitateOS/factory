@@ -17,6 +17,9 @@ const STATE: &str = "/run/soda-factory-broker";
 const MAX_REQUEST: usize = 256;
 const MAX_BUNDLE: usize = 512 * 1024;
 const MAX_RUNS: usize = 64;
+// Keep this reservation aligned with preparer@.service MemoryMax.
+const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
+const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -445,6 +448,33 @@ fn prepared_checkout(directory: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn runtime_capacity(extra: u64) -> io::Result<()> {
+    let path = c"/run";
+    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    if unsafe { libc::statfs(path.as_ptr(), filesystem.as_mut_ptr()) } != 0
+        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+    {
+        return Err(denied("broker runtime filesystem is not tmpfs"));
+    }
+    let mut space = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    if unsafe { libc::statvfs(path.as_ptr(), space.as_mut_ptr()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let space = unsafe { space.assume_init() };
+    let block = space.f_frsize as u64;
+    let total = (space.f_blocks as u64)
+        .checked_mul(block)
+        .ok_or_else(|| denied("broker runtime capacity invalid"))?;
+    let free = (space.f_bavail as u64)
+        .checked_mul(block)
+        .ok_or_else(|| denied("broker runtime capacity invalid"))?;
+    let reserve = (total / 4).max(MIN_RUNTIME_RESERVE);
+    if free < reserve.saturating_add(extra) {
+        return Err(denied("broker runtime free-space reserve unavailable"));
+    }
+    Ok(())
+}
+
 fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
@@ -471,6 +501,7 @@ fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
         }
         clean_preparation(&preparations, run)?;
     }
+    runtime_capacity(MAX_PREPARATION_CHARGE)?;
     let directory = preparations.join(run);
     DirBuilder::new().mode(0o700).create(&directory)?;
     let output = directory.join("output");
@@ -489,6 +520,7 @@ fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
         manager("start", "preparer", run)?;
         prepared_checkout(&directory)?;
         private_dir(&output, 0o777)?;
+        runtime_capacity(0)?;
         fs::set_permissions(&output, fs::Permissions::from_mode(0o555))?;
         File::open(&directory)?.sync_all()
     })();
