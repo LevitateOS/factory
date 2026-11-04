@@ -103,6 +103,11 @@ user's global login. The isolated record adds broker-run and worker-UID facts,
 but it does not by itself prove confinement, Go admission, credential withdrawal
 or a real provider task. D3 remains a native executor/custody qualification gate.
 
+Historical same-user run admissions remain readable for recovery and inspection.
+They cannot become a fresh `LaunchRequest`: active native launch instructions
+require `isolated_system_worker` and an exact captured broker run. This gate
+does not yet select a production native executor.
+
 Appliance evidence retains the actual Project/boundary generation, image,
 container, unit, invocation, UID/GID/login, credential-return fact and separate
 broker execution/binding/lease observation. A never-started tombstone may have no

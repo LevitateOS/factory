@@ -81,7 +81,9 @@ func (r LaunchRequest) Validate() error {
 		}
 		family, version, digest = r.Appliance.Tool.Harness, r.Appliance.Tool.Version, r.Appliance.Tool.SHA256
 	case collaboration.Native:
-		if r.Native == nil || r.Appliance != nil || r.Native.Validate() != nil {
+		// A LaunchRequest is an active execution instruction, unlike the
+		// retained NativeLaunch metadata on a historical RunAdmission.
+		if r.Native == nil || r.Appliance != nil || r.Native.Validate() != nil || r.Native.TrustMode != "isolated_system_worker" {
 			return ErrLaunch
 		}
 		family, version, digest = r.Native.Tool.Harness, r.Native.Tool.Version, r.Native.Tool.SHA256

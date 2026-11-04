@@ -831,6 +831,13 @@ case exercised the isolated anchor and forged broker/UID refusal through a
 disposable native PostgreSQL profile, including reopen. No production Go
 execution port yet consumes the broker receipt, so D3 remains open.
 
+The active Go launch path now refuses historical same-user native admissions at
+both `Run.LaunchRequest` and `LaunchRequest.Validate`; retained same-user records
+remain readable. The existing native PostgreSQL launch-binding case passed with
+an isolated captured broker run after reopen and refused a legacy launch. This
+prevents a same-user fallback when a native Host port is later connected; it
+does not itself qualify the worker or provider custody.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

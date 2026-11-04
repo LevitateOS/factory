@@ -198,10 +198,10 @@ func TestFactoryNativeRunEvidencePG(t *testing.T) {
 		native := run
 		native.ID, native.Image = factory.NewID(), ""
 		native.Harness = "muse-fixture-1"
-		native.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "same_user_trusted_host", Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: "owned-launch-fixture", Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
+		native.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: "owned-launch-fixture", BrokerRun: strings.Repeat("c", 32), Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
 		admission := *run.Admission
 		admission.Profile, admission.Tool = nil, nil
-		admission.Native = &execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: native.Native.Provenance.Profile, InstanceID: native.Native.Provenance.InstanceID, WorktreeID: native.Native.Provenance.WorktreeID}, Tool: native.Native.Tool, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7}
+		admission.Native = &execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: native.Native.Provenance.Profile, InstanceID: native.Native.Provenance.InstanceID, WorktreeID: native.Native.Provenance.WorktreeID}, Tool: native.Native.Tool, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: native.Native.Provenance.BrokerRun}
 		native.Admission = &admission
 		nativeAssignment := a
 		nativeAssignment.ID, nativeAssignment.Run, nativeAssignment.RunHistory = factory.NewID(), native.ID, []string{native.ID}
@@ -234,6 +234,26 @@ func TestFactoryNativeRunEvidencePG(t *testing.T) {
 		request, err = native.LaunchRequest(nativeAssignment, nativeInput)
 		if err != nil || request.Kind != collaboration.Native || request.Appliance != nil || request.Native == nil || request.Native.Runtime != admission.Native.Runtime || request.Native.PlacementGeneration != 7 {
 			t.Fatal("native launch lost captured placement at reopen", err)
+		}
+		legacy := native
+		legacyRecord := *native.Native
+		legacyRecord.Provenance.TrustMode, legacyRecord.Provenance.BrokerRun = "same_user_trusted_host", ""
+		legacy.Native = &legacyRecord
+		legacyAdmission := *native.Admission
+		legacyLaunch := *native.Admission.Native
+		legacyLaunch.TrustMode, legacyLaunch.BrokerRun = "", ""
+		legacyAdmission.Native = &legacyLaunch
+		legacy.Admission = &legacyAdmission
+		if legacy.Validate() != nil {
+			t.Fatal("historical same-user native evidence became unreadable")
+		}
+		if _, err := legacy.LaunchRequest(nativeAssignment, nativeInput); err == nil {
+			t.Fatal("historical same-user native evidence acquired new launch authority")
+		}
+		legacyRequest := request
+		legacyRequest.Native = &legacyLaunch
+		if legacyRequest.Validate() == nil {
+			t.Fatal("historical same-user launch metadata became an active instruction")
 		}
 		encoded, err := json.Marshal(request)
 		if err != nil || bytes.Contains(encoded, []byte(`"image"`)) || bytes.Contains(encoded, []byte(`"uid"`)) || bytes.Contains(encoded, []byte(`"container"`)) {
