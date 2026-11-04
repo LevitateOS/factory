@@ -1,5 +1,6 @@
 //! Fixed, desktop-owned client for the privileged run staging broker.
 //! A relay identity is usable only after an exact authenticated broker reply.
+use super::Role;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -161,14 +162,7 @@ struct AgentAttested {
     execution_available: bool,
 }
 
-/// Fixed declaration to the broker; neither value grants execution.
-#[derive(Clone, Copy)]
-pub enum AgentRole {
-    Reviewer,
-    Coder,
-}
-
-impl AgentRole {
+impl Role {
     fn as_str(self) -> &'static str {
         match self {
             Self::Reviewer => "reviewer",
@@ -291,7 +285,7 @@ impl Broker {
 
     /// Arm only the exact run socket and immutable role declaration. The
     /// service behind this socket currently accepts attestation, not launch.
-    pub fn arm_agent(run: &str, sha256: &str, candidate: &str, role: AgentRole) -> io::Result<()> {
+    pub fn arm_agent(run: &str, sha256: &str, candidate: &str, role: Role) -> io::Result<()> {
         if !id(run, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker agent declaration invalid"));
         }
@@ -315,7 +309,7 @@ impl Broker {
 
     /// Check the separately activated worker's exact identity and mounted
     /// source. This reply is evidence only; no agent command is accepted.
-    pub fn attest_agent(run: &str, candidate: &str, role: AgentRole) -> io::Result<u32> {
+    pub fn attest_agent(run: &str, candidate: &str, role: Role) -> io::Result<u32> {
         if !id(run, 32) || !id(candidate, 40) {
             return Err(refused("agent attestation declaration invalid"));
         }

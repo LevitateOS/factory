@@ -260,9 +260,11 @@ fails; a mode-`0400` interrupted write is stopped, removed and recreated on
 exact retry. Retirement stops the agent service/socket before the relay and
 checkout. The paired worker currently attests only its identity, role and
 read-only candidate mount, then reports `execution_available:false`.
-`Broker::arm_agent` and `Broker::attest_agent` are typed desktop client methods,
-but no production admission calls them. The source and rendered unit syntax
-were checked on 2026-11-04; the new agent unit has not been installed or
-activated under the system manager. Go admission, coder workspace, role tool
-policy, credential withdrawal and a real finite provider task are still
-required before D3 closes.
+`Broker::arm_agent` and `Broker::attest_agent` use the existing public provider
+`Role` type, but no production admission calls them. On 2026-11-04, a
+disposable system installation of the agent service and a mock private relay
+activated the exact-run socket. The desktop client accepted its exact worker
+attestation, and an unknown path field produced no reply. The mock relay did
+not exercise the broker's `arm_agent` request or full retirement chain. Go
+admission, coder workspace, role tool policy, credential withdrawal and a real
+finite provider task are still required before D3 closes.

@@ -179,6 +179,19 @@ the desktop peer, its own UID, the fixed socket, role declaration and exact
 Git HEAD before accepting only `attest_agent`. Its reply says
 `execution_available:false`; neither role can launch a tool or receive an
 account secret. The source compiles and a rendered template passed
-`systemd-analyze verify` on 2026-11-04. No live system-manager activation of
-this new service or negative file/keyring proof on its actual path has yet
-been completed, so D3 remains open.
+`systemd-analyze verify` on 2026-11-04.
+
+A disposable system installation activated the actual agent service with a
+dummy Git checkout and a mock relay namespace. It returned worker UID 64596
+for desktop UID 1000, the exact candidate and reviewer role, and a read-only
+source with execution unavailable. The worker namespace matched the mock
+relay and differed from the host. A diagnostic run under the same unit profile
+could not read a desktop mode-`0600` canary or process environment, connect to
+the desktop session bus, obtain the desktop persistent keyring, traverse the
+original root-private checkout, or write, create or chmod on the mounted
+checkout. A request with an extra path field returned no reply and failed the
+service. The desktop client accepted an exact attestation when run as the
+normal host user. The temporary service, mock relay, binaries, socket and
+checkout were removed. The mock relay did not prove an owner-backed provider
+request or credential withdrawal; the agent remains attestation-only and D3
+remains open.

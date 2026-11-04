@@ -348,10 +348,16 @@ read-only Git mount, then responds only to an attestation request; execution
 remains unavailable. The broker stops that socket/service before relay and
 workspace retirement and recovers a partially written declaration. The typed
 desktop client checks the distinct worker UID and exact reply. Source checks
-and rendered unit syntax passed on 2026-11-04, but this new service has not
-been activated under the system manager. The actual admission, role-limited
-tool execution, coder workspace, credential withdrawal, host isolation probes
-and finite provider task remain D3 requirements.
+and rendered unit syntax passed on 2026-11-04. A disposable system activation
+then returned an exact reviewer attestation from a distinct host UID. Under
+the same unit profile, desktop file, process environment, session bus,
+persistent keyring and original checkout reads were denied, as were writes and
+chmod on the read-only mount. Its network namespace matched a mock relay and
+differed from the host; an unknown path field failed without a reply. The
+temporary units and dummy workspace were removed. The actual broker arm and
+retirement chain, admitted role-limited tool execution, coder workspace,
+credential withdrawal, cgroup boundary probe and finite provider task remain
+D3 requirements.
 
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
