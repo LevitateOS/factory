@@ -4,6 +4,8 @@
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 use std::os::fd::RawFd;
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
 const MAX_REQUEST: usize = 256;
 const DEADLINE_SECONDS: libc::time_t = 3;
@@ -21,7 +23,32 @@ struct Attestation {
     worker_uid: u32,
     peer_uid: u32,
     no_new_privileges: bool,
+    private_runtime: bool,
     execution_available: bool,
+}
+
+fn private_runtime(uid: u32) -> io::Result<()> {
+    let path = std::env::var_os("RUNTIME_DIRECTORY")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::PermissionDenied, "worker runtime missing"))?;
+    let path = Path::new(&path);
+    if path.parent() != Some(Path::new("/run/soda-factory-worker")) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "worker runtime path invalid",
+        ));
+    }
+    let metadata = path.symlink_metadata()?;
+    if !metadata.is_dir()
+        || metadata.is_symlink()
+        || metadata.uid() != uid
+        || metadata.mode() & 0o7777 != 0o700
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "worker runtime permissions invalid",
+        ));
+    }
+    Ok(())
 }
 
 fn socket(fd: RawFd) -> io::Result<libc::ucred> {
@@ -109,6 +136,7 @@ fn serve() -> io::Result<()> {
             return Err(io::Error::new(io::ErrorKind::PermissionDenied, reason));
         }
     }
+    private_runtime(uid)?;
     let mut input = io::stdin().lock();
     let mut length = [0u8; 4];
     input.read_exact(&mut length)?;
@@ -141,6 +169,7 @@ fn serve() -> io::Result<()> {
         worker_uid: uid,
         peer_uid: peer.uid,
         no_new_privileges: true,
+        private_runtime: true,
         execution_available: false,
     })?;
     let mut output = io::stdout().lock();

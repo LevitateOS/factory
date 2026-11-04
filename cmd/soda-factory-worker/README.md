@@ -6,15 +6,17 @@ selected desktop account, install both units and the root-owned executable, and
 enable the socket. The template service starts each accepted connection under
 a separate dynamic system UID with private home, IPC, devices, temporary files,
 hidden other-user process metadata, no ambient capabilities and finite cgroup
-resource ceilings. Its privileged system manager owns the socket and service
-lifetime; the worker binary never runs as root.
+resource ceilings. Each accepted connection has a systemd-owned private runtime
+directory removed with its service instance. Its privileged system manager owns
+the socket and service lifetime; the worker binary never runs as root.
 
 The service accepts one 4-byte little-endian length followed by at most 256
 bytes of JSON. Currently the only request is
 `{"kind":"attest","version":1}`. It checks that standard input is a Unix
 stream with kernel peer credentials, its own UID differs from the peer, no new
 privileges are set, and desktop session variables were not inherited. It replies
-with one length-prefixed JSON attestation and `execution_available:false`.
+with one length-prefixed JSON attestation and `execution_available:false`. It
+also checks that its runtime directory is owned by the worker and mode `0700`.
 Unknown versions, fields and requests fail closed. No executable, path, token,
 worktree, role or provider selector is accepted.
 
@@ -34,3 +36,8 @@ path field and a launch request each received no response. The temporary units,
 binary and socket were removed after the check. These checks establish the
 admission stub and unit wiring; they do not qualify worker file/keyring access,
 credentials, roles, workspace mounts or an actual provider run.
+
+The follow-up live activation with `RuntimeDirectory=soda-factory-worker/%i`
+reported `private_runtime:true` for UID 61739; the per-instance directory was
+gone after the service exited. The worker refuses admission if that directory
+is absent, not worker-owned, or not mode `0700`.
