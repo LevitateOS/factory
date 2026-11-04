@@ -2,6 +2,8 @@
 Description=Factory isolated worker socket
 
 [Socket]
+# Attestation only. Accept=yes instance IDs identify connections, not runs;
+# an agent needs a separately broker-started, exact-run service and mounts.
 ListenStream=/run/soda-factory/worker.sock
 SocketUser=@DESKTOP_USER@
 SocketMode=0600

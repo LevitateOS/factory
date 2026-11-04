@@ -100,6 +100,20 @@ scratch workspace were removed. A future proxy must replace that placeholder
 with owner-held authority and enforce the admitted run, endpoint, budgets and
 withdrawal.
 
+A separate subordinate-UID namespace check mapped the desktop host UID 1000
+and a worker host UID 524288. It exposed a Git checkout from a root-private
+parent through a read-only bind, then ran the actual Muse 1.4.14 ELF with
+reviewer flags, a dummy stdin key and private-loopback fake provider. The
+worker could read the mounted checkout but could not traverse its original
+parent, write or chmod through the mount, read a desktop canary or process
+environment, reach the desktop session bus, or obtain the desktop keyring.
+Muse sent `GET /muse-code/models` to the fake provider and exited after its
+401; no real account, model, owner socket or systemd agent unit participated.
+The temporary namespace and scratch source were removed. The current
+`Accept=yes` worker socket remains attestation-only: its `%i` identifies a
+connection, so it cannot select a run-specific checkout mount. The agent
+needs a broker-started exact-run service with its own role and workspace.
+
 `soda-factory-reviewer` is a separate, credential-free run attester behind the
 root broker. Its fixed socket template listens only inside
 `/run/soda-factory-broker/preparations/<run>`; the root-owned mode-`0700`

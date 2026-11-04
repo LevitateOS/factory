@@ -328,6 +328,19 @@ reach Muse's `--api-key-stdin` without putting the account token in the worker.
 The worker launch, actual systemd UID, mounted workspace, role policy and
 provider task remain unqualified.
 
+A subordinate-UID namespace check then exercised the actual Muse 1.4.14
+`exec` binary under host UID 524288, distinct from desktop UID 1000. A
+root-private fixture Git checkout was bind-mounted read-only. The worker
+read the mount but could not reach the original source, write or chmod it,
+read a desktop canary or process environment, see the desktop session bus,
+or obtain the desktop keyring. With reviewer flags and a dummy stdin key,
+Muse requested `/muse-code/models` from a private-loopback fake provider and
+stopped on its 401. This is an actual CLI/filesystem/UID probe, not an
+installed systemd worker, owner-keyring/relay composition, admitted role or
+real provider task. The existing `Accept=yes` worker instance names a socket
+connection rather than a run and cannot carry an exact `%i` checkout mount;
+the production agent needs a separately broker-started run service.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first
