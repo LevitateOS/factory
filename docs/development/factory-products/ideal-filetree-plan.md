@@ -263,7 +263,7 @@ Before a native coding agent becomes selectable, the N3/N4 path must prove:
   provider run, plus denied role/file/keyring probes, is required for D3 closure.
 
 No current N3/N4 consumer satisfies these checks; D3 remains open and native
-agent execution remains unavailable. The earlier same-user acceptance evidence
+agent execution remains unavailable to the product. The earlier same-user acceptance evidence
 continues to cover only process and cgroup behavior.
 
 On 2026-11-04, a transient system service with `DynamicUser=yes`,
@@ -792,6 +792,21 @@ socket checks simulated a stop after the rename and after bundle unlink. In
 both cases the exact digest retry removed the tombstone, while restaging the
 pending run and a wrong-digest cleanup were refused. Root inspection found no
 run or tombstone afterward. This does not yet prove active worker retirement.
+
+The broker and dynamic-UID agent now have a one-shot launch protocol for the
+exact staged run, role, candidate, captured ELF digest and prompt digest. The
+root broker consumes the agent socket and writes a root-owned replay marker;
+the worker imports and hashes the streamed ELF and prompt before spawning
+fixed Muse CLI arguments under its private cgroup. A live disposable check
+denied desktop canary access, read-only source writes and privileged listener
+inheritance from the child. Altered ELF and prompt bytes were refused before
+launch; caller disconnection stopped the child and agent service. The captured
+415 MB Muse 1.4.14 ELF reached the private credential-free relay once and
+exited after a planned 401. The worker reported a retired tree and bounded
+output. Temporary system units and runtime were removed. The production Go
+coordinator still does not admit this launch; credential custody and
+withdrawal, coder result capture, complete role checks and a finite real
+provider task remain D3 gates.
 
 ## Inspection identity and evidence limits
 

@@ -54,5 +54,5 @@ CPUQuota=100%
 MemoryMax=1G
 TasksMax=128
 TimeoutStartSec=10s
-RuntimeMaxSec=4h
+RuntimeMaxSec=4h5m
 KillMode=control-group

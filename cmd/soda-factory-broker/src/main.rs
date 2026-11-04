@@ -10,12 +10,16 @@ use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, OpenOptionsExt,
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
-const MAX_REQUEST: usize = 512;
+const MAX_REQUEST: usize = 768;
 const MAX_BUNDLE: usize = 512 * 1024;
+const MAX_PROMPT: usize = 320 * 1024;
+const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+const MAX_AGENT_REPLY: usize = 1024;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
 const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
@@ -80,6 +84,20 @@ enum Request {
         role: String,
         tool_sha256: String,
         prompt_sha256: String,
+    },
+    ExecuteAgent {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        candidate: String,
+        role: String,
+        tool_sha256: String,
+        prompt_sha256: String,
+        executable_length: u64,
+        prompt_length: usize,
+        placeholder: String,
+        duration_ms: u64,
     },
 }
 
@@ -205,6 +223,42 @@ struct AgentRequest<'a> {
     version: u8,
     run: &'a str,
     profile: &'a str,
+}
+
+#[derive(Serialize)]
+struct AgentExecutionRequest<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    candidate: &'a str,
+    tool_sha256: &'a str,
+    prompt_sha256: &'a str,
+    executable_length: u64,
+    prompt_length: usize,
+    placeholder: &'a str,
+    duration_ms: u64,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AgentExecutionReply {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    candidate: String,
+    role: String,
+    tool_sha256: String,
+    prompt_sha256: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    reason: String,
+    exit_code: Option<i32>,
+    tree_retired: bool,
+    output_complete: bool,
+    output_length: usize,
+    output_sha256: String,
 }
 
 #[derive(Serialize)]
@@ -851,6 +905,11 @@ fn arm_agent(
     let preparations = preparations()?;
     let directory =
         preparation_run(&preparations, run)?.ok_or_else(|| denied("agent preparation missing"))?;
+    match directory.join("agent.launch").symlink_metadata() {
+        Ok(_) => return Err(denied("agent launch already consumed")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
     if read_manifest(&directory.join("manifest.env"))?.as_deref()
         != Some(manifest(candidate, digest).as_str())
         || prepared_output(&directory)? != Some(0o555)
@@ -961,6 +1020,11 @@ fn attest_agent(
     let mut stream = UnixStream::connect(&socket)?;
     stream.set_read_timeout(Some(Duration::from_secs(60)))?;
     stream.set_write_timeout(Some(Duration::from_secs(60)))?;
+    let mut ready = [0u8; 1];
+    stream.read_exact(&mut ready)?;
+    if ready != *b"R" {
+        return Err(denied("agent readiness invalid"));
+    }
     let request = serde_json::to_vec(&AgentRequest {
         kind: "attest_agent",
         version: 1,
@@ -997,6 +1061,175 @@ fn attest_agent(
         return Err(denied("agent attestation identity invalid"));
     }
     Ok(reply.worker_uid)
+}
+
+fn copy_exact<R: Read, W: Write>(input: &mut R, output: &mut W, mut length: u64) -> io::Result<()> {
+    let mut buffer = [0u8; 65536];
+    while length != 0 {
+        let want = buffer.len().min(length as usize);
+        input.read_exact(&mut buffer[..want])?;
+        output.write_all(&buffer[..want])?;
+        length -= want as u64;
+    }
+    Ok(())
+}
+
+fn client_closed() -> io::Result<bool> {
+    let mut byte = [0u8; 1];
+    let received = unsafe {
+        libc::recv(
+            0,
+            byte.as_mut_ptr().cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
+    if received >= 0 {
+        return Ok(true);
+    }
+    let error = io::Error::last_os_error();
+    if error.kind() == io::ErrorKind::WouldBlock {
+        Ok(false)
+    } else {
+        Err(error)
+    }
+}
+
+fn read_worker(stream: &mut UnixStream, bytes: &mut [u8], deadline: Instant) -> io::Result<()> {
+    let mut offset = 0;
+    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+    while offset < bytes.len() {
+        if client_closed()? || Instant::now() >= deadline {
+            return Err(denied("agent caller left before process retirement"));
+        }
+        match stream.read(&mut bytes[offset..]) {
+            Ok(0) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            Ok(length) => offset += length,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
+            {
+                ()
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+fn execute_agent<R: Read, W: Write>(
+    input: &mut R,
+    output: &mut W,
+    request: &AgentExecutionRequest<'_>,
+    bundle_sha256: &str,
+    role: &str,
+    desktop_uid: u32,
+) -> io::Result<()> {
+    let run = request.run;
+    let profile = request.profile;
+    let candidate = request.candidate;
+    let tool_sha256 = request.tool_sha256;
+    let prompt_sha256 = request.prompt_sha256;
+    arm_agent(
+        run,
+        profile,
+        bundle_sha256,
+        candidate,
+        role,
+        tool_sha256,
+        prompt_sha256,
+    )?;
+    let directory = PathBuf::from(STATE).join("preparations").join(run);
+    let result = (|| {
+        private_dir(&directory, 0o700)?;
+        let path = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+        let mut worker = UnixStream::connect(&path)?;
+        worker.set_read_timeout(Some(Duration::from_secs(60)))?;
+        worker.set_write_timeout(Some(Duration::from_secs(120)))?;
+        let mut ready = [0u8; 1];
+        worker.read_exact(&mut ready)?;
+        if ready != *b"R" {
+            return Err(denied("agent execution readiness invalid"));
+        }
+        let marker = directory.join("agent.launch");
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o444)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&marker)?;
+        file.write_all(b"consumed\n")?;
+        file.sync_all()?;
+        file.set_permissions(fs::Permissions::from_mode(0o444))?;
+        File::open(&directory)?.sync_all()?;
+        manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
+        if path.exists() {
+            return Err(denied("agent launch socket survived consumption"));
+        }
+        let bytes = serde_json::to_vec(request)?;
+        if bytes.is_empty() || bytes.len() > 512 {
+            return Err(denied("agent execution request bound invalid"));
+        }
+        worker.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        worker.write_all(&bytes)?;
+        copy_exact(input, &mut worker, request.prompt_length as u64)?;
+        copy_exact(input, &mut worker, request.executable_length)?;
+        let deadline =
+            Instant::now() + Duration::from_millis(request.duration_ms) + Duration::from_secs(180);
+        let mut header = [0u8; 4];
+        read_worker(&mut worker, &mut header, deadline)?;
+        let length = u32::from_le_bytes(header) as usize;
+        if length == 0 || length > MAX_AGENT_REPLY {
+            return Err(denied("agent execution reply bound invalid"));
+        }
+        let mut bytes = vec![0u8; length];
+        read_worker(&mut worker, &mut bytes, deadline)?;
+        let reply: AgentExecutionReply = serde_json::from_slice(&bytes)
+            .map_err(|_| denied("agent execution reply shape invalid"))?;
+        if reply.kind != "agent_executed"
+            || reply.version != 1
+            || reply.run != run
+            || reply.profile != profile
+            || reply.candidate != candidate
+            || reply.role != role
+            || reply.tool_sha256 != tool_sha256
+            || reply.prompt_sha256 != prompt_sha256
+            || reply.worker_uid == 0
+            || reply.worker_uid == desktop_uid
+            || reply.peer_uid != 0
+            || !reply.tree_retired
+            || reply.output_length > MAX_OUTPUT
+            || !id(&reply.output_sha256, 64)
+            || !matches!(
+                reply.reason.as_str(),
+                "exited"
+                    | "cancelled"
+                    | "deadline"
+                    | "output_limit"
+                    | "output_unavailable"
+                    | "input_unavailable"
+                    | "observation_unavailable"
+                    | "unconfirmed"
+            )
+        {
+            return Err(denied("agent execution identity invalid"));
+        }
+        let mut body = vec![0u8; reply.output_length];
+        read_worker(&mut worker, &mut body, deadline)?;
+        if hash(&body) != reply.output_sha256 || client_closed()? {
+            return Err(denied("agent execution output invalid"));
+        }
+        output.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        output.write_all(&bytes)?;
+        output.write_all(&body)?;
+        output.flush()
+    })();
+    if result.is_err() {
+        let _ = stop_agent(run, &directory);
+    }
+    result
 }
 
 fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<()> {
@@ -1524,6 +1757,57 @@ fn serve() -> io::Result<()> {
                 coder_workspace: role == "coder",
                 execution_available: false,
             })?
+        }
+        Request::ExecuteAgent {
+            version,
+            run,
+            profile,
+            sha256,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            executable_length,
+            prompt_length,
+            placeholder,
+            duration_ms,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+                || !matches!(role.as_str(), "reviewer" | "coder")
+                || !id(&tool_sha256, 64)
+                || !id(&prompt_sha256, 64)
+                || !(4..=MAX_EXECUTABLE).contains(&executable_length)
+                || !(1..=MAX_PROMPT).contains(&prompt_length)
+                || !id(&placeholder, 64)
+                || !(1..=4 * 60 * 60 * 1000).contains(&duration_ms)
+            {
+                return Err(denied("broker execution declaration invalid"));
+            }
+            let worker_request = AgentExecutionRequest {
+                kind: "execute_agent",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                candidate: &candidate,
+                tool_sha256: &tool_sha256,
+                prompt_sha256: &prompt_sha256,
+                executable_length,
+                prompt_length,
+                placeholder: &placeholder,
+                duration_ms,
+            };
+            return execute_agent(
+                &mut input,
+                &mut io::stdout().lock(),
+                &worker_request,
+                &sha256,
+                &role,
+                desktop_uid,
+            );
         }
     };
     let mut output = io::stdout().lock();

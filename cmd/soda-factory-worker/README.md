@@ -171,17 +171,17 @@ namespace shape on this host, not admission, owner policy, agent role
 confinement, credential withdrawal or a real provider run.
 
 `soda-factory-agent@.socket` and `.service` add a broker-started exact-run
-attestation boundary. The socket is root-owned mode `0600`; the service
+agent boundary. The socket is root-owned mode `0600`; the service
 uses a distinct dynamic UID, joins that run's provider relay network namespace,
 binds the broker-prepared checkout and root role declaration read-only, and
 uses a private keyring, IPC and runtime with finite cgroup limits. It checks
 the root broker peer, its own UID, the fixed socket, role declaration and exact
-Git HEAD before accepting only `attest_agent`. The root-mounted role manifest
+Git HEAD before accepting `attest_agent` or one `execute_agent`. The root-mounted role manifest
 also binds a 32-hex profile and the staged 64-hex tool and prompt digests; the
 broker request must present the same profile, and the reply echoes these values
 for the desktop client to verify through the broker. Its reply says
-`execution_available:false`; neither role can launch a tool or receive an
-account secret. The source compiles and a rendered template passed
+`execution_available:false` because attestation itself does not launch a tool
+or receive an account secret. The source compiles and a rendered template passed
 `systemd-analyze verify` on 2026-11-04.
 
 The broker now owns worker attestation. It opens the root-only agent socket,
@@ -191,8 +191,8 @@ attestation to its authenticated desktop client. A disposable activation of
 the actual broker, preparer, relay and agent units accepted the exact reviewer
 run while a direct desktop connection to the agent socket was denied. The
 worker UID differed from the desktop UID. Exact retirement and removal of all
-temporary units, binaries and runtime state followed. This is an attestation
-boundary; the worker still accepts no launch request.
+temporary units, binaries and runtime state followed. This was an attestation
+check before the later one-shot launch implementation.
 
 A disposable system installation activated the actual agent service with a
 dummy Git checkout and a mock relay namespace. It returned worker UID 64596
@@ -217,6 +217,19 @@ retirement stopped the agent and relay and removed the mounted source; a later
 agent attestation failed. The owner socket supplied no account credential, and
 no agent execution or provider request was attempted. Temporary system state
 was removed.
+
+The one-shot `execute_agent` path now accepts only the broker's exact root-peer
+request. The worker checks the root role declaration, admitted prompt SHA-256,
+captured ELF SHA-256 and byte bounds, then launches fixed Muse CLI arguments in
+its private cgroup. Reviewer disables shell and write; coder uses the private
+cloned workspace. The child receives only a placeholder on stdin and reaches
+the run-specific loopback relay. The worker keeps its listener and accepted
+broker stream close-on-exec, polls for broker loss, retires the process tree and
+returns bounded output with a digest and retirement receipt. A disposable live
+check denied desktop canary access and source writes, refused altered prompt
+and ELF bytes before launch, and retired a sleeping child when the caller left.
+The captured Muse ELF reached a credential-free private relay, which returned
+401; this did not qualify account credential custody or a real provider run.
 
 The agent service now opens `soda-native-process::Processes` under its own
 run-specific runtime and delegated cgroup before accepting an attestation.

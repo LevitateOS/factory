@@ -4,16 +4,21 @@ use super::Role;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::Duration;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
-const MAX_FRAME: usize = 512;
+const MAX_FRAME: usize = 768;
 const MAX_BUNDLE: usize = 512 * 1024;
+const MAX_PROMPT: usize = 320 * 1024;
+const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+const MAX_EXEC_REPLY: usize = 1024;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
 const AGENT_TIME: Duration = Duration::from_secs(60);
@@ -174,6 +179,35 @@ struct AgentAttested {
     readonly_source: bool,
     coder_workspace: bool,
     execution_available: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentExecuted {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    candidate: String,
+    role: String,
+    tool_sha256: String,
+    prompt_sha256: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    reason: String,
+    exit_code: Option<i32>,
+    tree_retired: bool,
+    output_complete: bool,
+    output_length: usize,
+    output_sha256: String,
+}
+
+pub struct AgentRun {
+    pub worker_uid: u32,
+    pub reason: String,
+    pub exit_code: Option<i32>,
+    pub output_complete: bool,
+    pub output: Vec<u8>,
 }
 
 impl Role {
@@ -420,6 +454,135 @@ impl Broker {
             return Err(refused("agent attested identity invalid"));
         }
         Ok(reply.worker_uid)
+    }
+
+    /// One broker-consumed launch. The caller supplies bytes and identities
+    /// from an admitted native run; the worker rehashes the prompt and ELF
+    /// under its isolated UID. A failed attempt cannot be replayed for this run.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_agent(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        role: Role,
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        prompt: &[u8],
+        executable: &Path,
+        placeholder: &str,
+        duration: Duration,
+    ) -> io::Result<AgentRun> {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(sha256, 64)
+            || !id(candidate, 40)
+            || !id(tool_sha256, 64)
+            || !id(prompt_sha256, 64)
+            || !id(placeholder, 64)
+            || !(1..=MAX_PROMPT).contains(&prompt.len())
+            || !executable.is_absolute()
+            || duration.is_zero()
+            || duration.as_millis() > 4 * 60 * 60 * 1000
+        {
+            return Err(refused("agent execution declaration invalid"));
+        }
+        let digest: String = Sha256::digest(prompt)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if digest != prompt_sha256 {
+            return Err(refused("agent prompt differs from admitted digest"));
+        }
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(executable)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file()
+            || metadata.mode() & 0o111 == 0
+            || metadata.mode() & 0o022 != 0
+            || !(4..=MAX_EXECUTABLE).contains(&metadata.len())
+        {
+            return Err(refused("agent executable source invalid"));
+        }
+        let mut stream = connect(Duration::from_secs(120))?;
+        stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
+        let request = serde_json::to_vec(&json!({
+            "kind":"execute_agent","version":1,"run":run,"profile":profile,
+            "sha256":sha256,"candidate":candidate,"role":role.as_str(),
+            "tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,
+            "executable_length":metadata.len(),"prompt_length":prompt.len(),
+            "placeholder":placeholder,"duration_ms":duration.as_millis() as u64,
+        }))?;
+        if request.len() > MAX_FRAME {
+            return Err(refused("agent execution request bound invalid"));
+        }
+        stream.write_all(&(request.len() as u32).to_le_bytes())?;
+        stream.write_all(&request)?;
+        stream.write_all(prompt)?;
+        let sent = io::copy(&mut file.take(metadata.len()), &mut stream)?;
+        if sent != metadata.len() {
+            return Err(refused("agent executable source changed during transfer"));
+        }
+        let mut header = [0u8; 4];
+        stream.read_exact(&mut header)?;
+        let length = u32::from_le_bytes(header) as usize;
+        if length == 0 || length > MAX_EXEC_REPLY {
+            return Err(refused("agent execution reply bound invalid"));
+        }
+        let mut bytes = vec![0u8; length];
+        stream.read_exact(&mut bytes)?;
+        let reply: AgentExecuted = serde_json::from_slice(&bytes)
+            .map_err(|_| refused("agent execution reply shape invalid"))?;
+        let uid = unsafe { libc::geteuid() };
+        if reply.kind != "agent_executed"
+            || reply.version != 1
+            || reply.run != run
+            || reply.profile != profile
+            || reply.candidate != candidate
+            || reply.role != role.as_str()
+            || reply.tool_sha256 != tool_sha256
+            || reply.prompt_sha256 != prompt_sha256
+            || reply.worker_uid == 0
+            || reply.worker_uid == uid
+            || reply.peer_uid != 0
+            || !reply.tree_retired
+            || reply.output_length > MAX_OUTPUT
+            || !id(&reply.output_sha256, 64)
+            || reply
+                .exit_code
+                .is_some_and(|code| !(0..=255).contains(&code))
+            || !matches!(
+                reply.reason.as_str(),
+                "exited"
+                    | "cancelled"
+                    | "deadline"
+                    | "output_limit"
+                    | "output_unavailable"
+                    | "input_unavailable"
+                    | "observation_unavailable"
+                    | "unconfirmed"
+            )
+        {
+            return Err(refused("agent execution identity invalid"));
+        }
+        let mut output = vec![0u8; reply.output_length];
+        stream.read_exact(&mut output)?;
+        let observed: String = Sha256::digest(&output)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if observed != reply.output_sha256 {
+            return Err(refused("agent execution output digest invalid"));
+        }
+        Ok(AgentRun {
+            worker_uid: reply.worker_uid,
+            reason: reply.reason,
+            exit_code: reply.exit_code,
+            output_complete: reply.output_complete,
+            output,
+        })
     }
 
     /// Stop the exact relay and prepared checkout through the broker after the

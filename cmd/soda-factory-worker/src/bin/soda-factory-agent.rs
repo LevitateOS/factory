@@ -1,14 +1,15 @@
 #![cfg(target_os = "linux")]
-//! One exact-run isolated service boundary. This attests role, mounted source
-//! and root broker peer; it does not yet admit or launch an agent process.
+//! One exact-run isolated service boundary for attestation and a broker-consumed
+//! agent process. Product admission and credential custody remain separate.
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use soda_native_process::{Executable, Invocation, Limits, Processes, StopReason};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -18,15 +19,33 @@ const WORKSPACE: &str = "/run/factory-agent-private/workspace";
 const ROLE: &str = "/run/factory-role";
 const PRIVATE: &str = "/run/factory-agent-private";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
-const MAX_REQUEST: usize = 256;
+const MAX_REQUEST: usize = 512;
+const MAX_PROMPT: usize = 320 * 1024;
+const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
+const MAX_OUTPUT: usize = 16 * 1024 * 1024;
+const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
+const PROMPT: &str = "/run/factory-agent-private/agent.prompt";
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Request {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum Request {
+    AttestAgent {
+        version: u8,
+        run: String,
+        profile: String,
+    },
+    ExecuteAgent {
+        version: u8,
+        run: String,
+        profile: String,
+        candidate: String,
+        tool_sha256: String,
+        prompt_sha256: String,
+        executable_length: u64,
+        prompt_length: usize,
+        placeholder: String,
+        duration_ms: u64,
+    },
 }
 
 #[derive(Serialize)]
@@ -44,6 +63,26 @@ struct Attestation<'a> {
     readonly_source: bool,
     coder_workspace: bool,
     execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct Execution<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    candidate: &'a str,
+    role: &'a str,
+    tool_sha256: &'a str,
+    prompt_sha256: &'a str,
+    worker_uid: u32,
+    peer_uid: u32,
+    reason: &'a str,
+    exit_code: Option<i32>,
+    tree_retired: bool,
+    output_complete: bool,
+    output_length: usize,
+    output_sha256: &'a str,
 }
 
 fn refused(message: &'static str) -> io::Error {
@@ -65,6 +104,14 @@ fn readonly(path: &Path) -> io::Result<bool> {
         return Err(io::Error::last_os_error());
     }
     Ok(unsafe { stat.assume_init() }.f_flag & libc::ST_RDONLY as u64 != 0)
+}
+
+fn close_on_exec(fd: RawFd) -> io::Result<()> {
+    let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+    if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
@@ -407,6 +454,7 @@ fn listener(run: &str) -> io::Result<UnixListener> {
         return Err(refused("agent listener invalid"));
     }
     let listener = unsafe { UnixListener::from_raw_fd(3) };
+    close_on_exec(listener.as_raw_fd())?;
     if listener.local_addr()?.as_pathname() != Some(path.as_path()) {
         return Err(refused("agent listener path invalid"));
     }
@@ -432,6 +480,253 @@ fn peer(stream: &UnixStream) -> bool {
     };
     // The broker PID is outside the private PID namespace and may map to 0.
     valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == 0
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+struct PromptFile;
+impl Drop for PromptFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(PROMPT);
+    }
+}
+
+fn private_prompt(bytes: &[u8]) -> io::Result<PromptFile> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(PROMPT)?;
+    let result = (|| {
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        file.set_permissions(fs::Permissions::from_mode(0o400))
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(PROMPT);
+    }
+    result.map(|()| PromptFile)
+}
+
+struct TimedInput<'a> {
+    stream: &'a mut UnixStream,
+    deadline: Instant,
+}
+impl Read for TimedInput<'_> {
+    fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        let remaining = self
+            .deadline
+            .checked_duration_since(Instant::now())
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::TimedOut, "agent executable import expired")
+            })?;
+        self.stream
+            .set_read_timeout(Some(remaining.min(Duration::from_secs(3))))?;
+        self.stream.read(bytes)
+    }
+}
+
+fn reason(reason: Option<StopReason>) -> &'static str {
+    match reason {
+        Some(StopReason::Exited) => "exited",
+        Some(StopReason::Cancelled) => "cancelled",
+        Some(StopReason::Deadline) => "deadline",
+        Some(StopReason::OutputLimit) => "output_limit",
+        Some(StopReason::OutputUnavailable) => "output_unavailable",
+        Some(StopReason::InputUnavailable) => "input_unavailable",
+        Some(StopReason::ObservationUnavailable) => "observation_unavailable",
+        None => "unconfirmed",
+    }
+}
+
+fn peer_disconnected(stream: &UnixStream) -> io::Result<bool> {
+    let mut byte = [0u8; 1];
+    let received = unsafe {
+        libc::recv(
+            stream.as_raw_fd(),
+            byte.as_mut_ptr().cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
+    if received >= 0 {
+        return Ok(true);
+    }
+    let error = io::Error::last_os_error();
+    if error.kind() == io::ErrorKind::WouldBlock {
+        Ok(false)
+    } else {
+        Err(error)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_agent(
+    stream: &mut UnixStream,
+    processes: &mut Processes,
+    run: &str,
+    profile: &str,
+    candidate: &str,
+    role: &str,
+    tool_sha256: &str,
+    prompt_sha256: &str,
+    worker_uid: u32,
+    executable_length: u64,
+    prompt_length: usize,
+    placeholder: &str,
+    duration_ms: u64,
+) -> io::Result<()> {
+    if !(1..=MAX_PROMPT).contains(&prompt_length)
+        || !(4..=MAX_EXECUTABLE).contains(&executable_length)
+        || !id(placeholder, 64)
+        || !(1..=MAX_EXECUTION.as_millis() as u64).contains(&duration_ms)
+    {
+        return Err(refused("agent execution bounds invalid"));
+    }
+    let mut prompt = vec![0u8; prompt_length];
+    stream.read_exact(&mut prompt)?;
+    if sha256(&prompt) != prompt_sha256
+        || std::str::from_utf8(&prompt).is_err()
+        || prompt.contains(&0)
+    {
+        return Err(refused("agent prompt differs from admitted bytes"));
+    }
+    let prompt_file = private_prompt(&prompt)?;
+    let mut timed = TimedInput {
+        stream,
+        deadline: Instant::now() + Duration::from_secs(120),
+    };
+    let executable = Executable::from_stream(
+        &mut timed,
+        executable_length,
+        Path::new("/run/factory-captured-executable"),
+        tool_sha256,
+    )
+    .map_err(|_| refused("agent executable differs from admitted bytes"))?;
+    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    if peer_disconnected(stream)? {
+        return Err(refused("agent request contains extra bytes or closed peer"));
+    }
+    let workspace = if role == "coder" { WORKSPACE } else { SOURCE };
+    let mut arguments = [
+        "exec",
+        "--json",
+        "--api-key-stdin",
+        "--provider",
+        "meta",
+        "--model",
+        "muse-spark-1.3-contributor",
+        "--base-url",
+        "http://127.0.0.1:37377",
+        "--workspace",
+        workspace,
+        "--worktree",
+        "off",
+        "--prompt-file",
+        PROMPT,
+        "--max-model-steps",
+        "16",
+        "--max-tool-output-bytes",
+        "65536",
+        "--no-parallel-tool-calls",
+        "--disable-web-tools",
+        "--disable-reminders",
+        "--disable-request-user-input",
+        "--no-foreign-personal-context",
+        "--no-session-log",
+        "--approval-mode",
+        "never",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect::<Vec<_>>();
+    if role == "reviewer" {
+        arguments.extend(["--disable-shell", "--disable-write"].map(OsString::from));
+    }
+    let environment = BTreeMap::from([
+        (OsString::from("HOME"), OsString::from(PRIVATE)),
+        (
+            OsString::from("XDG_CONFIG_HOME"),
+            OsString::from(format!("{PRIVATE}/config")),
+        ),
+        (
+            OsString::from("XDG_CACHE_HOME"),
+            OsString::from(format!("{PRIVATE}/cache")),
+        ),
+        (
+            OsString::from("XDG_STATE_HOME"),
+            OsString::from(format!("{PRIVATE}/state")),
+        ),
+    ]);
+    let process = processes
+        .launch_with_stdin(
+            Invocation {
+                executable: &executable,
+                directory: Path::new(if role == "coder" { WORKSPACE } else { PRIVATE }),
+                arguments,
+                environment,
+                limits: Limits {
+                    duration: Duration::from_millis(duration_ms),
+                    output_bytes: MAX_OUTPUT,
+                    memory_bytes: 768 * 1024 * 1024,
+                    processes: 64,
+                    cpu_percent: 100,
+                },
+                columns: 80,
+                rows: 24,
+            },
+            format!("{placeholder}\n").into_bytes(),
+        )
+        .map_err(|_| refused("agent process launch unavailable"))?;
+    let deadline = Instant::now() + Duration::from_millis(duration_ms) + Duration::from_secs(3);
+    let observed = loop {
+        let observed = process.wait(Duration::from_millis(100));
+        if observed.finished {
+            break observed;
+        }
+        if peer_disconnected(stream)? || Instant::now() >= deadline {
+            process.cancel();
+        }
+    };
+    processes
+        .retire()
+        .map_err(|_| refused("agent process tree retirement unconfirmed"))?;
+    if !observed.tree_retired {
+        return Err(refused("agent process tree retirement unconfirmed"));
+    }
+    let output = fs::read(&observed.output)?;
+    if output.len() > MAX_OUTPUT {
+        return Err(refused("agent output bound invalid"));
+    }
+    let output_sha256 = sha256(&output);
+    let reply = serde_json::to_vec(&Execution {
+        kind: "agent_executed",
+        version: 1,
+        run,
+        profile,
+        candidate,
+        role,
+        tool_sha256,
+        prompt_sha256,
+        worker_uid,
+        peer_uid: 0,
+        reason: reason(observed.reason),
+        exit_code: observed.exit.and_then(|exit| exit.code),
+        tree_retired: true,
+        output_complete: observed.output_complete,
+        output_length: output.len(),
+        output_sha256: &output_sha256,
+    })?;
+    drop(prompt_file);
+    stream.write_all(&(reply.len() as u32).to_le_bytes())?;
+    stream.write_all(&reply)?;
+    stream.write_all(&output)
 }
 
 fn serve() -> io::Result<()> {
@@ -474,8 +769,12 @@ fn serve() -> io::Result<()> {
     if !peer(&stream) {
         return Err(refused("agent broker peer invalid"));
     }
+    close_on_exec(stream.as_raw_fd())?;
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
     stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    // The broker may now consume this run's socket before sending executable
+    // bytes. An accepted connection remains usable after the listener stops.
+    stream.write_all(b"R")?;
     let mut length = [0u8; 4];
     stream.read_exact(&mut length)?;
     let length = u32::from_le_bytes(length) as usize;
@@ -486,30 +785,71 @@ fn serve() -> io::Result<()> {
     stream.read_exact(&mut bytes)?;
     let request: Request =
         serde_json::from_slice(&bytes).map_err(|_| refused("agent request shape invalid"))?;
-    if request.kind != "attest_agent"
-        || request.version != 1
-        || request.run != args[1]
-        || request.profile != profile
-    {
-        return Err(refused("agent request identity invalid"));
+    match request {
+        Request::AttestAgent {
+            version,
+            run,
+            profile: requested_profile,
+        } => {
+            if version != 1 || run != args[1] || requested_profile != profile {
+                return Err(refused("agent attestation identity invalid"));
+            }
+            let reply = serde_json::to_vec(&Attestation {
+                kind: "agent_attested",
+                version: 1,
+                run: &args[1],
+                profile: &profile,
+                candidate: &candidate,
+                role: &role,
+                tool_sha256: &tool_sha256,
+                prompt_sha256: &prompt_sha256,
+                worker_uid,
+                peer_uid: 0,
+                readonly_source: true,
+                coder_workspace: role == "coder",
+                execution_available: false,
+            })?;
+            stream.write_all(&(reply.len() as u32).to_le_bytes())?;
+            stream.write_all(&reply)
+        }
+        Request::ExecuteAgent {
+            version,
+            run,
+            profile: requested_profile,
+            candidate: requested_candidate,
+            tool_sha256: requested_tool,
+            prompt_sha256: requested_prompt,
+            executable_length,
+            prompt_length,
+            placeholder,
+            duration_ms,
+        } => {
+            if version != 1
+                || run != args[1]
+                || requested_profile != profile
+                || requested_candidate != candidate
+                || requested_tool != tool_sha256
+                || requested_prompt != prompt_sha256
+            {
+                return Err(refused("agent execution identity invalid"));
+            }
+            execute_agent(
+                &mut stream,
+                &mut processes,
+                &run,
+                &profile,
+                &candidate,
+                &role,
+                &tool_sha256,
+                &prompt_sha256,
+                worker_uid,
+                executable_length,
+                prompt_length,
+                &placeholder,
+                duration_ms,
+            )
+        }
     }
-    let reply = serde_json::to_vec(&Attestation {
-        kind: "agent_attested",
-        version: 1,
-        run: &args[1],
-        profile: &profile,
-        candidate: &candidate,
-        role: &role,
-        tool_sha256: &tool_sha256,
-        prompt_sha256: &prompt_sha256,
-        worker_uid,
-        peer_uid: 0,
-        readonly_source: true,
-        coder_workspace: role == "coder",
-        execution_available: false,
-    })?;
-    stream.write_all(&(reply.len() as u32).to_le_bytes())?;
-    stream.write_all(&reply)
 }
 
 fn main() {

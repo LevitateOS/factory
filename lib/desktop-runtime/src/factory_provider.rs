@@ -4,7 +4,7 @@
 mod broker;
 mod owner;
 mod response;
-pub use broker::{Broker, RelayAttestation};
+pub use broker::{AgentRun, Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
 use serde_json::Value;
 use std::collections::BTreeSet;

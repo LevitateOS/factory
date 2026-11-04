@@ -6,10 +6,11 @@ template for the selected desktop account and install the root-owned binary
 and units. The native desktop library has a bounded, peer-checked client, but
 the production runtime does not call it and no installer enables the service.
 The broker stages bytes, prepares a fixed checkout and activates
-credential-free reviewer, relay and agent-boundary attestations; it cannot
-launch an agent.
+credential-free reviewer and relay attestations. It also offers a one-shot
+isolated agent launch for a staged run. No production coordinator calls that
+launch yet, and it does not admit a Go product run or hold provider credentials.
 
-One connection carries a 4-byte little-endian JSON length (at most 512), then
+One connection carries a 4-byte little-endian JSON length (at most 768), then
 `{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","role":"reviewer|coder","tool_sha256":"<64 lowercase hex>","prompt_sha256":"<64 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
 then exactly `N` raw bytes. `N` must be from 1 through 512 KiB, matching the
 current Go reviewer source-bundle bound. The service checks the Unix stream's
@@ -20,8 +21,8 @@ or unit property. The role, captured tool digest and admitted prompt digest are
 fixed for the run in root-owned declarations; an exact replay with any value
 changed is refused.
 The systemd profile has no
-capabilities, no IP access and a 90-second lifetime to cover bounded preparation
-and cleanup. A JSON response
+capabilities and no IP access. Its 4-hour-5-minute lifetime covers the bounded
+one-shot launch; shorter requests retain their own deadlines. A JSON response
 names the run, profile, role, tool digest, prompt digest and bundle digest.
 
 An exact reviewer preparation uses
@@ -64,8 +65,8 @@ and manifest. It verifies
 the private preparation child is empty and removes it. A failed cleanup leaves
 the staged source in place. The response reports `removed:true`, or
 `removed:false` when that run is already absent. A mismatched digest is refused.
-The broker cannot launch a reviewer agent; future execution code must also
-stop and reconcile that agent before retiring its workspace.
+Retirement also stops and reconciles the exact-run agent service and socket
+before removing its workspace.
 
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
 `/run/soda-factory-broker/runs/<run>/bundle`. The same child contains a
@@ -319,6 +320,30 @@ inspection found no source, preparation, socket or run runtime afterward. All
 temporary units, binaries, dummy sockets and state were removed. Go admission,
 coder workspace, role tool policy, credential withdrawal and a real finite
 provider task are still required before D3 closes.
+
+`execute_agent` consumes one exact staged, prepared and relay-backed run. The
+bounded request carries the existing run/profile/bundle/candidate/role/tool/prompt
+identities, lengths, a 64-hex placeholder and duration. The caller then streams
+the admitted prompt and captured ELF. After the worker signals readiness, the
+broker writes a root-owned `agent.launch` marker, closes the root-only socket to
+new peers and forwards the bytes. The worker rehashes both streams before
+launch. The broker forwards output only with a bounded, identity-checked worker
+receipt and matching output digest. A failed post-arm launch stops the agent;
+the marker prevents replay once consumed. The desktop library has a typed
+client for this protocol, but no product path invokes it.
+
+A disposable installation of the real broker, preparer, relay and agent units
+proved a one-shot reviewer child under a distinct dynamic UID. The child could
+not read a desktop mode-`0600` canary, write its read-only source mount, or
+inherit the privileged listener. Altered prompt and ELF streams failed before
+child launch. A disconnected desktop caller caused the broker to stop the
+worker and its child; a consumed run could not be launched again. The captured
+415 MB Muse 1.4.14 ELF launched through the same path with a dummy placeholder,
+reached a private local relay once and exited on the relay's planned 401. The
+receipt reported a retired tree and bounded output. No account credential or
+real provider was used. Disposable units, binaries and runtime state were
+removed. Go admission, scoped credential custody and withdrawal, coder result
+capture, role enforcement evidence and a finite real provider task remain open.
 
 The fixed preparer Git calls now run through a 20-second `timeout` with a
 one-second kill grace, inside the unit's 30-second start deadline and
