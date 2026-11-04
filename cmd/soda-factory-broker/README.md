@@ -83,7 +83,8 @@ directory and bundle, and an empty root-owned output directory. It hashes the
 bounded bundle before invoking Git with a cleared environment, disabled system
 and global configuration, and no network in the service profile. It checks the
 cloned HEAD against the candidate, rejects a dirty tracked tree and bounds the
-checkout's entries, depth and bytes. A failed preparation can leave a partial
+checkout's entries, depth and bytes. It rejects absolute and relative symlink
+targets that lexically escape the checkout. A failed preparation can leave a partial
 checkout, which must be removed by the manager before that run ID is reused.
 The checkout size check runs after clone, so the installed service also needs
 CPU, memory, runtime and writable-space limits during extraction.
@@ -98,6 +99,9 @@ a fixed cleanup service with only `CAP_DAC_OVERRIDE` and `CAP_FOWNER` and
 removed that partial checkout; inspection confirmed its absence. The preparer,
 manager cleanup and reviewer launch are not yet wired to the broker. The
 temporary binaries, mounts, service instances and scratch repository were removed.
+An additional isolated bundle probe rejected an escaping symlink after clone
+and accepted a contained relative symlink. Both temporary checkouts and their
+source bundles were removed.
 
 A transient check also confirmed that a root service with no capabilities, no
 new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged

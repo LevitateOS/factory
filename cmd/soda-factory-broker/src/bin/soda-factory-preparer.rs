@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const SOURCE: &str = "/run/factory-source";
@@ -88,6 +88,28 @@ fn git(args: &[&str]) -> Command {
     command
 }
 
+fn contained_symlink(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .and_then(|parent| parent.strip_prefix(root).ok())
+        .ok_or_else(|| refused("reviewer symlink parent invalid"))?;
+    let mut depth = parent
+        .components()
+        .filter(|component| matches!(component, Component::Normal(_)))
+        .count();
+    for component in target.components() {
+        match component {
+            Component::Normal(_) => depth += 1,
+            Component::CurDir => (),
+            Component::ParentDir if depth > 0 => depth -= 1,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(refused("reviewer symlink escapes checkout"));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn check_tree(root: &Path) -> io::Result<()> {
     let mut total = 0u64;
     let mut entries = 0usize;
@@ -113,6 +135,7 @@ fn check_tree(root: &Path) -> io::Result<()> {
                 if target.as_os_str().len() > 4096 {
                     return Err(refused("reviewer checkout symlink bound exceeded"));
                 }
+                contained_symlink(root, &path, &target)?;
                 total = total.saturating_add(target.as_os_str().len() as u64);
             } else {
                 return Err(refused("reviewer checkout has special file"));

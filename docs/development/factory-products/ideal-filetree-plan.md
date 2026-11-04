@@ -429,6 +429,11 @@ mounts and scratch repository were removed.
 The size check runs after Git extraction; production must also limit the
 preparer's CPU, memory, runtime and writable filesystem space before accepting
 an untrusted compressed bundle.
+The preparer now rejects checkout symlinks whose absolute or relative targets
+escape the checkout lexically. Under the same transient isolated service
+profile, an escaping-symlink bundle was refused and a contained relative
+symlink bundle was accepted. The partial and successful checkouts, mounts,
+service instances and scratch source were removed.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
