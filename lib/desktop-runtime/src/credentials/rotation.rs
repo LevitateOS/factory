@@ -103,6 +103,7 @@ impl Credentials {
             .write_all(identity.as_bytes())
             .and_then(|_| marker.sync_all())
             .map_err(|_| Error::Storage)?;
+        self.changes.send_replace(());
         self.sync_refreshes()?;
         Ok(Reservation {
             connection: cap.connection.clone(),

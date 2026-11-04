@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use tokio::sync::watch;
 use zeroize::Zeroizing;
 mod grant;
 mod rotation;
@@ -19,6 +20,8 @@ const APP: &str = "dev.soda.factory";
 const DEADLINE: Duration = Duration::from_secs(5);
 const LEASE: Duration = Duration::from_secs(30);
 const OPERATION: Duration = Duration::from_secs(8);
+const STREAM_RECHECK: Duration = Duration::from_secs(2);
+const MAX_STREAM: Duration = Duration::from_secs(4 * 60 * 60);
 type Result<T> = std::result::Result<T, Error>;
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -186,6 +189,7 @@ pub struct Credentials {
     owner: String,
     retired: AtomicBool,
     withdrawn: Mutex<BTreeSet<String>>,
+    changes: watch::Sender<()>,
     gate: tokio::sync::Mutex<()>,
 }
 impl Credentials {
@@ -201,6 +205,7 @@ impl Credentials {
         private_dir(&markers).map_err(|_| Error::Storage)?;
         let refreshes = profile_dir.join("refreshing-credentials");
         private_dir(&refreshes).map_err(|_| Error::Storage)?;
+        let (changes, _) = watch::channel(());
         Ok(Self {
             profile: profile.into(),
             markers,
@@ -209,11 +214,13 @@ impl Credentials {
             owner: random()?,
             retired: AtomicBool::new(false),
             withdrawn: Mutex::new(BTreeSet::new()),
+            changes,
             gate: tokio::sync::Mutex::new(()),
         })
     }
     pub fn retire(&self) {
         self.retired.store(true, Ordering::SeqCst);
+        self.changes.send_replace(());
     }
     fn alive(&self) -> Result<()> {
         if self.retired.load(Ordering::SeqCst) {
@@ -252,6 +259,7 @@ impl Credentials {
             return Err(Error::Invalid);
         }
         self.withdrawn.lock().unwrap().insert(connection.into());
+        self.changes.send_replace(());
         private_file(&self.markers.join(connection), false)
             .and_then(|file| Ok(file.sync_all()?))
             .map_err(|_| Error::Storage)?;
@@ -570,6 +578,62 @@ impl Credentials {
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
         self.with_secret_operation(cap, false, operation).await
+    }
+    async fn current_stream_revision(&self, original: &TokenCapability) -> Result<()> {
+        let current = self.capability(&original.connection).await?;
+        if current.owner != original.owner || !original.admits(&current.account, &current.revision)
+        {
+            return Err(Error::Retired);
+        }
+        self.with_secret(&current, false, |_| ()).await
+    }
+    /// Run-owned streaming provider I/O. The native caller supplies its finite
+    /// run deadline and must drop the callback on cancellation. A fresh OS
+    /// capability is checked every two seconds, so an operation can outlive
+    /// its initial 30-second admission lease without retaining stale authority.
+    /// Local withdrawal, replacement and owner retirement drop the callback
+    /// immediately; independent keyring mutation is detected at the next
+    /// current-revision check. No secret leaves this native callback.
+    pub async fn with_token_stream<T>(
+        &self,
+        cap: &TokenCapability,
+        duration: Duration,
+        operation: impl AsyncFnOnce(&[u8]) -> T,
+    ) -> Result<T> {
+        if duration.is_zero() || duration > MAX_STREAM {
+            return Err(Error::Invalid);
+        }
+        let deadline = Instant::now() + duration;
+        let mut changes = self.changes.subscribe();
+        let work = async {
+            let token = self
+                .with_secret(cap, false, |bytes| Token(Zeroizing::new(bytes.to_vec())))
+                .await?;
+            let operation = operation(&token.0);
+            tokio::pin!(operation);
+            let mut recheck = tokio::time::interval(STREAM_RECHECK);
+            recheck.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            loop {
+                tokio::select! {
+                    biased;
+                    changed = changes.changed() => {
+                        let _ = changed;
+                        return Err(Error::Retired);
+                    }
+                    _ = recheck.tick() => self.current_stream_revision(cap).await?,
+                    result = &mut operation => {
+                        self.current_stream_revision(cap).await?;
+                        if changes.has_changed().unwrap_or(true) {
+                            return Err(Error::Retired);
+                        }
+                        return Ok(result);
+                    }
+                }
+            }
+        };
+        tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), work)
+            .await
+            .unwrap_or(Err(Error::Deadline))
     }
     /// Native refresh transport only. Expired access authority is never borrowed
     /// here; the independent refresh expiration and current revision still gate

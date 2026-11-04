@@ -378,6 +378,25 @@ carrying an unprivileged placeholder credential. The fake endpoint, scratch
 workspace and listener were removed. It does not establish all provider
 routes, proxy token replacement, live account authority or a finite model run.
 
+A later dummy-key Muse 1.4.14 check disabled reminders, user input, shell,
+writes, web tools and foreign personal context. It observed one
+`GET /muse-code/models` followed by `POST /v1/responses` with `stream:true`
+and a 107,066-byte request body. The exact path depends on the configured
+base URL. The fake endpoint returned 401, so no model ran. This confirms a
+whole-response eight-second credential callback is insufficient as the sole
+provider boundary. The probe listener and scratch files were removed.
+
+The native credential owner now has a finite streaming callback. It borrows
+the token only inside Rust, renews and rechecks the same OS keyring revision
+every two seconds, and drops the callback on local withdrawal, replacement,
+owner retirement or deadline. An independently reopened keyring owner is
+detected at the next recheck. A fresh isolated GNOME Keyring run proved those
+refusals, invalid duration bounds, callback drop, and a current stream
+continuing past its original 30-second admission lease while the old short
+operation was refused. The isolated keyring processes and fixture state were
+removed. This is a credential-custody prerequisite, not a worker proxy or a
+real provider run; D3 remains open.
+
 The first privileged workspace-transfer component is now
 `cmd/soda-factory-broker`. It is a root-owned, socket-activated staging service
 with no launch request: it admits only a desktop-UID peer and a bounded Git

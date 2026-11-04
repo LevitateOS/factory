@@ -84,6 +84,34 @@ fn launch(
         dropped,
     }
 }
+fn launch_stream(
+    store: Arc<Credentials>,
+    cap: Arc<TokenCapability>,
+    expected: Vec<u8>,
+    duration: Duration,
+) -> Flight {
+    let (started, start) = oneshot::channel();
+    let (finish, done) = oneshot::channel();
+    let dropped = Arc::new(AtomicBool::new(false));
+    let marker = dropped.clone();
+    let task = tokio::spawn(async move {
+        store
+            .with_token_stream(&cap, duration, async |bytes| {
+                let _dropped = Dropped(marker);
+                let correct = bytes == expected;
+                let _ = started.send(correct);
+                let _ = done.await;
+                correct
+            })
+            .await
+    });
+    Flight {
+        task,
+        started: start,
+        finish,
+        dropped,
+    }
+}
 fn prepare(profile: &Path) -> Result<()> {
     let parent = profile.parent().ok_or("private fixture parent required")?;
     ensure(
@@ -151,9 +179,10 @@ async fn run(profile: &Path) -> Result<()> {
         "capability escaped native owner",
     )?;
 
-    let flight = launch(store.clone(), cap, first.clone(), false);
+    let flight = launch(store.clone(), cap.clone(), first.clone(), false);
+    let stream = launch_stream(store.clone(), cap, first.clone(), Duration::from_secs(10));
     ensure(
-        flight.started.await?,
+        flight.started.await? && stream.started.await?,
         "native operation received wrong token",
     )?;
     store.withdraw(&saved.connection).await?;
@@ -165,13 +194,20 @@ async fn run(profile: &Path) -> Result<()> {
         flight.task.await? == Err(Error::Withdrawn) && flight.dropped.load(Ordering::SeqCst),
         "withdrawal released a stale native result",
     )?;
-    println!("PASS: real keyring withdrawal completes while native I/O is pending and refuses its result");
+    ensure(
+        tokio::time::timeout(Duration::from_secs(2), stream.task).await?? == Err(Error::Retired)
+            && stream.dropped.load(Ordering::SeqCst),
+        "local withdrawal did not promptly drop streaming token use",
+    )?;
+    drop(stream.finish);
+    println!("PASS: real keyring withdrawal completes while native I/O is pending and promptly drops a streaming callback");
 
     let saved = store.store(account(), Token::new(first.clone())?).await?;
     let cap = Arc::new(store.capability(&saved.connection).await?);
     let flight = launch(store.clone(), cap.clone(), first.clone(), false);
+    let stream = launch_stream(store.clone(), cap, first.clone(), Duration::from_secs(10));
     ensure(
-        flight.started.await?,
+        flight.started.await? && stream.started.await?,
         "rotation operation received wrong token",
     )?;
     // A separate owner forces the post-I/O check to observe actual OS metadata,
@@ -189,12 +225,20 @@ async fn run(profile: &Path) -> Result<()> {
         flight.task.await? == Err(Error::Retired) && flight.dropped.load(Ordering::SeqCst),
         "OS credential revision change released a stale result",
     )?;
-    println!("PASS: independently reopened keyring owner rotates the real credential during I/O; old result refused");
+    let stream_result = tokio::time::timeout(Duration::from_secs(5), stream.task).await??;
+    ensure(
+        matches!(stream_result, Err(Error::Retired | Error::Withdrawn))
+            && stream.dropped.load(Ordering::SeqCst),
+        "independent replacement did not stop streaming token use",
+    )?;
+    drop(stream.finish);
+    println!("PASS: independently reopened keyring owner rotates the real credential during I/O; old streaming use and result refused");
 
     let cap = Arc::new(store.capability(&saved.connection).await?);
-    let flight = launch(store.clone(), cap, second.clone(), false);
+    let flight = launch(store.clone(), cap.clone(), second.clone(), false);
+    let stream = launch_stream(store.clone(), cap, second.clone(), Duration::from_secs(10));
     ensure(
-        flight.started.await?,
+        flight.started.await? && stream.started.await?,
         "retirement operation received wrong token",
     )?;
     store.retire();
@@ -206,6 +250,12 @@ async fn run(profile: &Path) -> Result<()> {
         flight.task.await? == Err(Error::Retired),
         "native owner retirement released a result",
     )?;
+    ensure(
+        tokio::time::timeout(Duration::from_secs(2), stream.task).await?? == Err(Error::Retired)
+            && stream.dropped.load(Ordering::SeqCst),
+        "owner retirement retained streaming token use",
+    )?;
+    drop(stream.finish);
     store = Arc::new(Credentials::open(profile, namespace)?);
 
     let cap = Arc::new(store.capability(&saved.connection).await?);
@@ -239,11 +289,51 @@ async fn run(profile: &Path) -> Result<()> {
     println!("PASS: caller cancellation and actual eight-second operation deadline drop pending native work");
 
     let cap = Arc::new(store.capability(&saved.connection).await?);
+    let stream = launch_stream(
+        store.clone(),
+        cap.clone(),
+        second.clone(),
+        Duration::from_secs(1),
+    );
+    ensure(
+        stream.started.await?,
+        "stream deadline received wrong token",
+    )?;
+    ensure(
+        stream.task.await? == Err(Error::Deadline) && stream.dropped.load(Ordering::SeqCst),
+        "finite stream deadline retained token use",
+    )?;
+    drop(stream.finish);
+    let called = AtomicBool::new(false);
+    for invalid in [Duration::ZERO, Duration::from_secs(4 * 60 * 60 + 1)] {
+        ensure(
+            store
+                .with_token_stream(&cap, invalid, async |_| {
+                    called.store(true, Ordering::SeqCst);
+                })
+                .await
+                == Err(Error::Invalid),
+            "invalid stream lifetime admitted token use",
+        )?;
+    }
+    ensure(
+        !called.load(Ordering::SeqCst),
+        "invalid stream invoked callback",
+    )?;
+    println!("PASS: finite streaming deadline drops token use; zero and over-four-hour lifetimes refuse before callback");
+
+    let cap = Arc::new(store.capability(&saved.connection).await?);
     let lease_started = Instant::now();
     tokio::time::sleep(Duration::from_secs(28)).await;
     let flight = launch(store.clone(), cap.clone(), second.clone(), false);
+    let stream = launch_stream(
+        store.clone(),
+        cap.clone(),
+        second.clone(),
+        Duration::from_secs(8),
+    );
     ensure(
-        flight.started.await?,
+        flight.started.await? && stream.started.await?,
         "expiry operation received wrong token",
     )?;
     ensure(
@@ -253,7 +343,18 @@ async fn run(profile: &Path) -> Result<()> {
         "real capability expiry released a result",
     )?;
     drop(flight.finish);
-    println!("PASS: actual thirty-second native lease expires during I/O; no shortened test lease");
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    stream
+        .finish
+        .send(())
+        .map_err(|_| "stream ended before renewal")?;
+    ensure(
+        stream.task.await? == Ok(true)
+            && stream.dropped.load(Ordering::SeqCst)
+            && lease_started.elapsed() >= Duration::from_secs(30),
+        "current streaming credential did not renew beyond the initial lease",
+    )?;
+    println!("PASS: actual thirty-second admission lease expires during short I/O while a current, rechecked streaming call continues past that lease");
 
     // Refused capabilities never invoke the callback or retry work. A fresh
     // explicitly acquired capability can observe the current OS credential.
