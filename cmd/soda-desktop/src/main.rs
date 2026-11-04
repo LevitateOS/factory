@@ -1,7 +1,8 @@
 mod bridge;
 mod product;
 use product::{
-    factory_connect, factory_disconnect, factory_product_cancel, factory_product_request,
+    factory_connect, factory_disconnect, factory_find_repository, factory_open_link,
+    factory_prepare_connection, factory_product_cancel, factory_product_request,
     factory_repositories,
 };
 mod signin;
@@ -10,6 +11,7 @@ use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_
 mod check;
 #[cfg(feature = "native-check")]
 mod check_credentials;
+#[cfg(feature = "native-check")]
 use bridge::{Mutation, Query};
 use serde::Serialize;
 use serde_json::Value;
@@ -159,6 +161,7 @@ impl Desktop {
             .clone()
             .ok_or("native credential storage is unavailable".into())
     }
+    #[cfg(feature = "native-check")]
     async fn call(&self, method: &str, path: &str, body: Value) -> Result<Reply, String> {
         if self.quitting.load(Ordering::SeqCst) || self.starting.load(Ordering::SeqCst) {
             return Err("Factory is unavailable".into());
@@ -300,6 +303,7 @@ async fn credential_withdraw(
     }
     store.withdraw(&connection).await.map_err(|e| e.to_string())
 }
+#[cfg(feature = "native-check")]
 #[tauri::command]
 async fn factory_query(
     window: WebviewWindow,
@@ -310,6 +314,7 @@ async fn factory_query(
     let path = query.target()?;
     app.state::<Desktop>().call("GET", &path, Value::Null).await
 }
+#[cfg(feature = "native-check")]
 #[tauri::command]
 async fn factory_command(
     window: WebviewWindow,
@@ -320,6 +325,7 @@ async fn factory_command(
     let (path, body) = command.request()?;
     app.state::<Desktop>().call("POST", &path, body).await
 }
+#[cfg(feature = "native-check")]
 #[tauri::command]
 fn factory_stream(
     window: WebviewWindow,
@@ -384,6 +390,7 @@ fn factory_stream(
     );
     Ok(id)
 }
+#[cfg(feature = "native-check")]
 #[tauri::command]
 fn cancel_stream(
     window: WebviewWindow,
@@ -650,6 +657,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_open,
         factory_query,
         factory_connect,
+        factory_prepare_connection,
+        factory_find_repository,
+        factory_open_link,
         factory_disconnect,
         factory_repositories,
         factory_product_request,
@@ -672,15 +682,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
-        factory_query,
         factory_connect,
+        factory_prepare_connection,
+        factory_find_repository,
+        factory_open_link,
         factory_disconnect,
         factory_repositories,
         factory_product_request,
         factory_product_cancel,
-        factory_command,
-        factory_stream,
-        cancel_stream,
         open_window,
         close_window,
         quit_factory

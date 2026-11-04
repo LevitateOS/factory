@@ -28,6 +28,7 @@ struct Selection {
     generation: u64,
     cancelled: watch::Sender<bool>,
     binding: Mutex<Option<Binding>>,
+    connecting: AtomicBool,
 }
 struct Job {
     window: String,
@@ -163,12 +164,12 @@ fn product_caller(window: &WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(super) async fn factory_connect(
+pub(super) async fn factory_prepare_connection(
     window: WebviewWindow,
     app: tauri::AppHandle,
     connection: String,
     repository: Option<String>,
-) -> Result<Binding, String> {
+) -> Result<String, String> {
     product_caller(&window)?;
     if !registry(&connection)
         || repository
@@ -195,11 +196,28 @@ pub(super) async fn factory_connect(
             generation: desktop.generation.load(Ordering::SeqCst),
             cancelled: watch::channel(false).0,
             binding: Mutex::new(None),
+            connecting: AtomicBool::new(false),
         });
         selections.insert(window.label().into(), selection.clone());
         (selection, retired)
     };
     join(retired).await;
+    current(&desktop, &selection)?;
+    Ok(selection.id.clone())
+}
+
+#[tauri::command]
+pub(super) async fn factory_connect(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    session: String,
+) -> Result<Binding, String> {
+    product_caller(&window)?;
+    let desktop = app.state::<Desktop>();
+    let selection = desktop.product.selected(window.label(), &session)?;
+    if selection.connecting.swap(true, Ordering::SeqCst) {
+        return Err("Factory connection was already requested".into());
+    }
     let work = async {
         // Closing can race registration; admit the window again after the
         // selection is installed so closure either refuses or cancels it.
@@ -266,9 +284,24 @@ pub(super) async fn factory_connect(
 pub(super) async fn factory_disconnect(
     window: WebviewWindow,
     app: tauri::AppHandle,
+    session: Option<String>,
 ) -> Result<(), String> {
     caller(&window)?;
-    let retired = app.state::<Desktop>().product.retire(Some(window.label()));
+    let desktop = app.state::<Desktop>();
+    let retired = {
+        let mut selections = desktop.product.selections.lock().unwrap();
+        if session
+            .as_ref()
+            .is_none_or(|id| selections.get(window.label()).is_some_and(|s| &s.id == id))
+        {
+            if let Some(old) = selections.remove(window.label()) {
+                old.cancelled.send_replace(true);
+            }
+            desktop.product.retire_jobs(Some(window.label()))
+        } else {
+            vec![]
+        }
+    };
     join(retired).await;
     Ok(())
 }
@@ -286,33 +319,83 @@ pub(super) async fn factory_repositories(
     }
     let desktop = app.state::<Desktop>();
     let selection = desktop.product.selected(window.label(), &session)?;
-    let work = async {
-        current(&desktop, &selection)?;
-        if selection.binding.lock().unwrap().is_none() {
-            return Err("Factory account is not connected".into());
-        }
-        let credentials = desktop.credentials()?;
-        let cap = credentials
-            .capability(&selection.connection)
-            .await
-            .map_err(|_| "Factory account is unavailable")?;
-        let read = desktop
-            .runtime
-            .lock()
-            .unwrap()
-            .as_ref()
-            .ok_or("Factory is unavailable")?
-            .github_read(&credentials, &cap, Read::Repositories { page, limit: 20 });
-        let reply = read
-            .await
-            .map_err(|_| "Repository discovery is unavailable")?;
-        current(&desktop, &selection)?;
-        Ok(Reply {
-            status: reply.status,
-            body: reply.body,
-        })
-    };
+    let work = discover(&desktop, &selection, Read::Repositories { page, limit: 20 });
     tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = work => result}
+}
+async fn discover(desktop: &Desktop, selection: &Selection, query: Read) -> Result<Reply, String> {
+    current(desktop, selection)?;
+    if selection.binding.lock().unwrap().is_none() {
+        return Err("Factory account is not connected".into());
+    }
+    let credentials = desktop.credentials()?;
+    let cap = credentials
+        .capability(&selection.connection)
+        .await
+        .map_err(|_| "Factory account is unavailable")?;
+    let read = desktop
+        .runtime
+        .lock()
+        .unwrap()
+        .as_ref()
+        .ok_or("Factory is unavailable")?
+        .github_read(&credentials, &cap, query);
+    let reply = read
+        .await
+        .map_err(|_| "Repository discovery is unavailable")?;
+    current(desktop, selection)?;
+    Ok(Reply {
+        status: reply.status,
+        body: reply.body,
+    })
+}
+#[tauri::command]
+pub(super) async fn factory_find_repository(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    session: String,
+    name: String,
+) -> Result<Reply, String> {
+    product_caller(&window)?;
+    let desktop = app.state::<Desktop>();
+    let selection = desktop.product.selected(window.label(), &session)?;
+    let work = discover(&desktop, &selection, Read::FindRepository { name });
+    tokio::select! {biased; _ = cancelled(&selection) => Err("Factory connection retired".into()), result = work => result}
+}
+#[tauri::command]
+pub(super) async fn factory_open_link(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    session: String,
+    url: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    product_caller(&window)?;
+    let target = tauri::Url::parse(&url).map_err(|_| "invalid web link")?;
+    if url.len() > 4096
+        || url.chars().any(char::is_control)
+        || !matches!(target.scheme(), "https" | "http" | "mailto")
+        || !target.username().is_empty()
+        || target.password().is_some()
+    {
+        return Err("unsupported web link".into());
+    }
+    let selection = app
+        .state::<Desktop>()
+        .product
+        .selected(window.label(), &session)?;
+    if selection.binding.lock().unwrap().is_none() {
+        return Err("Factory account is not connected".into());
+    }
+    current(&app.state::<Desktop>(), &selection)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        product_caller(&window)?;
+        current(&app.state::<Desktop>(), &selection)?;
+        app.opener()
+            .open_url(target.as_str(), None::<&str>)
+            .map_err(|_| "web link could not open".to_string())
+    })
+    .await
+    .map_err(|_| "web link is unavailable")?
 }
 
 #[derive(Serialize)]

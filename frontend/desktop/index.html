@@ -33,6 +33,32 @@
       <button id="github-cancel" type="button" hidden>Cancel sign-in</button>
       <ul id="github-accounts" aria-label="Saved GitHub accounts"></ul>
     </section>
+    <section class="desktop-connections" aria-label="Factory connection">
+      <label
+        >Account
+        <select id="factory-account" disabled>
+          <option value="">Choose an account</option>
+        </select></label
+      >
+      <label
+        >Repository
+        <select id="factory-repository" disabled>
+          <option value="">Choose a repository</option>
+        </select></label
+      >
+      <button id="repository-more" type="button" hidden>Load more repositories</button>
+      <button id="connection-reconnect" type="button" disabled>Reconnect</button>
+      <button id="connection-disconnect" type="button" disabled>Disconnect</button>
+      <form id="repository-find">
+        <label
+          >GitHub repository
+          <input id="repository-name" placeholder="owner/name or GitHub URL" autocomplete="off" disabled
+        /></label>
+        <button type="submit" disabled>Open repository</button>
+      </form>
+      <p id="connection-status" role="status">Choose a saved account to connect.</p>
+      <p>Execution is unavailable.</p>
+    </section>
     <div id="application"></div>
     <script type="module" src="desktop.js"></script>
   </body>

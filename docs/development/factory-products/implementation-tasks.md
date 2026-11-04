@@ -575,7 +575,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 179 | T06-CONNECT-PRODUCT | T06-CONNECT-PORTS | N2 producer: Compose Go current-account/canonical repository binding and shared Factory feed/request/retained-read services over the admitted native semantic ports; retain Go transaction/policy authority and explicit missing execution/planning states. Qualify the actual bound HTTP operation before desktop selection/UI. | Complete |
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
-| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and empty filtered issue pages with continuations (the current shared parser rejects them). Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Pending |
+| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and empty filtered issue pages with continuations (the current shared parser rejects them). Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
@@ -24600,3 +24600,48 @@ Workflow jobs/branch-rule evidence, the connected provider gate, substantive nat
 execution and admitted single-coordinator startup remain required later work.
 The full Linux Factory and adopted Go/Rust allocation goal stays active. Commit and
 push this coherent checkpoint before starting the next slice.
+
+
+## T06-CONNECT — connected shared desktop application (2026-11-04)
+
+Previous turn made progress: 65bbbc8 is verified and pushed. Revalidated clean main.
+Only CONNECT is Active. Consume the native bridge for actual account/repository
+selection, scoped cancellable transport and the shared Lit application. Preserve
+Go product/transaction authority, Rust custody/lifecycle and one shared UI. Keep
+missing execution and provider mutation dependencies unavailable. Retire the old
+unbound production IPC surface at this consumer cutover; keep historical native
+control probes confined to the opt-in acceptance build. No new unit tests, test
+roots, branches, tracking systems or parallel agents.
+
+
+T06-CONNECT source checkpoint (2026-11-04): shared desktop selectors, prepared
+window handles, cancellable transport, stable scoped drafts and the Lit context
+are implemented. Normal builds omit the superseded unbound IPC surface. A new
+Rust semantic repository-name lookup and bounded web-link opener stay native.
+The shared issue parser/presentation preserves empty filtered continuations,
+with the production Storybook state and direct rendered continuation check passing.
+Type checking, shared/desktop/Storybook builds, targeted lint, Lit checks, source
+policy and the engine/provider boundary check pass. Native-check and normal
+native-ui compilation pass (normal compilation reports one unused Duration import).
+These are source/component results, not the connected desktop outcome.
+
+The existing actual native consent journey was extended to drive selectors,
+feed/issues/detail and repository-scoped local drafts through real WebKit IPC.
+The first unapproved challenge was explicitly stopped to correct its evidence
+metadata; the second process reached the real sign-in prompt and native IPC checks
+but aborted before consent with malloc(): unaligned fastbin chunk detected. Its
+children are gone and Secret Service SearchItems confirms no saved account object.
+The old C0D0-6607 challenge is no longer active. No successful connected UI or
+new approved-provider result is claimed; CONNECT stays Active.
+
+Failed native binary/assets/core/logs stay outside the repository in the existing
+.factory-signin-checks/connected-ui-v2 root. The saved core is truncated before
+usable stacks. The two native library prefixes have matching WebKit binaries,
+not a mismatched pair. Their WebKitGTK 2.50.4 is behind official stable 2.54.2
+(https://webkitgtk.org/2026/10/23/webkitgtk2.54.2-released.html), so it cannot
+qualify a fresh runtime baseline. Investigate the native heap failure and update
+the native input before the replacement connected journey. An upstream Tauri
+monitor-getter issue (https://github.com/tauri-apps/tauri/pull/15630) has similar
+symptoms but is not an established cause: this checkout uses runtime-wry 2.12.3,
+which routes these getters through the event loop. Preserve unfinished work and
+the same selected Go/Rust owners; do not infer qualification from compilation.

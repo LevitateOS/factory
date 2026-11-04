@@ -4,6 +4,7 @@ import type {IssueListContext} from '../factory/issues/issues.js';
 export type IssueListStoryState =
   | 'ready'
   | 'empty'
+  | 'empty-filtered'
   | 'loading'
   | 'offline'
   | 'denied'
@@ -81,6 +82,10 @@ export function issuesStoryPeer(state: IssueListStoryState = 'ready', repository
           cursor = url.searchParams.get('cursor') ?? '';
         let rows = state === 'empty' ? [] : items.filter((item) => selected === 'all' || item.state === selected);
         let next = '';
+        if (state === 'empty-filtered' && !cursor) {
+          rows = [];
+          next = 'filtered-next';
+        }
         if (state === 'paged' && rows.length > 1) {
           rows = cursor ? rows.slice(1) : rows.slice(0, 1);
           if (!cursor) next = 'opaque:/next?scope=declared&v=1';

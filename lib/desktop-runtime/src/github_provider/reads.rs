@@ -70,6 +70,12 @@ impl Client {
                 Read::Repository { repository } => {
                     result["repository"] = self.repository(repository, token).await?;
                 }
+                Read::FindRepository {name} => {
+                    let response = self.get(&format!("/repos/{name}"), &[], token).await?;
+                    let observed = r::repository(&response.value)?;
+                    if !r::text(&observed,"name")?.eq_ignore_ascii_case(name) {return Err(Failure::protocol());}
+                    result["repository"] = observed;
+                }
                 _ => {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
@@ -129,10 +135,7 @@ impl<'a> Reader<'a> {
     async fn new(client: &'a Client, token: &'a [u8], repository: &'a str) -> Result<Self> {
         let raw = client.repository(repository, token).await?;
         let name = r::text(&raw, "name")?;
-        let Some((owner, repo)) = name.split_once('/') else {
-            return Err(Failure::protocol());
-        };
-        if !segment(owner) || !segment(repo) {
+        if !super::request::repository_name(name) {
             return Err(Failure::protocol());
         }
         Ok(Self {
@@ -470,12 +473,4 @@ pub(super) fn unique(seen: &mut HashSet<String>, id: &str) -> Result<()> {
     } else {
         Err(Failure::protocol())
     }
-}
-fn segment(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 100
-        && !matches!(value, "." | "..")
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
 }

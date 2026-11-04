@@ -9,7 +9,7 @@ const meta = {
   argTypes: {
     state: {
       control: 'select',
-      options: ['ready', 'empty', 'loading', 'offline', 'denied', 'paged', 'missing', 'plain-text'],
+      options: ['ready', 'empty', 'empty-filtered', 'loading', 'offline', 'denied', 'paged', 'missing', 'plain-text'],
     },
   },
   render: ({state}) => {
@@ -23,6 +23,7 @@ export default meta;
 type Story = StoryObj<{state: IssueListStoryState}>;
 export const OpenIssues: Story = {};
 export const Empty: Story = {args: {state: 'empty'}};
+export const EmptyFilteredPage: Story = {args: {state: 'empty-filtered'}};
 export const Loading: Story = {args: {state: 'loading'}};
 export const Offline: Story = {args: {state: 'offline'}};
 export const Denied: Story = {args: {state: 'denied'}};

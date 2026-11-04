@@ -36,7 +36,10 @@ saved native connection and optional remote repository, then obtains canonical
 account and selected repository identities through the production Go services.
 Readiness and browser-supplied canonical IDs cannot establish this binding.
 
-factory_connect replaces only its window's selection. factory_repositories uses
+factory_prepare_connection retires only its window's selection and returns its
+new handle before account/provider I/O. factory_connect consumes that handle once.
+A superseded pending connect cannot recreate an older selection. Scoped disconnect
+cannot retire a newer handle. factory_repositories uses
 the defining headless Rust connector for current account repository discovery;
 selection maps the chosen remote identity through Go. factory_product_request
 accepts only normalized paths under the two shared product API roots, with typed
@@ -53,13 +56,26 @@ retire pending work and suppress stale completions. Explicit disconnect and
 replacement join cancelled product tasks; native runtime retirement also joins
 its provider/callback/I/O owners before stopping children. Quit joins shell tasks
 before stopping the runtime. Product I/O never holds the child lifecycle lock.
-The UI consumer must also discard buffered completions from an older selection.
+The desktop transport also discards buffered completions from an older selection
+and propagates component AbortSignals to native cancellation.
 
-The shared application still displays its disconnected state until T06-CONNECT
-consumes this bridge for account/repository selection and its Lit context. The old
-four unbound query/mutation commands remain only until that consumer cutover;
-they confer no connected authority. Existing recorded-run polling is separate
-from executor terminal streams. No coordinator or execution port is activated.
+The production desktop now mounts the same Lit feed, request editor, issue
+list/detail/discussion and drafts, work views and knowledge library. Choose a saved
+account, then a repository; load more discovery pages or open a GitHub URL or
+owner/name. The Rust connector resolves names into stable remote IDs, and Go maps
+the selection into canonical product IDs. Native metadata supplies the observed
+default branch for relative Markdown links; missing facts do not become a guessed
+branch. User-clicked web/mail links use a bounded native opener restricted to
+HTTP/HTTPS/mailto without credentials, after current-window/selection admission.
+
+Navigation uses canonical local hash routes; a route cannot enlarge native scope.
+Drafts use stable profile/provider/actor scope and existing shared repositories and
+subject keys. Switching/disconnect/retirement clears views and pending replies
+without deleting drafts. Empty filtered issue pages retain their continuation.
+Selectors are stable during readiness polling. Missing execution is explicit;
+no coordinator or execution port is activated. Shared PR views remain T08-READ.
+The old unbound query/mutation and recorded-run polling IPC surface is absent from
+normal builds; its historical control probes exist only with native-check.
 
 Linux account tokens use the login session's OS Secret Service through the
 [native credential owner](../../lib/desktop-runtime/README.md#native-account-credentials).
@@ -69,7 +85,7 @@ public device-flow client ID. Grant exchange, account verification, authenticate
 complete access/refresh credential storage are owned by headless Rust. Go accepts
 only credential-free observations and owns canonical mapping/product transactions. The webview receives the short
 user code, fixed verification URL, expiration and safe account metadata; it has no
-token getter, token writer, arbitrary opener or keyring-passphrase command.
+token getter, token writer, shell opener or keyring-passphrase command.
 Native metadata shows the provider-observed account name while stable provider
 IDs remain the identity. **Remove from Factory** durably denies local use and
 removes the saved credential; it does not revoke the GitHub OAuth app grant.
@@ -79,9 +95,9 @@ backend failure and Quit retire the attempt. Cancellation and the bounded save
 have one ordering: an already completed save remains saved. Saved accounts remain
 after runtime restart. A locked or absent keyring reports an error; there is no
 file fallback. Native refresh transport/custody exists; automatic connection
-management and connected browsing remain later consumers. Native connection
-admission and Go canonical binding now exist behind the product bridge; a saved
-GitHub account alone still does not admit Factory work.
+management beyond explicit selection/reconnect remains later work. Connected
+browsing now uses native admission and Go canonical binding behind the product
+bridge; a saved GitHub account alone still does not admit Factory work.
 
 `--check-control` extends the opt-in native acceptance root with a declared slow
 trusted Go product binding over real private PostgreSQL/Go/IPC. It checks shell

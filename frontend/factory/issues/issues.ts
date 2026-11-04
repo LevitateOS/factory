@@ -179,7 +179,7 @@ export class SodaFactoryIssues extends LitElement {
         </button>
       </header>
       <p role="status">
-        ${this.view.busy ? 'Loading issues…' : this.view.message || (!this.view.items.length ? 'No issues in this view.' : '')}
+        ${this.view.busy ? 'Loading issues…' : this.view.message || (!this.view.items.length ? (this.view.next ? 'No issues on this page. More results are available on the next page.' : 'No issues in this view.') : '')}
       </p>
       <ul>
         ${this.view.items.map(

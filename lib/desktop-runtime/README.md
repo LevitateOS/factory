@@ -82,7 +82,8 @@ protects stale owned-socket recovery; cleanup preserves any replacement inode.
 The production Go executable now binds its shared core product services only for
 these admitted operations, using fresh verified facts and one canonical mapping
 transaction. Ordinary unscoped calls still refuse. Shared collaboration read
-sources now consume these ports; desktop selection/UI remains a consumer.
+sources and the shared desktop UI now consume these ports. Native connection
+selection and its cancellable Tauri transport stay in the desktop host.
 This runtime does not start
 the product coordinator or grant planning/execution authority.
 
@@ -177,7 +178,8 @@ locator to a stable repository ID; Link URLs are never followed.
 
 `NativeSupervisor.github_read(credentials, capability, github::Read)` freshly
 admits native custody and verifies the actual account through /user. It accepts
-semantic selectors for repositories, issues, PRs, ordinary discussions, reviews,
+semantic selectors for repositories (including bounded owner/name lookup), issues,
+PRs, ordinary discussions, reviews,
 inline comments, REST review reply groups, check runs, statuses, immutable diffs
 and file pages. Reply groups collect a complete bounded forest (1,000 comments,
 20 upstream pages, 8 MiB aggregate) under the existing operation deadline; cycles,

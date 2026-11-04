@@ -50,6 +50,7 @@ impl ProductRequest {
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[cfg(feature = "native-check")]
 pub enum Query {
     Identity,
     Feed,
@@ -58,6 +59,7 @@ pub enum Query {
 }
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[cfg(feature = "native-check")]
 pub enum Mutation {
     SaveRequest {
         revision: Value,
@@ -76,6 +78,7 @@ pub enum Mutation {
         revision: String,
     },
 }
+#[cfg(feature = "native-check")]
 impl Query {
     pub fn target(&self) -> Result<String, String> {
         Ok(match self {
@@ -92,6 +95,7 @@ impl Query {
         })
     }
 }
+#[cfg(feature = "native-check")]
 impl Mutation {
     pub fn request(self) -> Result<(String, Value), String> {
         Ok(match self {
@@ -138,6 +142,7 @@ impl Mutation {
         })
     }
 }
+#[cfg(feature = "native-check")]
 fn decision(value: &str) -> Result<(), String> {
     if value.len() == 25
         && value.starts_with('d')
@@ -150,6 +155,7 @@ fn decision(value: &str) -> Result<(), String> {
         Err("invalid request identity".into())
     }
 }
+#[cfg(feature = "native-check")]
 pub fn run_id(value: &str) -> Result<(), String> {
     if value.len() == 32
         && value

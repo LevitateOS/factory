@@ -28,6 +28,7 @@ pub enum Read {
     Repository {
         repository: String,
     },
+    FindRepository { name: String },
     Issues {
         repository: String,
         page: u32,
@@ -133,6 +134,9 @@ pub(crate) fn commit(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::FindRepository {name} = self {
+            if !repository_name(name) {return Err(Failure::invalid());}
+        }
         let value = serde_json::to_value(self).map_err(|_| Failure::invalid())?;
         if let Some(repo) = value.get("repository") {
             if !repo.as_str().is_some_and(remote_id) {
@@ -199,4 +203,7 @@ impl Read {
     pub(crate) fn value(&self) -> Value {
         serde_json::to_value(self).expect("fixed native selector serialization")
     }
+}
+pub(super) fn repository_name(name: &str) -> bool {
+    name.split_once('/').is_some_and(|(owner, repo)| [owner,repo].iter().all(|part| !part.is_empty() && part.len() <= 100 && !matches!(*part,"."|"..") && part.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b,b'-'|b'_'|b'.'))))
 }

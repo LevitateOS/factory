@@ -52,7 +52,6 @@ export function issueListPage(
   });
   const next = text(page.next, 4096);
   check(page.complete === (next === '') && (next === '' || next !== cursor));
-  check(page.complete || items.length > 0);
   return {observation: observation(page.observation), items, next, complete: page.complete};
 }
 

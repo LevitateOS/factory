@@ -139,7 +139,8 @@ refuse without exposing account/provider error details. The binding must use
 current credential/connection truth and give resource callbacks the same bound
 account/generation; registered rows alone are not login evidence. No binding is
 decoded from browser JSON. The headless product binding is now supplied by the
-executable; desktop selection and connected presentation remain consumers.
+executable. The desktop now consumes it through prepared native selections and
+the shared Lit context; installed qualification remains a later gate.
 
 Duplicate processes refuse before store startup. Stale socket removal requires
 exclusive profile use, an owned socket inode and confirmed connection refusal;

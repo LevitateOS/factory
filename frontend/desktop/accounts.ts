@@ -1,4 +1,4 @@
-interface Account {
+export interface Account {
   connection: string;
   provider: string;
   origin: string;
@@ -16,7 +16,7 @@ interface Core {
   invoke<T>(command: string, args?: unknown): Promise<T>;
 }
 
-export function mountAccounts(core: Core) {
+export function mountAccounts(core: Core, changed: (accounts: readonly Account[]) => void = () => {}) {
   const status = document.querySelector<HTMLElement>('#github-status')!;
   const begin = document.querySelector<HTMLButtonElement>('#github-sign-in')!;
   const cancel = document.querySelector<HTMLButtonElement>('#github-cancel')!;
@@ -80,6 +80,7 @@ export function mountAccounts(core: Core) {
           'click',
           () =>
             void action(async () => {
+              changed(accounts.filter((value) => value.connection !== account.connection));
               await core.invoke('credential_withdraw', {connection: account.connection});
             })
         );
@@ -113,10 +114,13 @@ export function mountAccounts(core: Core) {
       if (next.phase !== view.phase) localError = null;
       view = next;
       accounts = saved.filter((account) => account.provider === 'github');
+      changed(accounts);
       render();
     } catch {
-      if (captured === generation && capturedInteraction === interaction)
+      if (captured === generation && capturedInteraction === interaction) {
+        changed([]);
         status.textContent = 'Saved accounts are unavailable. Unlock your desktop keyring and refresh.';
+      }
     } finally {
       reading = false;
     }
@@ -167,6 +171,7 @@ export function mountAccounts(core: Core) {
     if (generation !== epoch) {
       generation = epoch;
       accounts = [];
+      changed(accounts);
       localError = null;
       view = {attempt: 0, phase: 'idle', prompt: null, error: null};
     }

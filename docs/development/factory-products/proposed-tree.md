@@ -346,6 +346,10 @@ collaboration_errors.go retains only safe provider failure/rate observations.
 T06-CONNECT-BRIDGE defines cmd/soda-desktop/src/product.rs for per-window native
 selection, current custody, canonical Go binding and cancellable product IPC.
 bridge.rs admits only normalized shared product API operations, not provider URLs.
+The desktop consumer adds frontend/desktop/transport.ts (native channels, bounded
+JSON responses and cancellation), product.ts (shared context/navigation) and
+connections.ts (selectors/discovery/current binding). Rust prepares selection
+handles before provider I/O, and the shared Lit app stays the defining view owner.
 The existing headless runtime remains the provider/native lifetime owner. Go
 retains all product policy, canonical mapping and SQL. Desktop selection/shared UI
 remains the next consumer. Workflow jobs and branch rules

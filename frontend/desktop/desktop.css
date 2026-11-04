@@ -62,3 +62,28 @@ body {
 #github-cancel {
   margin-left: 8px;
 }
+.desktop-connections {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--soda-page-edge);
+}
+.desktop-connections label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 12px 4px 0;
+}
+.desktop-connections select,
+.desktop-connections input,
+.desktop-connections button {
+  font: inherit;
+  max-width: 100%;
+}
+.desktop-connections input {
+  min-width: 260px;
+}
+.desktop-connections form {
+  margin-top: 8px;
+}
+.desktop-connections p {
+  margin: 8px 0 0;
+}

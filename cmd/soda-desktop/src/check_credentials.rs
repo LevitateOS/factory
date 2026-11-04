@@ -763,7 +763,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
             "owned_local_account_removed":true, "remote_revocation_exercised":false,
             "canonical_factory_binding":true, "native_product_bridge":true,
-            "connected_shared_ui":false
+            "connected_shared_ui":true
         }),
     )
 }
@@ -773,18 +773,19 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
     // are real and read-only; these ports do not mount a second product view.
     let script = r#"(async()=>{
       const invoke=window.__TAURI__.core.invoke, assert=(ok,m)=>{if(!ok)throw Error(m)};
+      const connect=async(connection,repository)=>{const session=await invoke('factory_prepare_connection',{connection,repository});return invoke('factory_connect',{session});};
       const request=(session,path)=>new Promise((resolve,reject)=>{
         const channel=new window.__TAURI__.core.Channel();
         channel.onmessage=value=>value.error?reject(Error(value.error)):resolve(value.reply);
         invoke('factory_product_request',{session,request:{kind:'read',path},channel}).catch(reject);
       });
       try {
-        const account=await invoke('factory_connect',{connection:__CONNECTION__,repository:null});
+        const account=await connect(__CONNECTION__,null);
         assert(account.repository===null&&account.identity.actor&&account.identity.host,'account connection missing');
         const first=await invoke('factory_repositories',{session:account.session,page:1});
         assert(first.status===200&&Array.isArray(first.body.items),'native repository discovery unavailable');
         if(first.body.next_page) assert((await invoke('factory_repositories',{session:account.session,page:first.body.next_page})).status===200,'next discovery page unavailable');
-        const selected=await invoke('factory_connect',{connection:__CONNECTION__,repository:'724712'});
+        const selected=await connect(__CONNECTION__,'724712');
         assert(selected.session!==account.session&&selected.identity.actor===account.identity.actor&&selected.identity.host===account.identity.host,'connection switch changed account identity');
         assert(selected.repository.external_id==='724712'&&selected.repository.host===selected.identity.host,'canonical selected repository missing');
         let refused=false;try{await invoke('factory_repositories',{session:account.session,page:1})}catch{refused=true}assert(refused,'stale selection admitted discovery');
@@ -801,9 +802,50 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         await new Promise(r=>setTimeout(r,100));assert(completions===0,'cancelled native request delivered a reply');
         await invoke('factory_disconnect');
         refused=false;try{await invoke('factory_repositories',{session:selected.session,page:1})}catch{refused=true}assert(refused,'disconnected selection admitted discovery');
-        const reconnected=await invoke('factory_connect',{connection:__CONNECTION__,repository:'724712'});
+        const reconnected=await connect(__CONNECTION__,'724712');
         assert(reconnected.identity.actor===selected.identity.actor&&reconnected.repository.id===selected.repository.id,'reconnect changed canonical mappings');
         await invoke('factory_disconnect');
+        // Now drive the real selectors and shared components, rather than a
+        // declared frontend or direct native calls standing in for composition.
+        const until=async(check,label)=>{const deadline=Date.now()+40000;for(;;){if(await check())return;if(Date.now()>deadline)throw Error('Connected UI deadline: '+label);await new Promise(r=>setTimeout(r,25));}};
+        const accountSelect=document.querySelector('#factory-account');
+        await until(()=>[...accountSelect.options].some(o=>o.value===__CONNECTION__),'account option');
+        accountSelect.value=__CONNECTION__;accountSelect.dispatchEvent(new Event('change',{bubbles:true}));
+        await until(()=>!document.querySelector('#repository-name').disabled,'account context');
+        await until(()=>document.querySelector('soda-intent')?.shadowRoot?.querySelector('textarea:not([disabled])'),'shared request editor');
+        const outcome='Native connection keeps this request draft.';
+        const editor=document.querySelector('soda-intent').shadowRoot.querySelector('textarea:not([disabled])');
+        editor.value=outcome;editor.dispatchEvent(new Event('input',{bubbles:true,composed:true}));
+        await until(()=>Object.keys(localStorage).some(k=>k.startsWith('soda-intent-draft:')&&localStorage.getItem(k).includes(outcome)),'request draft retained');
+        const openRepository=async name=>{
+          const input=document.querySelector('#repository-name');input.value=name;
+          document.querySelector('#repository-find').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+          await until(()=>document.querySelector('#connection-status').textContent==='Connected to '+name+'.','selected '+name);
+        };
+        await openRepository('rust-lang/rust');
+        await until(()=>document.querySelector('soda-factory-feed'),'shared feed');
+        const nav=label=>{const button=[...document.querySelectorAll('soda-factory-app nav[aria-label="Factory"] button')].find(b=>b.textContent.trim()===label);assert(button&&!button.disabled,'shared navigation '+label);button.click();};
+        nav('Issues');
+        await until(()=>document.querySelector('.soda-issue-title:not([disabled])'),'actual shared issues');
+        document.querySelector('.soda-issue-title').click();
+        await until(()=>document.querySelector('soda-factory-issue .soda-issue-detail h2')?.textContent!=='Issue'&&document.querySelector('soda-factory-issue .soda-issue-detail h2'),'actual shared issue detail');
+        nav('New issue');
+        await until(()=>document.querySelector('soda-factory-issue-create input:not([disabled])'),'shared creation draft');
+        const title='Unsubmitted native issue draft';
+        const writing=document.querySelector('soda-factory-issue-create input');writing.value=title;writing.dispatchEvent(new Event('input',{bubbles:true}));
+        await until(()=>Object.keys(localStorage).some(k=>k.includes('issue')&&localStorage.getItem(k).includes(title)),'issue draft retained');
+        await openRepository('rust-lang/cargo');
+        nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input:not([disabled])'),'second repository draft');
+        assert(document.querySelector('soda-factory-issue-create input').value!==title,'repository draft leaked');
+        await openRepository('rust-lang/rust');nav('New issue');
+        await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'original repository draft restored');
+        document.querySelector('#connection-disconnect').click();
+        await until(()=>document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'disconnected app');
+        accountSelect.value=__CONNECTION__;accountSelect.dispatchEvent(new Event('change',{bubbles:true}));
+        await until(()=>!document.querySelector('#repository-name').disabled,'account reconnect');
+        nav('New request');
+        await until(()=>document.querySelector('soda-intent')?.shadowRoot?.querySelector('textarea')?.value===outcome,'request draft restored');
+        document.querySelector('#connection-disconnect').click();
         await invoke('report',{stage:'signin-product-complete',error:null});
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#.replace("__CONNECTION__", &serde_json::to_string(connection).map_err(|_| "connection encoding failed")?);

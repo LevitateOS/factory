@@ -43,8 +43,9 @@ credential-carrying routes are removed. Shared canonical issue/PR, discussion,
 review/reply-group, pinned file and check/status reads now consume these native
 facts through the same product services and Store. Fork references never confer
 access. Unknown resolution/anchors/branch rules remain unknown; workflow jobs and
-human mutations remain unavailable. Desktop selection/UI, remaining provider
-evidence, native execution and installed qualification are subsequent consumers.
+human mutations remain unavailable. The shared desktop views now consume these Go services through native admission.
+Remaining provider evidence, native execution and installed qualification are
+subsequent consumers.
 No provider credential passes through this executable.
 macOS native execution/qualification remains deferred.
 
