@@ -16,6 +16,9 @@ The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 this workspace on 2026-11-04. The recorded crash and the backtrace description
 are historical plan evidence; the original logs, cores and exact input hashes
 could not be re-inspected here. Retrieve them before claiming a diagnosis.
+The current worktree passes normal and opt-in native desktop source checks after
+the generated UI is built; these checks do not diagnose the crash or qualify
+connected authentication and IPC.
 
 ## Gate register
 

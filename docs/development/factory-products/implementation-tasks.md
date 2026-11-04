@@ -575,7 +575,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 179 | T06-CONNECT-PRODUCT | T06-CONNECT-PORTS | N2 producer: Compose Go current-account/canonical repository binding and shared Factory feed/request/retained-read services over the admitted native semantic ports; retain Go transaction/policy authority and explicit missing execution/planning states. Qualify the actual bound HTTP operation before desktop selection/UI. | Complete |
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
-| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Pending |
+| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
@@ -24759,3 +24759,18 @@ workspace/Git/artifact/custody composition and durable invocation/restart receip
 N4 still requires semantic Go ports, admitted single-coordinator startup and a
 real finite provider journey. These process checks do not qualify those outcomes
 or enable product execution. The full Linux Factory/allocation goal stays active.
+
+T06-CONNECT resumed in the isolated Factory worktree on 2026-11-04. The native
+desktop's `Duration` import is now confined to the opt-in `native-check` build,
+removing the previously recorded normal-build warning. Locked offline Bun
+dependencies installed from the local cache; the production desktop UI built.
+`cargo check --locked --offline -p soda-desktop` passed with both `native-ui` and
+`native-check` against the existing current WebKit sysroot. The first native
+check correctly stopped at a missing generated desktop asset before the UI was
+built. Changed-file `rustfmt --check` and `git diff --check` pass. Workspace-wide
+`cargo fmt --check` still reports pre-existing formatting in the GitHub provider
+modules; none of those files were edited here. No browser challenge, consent,
+provider operation or installed journey ran. The failed `ui-v4` artifacts
+described above are absent from this workspace, so the pre-consent crash remains
+undiagnosed. CONNECT stays Active;
+the connected outcome and downstream gates remain open.
