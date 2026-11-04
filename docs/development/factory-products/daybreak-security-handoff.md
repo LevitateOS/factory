@@ -57,6 +57,11 @@ all tmpfs allocation. Close the storage part only after actual service-path
 checks of retained multi-run capacity/refusal, cleanup/retry, coder/output bounds
 and denial when `/run` has low free space, with exact process and filesystem
 observations. This source checkpoint does not close D3.
+The agent unit also now disables swap under its existing 1 GiB memory ceiling;
+its binary built and a rendered scratch unit passed parser verification, but no
+live agent service ran. Actual coder workspace/output limits, cleanup and
+captured results still need service-path evidence before the D3 storage
+requirement can close.
 
 If a later slice reveals another authentication, IPC admission, credential or
 isolation requirement, add a row with its exact dependency, files, positive and

@@ -52,6 +52,7 @@ MemoryAccounting=yes
 TasksAccounting=yes
 CPUQuota=100%
 MemoryMax=1G
+MemorySwapMax=0
 TasksMax=128
 TimeoutStartSec=10s
 RuntimeMaxSec=4h5m

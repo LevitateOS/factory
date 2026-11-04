@@ -24799,3 +24799,13 @@ service check: its systemd socket is not installed on the current host. Coder
 workspace, agent output, authenticated Go admission, credential custody, role
 policy, candidate/artifact capture and the finite provider run remain open.
 T09-NATIVE-EXECUTOR stays Pending; D3 and product execution stay unavailable.
+
+T09-NATIVE-EXECUTOR agent storage source checkpoint (2026-11-04): the isolated
+agent unit now sets `MemorySwapMax=0` with its existing `MemoryMax=1G`, so swap
+cannot extend the service's memory charge for its private writable workspace
+and output. The agent binary built with locked offline inputs; the rendered
+unit parsed with `systemd-analyze verify --recursive-errors=no` using that
+local binary path in place of the absent installed binary.
+No agent service was installed or started, and no real coder or provider run
+was exercised. Live workspace growth/retirement and candidate/artifact capture
+remain open. T09-NATIVE-EXECUTOR and D3 remain Pending/open.

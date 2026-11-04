@@ -369,3 +369,13 @@ lifetime and control-group kill. A disposable activation of the actual reviewer
 socket and service returned the dummy candidate, root peer UID and a distinct
 worker UID with read-only worktree and execution unavailable. The temporary
 socket, unit, binary and checkout were removed.
+
+The agent unit now sets `MemorySwapMax=0` beside its existing `MemoryMax=1G`.
+Its private writable workspace and output live under that service lifetime;
+the setting prevents swap from extending the service's memory charge, as
+already done for the preparer. The agent binary built from locked offline
+inputs, and a rendered scratch unit pointing at that binary passed
+`systemd-analyze verify --recursive-errors=no`. The
+actual unit is not installed in this workspace and was not started for this
+change. The effect on a real coder/provider run, workspace growth and cleanup
+still needs live qualification; this setting alone does not close D3.
