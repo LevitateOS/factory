@@ -986,7 +986,10 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
             await new Promise(r=>setTimeout(r,250));
           }
           await until(()=>document.querySelector('#github-accounts').children.length===1);
-          assert((await invoke('factory_query',{query:{kind:'identity'}})).status===503,'OAuth login silently admitted Factory work');
+          const accounts=await invoke('credential_status');assert(accounts.length===1,'approved account unavailable');
+          const session=await invoke('factory_prepare_connection',{connection:accounts[0].connection,repository:null});
+          let refused=false;try{await invoke('factory_product_request',{session,request:{kind:'read',path:'/api/factory/identity'},channel:new window.__TAURI__.core.Channel()});}catch(error){refused=String(error).includes('Factory account is not connected');}
+          assert(refused,'OAuth login silently admitted Factory work');await invoke('factory_disconnect');
           await report('signin-consent-complete');return;
         }
         await cancel();if(!live)await control('signin-upstream-cancelled');
@@ -1161,8 +1164,15 @@ async fn run(app: &tauri::AppHandle) -> Result<(), String> {
         r#"(async()=>{{const invoke=window.__TAURI__.core.invoke;try{{
       const status=await invoke('credential_status');if(status.length!==1||Object.keys(status[0]).sort().join(',')!=='account,connection,origin,provider,state'||status[0].state!=='stored')throw Error('credential metadata boundary failed');
       for(const command of ['credential_token','credential_store']){{let refused=false;try{{await invoke(command,{{connection:{id:?},token:'must-not-be-accepted'}})}}catch{{refused=true;}}if(!refused)throw Error('webview gained token access');}}
+      const session=await invoke('factory_prepare_connection',{{connection:status[0].connection,repository:null}});
+      let completions=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
+      let refused=false;try{{await invoke('factory_product_request',{{session,request:{{kind:'read',path:'/api/factory/identity'}},channel}})}}catch(error){{refused=String(error).includes('Factory account is not connected');}}
+      if(!refused)throw Error('stored credential alone admitted product work');
       const before=await invoke('runtime_status');await invoke('credential_withdraw',{{connection:{id:?}}});
       if((await invoke('credential_status')).length!==0||(await invoke('runtime_status')).generation<=before.generation)throw Error('withdrawal did not retire browser binding');
+      refused=false;try{{await invoke('factory_product_request',{{session,request:{{kind:'read',path:'/api/factory/identity'}},channel}})}}catch(error){{refused=String(error).includes('Factory connection retired');}}
+      if(!refused)throw Error('withdrawn credential retained product admission');
+      await new Promise(resolve=>setTimeout(resolve,50));if(completions!==0)throw Error('withdrawn credential delivered product completion');
       await invoke('report',{{stage:'credential-withdrawn',error:null}});
     }}catch(error){{await invoke('report',{{stage:'failed',error:String(error)}});}}}})()"#,
         id = updated.connection
