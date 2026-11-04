@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 //! One exact-run isolated service boundary. This attests role, mounted source
-//! and desktop peer; it does not yet admit or launch an agent process.
+//! and root broker peer; it does not yet admit or launch an agent process.
 use serde::{Deserialize, Serialize};
 use soda_native_process::{Executable, Invocation, Limits, Processes, StopReason};
 use std::collections::BTreeMap;
@@ -353,7 +353,7 @@ fn coder_workspace(candidate: &str, worker_uid: u32, processes: &mut Processes) 
     Ok(())
 }
 
-fn listener(run: &str, desktop_uid: u32) -> io::Result<UnixListener> {
+fn listener(run: &str) -> io::Result<UnixListener> {
     // PrivatePIDs translates getpid(), while systemd set LISTEN_PID before
     // entering that namespace. The inherited FD itself is checked below.
     let listen_pid = std::env::var("LISTEN_PID")
@@ -372,7 +372,7 @@ fn listener(run: &str, desktop_uid: u32) -> io::Result<UnixListener> {
         || directory.uid() != 0
         || directory.mode() & 0o7777 != 0o755
         || !socket.file_type().is_socket()
-        || socket.uid() != desktop_uid
+        || socket.uid() != 0
         || socket.mode() & 0o7777 != 0o600
     {
         return Err(refused("agent socket path invalid"));
@@ -414,7 +414,7 @@ fn listener(run: &str, desktop_uid: u32) -> io::Result<UnixListener> {
     Ok(listener)
 }
 
-fn peer(stream: &UnixStream, desktop_uid: u32) -> bool {
+fn peer(stream: &UnixStream) -> bool {
     let mut peer = libc::ucred {
         pid: 0,
         uid: 0,
@@ -430,8 +430,8 @@ fn peer(stream: &UnixStream, desktop_uid: u32) -> bool {
             &mut length,
         ) == 0
     };
-    // The desktop PID is outside the private PID namespace and may map to 0.
-    valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == desktop_uid
+    // The broker PID is outside the private PID namespace and may map to 0.
+    valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == 0
 }
 
 fn serve() -> io::Result<()> {
@@ -458,7 +458,7 @@ fn serve() -> io::Result<()> {
     if role == "coder" {
         coder_workspace(&candidate, worker_uid, &mut processes)?;
     }
-    let listener = listener(&args[1], desktop_uid)?;
+    let listener = listener(&args[1])?;
     let deadline = Instant::now() + Duration::from_secs(10);
     let (mut stream, _) = loop {
         match listener.accept() {
@@ -471,8 +471,8 @@ fn serve() -> io::Result<()> {
             Err(error) => return Err(error),
         }
     };
-    if !peer(&stream, desktop_uid) {
-        return Err(refused("agent desktop peer invalid"));
+    if !peer(&stream) {
+        return Err(refused("agent broker peer invalid"));
     }
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
     stream.set_write_timeout(Some(Duration::from_secs(3)))?;
@@ -503,7 +503,7 @@ fn serve() -> io::Result<()> {
         tool_sha256: &tool_sha256,
         prompt_sha256: &prompt_sha256,
         worker_uid,
-        peer_uid: desktop_uid,
+        peer_uid: 0,
         readonly_source: true,
         coder_workspace: role == "coder",
         execution_available: false,

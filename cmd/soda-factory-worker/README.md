@@ -171,18 +171,28 @@ namespace shape on this host, not admission, owner policy, agent role
 confinement, credential withdrawal or a real provider run.
 
 `soda-factory-agent@.socket` and `.service` add a broker-started exact-run
-attestation boundary. The socket is desktop-owned mode `0600`; the service
+attestation boundary. The socket is root-owned mode `0600`; the service
 uses a distinct dynamic UID, joins that run's provider relay network namespace,
 binds the broker-prepared checkout and root role declaration read-only, and
 uses a private keyring, IPC and runtime with finite cgroup limits. It checks
-the desktop peer, its own UID, the fixed socket, role declaration and exact
+the root broker peer, its own UID, the fixed socket, role declaration and exact
 Git HEAD before accepting only `attest_agent`. The root-mounted role manifest
 also binds a 32-hex profile and the staged 64-hex tool and prompt digests; the
-request must present the same profile, and the reply echoes these values for the desktop client to
-verify. Its reply says
+broker request must present the same profile, and the reply echoes these values
+for the desktop client to verify through the broker. Its reply says
 `execution_available:false`; neither role can launch a tool or receive an
 account secret. The source compiles and a rendered template passed
 `systemd-analyze verify` on 2026-11-04.
+
+The broker now owns worker attestation. It opens the root-only agent socket,
+checks the worker's exact run, profile, candidate, role, tool and prompt
+digests, distinct UID, read-only source and root peer, then returns a bounded
+attestation to its authenticated desktop client. A disposable activation of
+the actual broker, preparer, relay and agent units accepted the exact reviewer
+run while a direct desktop connection to the agent socket was denied. The
+worker UID differed from the desktop UID. Exact retirement and removal of all
+temporary units, binaries and runtime state followed. This is an attestation
+boundary; the worker still accepts no launch request.
 
 A disposable system installation activated the actual agent service with a
 dummy Git checkout and a mock relay namespace. It returned worker UID 64596

@@ -345,11 +345,11 @@ The broker now has an exact `arm_agent` declaration tied to its staged bundle
 and captured tool and admitted prompt digests, prepared candidate, active relay
 and one fixed role.
 It arms only a run-specific
-socket. A separate dynamic-UID service checks the root role declaration and
+root-owned socket. A separate dynamic-UID service checks the root role declaration and
 read-only Git mount, then responds only to an attestation request; execution
 remains unavailable. The broker stops that socket/service before relay and
 workspace retirement and recovers a partially written declaration. The typed
-desktop client checks the distinct worker UID and exact reply. Source checks
+desktop client checks the broker's bounded reply and distinct worker UID. Source checks
 and rendered unit syntax passed on 2026-11-04. A disposable system activation
 then returned an exact reviewer attestation from a distinct host UID. Under
 the same unit profile, desktop file, process environment, session bus,

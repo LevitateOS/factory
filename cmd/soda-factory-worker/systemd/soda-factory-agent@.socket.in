@@ -3,7 +3,7 @@ Description=Factory exact-run agent admission socket for %i
 
 [Socket]
 ListenStream=/run/soda-factory/agents/%i.sock
-SocketUser=@DESKTOP_USER@
+SocketUser=root
 SocketMode=0600
 DirectoryMode=0755
 Accept=no

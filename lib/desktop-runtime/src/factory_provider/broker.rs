@@ -335,8 +335,8 @@ impl Broker {
         })
     }
 
-    /// Arm only the exact run socket and immutable role declaration. The
-    /// service behind this socket currently accepts attestation, not launch.
+    /// Arm only the exact root-owned run socket and immutable role declaration.
+    /// The broker remains the sole peer admitted to the worker.
     pub fn arm_agent(
         run: &str,
         profile: &str,
@@ -357,7 +357,7 @@ impl Broker {
         }
         let role = role.as_str();
         let reply: AgentArmed = exchange(
-            json!({"kind":"arm_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role}),
+            json!({"kind":"arm_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role,"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256}),
             None,
             ATTEST_TIME,
         )?;
@@ -376,11 +376,12 @@ impl Broker {
         Ok(())
     }
 
-    /// Check the separately activated worker's exact identity and mounted
-    /// source. This reply is evidence only; no agent command is accepted.
+    /// Ask the root broker to attest the isolated worker over its private
+    /// socket. The desktop cannot connect to that socket directly.
     pub fn attest_agent(
         run: &str,
         profile: &str,
+        sha256: &str,
         candidate: &str,
         role: Role,
         tool_sha256: &str,
@@ -388,62 +389,19 @@ impl Broker {
     ) -> io::Result<u32> {
         if !id(run, 32)
             || !id(profile, 32)
+            || !id(sha256, 64)
             || !id(candidate, 40)
             || !id(tool_sha256, 64)
             || !id(prompt_sha256, 64)
         {
             return Err(refused("agent attestation declaration invalid"));
         }
-        let uid = unsafe { libc::geteuid() };
-        if uid == 0 || unsafe { libc::getuid() } != uid {
-            return Err(refused("agent desktop identity invalid"));
-        }
-        let path = format!("/run/soda-factory/agents/{run}.sock");
-        let parent = Path::new(&path)
-            .parent()
-            .expect("fixed agent socket parent");
-        let directory = parent.symlink_metadata()?;
-        let socket = Path::new(&path).symlink_metadata()?;
-        if !directory.is_dir()
-            || directory.uid() != 0
-            || directory.mode() & 0o7777 != 0o755
-            || !socket.file_type().is_socket()
-            || socket.uid() != uid
-            || socket.mode() & 0o7777 != 0o600
-        {
-            return Err(refused("agent socket identity invalid"));
-        }
-        let mut stream = UnixStream::connect(&path)?;
-        stream.set_read_timeout(Some(AGENT_TIME))?;
-        stream.set_write_timeout(Some(AGENT_TIME))?;
-        // The listening socket belongs to systemd. On this connection its
-        // kernel peer is the root manager, not the later activated worker.
-        if !peer_is_root(&stream) {
-            return Err(refused("agent socket peer identity invalid"));
-        }
-        let connected = Path::new(&path).symlink_metadata()?;
-        if !connected.file_type().is_socket()
-            || connected.uid() != uid
-            || connected.dev() != socket.dev()
-            || connected.ino() != socket.ino()
-        {
-            return Err(refused("agent socket changed during connection"));
-        }
-        let request = serde_json::to_vec(
-            &json!({"kind":"attest_agent","version":1,"run":run,"profile":profile}),
+        let reply: AgentAttested = exchange(
+            json!({"kind":"attest_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256}),
+            None,
+            AGENT_TIME,
         )?;
-        stream.write_all(&(request.len() as u32).to_le_bytes())?;
-        stream.write_all(&request)?;
-        let mut length = [0u8; 4];
-        stream.read_exact(&mut length)?;
-        let length = u32::from_le_bytes(length) as usize;
-        if length == 0 || length > MAX_FRAME {
-            return Err(refused("agent reply bound invalid"));
-        }
-        let mut bytes = vec![0u8; length];
-        stream.read_exact(&mut bytes)?;
-        let reply: AgentAttested =
-            serde_json::from_slice(&bytes).map_err(|_| refused("agent reply shape invalid"))?;
+        let uid = unsafe { libc::geteuid() };
         if reply.kind != "agent_attested"
             || reply.version != 1
             || reply.run != run
@@ -454,7 +412,7 @@ impl Broker {
             || reply.prompt_sha256 != prompt_sha256
             || reply.worker_uid == 0
             || reply.worker_uid == uid
-            || reply.peer_uid != uid
+            || reply.peer_uid != 0
             || !reply.readonly_source
             || reply.coder_workspace != (role == Role::Coder)
             || reply.execution_available

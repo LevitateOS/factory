@@ -68,6 +68,18 @@ enum Request {
         sha256: String,
         candidate: String,
         role: String,
+        tool_sha256: String,
+        prompt_sha256: String,
+    },
+    AttestAgent {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        candidate: String,
+        role: String,
+        tool_sha256: String,
+        prompt_sha256: String,
     },
 }
 
@@ -150,6 +162,49 @@ struct AgentArmed<'a> {
     tool_sha256: &'a str,
     prompt_sha256: &'a str,
     execution_available: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentReply {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    candidate: String,
+    role: String,
+    tool_sha256: String,
+    prompt_sha256: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    readonly_source: bool,
+    coder_workspace: bool,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct AgentAttested<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    candidate: &'a str,
+    role: &'a str,
+    tool_sha256: &'a str,
+    prompt_sha256: &'a str,
+    worker_uid: u32,
+    peer_uid: u32,
+    readonly_source: bool,
+    coder_workspace: bool,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct AgentRequest<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
 }
 
 #[derive(Serialize)]
@@ -774,7 +829,8 @@ fn arm_agent(
     digest: &str,
     candidate: &str,
     role: &str,
-    desktop_uid: u32,
+    expected_tool: &str,
+    expected_prompt: &str,
 ) -> io::Result<(String, String)> {
     if !matches!(role, "reviewer" | "coder") {
         return Err(denied("agent role invalid"));
@@ -785,8 +841,10 @@ fn arm_agent(
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
     verified_role(&source, role)?;
-    let tool = read_digest(&source, "owner.tool_sha256")?;
-    let prompt = read_digest(&source, "owner.prompt_sha256")?;
+    verified_digest(&source, "owner.tool_sha256", expected_tool)?;
+    verified_digest(&source, "owner.prompt_sha256", expected_prompt)?;
+    let tool = expected_tool.to_owned();
+    let prompt = expected_prompt.to_owned();
     if !verified_bundle(&source, digest)? {
         return Err(denied("agent source bundle missing"));
     }
@@ -857,7 +915,7 @@ fn arm_agent(
         private_dir(parent, 0o755)?;
         let metadata = socket.symlink_metadata()?;
         if !metadata.file_type().is_socket()
-            || metadata.uid() != desktop_uid
+            || metadata.uid() != 0
             || metadata.mode() & 0o7777 != 0o600
         {
             return Err(denied("agent socket identity invalid"));
@@ -873,6 +931,72 @@ fn arm_agent(
         }
     }
     checked.map(|()| (tool, prompt))
+}
+
+fn attest_agent(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    role: &str,
+    tool_sha256: &str,
+    prompt_sha256: &str,
+    desktop_uid: u32,
+) -> io::Result<u32> {
+    arm_agent(
+        run,
+        profile,
+        digest,
+        candidate,
+        role,
+        tool_sha256,
+        prompt_sha256,
+    )?;
+    let socket = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
+    let metadata = socket.symlink_metadata()?;
+    if !metadata.file_type().is_socket() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o600
+    {
+        return Err(denied("agent socket identity invalid"));
+    }
+    let mut stream = UnixStream::connect(&socket)?;
+    stream.set_read_timeout(Some(Duration::from_secs(60)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(60)))?;
+    let request = serde_json::to_vec(&AgentRequest {
+        kind: "attest_agent",
+        version: 1,
+        run,
+        profile,
+    })?;
+    stream.write_all(&(request.len() as u32).to_le_bytes())?;
+    stream.write_all(&request)?;
+    let mut header = [0u8; 4];
+    stream.read_exact(&mut header)?;
+    let length = u32::from_le_bytes(header) as usize;
+    if length == 0 || length > MAX_REQUEST {
+        return Err(denied("agent attestation reply bound invalid"));
+    }
+    let mut bytes = vec![0; length];
+    stream.read_exact(&mut bytes)?;
+    let reply: AgentReply = serde_json::from_slice(&bytes)
+        .map_err(|_| denied("agent attestation reply shape invalid"))?;
+    if reply.kind != "agent_attested"
+        || reply.version != 1
+        || reply.run != run
+        || reply.profile != profile
+        || reply.candidate != candidate
+        || reply.role != role
+        || reply.tool_sha256 != tool_sha256
+        || reply.prompt_sha256 != prompt_sha256
+        || reply.worker_uid == 0
+        || reply.worker_uid == desktop_uid
+        || reply.peer_uid != 0
+        || !reply.readonly_source
+        || reply.coder_workspace != (role == "coder")
+        || reply.execution_available
+    {
+        return Err(denied("agent attestation identity invalid"));
+    }
+    Ok(reply.worker_uid)
 }
 
 fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<()> {
@@ -1317,6 +1441,8 @@ fn serve() -> io::Result<()> {
             sha256,
             candidate,
             role,
+            tool_sha256,
+            prompt_sha256,
         } => {
             if version != 1
                 || !id(&run, 32)
@@ -1324,12 +1450,21 @@ fn serve() -> io::Result<()> {
                 || !id(&sha256, 64)
                 || !id(&candidate, 40)
                 || !matches!(role.as_str(), "reviewer" | "coder")
+                || !id(&tool_sha256, 64)
+                || !id(&prompt_sha256, 64)
             {
                 return Err(denied("broker agent declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let (tool_sha256, prompt_sha256) =
-                arm_agent(&run, &profile, &sha256, &candidate, &role, desktop_uid)?;
+            let (tool_sha256, prompt_sha256) = arm_agent(
+                &run,
+                &profile,
+                &sha256,
+                &candidate,
+                &role,
+                &tool_sha256,
+                &prompt_sha256,
+            )?;
             serde_json::to_vec(&AgentArmed {
                 kind: "agent_armed",
                 version: 1,
@@ -1339,6 +1474,54 @@ fn serve() -> io::Result<()> {
                 role: &role,
                 tool_sha256: &tool_sha256,
                 prompt_sha256: &prompt_sha256,
+                execution_available: false,
+            })?
+        }
+        Request::AttestAgent {
+            version,
+            run,
+            profile,
+            sha256,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+                || !matches!(role.as_str(), "reviewer" | "coder")
+                || !id(&tool_sha256, 64)
+                || !id(&prompt_sha256, 64)
+            {
+                return Err(denied("broker agent attestation declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let worker_uid = attest_agent(
+                &run,
+                &profile,
+                &sha256,
+                &candidate,
+                &role,
+                &tool_sha256,
+                &prompt_sha256,
+                desktop_uid,
+            )?;
+            serde_json::to_vec(&AgentAttested {
+                kind: "agent_attested",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                candidate: &candidate,
+                role: &role,
+                tool_sha256: &tool_sha256,
+                prompt_sha256: &prompt_sha256,
+                worker_uid,
+                peer_uid: 0,
+                readonly_source: true,
+                coder_workspace: role == "coder",
                 execution_available: false,
             })?
         }

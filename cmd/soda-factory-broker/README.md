@@ -283,6 +283,13 @@ fails; a mode-`0400` interrupted write is stopped, removed and recreated on
 exact retry. Retirement stops the agent service/socket before the relay and
 checkout. The paired worker currently attests only its identity, role and
 read-only candidate mount, then reports `execution_available:false`.
+The agent socket is now root-owned mode `0600`; the broker is its only peer.
+`attest_agent` carries the exact run, profile, bundle digest, candidate, role,
+tool digest and prompt digest, with no payload. The broker checks the staged identity and worker
+reply before returning the distinct UID and fixed digest fields to the desktop.
+A disposable activation of the actual broker, preparer, relay and agent units
+accepted an exact reviewer attestation. The direct desktop socket connection
+was denied, and exact retirement removed the temporary run and service state.
 The worker echoes both digests; its current attestation does not import the
 tool bytes or execute them with the prompt. A disposable activation of the actual broker socket
 on 2026-11-04 accepted staging and exact replay with a 64-hex tool digest,
