@@ -99,7 +99,7 @@ func (r CheckpointRequest) Validate(final bool) error {
 			if n.DesktopUID != 0 || n.WorkerUID != 0 {
 				return ErrCheckpoint
 			}
-		} else if !collaboration.ValidID(n.BrokerRun) || !validNativeIsolation(NativeIsolation{DesktopUID: n.DesktopUID, WorkerUID: n.WorkerUID}) {
+		} else if !collaboration.ValidID(n.BrokerRun) || !validNativeIsolation(NativeIsolation{DesktopUID: n.DesktopUID, WorkerUID: n.WorkerUID}) || !validIsolatedProcessIdentity(n.SystemInstance, n.StartIdentity) {
 			return ErrCheckpoint
 		}
 	}

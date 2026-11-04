@@ -24,7 +24,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	r := factoryRun(time.Now().UTC())
 	r.Image, r.Harness, r.Role = "", "muse-fixture-1", project.RoleCoder
 	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
-	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: factory.NewID(), SystemInstance: "owned-boot", StartIdentity: "owned-start-tick", PID: 1001, StartedAt: r.Started, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
+	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: factory.NewID(), SystemInstance: "12345678-1234-1234-1234-123456789abc", StartIdentity: "123456", PID: 1001, StartedAt: r.Started, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
 	plan := phaseTestPlan(t, factory.NewID(), r.InputSHA, "f"+strings.Repeat("1", 24))
 	planBytes, err := json.Marshal(plan)
 	if err != nil {
@@ -324,7 +324,7 @@ func TestFactoryNativeRunEvidencePG(t *testing.T) {
 			t.Fatal("native record fabricated appliance provenance", field)
 		}
 	}
-	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: strings.Repeat("c", 32), SystemInstance: "fixture-boot", StartIdentity: "fixture-start-tick", PID: 1001, StartedAt: now, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
+	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: strings.Repeat("c", 32), SystemInstance: "12345678-1234-1234-1234-123456789abc", StartIdentity: "123456", PID: 1001, StartedAt: now, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
 	r.Native.Provenance.Custody = execution.NativeCustody{State: execution.Held, AcquisitionID: "owned-acquisition", Connection: "owned-connection", Generation: 1}
 	r.Native.Retirement = execution.Running
 	if err := s.SaveFactoryRun(ctx, r); err != nil {

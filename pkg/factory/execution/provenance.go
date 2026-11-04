@@ -5,6 +5,7 @@ package execution
 import (
 	"errors"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -242,7 +243,7 @@ func validNative(n NativeProvenance) bool {
 			if n.Isolation != nil {
 				return false
 			}
-		} else if n.Isolation == nil || !validNativeIsolation(*n.Isolation) {
+		} else if n.Isolation == nil || !validNativeIsolation(*n.Isolation) || !validIsolatedProcessIdentity(n.Process.SystemInstance, n.Process.StartIdentity) {
 			return false
 		}
 	default:
@@ -265,6 +266,34 @@ func validNative(n NativeProvenance) bool {
 
 func validNativeIsolation(i NativeIsolation) bool {
 	return i.DesktopUID > 0 && i.WorkerUID > 0 && i.WorkerUID != i.DesktopUID
+}
+
+// The root broker validates these kernel identities before returning its
+// receipt. Retained isolated records must keep that same shape on reopen.
+func validIsolatedProcessIdentity(systemInstance, startIdentity string) bool {
+	if len(systemInstance) != 36 {
+		return false
+	}
+	for i := 0; i < len(systemInstance); i++ {
+		b := systemInstance[i]
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if b != '-' {
+				return false
+			}
+		} else if !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')) {
+			return false
+		}
+	}
+	if startIdentity == "" {
+		return false
+	}
+	for i := 0; i < len(startIdentity); i++ {
+		if startIdentity[i] < '0' || startIdentity[i] > '9' {
+			return false
+		}
+	}
+	ticks, err := strconv.ParseUint(startIdentity, 10, 64)
+	return err == nil && ticks > 0
 }
 
 func validNativeCustody(c NativeCustody) bool {

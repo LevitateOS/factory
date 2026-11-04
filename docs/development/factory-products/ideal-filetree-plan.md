@@ -864,6 +864,14 @@ were removed. This proves native worker/owner custody for an invalid token;
 Go admission, durable receipt consumption, real provider work and production
 Quit remain D3 gates.
 
+The Go retained isolated-run and checkpoint validators now require the broker's
+36-character boot ID and a positive decimal kernel start tick. Historical
+same-user records keep their earlier text shape. The existing native
+PostgreSQL checkpoint-retention and launch-binding checks both passed against
+fresh private clusters with broker-shaped fixture identities. This checks
+retained evidence validation; it does not authenticate a future adapter's
+observation or enable Go-native dispatch.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
