@@ -204,3 +204,37 @@ retirement stopped the agent and relay and removed the mounted source; a later
 agent attestation failed. The owner socket supplied no account credential, and
 no agent execution or provider request was attempted. Temporary system state
 was removed.
+
+The agent service now opens `soda-native-process::Processes` under its own
+run-specific runtime and delegated cgroup before accepting an attestation.
+Its unit places the main process in `init`, leaving the parent cgroup empty so
+the worker can enable only CPU, memory and process controllers. The agent
+validates the exact systemd unit path and dynamic UID before enabling them;
+missing delegation refuses startup. A disposable system service without
+`DelegateSubgroup=init` had an empty controller set. Adding the subgroup let a
+distinct UID enable `cpu memory pids` beneath its own service while the
+desktop user's cgroup was unwritable. The actual agent unit then returned an
+exact reviewer attestation after opening the native process owner; removing
+the subgroup from that disposable unit produced no reply and logged a
+delegation refusal. Restoring the source unit restored attestation. Temporary
+units, binary and dummy checkout were removed. No agent child or model ran in
+this check.
+
+A concurrent probe found that two instances of one `DynamicUser=yes` template
+can share the same host UID (62475 here), so UID and mode `0700` alone did not
+isolate their run directories or cgroups from each other. A per-run systemd
+profile now places each agent in a private PID namespace, overlays the shared
+runtime parent with a root-owned mode-`0700` tmpfs, and binds only its own
+runtime at `/run/factory-agent-private`. It also overlays the host cgroup tree
+and binds only its exact system unit cgroup at `/sys/fs/cgroup/factory`.
+Two concurrent dummy instances with the same UID had distinct PID namespaces,
+could read only their own runtime and cgroup mount, could not see the host
+user cgroup tree, and enabled `cpu memory pids` only in their own bound cgroup.
+The actual agent template uses the same fixed mounts; its updated binary
+attested the exact dummy reviewer run after validating them and opening its
+native process owner. With a private PID namespace, systemd's `LISTEN_PID`
+names the host PID; the worker now validates its numeric presence and the
+inherited listening FD's type, state and exact fixed socket path. The worker
+also accepts a desktop peer whose PID is hidden by that namespace while still
+requiring the kernel peer UID. Temporary units and dummy state were removed.
+An actual concurrent agent-child run and tree-retirement check remain open.

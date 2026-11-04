@@ -56,6 +56,22 @@ facts. Owner retirement joins monitors; uncertain cleanup fences further work.
 An exclusive private lock and its file identity bind the scope namespace to its
 profile/storage owner. Reopen retires only retained scopes of that owner.
 
+The exact-run agent service now opens this process owner before it attests.
+Its systemd unit delegates CPU, memory and process controllers with the main
+process in an `init` subgroup; the worker validates the exact cgroup path and
+UID, enables those controllers only under its own service, and fails closed
+without them. A disposable activation under that unit profile attested; a
+missing subgroup produced no reply and a delegation refusal. This qualifies
+owner admission and cgroup location, not an agent child launch.
+
+Concurrent instances of the same dynamic-user template received the same
+host UID. The agent unit therefore gives each run a private PID namespace and
+binds only its own delegated cgroup under a tmpfs overlay that hides the host
+cgroup tree. A two-instance dummy probe denied cross-run runtime and cgroup
+visibility while both instances remained active. The actual agent unit then
+attested after opening `Processes` under that fixed private mount. A child
+launch and cancellation on this updated unit profile still need qualification.
+
 The desktop user's host UID does not isolate a hostile process from that user's
 files, login session or cgroup authority. D3 requires a dedicated system worker
 with a distinct host UID, exact workspace access and brokered credentials before

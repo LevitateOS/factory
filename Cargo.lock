@@ -3821,6 +3821,7 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
+ "soda-native-process",
  "tokio",
 ]
 

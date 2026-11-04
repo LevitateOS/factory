@@ -364,7 +364,28 @@ the staged bundle and prepared checkout; replayed retirement found the run
 absent, and agent attestation could not revive it. Temporary system state was
 removed. Admitted role-limited tool execution, coder workspace, credential
 withdrawal, cgroup boundary probe and a finite provider task remain D3
-requirements.
+requirements. The agent now also opens the headless Rust process owner under
+its exact run cgroup before attesting. A disposable `DynamicUser` service with
+`DelegateSubgroup=init` enabled only `cpu memory pids` in its own parent cgroup;
+the desktop user's cgroup was unwritable to that UID. The actual agent unit
+attested after acquiring its process owner. Removing that subgroup from the
+disposable unit produced no reply and a delegation refusal; restoring it
+restored attestation. This is a process-scope prerequisite, not a child launch
+or proof of process-tree retirement on an agent task.
+
+A simultaneous two-instance check exposed that systemd reused one dynamic
+host UID across instances of the same template. The agent service now overlays
+the shared runtime parent and host cgroup tree, binds only its own private
+runtime and delegated unit cgroup, and uses a private PID namespace. Two
+concurrent dummy instances sharing UID 62475 could see only their own runtime
+and cgroup mount, had distinct PID namespaces, and enabled their own
+`cpu memory pids` controllers while the host user cgroup tree was hidden.
+The updated actual agent unit attested its dummy reviewer source after opening
+`Processes` with those fixed mounts; a failed first activation showed
+`LISTEN_PID` had to be interpreted in the host PID namespace, and the worker
+now checks the inherited listener itself. All disposable units and source
+were removed. Actual concurrent agent-child execution, cancellation and
+cross-run denial on the final launch path remain D3 requirements.
 
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do

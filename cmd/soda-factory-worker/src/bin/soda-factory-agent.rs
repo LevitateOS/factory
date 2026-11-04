@@ -2,10 +2,11 @@
 //! One exact-run isolated service boundary. This attests role, mounted source
 //! and desktop peer; it does not yet admit or launch an agent process.
 use serde::{Deserialize, Serialize};
-use std::fs::File;
+use soda_native_process::Processes;
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
+use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,6 +14,8 @@ use std::time::{Duration, Instant};
 
 const SOURCE: &str = "/run/factory-source";
 const ROLE: &str = "/run/factory-role";
+const PRIVATE: &str = "/run/factory-agent-private";
+const CGROUP: &str = "/sys/fs/cgroup/factory";
 const MAX_REQUEST: usize = 256;
 
 #[derive(Deserialize)]
@@ -76,11 +79,78 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     {
         return Err(refused("agent private runtime path invalid"));
     }
-    let metadata = runtime.symlink_metadata()?;
+    let hidden = Path::new("/run/soda-factory-agent");
+    let hidden_metadata = hidden.symlink_metadata()?;
+    if !hidden_metadata.is_dir()
+        || hidden_metadata.uid() != 0
+        || hidden_metadata.mode() & 0o7777 != 0o700
+        || !matches!(
+            runtime.symlink_metadata(),
+            Err(ref error) if error.kind() == io::ErrorKind::PermissionDenied
+        )
+    {
+        return Err(refused("agent host runtime path visible"));
+    }
+    let metadata = Path::new(PRIVATE).symlink_metadata()?;
     if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != 0o700 {
         return Err(refused("agent private runtime identity invalid"));
     }
     Ok(uid)
+}
+
+fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
+    let value = fs::read_to_string("/proc/self/cgroup")?;
+    let path = value
+        .strip_prefix("0::")
+        .and_then(|value| value.strip_suffix('\n'))
+        .ok_or_else(|| refused("agent cgroup declaration invalid"))?;
+    let child = Path::new(path);
+    let parent = child
+        .parent()
+        .ok_or_else(|| refused("agent delegation parent missing"))?;
+    let unit = format!("soda-factory-agent@{run}.service");
+    if value.len() > 4096
+        || path.contains('\n')
+        || child.file_name() != Some(std::ffi::OsStr::new("init"))
+        || parent.file_name() != Some(std::ffi::OsStr::new(&unit))
+        || !child.is_absolute()
+        || child.components().any(|component| {
+            !matches!(
+                component,
+                std::path::Component::RootDir | std::path::Component::Normal(_)
+            )
+        })
+    {
+        return Err(refused("agent delegation cgroup invalid"));
+    }
+    if parent != Path::new(&format!("/system.slice/{unit}")) {
+        return Err(refused("agent system cgroup identity invalid"));
+    }
+    let delegated = Path::new(CGROUP);
+    let cgroup_root = std::ffi::CString::new("/sys/fs/cgroup").expect("fixed cgroup path");
+    let mut stat = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    if unsafe { libc::statfs(cgroup_root.as_ptr(), stat.as_mut_ptr()) } != 0
+        || unsafe { stat.assume_init() }.f_type != libc::TMPFS_MAGIC
+    {
+        return Err(refused("agent host cgroups visible"));
+    }
+    let metadata = delegated.symlink_metadata()?;
+    if !metadata.is_dir() || metadata.uid() != worker_uid {
+        return Err(refused("agent delegation owner invalid"));
+    }
+    if !fs::read_to_string(delegated.join("cgroup.procs"))?
+        .trim()
+        .is_empty()
+    {
+        return Err(refused("agent delegation root populated"));
+    }
+    OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(delegated.join("cgroup.subtree_control"))?
+        .write_all(b"+cpu +memory +pids")?;
+    Processes::open(Path::new(PRIVATE), delegated, run)
+        .map_err(|_| refused("agent process scope unavailable"))
 }
 
 fn manifest(run: &str) -> io::Result<(String, String)> {
@@ -161,8 +231,12 @@ fn source(candidate: &str) -> io::Result<()> {
 }
 
 fn listener(run: &str, desktop_uid: u32) -> io::Result<UnixListener> {
-    let pid = unsafe { libc::getpid() }.to_string();
-    if std::env::var("LISTEN_PID").ok().as_deref() != Some(pid.as_str())
+    // PrivatePIDs translates getpid(), while systemd set LISTEN_PID before
+    // entering that namespace. The inherited FD itself is checked below.
+    let listen_pid = std::env::var("LISTEN_PID")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok());
+    if listen_pid.is_none_or(|pid| pid == 0)
         || std::env::var("LISTEN_FDS").ok().as_deref() != Some("1")
     {
         return Err(refused("agent socket activation missing"));
@@ -233,10 +307,8 @@ fn peer(stream: &UnixStream, desktop_uid: u32) -> bool {
             &mut length,
         ) == 0
     };
-    valid
-        && length as usize == std::mem::size_of_val(&peer)
-        && peer.uid == desktop_uid
-        && peer.pid > 0
+    // The desktop PID is outside the private PID namespace and may map to 0.
+    valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == desktop_uid
 }
 
 fn serve() -> io::Result<()> {
@@ -257,6 +329,7 @@ fn serve() -> io::Result<()> {
         return Err(refused("agent desktop UID invalid"));
     }
     let worker_uid = identity(&args[1], desktop_uid)?;
+    let _processes = process_owner(&args[1], worker_uid)?;
     let (role, candidate) = manifest(&args[1])?;
     source(&candidate)?;
     let listener = listener(&args[1], desktop_uid)?;
