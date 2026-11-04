@@ -1,7 +1,7 @@
-//! Headless Linux native process diagnostic. This module is omitted from normal
-//! builds: its workers still have the desktop user's host identity and cannot
-//! satisfy the isolated native-agent admission gate. Go retains product transitions.
-use crate::database::{private_dir, private_file};
+//! Headless Linux process/resource primitive. It executes as its own caller UID;
+//! callers must supply an isolated worker identity before using it for agents.
+//! This crate is deliberately absent from the desktop runtime dependency graph.
+mod storage;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
+use storage::{private_dir, private_file};
 mod executable;
 mod process;
 mod scope;

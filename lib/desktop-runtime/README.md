@@ -4,10 +4,11 @@ Rust owns the desktop's native process/storage lifetime. Go retains the Factory
 workflow, admission and canonical PostgreSQL schema. This crate currently
 implements the Linux PostgreSQL lifecycle, private backend inputs, managed
 PG/Go supervisor, OS account credential custody and the complete authenticated
-GitHub connector, plus the headless native process/PTY/resource primitive. The
+GitHub connector. The separate headless process primitive lives in
+[`lib/native-process`](../native-process/README.md). The
 production Tauri host is [`cmd/soda-desktop`](../../cmd/soda-desktop/README.md).
 Workspace/Git/custody composition and product execution activation remain later
-slices; no coordinator or selectable native worker is enabled by this primitive.
+slices; no coordinator or selectable native worker is enabled.
 
 `database::NativePostgres::start(payload, profile)` creates or reopens an owned
 private profile, holds its database lock, initializes a fresh cluster, and owns a
@@ -24,55 +25,15 @@ or missing credentials are refused; their data is not replaced or upgraded.
 Socket paths must fit the native Unix socket limit. The desktop host selects
 profile paths; T14 implements supported distribution/upgrades.
 
-## Admitted native processes
+## Native agent execution gate
 
-The opt-in diagnostic `execution::Processes` primitive owns finite native
-processes without Tauri or a Go progress loop. Its native harness consumer
-supplies a private directory,
-`Executable`, explicit arguments/environment, terminal size and resource limits.
-These are Rust-only inputs, with no generic Go RPC, browser shell command,
-serialization or inherited parent environment. Product admission and durable
-transitions remain Go responsibilities.
-
-`Executable::capture` hashes native ELF bytes into a sealed memfd. Replacing the
-source path does not replace an admitted invocation. Scripts/interpreters,
-provider bundles and freshness admission require the harness consumer; captured
-bytes alone do not prove that a provider is current or authorized.
-
-Execution requires an admitted user-delegated cgroup-v2 root with CPU, memory
-and process controllers already enabled. The calling native process must have
-kernel permission to migrate its own children into that subtree; merely owning
-the destination directory is insufficient. This runtime never enables host-wide
-controllers or falls back to a process-group-only boundary. It configures one
-native subtree and a separate kernel scope per invocation, entering that scope
-before executable code can fork. A PTY, captured boot/start identity, finite
-memory/CPU/process ceilings, output bound and hard wall deadline stay Rust-owned.
-Terminal descriptors are created close-on-exec atomically across concurrent forks.
-
-The dedicated monitor enforces deadline/cancellation and retires detached
-descendants through cgroup.kill, including after the direct child exits. Bounded
-terminal output is retained privately; artifact writes begin after the child/tree
-control pass. Dropping an observation handle leaves admitted work under native
-ownership. Explicit owner retirement stops admission, cancels scopes and joins
-all monitors. Direct-child exit, confirmed resource retirement and complete
-output are separate facts; none implies credential release. The subtree name is
-bound to the configured profile and exclusively locked native file identity;
-repeating a profile label in another directory cannot adopt a live owner's work.
-Failed cleanup
-fences new launches, remains uncertain through retirement, and requires a clean
-exclusive reopen. Reopen retires only that profile's retained native scopes.
-
-This is trusted same-user host execution. It does not isolate a hostile process
-from that user's files, logins or cgroup authority, and cannot turn an
-uninterruptible kernel task into a proved retirement. Its module is absent from
-normal builds and available only with the `trusted-host-process-probe` feature
-in debug builds; release builds reject that feature. No production consumer can
-select or launch this primitive as a native agent executor.
-Native workspace/Git, an isolated worker identity, brokered credential delivery,
-durable invocation/restart receipts and actual provider integration remain the
-N3/N4 consumers. Their absence keeps product execution unavailable. A mount/user
-namespace that maps the worker back to the desktop user's host UID is not proof
-of the required identity separation.
+This crate does not depend on `soda-native-process` or expose a worker launch
+API. The separate process primitive retains same-user process and cgroup checks;
+it does not isolate a hostile worker from the desktop user's files or keyring.
+Native workspace/Git, a distinct worker host identity, brokered credential
+delivery, durable invocation/restart receipts and real provider integration
+remain the N3/N4 consumers. Product execution stays unavailable until D3 proves
+those boundaries on the actual worker path.
 
 ## Managed native children
 

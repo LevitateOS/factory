@@ -230,10 +230,10 @@ list includes their producers and useful work that proceeds independently.
 
 The user selected isolation from the desktop user's files and keyring. The
 current Rust process primitive is a verified resource/retirement probe, not an
-admitted agent executor: it launches under the desktop user's host UID. It is
-therefore compiled only for explicit debug process diagnostics. The production
-Go native server starts no execution coordinator and continues to report its
-missing execution ports as unavailable.
+admitted agent executor: it launches under its caller's host UID. It has moved
+to `lib/native-process`, outside the production desktop runtime dependency
+graph. The production Go native server starts no execution coordinator and
+continues to report its missing execution ports as unavailable.
 
 The selected installation model permits a privileged setup step for a dedicated
 system worker. The executor should run as a separate host UID under a root-owned

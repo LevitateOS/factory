@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "cmd/soda-desktop",
   "lib/desktop-runtime",
+  "lib/native-process",
   "lib/unix-http",
   "tools/factory-ui",
   "tools/pg-fixture",

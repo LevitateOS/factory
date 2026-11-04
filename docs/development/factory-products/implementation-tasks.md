@@ -23925,7 +23925,7 @@ an external provider link is optional, not the primary issue/PR experience.
 
 Slice: T09-EXECUTION requires T02-ENGINE, T05-LIFECYCLE, T05-CREDENTIALS,
 T06-CONNECT and T12-PLACEMENT. Owner: Rust/native with Go/core consumer. Files:
-`lib/desktop-runtime/src/execution/`, native custody/provider connections, execution client/provenance
+`lib/native-process/src/`, isolated worker and native custody/provider connections, execution client/provenance
 and the existing consuming HostFactory/BrokerExecution interfaces.
 
 - **M/C:** Reuse portable Git/candidate/receipt/output validators; keep Linux host

@@ -3805,6 +3805,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "soda-native-process"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "libc",
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "soda-pg-fixture"
 version = "0.1.0"
 dependencies = [
