@@ -899,6 +899,17 @@ units and binary were removed. This fences one restart window, but the marker
 disappears during normal retirement and `/run` is transient across host
 reboot. It is not durable Go outcome reconciliation.
 
+The native owner now requires its retained profile directory and syncs a
+bounded, exact-run worker receipt there before normal root retirement. If
+execution or receipt persistence fails, the owner stops token use and calls a
+new exact broker quiescence operation that stops the worker and relay while
+preserving staged evidence. A disposable actual-broker probe refused a wrong
+digest, quiesced a staged source without deleting it, then retired it exactly;
+temporary units and state were removed. That probe used no live worker, and
+the new receipt write has so far passed build checks rather than an actual
+RunOwner execution. Go still needs to consume the receipt transactionally and
+reconcile an interrupted or rebooted run before D3 closes.
+
 The Go retained isolated-run and checkpoint validators now require the broker's
 36-character boot ID and a positive decimal kernel start tick. Historical
 same-user records keep their earlier text shape. The existing native

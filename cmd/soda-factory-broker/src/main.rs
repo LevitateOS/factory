@@ -44,6 +44,12 @@ enum Request {
         profile: String,
         sha256: String,
     },
+    QuiesceRun {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+    },
     NextProfileRun {
         version: u8,
         profile: String,
@@ -124,6 +130,15 @@ struct Retired<'a> {
     run: &'a str,
     profile: &'a str,
     removed: bool,
+}
+
+#[derive(Serialize)]
+struct Quiesced<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    sha256: &'a str,
 }
 
 #[derive(Serialize)]
@@ -1407,6 +1422,40 @@ fn verified_retiring_profile(directory: &Path, profile: &str) -> io::Result<()> 
     }
 }
 
+// Stop execution and credential relay without deleting evidence. A failed or
+// cancelled desktop attempt cannot claim its worker result was durably stored.
+fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
+    read_role(&source)?;
+    read_digest(&source, "owner.tool_sha256")?;
+    read_digest(&source, "owner.prompt_sha256")?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("quiesced run source missing"));
+    }
+    let agent_stopped = match preparation_run(&preparations()?, run)? {
+        Some(directory) => stop_agent(run, &directory),
+        None => Ok(()),
+    };
+    let relay_stopped = stop_relay(run);
+    agent_stopped?;
+    relay_stopped?;
+    for path in [
+        PathBuf::from(format!("/run/soda-factory/agents/{run}.sock")),
+        Path::new("/run/soda-factory-agent").join(run),
+    ] {
+        match path.symlink_metadata() {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+            Ok(_) => return Err(denied("quiesced agent boundary remains")),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
 fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
     let runs = state()?;
     let _lock = lock(&runs)?;
@@ -1804,6 +1853,25 @@ fn serve() -> io::Result<()> {
                 run: &run,
                 profile: &profile,
                 removed,
+            })?
+        }
+        Request::QuiesceRun {
+            version,
+            run,
+            profile,
+            sha256,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
+                return Err(denied("broker quiescence declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            quiesce_run(&run, &profile, &sha256)?;
+            serde_json::to_vec(&Quiesced {
+                kind: "quiesced",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                sha256: &sha256,
             })?
         }
         Request::NextProfileRun { version, profile } => {

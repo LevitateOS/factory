@@ -333,6 +333,16 @@ struct Retired {
     removed: bool,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Quiesced {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    sha256: String,
+}
+
 /// Exact broker-issued run identity. Fields cannot be set by an agent or a
 /// browser, and an owner consumes the value when activating its socket.
 pub struct RelayAttestation {
@@ -820,5 +830,28 @@ impl Broker {
             return Err(refused("broker retired identity invalid"));
         }
         Ok(reply.removed)
+    }
+
+    /// Stop the exact agent tree and relay while retaining its root staging.
+    /// An unrecorded or cancelled execution must remain available for
+    /// conservative recovery rather than being mistaken for a settled run.
+    pub fn quiesce_run(run: &str, profile: &str, sha256: &str) -> io::Result<()> {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) {
+            return Err(refused("broker quiescence declaration invalid"));
+        }
+        let reply: Quiesced = exchange(
+            json!({"kind":"quiesce_run","version":1,"run":run,"profile":profile,"sha256":sha256}),
+            None,
+            PREPARE_TIME,
+        )?;
+        if reply.kind != "quiesced"
+            || reply.version != 1
+            || reply.run != run
+            || reply.profile != profile
+            || reply.sha256 != sha256
+        {
+            return Err(refused("broker quiescence identity invalid"));
+        }
+        Ok(())
     }
 }

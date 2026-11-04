@@ -2,9 +2,13 @@
 //! supplied by the future Go execution port; this module cannot create it.
 use super::{AgentCancellation, AgentRun, BoundOwner, Broker, Owner, Policy, Role};
 use crate::credentials::{Credentials, TokenCapability};
+use crate::database::private_dir;
+use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::io;
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -49,7 +53,9 @@ pub struct RunOwner {
     tool_sha256: String,
     prompt_sha256: String,
     deadline: Instant,
+    receipts: PathBuf,
     attempted: bool,
+    receipt_persisted: bool,
     retired: bool,
 }
 
@@ -59,6 +65,7 @@ impl RunOwner {
     /// activates token use. Any failure after staging tries exact retirement.
     pub fn start(
         policy: Policy,
+        profile_dir: &Path,
         credentials: Arc<Credentials>,
         capability: TokenCapability,
         bundle: &[u8],
@@ -75,6 +82,24 @@ impl RunOwner {
         if expected != policy.sha256() {
             return Err(refused("provider source differs from admitted bundle"));
         }
+        private_dir(profile_dir).map_err(|_| refused("provider receipt profile invalid"))?;
+        let identity = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(profile_dir.join("profile.id"))?;
+        let metadata = identity.metadata()?;
+        let mut retained_profile = String::new();
+        identity.take(33).read_to_string(&mut retained_profile)?;
+        if !metadata.is_file()
+            || metadata.uid() != unsafe { libc::geteuid() }
+            || metadata.mode() & 0o077 != 0
+            || metadata.len() != 32
+            || retained_profile != policy.profile()
+        {
+            return Err(refused("provider receipt profile identity invalid"));
+        }
+        let receipts = profile_dir.join("native-run-receipts");
+        private_dir(&receipts).map_err(|_| refused("provider receipt directory invalid"))?;
         let run = policy.run().to_owned();
         let profile = policy.profile().to_owned();
         let candidate = policy.candidate().to_owned();
@@ -153,7 +178,9 @@ impl RunOwner {
             tool_sha256: tool_sha256.to_owned(),
             prompt_sha256: prompt_sha256.to_owned(),
             deadline,
+            receipts,
             attempted: false,
+            receipt_persisted: false,
             retired: false,
         })
     }
@@ -163,6 +190,70 @@ impl RunOwner {
     /// the exact worker stream and retires its process tree.
     pub fn cancellation(&self) -> AgentCancellation {
         self.cancellation.clone()
+    }
+
+    // A complete, bounded broker observation is retained before root cleanup.
+    // The Go owner will consume the exact file under its own run transaction;
+    // a file by itself never authorizes a successful product outcome.
+    fn persist_receipt(&self, run: &AgentRun) -> io::Result<()> {
+        private_dir(&self.receipts).map_err(|_| refused("provider receipt directory invalid"))?;
+        let desktop_uid = unsafe { libc::geteuid() };
+        if desktop_uid == 0 || run.worker_uid == 0 || run.worker_uid == desktop_uid {
+            return Err(refused("provider receipt isolation identity invalid"));
+        }
+        if run.output.len() > 16 * 1024 * 1024 {
+            return Err(refused("provider receipt output bound exceeded"));
+        }
+        let role = match self.role {
+            Role::Reviewer => "reviewer",
+            Role::Coder => "coder",
+        };
+        let output_sha256: String = Sha256::digest(&run.output)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let header = serde_json::to_vec(&json!({
+            "kind":"native_agent_receipt","version":1,
+            "run":self.run,"profile":self.profile,"bundle_sha256":self.sha256,
+            "candidate":self.candidate,"role":role,
+            "tool_sha256":self.tool_sha256,"prompt_sha256":self.prompt_sha256,
+            "desktop_uid":desktop_uid,"worker_uid":run.worker_uid,
+            "invocation":run.process.invocation,
+            "system_instance":run.process.system_instance,
+            "start_identity":run.process.start_identity,
+            "namespace_pid":run.process.namespace_pid,
+            "started_unix_ms":run.process.started_unix_ms,
+            "reason":run.reason,"exit_code":run.exit_code,"exit_signal":run.exit_signal,
+            "output_complete":run.output_complete,
+            "output_length":run.output.len(),"output_sha256":output_sha256,
+        }))
+        .map_err(|_| refused("provider receipt header invalid"))?;
+        if header.is_empty() || header.len() > 2048 {
+            return Err(refused("provider receipt header bound exceeded"));
+        }
+        let pending = self.receipts.join(format!("{}.pending", self.run));
+        let committed = self.receipts.join(format!("{}.receipt", self.run));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&pending)?;
+        file.write_all(&(header.len() as u32).to_le_bytes())?;
+        file.write_all(&header)?;
+        file.write_all(&run.output)?;
+        file.sync_all()?;
+        fs::hard_link(&pending, &committed)?;
+        File::open(&self.receipts)?.sync_all()?;
+        fs::remove_file(&pending)?;
+        File::open(&self.receipts)?.sync_all()
+    }
+
+    fn quiesce_uncertain(&mut self) -> io::Result<()> {
+        self.cancellation.cancel();
+        let stopped = self.owner.stop();
+        let quiesced = Broker::quiesce_run(&self.run, &self.profile, &self.sha256);
+        stopped.and(quiesced)
     }
 
     /// One attempt only. The broker rehashes prompt and executable bytes under
@@ -197,21 +288,39 @@ impl RunOwner {
             duration,
             self.cancellation.clone(),
         );
-        // The broker may have returned just before Quit or request loss. Keep
-        // that external cancellation visible through final local/root cleanup;
-        // only a caller-initiated retire should set the cancellation flag.
-        let retired = self.retire_after_attempt();
-        match (result, retired) {
-            (Ok(run), Ok(())) if !self.cancellation.cancelled() => Ok(run),
-            (Ok(_), Ok(())) => Err(refused("agent execution cancelled")),
-            (Err(error), Ok(())) => Err(error),
-            _ => Err(refused("provider run or retirement unconfirmed")),
+        let run = match result {
+            Ok(run) => run,
+            Err(_) => {
+                let _ = self.quiesce_uncertain();
+                return Err(refused("provider run outcome unconfirmed"));
+            }
+        };
+        if self.persist_receipt(&run).is_err() {
+            let _ = self.quiesce_uncertain();
+            return Err(refused("provider run receipt not durable"));
         }
+        self.receipt_persisted = true;
+        // The broker may have returned just before Quit or request loss. Keep
+        // that external cancellation visible through final local/root cleanup.
+        let retired = self.retire_after_attempt();
+        if retired.is_err() {
+            return Err(refused("provider run retirement unconfirmed"));
+        }
+        if self.cancellation.cancelled() {
+            return Err(refused("agent execution cancelled"));
+        }
+        Ok(run)
     }
 
+    /// Before a receipt is durable, retirement quiesces the exact worker and
+    /// relay but preserves root staging for an uncertain-outcome recovery.
     pub fn retire(&mut self) -> io::Result<()> {
         if !self.retired {
             self.cancellation.cancel();
+        }
+        if self.attempted && !self.receipt_persisted {
+            self.quiesce_uncertain()?;
+            return Err(refused("provider run outcome unconfirmed"));
         }
         self.retire_after_attempt()
     }

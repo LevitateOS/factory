@@ -72,6 +72,18 @@ the staged source in place. The response reports `removed:true`, or
 Retirement also stops and reconciles the exact-run agent service and socket
 before removing its workspace.
 
+An uncertain execution can instead request
+`{"kind":"quiesce_run","version":1,"run":"<32 lowercase hex>",
+"profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>"}`.
+The broker rechecks the root-owned profile, role, tool and prompt declarations
+and exact staged bundle, stops the agent and provider relay, and verifies that
+their run-specific socket/runtime boundaries are gone. It leaves the source,
+preparation, and consumed-launch marker for later reconciliation. A reply
+names the same run, profile and digest. A disposable actual-broker probe
+refused a wrong digest, quiesced an unlaunched staged run without deleting it,
+then retired it exactly; the temporary units and state were removed. This
+probe did not exercise quiescence of a live agent service.
+
 Restart reconciliation uses `{"kind":"next_profile_run","version":1,
 "profile":"<32 lowercase hex>"}`. The root broker returns at most one
 `profile_run` selector with exact run, SHA-256 and a `launched` boolean, or

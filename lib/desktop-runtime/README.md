@@ -237,6 +237,17 @@ broker retirement. Setup errors try exact retirement; an unconfirmed cleanup
 is an error. Activation refuses a policy that expired during staging. Its
 cancellation token is available to the future desktop Quit owner. No Go
 admission or desktop lifecycle currently constructs this owner.
+`RunOwner::start` now also requires the existing private profile directory and
+checks its retained `profile.id` before staging. On a completed broker reply,
+it writes a framed receipt to `native-run-receipts/<run>.receipt` under that
+profile: a bounded JSON header with exact run, profile, role, source, tool,
+prompt, process and output-digest facts, followed by at most 16 MiB of output.
+It syncs the file and directory before broker retirement. A failed execution
+or receipt write stops local token use and asks the broker to quiesce the exact
+run without erasing root staging. An incomplete `.pending` receipt is retained
+as uncertainty. This native file still needs a Go reader, exact retained-run
+transaction and restart reconciliation; its presence alone is not a product
+outcome or permission to reactivate an agent.
 After the broker returns, `RunOwner` retains the external cancellation signal
 through owner and broker retirement and refuses a result if it was set during
 that cleanup. The native caller still must join execution and
