@@ -3805,6 +3805,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "soda-factory-worker"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "soda-native-process"
 version = "0.1.0"
 dependencies = [
