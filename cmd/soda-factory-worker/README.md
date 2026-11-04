@@ -136,6 +136,9 @@ read a provider token or decide whether a request is authorized. The desktop
 owner must authenticate the run and enforce provider routes, model, spend,
 deadline and withdrawal before any real credential use. This unit is a
 template only; no installer enables it and no agent is launched through it.
+The relay reports systemd readiness only after validating the socket and
+binding its private listener; the root broker waits for this readiness before
+reporting an attested relay UID.
 
 On 2026-11-04, a temporary rendered system unit passed
 `systemd-analyze verify` and started under a dynamic UID with a fake,

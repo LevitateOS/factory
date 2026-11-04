@@ -554,8 +554,18 @@ mount; systemd's regular-file bind placeholder was removed afterward. The
 relay checks the desktop owner's socket and peer UID and bounds traffic and
 lifetime. This qualifies only the transport shape. The trusted desktop owner
 still needs a run-bound provider policy and revocable token use; the broker
-must construct and retire exact unit instances, and an actual confined agent
+must construct and retire exact agent unit instances, and an actual confined agent
 must pass role, file, keyring and finite provider-run checks. D3 remains open.
+
+The actual broker now starts that relay only for an exact staged digest and
+prepared candidate, and reports its distinct dynamic UID while still marking
+execution unavailable. A live fixed-unit check refused wrong digest,
+candidate and owner-socket permissions; systemd waited for relay readiness
+after its own socket checks. Wrong-digest retirement preserved the service;
+exact retirement stopped it, removed the run and denied replay. Temporary
+units, sockets and state were removed. Go run/role admission, desktop owner
+provider policy, credentials, agent launch and the finite provider task remain
+unqualified, so D3 remains open.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only

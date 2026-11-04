@@ -212,6 +212,28 @@ profile/role/preparation, launch an agent, mediate provider credentials, retire
 active agent runs or perform a real provider task. It must remain uninstalled
 until those launch and retirement controls are wired and qualified.
 
+The broker now also accepts `attest_provider_relay` for an exact staged digest
+and frozen reviewer candidate. It starts only the fixed run-specific provider
+relay unit, then reports the relay runtime directory's distinct dynamic UID
+with `execution_available:false`. The capless broker cannot traverse the
+desktop user's mode-`0700` socket directory; the relay verifies its fixed
+bind-mounted socket and desktop owner peer itself. The unit uses
+`Type=notify`, so a successful manager start means those checks and the
+private loopback listener completed. Exact bundle retirement stops the relay
+before removing the prepared checkout and source. No request can select a
+provider URL, key, executable, unit property, role or host path.
+
+A temporary installation of the actual broker, preparer and relay units used
+a scratch Git bundle and credential-free fake owner socket. Wrong digest and
+candidate attestation were refused before relay start. A mode-`0600` owner
+socket made the relay refuse readiness; restoring mode `0666` allowed an exact
+attestation of dynamic UID 64727, distinct from desktop UID 1000. A wrong
+retirement digest preserved the active relay. Exact retirement stopped it,
+removed the run source and checkout, and later attestation replay failed.
+Systemd unit verification passed; temporary units, binaries, source socket,
+scratch runtime state and bind placeholder were removed. This does not admit
+an agent or provider credential and does not satisfy D3.
+
 An actual preparer-unit check exercised chained symlinks. A fixture with
 `d/alias -> ..` and `d/escape -> alias/../..` passes the older lexical test but
 resolves outside the checkout; the unit refused it with `reviewer symlink

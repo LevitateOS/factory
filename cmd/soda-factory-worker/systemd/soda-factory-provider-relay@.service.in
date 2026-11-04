@@ -2,7 +2,8 @@
 Description=Factory private provider relay for run %i
 
 [Service]
-Type=exec
+Type=notify
+NotifyAccess=main
 ExecStart=/usr/libexec/soda-factory-provider-relay %i @DESKTOP_UID@
 DynamicUser=yes
 UMask=0077

@@ -5,6 +5,7 @@
 use std::io;
 use std::net::Ipv4Addr;
 use std::os::fd::AsRawFd;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::Path;
 use std::time::Duration;
@@ -108,6 +109,52 @@ fn owner_peer(stream: &UnixStream, desktop_uid: u32) -> io::Result<()> {
     Ok(())
 }
 
+fn notify_ready() -> io::Result<()> {
+    let socket = std::env::var_os("NOTIFY_SOCKET")
+        .ok_or_else(|| refused("provider relay readiness socket missing"))?;
+    let socket = socket.as_bytes();
+    let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+    let abstract_socket = socket.first() == Some(&b'@');
+    let name = if abstract_socket {
+        &socket[1..]
+    } else {
+        socket
+    };
+    if name.is_empty() || name.len() >= address.sun_path.len() {
+        return Err(refused("provider relay readiness socket invalid"));
+    }
+    let start = usize::from(abstract_socket);
+    for (index, byte) in name.iter().enumerate() {
+        address.sun_path[start + index] = *byte as libc::c_char;
+    }
+    let length = std::mem::offset_of!(libc::sockaddr_un, sun_path)
+        + start
+        + name.len()
+        + usize::from(!abstract_socket);
+    let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, 0) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let message = b"READY=1";
+    let result = unsafe {
+        libc::sendto(
+            fd,
+            message.as_ptr().cast(),
+            message.len(),
+            libc::MSG_NOSIGNAL,
+            (&address as *const libc::sockaddr_un).cast(),
+            length as libc::socklen_t,
+        )
+    };
+    let error = io::Error::last_os_error();
+    unsafe { libc::close(fd) };
+    if result != message.len() as isize {
+        return Err(error);
+    }
+    Ok(())
+}
+
 async fn copy_limited<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     mut source: R,
     mut destination: W,
@@ -155,6 +202,7 @@ async fn serve() -> io::Result<()> {
     let desktop_uid = identity()?;
     owner_socket(desktop_uid)?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, PORT)).await?;
+    notify_ready()?;
     let deadline = tokio::time::Instant::now() + LIFETIME;
     let mut tasks = JoinSet::new();
     let mut count = 0;

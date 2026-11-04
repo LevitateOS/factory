@@ -44,6 +44,12 @@ enum Request {
         sha256: String,
         candidate: String,
     },
+    AttestProviderRelay {
+        version: u8,
+        run: String,
+        sha256: String,
+        candidate: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -92,6 +98,16 @@ struct ReviewerAttested<'a> {
     candidate: &'a str,
     worker_uid: u32,
     readonly_worktree: bool,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct ProviderRelayAttested<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    candidate: &'a str,
+    relay_uid: u32,
     execution_available: bool,
 }
 
@@ -319,6 +335,25 @@ fn stop_reviewer(run: &str) -> io::Result<()> {
     manager_unit("stop", &format!("soda-factory-reviewer@{run}.socket"))
 }
 
+fn relay_runtime(run: &str) -> PathBuf {
+    Path::new("/run/soda-factory-relay").join(run)
+}
+
+fn stop_relay(run: &str) -> io::Result<()> {
+    let runtime = relay_runtime(run);
+    match runtime.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+        Ok(_) => (),
+    }
+    manager("stop", "provider-relay", run)?;
+    match runtime.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+        Ok(_) => Err(denied("provider relay runtime survived stop")),
+    }
+}
+
 fn preparation_run(preparations: &Path, run: &str) -> io::Result<Option<PathBuf>> {
     let directory = preparations.join(run);
     match directory.symlink_metadata() {
@@ -332,6 +367,7 @@ fn clean_preparation(preparations: &Path, run: &str) -> io::Result<()> {
     let Some(directory) = preparation_run(preparations, run)? else {
         return Ok(());
     };
+    stop_relay(run)?;
     stop_reviewer(run)?;
     manager("stop", "preparer", run)?;
     manager("start", "preparation-cleaner", run)?;
@@ -479,6 +515,52 @@ fn attest_reviewer(run: &str, digest: &str, candidate: &str, desktop_uid: u32) -
     Ok(reply.worker_uid)
 }
 
+fn attest_provider_relay(
+    run: &str,
+    digest: &str,
+    candidate: &str,
+    desktop_uid: u32,
+) -> io::Result<u32> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("provider relay source bundle missing"));
+    }
+    let preparations = preparations()?;
+    let directory = preparation_run(&preparations, run)?
+        .ok_or_else(|| denied("provider relay preparation missing"))?;
+    if read_manifest(&directory.join("manifest.env"))?.as_deref()
+        != Some(manifest(candidate, digest).as_str())
+        || prepared_output(&directory)? != Some(0o555)
+    {
+        return Err(denied("provider relay preparation identity invalid"));
+    }
+    prepared_checkout(&directory)?;
+    if let Err(error) = manager("start", "provider-relay", run) {
+        manager("stop", "provider-relay", run)?;
+        return Err(error);
+    }
+    let verified = (|| {
+        manager("is-active", "provider-relay", run)?;
+        let metadata = relay_runtime(run).symlink_metadata()?;
+        let relay_uid = metadata.uid();
+        if !metadata.is_dir()
+            || metadata.mode() & 0o7777 != 0o700
+            || relay_uid == 0
+            || relay_uid == desktop_uid
+        {
+            return Err(denied("provider relay runtime identity invalid"));
+        }
+        Ok(relay_uid)
+    })();
+    if verified.is_err() {
+        manager("stop", "provider-relay", run)?;
+    }
+    verified
+}
+
 fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
     let metadata = directory.symlink_metadata()?;
     if !metadata.is_dir()
@@ -516,6 +598,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
             if preparation_run(&preparations, run)?.is_some() {
                 return Err(denied("retiring run has preparation state"));
             }
+            stop_relay(run)?;
             clean_retiring(&retiring, digest)?;
             File::open(&runs)?.sync_all()?;
             return Ok(true);
@@ -528,6 +611,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
             if preparation_run(&preparations, run)?.is_some() {
                 return Err(denied("orphan preparation cannot retire"));
             }
+            stop_relay(run)?;
             return Ok(false);
         }
         Err(error) => return Err(error),
@@ -538,6 +622,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
+    stop_relay(run)?;
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
     File::open(&runs)?.sync_all()?;
@@ -755,6 +840,26 @@ fn serve() -> io::Result<()> {
                 candidate: &candidate,
                 worker_uid,
                 readonly_worktree: true,
+                execution_available: false,
+            })?
+        }
+        Request::AttestProviderRelay {
+            version,
+            run,
+            sha256,
+            candidate,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+                return Err(denied("broker provider relay declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let relay_uid = attest_provider_relay(&run, &sha256, &candidate, desktop_uid)?;
+            serde_json::to_vec(&ProviderRelayAttested {
+                kind: "provider_relay_attested",
+                version: 1,
+                run: &run,
+                candidate: &candidate,
+                relay_uid,
                 execution_available: false,
             })?
         }
