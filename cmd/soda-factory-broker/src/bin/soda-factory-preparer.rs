@@ -2,7 +2,7 @@
 //! Unprivileged, fixed-path reviewer checkout preparation. The privileged
 //! broker must select both mounts and the exact run/candidate/digest arguments.
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
@@ -263,6 +263,7 @@ fn preflight_tree() -> io::Result<()> {
     let mut total = 0u64;
     let mut entries = 0usize;
     let mut paths = BTreeMap::new();
+    let mut directories = BTreeSet::new();
     let records = if output.is_empty() {
         &output[..]
     } else {
@@ -308,6 +309,14 @@ fn preflight_tree() -> io::Result<()> {
         }
         if depth > MAX_DEPTH {
             return Err(refused("reviewer tree depth exceeded"));
+        }
+        for (index, byte) in path.iter().enumerate() {
+            if *byte == b'/' {
+                directories.insert(path[..index].to_vec());
+                if directories.len() + entries > MAX_ENTRIES {
+                    return Err(refused("reviewer tree namespace bound exceeded"));
+                }
+            }
         }
         let size = std::str::from_utf8(fields[3])
             .ok()

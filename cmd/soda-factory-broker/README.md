@@ -315,3 +315,11 @@ A UTF-16LE-BOM plus CRLF fixture also prepared cleanly under the actual unit,
 producing its expected 16-byte worktree file. Its disposable state was removed.
 This is a bound on admitted logical file content, not a strict filesystem
 quota: block allocation and repository metadata still consume storage.
+
+The tree preflight also counts distinct parent directories from every admitted
+path and refuses when files plus directories exceed the existing 20,000-entry
+checkout ceiling. A 3,318-byte local bundle described 600 files beneath about
+24,000 parent directories; the actual preparer unit refused it with `reviewer
+tree namespace bound exceeded` before any branch directory appeared. Its
+partial no-checkout repository used 100 KiB. The disposable unit, binary,
+bundle and checkout were removed. The strict total-storage quota remains open.

@@ -435,6 +435,14 @@ actual unit. The temporary service state was removed. Filesystem allocation
 and repository metadata still require a strict storage quota or a separately
 proved upper bound for D3.
 
+The preflight now also counts distinct parent directories before checkout.
+A 3,318-byte bundle declared 600 files beneath about 24,000 parent directories;
+the actual preparer unit refused it with `reviewer tree namespace bound
+exceeded` before creating any branch directory. The partial repository used
+100 KiB; the disposable state was removed. This bounds namespace expansion,
+while a strict total-storage quota or equivalent upper-bound proof remains
+open for D3.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first
