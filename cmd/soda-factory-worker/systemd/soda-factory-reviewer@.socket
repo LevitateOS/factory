@@ -1,0 +1,11 @@
+[Unit]
+Description=Factory root-private reviewer run socket for %i
+
+[Socket]
+ListenStream=/run/soda-factory-broker/preparations/%i/reviewer.sock
+SocketUser=root
+SocketMode=0600
+DirectoryMode=0700
+Accept=no
+Service=soda-factory-reviewer@%i.service
+RemoveOnStop=yes

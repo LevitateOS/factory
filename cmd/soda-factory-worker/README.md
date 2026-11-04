@@ -97,3 +97,29 @@ key; the fake provider returned 401 and no real model ran. The listener and
 scratch workspace were removed. A future proxy must replace that placeholder
 with owner-held authority and enforce the admitted run, endpoint, budgets and
 withdrawal.
+
+`soda-factory-reviewer` is a separate, credential-free run attester behind the
+root broker. Its fixed socket template listens only inside
+`/run/soda-factory-broker/preparations/<run>`; the root-owned mode-`0700`
+parent and mode-`0600` socket deny a direct desktop connection. The paired
+service uses a distinct dynamic UID and binds only the prepared checkout at
+`/run/factory-worktree` read-only. It requires systemd socket activation, a
+root peer, its own private runtime, no new privileges and an exact 32-hex run.
+The single bounded `attest_run` request names the expected 40-hex candidate.
+The worker verifies the mount's read-only flag and Git HEAD, using Git
+`safe.directory` for only that fixed mount because the preparer owns the
+checkout under a different UID. It replies with its UID and
+`execution_available:false`. It accepts no executable, role choice, host path
+or credential.
+
+On 2026-11-04, the broker staged and prepared a local candidate, then activated
+the reviewer through its actual private socket. The first attempt failed Git's
+cross-UID ownership check; after restricting `safe.directory` to the fixed
+mount, attestation succeeded as UID 61729. Direct desktop connection to the
+private socket was denied; changed-candidate attestation was refused. Repeated
+attestation succeeded, and exact retirement stopped the socket and service and
+removed the checkout and source. A post-retirement replay was refused. All
+temporary units, binaries, socket state and scratch source were removed.
+This qualifies the read-only run mount and service identity only. It does not
+run an agent, proxy credentials, withdraw provider authority or prove a finite
+provider task.

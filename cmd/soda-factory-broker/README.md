@@ -4,8 +4,8 @@
 first N3 workspace-transfer boundary. The installer must render the socket
 template for the selected desktop account and install the root-owned binary
 and units. The current desktop runtime does not connect to it and no installer
-enables it. The broker stages bytes and invokes fixed credential-free checkout
-preparation services; it cannot admit or launch an agent.
+enables it. The broker stages bytes, prepares a fixed checkout and activates a
+credential-free reviewer attestation; it cannot admit or launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 256), then
 `{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
@@ -32,19 +32,31 @@ stopped and cleaned with the fixed cleaner before retry. The request has no
 mount path, command, unit property, role selector, or credential field. This
 is checkout preparation, not Go run admission or reviewer execution.
 
+An exact reviewer mount attestation uses
+`{"kind":"attest_reviewer","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
+with no payload. The broker rechecks the staged source, exact manifest and
+frozen output before starting only `soda-factory-reviewer@<run>.socket`.
+That socket is root-owned mode `0600` inside the root-private preparation
+parent; the desktop peer cannot connect directly. A distinct dynamic UID gets
+the checkout at one fixed read-only bind. The reviewer attests its service
+identity, root broker peer, read-only mount and exact Git HEAD; the broker
+validates the bounded reply and returns `execution_available:false`. This
+does not authorize a reviewer agent or deliver a provider credential.
+
 An exact retirement uses
 `{"kind":"retire_bundle","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>"}`
 with no payload. The broker verifies the stored bundle's owner, mode, bounded
 length and digest, then renames the run to a digest-bound retiring directory
 before unlinking. An exact retry can finish deletion after either the rename
 or bundle unlink; staging that run is refused while retirement is pending.
-Before the source rename, the broker stops the fixed preparer instance and
-uses the exact-run cleaner to remove its checkout and manifest. It verifies
+Before the source rename, the broker stops the reviewer service/socket and
+fixed preparer instance, then uses the exact-run cleaner to remove its checkout
+and manifest. It verifies
 the private preparation child is empty and removes it. A failed cleanup leaves
 the staged source in place. The response reports `removed:true`, or
 `removed:false` when that run is already absent. A mismatched digest is refused.
-The broker cannot launch a reviewer worker; future launch code must also stop
-and reconcile that worker before retiring its workspace.
+The broker cannot launch a reviewer agent; future execution code must also
+stop and reconcile that agent before retiring its workspace.
 
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
 `/run/soda-factory-broker/runs/<run>/bundle`. The runtime and `runs` parents
@@ -180,8 +192,19 @@ that entry, exact retirement completed. Root inspection confirmed no run or
 tombstone remained. The temporary socket, units, binaries, state and scratch
 repository were removed.
 
-These are staging and preparation primitives, not the D3 broker closure. The
-broker does not check a Go-admitted profile/role/preparation, select a reviewer
-worker unit, mediate provider credentials, retire active agent runs or perform
-a real provider task. It must remain uninstalled until those launch and
-retirement controls are wired and qualified.
+A further temporary installation verified the run-specific reviewer path.
+The first activation exposed Git's cross-UID `safe.directory` check; the worker
+now trusts only its fixed read-only mount for Git's HEAD inspection. A repeat
+activation returned worker UID 61729, the exact candidate and a read-only
+worktree with execution unavailable. The desktop UID could not connect to the
+root-private reviewer socket, and a changed candidate was refused. Exact
+retirement stopped the reviewer socket and service and removed source and
+checkout; a later attestation could not revive the run. Root inspection found
+no run child afterward. The temporary socket, units, binaries, state and
+scratch repository were removed.
+
+These are staging, preparation and read-only reviewer attestation primitives,
+not the D3 broker closure. The broker does not check a Go-admitted
+profile/role/preparation, launch an agent, mediate provider credentials, retire
+active agent runs or perform a real provider task. It must remain uninstalled
+until those launch and retirement controls are wired and qualified.

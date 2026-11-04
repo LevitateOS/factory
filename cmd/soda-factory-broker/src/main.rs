@@ -7,8 +7,10 @@ use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
@@ -31,6 +33,12 @@ enum Request {
         sha256: String,
     },
     PrepareReviewer {
+        version: u8,
+        run: String,
+        sha256: String,
+        candidate: String,
+    },
+    AttestReviewer {
         version: u8,
         run: String,
         sha256: String,
@@ -63,6 +71,38 @@ struct Prepared<'a> {
     candidate: &'a str,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewerReply {
+    kind: String,
+    version: u8,
+    run: String,
+    candidate: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    readonly_worktree: bool,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct ReviewerAttested<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    candidate: &'a str,
+    worker_uid: u32,
+    readonly_worktree: bool,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct ReviewerRequest<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    candidate: &'a str,
+}
+
 fn denied(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
 }
@@ -86,7 +126,7 @@ fn private_dir(path: &Path, mode: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn socket(fd: RawFd) -> io::Result<()> {
+fn socket(fd: RawFd) -> io::Result<u32> {
     if unsafe { libc::geteuid() } != 0 || unsafe { libc::getuid() } != 0 {
         return Err(denied("broker requires root-owned service"));
     }
@@ -155,7 +195,7 @@ fn socket(fd: RawFd) -> io::Result<()> {
     {
         return Err(denied("broker peer admission failed"));
     }
-    Ok(())
+    Ok(peer.uid)
 }
 
 fn state() -> io::Result<PathBuf> {
@@ -256,11 +296,10 @@ fn manifest_identity(value: &str) -> Option<(&str, &str)> {
     (id(candidate, 40) && id(digest, 64)).then_some((candidate, digest))
 }
 
-fn manager(action: &str, unit: &str, run: &str) -> io::Result<()> {
-    let unit = format!("soda-factory-{unit}@{run}.service");
+fn manager_unit(action: &str, unit: &str) -> io::Result<()> {
     let status = Command::new("/usr/bin/systemctl")
         .env_clear()
-        .args(["--system", "--no-ask-password", action, &unit])
+        .args(["--system", "--no-ask-password", action, unit])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -269,6 +308,15 @@ fn manager(action: &str, unit: &str, run: &str) -> io::Result<()> {
         return Err(denied("fixed preparation service failed"));
     }
     Ok(())
+}
+
+fn manager(action: &str, unit: &str, run: &str) -> io::Result<()> {
+    manager_unit(action, &format!("soda-factory-{unit}@{run}.service"))
+}
+
+fn stop_reviewer(run: &str) -> io::Result<()> {
+    manager_unit("stop", &format!("soda-factory-reviewer@{run}.service"))?;
+    manager_unit("stop", &format!("soda-factory-reviewer@{run}.socket"))
 }
 
 fn preparation_run(preparations: &Path, run: &str) -> io::Result<Option<PathBuf>> {
@@ -284,6 +332,7 @@ fn clean_preparation(preparations: &Path, run: &str) -> io::Result<()> {
     let Some(directory) = preparation_run(preparations, run)? else {
         return Ok(());
     };
+    stop_reviewer(run)?;
     manager("stop", "preparer", run)?;
     manager("start", "preparation-cleaner", run)?;
     if fs::read_dir(&directory)?.next().is_some() {
@@ -366,6 +415,68 @@ fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
         clean_preparation(&preparations, run)?;
     }
     result
+}
+
+fn attest_reviewer(run: &str, digest: &str, candidate: &str, desktop_uid: u32) -> io::Result<u32> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("reviewer source bundle missing"));
+    }
+    let preparations = preparations()?;
+    let directory = preparation_run(&preparations, run)?
+        .ok_or_else(|| denied("reviewer preparation missing"))?;
+    if read_manifest(&directory.join("manifest.env"))?.as_deref()
+        != Some(manifest(candidate, digest).as_str())
+        || prepared_output(&directory)? != Some(0o555)
+    {
+        return Err(denied("reviewer preparation identity invalid"));
+    }
+    prepared_checkout(&directory)?;
+    let socket_unit = format!("soda-factory-reviewer@{run}.socket");
+    manager_unit("start", &socket_unit)?;
+    let socket_path = directory.join("reviewer.sock");
+    let metadata = socket_path.symlink_metadata()?;
+    if !metadata.file_type().is_socket() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o600
+    {
+        return Err(denied("reviewer run socket invalid"));
+    }
+    let mut stream = UnixStream::connect(socket_path)?;
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    let request = serde_json::to_vec(&ReviewerRequest {
+        kind: "attest_run",
+        version: 1,
+        run,
+        candidate,
+    })?;
+    stream.write_all(&(request.len() as u32).to_le_bytes())?;
+    stream.write_all(&request)?;
+    let mut header = [0u8; 4];
+    stream.read_exact(&mut header)?;
+    let length = u32::from_le_bytes(header) as usize;
+    if length == 0 || length > 512 {
+        return Err(denied("reviewer attestation bound"));
+    }
+    let mut bytes = vec![0; length];
+    stream.read_exact(&mut bytes)?;
+    let reply: ReviewerReply =
+        serde_json::from_slice(&bytes).map_err(|_| denied("reviewer attestation shape invalid"))?;
+    if reply.kind != "run_attested"
+        || reply.version != 1
+        || reply.run != run
+        || reply.candidate != candidate
+        || reply.worker_uid == 0
+        || reply.worker_uid == desktop_uid
+        || reply.peer_uid != 0
+        || !reply.readonly_worktree
+        || reply.execution_available
+    {
+        return Err(denied("reviewer attestation identity invalid"));
+    }
+    Ok(reply.worker_uid)
 }
 
 fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
@@ -550,7 +661,7 @@ fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
 }
 
 fn serve() -> io::Result<()> {
-    socket(0)?;
+    let desktop_uid = socket(0)?;
     let mut input = io::stdin().lock();
     let mut header = [0u8; 4];
     input.read_exact(&mut header)?;
@@ -624,6 +735,27 @@ fn serve() -> io::Result<()> {
                 run: &run,
                 sha256: &sha256,
                 candidate: &candidate,
+            })?
+        }
+        Request::AttestReviewer {
+            version,
+            run,
+            sha256,
+            candidate,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+                return Err(denied("broker reviewer attestation declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let worker_uid = attest_reviewer(&run, &sha256, &candidate, desktop_uid)?;
+            serde_json::to_vec(&ReviewerAttested {
+                kind: "reviewer_attested",
+                version: 1,
+                run: &run,
+                candidate: &candidate,
+                worker_uid,
+                readonly_worktree: true,
+                execution_available: false,
             })?
         }
     };

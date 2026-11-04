@@ -486,9 +486,27 @@ reconciled and prepared successfully. An unexpected root-owned preparation
 entry made retirement refuse while preserving both source and frozen checkout;
 after removing it, retirement completed. Root inspection found no run or
 tombstone. The temporary installation, state and scratch source were removed.
-This is credential-free reviewer checkout preparation only. There is still no
-Go-admitted role/profile/run binding, reviewer agent launch, provider credential
-proxy, withdrawal or finite provider run. D3 remains open.
+At that checkpoint this was credential-free reviewer checkout preparation only.
+There was still no Go-admitted role/profile/run binding, reviewer agent launch,
+provider credential proxy, withdrawal or finite provider run.
+
+The broker now also accepts a bounded `attest_reviewer` for the exact staged
+digest, frozen manifest and candidate. It starts only the run-specific
+root-private `soda-factory-reviewer@<run>.socket`, then connects as root to an
+unprivileged dynamic-UID reviewer service. The service receives the checkout
+through a fixed read-only bind and verifies its mount flag and Git HEAD. Git's
+normal cross-UID ownership check initially refused the checkout; the worker
+now grants `safe.directory` only for that fixed mount. The broker validates
+the worker UID differs from the desktop UID and returns
+`execution_available:false`. Retirement stops the reviewer service and socket
+before checkout cleanup. A live actual-socket run returned UID 61729 and the
+exact candidate/read-only mount; the desktop UID was denied a direct connection
+to the private reviewer socket. A changed candidate was refused, repeated
+attestation succeeded, and exact retirement left both units inactive and no
+source or checkout. Post-retirement replay failed. The temporary installation
+and scratch state were removed. This proves a run-specific read-only reviewer
+mount and private socket, not Go admission, an agent run, keyring/file probes on
+that agent, credential withdrawal or a real provider task. D3 remains open.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
