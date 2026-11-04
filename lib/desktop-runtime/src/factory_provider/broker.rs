@@ -254,7 +254,7 @@ impl AgentCancellation {
         self.0.store(true, Ordering::SeqCst);
     }
 
-    fn cancelled(&self) -> bool {
+    pub(super) fn cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }
 }

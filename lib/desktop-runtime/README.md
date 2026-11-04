@@ -225,6 +225,10 @@ broker retirement. Setup errors try exact retirement; an unconfirmed cleanup
 is an error. Activation refuses a policy that expired during staging. Its
 cancellation token is available to the future desktop Quit owner. No Go
 admission or desktop lifecycle currently constructs this owner.
+After the broker returns, `RunOwner` retains the external cancellation signal
+through owner and broker retirement and refuses a result if it was set during
+that cleanup. The native caller still must join execution and
+handle an unconfirmed retirement before reporting a terminal product outcome.
 
 A dummy-key Muse 1.4.14 request to a local fake provider showed that the CLI
 advertised `workflow`, memory, monitoring and reminder functions even with

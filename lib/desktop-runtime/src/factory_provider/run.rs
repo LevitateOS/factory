@@ -197,9 +197,13 @@ impl RunOwner {
             duration,
             self.cancellation.clone(),
         );
-        let retired = self.retire();
+        // The broker may have returned just before Quit or request loss. Keep
+        // that external cancellation visible through final local/root cleanup;
+        // only a caller-initiated retire should set the cancellation flag.
+        let retired = self.retire_after_attempt();
         match (result, retired) {
-            (Ok(run), Ok(())) => Ok(run),
+            (Ok(run), Ok(())) if !self.cancellation.cancelled() => Ok(run),
+            (Ok(_), Ok(())) => Err(refused("agent execution cancelled")),
             (Err(error), Ok(())) => Err(error),
             _ => Err(refused("provider run or retirement unconfirmed")),
         }
@@ -208,6 +212,12 @@ impl RunOwner {
     pub fn retire(&mut self) -> io::Result<()> {
         if !self.retired {
             self.cancellation.cancel();
+        }
+        self.retire_after_attempt()
+    }
+
+    fn retire_after_attempt(&mut self) -> io::Result<()> {
+        if !self.retired {
             self.owner.retire()?;
             self.retired = true;
         }
