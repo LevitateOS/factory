@@ -368,6 +368,16 @@ egress while it only serves attestation. Its rendered units passed verification,
 and a live Unix socket activation still attested worker UID 61739 for desktop
 UID 1000 with execution unavailable. The temporary installation was removed.
 
+An empty-workspace, `--no-session-log` Muse `exec` probe used a dummy stdin key
+and a local fake provider that always returned HTTP 401. With `META_API_KEY`
+removed from that process, `--base-url` routed `GET /muse-code/models` and
+`POST /responses` to the fake endpoint; the endpoint checked that each
+authorization header matched the dummy key without logging its value. This
+confirms the observed CLI can route these requests through a broker while
+carrying an unprivileged placeholder credential. The fake endpoint, scratch
+workspace and listener were removed. It does not establish all provider
+routes, proxy token replacement, live account authority or a finite model run.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

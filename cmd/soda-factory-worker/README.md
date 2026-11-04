@@ -89,3 +89,11 @@ On this host, a bounded transient systemd comparison confirmed
 a known reachable listener on `127.0.0.2`. The listeners and temporary units
 were stopped. An address allowlist alone cannot select a single service or
 authenticate a run, so it is not yet a provider credential boundary.
+
+An empty scratch Muse `exec` probe with `--api-key-stdin`, a dummy key and
+`--base-url` sent model discovery and response requests to a local fake
+provider. It confirmed only that the authorization header matched the dummy
+key; the fake provider returned 401 and no real model ran. The listener and
+scratch workspace were removed. A future proxy must replace that placeholder
+with owner-held authority and enforce the admitted run, endpoint, budgets and
+withdrawal.
