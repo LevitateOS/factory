@@ -243,6 +243,15 @@ exposed a missing reviewer unit in the temporary probe installation; adding
 that unit made the exact retry and a second complete launch/retirement pass.
 The temporary installation and scratch artifacts were removed.
 
+A later disposable check exercised cancellation with the actual root broker,
+preparer, relay and agent units. A tiny credential-free reviewer ELF reached a
+fake desktop owner through the private relay and waited. The desktop client
+cancelled the broker call; the agent unit had `MainPID=0` and no control group
+before exact bundle retirement, and the system journal recorded SIGKILL of the
+agent main process and child. Retirement and removal of all temporary units,
+binaries and run state followed. This does not establish owner-held provider
+credential withdrawal or a production Go-admitted run.
+
 The agent service now opens `soda-native-process::Processes` under its own
 run-specific runtime and delegated cgroup before accepting an attestation.
 Its unit places the main process in `init`, leaving the parent cgroup empty so

@@ -841,9 +841,17 @@ does not itself qualify the worker or provider custody.
 The native broker client gained a cancellable execution call. A disposable
 root-peer socket accepted the actual client request, then observed EOF after
 the trusted cancellation signal; the client refused a late receipt. This is
-the transport control needed for Quit/request cancellation. It still needs
-composition with the Go-admitted run, owner-held credential and actual
-broker-to-worker retirement proof before D3 can close.
+the transport control needed for Quit/request cancellation. That socket-only
+probe did not establish retirement of an actual isolated worker.
+
+A disposable real-unit cancellation check now closes that process-tree proof:
+the actual root broker, preparer, relay and isolated reviewer agent ran a tiny
+credential-free ELF that reached a fake owner over the private relay and waited.
+After client cancellation, and before exact bundle retirement, systemd showed
+the agent with `MainPID=0` and no control group; its journal recorded SIGKILL
+of the agent and child. Exact retirement succeeded, then temporary units,
+binaries and state were removed. Go admission, real credential custody and
+production Quit remain open for D3.
 
 ## Inspection identity and evidence limits
 

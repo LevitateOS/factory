@@ -262,6 +262,16 @@ EOF after cancellation; its socket and root directory were removed. This
 proves client-side cancellation transport, not worker retirement under the
 actual systemd broker or credential withdrawal on Quit.
 
+A subsequent disposable activation used the actual root broker, preparer,
+relay and isolated agent units. A tiny credential-free reviewer ELF reached a
+fake owner socket through the run's private relay, then waited. Cancelling the
+desktop broker call returned no receipt; before the exact retirement RPC, the
+agent unit had `MainPID=0` and no control group. The system journal recorded
+SIGKILL of both the agent main process and its child. Exact retirement then
+removed the staged run. The temporary units, binaries and run state were
+removed. This proves cancellation reaches an active isolated tree; provider
+credential withdrawal and production Quit remain unqualified.
+
 ## Native GitHub connector
 
 The headless `github_provider` owner implements fixed-origin authenticated HTTPS,

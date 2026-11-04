@@ -343,6 +343,14 @@ native owner signals cancellation and refuses any late receipt. A disposable
 root-peer socket probe observed that EOF after an uploaded dummy request. The
 actual broker already monitors client disconnect during worker reply wait;
 full Quit-to-worker retirement remains to be checked on the composed path.
+A disposable real-unit check then launched a tiny credential-free reviewer ELF
+through the actual root broker, preparer, relay and agent. The child reached a
+fake owner over the private relay and waited. After the desktop client
+cancelled, the agent unit reported `MainPID=0` and no control group before the
+exact retirement request; the journal recorded SIGKILL of the agent and child.
+Exact retirement and removal of all temporary units, binaries and run state
+followed. The Go-admitted launch, owner-held credential and production Quit
+still need this same path.
 A disposable actual-unit probe returned these process fields from a
 credential-free reviewer ELF with exit code 0 and a retired tree. After adding
 the reviewer units required by cleanup, exact retirement and a second full
