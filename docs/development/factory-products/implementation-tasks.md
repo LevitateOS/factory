@@ -575,7 +575,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 179 | T06-CONNECT-PRODUCT | T06-CONNECT-PORTS | N2 producer: Compose Go current-account/canonical repository binding and shared Factory feed/request/retained-read services over the admitted native semantic ports; retain Go transaction/policy authority and explicit missing execution/planning states. Qualify the actual bound HTTP operation before desktop selection/UI. | Complete |
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
-| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
+| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Pending |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
@@ -725,20 +725,21 @@ cutovers before implementation; its final closure/provider qualification remains
 | 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Pending |
 | 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
 | 331 | T12-PLACEMENT | T01-RUNTIME, T03-APP, T06-CONNECT | Persist/enforce runtime placement, generation and explicit policy enrollment before dispatch. Prove local GitHub single-controller behavior; preserve appliance admission. Remote Fountain placement is qualified in T10-GATEWAY. Automation stays inactive. | Pending |
-| 332 | T09-NATIVE-EXECUTOR | T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3: Implement headless Rust native process/tree/PTY/deadline/workspace/Git/artifact/custody operations behind admitted execution contracts, with independent cleanup and no duplicate Go workflow/SQL state machine. Qualify finite execution, cancellation and retirement before the execution consumer. | Pending |
-| 333 | T09-EXECUTION | T09-NATIVE-EXECUTOR, T02-ENGINE, T05-LIFECYCLE, T05-CREDENTIALS, T06-CONNECT, T12-PLACEMENT | N4: Supply the admitted Rust execution ports to the single Go coordinator; start it only when dependencies are admitted. Preserve native worktrees, provider custody, provenance, cancellation, candidate capture and ledger recovery. Integrate executor retirement into Quit/crash/recovery before unattended intake; qualify D3 and a real finite provider run. | Pending |
-| 334 | T10-GATEWAY | T05-CREDENTIALS, T06-FOUNTAIN, T10-WRITES, T12-PLACEMENT | Supported Fountain desktop login/enrollment, revocable grants, authenticated HTTPS reads/operations and centrally coordinated runtime placement; prove D2 and connect the existing desktop views. Candidate transfer is the next slice. | Pending |
-| 335 | T10-PUBLISH | T09-EXECUTION, T10-GATEWAY | Digest-bound candidate transfer/staging and conditional Fountain publication with retained operation lookup; prove native execution to PR and lost-upload/write recovery. | Pending |
-| 336 | T10-INTAKE | T10-PUBLISH | Admit eligible Fountain issue changes on the selected runtime; preserve current native authority and prevent duplicate appliance/desktop dispatch. Verify an automatic issue-to-PR journey. | Pending |
-| 337 | T11-INTAKE | T09-EXECUTION, T11-WRITES, T12-PLACEMENT | Explicit D1 policy, authenticated polling/cursors, wake reconciliation and eligible GitHub issue-to-PR automation; verify no recursive/self-triggered or unauthorized spending. No Fountain gateway dependency. | Pending |
-| 338 | T12-GITHUB-PRS | T08-WRITE, T11-INTAKE | Adopt eligible external GitHub PR updates/reviews/checks with exact head/base and fork-execution authority; replace ignored-PR behavior for this provider. | Pending |
-| 339 | T12-FOUNTAIN-PRS | T08-WRITE, T10-INTAKE | Adopt eligible external Fountain PR updates/reviews/checks with exact head/base and fork-execution authority; replace ignored-PR behavior for this provider. | Pending |
-| 340 | T14-PACKAGE | T05-LIFECYCLE, T08-WRITE, T09-EXECUTION | Build a locally installable Linux app containing architecture-matching Go/PG/native assets, production UI and notices. Exclude Storybook; installation needs no developer tools or container engine. | Pending |
-| 341 | T13-FORGE | T08-WRITE, T12-FOUNTAIN-PRS, T04-REPO-UI, T04-REPO-NATIVE | Build/install with the existing appliance tooling and verify the actual Fountain extension/appliance issue-to-PR/review/correction journey with shared UI and retained execution behavior. No Linux desktop package prerequisite. | Pending |
-| 342 | T13-GITHUB | T14-PACKAGE, T12-GITHUB-PRS | Install the Linux app and verify GitHub connect/issue/automatic work/PR/review/correction, external PR adoption, real keyboard input, Quit/restart/wake and permissions. | Pending |
-| 343 | T13-FOUNTAIN | T14-PACKAGE, T12-FOUNTAIN-PRS | Install the Linux app and verify Fountain enrollment/issue/local work/upload/PR/review/correction, external PR adoption, placement and revoked-grant behavior. | Pending |
-| 344 | T14-UPGRADE | T13-FORGE, T13-GITHUB, T13-FOUNTAIN | Upgrade the installed app/backend/store with retained data, credentials, pending effects, browser draft/command recovery and captured active-run executables. Explicitly qualify recovery of historical unscoped writing without granting unproven commands authority. | Pending |
-| 345 | T14-PARITY | T13-FORGE, T13-GITHUB, T13-FOUNTAIN | Change one shared component, rebuild/install both consumers and demonstrate the same visible result in Fountain and desktop. | Pending |
+| 332 | T09-NATIVE-PROCESS | T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3 producer: Implement reusable Rust captured native executable/process/PTY ownership with kernel process-tree and resource scopes, hard deadlines, bounded output and joined cancellation/retirement. Qualify actual finite child/descendant execution independently of Go polling; missing delegation refuses launch. No product workflow/SQL or browser process API. | Complete |
+| 333 | T09-NATIVE-EXECUTOR | T09-NATIVE-PROCESS, T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3: Implement headless Rust native process/tree/PTY/deadline/workspace/Git/artifact/custody operations behind admitted execution contracts, with independent cleanup and no duplicate Go workflow/SQL state machine. Qualify finite execution, cancellation and retirement before the execution consumer. | Pending |
+| 334 | T09-EXECUTION | T09-NATIVE-EXECUTOR, T02-ENGINE, T05-LIFECYCLE, T05-CREDENTIALS, T06-CONNECT, T12-PLACEMENT | N4: Supply the admitted Rust execution ports to the single Go coordinator; start it only when dependencies are admitted. Preserve native worktrees, provider custody, provenance, cancellation, candidate capture and ledger recovery. Integrate executor retirement into Quit/crash/recovery before unattended intake; qualify D3 and a real finite provider run. | Pending |
+| 335 | T10-GATEWAY | T05-CREDENTIALS, T06-FOUNTAIN, T10-WRITES, T12-PLACEMENT | Supported Fountain desktop login/enrollment, revocable grants, authenticated HTTPS reads/operations and centrally coordinated runtime placement; prove D2 and connect the existing desktop views. Candidate transfer is the next slice. | Pending |
+| 336 | T10-PUBLISH | T09-EXECUTION, T10-GATEWAY | Digest-bound candidate transfer/staging and conditional Fountain publication with retained operation lookup; prove native execution to PR and lost-upload/write recovery. | Pending |
+| 337 | T10-INTAKE | T10-PUBLISH | Admit eligible Fountain issue changes on the selected runtime; preserve current native authority and prevent duplicate appliance/desktop dispatch. Verify an automatic issue-to-PR journey. | Pending |
+| 338 | T11-INTAKE | T09-EXECUTION, T11-WRITES, T12-PLACEMENT | Explicit D1 policy, authenticated polling/cursors, wake reconciliation and eligible GitHub issue-to-PR automation; verify no recursive/self-triggered or unauthorized spending. No Fountain gateway dependency. | Pending |
+| 339 | T12-GITHUB-PRS | T08-WRITE, T11-INTAKE | Adopt eligible external GitHub PR updates/reviews/checks with exact head/base and fork-execution authority; replace ignored-PR behavior for this provider. | Pending |
+| 340 | T12-FOUNTAIN-PRS | T08-WRITE, T10-INTAKE | Adopt eligible external Fountain PR updates/reviews/checks with exact head/base and fork-execution authority; replace ignored-PR behavior for this provider. | Pending |
+| 341 | T14-PACKAGE | T05-LIFECYCLE, T08-WRITE, T09-EXECUTION | Build a locally installable Linux app containing architecture-matching Go/PG/native assets, production UI and notices. Exclude Storybook; installation needs no developer tools or container engine. | Pending |
+| 342 | T13-FORGE | T08-WRITE, T12-FOUNTAIN-PRS, T04-REPO-UI, T04-REPO-NATIVE | Build/install with the existing appliance tooling and verify the actual Fountain extension/appliance issue-to-PR/review/correction journey with shared UI and retained execution behavior. No Linux desktop package prerequisite. | Pending |
+| 343 | T13-GITHUB | T14-PACKAGE, T12-GITHUB-PRS | Install the Linux app and verify GitHub connect/issue/automatic work/PR/review/correction, external PR adoption, real keyboard input, Quit/restart/wake and permissions. | Pending |
+| 344 | T13-FOUNTAIN | T14-PACKAGE, T12-FOUNTAIN-PRS | Install the Linux app and verify Fountain enrollment/issue/local work/upload/PR/review/correction, external PR adoption, placement and revoked-grant behavior. | Pending |
+| 345 | T14-UPGRADE | T13-FORGE, T13-GITHUB, T13-FOUNTAIN | Upgrade the installed app/backend/store with retained data, credentials, pending effects, browser draft/command recovery and captured active-run executables. Explicitly qualify recovery of historical unscoped writing without granting unproven commands authority. | Pending |
+| 346 | T14-PARITY | T13-FORGE, T13-GITHUB, T13-FOUNTAIN | Change one shared component, rebuild/install both consumers and demonstrate the same visible result in Fountain and desktop. | Pending |
 
 The Linux completion boundary includes every row in the table. D1/D2/D3 gate activation of
 their named capabilities; D5 gates any claim of issue-only collaborator parity.
@@ -23924,7 +23925,7 @@ an external provider link is optional, not the primary issue/PR experience.
 
 Slice: T09-EXECUTION requires T02-ENGINE, T05-LIFECYCLE, T05-CREDENTIALS,
 T06-CONNECT and T12-PLACEMENT. Owner: Rust/native with Go/core consumer. Files:
-`lib/factory-host/`, native custody/provider connections, execution client/provenance
+`lib/desktop-runtime/src/execution/`, native custody/provider connections, execution client/provenance
 and the existing consuming HostFactory/BrokerExecution interfaces.
 
 - **M/C:** Reuse portable Git/candidate/receipt/output validators; keep Linux host
@@ -24679,3 +24680,80 @@ No connected success result exists yet. Keep that credential session available
 for explicit assertion retries after consent rather than withdrawing its grant
 or issuing another challenge just because an observer fails. CONNECT remains
 the sole Active slice; the full Linux product/allocation goal is unfinished.
+
+
+## T09-NATIVE-PROCESS — independent native process authority (2026-11-04)
+
+Previous turn made progress: source 63fc4c2 and qualification checkpoint 9adfaeb
+are pushed. The actual CONNECT attempt is confirmed live and waiting for required
+browser consent. Keep CONNECT pending, not complete, while advancing the first
+independent dependency-ready native packet. Split the process/PTY/resource owner
+from N3 workspace/Git/artifact/custody composition; only PROCESS is Active. Its
+consumer remains T09-NATIVE-EXECUTOR, followed by N4 and the single admitted Go
+coordinator. The current user has a delegated cgroup-v2 subtree with CPU, memory
+and process-count controllers. Require an admitted delegated native root instead
+of pretending a process group contains detached descendants. Preserve the trusted
+same-user limitation and keep kernel/process mechanisms in headless Rust. No
+unit tests, new test root, parallel agent, product SQL owner or browser shell API.
+
+
+## T09-NATIVE-PROCESS — verified headless process authority (2026-11-04)
+
+Completed the N3 process producer in lib/desktop-runtime/src/execution. Rust
+captures bounded native ELF bytes into a sealed memfd with SHA-256 identity;
+source replacement cannot change the admitted executable. A native-only typed
+invocation supplies a private directory, explicit argv/environment, PTY size and
+finite resource limits. There is no serialized shell/process API, inherited
+parent environment, Tauri dependency, Go product policy or SQL owner here.
+
+A private exclusive native lock and its file identity bind the kernel namespace
+to its configured profile/storage owner. Another directory with the same profile
+label cannot adopt live work. Admission requires an actual user-delegated
+cgroup-v2 subtree with CPU/memory/process controllers and permission to migrate
+the child. Limits are installed and the child enters its scope before executable
+code can fork. PTY descriptors acquire CLOEXEC atomically across concurrent forks.
+The monitor owns boot/start identity, direct-child exit, hard time/output bounds,
+cancellation and detached-descendant retirement independently of Go polling.
+Slow output-file writes start after the child/tree control pass. Output remains
+private and bounded, and truncation stays explicitly incomplete.
+
+Dropping an observation handle does not cancel admitted native work. Owner
+retirement stops admission, cancels kernel scopes and joins all monitors. Direct
+exit, resource retirement, complete output and credential retirement remain
+separate facts. Unconfirmed resource cleanup fences further admission and stays
+uncertain through retirement; exclusive reopen retires the retained owned scope
+without inventing an old exit code. Empty profile scopes retire with their owner.
+This is trusted same-user execution, not hostile-process isolation or a promise
+to force an uninterruptible kernel task to disappear.
+
+Actual direct native qualification passes in the existing external
+.factory-rust-provider-check/process-v1 evidence root (final.log, run-4, exit 0):
+real PTYs and explicit environment; installed kernel CPU/memory/pid limits;
+sealed executable after source replacement; a deadline with no progress calls;
+cancellation of a setsid descendant; direct-child exit with a surviving detached
+descendant; output overflow and bounded incomplete log; repeated-profile
+non-adoption; joined retirement and late refusal; real cleanup obstruction,
+admission fencing and retained-scope recovery after that obstruction is removed.
+The initial launch outside user delegation was refused and left an empty scope;
+the actual positive check runs inside a transient current-user systemd scope.
+No new unit test, test root or test framework was added. Headless compilation,
+normal Tauri consumer compilation, source policy, formatting, engine/provider
+boundary and whitespace checks pass. The existing normal-Tauri unused Duration
+warning remains. SHA-2 was resolved to current stable 0.11.1 from official crate
+documentation; the lock also updates its existing Secret Service consumer. This
+is not a newly qualified whole dependency/distribution baseline.
+
+CONNECT remains incomplete. Its ui-v4 attempt later crashed with SIGSEGV before
+consent on the current WebKit runtime, so updating that input did not establish a
+fix. The exact failed application/runtime inputs and truncated core metadata are
+retained in the existing .factory-signin-checks/ui-v4 root. Secret Service reports
+no saved account object, native children are gone, and its isolated services have
+been closed. Its old device challenge is inactive. Do not issue another browser
+challenge until the crash has been investigated.
+
+No row is Active at this coherent checkpoint. Return to the connected native
+crash/qualification, then dependency-ready consumers. N3 still requires native
+workspace/Git/artifact/custody composition and durable invocation/restart receipts;
+N4 still requires semantic Go ports, admitted single-coordinator startup and a
+real finite provider journey. These process checks do not qualify those outcomes
+or enable product execution. The full Linux Factory/allocation goal stays active.

@@ -155,7 +155,8 @@ The selected language allocation now requires the complete authenticated desktop
 connector in Rust. The queue maps N1 to T05-CONTROL, P1/C1 to T06-GITHUB-RUST,
 N2 to T06-CONNECT-PORTS, T06-CONNECT-PRODUCT, T06-CONNECT-READS,
 T06-CONNECT-BRIDGE and their desktop consumer
-T06-CONNECT, N3 to T09-NATIVE-EXECUTOR and N4 to T09-EXECUTION. The N2 port
+T06-CONNECT, N3 to T09-NATIVE-PROCESS and T09-NATIVE-EXECUTOR, and N4 to
+T09-EXECUTION. The N2 port
 producer gives Go services fresh semantic callbacks into the joined headless
 Rust owner, scoped to one finite native account/repository operation. It retains
 Go's canonical identity, service admission and transactional product owner;
