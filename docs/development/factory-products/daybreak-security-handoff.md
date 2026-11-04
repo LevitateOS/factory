@@ -82,7 +82,12 @@ captured results still need service-path evidence before the D3 storage
 requirement can close.
 
 For D3 result custody, the worker now has a direct Git check of clean committed
-candidate bundling and explicit dirty/unchanged states. The broker and desktop
+candidate bundling and bounded dirty-edit checkpointing. After the agent tree
+retires, the worker checks the captured repository identity, bounds the dirty
+inventory to 512 paths, 4 KiB of status and 32 MiB of changed-file bytes,
+then stages and commits an internal checkpoint with an old-HEAD compare-and-swap.
+It refuses a completed reply if capture fails or the tree remains dirty. The
+broker and desktop
 source bind and hash up to 4 MiB of bundle bytes; the desktop fsyncs them into a
 private receipt before retiring root staging. A v2 writer header collision was
 corrected: `source_sha256` now records the admitted source while `bundle_sha256`
@@ -92,12 +97,17 @@ profile and receipt file, size and content hashes. A pending file without a
 committed receipt reports uncertainty; a committed file does not prove root
 retirement. The reader passed a local on-disk fixture with valid readback,
 wrong source, altered output digest, interrupted pending write and older-version
-refusal. This is only direct Git, source-compilation and local fixture evidence.
+refusal. The direct Git fixture also passed dirty checkpoint, detached HEAD,
+deletion/replacement, rename, changed-configuration refusal, a 33 MiB dirty
+refusal and an oversized bundle refusal. This is only direct Git,
+source-compilation and local fixture evidence.
 The actual system-service worker/broker reply, live receipt writer-to-reader
-roundtrip, cross-run refusal, Go admission/checkpoint binding, dirty coder
-checkpoint, candidate retrieval/publication and crash/reboot reconciliation are
-unverified.
-The current CLI invocation does not create a commit for dirty work. Close this
+roundtrip, cross-run refusal, Go admission/checkpoint binding, service-path
+dirty coder checkpoint, candidate retrieval/publication and crash/reboot
+reconciliation are unverified. The aggregate worker workspace and ignored-file
+storage bound is still open; the changed-file preflight is not that bound. A
+failed checkpoint currently yields uncertainty, but no recovered worker
+workspace has been proved after the service exits. Close this
 part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
 worker or owner interruption. Do not treat the direct bundle fixture as D3.

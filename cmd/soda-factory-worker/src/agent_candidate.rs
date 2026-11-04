@@ -1,19 +1,23 @@
-//! Capture only a clean committed coder result from a retired agent tree.
+//! Capture a committed or bounded dirty coder result from a retired agent tree.
 //! The caller supplies its bounded Git process owner and a worker-private path.
 use sha2::{Digest, Sha256};
+use std::ffi::OsStr;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
+use std::path::{Component, Path};
 use std::time::Duration;
 
 pub(crate) const MAX_BUNDLE: usize = 4 * 1024 * 1024;
+const MAX_DIRTY_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_STATUS: usize = 4096;
+const MAX_DIRTY_PATHS: usize = 512;
 
 pub(crate) enum Candidate {
     NotApplicable,
     Unchanged,
     Dirty,
-    Unavailable,
     Captured {
         commit: String,
         bundle: Vec<u8>,
@@ -48,6 +52,78 @@ fn oid(bytes: &[u8]) -> io::Result<String> {
     std::str::from_utf8(value)
         .map(str::to_owned)
         .map_err(|_| refused("candidate commit encoding invalid"))
+}
+
+fn bounded_dirty(workspace: &Path, status: &[u8]) -> io::Result<()> {
+    if status.is_empty() || status.len() > MAX_STATUS || !status.ends_with(&[0]) {
+        return Err(refused("candidate dirty inventory bound invalid"));
+    }
+    let canonical_workspace = fs::canonicalize(workspace)?;
+    if canonical_workspace != workspace {
+        return Err(refused("candidate workspace path changed"));
+    }
+    let mut entries = status[..status.len() - 1].split(|byte| *byte == 0);
+    let mut total = 0u64;
+    let mut count = 0usize;
+    while let Some(entry) = entries.next() {
+        if entry.len() < 4 || entry[2] != b' ' {
+            return Err(refused("candidate dirty inventory invalid"));
+        }
+        count += 1;
+        if count > MAX_DIRTY_PATHS {
+            return Err(refused("candidate dirty path bound exceeded"));
+        }
+        let relative = Path::new(OsStr::from_bytes(&entry[3..]));
+        if !relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        {
+            return Err(refused("candidate dirty path invalid"));
+        }
+        let metadata = match workspace.join(relative).symlink_metadata() {
+            Ok(metadata) => metadata,
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    && (entry[0] == b'D' || entry[1] == b'D') =>
+            {
+                if entry[0] == b'R' || entry[1] == b'R' || entry[0] == b'C' || entry[1] == b'C' {
+                    entries
+                        .next()
+                        .ok_or_else(|| refused("candidate rename source missing"))?;
+                }
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        let parent = workspace.join(
+            relative
+                .parent()
+                .ok_or_else(|| refused("candidate dirty parent missing"))?,
+        );
+        // Git reports paths below ordinary directories too. Never follow a
+        // parent symlink outside the captured workspace.
+        if !fs::canonicalize(parent)?.starts_with(&canonical_workspace) {
+            return Err(refused("candidate dirty path escaped workspace"));
+        }
+        if metadata.uid() != unsafe { libc::geteuid() }
+            || !(metadata.is_file() || metadata.file_type().is_symlink())
+        {
+            return Err(refused("candidate dirty file identity invalid"));
+        }
+        let bytes = metadata.len().max(metadata.blocks().saturating_mul(512));
+        total = total
+            .checked_add(bytes)
+            .ok_or_else(|| refused("candidate dirty size overflow"))?;
+        if total > MAX_DIRTY_BYTES {
+            return Err(refused("candidate dirty size bound exceeded"));
+        }
+        if entry[0] == b'R' || entry[1] == b'R' || entry[0] == b'C' || entry[1] == b'C' {
+            entries
+                .next()
+                .ok_or_else(|| refused("candidate rename source missing"))?;
+        }
+    }
+    Ok(())
 }
 
 fn private_digest(path: &Path, owner: u32, required: bool) -> io::Result<Option<[u8; 32]>> {
@@ -115,7 +191,8 @@ pub(crate) fn repository_identity(workspace: &Path) -> io::Result<RepositoryIden
 }
 
 /// The worker must have joined the agent child and all descendants first.
-/// Dirty edits are reported honestly; no implicit commit is made here.
+/// Dirty edits are checkpointed only after their bounded inventory is checked.
+/// This is an internal native snapshot, not a product publication decision.
 pub(crate) fn capture<F>(
     workspace: &Path,
     base: &str,
@@ -141,11 +218,11 @@ where
     if destination.symlink_metadata().is_ok() {
         return Err(refused("candidate bundle path already exists"));
     }
-    let commit = oid(&git(
+    let mut commit = oid(&git(
         &["-C", work, "rev-parse", "HEAD"],
         Duration::from_secs(3),
     )?)?;
-    if !git(
+    let status = git(
         &[
             "-C",
             work,
@@ -155,10 +232,73 @@ where
             "--untracked-files=all",
         ],
         Duration::from_secs(5),
-    )?
-    .is_empty()
-    {
-        return Ok(Candidate::Dirty);
+    )?;
+    if !status.is_empty() {
+        bounded_dirty(workspace, &status)?;
+        git(
+            &[
+                "-C",
+                work,
+                "-c",
+                "core.hooksPath=/dev/null",
+                "add",
+                "-A",
+                "--",
+                ".",
+            ],
+            Duration::from_secs(20),
+        )?;
+        let tree = oid(&git(&["-C", work, "write-tree"], Duration::from_secs(5))?)?;
+        let checkpoint = oid(&git(
+            &[
+                "-C",
+                work,
+                "-c",
+                "user.name=Factory Native Checkpoint",
+                "-c",
+                "user.email=factory@invalid.local",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "commit-tree",
+                &tree,
+                "-p",
+                &commit,
+                "-m",
+                "Factory native checkpoint",
+            ],
+            Duration::from_secs(5),
+        )?)?;
+        git(
+            &[
+                "-C",
+                work,
+                "-c",
+                "core.hooksPath=/dev/null",
+                "update-ref",
+                "HEAD",
+                &checkpoint,
+                &commit,
+            ],
+            Duration::from_secs(5),
+        )?;
+        commit = checkpoint;
+        if !git(
+            &[
+                "-C",
+                work,
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--untracked-files=all",
+            ],
+            Duration::from_secs(5),
+        )?
+        .is_empty()
+        {
+            return Ok(Candidate::Dirty);
+        }
     }
     if commit == base {
         return Ok(Candidate::Unchanged);

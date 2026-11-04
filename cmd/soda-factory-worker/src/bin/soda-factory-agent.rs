@@ -722,13 +722,16 @@ fn execute_agent(
             Path::new(PRIVATE).join("candidate.bundle").as_path(),
             identity,
             |arguments, duration| git(processes, arguments, duration),
-        )
-        .unwrap_or(Candidate::Unavailable),
-        None => Candidate::NotApplicable,
+        ),
+        None => Ok(Candidate::NotApplicable),
     };
     processes
         .retire()
         .map_err(|_| refused("agent process tree retirement unconfirmed"))?;
+    let captured = captured.map_err(|_| refused("agent candidate capture unconfirmed"))?;
+    if matches!(captured, Candidate::Dirty) {
+        return Err(refused("agent coder result remains uncheckpointed"));
+    }
     let output = fs::read(&observed.output)?;
     if output.len() > MAX_OUTPUT {
         return Err(refused("agent output bound invalid"));
@@ -743,7 +746,6 @@ fn execute_agent(
         Candidate::NotApplicable => ("not_applicable", None, &[], None),
         Candidate::Unchanged => ("unchanged", None, &[], None),
         Candidate::Dirty => ("dirty", None, &[], None),
-        Candidate::Unavailable => ("unavailable", None, &[], None),
         Candidate::Captured {
             commit,
             bundle,

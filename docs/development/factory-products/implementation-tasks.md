@@ -24843,6 +24843,22 @@ produced a receipt for recovery, and Go has not yet consumed the retained
 observation in its transaction. The live writer-to-reader path, root retirement,
 crash/reboot reconciliation and D3 gate remain open.
 
+T09-NATIVE-EXECUTOR dirty-coder checkpoint source checkpoint (2026-11-05):
+after the agent process tree retires, the isolated worker now checks the same
+workspace/Git configuration identity and bounds a dirty inventory to 512 paths,
+4 KiB of status and 32 MiB of changed-file logical or allocated bytes. It
+stages bounded edits, writes a tree, makes a fixed-identity internal commit and
+uses an old-HEAD compare-and-swap before bundling the descendant candidate.
+Git hooks are disabled for that checkpoint. A capture error or remaining dirty
+tree does not produce a completed agent reply. The direct temporary Git fixture
+passed dirty checkpoint with bundle verification, clean and detached commits,
+deletion/replacement, rename, changed-configuration refusal, 33 MiB dirty
+refusal and oversized-bundle refusal. Locked offline worker source checking,
+changed-file formatting and whitespace checks pass. No installed isolated
+service, real provider run or Go transaction consumed this path. The aggregate
+worker workspace/ignored-file storage bound, failed-checkpoint work recovery,
+artifact capture, root retirement and full D3 evidence remain open.
+
 T06-CONNECT environment recheck (2026-11-05): an unconfigured native desktop
 `cargo check --locked --offline --features native-ui` stopped in system-library
 build scripts because pkg-config could not find GDK Pixbuf, Pango, libsoup 3 or
