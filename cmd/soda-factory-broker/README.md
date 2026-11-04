@@ -338,6 +338,11 @@ client for this protocol. The worker receipt also carries the native process
 invocation, boot ID, start tick, PID inside its private PID namespace, start
 time and exit signal/code. The broker and desktop client validate those fields;
 the namespace PID must not be treated as a host PID. No product path invokes it.
+A cancellable desktop client call now closes its broker stream when the trusted
+native owner signals cancellation and refuses any late receipt. A disposable
+root-peer socket probe observed that EOF after an uploaded dummy request. The
+actual broker already monitors client disconnect during worker reply wait;
+full Quit-to-worker retirement remains to be checked on the composed path.
 A disposable actual-unit probe returned these process fields from a
 credential-free reviewer ELF with exit code 0 and a retired tree. After adding
 the reviewer units required by cleanup, exact retirement and a second full

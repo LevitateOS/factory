@@ -10,6 +10,11 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
 use std::time::Duration;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
@@ -236,6 +241,65 @@ pub struct AgentRun {
     pub exit_signal: Option<i32>,
     pub output_complete: bool,
     pub output: Vec<u8>,
+}
+
+/// A trusted native owner can cancel a blocked broker call from its lifecycle
+/// thread. Closing that client connection makes the broker stop the exact agent
+/// service; it is not a claim that the worker has already retired.
+#[derive(Clone, Default)]
+pub struct AgentCancellation(Arc<AtomicBool>);
+
+impl AgentCancellation {
+    pub fn cancel(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    fn cancelled(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+struct AgentWatch {
+    stream: UnixStream,
+    done: Arc<AtomicBool>,
+    watcher: Option<thread::JoinHandle<()>>,
+}
+
+impl AgentWatch {
+    fn start(stream: &UnixStream, cancellation: AgentCancellation) -> io::Result<Self> {
+        let owned = stream.try_clone()?;
+        let cancel_stream = stream.try_clone()?;
+        let done = Arc::new(AtomicBool::new(false));
+        let observed = done.clone();
+        let watcher = thread::Builder::new()
+            .name("factory-agent-cancellation".into())
+            .spawn(move || {
+                while !observed.load(Ordering::SeqCst) {
+                    if cancellation.cancelled() {
+                        let _ = cancel_stream.shutdown(std::net::Shutdown::Both);
+                        break;
+                    }
+                    thread::sleep(Duration::from_millis(20));
+                }
+            })?;
+        Ok(Self {
+            stream: owned,
+            done,
+            watcher: Some(watcher),
+        })
+    }
+}
+
+impl Drop for AgentWatch {
+    fn drop(&mut self) {
+        self.done.store(true, Ordering::SeqCst);
+        // Errors and caller retirement must close the broker connection even
+        // while the watcher still holds another descriptor for this socket.
+        let _ = self.stream.shutdown(std::net::Shutdown::Both);
+        if let Some(watcher) = self.watcher.take() {
+            let _ = watcher.join();
+        }
+    }
 }
 
 impl Role {
@@ -501,6 +565,43 @@ impl Broker {
         placeholder: &str,
         duration: Duration,
     ) -> io::Result<AgentRun> {
+        Self::execute_agent_cancellable(
+            run,
+            profile,
+            sha256,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            prompt,
+            executable,
+            placeholder,
+            duration,
+            AgentCancellation::default(),
+        )
+    }
+
+    /// Cancel from another thread when the native owner, request or desktop
+    /// lifetime ends. A cancelled call closes its broker socket and cannot
+    /// publish a late execution receipt. The broker still owns tree retirement.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_agent_cancellable(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        role: Role,
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        prompt: &[u8],
+        executable: &Path,
+        placeholder: &str,
+        duration: Duration,
+        cancellation: AgentCancellation,
+    ) -> io::Result<AgentRun> {
+        if cancellation.cancelled() {
+            return Err(refused("agent execution cancelled"));
+        }
         if !id(run, 32)
             || !id(profile, 32)
             || !id(sha256, 64)
@@ -536,6 +637,7 @@ impl Broker {
         }
         let mut stream = connect(Duration::from_secs(120))?;
         stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
+        let _watch = AgentWatch::start(&stream, cancellation.clone())?;
         let request = serde_json::to_vec(&json!({
             "kind":"execute_agent","version":1,"run":run,"profile":profile,
             "sha256":sha256,"candidate":candidate,"role":role.as_str(),
@@ -614,7 +716,7 @@ impl Broker {
         if observed != reply.output_sha256 {
             return Err(refused("agent execution output digest invalid"));
         }
-        Ok(AgentRun {
+        let run = AgentRun {
             worker_uid: reply.worker_uid,
             process: AgentProcess {
                 invocation: reply.invocation,
@@ -628,7 +730,12 @@ impl Broker {
             exit_signal: reply.exit_signal,
             output_complete: reply.output_complete,
             output,
-        })
+        };
+        if cancellation.cancelled() {
+            Err(refused("agent execution cancelled"))
+        } else {
+            Ok(run)
+        }
     }
 
     /// Stop the exact relay and prepared checkout through the broker after the

@@ -838,6 +838,13 @@ an isolated captured broker run after reopen and refused a legacy launch. This
 prevents a same-user fallback when a native Host port is later connected; it
 does not itself qualify the worker or provider custody.
 
+The native broker client gained a cancellable execution call. A disposable
+root-peer socket accepted the actual client request, then observed EOF after
+the trusted cancellation signal; the client refused a late receipt. This is
+the transport control needed for Quit/request cancellation. It still needs
+composition with the Go-admitted run, owner-held credential and actual
+broker-to-worker retirement proof before D3 can close.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

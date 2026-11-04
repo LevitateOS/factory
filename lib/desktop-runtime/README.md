@@ -27,8 +27,10 @@ profile paths; T14 implements supported distribution/upgrades.
 
 ## Native agent execution gate
 
-This crate does not depend on `soda-native-process` or expose a worker launch
-API. The separate process primitive retains same-user process and cgroup checks;
+This crate does not depend on `soda-native-process` or expose a product launch
+API. Its native-only broker client can request one isolated worker launch, but
+the Go product and desktop lifecycle do not call it. The separate process
+primitive retains same-user process and cgroup checks;
 it does not isolate a hostile worker from the desktop user's files or keyring.
 Native workspace/Git, a distinct worker host identity, brokered credential
 delivery, durable invocation/restart receipts and real provider integration
@@ -251,6 +253,14 @@ a private user and mount namespace. Distinct mapped UIDs represented the root
 service and desktop client; exact staging, preparation, relay attestation and
 retirement succeeded, while a mismatched candidate reply was refused. This
 checked the client protocol and peer check, not the installed system broker.
+
+The broker client's cancellable execution call now watches a trusted native
+owner's cancellation signal during upload and reply wait. Cancellation shuts
+down its authenticated broker stream and refuses a late receipt. A disposable
+root-peer Unix socket probe accepted the actual client request, then observed
+EOF after cancellation; its socket and root directory were removed. This
+proves client-side cancellation transport, not worker retirement under the
+actual systemd broker or credential withdrawal on Quit.
 
 ## Native GitHub connector
 
