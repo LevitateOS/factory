@@ -56,3 +56,12 @@ and realtime scheduling. The rendered unit verified and live attestation still
 succeeded after these settings were applied. Delegated cgroups and host network
 access remain necessary for the intended process owner and provider transport;
 those permissions require role and credential mediation before execution.
+
+Reviewer checkout permissions alone are insufficient: the worker owns its
+private runtime directory and can change modes on files it owns. A transient
+systemd comparison on 2026-11-04 confirmed that the same unprivileged UID could
+write and `chmod` its own file normally, but could only read it when its parent
+was supplied through `BindReadOnlyPaths`; write and `chmod` were denied. The
+source and services were removed. A privileged broker must bind a root-selected
+exact run snapshot read-only for reviewers and supply a separate writable
+workspace for coders. This inert socket service currently does neither.

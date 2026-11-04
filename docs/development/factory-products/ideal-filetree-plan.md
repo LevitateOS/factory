@@ -320,6 +320,21 @@ captured bytes. The actual Muse ELF crossed the isolated socket, ran its finite
 That version check used no provider account, model or real task and does not
 close the remaining credential, role, workspace or provider-run gates.
 
+The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
+UID owns its private runtime directory, so file modes on a checkout it owns do
+not keep that checkout read-only. A transient system service on 2026-11-04 first
+ran as `nobody` against a file owned by `nobody`; it could both write the file
+and change its mode. The same identity, with the same file and no capability
+bounding set, then ran with `BindReadOnlyPaths` on its containing directory. It
+could read the file, while the write failed with `Read-only file system` and
+`chmod` failed. The temporary source and both service instances were removed.
+This proves the mount mechanism on this host, not reviewer admission. The
+privileged broker must select a root-controlled exact run snapshot and install
+the read-only bind for a reviewer instance; the desktop peer must not supply a
+mount source, destination, or unit property. The coder needs a separate writable
+run workspace. Both roles remain unavailable until that broker and the actual
+role/file probes are implemented.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
