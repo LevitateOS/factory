@@ -12,7 +12,7 @@ use std::path::Path;
 use std::time::Duration;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
-const MAX_FRAME: usize = 256;
+const MAX_FRAME: usize = 512;
 const MAX_BUNDLE: usize = 512 * 1024;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
@@ -113,6 +113,7 @@ struct Staged {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     sha256: String,
 }
 
@@ -122,6 +123,7 @@ struct Prepared {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     sha256: String,
     candidate: String,
 }
@@ -132,6 +134,7 @@ struct Attested {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     candidate: String,
     relay_uid: u32,
     execution_available: bool,
@@ -143,6 +146,7 @@ struct AgentArmed {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     candidate: String,
     role: String,
     execution_available: bool,
@@ -154,6 +158,7 @@ struct AgentAttested {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     candidate: String,
     role: String,
     worker_uid: u32,
@@ -177,6 +182,7 @@ struct Retired {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
     removed: bool,
 }
 
@@ -184,6 +190,7 @@ struct Retired {
 /// browser, and an owner consumes the value when activating its socket.
 pub struct RelayAttestation {
     run: String,
+    profile: String,
     candidate: String,
     sha256: String,
     relay_uid: u32,
@@ -192,6 +199,9 @@ pub struct RelayAttestation {
 impl RelayAttestation {
     pub fn run(&self) -> &str {
         &self.run
+    }
+    pub fn profile(&self) -> &str {
+        &self.profile
     }
     pub fn candidate(&self) -> &str {
         &self.candidate
@@ -208,8 +218,8 @@ impl RelayAttestation {
 /// admission. No request selects a path, command, unit property or credential.
 pub struct Broker;
 impl Broker {
-    pub fn stage_bundle(run: &str, bundle: &[u8]) -> io::Result<String> {
-        if !id(run, 32) || bundle.is_empty() || bundle.len() > MAX_BUNDLE {
+    pub fn stage_bundle(run: &str, profile: &str, bundle: &[u8]) -> io::Result<String> {
+        if !id(run, 32) || !id(profile, 32) || bundle.is_empty() || bundle.len() > MAX_BUNDLE {
             return Err(refused("broker bundle declaration invalid"));
         }
         let sha256: String = Sha256::digest(bundle)
@@ -217,13 +227,14 @@ impl Broker {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let reply: Staged = exchange(
-            json!({"kind":"stage_bundle","version":1,"run":run,"length":bundle.len(),"sha256":sha256}),
+            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"length":bundle.len(),"sha256":sha256}),
             Some(bundle),
             PREPARE_TIME,
         )?;
         if reply.kind != "staged"
             || reply.version != 1
             || reply.run != run
+            || reply.profile != profile
             || reply.sha256 != sha256
         {
             return Err(refused("broker staged identity invalid"));
@@ -231,18 +242,24 @@ impl Broker {
         Ok(sha256)
     }
 
-    pub fn prepare_reviewer(run: &str, sha256: &str, candidate: &str) -> io::Result<()> {
-        if !id(run, 32) || !id(sha256, 64) || !id(candidate, 40) {
+    pub fn prepare_reviewer(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+    ) -> io::Result<()> {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker preparation declaration invalid"));
         }
         let reply: Prepared = exchange(
-            json!({"kind":"prepare_reviewer","version":1,"run":run,"sha256":sha256,"candidate":candidate}),
+            json!({"kind":"prepare_reviewer","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
             None,
             PREPARE_TIME,
         )?;
         if reply.kind != "prepared"
             || reply.version != 1
             || reply.run != run
+            || reply.profile != profile
             || reply.sha256 != sha256
             || reply.candidate != candidate
         {
@@ -253,14 +270,15 @@ impl Broker {
 
     pub fn attest_provider_relay(
         run: &str,
+        profile: &str,
         sha256: &str,
         candidate: &str,
     ) -> io::Result<RelayAttestation> {
-        if !id(run, 32) || !id(sha256, 64) || !id(candidate, 40) {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker relay declaration invalid"));
         }
         let reply: Attested = exchange(
-            json!({"kind":"attest_provider_relay","version":1,"run":run,"sha256":sha256,"candidate":candidate}),
+            json!({"kind":"attest_provider_relay","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
             None,
             ATTEST_TIME,
         )?;
@@ -268,6 +286,7 @@ impl Broker {
         if reply.kind != "provider_relay_attested"
             || reply.version != 1
             || reply.run != run
+            || reply.profile != profile
             || reply.candidate != candidate
             || reply.relay_uid == 0
             || reply.relay_uid == uid
@@ -277,6 +296,7 @@ impl Broker {
         }
         Ok(RelayAttestation {
             run: run.into(),
+            profile: profile.into(),
             candidate: candidate.into(),
             sha256: sha256.into(),
             relay_uid: reply.relay_uid,
@@ -285,19 +305,26 @@ impl Broker {
 
     /// Arm only the exact run socket and immutable role declaration. The
     /// service behind this socket currently accepts attestation, not launch.
-    pub fn arm_agent(run: &str, sha256: &str, candidate: &str, role: Role) -> io::Result<()> {
-        if !id(run, 32) || !id(sha256, 64) || !id(candidate, 40) {
+    pub fn arm_agent(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        role: Role,
+    ) -> io::Result<()> {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker agent declaration invalid"));
         }
         let role = role.as_str();
         let reply: AgentArmed = exchange(
-            json!({"kind":"arm_agent","version":1,"run":run,"sha256":sha256,"candidate":candidate,"role":role}),
+            json!({"kind":"arm_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role}),
             None,
             ATTEST_TIME,
         )?;
         if reply.kind != "agent_armed"
             || reply.version != 1
             || reply.run != run
+            || reply.profile != profile
             || reply.candidate != candidate
             || reply.role != role
             || reply.execution_available
@@ -309,8 +336,8 @@ impl Broker {
 
     /// Check the separately activated worker's exact identity and mounted
     /// source. This reply is evidence only; no agent command is accepted.
-    pub fn attest_agent(run: &str, candidate: &str, role: Role) -> io::Result<u32> {
-        if !id(run, 32) || !id(candidate, 40) {
+    pub fn attest_agent(run: &str, profile: &str, candidate: &str, role: Role) -> io::Result<u32> {
+        if !id(run, 32) || !id(profile, 32) || !id(candidate, 40) {
             return Err(refused("agent attestation declaration invalid"));
         }
         let uid = unsafe { libc::geteuid() };
@@ -348,7 +375,9 @@ impl Broker {
         {
             return Err(refused("agent socket changed during connection"));
         }
-        let request = serde_json::to_vec(&json!({"kind":"attest_agent","version":1,"run":run}))?;
+        let request = serde_json::to_vec(
+            &json!({"kind":"attest_agent","version":1,"run":run,"profile":profile}),
+        )?;
         stream.write_all(&(request.len() as u32).to_le_bytes())?;
         stream.write_all(&request)?;
         let mut length = [0u8; 4];
@@ -364,6 +393,7 @@ impl Broker {
         if reply.kind != "agent_attested"
             || reply.version != 1
             || reply.run != run
+            || reply.profile != profile
             || reply.candidate != candidate
             || reply.role != role.as_str()
             || reply.worker_uid == 0
@@ -380,16 +410,20 @@ impl Broker {
     /// Stop the exact relay and prepared checkout through the broker after the
     /// local owner is stopped. A failed retirement must be retried with the
     /// same digest; a different digest is never authority to clean this run.
-    pub fn retire_bundle(run: &str, sha256: &str) -> io::Result<bool> {
-        if !id(run, 32) || !id(sha256, 64) {
+    pub fn retire_bundle(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) {
             return Err(refused("broker retirement declaration invalid"));
         }
         let reply: Retired = exchange(
-            json!({"kind":"retire_bundle","version":1,"run":run,"sha256":sha256}),
+            json!({"kind":"retire_bundle","version":1,"run":run,"profile":profile,"sha256":sha256}),
             None,
             PREPARE_TIME,
         )?;
-        if reply.kind != "retired" || reply.version != 1 || reply.run != run {
+        if reply.kind != "retired"
+            || reply.version != 1
+            || reply.run != run
+            || reply.profile != profile
+        {
             return Err(refused("broker retired identity invalid"));
         }
         Ok(reply.removed)

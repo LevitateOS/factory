@@ -14,7 +14,7 @@ use std::time::Duration;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
-const MAX_REQUEST: usize = 256;
+const MAX_REQUEST: usize = 512;
 const MAX_BUNDLE: usize = 512 * 1024;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
@@ -27,35 +27,41 @@ enum Request {
     StageBundle {
         version: u8,
         run: String,
+        profile: String,
         length: usize,
         sha256: String,
     },
     RetireBundle {
         version: u8,
         run: String,
+        profile: String,
         sha256: String,
     },
     PrepareReviewer {
         version: u8,
         run: String,
+        profile: String,
         sha256: String,
         candidate: String,
     },
     AttestReviewer {
         version: u8,
         run: String,
+        profile: String,
         sha256: String,
         candidate: String,
     },
     AttestProviderRelay {
         version: u8,
         run: String,
+        profile: String,
         sha256: String,
         candidate: String,
     },
     ArmAgent {
         version: u8,
         run: String,
+        profile: String,
         sha256: String,
         candidate: String,
         role: String,
@@ -67,6 +73,7 @@ struct Staged<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     sha256: &'a str,
 }
 
@@ -75,6 +82,7 @@ struct Retired<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     removed: bool,
 }
 
@@ -83,6 +91,7 @@ struct Prepared<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     sha256: &'a str,
     candidate: &'a str,
 }
@@ -105,6 +114,7 @@ struct ReviewerAttested<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     candidate: &'a str,
     worker_uid: u32,
     readonly_worktree: bool,
@@ -116,6 +126,7 @@ struct ProviderRelayAttested<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     candidate: &'a str,
     relay_uid: u32,
     execution_available: bool,
@@ -126,6 +137,7 @@ struct AgentArmed<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     candidate: &'a str,
     role: &'a str,
     execution_available: bool,
@@ -292,6 +304,27 @@ fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
         return Err(denied("staged bundle digest mismatch"));
     }
     Ok(true)
+}
+
+fn verified_profile(directory: &Path, profile: &str) -> io::Result<()> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("owner.profile"))?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o7777 != 0o444
+        || metadata.len() != 33
+    {
+        return Err(denied("staged profile declaration invalid"));
+    }
+    let mut bytes = Vec::with_capacity(33);
+    file.take(34).read_to_end(&mut bytes)?;
+    if bytes.len() != 33 || bytes.as_slice() != format!("{profile}\n").as_bytes() {
+        return Err(denied("run belongs to another profile"));
+    }
+    Ok(())
 }
 
 fn manifest(candidate: &str, digest: &str) -> String {
@@ -475,11 +508,12 @@ fn runtime_capacity(extra: u64) -> io::Result<()> {
     Ok(())
 }
 
-fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
+fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("reviewer source bundle missing"));
     }
@@ -530,11 +564,18 @@ fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
     result
 }
 
-fn attest_reviewer(run: &str, digest: &str, candidate: &str, desktop_uid: u32) -> io::Result<u32> {
+fn attest_reviewer(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    desktop_uid: u32,
+) -> io::Result<u32> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("reviewer source bundle missing"));
     }
@@ -594,6 +635,7 @@ fn attest_reviewer(run: &str, digest: &str, candidate: &str, desktop_uid: u32) -
 
 fn attest_provider_relay(
     run: &str,
+    profile: &str,
     digest: &str,
     candidate: &str,
     desktop_uid: u32,
@@ -602,6 +644,7 @@ fn attest_provider_relay(
     let _lock = lock(&runs)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("provider relay source bundle missing"));
     }
@@ -638,12 +681,13 @@ fn attest_provider_relay(
     verified
 }
 
-fn agent_manifest(role: &str, candidate: &str, digest: &str) -> String {
-    format!("FACTORY_ROLE={role}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\n")
+fn agent_manifest(role: &str, profile: &str, candidate: &str, digest: &str) -> String {
+    format!("FACTORY_ROLE={role}\nFACTORY_PROFILE={profile}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\n")
 }
 
 fn arm_agent(
     run: &str,
+    profile: &str,
     digest: &str,
     candidate: &str,
     role: &str,
@@ -656,6 +700,7 @@ fn arm_agent(
     let _lock = lock(&runs)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("agent source bundle missing"));
     }
@@ -670,7 +715,7 @@ fn arm_agent(
     }
     prepared_checkout(&directory)?;
     manager("is-active", "provider-relay", run)?;
-    let expected = agent_manifest(role, candidate, digest);
+    let expected = agent_manifest(role, profile, candidate, digest);
     let path = directory.join("agent.role");
     if let Ok(metadata) = path.symlink_metadata() {
         if metadata.is_file() && metadata.uid() == 0 && metadata.mode() & 0o7777 == 0o400 {
@@ -714,7 +759,8 @@ fn arm_agent(
             return Err(denied("agent role manifest invalid"));
         }
         let mut actual = String::new();
-        file.take(193).read_to_string(&mut actual)?;
+        file.take(expected.len() as u64 + 1)
+            .read_to_string(&mut actual)?;
         if actual != expected {
             return Err(denied("agent role already differs"));
         }
@@ -743,7 +789,7 @@ fn arm_agent(
     checked
 }
 
-fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
+fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<()> {
     let metadata = directory.symlink_metadata()?;
     if !metadata.is_dir()
         || metadata.uid() != 0
@@ -751,19 +797,39 @@ fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
     {
         return Err(denied("retiring run directory invalid"));
     }
+    verified_retiring_profile(directory, profile)?;
     let has_bundle = verified_bundle(directory, digest)?;
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
     if has_bundle {
         fs::remove_file(directory.join("bundle"))?;
     }
+    match fs::remove_file(directory.join("owner.profile")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
     fs::remove_dir(directory)
 }
 
-fn retire(run: &str, digest: &str) -> io::Result<bool> {
+fn verified_retiring_profile(directory: &Path, profile: &str) -> io::Result<()> {
+    match verified_profile(directory, profile) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if fs::read_dir(directory)?.next().is_none() {
+                Ok(())
+            } else {
+                Err(denied("retiring run profile missing with retained state"))
+            }
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let preparations = preparations()?;
-    let retiring = runs.join(format!(".retiring-{run}-{digest}"));
+    let retiring = runs.join(format!(".retiring-{run}-{profile}-{digest}"));
     for entry in fs::read_dir(&runs)? {
         let entry = entry?;
         let name = entry.file_name();
@@ -772,6 +838,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
             if entry.path() != retiring {
                 return Err(denied("run retirement digest differs"));
             }
+            verified_retiring_profile(&retiring, profile)?;
             match runs.join(run).symlink_metadata() {
                 Ok(_) => return Err(denied("run retirement state conflicts")),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -781,7 +848,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
                 return Err(denied("retiring run has preparation state"));
             }
             stop_relay(run)?;
-            clean_retiring(&retiring, digest)?;
+            clean_retiring(&retiring, profile, digest)?;
             File::open(&runs)?.sync_all()?;
             return Ok(true);
         }
@@ -801,13 +868,14 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
     if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o555 {
         return Err(denied("staged run directory invalid"));
     }
+    verified_profile(&directory, profile)?;
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
     File::open(&runs)?.sync_all()?;
-    clean_retiring(&retiring, digest)?;
+    clean_retiring(&retiring, profile, digest)?;
     File::open(&runs)?.sync_all()?;
     Ok(true)
 }
@@ -839,11 +907,12 @@ fn hash(bytes: &[u8]) -> String {
 }
 
 fn retiring_run(name: &str) -> Option<&str> {
-    let (run, digest) = name.strip_prefix(".retiring-")?.split_once('-')?;
-    (id(run, 32) && id(digest, 64)).then_some(run)
+    let (run, rest) = name.strip_prefix(".retiring-")?.split_once('-')?;
+    let (profile, digest) = rest.split_once('-')?;
+    (id(run, 32) && id(profile, 32) && id(digest, 64)).then_some(run)
 }
 
-fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
+fn stage(run: &str, profile: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     for entry in fs::read_dir(&runs)? {
@@ -855,6 +924,7 @@ fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
     let final_dir = runs.join(run);
     if final_dir.exists() {
         private_dir(&final_dir, 0o555)?;
+        verified_profile(&final_dir, profile)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -913,6 +983,15 @@ fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
         file.write_all(bytes)?;
         file.sync_all()?;
         file.set_permissions(fs::Permissions::from_mode(0o444))?;
+        let mut declaration = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o444)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(temp.join("owner.profile"))?;
+        declaration.write_all(format!("{profile}\n").as_bytes())?;
+        declaration.sync_all()?;
+        declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
         fs::set_permissions(&temp, fs::Permissions::from_mode(0o555))?;
         File::open(&temp)?.sync_all()?;
         fs::rename(&temp, &final_dir)?;
@@ -943,11 +1022,13 @@ fn serve() -> io::Result<()> {
         Request::StageBundle {
             version,
             run,
+            profile,
             length,
             sha256,
         } => {
             if version != 1
                 || !id(&run, 32)
+                || !id(&profile, 32)
                 || !id(&sha256, 64)
                 || !(1..=MAX_BUNDLE).contains(&length)
             {
@@ -959,46 +1040,56 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker bundle digest mismatch"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            stage(&run, &bundle, &sha256)?;
+            stage(&run, &profile, &bundle, &sha256)?;
             serde_json::to_vec(&Staged {
                 kind: "staged",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 sha256: &sha256,
             })?
         }
         Request::RetireBundle {
             version,
             run,
+            profile,
             sha256,
         } => {
-            if version != 1 || !id(&run, 32) || !id(&sha256, 64) {
+            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
                 return Err(denied("broker retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &sha256)?;
+            let removed = retire(&run, &profile, &sha256)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 removed,
             })?
         }
         Request::PrepareReviewer {
             version,
             run,
+            profile,
             sha256,
             candidate,
         } => {
-            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+            {
                 return Err(denied("broker reviewer preparation declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            prepare(&run, &sha256, &candidate)?;
+            prepare(&run, &profile, &sha256, &candidate)?;
             serde_json::to_vec(&Prepared {
                 kind: "prepared",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 sha256: &sha256,
                 candidate: &candidate,
             })?
@@ -1006,18 +1097,25 @@ fn serve() -> io::Result<()> {
         Request::AttestReviewer {
             version,
             run,
+            profile,
             sha256,
             candidate,
         } => {
-            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+            {
                 return Err(denied("broker reviewer attestation declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let worker_uid = attest_reviewer(&run, &sha256, &candidate, desktop_uid)?;
+            let worker_uid = attest_reviewer(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&ReviewerAttested {
                 kind: "reviewer_attested",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 candidate: &candidate,
                 worker_uid,
                 readonly_worktree: true,
@@ -1027,18 +1125,26 @@ fn serve() -> io::Result<()> {
         Request::AttestProviderRelay {
             version,
             run,
+            profile,
             sha256,
             candidate,
         } => {
-            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+            {
                 return Err(denied("broker provider relay declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let relay_uid = attest_provider_relay(&run, &sha256, &candidate, desktop_uid)?;
+            let relay_uid =
+                attest_provider_relay(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&ProviderRelayAttested {
                 kind: "provider_relay_attested",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 candidate: &candidate,
                 relay_uid,
                 execution_available: false,
@@ -1047,12 +1153,14 @@ fn serve() -> io::Result<()> {
         Request::ArmAgent {
             version,
             run,
+            profile,
             sha256,
             candidate,
             role,
         } => {
             if version != 1
                 || !id(&run, 32)
+                || !id(&profile, 32)
                 || !id(&sha256, 64)
                 || !id(&candidate, 40)
                 || !matches!(role.as_str(), "reviewer" | "coder")
@@ -1060,11 +1168,12 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker agent declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            arm_agent(&run, &sha256, &candidate, &role, desktop_uid)?;
+            arm_agent(&run, &profile, &sha256, &candidate, &role, desktop_uid)?;
             serde_json::to_vec(&AgentArmed {
                 kind: "agent_armed",
                 version: 1,
                 run: &run,
+                profile: &profile,
                 candidate: &candidate,
                 role: &role,
                 execution_available: false,

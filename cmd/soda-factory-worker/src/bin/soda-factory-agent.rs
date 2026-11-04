@@ -25,6 +25,7 @@ struct Request {
     kind: String,
     version: u8,
     run: String,
+    profile: String,
 }
 
 #[derive(Serialize)]
@@ -32,6 +33,7 @@ struct Attestation<'a> {
     kind: &'static str,
     version: u8,
     run: &'a str,
+    profile: &'a str,
     candidate: &'a str,
     role: &'a str,
     worker_uid: u32,
@@ -154,19 +156,19 @@ fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
         .map_err(|_| refused("agent process scope unavailable"))
 }
 
-fn manifest(run: &str) -> io::Result<(String, String)> {
+fn manifest(run: &str) -> io::Result<(String, String, String)> {
     let path = Path::new(ROLE);
     let metadata = path.symlink_metadata()?;
     if !metadata.is_file()
         || metadata.uid() != 0
         || metadata.mode() & 0o7777 != 0o444
-        || metadata.len() > 192
+        || metadata.len() > 256
         || !readonly(path)?
     {
         return Err(refused("agent role mount invalid"));
     }
     let mut bytes = Vec::new();
-    File::open(path)?.take(193).read_to_end(&mut bytes)?;
+    File::open(path)?.take(257).read_to_end(&mut bytes)?;
     if bytes.len() as u64 != metadata.len() {
         return Err(refused("agent role changed during read"));
     }
@@ -176,6 +178,10 @@ fn manifest(run: &str) -> io::Result<(String, String)> {
         .next()
         .and_then(|value| value.strip_prefix("FACTORY_ROLE="))
         .ok_or_else(|| refused("agent role missing"))?;
+    let profile = lines
+        .next()
+        .and_then(|value| value.strip_prefix("FACTORY_PROFILE="))
+        .ok_or_else(|| refused("agent profile missing"))?;
     let candidate = lines
         .next()
         .and_then(|value| value.strip_prefix("FACTORY_CANDIDATE="))
@@ -185,6 +191,7 @@ fn manifest(run: &str) -> io::Result<(String, String)> {
         .and_then(|value| value.strip_prefix("FACTORY_BUNDLE_SHA256="))
         .ok_or_else(|| refused("agent digest missing"))?;
     if !matches!(role, "reviewer" | "coder")
+        || !id(profile, 32)
         || !id(candidate, 40)
         || !id(digest, 64)
         || lines.next().is_some()
@@ -193,7 +200,7 @@ fn manifest(run: &str) -> io::Result<(String, String)> {
     {
         return Err(refused("agent role manifest invalid"));
     }
-    Ok((role.into(), candidate.into()))
+    Ok((role.into(), profile.into(), candidate.into()))
 }
 
 fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
@@ -359,7 +366,7 @@ fn serve() -> io::Result<()> {
     }
     let worker_uid = identity(&args[1], desktop_uid)?;
     let mut processes = process_owner(&args[1], worker_uid)?;
-    let (role, candidate) = manifest(&args[1])?;
+    let (role, profile, candidate) = manifest(&args[1])?;
     source(&candidate, &mut processes)?;
     let listener = listener(&args[1], desktop_uid)?;
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -389,13 +396,18 @@ fn serve() -> io::Result<()> {
     stream.read_exact(&mut bytes)?;
     let request: Request =
         serde_json::from_slice(&bytes).map_err(|_| refused("agent request shape invalid"))?;
-    if request.kind != "attest_agent" || request.version != 1 || request.run != args[1] {
+    if request.kind != "attest_agent"
+        || request.version != 1
+        || request.run != args[1]
+        || request.profile != profile
+    {
         return Err(refused("agent request identity invalid"));
     }
     let reply = serde_json::to_vec(&Attestation {
         kind: "agent_attested",
         version: 1,
         run: &args[1],
+        profile: &profile,
         candidate: &candidate,
         role: &role,
         worker_uid,

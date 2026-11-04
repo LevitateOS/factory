@@ -83,6 +83,7 @@ impl std::error::Error for Error {}
 
 pub struct Policy {
     run: String,
+    profile: String,
     candidate: String,
     role: Role,
     deadline: Instant,
@@ -96,16 +97,23 @@ impl Policy {
     /// Values come from a trusted run admission, never an IPC request body.
     pub fn new(
         run: &str,
+        profile: &str,
         candidate: &str,
         role: Role,
         duration: Duration,
         budget: Budget,
     ) -> Result<Self, Error> {
-        if !hex(run, 32) || !hex(candidate, 40) || duration.is_zero() || duration > MAX_RUN {
+        if !hex(run, 32)
+            || !hex(profile, 32)
+            || !hex(candidate, 40)
+            || duration.is_zero()
+            || duration > MAX_RUN
+        {
             return Err(Error::Invalid);
         }
         Ok(Self {
             run: run.into(),
+            profile: profile.into(),
             candidate: candidate.into(),
             role,
             deadline: Instant::now() + duration,
@@ -119,6 +127,10 @@ impl Policy {
 
     pub fn run(&self) -> &str {
         &self.run
+    }
+
+    pub fn profile(&self) -> &str {
+        &self.profile
     }
 
     pub fn candidate(&self) -> &str {

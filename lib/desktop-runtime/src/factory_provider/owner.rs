@@ -151,6 +151,7 @@ impl BoundOwner {
             .as_ref()
             .ok_or_else(|| refused("provider run already active"))?;
         if attestation.run() != policy.run()
+            || attestation.profile() != policy.profile()
             || attestation.candidate() != policy.candidate()
             || attestation.relay_uid() == 0
             || attestation.relay_uid() == self.desktop_uid
@@ -268,7 +269,11 @@ impl Owner {
             .attestation
             .as_ref()
             .ok_or_else(|| refused("provider run already retired"))?;
-        Broker::retire_bundle(attestation.run(), attestation.sha256())?;
+        Broker::retire_bundle(
+            attestation.run(),
+            attestation.profile(),
+            attestation.sha256(),
+        )?;
         self.attestation.take();
         stopped
     }

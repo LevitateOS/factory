@@ -9,8 +9,8 @@ The broker stages bytes, prepares a fixed checkout and activates
 credential-free reviewer, relay and agent-boundary attestations; it cannot
 launch an agent.
 
-One connection carries a 4-byte little-endian JSON length (at most 256), then
-`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
+One connection carries a 4-byte little-endian JSON length (at most 512), then
+`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
 then exactly `N` raw bytes. `N` must be from 1 through 512 KiB, matching the
 current Go reviewer source-bundle bound. The service checks the Unix stream's
 kernel peer UID against the desktop-owned mode-`0600` socket, requires a
@@ -18,10 +18,10 @@ root-owned mode-`0755` socket parent, no-new-privileges and a root-owned
 mode-`0700` systemd runtime directory. It accepts no host path, role, credential
 or unit property. The systemd profile has no capabilities, no IP access and a
 90-second lifetime to cover bounded preparation and cleanup. A JSON response
-names only the run and digest.
+names the run, profile and digest.
 
 An exact reviewer preparation uses
-`{"kind":"prepare_reviewer","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
+`{"kind":"prepare_reviewer","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
 with no payload. Under the same state lock, the broker rechecks the staged
 bundle's digest, writes a root-owned mode-`0400` manifest beneath a private
 per-run preparation directory, and asks systemd to start only
@@ -35,7 +35,7 @@ mount path, command, unit property, role selector, or credential field. This
 is checkout preparation, not Go run admission or reviewer execution.
 
 An exact reviewer mount attestation uses
-`{"kind":"attest_reviewer","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
+`{"kind":"attest_reviewer","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
 with no payload. The broker rechecks the staged source, exact manifest and
 frozen output before starting only `soda-factory-reviewer@<run>.socket`.
 That socket is root-owned mode `0600` inside the root-private preparation
@@ -46,11 +46,13 @@ validates the bounded reply and returns `execution_available:false`. This
 does not authorize a reviewer agent or deliver a provider credential.
 
 An exact retirement uses
-`{"kind":"retire_bundle","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>"}`
+`{"kind":"retire_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>"}`
 with no payload. The broker verifies the stored bundle's owner, mode, bounded
-length and digest, then renames the run to a digest-bound retiring directory
+length and digest, then renames the run to a profile- and digest-bound retiring directory
 before unlinking. An exact retry can finish deletion after either the rename
-or bundle unlink; staging that run is refused while retirement is pending.
+or bundle unlink. An exact retry can also remove an empty tombstone after the
+profile declaration was unlinked. Staging that run is refused while retirement
+is pending.
 Before the source rename, the broker stops the reviewer service/socket and
 fixed preparer instance, then uses the exact-run cleaner to remove its checkout
 and manifest. It verifies
@@ -61,7 +63,10 @@ The broker cannot launch a reviewer agent; future execution code must also
 stop and reconcile that agent before retiring its workspace.
 
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
-`/run/soda-factory-broker/runs/<run>/bundle`. The runtime and `runs` parents
+`/run/soda-factory-broker/runs/<run>/bundle`. The same child contains a
+root-owned mode-`0444` `owner.profile` declaration. Every existing-run request
+checks that declaration before acting; an identical run and digest under a
+different profile is refused. The runtime and `runs` parents
 are root-owned mode `0700`; the finished run child is mode `0555` and the bundle
 mode `0444`. A worker cannot traverse the original source but a privileged
 manager can bind the selected child read-only into one worker instance. Up to
@@ -345,3 +350,21 @@ tiny local bundle, prepared the exact candidate and was removed afterward.
 This verifies the normal path through the checks. A low-free-space refusal
 under a constrained `/run` mount has not been exercised; concurrent non-Factory
 writers can also consume free space after admission.
+
+The staged run now carries a root-owned profile declaration. The broker checks
+it before preparation, reviewer and relay attestation, agent arming, and
+retirement, and echoes it in replies. The agent role manifest and direct agent
+attestation also carry the profile. The desktop provider policy compares the
+relay profile before activating its credential owner. A disposable activation
+of the actual broker socket accepted staging and exact replay, refused the
+same run and digest under another profile for replay, preparation, both
+attestations, agent arming and retirement, then accepted exact retirement.
+This is profile consistency after staging; the broker still lacks an
+authenticated Go coordinator decision proving which profile may stage the
+run. The agent service profile and credential path were not activated in that
+probe, and D3 remains open.
+After the profile was added to the retirement tombstone name, a second
+activation simulated interruption after both bundle and profile declaration
+were unlinked. A wrong-profile retry was refused, while the exact-profile
+retry removed the empty tombstone; restaging and retiring the same run then
+succeeded. All disposable units and runtime state were removed.

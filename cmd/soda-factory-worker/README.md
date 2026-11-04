@@ -176,7 +176,9 @@ uses a distinct dynamic UID, joins that run's provider relay network namespace,
 binds the broker-prepared checkout and root role declaration read-only, and
 uses a private keyring, IPC and runtime with finite cgroup limits. It checks
 the desktop peer, its own UID, the fixed socket, role declaration and exact
-Git HEAD before accepting only `attest_agent`. Its reply says
+Git HEAD before accepting only `attest_agent`. The root-mounted role manifest
+also binds a 32-hex profile; the request must present the same profile, and the
+reply echoes it for the desktop client to verify. Its reply says
 `execution_available:false`; neither role can launch a tool or receive an
 account secret. The source compiles and a rendered template passed
 `systemd-analyze verify` on 2026-11-04.
