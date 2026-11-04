@@ -235,6 +235,16 @@ therefore compiled only for explicit debug process diagnostics. The production
 Go native server starts no execution coordinator and continues to report its
 missing execution ports as unavailable.
 
+The selected installation model permits a privileged setup step for a dedicated
+system worker. The executor should run as a separate host UID under a root-owned
+system service, with its own private state and no desktop login session. A narrow
+broker must authenticate the desktop peer and bind each launch to the admitted
+profile, role, run and worktree; the desktop process must not be able to choose
+arbitrary unit properties, host paths or credentials. The worker must receive
+only the approved run workspace and scoped capabilities, never the desktop home
+or Secret Service socket. A systemd unit or socket file alone is not this broker;
+its protocol and the live negative probes below remain required.
+
 Before a native coding agent becomes selectable, the N3/N4 path must prove:
 
 - The worker has a distinct host identity and cannot read the desktop user's
