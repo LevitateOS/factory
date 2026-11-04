@@ -50,3 +50,9 @@ environment; the desktop session bus was hidden. A corrected `keyctl`
 access the worker's own keyring. The diagnostic executable and units were
 removed. This qualifies those host boundaries for this service profile, not
 the later provider execution path.
+
+The unit also blocks kernel logs, alternate syscall ABIs, personality changes
+and realtime scheduling. The rendered unit verified and live attestation still
+succeeded after these settings were applied. Delegated cgroups and host network
+access remain necessary for the intended process owner and provider transport;
+those permissions require role and credential mediation before execution.
