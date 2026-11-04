@@ -1,4 +1,5 @@
-//! Native lifecycle, not a network server or a second Factory workflow engine.
+//! Native lifecycle and bounded semantic effects. Product APIs, durable workflows
+//! and SQL remain in Go.
 #[cfg(target_os = "linux")]
 pub mod bootstrap;
 #[cfg(target_os = "linux")]
@@ -15,3 +16,5 @@ pub mod database;
 pub mod supervisor;
 #[cfg(target_os = "linux")]
 mod product;
+#[cfg(target_os = "linux")]
+pub mod collaboration;

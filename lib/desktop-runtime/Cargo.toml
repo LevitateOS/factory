@@ -19,3 +19,6 @@ zeroize = "=1.9.1"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
 time = { version = "=0.3.55", features = ["parsing"] }
 diffy = "=0.5.2"
+http-body-util = "=0.1.5"
+hyper = { version = "=1.12.0", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }

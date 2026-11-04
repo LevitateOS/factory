@@ -38,6 +38,7 @@ struct Job {
     method: String,
     target: String,
     body: Vec<u8>,
+    operation: Option<String>,
     reply: Reply,
     cancelled: watch::Receiver<bool>,
     permit: OwnedSemaphorePermit,
@@ -128,7 +129,14 @@ impl Products {
         self.slots.close();
         self.retired.send_replace(true);
     }
-    fn submit(&self, method: &str, target: &str, body: &[u8], reply: Reply) -> Result<Cancel> {
+    fn submit(
+        &self,
+        method: &str,
+        target: &str,
+        body: &[u8],
+        operation: Option<&str>,
+        reply: Reply,
+    ) -> Result<Cancel> {
         if !matches!(method, "GET" | "POST")
             || target.len() > 2048
             || !target.starts_with("/api/factory/")
@@ -151,6 +159,7 @@ impl Products {
                 method: method.into(),
                 target: target.into(),
                 body: body.into(),
+                operation: operation.map(str::to_owned),
                 reply,
                 cancelled: observe,
                 permit,
@@ -164,8 +173,26 @@ impl Products {
         target: &str,
         body: &[u8],
     ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(method, target, body, None)
+    }
+    pub(crate) fn admitted_request(
+        &self,
+        method: &str,
+        target: &str,
+        body: &[u8],
+        operation: &str,
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(method, target, body, Some(operation))
+    }
+    fn request_scoped(
+        &self,
+        method: &str,
+        target: &str,
+        body: &[u8],
+        operation: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Response>> {
         let (reply, response) = oneshot::channel();
-        let admission = self.submit(method, target, body, Reply::Async(reply));
+        let admission = self.submit(method, target, body, operation, Reply::Async(reply));
         let alive = self.alive.clone();
         async move {
             let _cancel = admission?;
@@ -181,7 +208,7 @@ impl Products {
     }
     pub fn blocking(&self, method: &str, target: &str, body: &[u8]) -> Result<Response> {
         let (reply, response) = blocking::channel();
-        let _cancel = self.submit(method, target, body, Reply::Blocking(reply))?;
+        let _cancel = self.submit(method, target, body, None, Reply::Blocking(reply))?;
         let completion = response
             .recv_timeout(WAIT)
             .map_err(|_| "native product request retired or timed out")?;
@@ -192,7 +219,10 @@ impl Products {
     }
 }
 async fn run(mut job: Job, channel: NativeChannel, alive: Arc<AtomicBool>) {
-    let headers = [("X-Soda-Native-Instance", channel.instance.as_str())];
+    let mut headers = vec![("X-Soda-Native-Instance", channel.instance.as_str())];
+    if let Some(operation) = &job.operation {
+        headers.push(("X-Soda-Native-Operation", operation));
+    }
     let result = if !alive.load(Ordering::SeqCst) {
         Err("native runtime is retired".into())
     } else {

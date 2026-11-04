@@ -322,6 +322,14 @@ acceptance driver exercises the actual supervisor/Go/PostgreSQL and retained
 transaction through crashes and startup failures. T05-LIFECYCLE consumes this
 producer for the Tauri bridge, window and activation semantics; no UI, connection
 or executor authority is provided by this runtime owner.
+T06-CONNECT-PORTS defines `lib/desktop-runtime/src/collaboration.rs` for finite
+native operation scopes and joined semantic callbacks, reusing the defining
+Rust GitHub connector. `pkg/factory/runtime/native_collaboration.go` consumes
+these bounded nonsecret observations inside privately admitted Go requests.
+Product I/O retains its existing separate owner. The next product composition
+packet supplies Go canonical mapping/admission; the desktop consumer supplies
+account/repository selection and the shared Lit context. Native readiness and
+custody-only checks never bind an actor or start the coordinator.
 T04-UI closes the shared source/build boundary after its listed recovery and
 composition prerequisites. `frontend/factory/app/browser.ts` exposes the defining
 application and its request-error constructor, plus typed host contracts.

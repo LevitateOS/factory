@@ -46,6 +46,37 @@ runtime/HTTP drivers before stopping Go and PostgreSQL. Caller-side lifetime
 checks refuse buffered late replies. Child monitoring does not wait for product
 I/O; the existing bounded health probe retains its separate readiness timeout.
 
+`admit_product(credentials, capability, remote_repository)` creates a finite,
+native-only `collaboration::NativeRequest`. Consuming it with `request()` uses
+the same product I/O owner and adds a private operation ID. It cannot be cloned
+or serialized. Up to sixteen operations may exist, including unpolled ones;
+each expires after twenty seconds or earlier custody retirement. A missing
+repository scope allows identity/custody checks only. A selected remote ID is
+a native resource limit, not a canonical product identity or permission.
+
+A separate joined collaboration runtime serves semantic callbacks on the owned
+`host.sock` (`0600`). Go can freshly request custody, account or selected-resource
+observations while its shared services run. Rust uses the existing complete
+GitHub connector and its defining `Read` selectors; it accepts no provider URL,
+HTTP signing request, canonical selector or credential from Go. The Go client
+currently exposes Current, Identity and Repository; remaining shared read
+consumers follow in the product composition packet. Current proves custody only,
+while Identity performs the actual provider account check.
+
+Callbacks require the current-user peer, private key, captured Go instance and
+a live admitted operation. Browser Origin/Fetch headers refuse. Requests are
+bounded to 8 KiB, headers to 16 KiB and observations to 2 MiB; calls have an
+eight-second limit and connections a nine-second limit. Provider errors retain
+only safe status/code/rate facts. Drop cancels product and callback work; stale
+operation replay refuses. Final custody validation runs on this same joined
+owner. Retirement cancels and joins callbacks and finalizations before retiring
+the provider/product owners and stopping the children. The supervisor lock
+protects stale owned-socket recovery; cleanup preserves any replacement inode.
+
+This producer does not activate product account binding or the coordinator.
+The ordinary production product request remains unavailable until the next
+packet composes fresh canonical account/repository admission in Go.
+
 `health()` freshly checks owned child exits and authenticated bounded Unix HTTP
 readiness. The response must bind the retained profile and the same captured
 process instance. Readiness is store/process availability, not an account login,

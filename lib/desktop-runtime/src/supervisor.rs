@@ -45,7 +45,8 @@ impl Drop for Retire {
         self.0.store(false, Ordering::SeqCst);
     }
 }
-/// Owns only this profile's children. The private key/DSN never leave the owner.
+/// Owns this profile's children and admitted native ports. Private channel
+/// material stays behind the native host API.
 /// Window closure must retain this object; explicit Quit consumes it with stop.
 pub struct NativeSupervisor {
     control: Sender<Control>,
@@ -53,6 +54,7 @@ pub struct NativeSupervisor {
     alive: Arc<AtomicBool>,
     products: Option<crate::product::Products>,
     github: Option<crate::github_provider::Client>,
+    collaboration: Option<crate::collaboration::Port>,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -81,21 +83,20 @@ impl NativeSupervisor {
                         return children.stop();
                     }
                 };
-                let mut products = match crate::product::Owner::start(
-                    NativeChannel {
-                        socket: children.profile.join("backend.sock"),
-                        key: zeroize::Zeroizing::new(children.key.clone()),
-                        instance: ready.instance,
-                        profile: ready.profile,
-                    },
-                    owner_alive.clone(),
-                ) {
-                    Ok(products) => products,
-                    Err(error) => {
-                        let _ = started.send(Err(error));
-                        return children.stop();
-                    }
+                let channel = NativeChannel {
+                    socket: children.profile.join("backend.sock"),
+                    key: zeroize::Zeroizing::new(children.key.clone()),
+                    instance: ready.instance,
+                    profile: ready.profile,
                 };
+                let mut products =
+                    match crate::product::Owner::start(channel.clone(), owner_alive.clone()) {
+                        Ok(products) => products,
+                        Err(error) => {
+                            let _ = started.send(Err(error));
+                            return children.stop();
+                        }
+                    };
                 let mut github =
                     match crate::github_provider::Owner::start_with_alive(owner_alive.clone()) {
                         Ok(github) => github,
@@ -105,22 +106,45 @@ impl NativeSupervisor {
                             return children.stop();
                         }
                     };
+                let mut collaboration = match crate::collaboration::Owner::start(
+                    channel,
+                    github.client(),
+                    owner_alive.clone(),
+                ) {
+                    Ok(owner) => owner,
+                    Err(error) => {
+                        let _ = started.send(Err(error));
+                        let _ = github.stop();
+                        let _ = products.stop();
+                        return children.stop();
+                    }
+                };
                 if started
-                    .send(Ok((products.handle.clone(), github.client())))
+                    .send(Ok((
+                        products.handle.clone(),
+                        github.client(),
+                        collaboration.port.clone(),
+                    )))
                     .is_err()
                 {
+                    let _ = collaboration.stop();
                     github.stop().map_err(|error| error.to_string())?;
                     products.stop()?;
                     return children.stop();
                 }
-                let failure = run_owner(&mut children, &products, &github, commands);
+                let failure =
+                    run_owner(&mut children, &products, &github, &collaboration, commands);
                 owner_alive.store(false, Ordering::SeqCst);
+                let collaboration_stopped = collaboration.stop();
                 let provider_stopped = github.stop().map_err(|error| error.to_string());
                 let requests_stopped = products.stop();
                 let stopped = children.stop();
                 match (failure, stopped) {
                     (Some(error), _) => Err(error),
-                    (None, stopped) => provider_stopped.and(requests_stopped).and(stopped),
+                    (None, stopped) => collaboration_stopped
+                        .and(provider_stopped)
+                        .and(requests_stopped)
+                        .and(stopped),
                 }
             })
             .map_err(|_| "native supervisor owner could not start")?;
@@ -130,11 +154,13 @@ impl NativeSupervisor {
             alive,
             products: None,
             github: None,
+            collaboration: None,
         };
         match ready.recv() {
-            Ok(Ok((products, github))) => {
+            Ok(Ok((products, github, collaboration))) => {
                 supervisor.products = Some(products);
                 supervisor.github = Some(github);
+                supervisor.collaboration = Some(collaboration);
                 Ok(supervisor)
             }
             Ok(Err(error)) => {
@@ -184,6 +210,25 @@ impl NativeSupervisor {
             .map(|products| products.request(method, target, body));
         async move { request.ok_or("native runtime is unavailable")?.await }
     }
+    /// Native host admission only; the shell must first admit its window and
+    /// selection. The capability is finite and account verification still occurs
+    /// in the Rust connector before Go may bind a product actor.
+    pub fn admit_product(
+        &self,
+        credentials: Arc<crate::credentials::Credentials>,
+        capability: crate::credentials::TokenCapability,
+        repository: Option<String>,
+    ) -> Result<crate::collaboration::NativeRequest> {
+        self.collaboration
+            .as_ref()
+            .ok_or("native collaboration unavailable")?
+            .admit(
+                self.products.clone().ok_or("native products unavailable")?,
+                credentials,
+                capability,
+                repository,
+            )
+    }
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
     }
@@ -215,6 +260,9 @@ impl NativeSupervisor {
             return Ok(());
         };
         self.alive.store(false, Ordering::SeqCst);
+        if let Some(collaboration) = &self.collaboration {
+            collaboration.retire();
+        }
         if let Some(github) = &self.github {
             github.retire();
         }
@@ -236,6 +284,7 @@ fn run_owner(
     children: &mut Children,
     products: &crate::product::Owner,
     github: &crate::github_provider::Owner,
+    collaboration: &crate::collaboration::Owner,
     commands: Receiver<Control>,
 ) -> Option<String> {
     loop {
@@ -264,6 +313,9 @@ fn run_owner(
             return Some(error);
         }
         if let Err(error) = products.check_running() {
+            return Some(error);
+        }
+        if let Err(error) = collaboration.check_running() {
             return Some(error);
         }
         if let Err(error) = github.check_running() {

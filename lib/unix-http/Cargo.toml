@@ -8,7 +8,7 @@ description = "Bounded HTTP/1 transport for existing private Unix clients"
 
 [dependencies]
 bytes = "=1.12.1"
-http-body-util = "=0.1.3"
+http-body-util = "=0.1.5"
 hyper = { version = "=1.12.0", default-features = false, features = ["http1", "client"] }
 hyper-util = { version = "=0.1.21", default-features = false, features = ["tokio"] }
 tokio = { version = "=1.54.1", default-features = false, features = ["rt", "net", "time"] }

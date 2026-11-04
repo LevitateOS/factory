@@ -119,6 +119,12 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 			nativeResponse(w, 401, map[string]string{"error": "retired_native_instance"})
 			return
 		}
+		admitted, ok := nativeOperationContext(r, config, instance)
+		if !ok {
+			nativeResponse(w, 401, map[string]string{"error": "invalid_native_operation"})
+			return
+		}
+		r = admitted
 		application.ServeHTTP(w, r)
 	})
 	mux.Handle("/api/factory/", product)

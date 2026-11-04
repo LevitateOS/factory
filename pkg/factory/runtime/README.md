@@ -62,6 +62,20 @@ header. Missing, stale or duplicate instances refuse before product binding.
 Without a current connector binding, those routes return unavailable; IPC
 capability never becomes a provider login or an empty successful feed/account.
 
+An optional, strictly bounded `X-Soda-Native-Operation` header establishes only
+the private callback context. Malformed or duplicate operation headers refuse;
+missing headers confer no callback port. `NativeRequestPort(ctx)` is available
+inside trusted product binding after peer/key/instance admission. Its Current,
+Identity and Repository methods call the Rust semantic owner at the fixed
+profile-local `host.sock`. The Go client independently checks its owned private
+socket inode and same-user peer, uses no proxy/redirect/retry, and bounds request,
+response, header and operation time. Rust independently checks the live operation,
+captured credential revision and selected remote repository. No provider token,
+SDK request, arbitrary URL, actor claim or SQL transition crosses this port.
+Returned account/resource facts still require Go's canonical mapping and service
+admission. Current is custody freshness only; it cannot replace Identity.
+The production product binder stays inactive until its explicit consumer packet.
+
 Native executable composition supplies a credential-free observation handler at
 `/api/native/collaboration/observe`. The peer/key/instance and coordinator gates
 admit it. Rust owns complete authenticated GitHub operations; this Go handler
