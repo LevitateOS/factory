@@ -13,6 +13,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
 use storage::{private_dir, private_file};
+use zeroize::Zeroizing;
 mod executable;
 mod process;
 mod scope;
@@ -96,6 +97,7 @@ pub enum StopReason {
     Deadline,
     OutputLimit,
     OutputUnavailable,
+    InputUnavailable,
     ObservationUnavailable,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -205,6 +207,25 @@ impl Processes {
         })
     }
     pub fn launch(&mut self, input: Invocation<'_>) -> Result<Process> {
+        self.launch_inner(input, None)
+    }
+
+    /// One bounded native-only stdin payload, sent through a pipe and closed
+    /// before normal output monitoring. Callers must not put account secrets
+    /// here; an isolated agent receives only a run-scoped placeholder.
+    pub fn launch_with_stdin(&mut self, input: Invocation<'_>, stdin: Vec<u8>) -> Result<Process> {
+        let stdin = Zeroizing::new(stdin);
+        if stdin.is_empty() || stdin.len() > 1024 {
+            return Err(Error::Invalid);
+        }
+        self.launch_inner(input, Some(stdin))
+    }
+
+    fn launch_inner(
+        &mut self,
+        input: Invocation<'_>,
+        stdin: Option<Zeroizing<Vec<u8>>>,
+    ) -> Result<Process> {
         if self.retired {
             return Err(Error::Retired);
         }
@@ -282,6 +303,7 @@ impl Processes {
         let prepared = process::Prepared {
             executable,
             directory,
+            stdin,
             arguments: input.arguments,
             environment: input.environment,
             limits: input.limits,

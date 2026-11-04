@@ -11,9 +11,11 @@ use std::process::Stdio;
 use std::sync::atomic::Ordering;
 use std::sync::{mpsc::SyncSender, Arc};
 use std::time::{Duration, Instant, SystemTime};
+use zeroize::Zeroizing;
 pub(super) struct Prepared {
     pub executable: Executable,
     pub directory: File,
+    pub stdin: Option<Zeroizing<Vec<u8>>>,
     pub arguments: Vec<OsString>,
     pub environment: BTreeMap<OsString, OsString>,
     pub limits: Limits,
@@ -90,7 +92,7 @@ fn terminal(rows: u16, columns: u16) -> Result<(File, File)> {
     Ok((master, slave))
 }
 pub(super) fn run(
-    input: Prepared,
+    mut input: Prepared,
     mut scope: Scope,
     mut output: File,
     shared: Arc<Shared>,
@@ -102,6 +104,7 @@ pub(super) fn run(
         let parent = unsafe { libc::getpid() };
         let group = scope.procs.as_raw_fd();
         let directory = input.directory.as_raw_fd();
+        let terminal_fd = if input.stdin.is_some() { 1 } else { 0 };
         let mut command = input.executable.command();
         command
             .args(&input.arguments)
@@ -109,8 +112,13 @@ pub(super) fn run(
             .env("PATH", "/usr/bin:/bin")
             .env("LANG", "C.UTF-8")
             .env("TERM", "xterm-256color")
-            .envs(&input.environment)
-            .stdin(Stdio::from(slave.try_clone().map_err(|_| Error::Spawn)?))
+            .envs(&input.environment);
+        if input.stdin.is_some() {
+            command.stdin(Stdio::piped());
+        } else {
+            command.stdin(Stdio::from(slave.try_clone().map_err(|_| Error::Spawn)?));
+        }
+        command
             .stdout(Stdio::from(slave.try_clone().map_err(|_| Error::Spawn)?))
             .stderr(Stdio::from(slave));
         // Only async-signal-safe syscalls between fork and exec; all descriptors
@@ -122,7 +130,7 @@ pub(super) fn run(
                     || libc::getppid() != parent
                     || libc::write(group, b"0".as_ptr().cast(), 1) != 1
                     || libc::setsid() < 0
-                    || libc::ioctl(0, libc::TIOCSCTTY, 0) < 0
+                    || libc::ioctl(terminal_fd, libc::TIOCSCTTY, 0) < 0
                     || libc::fchdir(directory) != 0
                 {
                     return Err(std::io::Error::last_os_error());
@@ -147,6 +155,16 @@ pub(super) fn run(
         }
     };
     let identity = start_identity(child.id());
+    let input_ok = if let Some(bytes) = input.stdin.take() {
+        child
+            .stdin
+            .take()
+            .ok_or(Error::Spawn)
+            .and_then(|mut pipe| pipe.write_all(&bytes).map_err(|_| Error::Spawn))
+            .is_ok()
+    } else {
+        true
+    };
     {
         let mut state = shared.observation.lock().unwrap_or_else(|e| e.into_inner());
         state.pid = child.id();
@@ -158,14 +176,18 @@ pub(super) fn run(
     if identity.is_err() {
         shared.cancelled.store(true, Ordering::SeqCst);
     }
-    let _ = ready.send(identity.map(|_| ()));
+    let _ = ready.send(
+        identity
+            .map(|_| ())
+            .and(if input_ok { Ok(()) } else { Err(Error::Spawn) }),
+    );
     let mut bytes = Vec::new();
     let mut buffer = [0u8; 16384];
     let mut eof = false;
     let mut exit = None;
-    let mut reason = None;
+    let mut reason = (!input_ok).then_some(StopReason::InputUnavailable);
     let mut stopping = None;
-    let mut observation_ok = true;
+    let mut observation_ok = input_ok;
     let mut child_unobservable = false;
     let mut tree_retired = false;
     loop {

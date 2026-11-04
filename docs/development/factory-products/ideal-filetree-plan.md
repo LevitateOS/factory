@@ -320,6 +320,14 @@ captured bytes. The actual Muse ELF crossed the isolated socket, ran its finite
 That version check used no provider account, model or real task and does not
 close the remaining credential, role, workspace or provider-run gates.
 
+The headless process owner now supports a bounded, zeroized stdin pipe while
+keeping output on the PTY. A disposable user-delegated systemd scope verified
+the finite pipe read, absence of input in the PTY log, unchanged all-PTY path,
+zero child exits and retired cgroup trees. This permits a run placeholder to
+reach Muse's `--api-key-stdin` without putting the account token in the worker.
+The worker launch, actual systemd UID, mounted workspace, role policy and
+provider task remain unqualified.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first

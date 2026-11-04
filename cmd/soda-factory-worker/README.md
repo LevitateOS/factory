@@ -80,8 +80,10 @@ to the mount. The privileged broker must preserve that source layout per run.
 
 The observed Muse `exec --api-key-stdin` input would place the provider key in
 the worker and cannot satisfy Factory's credential custody rule for an account
-secret. Its `--base-url` setting offers a possible broker endpoint, but needs
-run-bound authorization, network confinement and withdrawal proof before use.
+secret. The headless process primitive now has bounded pipe stdin for the
+owner-generated run placeholder; the actual worker has not used it. Its
+`--base-url` setting offers the fixed private relay endpoint, but still needs
+run-bound launch, network confinement and withdrawal proof on that path.
 
 On this host, a bounded transient systemd comparison confirmed
 `IPAddressDeny=any` blocked a reachable loopback endpoint, while adding

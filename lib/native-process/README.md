@@ -32,6 +32,17 @@ The observed 415 MB Muse 1.4.14 ELF separately streamed and ran `--version`
 under the same worker service profile; it exited zero and its tree retired.
 This did not authenticate, invoke a model or qualify provider credential custody.
 
+`Processes::launch_with_stdin` now accepts at most 1,024 native-only input
+bytes. It gives the child a pipe for stdin, closes it after the bounded write,
+keeps stdout/stderr on the PTY and zeroizes the owned input. A write failure
+retires the child tree and refuses launch. The intended worker use is a
+run-specific provider placeholder; an account token must never enter this
+channel. A disposable observer in a user-delegated systemd scope read the
+fixture input without echoing it to the terminal log, verified the original
+all-PTY path, and observed zero child exits with retired cgroup trees. Empty
+and over-1,024-byte inputs were refused. This is a process I/O check, not an
+isolated agent or provider task.
+
 The caller must supply a user-delegated cgroup-v2 root with CPU, memory and
 process controllers enabled, and permission to move its children into that
 subtree. The primitive never enables host-wide controllers or falls back to a
