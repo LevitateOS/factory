@@ -219,7 +219,7 @@ issue/PR mutation or deployment was performed for the extraction.
 | --- | --- | --- |
 | D1 | Adopt an explicit GitHub standing automation policy over current verified facts, or retain original-author creation evidence as mandatory. Recommendation: the former, with eligible authors/forks, actor, repository, limits and accepted content revision recorded. | Automatic GitHub intake activation, not read/write UI or connector development. Until resolved, discovered work waits for explicit maintainer adoption. |
 | D2 | Prove Fountain desktop enrollment/login and revocation using supported native authentication. Existing OAuth PKCE code is evidence for a spike, not proof the new gateway is admitted. | Remote Fountain operations; no spoofed browser authority or raw Unix socket exposure. |
-| D3 | Require a native worker identity isolated from the desktop user's files and keyring. Keep the existing same-user process primitive internal and unavailable to product execution. Qualify worker UID, filesystem and process visibility, session/keyring access, exact worktree mounts, credential handoff/withdrawal, role capabilities and retirement on the actual launch path. A namespace mapped to the desktop user's host UID alone does not satisfy this gate. | Selectable native execution and unattended work, not desktop browsing or Storybook. |
+| D3 | Require a native worker identity isolated from the desktop user's files and keyring. Keep the headless process primitive outside the desktop dependency graph and unavailable to product execution. Qualify worker UID, filesystem and process visibility, session/keyring access, exact worktree mounts, credential handoff/withdrawal, role capabilities and retirement on the actual launch path. A namespace mapped to the desktop user's host UID alone does not satisfy this gate. | Selectable native execution and unattended work, not desktop browsing or Storybook. |
 | D4 | Select native PG packaging and diff renderer from the early spikes. Resolve fresh official artifacts and actual target behavior. | Shipping those components, not the independent extraction packets. |
 | D5 | Current repository extension admission requires code-unit read. Issue-only collaborators require a Fountain capability change for full native visibility parity. | Full collaborator parity; initial Factory/code-reader journeys can use current extension routes. External Fountain edits need their own authorized implementation scope. |
 
@@ -265,6 +265,21 @@ Before a native coding agent becomes selectable, the N3/N4 path must prove:
 No current N3/N4 consumer satisfies these checks; D3 remains open and native
 agent execution remains unavailable. The earlier same-user acceptance evidence
 continues to cover only process and cgroup behavior.
+
+On 2026-11-04, a transient system service with `DynamicUser=yes`,
+`ProtectHome=yes`, `PrivateTmp=yes`, `ProtectProc=invisible`, private IPC/devices,
+strict system-file protection, no new privileges and no ambient capabilities
+ran under UID 61609. It could not read an existing `0600` desktop canary under
+`/home/vince`, see `/run/user/1000/bus`, read the desktop process environment,
+or inherit session-bus environment variables. A separate worker probe showed
+UID 65518 in the initial user namespace, distinct from the desktop process's
+namespace and UID. The extracted native process acceptance binary then ran in
+the same transient service profile with delegated cgroup controllers and passed
+all retained finite process, PTY, deadline, cancellation, descendant, output,
+owner and uncertain-retirement checks. The probe binary was removed from `/run`
+afterward. These checks prove the selected system-worker profile is feasible on
+this host; no production broker, worker admission, worktree transfer, scoped
+credential delivery, role enforcement or provider run was exercised.
 
 ## Inspection identity and evidence limits
 
