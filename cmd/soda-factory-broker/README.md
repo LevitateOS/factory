@@ -282,3 +282,13 @@ inspection found no source, preparation, socket or run runtime afterward. All
 temporary units, binaries, dummy sockets and state were removed. Go admission,
 coder workspace, role tool policy, credential withdrawal and a real finite
 provider task are still required before D3 closes.
+
+The fixed preparer Git calls now run through a 20-second `timeout` with a
+one-second kill grace, inside the unit's 30-second start deadline and
+control-group kill. Its HEAD check reads at most 42 stdout bytes and refuses
+anything beyond the exact 41-byte candidate line; clone and cleanliness
+checks still discard stdout. A disposable activation of the actual preparer
+unit cloned a 289-byte local bundle, produced the expected candidate as a
+distinct worker UID and exited successfully. The unit, binary, bundle and
+checkout were removed. This bounds subprocess output during preparation; it
+does not authorize agent execution.

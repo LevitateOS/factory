@@ -411,6 +411,14 @@ activation of its actual socket and service attested the dummy candidate as a
 separate UID and root peer; the temporary socket, unit, binary and checkout
 were removed. The reviewer remains credential-free and attestation-only.
 
+The fixed checkout preparer Git calls now run through a 20-second `timeout`
+with a one-second kill grace inside its 30-second systemd start deadline. Its
+HEAD check reads at most 42 bytes, refusing output beyond the exact candidate
+line. A disposable activation of the actual preparer unit cloned a 289-byte
+local bundle to the expected candidate as a distinct worker UID. The unit,
+binary, bundle and checkout were removed. This bounds preparation subprocess
+output; D3 agent execution remains unavailable.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first

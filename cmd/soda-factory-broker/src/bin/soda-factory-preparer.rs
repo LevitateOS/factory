@@ -76,13 +76,14 @@ fn bundle(expected: &str) -> io::Result<()> {
 }
 
 fn git(args: &[&str]) -> Command {
-    let mut command = Command::new("/usr/bin/git");
+    let mut command = Command::new("/usr/bin/timeout");
     command
         .env_clear()
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
+        .args(["-k", "1s", "20s", "/usr/bin/git"])
         .args(args)
         .stderr(Stdio::null());
     command
@@ -184,8 +185,23 @@ fn prepare() -> io::Result<()> {
     if !clone.success() {
         return Err(refused("reviewer bundle clone failed"));
     }
-    let head = git(&["-C", CHECKOUT, "rev-parse", "--verify", "HEAD^{commit}"]).output()?;
-    if !head.status.success() || head.stdout != format!("{}\n", args[2]).as_bytes() {
+    let mut head = git(&["-C", CHECKOUT, "rev-parse", "--verify", "HEAD^{commit}"])
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let mut output = Vec::with_capacity(42);
+    let read = head
+        .stdout
+        .take()
+        .ok_or_else(|| refused("preparer Git output unavailable"))?
+        .take(42)
+        .read_to_end(&mut output);
+    if read.is_err() || output.len() > 41 {
+        let _ = head.kill();
+        let _ = head.wait();
+        return Err(refused("preparer Git output invalid"));
+    }
+    let status = head.wait()?;
+    if !status.success() || output != format!("{}\n", args[2]).as_bytes() {
         return Err(refused("reviewer checkout HEAD differs"));
     }
     let clean = git(&["-C", CHECKOUT, "diff", "--quiet", "HEAD", "--"])
