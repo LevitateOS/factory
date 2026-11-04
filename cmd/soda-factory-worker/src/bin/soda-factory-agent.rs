@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 const SOURCE: &str = "/run/factory-source";
+const WORKSPACE: &str = "/run/factory-agent-private/workspace";
 const ROLE: &str = "/run/factory-role";
 const PRIVATE: &str = "/run/factory-agent-private";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
@@ -39,6 +40,7 @@ struct Attestation<'a> {
     worker_uid: u32,
     peer_uid: u32,
     readonly_source: bool,
+    coder_workspace: bool,
     execution_available: bool,
 }
 
@@ -203,6 +205,75 @@ fn manifest(run: &str) -> io::Result<(String, String, String)> {
     Ok((role.into(), profile.into(), candidate.into()))
 }
 
+fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io::Result<Vec<u8>> {
+    let executable = Executable::capture(Path::new("/usr/bin/git"))
+        .map_err(|_| refused("agent Git executable unavailable"))?;
+    let environment = BTreeMap::from([
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            OsString::from("/dev/null"),
+        ),
+        (OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")),
+        (OsString::from("GIT_LFS_SKIP_SMUDGE"), OsString::from("1")),
+        (OsString::from("GIT_ATTR_NOSYSTEM"), OsString::from("1")),
+    ]);
+    let arguments = [
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.eol=lf",
+        "-c",
+        "core.attributesFile=/dev/null",
+    ]
+    .into_iter()
+    .chain(arguments.iter().copied())
+    .map(OsString::from)
+    .collect();
+    let process = processes
+        .launch(Invocation {
+            executable: &executable,
+            directory: Path::new(PRIVATE),
+            arguments,
+            environment,
+            limits: Limits {
+                duration,
+                output_bytes: 4096,
+                memory_bytes: 256 * 1024 * 1024,
+                processes: 16,
+                cpu_percent: 100,
+            },
+            columns: 80,
+            rows: 24,
+        })
+        .map_err(|_| refused("agent Git scope unavailable"))?;
+    let observed = process.wait(duration + Duration::from_secs(2));
+    if !observed.finished || !observed.tree_retired || !observed.output_complete {
+        return Err(refused("agent Git scope did not retire"));
+    }
+    if observed.reason != Some(StopReason::Exited)
+        || observed.exit.and_then(|exit| exit.code) != Some(0)
+    {
+        return Err(refused("agent Git command failed"));
+    }
+    fs::read(&observed.output)
+}
+
+fn head(path: &str, candidate: &str, processes: &mut Processes) -> io::Result<()> {
+    let safe = format!("safe.directory={path}");
+    let output = git(
+        processes,
+        &["-C", path, "-c", &safe, "rev-parse", "HEAD"],
+        Duration::from_secs(3),
+    )?;
+    if output != format!("{candidate}\r\n").as_bytes()
+        && output != format!("{candidate}\n").as_bytes()
+    {
+        return Err(refused("agent source candidate invalid"));
+    }
+    Ok(())
+}
+
 fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
     let path = Path::new(SOURCE);
     let metadata = path.symlink_metadata()?;
@@ -213,55 +284,53 @@ fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
     {
         return Err(refused("agent source mount invalid"));
     }
-    let executable = Executable::capture(Path::new("/usr/bin/git"))
-        .map_err(|_| refused("agent Git executable unavailable"))?;
-    let environment = BTreeMap::from([
-        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
-        (
-            OsString::from("GIT_CONFIG_GLOBAL"),
-            OsString::from("/dev/null"),
-        ),
-        (OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")),
-    ]);
-    let process = processes
-        .launch(Invocation {
-            executable: &executable,
-            directory: Path::new(PRIVATE),
-            arguments: [
-                "-C",
-                SOURCE,
-                "-c",
-                "safe.directory=/run/factory-source",
-                "rev-parse",
-                "HEAD",
-            ]
-            .into_iter()
-            .map(OsString::from)
-            .collect(),
-            environment,
-            limits: Limits {
-                duration: Duration::from_secs(3),
-                output_bytes: 4096,
-                memory_bytes: 128 * 1024 * 1024,
-                processes: 8,
-                cpu_percent: 100,
-            },
-            columns: 80,
-            rows: 24,
-        })
-        .map_err(|_| refused("agent Git scope unavailable"))?;
-    let observed = process.wait(Duration::from_secs(5));
-    let output = if observed.finished && observed.tree_retired && observed.output_complete {
-        fs::read(&observed.output)?
-    } else {
-        return Err(refused("agent Git scope did not retire"));
-    };
-    if observed.reason != Some(StopReason::Exited)
-        || observed.exit.and_then(|exit| exit.code) != Some(0)
-        || (output != format!("{candidate}\r\n").as_bytes()
-            && output != format!("{candidate}\n").as_bytes())
+    head(SOURCE, candidate, processes)?;
+    Ok(())
+}
+
+fn coder_workspace(candidate: &str, worker_uid: u32, processes: &mut Processes) -> io::Result<()> {
+    match Path::new(WORKSPACE).symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+        Ok(_) => return Err(refused("agent coder workspace already exists")),
+    }
+    git(
+        processes,
+        &[
+            "-c",
+            "safe.directory=/run/factory-source",
+            "clone",
+            "--quiet",
+            "--no-local",
+            "--no-checkout",
+            "--",
+            SOURCE,
+            WORKSPACE,
+        ],
+        Duration::from_secs(15),
+    )?;
+    let metadata = Path::new(WORKSPACE).symlink_metadata()?;
+    if !metadata.is_dir()
+        || metadata.uid() != worker_uid
+        || metadata.mode() & 0o7777 != 0o700
+        || readonly(Path::new(WORKSPACE))?
     {
-        return Err(refused("agent source candidate invalid"));
+        return Err(refused("agent coder workspace invalid"));
+    }
+    head(WORKSPACE, candidate, processes)?;
+    git(
+        processes,
+        &["-C", WORKSPACE, "reset", "--hard", "--quiet", "HEAD"],
+        Duration::from_secs(15),
+    )?;
+    if !git(
+        processes,
+        &["-C", WORKSPACE, "status", "--porcelain", "-z"],
+        Duration::from_secs(3),
+    )?
+    .is_empty()
+    {
+        return Err(refused("agent coder workspace dirty"));
     }
     Ok(())
 }
@@ -368,6 +437,9 @@ fn serve() -> io::Result<()> {
     let mut processes = process_owner(&args[1], worker_uid)?;
     let (role, profile, candidate) = manifest(&args[1])?;
     source(&candidate, &mut processes)?;
+    if role == "coder" {
+        coder_workspace(&candidate, worker_uid, &mut processes)?;
+    }
     let listener = listener(&args[1], desktop_uid)?;
     let deadline = Instant::now() + Duration::from_secs(10);
     let (mut stream, _) = loop {
@@ -413,6 +485,7 @@ fn serve() -> io::Result<()> {
         worker_uid,
         peer_uid: desktop_uid,
         readonly_source: true,
+        coder_workspace: role == "coder",
         execution_available: false,
     })?;
     stream.write_all(&(reply.len() as u32).to_le_bytes())?;

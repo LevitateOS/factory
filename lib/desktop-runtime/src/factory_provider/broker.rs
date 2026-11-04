@@ -16,7 +16,7 @@ const MAX_FRAME: usize = 512;
 const MAX_BUNDLE: usize = 512 * 1024;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
-const AGENT_TIME: Duration = Duration::from_secs(12);
+const AGENT_TIME: Duration = Duration::from_secs(60);
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -166,6 +166,7 @@ struct AgentAttested {
     worker_uid: u32,
     peer_uid: u32,
     readonly_source: bool,
+    coder_workspace: bool,
     execution_available: bool,
 }
 
@@ -410,6 +411,7 @@ impl Broker {
             || reply.worker_uid == uid
             || reply.peer_uid != uid
             || !reply.readonly_source
+            || reply.coder_workspace != (role == Role::Coder)
             || reply.execution_available
         {
             return Err(refused("agent attested identity invalid"));

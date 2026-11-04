@@ -275,6 +275,19 @@ All temporary units, binary, checkout, socket and runtime state were removed.
 This qualifies the revised profile wire contract on the real service profile;
 it does not prove Go run admission, agent execution or provider custody.
 
+The agent service now prepares a coder checkout beneath its worker-owned
+private runtime directory from the exact read-only source. Captured Git
+commands run under the delegated process owner with finite CPU, memory,
+process, output and time limits. Before attestation, the service verifies the
+new directory is owned by its distinct UID, mode `0700`, writable, at the
+candidate HEAD and clean. A reviewer run creates no coder checkout. A
+disposable activation of the actual agent unit and mock network namespace
+returned `coder_workspace:false` for reviewer and `true` for coder, each from a
+distinct desktop/worker UID and with `execution_available:false`. No provider
+credential was supplied; temporary units, binary, source, socket and runtime
+state were removed. This qualifies the workspace preparation boundary, not an
+admitted agent launch, role tool execution or credential withdrawal.
+
 The earlier root-private reviewer attester's fixed Git HEAD check now uses a
 three-second `timeout` with a one-second kill grace and reads at most 42 bytes
 from stdout. The exact candidate line is 41 bytes; excess output is refused

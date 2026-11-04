@@ -362,7 +362,7 @@ and a repeat refusal left the socket active and attestable. Wrong-digest
 retirement preserved the run. Exact retirement stopped both units and removed
 the staged bundle and prepared checkout; replayed retirement found the run
 absent, and agent attestation could not revive it. Temporary system state was
-removed. Admitted role-limited tool execution, coder workspace, credential
+removed. Admitted role-limited tool execution, coder workspace use, credential
 withdrawal, cgroup boundary probe and a finite provider task remain D3
 requirements. The agent now also opens the headless Rust process owner under
 its exact run cgroup before attesting. A disposable `DynamicUser` service with
@@ -372,6 +372,16 @@ attested after acquiring its process owner. Removing that subgroup from the
 disposable unit produced no reply and a delegation refusal; restoring it
 restored attestation. This is a process-scope prerequisite, not a child launch
 or proof of process-tree retirement on an agent task.
+
+The actual isolated agent service now makes a separate coder checkout beneath
+its private worker-owned runtime from the exact read-only prepared source. It
+uses captured, bounded Git processes and checks worker ownership, mode `0700`,
+writability, exact candidate HEAD and clean status before attesting. A live
+disposable unit activation returned `coder_workspace:true` for coder and
+`false` for reviewer; each run had a worker UID distinct from the desktop UID
+and still reported execution unavailable. The mock namespace, units, source
+and runtime state were removed. The production Go admission, role-scoped agent
+tool execution, credential custody and finite provider task remain D3 work.
 
 A simultaneous two-instance check exposed that systemd reused one dynamic
 host UID across instances of the same template. The agent service now overlays
