@@ -545,6 +545,18 @@ actual agent file tools. The actual preparer unit refused a directory link
 with the intended error and prepared a contained file link; temporary proof
 state was removed. The native execution gate stays closed.
 
+The credential-free provider relay template now provides a fixed Unix-socket
+to private-loopback bridge for one run. A live temporary systemd check used a
+fake owner with no credential: host loopback could not reach the relay, and a
+different dynamic UID joined its private network namespace and reached the
+fake owner as UID 64727. That joined service had no usable owner Unix socket
+mount; systemd's regular-file bind placeholder was removed afterward. The
+relay checks the desktop owner's socket and peer UID and bounds traffic and
+lifetime. This qualifies only the transport shape. The trusted desktop owner
+still needs a run-bound provider policy and revocable token use; the broker
+must construct and retire exact unit instances, and an actual confined agent
+must pass role, file, keyring and finite provider-run checks. D3 remains open.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;

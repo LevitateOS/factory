@@ -123,3 +123,30 @@ temporary units, binaries, socket state and scratch source were removed.
 This qualifies the read-only run mount and service identity only. It does not
 run an agent, proxy credentials, withdraw provider authority or prove a finite
 provider task.
+
+`soda-factory-provider-relay` is a credential-free, run-specific transport
+primitive. Its template starts a different dynamic UID in a private network
+namespace, binds only the desktop owner's run socket beneath a private
+mode-`0700` directory at the fixed `/run/factory-provider.sock` path, and
+listens on private loopback port 37377.
+The relay checks its run ID, service identity, runtime directory, source socket
+owner and mode, and the connected owner's kernel peer UID. It forwards bytes
+with request, response, concurrency, idle and lifetime limits. It does not
+read a provider token or decide whether a request is authorized. The desktop
+owner must authenticate the run and enforce provider routes, model, spend,
+deadline and withdrawal before any real credential use. This unit is a
+template only; no installer enables it and no agent is launched through it.
+
+On 2026-11-04, a temporary rendered system unit passed
+`systemd-analyze verify` and started under a dynamic UID with a fake,
+credential-free owner
+socket. A direct desktop request to the private owner socket was refused by
+the fake owner. Host loopback could not reach the relay. A separate dynamic
+UID service joining only the relay's private network namespace reached the
+relay; the owner observed peer UID 64727, distinct from desktop UID 1000.
+The joined service could not see a usable Unix socket at the relay's bind
+destination. Systemd created an inert regular-file placeholder at that path
+in the host mount namespace; the proof removed it with the temporary unit,
+binary, fake socket and source directory. This establishes the transport
+namespace shape on this host, not admission, owner policy, agent role
+confinement, credential withdrawal or a real provider run.

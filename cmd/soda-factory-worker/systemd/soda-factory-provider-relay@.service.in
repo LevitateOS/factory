@@ -1,0 +1,45 @@
+[Unit]
+Description=Factory private provider relay for run %i
+
+[Service]
+Type=exec
+ExecStart=/usr/libexec/soda-factory-provider-relay %i @DESKTOP_UID@
+DynamicUser=yes
+UMask=0077
+RuntimeDirectory=soda-factory-relay/%i
+RuntimeDirectoryMode=0700
+BindPaths=/run/user/@DESKTOP_UID@/soda-factory-provider/%i.sock:/run/factory-provider.sock
+ProtectHome=yes
+PrivateTmp=yes
+PrivateIPC=yes
+KeyringMode=private
+PrivateDevices=yes
+ProtectProc=invisible
+PrivateNetwork=yes
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/32
+RestrictAddressFamilies=AF_UNIX AF_INET
+ProtectSystem=strict
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+CPUAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes
+CPUQuota=100%
+MemoryMax=64M
+TasksMax=24
+TimeoutStartSec=10s
+RuntimeMaxSec=4h
+KillMode=control-group
