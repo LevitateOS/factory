@@ -853,6 +853,17 @@ of the agent and child. Exact retirement succeeded, then temporary units,
 binaries and state were removed. Go admission, real credential custody and
 production Quit remain open for D3.
 
+The native `RunOwner` now composes inert socket binding, exact bundle staging,
+checkout preparation, relay and agent attestation, token activation, one
+brokered execution and exact retirement. A disposable actual-unit check used
+a private GNOME Keyring fixture and tiny reviewer ELF: a dummy Muse token
+reached the fixed model-catalog route and received 401; after withdrawal,
+the next exact run returned local 503. Both worker services ended with no
+main PID or control group. Temporary units, binaries, run state and fixture
+were removed. This proves native worker/owner custody for an invalid token;
+Go admission, durable receipt consumption, real provider work and production
+Quit remain D3 gates.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

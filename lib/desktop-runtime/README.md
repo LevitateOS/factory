@@ -33,9 +33,11 @@ the Go product and desktop lifecycle do not call it. The separate process
 primitive retains same-user process and cgroup checks;
 it does not isolate a hostile worker from the desktop user's files or keyring.
 Native workspace/Git, a distinct worker host identity, brokered credential
-delivery, durable invocation/restart receipts and real provider integration
-remain the N3/N4 consumers. Product execution stays unavailable until D3 proves
-those boundaries on the actual worker path.
+delivery and invocation receipts now have native primitives and disposable
+system-unit checks. Go admission, durable product consumption of the receipt,
+production lifecycle wiring and a finite real provider task remain N3/N4
+consumers. Product execution stays unavailable until D3 proves those boundaries
+on the actual product path.
 
 ## Managed native children
 
@@ -215,9 +217,13 @@ routes with no proxy, redirect or retry. Requests, concurrent work, response
 wire bytes and lifetime are bounded; provider errors return generic local
 bodies. `Owner::retire` cancels active work, removes the exact socket, then
 asks the broker to retire the exact bundle and relay; Drop attempts the same
-sequence. The future desktop caller must bind before broker relay attestation,
-activate with the returned identity, and handle retirement failures. Neither
-that caller nor an agent launch is connected yet.
+sequence. `RunOwner` composes the native-only path: bind the inert owner first,
+stage an exact source bundle, prepare and attest the reviewer checkout and
+relay, arm and attest the worker, then activate token use. It permits one
+brokered execution attempt and releases its result only after owner and exact
+broker retirement. Setup errors try exact retirement; an unconfirmed cleanup
+is an error. Its cancellation token is available to the future desktop Quit
+owner. No Go admission or desktop lifecycle currently constructs this owner.
 
 A dummy-key Muse 1.4.14 request to a local fake provider showed that the CLI
 advertised `workflow`, memory, monitoring and reminder functions even with
@@ -271,6 +277,17 @@ SIGKILL of both the agent main process and its child. Exact retirement then
 removed the staged run. The temporary units, binaries and run state were
 removed. This proves cancellation reaches an active isolated tree; provider
 credential withdrawal and production Quit remain unqualified.
+
+A disposable private GNOME Keyring and D-Bus fixture then exercised `RunOwner`
+with the actual root broker, preparer, reviewer, relay and isolated agent units.
+A tiny reviewer ELF sent the owner-generated placeholder through the private
+relay. With a dummy Muse credential, the fixed model-catalog request received
+Meta HTTP 401. After withdrawal of that fixture connection, an otherwise
+identical second run received local 503 without credential reuse. Both worker
+units ended with `MainPID=0` and empty control groups. Exact retirement was
+idempotent; temporary root units, binaries, run state and fixture data were
+removed. This qualifies the native owner-to-worker custody path for a dummy
+token, not real account enrollment, a model response, Go admission or Quit.
 
 ## Native GitHub connector
 

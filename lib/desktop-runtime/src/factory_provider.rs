@@ -4,8 +4,10 @@
 mod broker;
 mod owner;
 mod response;
+mod run;
 pub use broker::{AgentCancellation, AgentProcess, AgentRun, Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
+pub use run::RunOwner;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};

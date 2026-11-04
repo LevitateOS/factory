@@ -269,16 +269,14 @@ impl Owner {
     /// relay and remove its staged run. A failed broker call remains retryable.
     pub fn retire(&mut self) -> io::Result<()> {
         let stopped = self.stop();
-        let attestation = self
-            .attestation
-            .as_ref()
-            .ok_or_else(|| refused("provider run already retired"))?;
-        Broker::retire_bundle(
-            attestation.run(),
-            attestation.profile(),
-            attestation.sha256(),
-        )?;
-        self.attestation.take();
+        if let Some(attestation) = self.attestation.as_ref() {
+            Broker::retire_bundle(
+                attestation.run(),
+                attestation.profile(),
+                attestation.sha256(),
+            )?;
+            self.attestation.take();
+        }
         stopped
     }
 }

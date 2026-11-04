@@ -252,6 +252,16 @@ agent main process and child. Retirement and removal of all temporary units,
 binaries and run state followed. This does not establish owner-held provider
 credential withdrawal or a production Go-admitted run.
 
+A later disposable run composed the real broker, preparer, reviewer, relay and
+agent units with `factory_provider::RunOwner` and a separate private GNOME
+Keyring fixture. A tiny reviewer ELF used only its placeholder through the
+run-specific relay. The fixed Muse catalog route returned HTTP 401 for the
+dummy credential; after fixture withdrawal, the next run returned local 503.
+Both exact worker units had `MainPID=0` and empty control groups after the
+owner retired them. The temporary installation and fixture were removed. This
+proves native custody and withdrawal at this path, not Go product admission,
+real model work or production Quit.
+
 The agent service now opens `soda-native-process::Processes` under its own
 run-specific runtime and delegated cgroup before accepting an attestation.
 Its unit places the main process in `init`, leaving the parent cgroup empty so
