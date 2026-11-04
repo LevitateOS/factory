@@ -323,3 +323,14 @@ checkout ceiling. A 3,318-byte local bundle described 600 files beneath about
 tree namespace bound exceeded` before any branch directory appeared. Its
 partial no-checkout repository used 100 KiB. The disposable unit, binary,
 bundle and checkout were removed. The strict total-storage quota remains open.
+
+`/run` is tmpfs on this host, and the host has swap enabled. A disposable
+systemd service with `MemoryMax=32M` and `MemorySwapMax=0` was OOM-killed at a
+32 MiB peak after writing 32,210,944 bytes while attempting 128 MiB under
+`/run`. The preparer unit now also sets `MemorySwapMax=0` alongside its
+existing 128 MiB memory ceiling, so output pages written by that activation
+cannot escape its cgroup limit through swap. The rendered actual unit reported
+both limits and prepared a tiny exact candidate successfully; its temporary
+unit, binary, bundle and checkout were removed. This covers one preparation
+activation. The broker still needs a bound on aggregate retained checkouts
+across runs and the free capacity of `/run` before D3 closure.

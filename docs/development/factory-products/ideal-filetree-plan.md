@@ -443,6 +443,15 @@ exceeded` before creating any branch directory. The partial repository used
 while a strict total-storage quota or equivalent upper-bound proof remains
 open for D3.
 
+The host `/run` is tmpfs with swap enabled. A disposable 32 MiB systemd
+memory-cgroup probe with `MemorySwapMax=0` OOM-killed a 128 MiB writer at
+32 MiB peak and 32,210,944 bytes written. The actual preparer unit now sets
+`MemorySwapMax=0` alongside `MemoryMax=128M`; a rendered unit check reported
+both values and prepared a tiny exact candidate successfully. The temporary
+state was removed. This bounds output charged to one preparation activation;
+aggregate retained checkouts across runs and available `/run` capacity remain
+security gates.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first

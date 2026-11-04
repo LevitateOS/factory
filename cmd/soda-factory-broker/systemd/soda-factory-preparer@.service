@@ -38,6 +38,7 @@ MemoryAccounting=yes
 TasksAccounting=yes
 CPUQuota=100%
 MemoryMax=128M
+MemorySwapMax=0
 TasksMax=32
 TimeoutStartSec=30s
 KillMode=control-group
