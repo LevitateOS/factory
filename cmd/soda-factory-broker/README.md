@@ -75,13 +75,37 @@ isolated from unrelated processes and other concurrent preparations. The tempora
 checkout and source were removed. No preparation service or reviewer launch is
 currently wired to this broker.
 
+`soda-factory-preparer` is an unprivileged executable for that fixed preparation
+step. It accepts only a run ID, candidate commit and bundle digest; the manager
+must choose the two fixed mounts and those exact arguments from admitted state.
+It requires a non-root UID, no new privileges, a root-owned read-only source
+directory and bundle, and an empty root-owned output directory. It hashes the
+bounded bundle before invoking Git with a cleared environment, disabled system
+and global configuration, and no network in the service profile. It checks the
+cloned HEAD against the candidate, rejects a dirty tracked tree and bounds the
+checkout's entries, depth and bytes. A failed preparation can leave a partial
+checkout, which must be removed by the manager before that run ID is reused.
+The checkout size check runs after clone, so the installed service also needs
+CPU, memory, runtime and writable-space limits during extraction.
+
+On 2026-11-04, a `DynamicUser=yes` transient preparer with private IPC and
+keyring, no network or capabilities, and a read-only bundle bind prepared a
+local candidate. A second dynamic UID read the frozen checkout through a
+read-only bind, while its original root-private path, file writes, new files
+and chmod were denied. Wrong-digest preparation failed before clone; a wrong
+candidate failed after clone. A separate restricted root manager probe launched
+a fixed cleanup service with only `CAP_DAC_OVERRIDE` and `CAP_FOWNER` and
+removed that partial checkout; inspection confirmed its absence. The preparer,
+manager cleanup and reviewer launch are not yet wired to the broker. The
+temporary binaries, mounts, service instances and scratch repository were removed.
+
 A transient check also confirmed that a root service with no capabilities, no
 new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged
 service. The staging broker has no such request yet; future launch code must
 derive every manager property from validated run state, not desktop input.
 
-This is a staging primitive, not the D3 broker closure. It does not check a
-Go-admitted profile/role/preparation, prepare an immutable reviewer checkout,
-select a worker unit, mediate provider credentials, retire active runs or
-perform a real provider task. It must remain uninstalled until those launch and
-retirement controls are wired and qualified.
+These are staging and preparation primitives, not the D3 broker closure. The
+broker does not check a Go-admitted profile/role/preparation, invoke the
+preparer, select a worker unit, mediate provider credentials, retire active
+runs or perform a real provider task. It must remain uninstalled until those
+launch and retirement controls are wired and qualified.

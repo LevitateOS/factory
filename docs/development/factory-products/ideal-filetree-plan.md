@@ -407,6 +407,29 @@ from unrelated processes and concurrent preparations, a root-controlled fixed un
 mount selection, exact Git HEAD/commit validation, and retirement of the
 staging/worker lifetimes before this role boundary can be used.
 
+`cmd/soda-factory-broker` now also builds `soda-factory-preparer`, a fixed-path
+unprivileged checkout preparer. Its manager-selected source bundle and empty
+output directory are the only filesystem inputs; arguments carry only the run
+ID, expected candidate commit and source digest. It rejects invalid identity,
+privilege state, ownership, modes, bundle size/digest, candidate HEAD, dirty
+tracked files, special files and oversized or deep checkouts. Git runs with a
+cleared environment and no inherited configuration. The production broker does
+not invoke it yet. A live `DynamicUser=yes` preparer cloned a small test bundle
+from a read-only bind with an exact expected digest and candidate. A separate
+dynamic reviewer UID read the frozen checkout from a read-only bind but could
+not traverse the original
+root-private path or write, create or chmod in its checkout. Wrong-digest and
+wrong-candidate runs were refused. The latter left a partial clone; a restricted
+root manager service launched a fixed cleanup service with only
+`CAP_DAC_OVERRIDE` and `CAP_FOWNER` and removed it. Inspection confirmed the
+partial clone was gone. These are mount and preparation proofs, not Go run
+admission or an installed active-run cleanup path. The temporary binaries,
+mounts and scratch repository were removed.
+
+The size check runs after Git extraction; production must also limit the
+preparer's CPU, memory, runtime and writable filesystem space before accepting
+an untrusted compressed bundle.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;
