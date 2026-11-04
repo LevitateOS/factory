@@ -292,3 +292,16 @@ unit cloned a 289-byte local bundle, produced the expected candidate as a
 distinct worker UID and exited successfully. The unit, binary, bundle and
 checkout were removed. This bounds subprocess output during preparation; it
 does not authorize agent execution.
+
+The preparer now clones without checkout, verifies the exact HEAD, and reads a
+bounded NUL-delimited Git tree listing before `reset --hard` materializes files.
+It refuses unsupported entries, malformed paths, more than 20,000 entries,
+more than 8 MiB of listing output and more than 64 MiB of declared blob bytes.
+Under the actual unit, a normal local bundle prepared successfully. An
+81,810-byte bundle containing an 80 MiB zero-filled file was refused with
+`reviewer tree byte bound exceeded` before that file appeared; the partial
+no-checkout repository used 176 KiB. Both disposable runs were removed.
+This preflight does not yet establish a strict disk quota: a local Git
+`ident` attribute probe expanded a 1 MiB blob to 10,066,321 worktree bytes.
+Attribute expansion and filesystem overhead still need an admission or
+quota bound before D3 can rely on this workspace limit.

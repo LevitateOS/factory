@@ -14,6 +14,7 @@ const OUTPUT: &str = "/run/factory-output";
 const CHECKOUT: &str = "/run/factory-output/repo";
 const MAX_BUNDLE: u64 = 512 * 1024;
 const MAX_CHECKOUT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_TREE_LIST_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_ENTRIES: usize = 20_000;
 const MAX_DEPTH: usize = 64;
 
@@ -87,6 +88,79 @@ fn git(args: &[&str]) -> Command {
         .args(args)
         .stderr(Stdio::null());
     command
+}
+
+fn preflight_tree() -> io::Result<()> {
+    let mut listing = git(&["-C", CHECKOUT, "ls-tree", "-r", "-l", "-z", "HEAD"])
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let mut output = Vec::new();
+    let read = listing
+        .stdout
+        .take()
+        .ok_or_else(|| refused("preparer tree listing unavailable"))?
+        .take(MAX_TREE_LIST_BYTES + 1)
+        .read_to_end(&mut output);
+    if read.is_err() || output.len() as u64 > MAX_TREE_LIST_BYTES {
+        let _ = listing.kill();
+        let _ = listing.wait();
+        return Err(refused("reviewer tree listing bound exceeded"));
+    }
+    if !listing.wait()?.success() || (!output.is_empty() && !output.ends_with(&[0])) {
+        return Err(refused("reviewer tree listing invalid"));
+    }
+    let mut total = 0u64;
+    let mut entries = 0usize;
+    for record in output
+        .split(|byte| *byte == 0)
+        .filter(|record| !record.is_empty())
+    {
+        entries += 1;
+        if entries > MAX_ENTRIES {
+            return Err(refused("reviewer tree entry bound exceeded"));
+        }
+        let separator = record
+            .iter()
+            .position(|byte| *byte == b'\t')
+            .ok_or_else(|| refused("reviewer tree record invalid"))?;
+        let (header, rest) = record.split_at(separator);
+        let path = &rest[1..];
+        let fields: Vec<&[u8]> = header
+            .split(|byte| byte.is_ascii_whitespace())
+            .filter(|field| !field.is_empty())
+            .collect();
+        if fields.len() != 4
+            || !matches!(fields[0], b"100644" | b"100755" | b"120000")
+            || fields[1] != b"blob"
+            || fields[2].len() != 40
+            || !fields[2].iter().all(u8::is_ascii_hexdigit)
+            || path.is_empty()
+            || path.len() > 4096
+        {
+            return Err(refused("reviewer tree entry invalid"));
+        }
+        let mut depth = 0usize;
+        for component in path.split(|byte| *byte == b'/') {
+            depth += 1;
+            if component.is_empty() || matches!(component, b"." | b".." | b".git") {
+                return Err(refused("reviewer tree path invalid"));
+            }
+        }
+        if depth > MAX_DEPTH {
+            return Err(refused("reviewer tree depth exceeded"));
+        }
+        let size = std::str::from_utf8(fields[3])
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or_else(|| refused("reviewer tree object size invalid"))?;
+        total = total
+            .checked_add(size)
+            .ok_or_else(|| refused("reviewer tree byte bound exceeded"))?;
+        if total > MAX_CHECKOUT_BYTES {
+            return Err(refused("reviewer tree byte bound exceeded"));
+        }
+    }
+    Ok(())
 }
 
 fn contained_symlink(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
@@ -179,9 +253,17 @@ fn prepare() -> io::Result<()> {
     if fs::read_dir(OUTPUT)?.next().is_some() {
         return Err(refused("preparer output is not empty"));
     }
-    let clone = git(&["clone", "--quiet", "--no-local", "--", BUNDLE, CHECKOUT])
-        .stdout(Stdio::null())
-        .status()?;
+    let clone = git(&[
+        "clone",
+        "--quiet",
+        "--no-local",
+        "--no-checkout",
+        "--",
+        BUNDLE,
+        CHECKOUT,
+    ])
+    .stdout(Stdio::null())
+    .status()?;
     if !clone.success() {
         return Err(refused("reviewer bundle clone failed"));
     }
@@ -203,6 +285,13 @@ fn prepare() -> io::Result<()> {
     let status = head.wait()?;
     if !status.success() || output != format!("{}\n", args[2]).as_bytes() {
         return Err(refused("reviewer checkout HEAD differs"));
+    }
+    preflight_tree()?;
+    let checkout = git(&["-C", CHECKOUT, "reset", "--hard", "--quiet", "HEAD"])
+        .stdout(Stdio::null())
+        .status()?;
+    if !checkout.success() {
+        return Err(refused("reviewer tree checkout failed"));
     }
     let clean = git(&["-C", CHECKOUT, "diff", "--quiet", "HEAD", "--"])
         .stdout(Stdio::null())
