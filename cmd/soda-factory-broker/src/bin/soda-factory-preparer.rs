@@ -111,6 +111,7 @@ fn contained_symlink(root: &Path, path: &Path, target: &Path) -> io::Result<()> 
 }
 
 fn check_tree(root: &Path) -> io::Result<()> {
+    let canonical_root = fs::canonicalize(root)?;
     let mut total = 0u64;
     let mut entries = 0usize;
     let mut pending = vec![(root.to_path_buf(), 0usize)];
@@ -136,6 +137,14 @@ fn check_tree(root: &Path) -> io::Result<()> {
                     return Err(refused("reviewer checkout symlink bound exceeded"));
                 }
                 contained_symlink(root, &path, &target)?;
+                // A lexically contained target can still leave the checkout
+                // through another symlink in its path. Resolve the complete
+                // chain while the private preparer owns the frozen input.
+                // Dangling links are refused because their destination cannot
+                // be proven to stay inside the reviewer mount.
+                if !fs::canonicalize(&path)?.starts_with(&canonical_root) {
+                    return Err(refused("reviewer symlink resolves outside checkout"));
+                }
                 total = total.saturating_add(target.as_os_str().len() as u64);
             } else {
                 return Err(refused("reviewer checkout has special file"));

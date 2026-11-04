@@ -508,6 +508,15 @@ and scratch state were removed. This proves a run-specific read-only reviewer
 mount and private socket, not Go admission, an agent run, keyring/file probes on
 that agent, credential withdrawal or a real provider task. D3 remains open.
 
+The preparer's lexical symlink check had a chain escape: `d/alias -> ..` and
+`d/escape -> alias/../..` appear contained one link at a time but resolve
+outside the prepared checkout. It now resolves the full chain under its
+private checkout and refuses outside or dangling targets. The actual
+preparer system unit refused that escape with the intended error, while a
+contained chain prepared successfully. Temporary units and source were
+removed. This closes that checkout-input escape, not D3's admission,
+credential or provider-run gates.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;

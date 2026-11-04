@@ -115,7 +115,8 @@ bounded bundle before invoking Git with a cleared environment, disabled system
 and global configuration, and no network in the service profile. It checks the
 cloned HEAD against the candidate, rejects a dirty tracked tree and bounds the
 checkout's entries, depth and bytes. It rejects absolute and relative symlink
-targets that lexically escape the checkout. A failed preparation can leave a partial
+targets that lexically escape the checkout, then resolves each complete chain
+and rejects targets outside the checkout or dangling links. A failed preparation can leave a partial
 checkout, which must be removed by the manager before that run ID is reused.
 The checkout size check runs after clone, so the installed service also needs
 CPU, memory, runtime and writable-space limits during extraction.
@@ -208,3 +209,9 @@ not the D3 broker closure. The broker does not check a Go-admitted
 profile/role/preparation, launch an agent, mediate provider credentials, retire
 active agent runs or perform a real provider task. It must remain uninstalled
 until those launch and retirement controls are wired and qualified.
+
+An actual preparer-unit check exercised chained symlinks. A fixture with
+`d/alias -> ..` and `d/escape -> alias/../..` passes the older lexical test but
+resolves outside the checkout; the unit refused it with `reviewer symlink
+resolves outside checkout`. A chain resolving inside the checkout prepared
+successfully. The temporary unit, checkout and source were removed.
