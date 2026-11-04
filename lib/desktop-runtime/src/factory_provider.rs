@@ -86,6 +86,7 @@ pub struct Policy {
     profile: String,
     sha256: String,
     candidate: String,
+    connection: String,
     role: Role,
     deadline: Instant,
     calls_left: u8,
@@ -101,6 +102,7 @@ impl Policy {
         profile: &str,
         sha256: &str,
         candidate: &str,
+        connection: &str,
         role: Role,
         duration: Duration,
         budget: Budget,
@@ -109,6 +111,7 @@ impl Policy {
             || !hex(profile, 32)
             || !hex(sha256, 64)
             || !hex(candidate, 40)
+            || !hex(connection, 32)
             || duration.is_zero()
             || duration > MAX_RUN
         {
@@ -119,6 +122,7 @@ impl Policy {
             profile: profile.into(),
             sha256: sha256.into(),
             candidate: candidate.into(),
+            connection: connection.into(),
             role,
             deadline: Instant::now() + duration,
             calls_left: budget.calls,
@@ -143,6 +147,10 @@ impl Policy {
 
     pub fn candidate(&self) -> &str {
         &self.candidate
+    }
+
+    pub fn connection(&self) -> &str {
+        &self.connection
     }
 
     pub fn remaining(&self) -> Result<Duration, Error> {

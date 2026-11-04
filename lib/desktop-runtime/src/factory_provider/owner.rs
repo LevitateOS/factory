@@ -70,7 +70,9 @@ impl BoundOwner {
         credentials: Arc<Credentials>,
         capability: TokenCapability,
     ) -> io::Result<Self> {
-        if capability.account().provider != Provider::Muse
+        if !credentials.is_profile(policy.profile())
+            || capability.account().connection != policy.connection()
+            || capability.account().provider != Provider::Muse
             || capability.account().origin != "https://api.meta.ai"
         {
             return Err(refused("provider credential scope invalid"));
