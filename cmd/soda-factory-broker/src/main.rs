@@ -30,6 +30,7 @@ enum Request {
         profile: String,
         role: String,
         tool_sha256: String,
+        prompt_sha256: String,
         length: usize,
         sha256: String,
     },
@@ -78,6 +79,7 @@ struct Staged<'a> {
     profile: &'a str,
     role: &'a str,
     tool_sha256: &'a str,
+    prompt_sha256: &'a str,
     sha256: &'a str,
 }
 
@@ -146,6 +148,7 @@ struct AgentArmed<'a> {
     candidate: &'a str,
     role: &'a str,
     tool_sha256: &'a str,
+    prompt_sha256: &'a str,
     execution_available: bool,
 }
 
@@ -365,35 +368,35 @@ fn verified_role(directory: &Path, role: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn read_tool(directory: &Path) -> io::Result<String> {
+fn read_digest(directory: &Path, name: &'static str) -> io::Result<String> {
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(directory.join("owner.tool_sha256"))?;
+        .open(directory.join(name))?;
     let metadata = file.metadata()?;
     if !metadata.is_file()
         || metadata.uid() != 0
         || metadata.mode() & 0o7777 != 0o444
         || metadata.len() != 65
     {
-        return Err(denied("staged tool declaration invalid"));
+        return Err(denied("staged digest declaration invalid"));
     }
     let mut bytes = Vec::with_capacity(65);
     file.take(66).read_to_end(&mut bytes)?;
     if bytes.len() != 65 || bytes[64] != b'\n' {
-        return Err(denied("staged tool declaration changed"));
+        return Err(denied("staged digest declaration changed"));
     }
-    let digest =
-        std::str::from_utf8(&bytes[..64]).map_err(|_| denied("staged tool declaration invalid"))?;
+    let digest = std::str::from_utf8(&bytes[..64])
+        .map_err(|_| denied("staged digest declaration invalid"))?;
     if !id(digest, 64) {
-        return Err(denied("staged tool declaration invalid"));
+        return Err(denied("staged digest declaration invalid"));
     }
     Ok(digest.into())
 }
 
-fn verified_tool(directory: &Path, digest: &str) -> io::Result<()> {
-    if read_tool(directory)? != digest {
-        return Err(denied("run belongs to another tool"));
+fn verified_digest(directory: &Path, name: &'static str, digest: &str) -> io::Result<()> {
+    if read_digest(directory, name)? != digest {
+        return Err(denied("run belongs to another digest"));
     }
     Ok(())
 }
@@ -754,8 +757,15 @@ fn attest_provider_relay(
     verified.map(|uid| (uid, role))
 }
 
-fn agent_manifest(role: &str, profile: &str, candidate: &str, digest: &str, tool: &str) -> String {
-    format!("FACTORY_ROLE={role}\nFACTORY_PROFILE={profile}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\nFACTORY_TOOL_SHA256={tool}\n")
+fn agent_manifest(
+    role: &str,
+    profile: &str,
+    candidate: &str,
+    digest: &str,
+    tool: &str,
+    prompt: &str,
+) -> String {
+    format!("FACTORY_ROLE={role}\nFACTORY_PROFILE={profile}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\nFACTORY_TOOL_SHA256={tool}\nFACTORY_PROMPT_SHA256={prompt}\n")
 }
 
 fn arm_agent(
@@ -765,7 +775,7 @@ fn arm_agent(
     candidate: &str,
     role: &str,
     desktop_uid: u32,
-) -> io::Result<String> {
+) -> io::Result<(String, String)> {
     if !matches!(role, "reviewer" | "coder") {
         return Err(denied("agent role invalid"));
     }
@@ -775,7 +785,8 @@ fn arm_agent(
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
     verified_role(&source, role)?;
-    let tool = read_tool(&source)?;
+    let tool = read_digest(&source, "owner.tool_sha256")?;
+    let prompt = read_digest(&source, "owner.prompt_sha256")?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("agent source bundle missing"));
     }
@@ -790,7 +801,7 @@ fn arm_agent(
     }
     prepared_checkout(&directory)?;
     manager("is-active", "provider-relay", run)?;
-    let expected = agent_manifest(role, profile, candidate, digest, &tool);
+    let expected = agent_manifest(role, profile, candidate, digest, &tool, &prompt);
     let path = directory.join("agent.role");
     if let Ok(metadata) = path.symlink_metadata() {
         if metadata.is_file() && metadata.uid() == 0 && metadata.mode() & 0o7777 == 0o400 {
@@ -861,7 +872,7 @@ fn arm_agent(
             let _ = File::open(&directory).and_then(|file| file.sync_all());
         }
     }
-    checked.map(|()| tool)
+    checked.map(|()| (tool, prompt))
 }
 
 fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<()> {
@@ -884,6 +895,11 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
         Err(error) => return Err(error),
     }
     match fs::remove_file(directory.join("owner.tool_sha256")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
+    match fs::remove_file(directory.join("owner.prompt_sha256")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
@@ -955,7 +971,8 @@ fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
     }
     verified_profile(&directory, profile)?;
     read_role(&directory)?;
-    read_tool(&directory)?;
+    read_digest(&directory, "owner.tool_sha256")?;
+    read_digest(&directory, "owner.prompt_sha256")?;
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
@@ -1004,6 +1021,7 @@ fn stage(
     profile: &str,
     role: &str,
     tool_sha256: &str,
+    prompt_sha256: &str,
     bytes: &[u8],
     digest: &str,
 ) -> io::Result<()> {
@@ -1020,7 +1038,8 @@ fn stage(
         private_dir(&final_dir, 0o555)?;
         verified_profile(&final_dir, profile)?;
         verified_role(&final_dir, role)?;
-        verified_tool(&final_dir, tool_sha256)?;
+        verified_digest(&final_dir, "owner.tool_sha256", tool_sha256)?;
+        verified_digest(&final_dir, "owner.prompt_sha256", prompt_sha256)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -1106,6 +1125,15 @@ fn stage(
         tool_declaration.write_all(format!("{tool_sha256}\n").as_bytes())?;
         tool_declaration.sync_all()?;
         tool_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
+        let mut prompt_declaration = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o444)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(temp.join("owner.prompt_sha256"))?;
+        prompt_declaration.write_all(format!("{prompt_sha256}\n").as_bytes())?;
+        prompt_declaration.sync_all()?;
+        prompt_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
         fs::set_permissions(&temp, fs::Permissions::from_mode(0o555))?;
         File::open(&temp)?.sync_all()?;
         fs::rename(&temp, &final_dir)?;
@@ -1139,6 +1167,7 @@ fn serve() -> io::Result<()> {
             profile,
             role,
             tool_sha256,
+            prompt_sha256,
             length,
             sha256,
         } => {
@@ -1147,6 +1176,7 @@ fn serve() -> io::Result<()> {
                 || !id(&profile, 32)
                 || !matches!(role.as_str(), "reviewer" | "coder")
                 || !id(&tool_sha256, 64)
+                || !id(&prompt_sha256, 64)
                 || !id(&sha256, 64)
                 || !(1..=MAX_BUNDLE).contains(&length)
             {
@@ -1158,7 +1188,15 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker bundle digest mismatch"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            stage(&run, &profile, &role, &tool_sha256, &bundle, &sha256)?;
+            stage(
+                &run,
+                &profile,
+                &role,
+                &tool_sha256,
+                &prompt_sha256,
+                &bundle,
+                &sha256,
+            )?;
             serde_json::to_vec(&Staged {
                 kind: "staged",
                 version: 1,
@@ -1166,6 +1204,7 @@ fn serve() -> io::Result<()> {
                 profile: &profile,
                 role: &role,
                 tool_sha256: &tool_sha256,
+                prompt_sha256: &prompt_sha256,
                 sha256: &sha256,
             })?
         }
@@ -1289,7 +1328,8 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker agent declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let tool_sha256 = arm_agent(&run, &profile, &sha256, &candidate, &role, desktop_uid)?;
+            let (tool_sha256, prompt_sha256) =
+                arm_agent(&run, &profile, &sha256, &candidate, &role, desktop_uid)?;
             serde_json::to_vec(&AgentArmed {
                 kind: "agent_armed",
                 version: 1,
@@ -1298,6 +1338,7 @@ fn serve() -> io::Result<()> {
                 candidate: &candidate,
                 role: &role,
                 tool_sha256: &tool_sha256,
+                prompt_sha256: &prompt_sha256,
                 execution_available: false,
             })?
         }

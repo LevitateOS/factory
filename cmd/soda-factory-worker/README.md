@@ -177,8 +177,8 @@ binds the broker-prepared checkout and root role declaration read-only, and
 uses a private keyring, IPC and runtime with finite cgroup limits. It checks
 the desktop peer, its own UID, the fixed socket, role declaration and exact
 Git HEAD before accepting only `attest_agent`. The root-mounted role manifest
-also binds a 32-hex profile and the staged 64-hex tool digest; the request must
-present the same profile, and the reply echoes both for the desktop client to
+also binds a 32-hex profile and the staged 64-hex tool and prompt digests; the
+request must present the same profile, and the reply echoes these values for the desktop client to
 verify. Its reply says
 `execution_available:false`; neither role can launch a tool or receive an
 account secret. The source compiles and a rendered template passed

@@ -116,6 +116,7 @@ struct Staged {
     profile: String,
     role: String,
     tool_sha256: String,
+    prompt_sha256: String,
     sha256: String,
 }
 
@@ -153,6 +154,7 @@ struct AgentArmed {
     candidate: String,
     role: String,
     tool_sha256: String,
+    prompt_sha256: String,
     execution_available: bool,
 }
 
@@ -166,6 +168,7 @@ struct AgentAttested {
     candidate: String,
     role: String,
     tool_sha256: String,
+    prompt_sha256: String,
     worker_uid: u32,
     peer_uid: u32,
     readonly_source: bool,
@@ -233,11 +236,13 @@ impl Broker {
         profile: &str,
         role: Role,
         tool_sha256: &str,
+        prompt_sha256: &str,
         bundle: &[u8],
     ) -> io::Result<String> {
         if !id(run, 32)
             || !id(profile, 32)
             || !id(tool_sha256, 64)
+            || !id(prompt_sha256, 64)
             || bundle.is_empty()
             || bundle.len() > MAX_BUNDLE
         {
@@ -248,7 +253,7 @@ impl Broker {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let reply: Staged = exchange(
-            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"length":bundle.len(),"sha256":sha256}),
+            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,"length":bundle.len(),"sha256":sha256}),
             Some(bundle),
             PREPARE_TIME,
         )?;
@@ -258,6 +263,7 @@ impl Broker {
             || reply.profile != profile
             || reply.role != role.as_str()
             || reply.tool_sha256 != tool_sha256
+            || reply.prompt_sha256 != prompt_sha256
             || reply.sha256 != sha256
         {
             return Err(refused("broker staged identity invalid"));
@@ -338,12 +344,14 @@ impl Broker {
         candidate: &str,
         role: Role,
         tool_sha256: &str,
+        prompt_sha256: &str,
     ) -> io::Result<()> {
         if !id(run, 32)
             || !id(profile, 32)
             || !id(sha256, 64)
             || !id(candidate, 40)
             || !id(tool_sha256, 64)
+            || !id(prompt_sha256, 64)
         {
             return Err(refused("broker agent declaration invalid"));
         }
@@ -360,6 +368,7 @@ impl Broker {
             || reply.candidate != candidate
             || reply.role != role
             || reply.tool_sha256 != tool_sha256
+            || reply.prompt_sha256 != prompt_sha256
             || reply.execution_available
         {
             return Err(refused("broker agent identity invalid"));
@@ -375,8 +384,14 @@ impl Broker {
         candidate: &str,
         role: Role,
         tool_sha256: &str,
+        prompt_sha256: &str,
     ) -> io::Result<u32> {
-        if !id(run, 32) || !id(profile, 32) || !id(candidate, 40) || !id(tool_sha256, 64) {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(candidate, 40)
+            || !id(tool_sha256, 64)
+            || !id(prompt_sha256, 64)
+        {
             return Err(refused("agent attestation declaration invalid"));
         }
         let uid = unsafe { libc::geteuid() };
@@ -436,6 +451,7 @@ impl Broker {
             || reply.candidate != candidate
             || reply.role != role.as_str()
             || reply.tool_sha256 != tool_sha256
+            || reply.prompt_sha256 != prompt_sha256
             || reply.worker_uid == 0
             || reply.worker_uid == uid
             || reply.peer_uid != uid
