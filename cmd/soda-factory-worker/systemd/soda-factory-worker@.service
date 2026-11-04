@@ -9,6 +9,7 @@ StandardInput=socket
 StandardOutput=inherit
 StandardError=journal
 DynamicUser=yes
+UMask=0077
 ProtectHome=yes
 PrivateTmp=yes
 PrivateIPC=yes
