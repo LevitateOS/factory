@@ -10,7 +10,7 @@ use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, OpenOptionsExt,
 use std::path::{Path, PathBuf};
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
-const STATE: &str = "/var/lib/soda-factory-broker";
+const STATE: &str = "/run/soda-factory-broker";
 const MAX_REQUEST: usize = 256;
 const MAX_BUNDLE: usize = 512 * 1024;
 const MAX_RUNS: usize = 64;
@@ -24,6 +24,11 @@ enum Request {
         length: usize,
         sha256: String,
     },
+    RetireBundle {
+        version: u8,
+        run: String,
+        sha256: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -32,6 +37,14 @@ struct Staged<'a> {
     version: u8,
     run: &'a str,
     sha256: &'a str,
+}
+
+#[derive(Serialize)]
+struct Retired<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    removed: bool,
 }
 
 fn denied(message: &'static str) -> io::Error {
@@ -130,8 +143,8 @@ fn socket(fd: RawFd) -> io::Result<()> {
 }
 
 fn state() -> io::Result<PathBuf> {
-    if std::env::var_os("STATE_DIRECTORY").as_deref() != Some(std::ffi::OsStr::new(STATE)) {
-        return Err(denied("broker state directory missing"));
+    if std::env::var_os("RUNTIME_DIRECTORY").as_deref() != Some(std::ffi::OsStr::new(STATE)) {
+        return Err(denied("broker runtime directory missing"));
     }
     let state = PathBuf::from(STATE);
     private_dir(&state, 0o700)?;
@@ -145,6 +158,90 @@ fn state() -> io::Result<PathBuf> {
     }
     private_dir(&runs, 0o700)?;
     Ok(runs)
+}
+
+fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
+    let bundle_path = directory.join("bundle");
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(bundle_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o7777 != 0o444
+        || !(1..=MAX_BUNDLE as u64).contains(&metadata.len())
+    {
+        return Err(denied("staged bundle metadata invalid"));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(MAX_BUNDLE as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != metadata.len() || hash(&bytes) != digest {
+        return Err(denied("staged bundle digest mismatch"));
+    }
+    Ok(true)
+}
+
+fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
+    let metadata = directory.symlink_metadata()?;
+    if !metadata.is_dir()
+        || metadata.uid() != 0
+        || !matches!(metadata.mode() & 0o7777, 0o555 | 0o700)
+    {
+        return Err(denied("retiring run directory invalid"));
+    }
+    let has_bundle = verified_bundle(directory, digest)?;
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
+    if has_bundle {
+        fs::remove_file(directory.join("bundle"))?;
+    }
+    fs::remove_dir(directory)
+}
+
+fn retire(run: &str, digest: &str) -> io::Result<bool> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let retiring = runs.join(format!(".retiring-{run}-{digest}"));
+    for entry in fs::read_dir(&runs)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if retiring_run(&name) == Some(run) {
+            if entry.path() != retiring {
+                return Err(denied("run retirement digest differs"));
+            }
+            match runs.join(run).symlink_metadata() {
+                Ok(_) => return Err(denied("run retirement state conflicts")),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error),
+            }
+            clean_retiring(&retiring, digest)?;
+            File::open(&runs)?.sync_all()?;
+            return Ok(true);
+        }
+    }
+    let directory = runs.join(run);
+    let metadata = match directory.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o555 {
+        return Err(denied("staged run directory invalid"));
+    }
+    if !verified_bundle(&directory, digest)? {
+        return Err(denied("staged bundle missing"));
+    }
+    fs::rename(directory, &retiring)?;
+    File::open(&runs)?.sync_all()?;
+    clean_retiring(&retiring, digest)?;
+    File::open(&runs)?.sync_all()?;
+    Ok(true)
 }
 
 fn lock(runs: &Path) -> io::Result<File> {
@@ -173,9 +270,20 @@ fn hash(bytes: &[u8]) -> String {
         .collect()
 }
 
+fn retiring_run(name: &str) -> Option<&str> {
+    let (run, digest) = name.strip_prefix(".retiring-")?.split_once('-')?;
+    (id(run, 32) && id(digest, 64)).then_some(run)
+}
+
 fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
+    for entry in fs::read_dir(&runs)? {
+        let name = entry?.file_name();
+        if retiring_run(&name.to_string_lossy()) == Some(run) {
+            return Err(denied("run retirement pending"));
+        }
+    }
     let final_dir = runs.join(run);
     if final_dir.exists() {
         private_dir(&final_dir, 0o555)?;
@@ -204,6 +312,11 @@ fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if id(&name, 32) {
+            count += 1;
+        } else if let Some(retiring) = retiring_run(&name) {
+            if retiring == run {
+                return Err(denied("run retirement pending"));
+            }
             count += 1;
         } else if name.len() == 39
             && name.starts_with('.')
@@ -253,28 +366,54 @@ fn serve() -> io::Result<()> {
     }
     let mut request = vec![0; length];
     input.read_exact(&mut request)?;
-    let Request::StageBundle {
-        version,
-        run,
-        length,
-        sha256,
-    } = serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
-    if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !(1..=MAX_BUNDLE).contains(&length) {
-        return Err(denied("broker bundle declaration invalid"));
-    }
-    let mut bundle = vec![0; length];
-    input.read_exact(&mut bundle)?;
-    if hash(&bundle) != sha256 {
-        return Err(denied("broker bundle digest mismatch"));
-    }
-    unsafe { libc::shutdown(0, libc::SHUT_RD) };
-    stage(&run, &bundle, &sha256)?;
-    let response = serde_json::to_vec(&Staged {
-        kind: "staged",
-        version: 1,
-        run: &run,
-        sha256: &sha256,
-    })?;
+    let request: Request =
+        serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
+    let response = match request {
+        Request::StageBundle {
+            version,
+            run,
+            length,
+            sha256,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&sha256, 64)
+                || !(1..=MAX_BUNDLE).contains(&length)
+            {
+                return Err(denied("broker bundle declaration invalid"));
+            }
+            let mut bundle = vec![0; length];
+            input.read_exact(&mut bundle)?;
+            if hash(&bundle) != sha256 {
+                return Err(denied("broker bundle digest mismatch"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            stage(&run, &bundle, &sha256)?;
+            serde_json::to_vec(&Staged {
+                kind: "staged",
+                version: 1,
+                run: &run,
+                sha256: &sha256,
+            })?
+        }
+        Request::RetireBundle {
+            version,
+            run,
+            sha256,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&sha256, 64) {
+                return Err(denied("broker retirement declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let removed = retire(&run, &sha256)?;
+            serde_json::to_vec(&Retired {
+                kind: "retired",
+                version: 1,
+                run: &run,
+                removed,
+            })?
+        }
+    };
     let mut output = io::stdout().lock();
     output.write_all(&(response.len() as u32).to_le_bytes())?;
     output.write_all(&response)?;

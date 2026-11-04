@@ -391,7 +391,7 @@ changed bytes, wrong digest, invalid run, extra path, oversize and truncation.
 An unprivileged service could clone that bundle from the selected read-only
 mount but could not traverse the original source. The temporary installation
 and state were removed. The broker does not parse Git as root or authorize a
-role, snapshot, worker launch, credential, retirement or provider run. D3
+role, snapshot, worker launch, credential, active-run retirement or provider run. D3
 remains open; this staging endpoint is not installed by the current desktop.
 
 A separate transient two-identity reviewer checkout probe then mounted a small
@@ -402,8 +402,8 @@ service with `DynamicUser=yes` ran as UID 61755 with only the finished checkout
 bound read-only. It read the candidate file, could not traverse the original
 root-private path, and could neither change the file nor create another. The
 temporary source and checkout were removed. This proves a possible preparation
-layout, not current run admission. Production needs a dedicated static staging
-UID distinct from the dynamic worker range, a root-controlled fixed unit and
+layout, not current run admission. Production needs a preparation UID isolated
+from unrelated processes and concurrent preparations, a root-controlled fixed unit and
 mount selection, exact Git HEAD/commit validation, and retirement of the
 staging/worker lifetimes before this role boundary can be used.
 
@@ -415,6 +415,29 @@ available from the restricted broker profile. It does not authorize a desktop
 run or prove a safe unit-property whitelist. The broker must construct every
 unit property from validated run state and must never forward request-supplied
 properties or paths to systemd.
+
+A cleanup probe changed the broker staging location. A dynamic preparer could
+write a private `StateDirectory` under `/var/lib/private`, and a reviewer could
+read a child only through a read-only bind. After the service stopped,
+`systemctl clean --what=state` returned success but left the paths intact:
+systemd's `sd-rmrf` received SELinux denials on `var_lib_t` unlink/rmdir. A
+flat-name state directory had the same result. An exact root-private `/run`
+cleanup probe, launched by systemd with only `CAP_DAC_OVERRIDE` and
+`CAP_FOWNER`, removed a child owned by another UID. The broker now stages under
+a preserved root-owned `/run/soda-factory-broker` runtime, which is ephemeral
+across reboot. Its actual socket service passed staged bundle replay across
+activations, rejected wrong-digest and extra-path retirement, removed an exact
+run, reported an absent run on retry, and accepted restaging. Root inspection
+confirmed the run child was gone; the temporary units and runtime were removed.
+This retirement only removes staged bytes because no worker launch exists yet.
+The eventual checkout cleaner must stop the worker first and use a fixed
+manager-owned action; a zero cleanup-command exit code alone is insufficient.
+The broker then made staged retirement retryable across process interruption:
+it renames a verified run to a digest-bound tombstone before unlinking. Live
+socket checks simulated a stop after the rename and after bundle unlink. In
+both cases the exact digest retry removed the tombstone, while restaging the
+pending run and a wrong-digest cleanup were refused. Root inspection found no
+run or tombstone afterward. This does not yet prove active worker retirement.
 
 ## Inspection identity and evidence limits
 
