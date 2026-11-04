@@ -222,8 +222,9 @@ stage an exact source bundle, prepare and attest the reviewer checkout and
 relay, arm and attest the worker, then activate token use. It permits one
 brokered execution attempt and releases its result only after owner and exact
 broker retirement. Setup errors try exact retirement; an unconfirmed cleanup
-is an error. Its cancellation token is available to the future desktop Quit
-owner. No Go admission or desktop lifecycle currently constructs this owner.
+is an error. Activation refuses a policy that expired during staging. Its
+cancellation token is available to the future desktop Quit owner. No Go
+admission or desktop lifecycle currently constructs this owner.
 
 A dummy-key Muse 1.4.14 request to a local fake provider showed that the CLI
 advertised `workflow`, memory, monitoring and reminder functions even with

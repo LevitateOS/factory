@@ -152,6 +152,9 @@ impl BoundOwner {
             .policy
             .as_ref()
             .ok_or_else(|| refused("provider run already active"))?;
+        policy
+            .remaining()
+            .map_err(|_| refused("provider run expired before activation"))?;
         if attestation.run() != policy.run()
             || attestation.profile() != policy.profile()
             || attestation.role() != policy.role()
