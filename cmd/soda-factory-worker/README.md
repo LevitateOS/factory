@@ -264,6 +264,17 @@ hit systemd's start limit. The socket, units, binary and dummy preparation were
 removed. The service still accepts only `attest_agent` and reports execution
 unavailable.
 
+After profile binding was added to the root role manifest and direct agent
+attestation, a disposable activation of the actual isolated agent socket and
+service used a dummy Git checkout and mock network namespace. The matching
+profile returned the exact candidate and reviewer role from dynamic UID 64596
+for desktop UID 1000, with read-only source and execution unavailable. The
+same socket refused a different profile without an attestation. The service
+still ran its bounded Git HEAD check through the delegated process owner.
+All temporary units, binary, checkout, socket and runtime state were removed.
+This qualifies the revised profile wire contract on the real service profile;
+it does not prove Go run admission, agent execution or provider custody.
+
 The earlier root-private reviewer attester's fixed Git HEAD check now uses a
 three-second `timeout` with a one-second kill grace and reads at most 42 bytes
 from stdout. The exact candidate line is 41 bytes; excess output is refused
