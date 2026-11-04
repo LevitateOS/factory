@@ -371,17 +371,22 @@ pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
         app.scheme='light';await app.updateComplete;const light=getComputedStyle(app.querySelector('.soda-factory-root')).backgroundColor;
         app.scheme='dark';await app.updateComplete;const dark=getComputedStyle(app.querySelector('.soda-factory-root')).backgroundColor;
         if(light!=='rgb(255, 255, 255)'||dark!=='rgb(16, 16, 16)')throw Error('native themes failed');
-        if((await invoke('factory_query',{query:{kind:'identity'}})).status!==503)throw Error('unbound account appeared connected');
-        if((await invoke('factory_command',{command:{kind:'save_request',revision:{}}})).status!==503)throw Error('unbound mutation succeeded');
-        let refused=false;try{await invoke('factory_query',{query:{kind:'url',url:'file:///etc/passwd'}})}catch{refused=true;}if(!refused)throw Error('arbitrary target accepted');
-        refused=false;try{await invoke('factory_command',{command:{kind:'save_request',revision:{objective:'x'.repeat(66000)}}})}catch{refused=true;}if(!refused)throw Error('oversized command accepted');
-        for(const request of [{kind:'read',path:'https://github.com'},{kind:'read',path:'/api/native/collaboration/observe'},{kind:'read',path:'/api/factory/../healthz'},{kind:'write',path:'/api/factory/intents',body:{objective:'x'.repeat(66000)}}]){
-          refused=false;try{await invoke('factory_product_request',{session:'missing',request,channel:new window.__TAURI__.core.Channel()})}catch{refused=true;}if(!refused)throw Error('unadmitted product operation accepted');
+        let refused=false,completions=0;
+        for(const [request,expected] of [
+          [{kind:'read',path:'/api/factory/identity'},'Factory connection retired'],
+          [{kind:'write',path:'/api/factory/intents',body:{}},'Factory connection retired'],
+          [{kind:'subscription',body:{}},'Factory connection retired'],
+          [{kind:'read',path:'https://github.com'},'unsupported Factory product operation'],
+          [{kind:'read',path:'/api/native/collaboration/observe'},'unsupported Factory product operation'],
+          [{kind:'read',path:'/api/factory/../healthz'},'unsupported Factory product operation'],
+          [{kind:'write',path:'/api/factory/intents',body:{objective:'x'.repeat(66000)}},'Factory product body exceeds the native limit']
+        ]){
+          const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
+          refused=false;try{await invoke('factory_product_request',{session:'missing',request,channel})}catch(error){refused=String(error).includes(expected);}if(!refused)throw Error('product operation missed its expected refusal: '+expected);
         }
+        await new Promise(r=>setTimeout(r,50));if(completions!==0)throw Error('unadmitted product operation delivered a completion');
         refused=false;try{const session=await invoke('factory_prepare_connection',{connection:'0'.repeat(32),repository:null});await invoke('factory_connect',{session})}catch{refused=true;}if(!refused)throw Error('missing credential admitted connection');
         await invoke('factory_disconnect');
-        const channel=new window.__TAURI__.core.Channel();const observed=new Promise(resolve=>channel.onmessage=resolve);
-        const id=await invoke('factory_stream',{run:'a'.repeat(32),channel});if((await observed).status!==503)throw Error('unbound observation succeeded');await invoke('cancel_stream',{id});
         await invoke('open_window');await invoke('report',{stage:'mounted',error:null});
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#);
