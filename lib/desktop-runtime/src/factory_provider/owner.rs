@@ -152,6 +152,7 @@ impl BoundOwner {
             .ok_or_else(|| refused("provider run already active"))?;
         if attestation.run() != policy.run()
             || attestation.profile() != policy.profile()
+            || attestation.sha256() != policy.sha256()
             || attestation.candidate() != policy.candidate()
             || attestation.relay_uid() == 0
             || attestation.relay_uid() == self.desktop_uid

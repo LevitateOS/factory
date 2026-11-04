@@ -178,8 +178,9 @@ boundary; connected provider work is not implemented by credential storage alone
 
 ## Factory provider request policy
 
-`factory_provider::Policy` is a native-only request gate for one exact run and
-candidate. Its trusted caller supplies a reviewer/coder role, finite deadline
+`factory_provider::Policy` is a native-only request gate for one exact profile,
+run, staged bundle digest and candidate. Its trusted caller supplies a
+reviewer/coder role, finite deadline
 and bounded call, input-byte and output-token budget. It admits only the Muse
 model catalog and streaming Responses routes at fixed Meta HTTPS destinations.
 For Responses it pins `muse-spark-1.3-contributor`, requires `store:false`,
@@ -192,7 +193,9 @@ request fields, built-in tool namespaces and duplicate tool names fail closed.
 desktop user's `0700` runtime directory. It does not serve until `activate`
 consumes an exact `RelayAttestation` from the native broker client. That client
 checks the fixed broker socket in a root-owned directory, its root peer, framed replies and
-run/digest/candidate identity. The owner checks the attested relay UID with `SO_PEERCRED`,
+profile/run/digest/candidate identity. Before serving, the owner compares the
+attested profile, run, digest and candidate to its captured policy. It checks
+the attested relay UID with `SO_PEERCRED`,
 requires a random non-account placeholder bearer, applies the run policy,
 renews the same OS credential revision and borrows the token only inside a
 revocable native streaming operation. It sends the bearer to fixed Meta HTTPS

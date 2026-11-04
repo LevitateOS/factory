@@ -84,6 +84,7 @@ impl std::error::Error for Error {}
 pub struct Policy {
     run: String,
     profile: String,
+    sha256: String,
     candidate: String,
     role: Role,
     deadline: Instant,
@@ -98,6 +99,7 @@ impl Policy {
     pub fn new(
         run: &str,
         profile: &str,
+        sha256: &str,
         candidate: &str,
         role: Role,
         duration: Duration,
@@ -105,6 +107,7 @@ impl Policy {
     ) -> Result<Self, Error> {
         if !hex(run, 32)
             || !hex(profile, 32)
+            || !hex(sha256, 64)
             || !hex(candidate, 40)
             || duration.is_zero()
             || duration > MAX_RUN
@@ -114,6 +117,7 @@ impl Policy {
         Ok(Self {
             run: run.into(),
             profile: profile.into(),
+            sha256: sha256.into(),
             candidate: candidate.into(),
             role,
             deadline: Instant::now() + duration,
@@ -131,6 +135,10 @@ impl Policy {
 
     pub fn profile(&self) -> &str {
         &self.profile
+    }
+
+    pub fn sha256(&self) -> &str {
+        &self.sha256
     }
 
     pub fn candidate(&self) -> &str {
