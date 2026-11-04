@@ -1063,13 +1063,62 @@ fn attest_agent(
     Ok(reply.worker_uid)
 }
 
-fn copy_exact<R: Read, W: Write>(input: &mut R, output: &mut W, mut length: u64) -> io::Result<()> {
+fn client_read_timeout() -> io::Result<()> {
+    let timeout = libc::timeval {
+        tv_sec: 3,
+        tv_usec: 0,
+    };
+    if unsafe {
+        libc::setsockopt(
+            0,
+            libc::SOL_SOCKET,
+            libc::SO_RCVTIMEO,
+            (&timeout as *const libc::timeval).cast(),
+            std::mem::size_of_val(&timeout) as libc::socklen_t,
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+fn read_client_exact<R: Read>(
+    input: &mut R,
+    bytes: &mut [u8],
+    deadline: Instant,
+) -> io::Result<()> {
+    let mut offset = 0;
+    while offset < bytes.len() {
+        if Instant::now() >= deadline {
+            return Err(denied("broker client upload deadline exceeded"));
+        }
+        match input.read(&mut bytes[offset..])? {
+            0 => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            length => offset += length,
+        }
+    }
+    Ok(())
+}
+
+fn copy_exact<R: Read, W: Write>(
+    input: &mut R,
+    output: &mut W,
+    mut length: u64,
+    deadline: Instant,
+) -> io::Result<()> {
     let mut buffer = [0u8; 65536];
     while length != 0 {
+        if Instant::now() >= deadline {
+            return Err(denied("agent upload deadline exceeded"));
+        }
         let want = buffer.len().min(length as usize);
-        input.read_exact(&mut buffer[..want])?;
-        output.write_all(&buffer[..want])?;
-        length -= want as u64;
+        let received = input.read(&mut buffer[..want])?;
+        if received == 0 {
+            return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+        }
+        output.write_all(&buffer[..received])?;
+        length -= received as u64;
     }
     Ok(())
 }
@@ -1174,8 +1223,19 @@ fn execute_agent<R: Read, W: Write>(
         }
         worker.write_all(&(bytes.len() as u32).to_le_bytes())?;
         worker.write_all(&bytes)?;
-        copy_exact(input, &mut worker, request.prompt_length as u64)?;
-        copy_exact(input, &mut worker, request.executable_length)?;
+        let upload_deadline = Instant::now() + Duration::from_secs(120);
+        copy_exact(
+            input,
+            &mut worker,
+            request.prompt_length as u64,
+            upload_deadline,
+        )?;
+        copy_exact(
+            input,
+            &mut worker,
+            request.executable_length,
+            upload_deadline,
+        )?;
         let deadline =
             Instant::now() + Duration::from_millis(request.duration_ms) + Duration::from_secs(180);
         let mut header = [0u8; 4];
@@ -1506,15 +1566,17 @@ fn stage(
 
 fn serve() -> io::Result<()> {
     let desktop_uid = socket(0)?;
+    client_read_timeout()?;
     let mut input = io::stdin().lock();
     let mut header = [0u8; 4];
-    input.read_exact(&mut header)?;
+    let declaration_deadline = Instant::now() + Duration::from_secs(5);
+    read_client_exact(&mut input, &mut header, declaration_deadline)?;
     let length = u32::from_le_bytes(header) as usize;
     if length == 0 || length > MAX_REQUEST {
         return Err(denied("broker request bound"));
     }
     let mut request = vec![0; length];
-    input.read_exact(&mut request)?;
+    read_client_exact(&mut input, &mut request, declaration_deadline)?;
     let request: Request =
         serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
     let response = match request {
@@ -1540,7 +1602,11 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker bundle declaration invalid"));
             }
             let mut bundle = vec![0; length];
-            input.read_exact(&mut bundle)?;
+            read_client_exact(
+                &mut input,
+                &mut bundle,
+                Instant::now() + Duration::from_secs(30),
+            )?;
             if hash(&bundle) != sha256 {
                 return Err(denied("broker bundle digest mismatch"));
             }

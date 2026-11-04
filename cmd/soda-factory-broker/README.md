@@ -13,7 +13,11 @@ launch yet, and it does not admit a Go product run or hold provider credentials.
 One connection carries a 4-byte little-endian JSON length (at most 768), then
 `{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","role":"reviewer|coder","tool_sha256":"<64 lowercase hex>","prompt_sha256":"<64 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
 then exactly `N` raw bytes. `N` must be from 1 through 512 KiB, matching the
-current Go reviewer source-bundle bound. The service checks the Unix stream's
+current Go reviewer source-bundle bound. The service gives the declaration
+5 seconds and a staged bundle 30 seconds
+to arrive; each client read also has a 3-second idle timeout. A streamed agent
+prompt and ELF share a 120-second upload deadline. A stalled upload fails and
+stops any armed agent instance. The service checks the Unix stream's
 kernel peer UID against the desktop-owned mode-`0600` socket, requires a
 root-owned mode-`0755` socket parent, no-new-privileges and a root-owned
 mode-`0700` systemd runtime directory. It accepts no host path, credential
