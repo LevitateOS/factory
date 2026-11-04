@@ -23,7 +23,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	ctx := t.Context()
 	r := factoryRun(time.Now().UTC())
 	r.Image, r.Harness, r.Role = "", "muse-fixture-1", project.RoleCoder
-	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
+	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("e", 64), PromptSHA256: strings.Repeat("f", 64), Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
 	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: factory.NewID(), SystemInstance: "12345678-1234-1234-1234-123456789abc", StartIdentity: "123456", PID: 1001, StartedAt: r.Started, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
 	plan := phaseTestPlan(t, factory.NewID(), r.InputSHA, "f"+strings.Repeat("1", 24))
 	planBytes, err := json.Marshal(plan)
@@ -198,10 +198,10 @@ func TestFactoryNativeRunEvidencePG(t *testing.T) {
 		native := run
 		native.ID, native.Image = factory.NewID(), ""
 		native.Harness = "muse-fixture-1"
-		native.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: "owned-launch-fixture", BrokerRun: strings.Repeat("c", 32), Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
+		native.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("e", 64), PromptSHA256: a.PromptSHA, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: "owned-launch-fixture", BrokerRun: strings.Repeat("c", 32), Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
 		admission := *run.Admission
 		admission.Profile, admission.Tool = nil, nil
-		admission.Native = &execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: native.Native.Provenance.Profile, InstanceID: native.Native.Provenance.InstanceID, WorktreeID: native.Native.Provenance.WorktreeID}, Tool: native.Native.Tool, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: native.Native.Provenance.BrokerRun}
+		admission.Native = &execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: native.Native.Provenance.Profile, InstanceID: native.Native.Provenance.InstanceID, WorktreeID: native.Native.Provenance.WorktreeID}, Tool: native.Native.Tool, BundleSHA256: native.Native.BundleSHA256, PromptSHA256: native.Native.PromptSHA256, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: native.Native.Provenance.BrokerRun}
 		native.Admission = &admission
 		nativeAssignment := a
 		nativeAssignment.ID, nativeAssignment.Run, nativeAssignment.RunHistory = factory.NewID(), native.ID, []string{native.ID}
@@ -232,16 +232,37 @@ func TestFactoryNativeRunEvidencePG(t *testing.T) {
 			t.Fatal(err)
 		}
 		request, err = native.LaunchRequest(nativeAssignment, nativeInput)
-		if err != nil || request.Kind != collaboration.Native || request.Appliance != nil || request.Native == nil || request.Native.Runtime != admission.Native.Runtime || request.Native.PlacementGeneration != 7 {
+		if err != nil || request.Kind != collaboration.Native || request.Appliance != nil || request.Native == nil || request.Native.Runtime != admission.Native.Runtime || request.Native.PlacementGeneration != 7 || request.Native.BundleSHA256 != native.Native.BundleSHA256 || request.Native.PromptSHA256 != native.Native.PromptSHA256 {
 			t.Fatal("native launch lost captured placement at reopen", err)
+		}
+		changedBundle := native
+		bundleRecord := *native.Native
+		bundleRecord.BundleSHA256 = strings.Repeat("a", 64)
+		changedBundle.Native = &bundleRecord
+		if _, err := changedBundle.LaunchRequest(nativeAssignment, nativeInput); err == nil {
+			t.Fatal("native launch accepted a bundle digest different from admission")
+		}
+		changedPrompt := native
+		promptRecord := *native.Native
+		promptRecord.PromptSHA256 = strings.Repeat("b", 64)
+		changedPrompt.Native = &promptRecord
+		promptAdmission := *native.Admission
+		promptLaunch := *native.Admission.Native
+		promptLaunch.PromptSHA256 = promptRecord.PromptSHA256
+		promptAdmission.Native = &promptLaunch
+		changedPrompt.Admission = &promptAdmission
+		if _, err := changedPrompt.LaunchRequest(nativeAssignment, nativeInput); err == nil {
+			t.Fatal("native launch accepted a prompt digest different from its assignment")
 		}
 		legacy := native
 		legacyRecord := *native.Native
 		legacyRecord.Provenance.TrustMode, legacyRecord.Provenance.BrokerRun = "same_user_trusted_host", ""
+		legacyRecord.BundleSHA256, legacyRecord.PromptSHA256 = "", ""
 		legacy.Native = &legacyRecord
 		legacyAdmission := *native.Admission
 		legacyLaunch := *native.Admission.Native
 		legacyLaunch.TrustMode, legacyLaunch.BrokerRun = "", ""
+		legacyLaunch.BundleSHA256, legacyLaunch.PromptSHA256 = "", ""
 		legacyAdmission.Native = &legacyLaunch
 		legacy.Admission = &legacyAdmission
 		if legacy.Validate() != nil {

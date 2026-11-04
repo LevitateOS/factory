@@ -20,6 +20,8 @@ type ApplianceLaunch struct {
 type NativeLaunch struct {
 	Workspace           NativeWorkspaceRef      `json:"workspace"`
 	Tool                NativeTool              `json:"tool"`
+	BundleSHA256        string                  `json:"bundle_sha256,omitempty"`
+	PromptSHA256        string                  `json:"prompt_sha256,omitempty"`
 	Runtime             collaboration.RuntimeID `json:"runtime"`
 	PlacementGeneration int64                   `json:"placement_generation,string"`
 	TrustMode           string                  `json:"trust_mode,omitempty"`
@@ -32,11 +34,11 @@ func (n NativeLaunch) Validate() error {
 	}
 	switch n.TrustMode {
 	case "", "same_user_trusted_host":
-		if n.BrokerRun != "" {
+		if n.BrokerRun != "" || n.BundleSHA256 != "" || n.PromptSHA256 != "" {
 			return ErrLaunch
 		}
 	case "isolated_system_worker":
-		if !collaboration.ValidID(n.BrokerRun) {
+		if !collaboration.ValidID(n.BrokerRun) || !validDigest(n.BundleSHA256) || !validDigest(n.PromptSHA256) {
 			return ErrLaunch
 		}
 	default:
@@ -47,7 +49,7 @@ func (n NativeLaunch) Validate() error {
 
 func (n NativeLaunch) MatchesRecord(record NativeRecord) bool {
 	p := record.Provenance
-	if n.Validate() != nil || record.Validate() != nil || n.Tool != record.Tool || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
+	if n.Validate() != nil || record.Validate() != nil || n.Tool != record.Tool || n.BundleSHA256 != record.BundleSHA256 || n.PromptSHA256 != record.PromptSHA256 || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
 		return false
 	}
 	if n.TrustMode == "isolated_system_worker" {
@@ -83,7 +85,7 @@ func (r LaunchRequest) Validate() error {
 	case collaboration.Native:
 		// A LaunchRequest is an active execution instruction, unlike the
 		// retained NativeLaunch metadata on a historical RunAdmission.
-		if r.Native == nil || r.Appliance != nil || r.Native.Validate() != nil || r.Native.TrustMode != "isolated_system_worker" {
+		if r.Native == nil || r.Appliance != nil || r.Native.Validate() != nil || r.Native.TrustMode != "isolated_system_worker" || r.Native.PromptSHA256 != r.Input.Run.Assignment {
 			return ErrLaunch
 		}
 		family, version, digest = r.Native.Tool.Harness, r.Native.Tool.Version, r.Native.Tool.SHA256

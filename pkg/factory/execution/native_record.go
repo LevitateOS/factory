@@ -30,15 +30,24 @@ func (t NativeTool) Validate() error {
 // Sealed means this identity cannot acquire again; process retirement and
 // retirement of this run's credential material remain separate facts.
 type NativeRecord struct {
-	Tool       NativeTool       `json:"tool"`
-	Provenance NativeProvenance `json:"provenance"`
-	Retirement Retirement       `json:"retirement"`
-	Sealed     bool             `json:"sealed"`
+	Tool         NativeTool       `json:"tool"`
+	BundleSHA256 string           `json:"bundle_sha256,omitempty"`
+	PromptSHA256 string           `json:"prompt_sha256,omitempty"`
+	Provenance   NativeProvenance `json:"provenance"`
+	Retirement   Retirement       `json:"retirement"`
+	Sealed       bool             `json:"sealed"`
 }
 
 func (r NativeRecord) Validate() error {
 	if r.Tool.Validate() != nil || !validNative(r.Provenance) ||
 		(r.Retirement != NotStarted && r.Retirement != Running && r.Retirement != Exited && r.Retirement != Retired && r.Retirement != Uncertain) {
+		return ErrProvenance
+	}
+	if r.Provenance.TrustMode == "isolated_system_worker" {
+		if !validDigest(r.BundleSHA256) || !validDigest(r.PromptSHA256) {
+			return ErrProvenance
+		}
+	} else if r.BundleSHA256 != "" || r.PromptSHA256 != "" {
 		return ErrProvenance
 	}
 	p := r.Provenance.Process
@@ -60,7 +69,7 @@ func (r NativeRecord) Settled() bool {
 // identities. Unknown cleanup can resolve, but confirmed exit, release, seal and
 // retirement cannot be erased by a stale observer or a recycled PID.
 func (r NativeRecord) Advances(prior NativeRecord) bool {
-	if r.Validate() != nil || prior.Validate() != nil || r.Tool != prior.Tool ||
+	if r.Validate() != nil || prior.Validate() != nil || r.Tool != prior.Tool || r.BundleSHA256 != prior.BundleSHA256 || r.PromptSHA256 != prior.PromptSHA256 ||
 		r.Provenance.Profile != prior.Provenance.Profile || r.Provenance.InstanceID != prior.Provenance.InstanceID ||
 		r.Provenance.WorktreeID != prior.Provenance.WorktreeID || r.Provenance.TrustMode != prior.Provenance.TrustMode || r.Provenance.BrokerRun != prior.Provenance.BrokerRun ||
 		(prior.Provenance.Isolation != nil && !reflect.DeepEqual(r.Provenance.Isolation, prior.Provenance.Isolation)) ||
