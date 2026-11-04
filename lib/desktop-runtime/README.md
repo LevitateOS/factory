@@ -195,8 +195,8 @@ profile to match its credential owner and the policy connection to match the
 supplied Muse capability. It does not serve until `activate` consumes an exact
 `RelayAttestation` from the native broker client. That client checks the fixed
 broker socket in a root-owned directory, its root peer, framed replies and
-profile/run/digest/candidate identity. Before serving, the owner compares the
-attested profile, run, digest and candidate to its captured policy. It checks
+profile/run/role/digest/candidate identity. Before serving, the owner compares the
+attested profile, run, role, digest and candidate to its captured policy. It checks
 the attested relay UID with `SO_PEERCRED`,
 requires a random non-account placeholder bearer, applies the run policy,
 renews the same OS credential revision and borrows the token only inside a

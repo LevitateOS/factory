@@ -10,15 +10,17 @@ credential-free reviewer, relay and agent-boundary attestations; it cannot
 launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 512), then
-`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
+`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","role":"reviewer|coder","length":N,"sha256":"<64 lowercase hex>"}`,
 then exactly `N` raw bytes. `N` must be from 1 through 512 KiB, matching the
 current Go reviewer source-bundle bound. The service checks the Unix stream's
 kernel peer UID against the desktop-owned mode-`0600` socket, requires a
 root-owned mode-`0755` socket parent, no-new-privileges and a root-owned
-mode-`0700` systemd runtime directory. It accepts no host path, role, credential
-or unit property. The systemd profile has no capabilities, no IP access and a
-90-second lifetime to cover bounded preparation and cleanup. A JSON response
-names the run, profile and digest.
+mode-`0700` systemd runtime directory. It accepts no host path, credential
+or unit property. The role is fixed for the run in a root-owned declaration;
+an exact replay with another role is refused. The systemd profile has no
+capabilities, no IP access and a 90-second lifetime to cover bounded preparation
+and cleanup. A JSON response
+names the run, profile, role and digest.
 
 An exact reviewer preparation uses
 `{"kind":"prepare_reviewer","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
@@ -37,7 +39,8 @@ is checkout preparation, not Go run admission or reviewer execution.
 An exact reviewer mount attestation uses
 `{"kind":"attest_reviewer","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
 with no payload. The broker rechecks the staged source, exact manifest and
-frozen output before starting only `soda-factory-reviewer@<run>.socket`.
+frozen output and requires the staged reviewer role before starting only
+`soda-factory-reviewer@<run>.socket`.
 That socket is root-owned mode `0600` inside the root-private preparation
 parent; the desktop peer cannot connect directly. A distinct dynamic UID gets
 the checkout at one fixed read-only bind. The reviewer attests its service
@@ -226,9 +229,19 @@ with `execution_available:false`. The capless broker cannot traverse the
 desktop user's mode-`0700` socket directory; the relay verifies its fixed
 bind-mounted socket and desktop owner peer itself. The unit uses
 `Type=notify`, so a successful manager start means those checks and the
-private loopback listener completed. Exact bundle retirement stops the relay
+private loopback listener completed. The reply includes the root-owned staged
+role; arming an agent under another role is refused. Exact bundle retirement
+stops the relay
 before removing the prepared checkout and source. No request can select a
-provider URL, key, executable, unit property, role or host path.
+provider URL, key, executable, unit property or host path.
+
+A disposable installation of the actual broker unit checked stage-time role
+binding with credential-free bytes. An identical reviewer-stage replay returned
+the same role. Replaying the run as coder and arming it as coder were refused;
+reviewer attestation of a coder-staged run was refused. Exact retirement removed
+both staged runs. The temporary socket, unit, binary, state and probe were
+removed. This proves broker-side role consistency before preparation; it does
+not prove a live provider relay or agent launch under this revision.
 
 A temporary installation of the actual broker, preparer and relay units used
 a scratch Git bundle and credential-free fake owner socket. Wrong digest and

@@ -114,6 +114,7 @@ struct Staged {
     version: u8,
     run: String,
     profile: String,
+    role: String,
     sha256: String,
 }
 
@@ -135,6 +136,7 @@ struct Attested {
     version: u8,
     run: String,
     profile: String,
+    role: String,
     candidate: String,
     relay_uid: u32,
     execution_available: bool,
@@ -191,6 +193,7 @@ struct Retired {
 pub struct RelayAttestation {
     run: String,
     profile: String,
+    role: Role,
     candidate: String,
     sha256: String,
     relay_uid: u32,
@@ -202,6 +205,9 @@ impl RelayAttestation {
     }
     pub fn profile(&self) -> &str {
         &self.profile
+    }
+    pub fn role(&self) -> Role {
+        self.role
     }
     pub fn candidate(&self) -> &str {
         &self.candidate
@@ -218,7 +224,7 @@ impl RelayAttestation {
 /// admission. No request selects a path, command, unit property or credential.
 pub struct Broker;
 impl Broker {
-    pub fn stage_bundle(run: &str, profile: &str, bundle: &[u8]) -> io::Result<String> {
+    pub fn stage_bundle(run: &str, profile: &str, role: Role, bundle: &[u8]) -> io::Result<String> {
         if !id(run, 32) || !id(profile, 32) || bundle.is_empty() || bundle.len() > MAX_BUNDLE {
             return Err(refused("broker bundle declaration invalid"));
         }
@@ -227,7 +233,7 @@ impl Broker {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let reply: Staged = exchange(
-            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"length":bundle.len(),"sha256":sha256}),
+            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"length":bundle.len(),"sha256":sha256}),
             Some(bundle),
             PREPARE_TIME,
         )?;
@@ -235,6 +241,7 @@ impl Broker {
             || reply.version != 1
             || reply.run != run
             || reply.profile != profile
+            || reply.role != role.as_str()
             || reply.sha256 != sha256
         {
             return Err(refused("broker staged identity invalid"));
@@ -273,6 +280,7 @@ impl Broker {
         profile: &str,
         sha256: &str,
         candidate: &str,
+        role: Role,
     ) -> io::Result<RelayAttestation> {
         if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker relay declaration invalid"));
@@ -287,6 +295,7 @@ impl Broker {
             || reply.version != 1
             || reply.run != run
             || reply.profile != profile
+            || reply.role != role.as_str()
             || reply.candidate != candidate
             || reply.relay_uid == 0
             || reply.relay_uid == uid
@@ -297,6 +306,7 @@ impl Broker {
         Ok(RelayAttestation {
             run: run.into(),
             profile: profile.into(),
+            role,
             candidate: candidate.into(),
             sha256: sha256.into(),
             relay_uid: reply.relay_uid,

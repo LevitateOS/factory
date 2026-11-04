@@ -28,6 +28,7 @@ enum Request {
         version: u8,
         run: String,
         profile: String,
+        role: String,
         length: usize,
         sha256: String,
     },
@@ -74,6 +75,7 @@ struct Staged<'a> {
     version: u8,
     run: &'a str,
     profile: &'a str,
+    role: &'a str,
     sha256: &'a str,
 }
 
@@ -127,6 +129,7 @@ struct ProviderRelayAttested<'a> {
     version: u8,
     run: &'a str,
     profile: &'a str,
+    role: &'a str,
     candidate: &'a str,
     relay_uid: u32,
     execution_available: bool,
@@ -323,6 +326,38 @@ fn verified_profile(directory: &Path, profile: &str) -> io::Result<()> {
     file.take(34).read_to_end(&mut bytes)?;
     if bytes.len() != 33 || bytes.as_slice() != format!("{profile}\n").as_bytes() {
         return Err(denied("run belongs to another profile"));
+    }
+    Ok(())
+}
+
+fn read_role(directory: &Path) -> io::Result<String> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("owner.role"))?;
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o7777 != 0o444
+        || !matches!(metadata.len(), 6 | 9)
+    {
+        return Err(denied("staged role declaration invalid"));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(10).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != metadata.len() {
+        return Err(denied("staged role changed during read"));
+    }
+    match bytes.as_slice() {
+        b"coder\n" => Ok("coder".into()),
+        b"reviewer\n" => Ok("reviewer".into()),
+        _ => Err(denied("staged role declaration invalid")),
+    }
+}
+
+fn verified_role(directory: &Path, role: &str) -> io::Result<()> {
+    if read_role(directory)? != role {
+        return Err(denied("run belongs to another role"));
     }
     Ok(())
 }
@@ -576,6 +611,7 @@ fn attest_reviewer(
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
+    verified_role(&source, "reviewer")?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("reviewer source bundle missing"));
     }
@@ -639,12 +675,13 @@ fn attest_provider_relay(
     digest: &str,
     candidate: &str,
     desktop_uid: u32,
-) -> io::Result<u32> {
+) -> io::Result<(u32, String)> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
+    let role = read_role(&source)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("provider relay source bundle missing"));
     }
@@ -678,7 +715,7 @@ fn attest_provider_relay(
     if verified.is_err() {
         manager("stop", "provider-relay", run)?;
     }
-    verified
+    verified.map(|uid| (uid, role))
 }
 
 fn agent_manifest(role: &str, profile: &str, candidate: &str, digest: &str) -> String {
@@ -701,6 +738,7 @@ fn arm_agent(
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
+    verified_role(&source, role)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("agent source bundle missing"));
     }
@@ -803,6 +841,11 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
     if has_bundle {
         fs::remove_file(directory.join("bundle"))?;
     }
+    match fs::remove_file(directory.join("owner.role")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
     match fs::remove_file(directory.join("owner.profile")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -869,6 +912,7 @@ fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
         return Err(denied("staged run directory invalid"));
     }
     verified_profile(&directory, profile)?;
+    read_role(&directory)?;
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
@@ -912,7 +956,7 @@ fn retiring_run(name: &str) -> Option<&str> {
     (id(run, 32) && id(profile, 32) && id(digest, 64)).then_some(run)
 }
 
-fn stage(run: &str, profile: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
+fn stage(run: &str, profile: &str, role: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     for entry in fs::read_dir(&runs)? {
@@ -925,6 +969,7 @@ fn stage(run: &str, profile: &str, bytes: &[u8], digest: &str) -> io::Result<()>
     if final_dir.exists() {
         private_dir(&final_dir, 0o555)?;
         verified_profile(&final_dir, profile)?;
+        verified_role(&final_dir, role)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -992,6 +1037,15 @@ fn stage(run: &str, profile: &str, bytes: &[u8], digest: &str) -> io::Result<()>
         declaration.write_all(format!("{profile}\n").as_bytes())?;
         declaration.sync_all()?;
         declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
+        let mut role_declaration = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o444)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(temp.join("owner.role"))?;
+        role_declaration.write_all(format!("{role}\n").as_bytes())?;
+        role_declaration.sync_all()?;
+        role_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
         fs::set_permissions(&temp, fs::Permissions::from_mode(0o555))?;
         File::open(&temp)?.sync_all()?;
         fs::rename(&temp, &final_dir)?;
@@ -1023,12 +1077,14 @@ fn serve() -> io::Result<()> {
             version,
             run,
             profile,
+            role,
             length,
             sha256,
         } => {
             if version != 1
                 || !id(&run, 32)
                 || !id(&profile, 32)
+                || !matches!(role.as_str(), "reviewer" | "coder")
                 || !id(&sha256, 64)
                 || !(1..=MAX_BUNDLE).contains(&length)
             {
@@ -1040,12 +1096,13 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker bundle digest mismatch"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            stage(&run, &profile, &bundle, &sha256)?;
+            stage(&run, &profile, &role, &bundle, &sha256)?;
             serde_json::to_vec(&Staged {
                 kind: "staged",
                 version: 1,
                 run: &run,
                 profile: &profile,
+                role: &role,
                 sha256: &sha256,
             })?
         }
@@ -1138,13 +1195,14 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker provider relay declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let relay_uid =
+            let (relay_uid, role) =
                 attest_provider_relay(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&ProviderRelayAttested {
                 kind: "provider_relay_attested",
                 version: 1,
                 run: &run,
                 profile: &profile,
+                role: &role,
                 candidate: &candidate,
                 relay_uid,
                 execution_available: false,

@@ -141,6 +141,10 @@ impl Policy {
         &self.profile
     }
 
+    pub fn role(&self) -> Role {
+        self.role
+    }
+
     pub fn sha256(&self) -> &str {
         &self.sha256
     }
