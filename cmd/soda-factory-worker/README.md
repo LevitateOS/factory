@@ -169,3 +169,16 @@ in the host mount namespace; the proof removed it with the temporary unit,
 binary, fake socket and source directory. This establishes the transport
 namespace shape on this host, not admission, owner policy, agent role
 confinement, credential withdrawal or a real provider run.
+
+`soda-factory-agent@.socket` and `.service` add a broker-started exact-run
+attestation boundary. The socket is desktop-owned mode `0600`; the service
+uses a distinct dynamic UID, joins that run's provider relay network namespace,
+binds the broker-prepared checkout and root role declaration read-only, and
+uses a private keyring, IPC and runtime with finite cgroup limits. It checks
+the desktop peer, its own UID, the fixed socket, role declaration and exact
+Git HEAD before accepting only `attest_agent`. Its reply says
+`execution_available:false`; neither role can launch a tool or receive an
+account secret. The source compiles and a rendered template passed
+`systemd-analyze verify` on 2026-11-04. No live system-manager activation of
+this new service or negative file/keyring proof on its actual path has yet
+been completed, so D3 remains open.

@@ -76,7 +76,7 @@ fn clean() -> io::Result<()> {
     }
     for entry in fs::read_dir(&run)? {
         let name = entry?.file_name();
-        if name != "output" && name != "manifest.env" {
+        if name != "output" && name != "manifest.env" && name != "agent.role" {
             return Err(refused("preparation has unexpected entries"));
         }
     }
@@ -84,12 +84,28 @@ fn clean() -> io::Result<()> {
     let has_output = root_directory(&output, &[0o700, 0o777, 0o555])?;
     let manifest = run.join("manifest.env");
     let has_manifest = root_manifest(&manifest)?;
+    let agent_role = run.join("agent.role");
+    let has_agent_role = match agent_role.symlink_metadata() {
+        Ok(metadata)
+            if metadata.is_file()
+                && metadata.uid() == 0
+                && matches!(metadata.mode() & 0o7777, 0o400 | 0o444) =>
+        {
+            true
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        _ => return Err(refused("agent role manifest invalid")),
+    };
     if has_output {
         fs::remove_dir_all(&output)?;
         File::open(&run)?.sync_all()?;
     }
     if has_manifest {
         fs::remove_file(&manifest)?;
+        File::open(&run)?.sync_all()?;
+    }
+    if has_agent_role {
+        fs::remove_file(&agent_role)?;
         File::open(&run)?.sync_all()?;
     }
     if fs::read_dir(&run)?.next().is_some() {

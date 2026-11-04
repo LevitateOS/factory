@@ -50,6 +50,13 @@ enum Request {
         sha256: String,
         candidate: String,
     },
+    ArmAgent {
+        version: u8,
+        run: String,
+        sha256: String,
+        candidate: String,
+        role: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -108,6 +115,16 @@ struct ProviderRelayAttested<'a> {
     run: &'a str,
     candidate: &'a str,
     relay_uid: u32,
+    execution_available: bool,
+}
+
+#[derive(Serialize)]
+struct AgentArmed<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    candidate: &'a str,
+    role: &'a str,
     execution_available: bool,
 }
 
@@ -354,6 +371,33 @@ fn stop_relay(run: &str) -> io::Result<()> {
     }
 }
 
+fn stop_agent(run: &str, directory: &Path) -> io::Result<()> {
+    let role = directory.join("agent.role");
+    match role.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+        Ok(metadata)
+            if metadata.is_file()
+                && metadata.uid() == 0
+                && matches!(metadata.mode() & 0o7777, 0o400 | 0o444) =>
+        {
+            ()
+        }
+        Ok(_) => return Err(denied("agent role manifest invalid")),
+    }
+    manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
+    manager_unit("stop", &format!("soda-factory-agent@{run}.service"))?;
+    let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
+    if socket.exists() {
+        return Err(denied("agent socket survived stop"));
+    }
+    let runtime = Path::new("/run/soda-factory-agent").join(run);
+    if runtime.exists() {
+        return Err(denied("agent runtime survived stop"));
+    }
+    Ok(())
+}
+
 fn preparation_run(preparations: &Path, run: &str) -> io::Result<Option<PathBuf>> {
     let directory = preparations.join(run);
     match directory.symlink_metadata() {
@@ -367,6 +411,7 @@ fn clean_preparation(preparations: &Path, run: &str) -> io::Result<()> {
     let Some(directory) = preparation_run(preparations, run)? else {
         return Ok(());
     };
+    stop_agent(run, &directory)?;
     stop_relay(run)?;
     stop_reviewer(run)?;
     manager("stop", "preparer", run)?;
@@ -561,6 +606,109 @@ fn attest_provider_relay(
     verified
 }
 
+fn agent_manifest(role: &str, candidate: &str, digest: &str) -> String {
+    format!("FACTORY_ROLE={role}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\n")
+}
+
+fn arm_agent(
+    run: &str,
+    digest: &str,
+    candidate: &str,
+    role: &str,
+    desktop_uid: u32,
+) -> io::Result<()> {
+    if !matches!(role, "reviewer" | "coder") {
+        return Err(denied("agent role invalid"));
+    }
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("agent source bundle missing"));
+    }
+    let preparations = preparations()?;
+    let directory =
+        preparation_run(&preparations, run)?.ok_or_else(|| denied("agent preparation missing"))?;
+    if read_manifest(&directory.join("manifest.env"))?.as_deref()
+        != Some(manifest(candidate, digest).as_str())
+        || prepared_output(&directory)? != Some(0o555)
+    {
+        return Err(denied("agent preparation identity invalid"));
+    }
+    prepared_checkout(&directory)?;
+    manager("is-active", "provider-relay", run)?;
+    let expected = agent_manifest(role, candidate, digest);
+    let path = directory.join("agent.role");
+    if let Ok(metadata) = path.symlink_metadata() {
+        if metadata.is_file() && metadata.uid() == 0 && metadata.mode() & 0o7777 == 0o400 {
+            // UMask leaves a newly created declaration at 0400 until its
+            // contents have been synced and the final mode is installed.
+            // Recover this interrupted write only after stopping the unit.
+            stop_agent(run, &directory)?;
+            fs::remove_file(&path)?;
+            File::open(&directory)?.sync_all()?;
+        }
+    }
+    let created = match path.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o444)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(&path)?;
+            file.write_all(expected.as_bytes())?;
+            file.sync_all()?;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o444))?;
+            File::open(&directory)?.sync_all()?;
+            true
+        }
+        Err(error) => return Err(error),
+        Ok(_) => false,
+    };
+    let checked = (|| {
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&path)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file()
+            || metadata.uid() != 0
+            || metadata.mode() & 0o7777 != 0o444
+            || metadata.len() != expected.len() as u64
+        {
+            return Err(denied("agent role manifest invalid"));
+        }
+        let mut actual = String::new();
+        file.take(193).read_to_string(&mut actual)?;
+        if actual != expected {
+            return Err(denied("agent role already differs"));
+        }
+        manager_unit("start", &format!("soda-factory-agent@{run}.socket"))?;
+        let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
+        let parent = socket.parent().expect("fixed agent socket parent");
+        private_dir(parent, 0o755)?;
+        let metadata = socket.symlink_metadata()?;
+        if !metadata.file_type().is_socket()
+            || metadata.uid() != desktop_uid
+            || metadata.mode() & 0o7777 != 0o600
+        {
+            return Err(denied("agent socket identity invalid"));
+        }
+        Ok(())
+    })();
+    if checked.is_err() {
+        // Keep the declaration on a failed stop so retirement can still find
+        // and stop a potentially armed unit on its next exact-run retry.
+        if stop_agent(run, &directory).is_ok() && created {
+            let _ = fs::remove_file(&path);
+            let _ = File::open(&directory).and_then(|file| file.sync_all());
+        }
+    }
+    checked
+}
+
 fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
     let metadata = directory.symlink_metadata()?;
     if !metadata.is_dir()
@@ -622,7 +770,6 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
-    stop_relay(run)?;
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
     File::open(&runs)?.sync_all()?;
@@ -860,6 +1007,32 @@ fn serve() -> io::Result<()> {
                 run: &run,
                 candidate: &candidate,
                 relay_uid,
+                execution_available: false,
+            })?
+        }
+        Request::ArmAgent {
+            version,
+            run,
+            sha256,
+            candidate,
+            role,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+                || !matches!(role.as_str(), "reviewer" | "coder")
+            {
+                return Err(denied("broker agent declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            arm_agent(&run, &sha256, &candidate, &role, desktop_uid)?;
+            serde_json::to_vec(&AgentArmed {
+                kind: "agent_armed",
+                version: 1,
+                run: &run,
+                candidate: &candidate,
+                role: &role,
                 execution_available: false,
             })?
         }

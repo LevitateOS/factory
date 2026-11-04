@@ -15,6 +15,7 @@ const MAX_FRAME: usize = 256;
 const MAX_BUNDLE: usize = 512 * 1024;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
+const AGENT_TIME: Duration = Duration::from_secs(12);
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -137,6 +138,47 @@ struct Attested {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct AgentArmed {
+    kind: String,
+    version: u8,
+    run: String,
+    candidate: String,
+    role: String,
+    execution_available: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentAttested {
+    kind: String,
+    version: u8,
+    run: String,
+    candidate: String,
+    role: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    readonly_source: bool,
+    execution_available: bool,
+}
+
+/// Fixed declaration to the broker; neither value grants execution.
+#[derive(Clone, Copy)]
+pub enum AgentRole {
+    Reviewer,
+    Coder,
+}
+
+impl AgentRole {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Reviewer => "reviewer",
+            Self::Coder => "coder",
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Retired {
     kind: String,
     version: u8,
@@ -245,6 +287,100 @@ impl Broker {
             sha256: sha256.into(),
             relay_uid: reply.relay_uid,
         })
+    }
+
+    /// Arm only the exact run socket and immutable role declaration. The
+    /// service behind this socket currently accepts attestation, not launch.
+    pub fn arm_agent(run: &str, sha256: &str, candidate: &str, role: AgentRole) -> io::Result<()> {
+        if !id(run, 32) || !id(sha256, 64) || !id(candidate, 40) {
+            return Err(refused("broker agent declaration invalid"));
+        }
+        let role = role.as_str();
+        let reply: AgentArmed = exchange(
+            json!({"kind":"arm_agent","version":1,"run":run,"sha256":sha256,"candidate":candidate,"role":role}),
+            None,
+            ATTEST_TIME,
+        )?;
+        if reply.kind != "agent_armed"
+            || reply.version != 1
+            || reply.run != run
+            || reply.candidate != candidate
+            || reply.role != role
+            || reply.execution_available
+        {
+            return Err(refused("broker agent identity invalid"));
+        }
+        Ok(())
+    }
+
+    /// Check the separately activated worker's exact identity and mounted
+    /// source. This reply is evidence only; no agent command is accepted.
+    pub fn attest_agent(run: &str, candidate: &str, role: AgentRole) -> io::Result<u32> {
+        if !id(run, 32) || !id(candidate, 40) {
+            return Err(refused("agent attestation declaration invalid"));
+        }
+        let uid = unsafe { libc::geteuid() };
+        if uid == 0 || unsafe { libc::getuid() } != uid {
+            return Err(refused("agent desktop identity invalid"));
+        }
+        let path = format!("/run/soda-factory/agents/{run}.sock");
+        let parent = Path::new(&path)
+            .parent()
+            .expect("fixed agent socket parent");
+        let directory = parent.symlink_metadata()?;
+        let socket = Path::new(&path).symlink_metadata()?;
+        if !directory.is_dir()
+            || directory.uid() != 0
+            || directory.mode() & 0o7777 != 0o755
+            || !socket.file_type().is_socket()
+            || socket.uid() != uid
+            || socket.mode() & 0o7777 != 0o600
+        {
+            return Err(refused("agent socket identity invalid"));
+        }
+        let mut stream = UnixStream::connect(&path)?;
+        stream.set_read_timeout(Some(AGENT_TIME))?;
+        stream.set_write_timeout(Some(AGENT_TIME))?;
+        // The listening socket belongs to systemd. On this connection its
+        // kernel peer is the root manager, not the later activated worker.
+        if !peer_is_root(&stream) {
+            return Err(refused("agent socket peer identity invalid"));
+        }
+        let connected = Path::new(&path).symlink_metadata()?;
+        if !connected.file_type().is_socket()
+            || connected.uid() != uid
+            || connected.dev() != socket.dev()
+            || connected.ino() != socket.ino()
+        {
+            return Err(refused("agent socket changed during connection"));
+        }
+        let request = serde_json::to_vec(&json!({"kind":"attest_agent","version":1,"run":run}))?;
+        stream.write_all(&(request.len() as u32).to_le_bytes())?;
+        stream.write_all(&request)?;
+        let mut length = [0u8; 4];
+        stream.read_exact(&mut length)?;
+        let length = u32::from_le_bytes(length) as usize;
+        if length == 0 || length > MAX_FRAME {
+            return Err(refused("agent reply bound invalid"));
+        }
+        let mut bytes = vec![0u8; length];
+        stream.read_exact(&mut bytes)?;
+        let reply: AgentAttested =
+            serde_json::from_slice(&bytes).map_err(|_| refused("agent reply shape invalid"))?;
+        if reply.kind != "agent_attested"
+            || reply.version != 1
+            || reply.run != run
+            || reply.candidate != candidate
+            || reply.role != role.as_str()
+            || reply.worker_uid == 0
+            || reply.worker_uid == uid
+            || reply.peer_uid != uid
+            || !reply.readonly_source
+            || reply.execution_available
+        {
+            return Err(refused("agent attested identity invalid"));
+        }
+        Ok(reply.worker_uid)
     }
 
     /// Stop the exact relay and prepared checkout through the broker after the

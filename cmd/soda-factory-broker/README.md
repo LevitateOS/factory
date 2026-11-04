@@ -5,8 +5,9 @@ first N3 workspace-transfer boundary. The installer must render the socket
 template for the selected desktop account and install the root-owned binary
 and units. The native desktop library has a bounded, peer-checked client, but
 the production runtime does not call it and no installer enables the service.
-The broker stages bytes, prepares a fixed checkout and activates a
-credential-free reviewer attestation; it cannot admit or launch an agent.
+The broker stages bytes, prepares a fixed checkout and activates
+credential-free reviewer, relay and agent-boundary attestations; it cannot
+launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 256), then
 `{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
@@ -249,3 +250,19 @@ place until every agent file operation is constrained beneath the workspace
 at the kernel path-resolution boundary. The actual preparer unit refused a
 directory link with `reviewer directory symlink is not admitted` and prepared
 a contained regular-file link. Temporary units and sources were removed.
+
+The broker also accepts `arm_agent` with only the exact run, staged bundle
+digest, prepared candidate and fixed `reviewer` or `coder` role. It requires an
+active run-specific provider relay, writes a root-owned role declaration and
+starts only `soda-factory-agent@<run>.socket`. A different role on replay is
+refused. The declaration stays discoverable for retirement even if unit stop
+fails; a mode-`0400` interrupted write is stopped, removed and recreated on
+exact retry. Retirement stops the agent service/socket before the relay and
+checkout. The paired worker currently attests only its identity, role and
+read-only candidate mount, then reports `execution_available:false`.
+`Broker::arm_agent` and `Broker::attest_agent` are typed desktop client methods,
+but no production admission calls them. The source and rendered unit syntax
+were checked on 2026-11-04; the new agent unit has not been installed or
+activated under the system manager. Go admission, coder workspace, role tool
+policy, credential withdrawal and a real finite provider task are still
+required before D3 closes.

@@ -341,6 +341,18 @@ real provider task. The existing `Accept=yes` worker instance names a socket
 connection rather than a run and cannot carry an exact `%i` checkout mount;
 the production agent needs a separately broker-started run service.
 
+The broker now has an exact `arm_agent` declaration tied to its staged digest,
+prepared candidate, active relay and one fixed role. It arms only a run-specific
+socket. A separate dynamic-UID service checks the root role declaration and
+read-only Git mount, then responds only to an attestation request; execution
+remains unavailable. The broker stops that socket/service before relay and
+workspace retirement and recovers a partially written declaration. The typed
+desktop client checks the distinct worker UID and exact reply. Source checks
+and rendered unit syntax passed on 2026-11-04, but this new service has not
+been activated under the system manager. The actual admission, role-limited
+tool execution, coder workspace, credential withdrawal, host isolation probes
+and finite provider task remain D3 requirements.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first
