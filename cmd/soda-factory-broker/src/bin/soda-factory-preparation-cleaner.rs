@@ -81,7 +81,7 @@ fn clean() -> io::Result<()> {
         }
     }
     let output = run.join("output");
-    let has_output = root_directory(&output, &[0o777, 0o555])?;
+    let has_output = root_directory(&output, &[0o700, 0o777, 0o555])?;
     let manifest = run.join("manifest.env");
     let has_manifest = root_manifest(&manifest)?;
     if has_output {

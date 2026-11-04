@@ -413,12 +413,12 @@ output directory are the only filesystem inputs; arguments carry only the run
 ID, expected candidate commit and source digest. It rejects invalid identity,
 privilege state, ownership, modes, bundle size/digest, candidate HEAD, dirty
 tracked files, special files and oversized or deep checkouts. Git runs with a
-cleared environment and no inherited configuration. The production broker does
-not invoke it yet. A live `DynamicUser=yes` preparer cloned a small test bundle
-from a read-only bind with an exact expected digest and candidate. A separate
-dynamic reviewer UID read the frozen checkout from a read-only bind but could
-not traverse the original
-root-private path or write, create or chmod in its checkout. Wrong-digest and
+cleared environment and no inherited configuration. At that checkpoint the
+production broker did not invoke it. A live `DynamicUser=yes` preparer cloned
+a small test bundle from a read-only bind with an exact expected digest and
+candidate. A separate dynamic reviewer UID read the frozen checkout from a
+read-only bind but could not traverse the original root-private path or write,
+create or chmod in its checkout. Wrong-digest and
 wrong-candidate runs were refused. The latter left a partial clone; a restricted
 root manager service launched a fixed cleanup service with only
 `CAP_DAC_OVERRIDE` and `CAP_FOWNER` and removed it. Inspection confirmed the
@@ -434,12 +434,13 @@ escape the checkout lexically. Under the same transient isolated service
 profile, an escaping-symlink bundle was refused and a contained relative
 symlink bundle was accepted. The partial and successful checkouts, mounts,
 service instances and scratch source were removed.
+
 The dormant `soda-factory-preparer@.service` template now fixes the selected
 source/output binds and an unprivileged dynamic identity with private network,
-keyring and IPC, plus CPU, memory, task and runtime ceilings. A future broker
-must create the root-private per-run manifest and empty output, start only the
-validated instance, freeze successful output, and stop/reconcile and clean
-failed or retired instances. The production broker has no start request.
+keyring and IPC, plus CPU, memory, task and runtime ceilings. Its proposed
+broker contract required a root-private per-run manifest and empty output,
+validated instance selection, frozen successful output and cleanup of failed
+or retired instances. At that checkpoint the broker had no start request.
 `systemd-analyze verify` accepted a temporary rendering; a live instance
 prepared an exact candidate from its root-owned manifest and staged bundle as
 a separate UID, then exited successfully. The unit and proof state were removed.
@@ -455,11 +456,39 @@ cleaner. Retry succeeded, malformed instance failed, and the source bundle
 remained. `Type=oneshot` with `TimeoutStartSec` made the manager's start result
 reflect the actual process exit; `Type=exec` had returned success before a
 malformed instance failed. The temporary units and proof state were removed.
+
 An unexpected-entry probe then refused cleanup before changing the checkout
 or manifest, and cleanup succeeded once that entry was removed. Its temporary
 state was removed.
-The broker still has no request or lifecycle code to stop active instances,
-invoke the cleaner, verify the final state or remove the empty run directory.
+
+At that checkpoint the broker had no request or lifecycle code to stop active
+instances, invoke the cleaner, verify the final state or remove the empty run
+directory.
+
+The broker now accepts a bounded `prepare_reviewer` request with only run ID,
+staged bundle digest and candidate commit. It verifies the root-owned bundle,
+creates an exact root-private manifest/output child, starts only the fixed
+unprivileged preparer unit, and freezes its successful checkout. An identical
+request replays; a changed candidate conflicts. Interrupted or failed
+preparation is stopped and cleaned before retry. `retire_bundle` verifies the
+digest, stops and cleans that preparation, removes its empty metadata child,
+then performs its existing tombstone-first source retirement. A cleaner refusal
+leaves both source and checkout available for reconciliation. The broker unit's
+runtime ceiling rose to 90 seconds to encompass the fixed 30-second preparer
+and 15-second cleaner. No desktop-supplied mount, command, unit property or
+credential enters the manager call.
+
+The actual socket and fixed system units passed a live stage, wrong-digest
+refusal, wrong-candidate failure with partial-clone cleanup, exact preparation,
+idempotent replay, changed-candidate refusal, wrong-digest retirement refusal,
+exact retirement and absent retry. A manually planted incomplete manifest was
+reconciled and prepared successfully. An unexpected root-owned preparation
+entry made retirement refuse while preserving both source and frozen checkout;
+after removing it, retirement completed. Root inspection found no run or
+tombstone. The temporary installation, state and scratch source were removed.
+This is credential-free reviewer checkout preparation only. There is still no
+Go-admitted role/profile/run binding, reviewer agent launch, provider credential
+proxy, withdrawal or finite provider run. D3 remains open.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
@@ -483,9 +512,10 @@ across reboot. Its actual socket service passed staged bundle replay across
 activations, rejected wrong-digest and extra-path retirement, removed an exact
 run, reported an absent run on retry, and accepted restaging. Root inspection
 confirmed the run child was gone; the temporary units and runtime were removed.
-This retirement only removes staged bytes because no worker launch exists yet.
-The eventual checkout cleaner must stop the worker first and use a fixed
-manager-owned action; a zero cleanup-command exit code alone is insufficient.
+At that earlier checkpoint retirement removed only staged bytes because no
+worker launch existed. A later checkout cleaner needed to stop the worker
+first and use a fixed manager-owned action; a zero cleanup-command exit code
+alone was insufficient.
 The broker then made staged retirement retryable across process interruption:
 it renames a verified run to a digest-bound tombstone before unlinking. Live
 socket checks simulated a stop after the rename and after bundle unlink. In

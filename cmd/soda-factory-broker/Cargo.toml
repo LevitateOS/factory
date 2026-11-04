@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-description = "Root-owned bounded Factory run bundle staging boundary"
+description = "Root-owned bounded Factory run bundle and preparation boundary"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "=0.2.191"

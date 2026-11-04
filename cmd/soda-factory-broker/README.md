@@ -1,10 +1,11 @@
-# Privileged run bundle staging
+# Privileged run bundle staging and reviewer preparation
 
 `soda-factory-broker` is a narrow, socket-activated system service for the
 first N3 workspace-transfer boundary. The installer must render the socket
 template for the selected desktop account and install the root-owned binary
 and units. The current desktop runtime does not connect to it and no installer
-enables it. This command only stages bytes; it cannot admit or launch an agent.
+enables it. The broker stages bytes and invokes fixed credential-free checkout
+preparation services; it cannot admit or launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 256), then
 `{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
@@ -14,7 +15,22 @@ kernel peer UID against the desktop-owned mode-`0600` socket, requires a
 root-owned mode-`0755` socket parent, no-new-privileges and a root-owned
 mode-`0700` systemd runtime directory. It accepts no host path, role, credential
 or unit property. The systemd profile has no capabilities, no IP access and a
-15-second lifetime. A JSON response names only the run and digest.
+90-second lifetime to cover bounded preparation and cleanup. A JSON response
+names only the run and digest.
+
+An exact reviewer preparation uses
+`{"kind":"prepare_reviewer","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
+with no payload. Under the same state lock, the broker rechecks the staged
+bundle's digest, writes a root-owned mode-`0400` manifest beneath a private
+per-run preparation directory, and asks systemd to start only
+`soda-factory-preparer@<run>.service`. The unit binds only that run's staged
+bundle read-only and its empty output writable. The unprivileged preparer
+checks the exact candidate; on success the broker freezes the output directory
+to mode `0555`. An identical replay returns the prepared identity. A different
+candidate for the same run is refused. An interrupted or failed preparation is
+stopped and cleaned with the fixed cleaner before retry. The request has no
+mount path, command, unit property, role selector, or credential field. This
+is checkout preparation, not Go run admission or reviewer execution.
 
 An exact retirement uses
 `{"kind":"retire_bundle","version":1,"run":"<32 lowercase hex>","sha256":"<64 lowercase hex>"}`
@@ -22,11 +38,13 @@ with no payload. The broker verifies the stored bundle's owner, mode, bounded
 length and digest, then renames the run to a digest-bound retiring directory
 before unlinking. An exact retry can finish deletion after either the rename
 or bundle unlink; staging that run is refused while retirement is pending.
-The response reports `removed:true`, or
+Before the source rename, the broker stops the fixed preparer instance and
+uses the exact-run cleaner to remove its checkout and manifest. It verifies
+the private preparation child is empty and removes it. A failed cleanup leaves
+the staged source in place. The response reports `removed:true`, or
 `removed:false` when that run is already absent. A mismatched digest is refused.
-The current broker cannot launch a worker, so this operation retires only
-staged bytes; future launch code must stop and reconcile a live worker before
-retiring its workspace.
+The broker cannot launch a reviewer worker; future launch code must also stop
+and reconcile that worker before retiring its workspace.
 
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
 `/run/soda-factory-broker/runs/<run>/bundle`. The runtime and `runs` parents
@@ -38,8 +56,9 @@ bundle for the same run is refused. Exact retirement frees its slot. The unit's
 `RuntimeDirectoryPreserve=yes` retains bytes across socket service instances;
 the data is transient across host reboot. Interrupted staging directories are removed
 under the lock before another run is staged. No Git command runs as root, and
-the raw bundle is not treated as a verified candidate until an unprivileged
-consumer checks its Git contents against a current coordinator admission.
+the raw bundle is not treated as a verified candidate until the unprivileged
+preparer checks its Git contents. A current coordinator admission is still
+required before any agent run.
 
 On 2026-11-04, the rendered units passed `systemd-analyze verify`. A temporary
 root-owned installation staged a 359-byte local Git bundle; an identical replay
@@ -72,8 +91,8 @@ parent. After freezing that child, a dynamic reviewer UID could read only the
 finished checkout through a read-only bind and could not change or add files.
 The proof used `nobody` for preparation; an installed preparer needs an identity
 isolated from unrelated processes and other concurrent preparations. The temporary
-checkout and source were removed. No preparation service or reviewer launch is
-currently wired to this broker.
+checkout and source were removed. At that checkpoint neither preparation nor
+reviewer launch was wired to this broker.
 
 `soda-factory-preparer` is an unprivileged executable for that fixed preparation
 step. It accepts only a run ID, candidate commit and bundle digest; the manager
@@ -96,8 +115,8 @@ read-only bind, while its original root-private path, file writes, new files
 and chmod were denied. Wrong-digest preparation failed before clone; a wrong
 candidate failed after clone. A separate restricted root manager probe launched
 a fixed cleanup service with only `CAP_DAC_OVERRIDE` and `CAP_FOWNER` and
-removed that partial checkout; inspection confirmed its absence. The preparer,
-manager cleanup and reviewer launch are not yet wired to the broker. The
+removed that partial checkout; inspection confirmed its absence. At that
+checkpoint these services were not yet wired to the broker. The
 temporary binaries, mounts, service instances and scratch repository were removed.
 An additional isolated bundle probe rejected an escaping symlink after clone
 and accepted a contained relative symlink. Both temporary checkouts and their
@@ -105,15 +124,14 @@ source bundles were removed.
 
 The dormant `soda-factory-preparer@.service` template fixes the unprivileged
 identity, source and output bind destinations, private network/keyring/IPC and
-CPU, memory, task and runtime limits. For instance `<run>`, a future broker
-must create `/run/soda-factory-broker/preparations/<run>` mode `0700` and
+CPU, memory, task and runtime limits. For instance `<run>`, the broker creates
+`/run/soda-factory-broker/preparations/<run>` mode `0700` and
 root-owned, with `manifest.env` mode `0400` containing only the validated
 `FACTORY_CANDIDATE` and `FACTORY_BUNDLE_SHA256` hex values, and an empty
 root-owned mode-`0777` `output` child. The manager reads the manifest before
 starting the dynamic UID; the worker sees only the fixed source and output
-binds. The broker must stop or reconcile that unit, freeze a successful output,
-and clean partial output before retiring or reusing the run. There is no broker
-request that starts it yet.
+binds. The broker stops or reconciles that unit, freezes a successful output,
+and cleans partial output before retiring or reusing the run.
 
 `systemd-analyze verify` accepted a temporary rendering of the template. A
 live instance read a local root-owned manifest and staged bundle, prepared the
@@ -128,9 +146,9 @@ only a 32-character lowercase hex run ID, validates the root-owned path and
 manifest, and removes the stopped preparer's output and manifest. It leaves
 the empty root-owned run directory for the broker to remove under its state
 lock. Missing contents are safe to retry; unexpected entries cause refusal.
-The broker must first stop and reconcile any preparer and reviewer service,
-then invoke the cleaner and verify its final result before retiring the run.
-Neither service is started by the production broker yet.
+The broker stops and reconciles the preparer, then invokes the cleaner and
+verifies its final result before retiring the run. A future reviewer service
+needs the same stop and reconciliation gate.
 
 A live fixed-unit proof prepared a checkout owned by a dynamic UID, froze its
 output, then removed it and the manifest with the limited-capability cleaner.
@@ -145,11 +163,25 @@ removed, it cleaned the expected contents. The proof state was removed.
 
 A transient check also confirmed that a root service with no capabilities, no
 new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged
-service. The staging broker has no such request yet; future launch code must
-derive every manager property from validated run state, not desktop input.
+service. The broker now uses a fixed manager request for preparation; future
+agent launch code must derive every manager property from validated run state,
+not desktop input.
+
+A temporary installation of the actual socket, broker, preparer and cleaner
+passed a stage → prepare → replay → retire journey on 2026-11-04. Wrong source
+digest made no preparation state. A wrong candidate failed after clone and the
+broker removed the partial checkout. The exact candidate prepared as a separate
+dynamic UID, froze its output, and replayed across broker activations; changing
+the candidate was refused. Wrong-digest retirement left source and checkout;
+exact retirement removed both, and its retry reported the run absent. A planted
+incomplete manifest was reconciled on retry. An unexpected preparation entry
+made retirement refuse while preserving source and checkout; after removing
+that entry, exact retirement completed. Root inspection confirmed no run or
+tombstone remained. The temporary socket, units, binaries, state and scratch
+repository were removed.
 
 These are staging and preparation primitives, not the D3 broker closure. The
-broker does not check a Go-admitted profile/role/preparation, invoke the
-preparer, select a worker unit, mediate provider credentials, retire active
-runs or perform a real provider task. It must remain uninstalled until those
-launch and retirement controls are wired and qualified.
+broker does not check a Go-admitted profile/role/preparation, select a reviewer
+worker unit, mediate provider credentials, retire active agent runs or perform
+a real provider task. It must remain uninstalled until those launch and
+retirement controls are wired and qualified.

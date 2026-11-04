@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
-//! Stages bounded, credential-free Git bundle bytes under a root-private run
-//! identity. Staging is not execution admission and never invokes Git as root.
+//! Stages bounded, credential-free Git bundle bytes and asks fixed unprivileged
+//! units to prepare reviewer checkouts. This is not agent execution admission.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -8,6 +8,7 @@ use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::fs::{DirBuilderExt, FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
@@ -29,6 +30,12 @@ enum Request {
         run: String,
         sha256: String,
     },
+    PrepareReviewer {
+        version: u8,
+        run: String,
+        sha256: String,
+        candidate: String,
+    },
 }
 
 #[derive(Serialize)]
@@ -45,6 +52,15 @@ struct Retired<'a> {
     version: u8,
     run: &'a str,
     removed: bool,
+}
+
+#[derive(Serialize)]
+struct Prepared<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    sha256: &'a str,
+    candidate: &'a str,
 }
 
 fn denied(message: &'static str) -> io::Error {
@@ -157,7 +173,22 @@ fn state() -> io::Result<PathBuf> {
         }
     }
     private_dir(&runs, 0o700)?;
+    let preparations = state.join("preparations");
+    if !preparations.exists() {
+        match DirBuilder::new().mode(0o700).create(&preparations) {
+            Ok(()) => (),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+            Err(error) => return Err(error),
+        }
+    }
+    private_dir(&preparations, 0o700)?;
     Ok(runs)
+}
+
+fn preparations() -> io::Result<PathBuf> {
+    let directory = Path::new(STATE).join("preparations");
+    private_dir(&directory, 0o700)?;
+    Ok(directory)
 }
 
 fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
@@ -187,6 +218,156 @@ fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
     Ok(true)
 }
 
+fn manifest(candidate: &str, digest: &str) -> String {
+    format!("FACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\n")
+}
+
+fn read_manifest(path: &Path) -> io::Result<Option<String>> {
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o7777 != 0o400
+        || metadata.len() > 192
+    {
+        return Err(denied("preparation manifest invalid"));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(193).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != metadata.len() {
+        return Err(denied("preparation manifest changed"));
+    }
+    Ok(String::from_utf8(bytes).ok())
+}
+
+fn manifest_identity(value: &str) -> Option<(&str, &str)> {
+    let (candidate, digest) = value
+        .strip_prefix("FACTORY_CANDIDATE=")?
+        .split_once("\nFACTORY_BUNDLE_SHA256=")?;
+    let digest = digest.strip_suffix('\n')?;
+    (id(candidate, 40) && id(digest, 64)).then_some((candidate, digest))
+}
+
+fn manager(action: &str, unit: &str, run: &str) -> io::Result<()> {
+    let unit = format!("soda-factory-{unit}@{run}.service");
+    let status = Command::new("/usr/bin/systemctl")
+        .env_clear()
+        .args(["--system", "--no-ask-password", action, &unit])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+    if !status.success() {
+        return Err(denied("fixed preparation service failed"));
+    }
+    Ok(())
+}
+
+fn preparation_run(preparations: &Path, run: &str) -> io::Result<Option<PathBuf>> {
+    let directory = preparations.join(run);
+    match directory.symlink_metadata() {
+        Ok(_) => private_dir(&directory, 0o700).map(|()| Some(directory)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn clean_preparation(preparations: &Path, run: &str) -> io::Result<()> {
+    let Some(directory) = preparation_run(preparations, run)? else {
+        return Ok(());
+    };
+    manager("stop", "preparer", run)?;
+    manager("start", "preparation-cleaner", run)?;
+    if fs::read_dir(&directory)?.next().is_some() {
+        return Err(denied("preparation cleanup incomplete"));
+    }
+    fs::remove_dir(&directory)?;
+    File::open(preparations)?.sync_all()
+}
+
+fn prepared_output(directory: &Path) -> io::Result<Option<u32>> {
+    let output = directory.join("output");
+    let metadata = match output.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let mode = metadata.mode() & 0o7777;
+    if !metadata.is_dir() || metadata.uid() != 0 || !matches!(mode, 0o700 | 0o777 | 0o555) {
+        return Err(denied("preparation output invalid"));
+    }
+    Ok(Some(mode))
+}
+
+fn prepared_checkout(directory: &Path) -> io::Result<()> {
+    let metadata = directory.join("output/repo").symlink_metadata()?;
+    if !metadata.is_dir() || metadata.uid() == 0 || metadata.mode() & 0o7777 != 0o755 {
+        return Err(denied("prepared reviewer checkout invalid"));
+    }
+    Ok(())
+}
+
+fn prepare(run: &str, digest: &str, candidate: &str) -> io::Result<()> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("reviewer source bundle missing"));
+    }
+    let preparations = preparations()?;
+    let expected = manifest(candidate, digest);
+    if let Some(directory) = preparation_run(&preparations, run)? {
+        let prior = read_manifest(&directory.join("manifest.env"))?;
+        if let Some((old_candidate, old_digest)) = prior.as_deref().and_then(manifest_identity) {
+            if old_candidate != candidate || old_digest != digest {
+                return Err(denied("run already prepared for another candidate"));
+            }
+        }
+        if prepared_output(&directory)? == Some(0o555) {
+            if prior.as_deref() != Some(expected.as_str()) {
+                return Err(denied("completed preparation manifest invalid"));
+            }
+            prepared_checkout(&directory)?;
+            return Ok(());
+        }
+        clean_preparation(&preparations, run)?;
+    }
+    let directory = preparations.join(run);
+    DirBuilder::new().mode(0o700).create(&directory)?;
+    let output = directory.join("output");
+    DirBuilder::new().mode(0o700).create(&output)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o400)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("manifest.env"))?;
+    file.write_all(expected.as_bytes())?;
+    file.sync_all()?;
+    fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
+    File::open(&directory)?.sync_all()?;
+    let result = (|| {
+        manager("start", "preparer", run)?;
+        prepared_checkout(&directory)?;
+        private_dir(&output, 0o777)?;
+        fs::set_permissions(&output, fs::Permissions::from_mode(0o555))?;
+        File::open(&directory)?.sync_all()
+    })();
+    if result.is_err() {
+        clean_preparation(&preparations, run)?;
+    }
+    result
+}
+
 fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
     let metadata = directory.symlink_metadata()?;
     if !metadata.is_dir()
@@ -206,6 +387,7 @@ fn clean_retiring(directory: &Path, digest: &str) -> io::Result<()> {
 fn retire(run: &str, digest: &str) -> io::Result<bool> {
     let runs = state()?;
     let _lock = lock(&runs)?;
+    let preparations = preparations()?;
     let retiring = runs.join(format!(".retiring-{run}-{digest}"));
     for entry in fs::read_dir(&runs)? {
         let entry = entry?;
@@ -220,6 +402,9 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
                 Err(error) if error.kind() == io::ErrorKind::NotFound => (),
                 Err(error) => return Err(error),
             }
+            if preparation_run(&preparations, run)?.is_some() {
+                return Err(denied("retiring run has preparation state"));
+            }
             clean_retiring(&retiring, digest)?;
             File::open(&runs)?.sync_all()?;
             return Ok(true);
@@ -228,7 +413,12 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
     let directory = runs.join(run);
     let metadata = match directory.symlink_metadata() {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if preparation_run(&preparations, run)?.is_some() {
+                return Err(denied("orphan preparation cannot retire"));
+            }
+            return Ok(false);
+        }
         Err(error) => return Err(error),
     };
     if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o555 {
@@ -237,6 +427,7 @@ fn retire(run: &str, digest: &str) -> io::Result<bool> {
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
+    clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
     File::open(&runs)?.sync_all()?;
     clean_retiring(&retiring, digest)?;
@@ -305,6 +496,9 @@ fn stage(run: &str, bytes: &[u8], digest: &str) -> io::Result<()> {
             return Ok(());
         }
         return Err(denied("run identity already staged with different bytes"));
+    }
+    if preparation_run(&preparations()?, run)?.is_some() {
+        return Err(denied("orphan preparation prevents staging"));
     }
     let mut count = 0;
     for entry in fs::read_dir(&runs)? {
@@ -413,6 +607,25 @@ fn serve() -> io::Result<()> {
                 removed,
             })?
         }
+        Request::PrepareReviewer {
+            version,
+            run,
+            sha256,
+            candidate,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&sha256, 64) || !id(&candidate, 40) {
+                return Err(denied("broker reviewer preparation declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            prepare(&run, &sha256, &candidate)?;
+            serde_json::to_vec(&Prepared {
+                kind: "prepared",
+                version: 1,
+                run: &run,
+                sha256: &sha256,
+                candidate: &candidate,
+            })?
+        }
     };
     let mut output = io::stdout().lock();
     output.write_all(&(response.len() as u32).to_le_bytes())?;
@@ -422,7 +635,7 @@ fn serve() -> io::Result<()> {
 
 fn main() {
     if let Err(error) = serve() {
-        eprintln!("Factory broker refused staging: {error}");
+        eprintln!("Factory broker refused request: {error}");
         std::process::exit(1);
     }
 }
