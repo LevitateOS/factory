@@ -230,6 +230,18 @@ check denied desktop canary access and source writes, refused altered prompt
 and ELF bytes before launch, and retired a sleeping child when the caller left.
 The captured Muse ELF reached a credential-free private relay, which returned
 401; this did not qualify account credential custody or a real provider run.
+The execution receipt now carries the process owner's invocation ID, boot ID,
+start tick, start time, namespace PID and exit code/signal for later native
+provenance binding. These added fields have source/build validation; the prior
+live launch did not exercise their new wire encoding. A subsequent disposable
+activation of the actual broker, preparer, reviewer, relay and agent units ran
+a tiny credential-free ELF as reviewer. The broker returned a nonzero isolated
+UID, 32-hex invocation, boot ID, positive start tick, namespace PID 5, start
+time, exit code 0 and complete bounded output with a retired tree. Exact
+retirement removed the staged source and preparation. The first cleanup attempt
+exposed a missing reviewer unit in the temporary probe installation; adding
+that unit made the exact retry and a second complete launch/retirement pass.
+The temporary installation and scratch artifacts were removed.
 
 The agent service now opens `soda-native-process::Processes` under its own
 run-specific runtime and delegated cgroup before accepting an attestation.

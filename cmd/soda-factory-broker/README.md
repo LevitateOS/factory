@@ -334,7 +334,14 @@ new peers and forwards the bytes. The worker rehashes both streams before
 launch. The broker forwards output only with a bounded, identity-checked worker
 receipt and matching output digest. A failed post-arm launch stops the agent;
 the marker prevents replay once consumed. The desktop library has a typed
-client for this protocol, but no product path invokes it.
+client for this protocol. The worker receipt also carries the native process
+invocation, boot ID, start tick, PID inside its private PID namespace, start
+time and exit signal/code. The broker and desktop client validate those fields;
+the namespace PID must not be treated as a host PID. No product path invokes it.
+A disposable actual-unit probe returned these process fields from a
+credential-free reviewer ELF with exit code 0 and a retired tree. After adding
+the reviewer units required by cleanup, exact retirement and a second full
+launch/retirement passed; temporary state was removed.
 
 A disposable installation of the real broker, preparer, relay and agent units
 proved a one-shot reviewer child under a distinct dynamic UID. The child could

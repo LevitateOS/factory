@@ -808,6 +808,18 @@ coordinator still does not admit this launch; credential custody and
 withdrawal, coder result capture, complete role checks and a finite real
 provider task remain D3 gates.
 
+The worker execution reply now retains process invocation and start identity,
+namespace PID, boot ID, start time and exit code/signal through the root broker
+and typed desktop client. This is needed to bind later Go native provenance to
+the process actually launched; a namespace PID is not a host PID. The fields
+passed a disposable live broker-to-worker wire probe with a tiny credential-free
+reviewer child, distinct dynamic UID, positive namespace PID, exit code 0,
+complete bounded output and exact retirement. The first cleanup attempt lacked
+the reviewer unit in the temporary installation; after adding it, exact retry
+and a second full launch/retirement passed. All temporary units and state were
+removed. This does not change the D3 conclusion because Go admission and real
+credential custody/provider work are still unconnected.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

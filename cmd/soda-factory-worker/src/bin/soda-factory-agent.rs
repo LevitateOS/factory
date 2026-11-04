@@ -12,7 +12,7 @@ use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 const SOURCE: &str = "/run/factory-source";
 const WORKSPACE: &str = "/run/factory-agent-private/workspace";
@@ -77,8 +77,14 @@ struct Execution<'a> {
     prompt_sha256: &'a str,
     worker_uid: u32,
     peer_uid: u32,
+    invocation: &'a str,
+    system_instance: &'a str,
+    start_identity: &'a str,
+    namespace_pid: u32,
+    started_unix_ms: u64,
     reason: &'a str,
     exit_code: Option<i32>,
+    exit_signal: Option<i32>,
     tree_retired: bool,
     output_complete: bool,
     output_length: usize,
@@ -705,6 +711,13 @@ fn execute_agent(
         return Err(refused("agent output bound invalid"));
     }
     let output_sha256 = sha256(&output);
+    let started_unix_ms = observed
+        .started_at
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| refused("agent process start time invalid"))?
+        .as_millis()
+        .try_into()
+        .map_err(|_| refused("agent process start time invalid"))?;
     let reply = serde_json::to_vec(&Execution {
         kind: "agent_executed",
         version: 1,
@@ -716,8 +729,14 @@ fn execute_agent(
         prompt_sha256,
         worker_uid,
         peer_uid: 0,
+        invocation: &observed.invocation,
+        system_instance: &observed.system_instance,
+        start_identity: &observed.start_identity,
+        namespace_pid: observed.pid,
+        started_unix_ms,
         reason: reason(observed.reason),
         exit_code: observed.exit.and_then(|exit| exit.code),
+        exit_signal: observed.exit.and_then(|exit| exit.signal),
         tree_retired: true,
         output_complete: observed.output_complete,
         output_length: output.len(),

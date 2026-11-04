@@ -253,8 +253,14 @@ struct AgentExecutionReply {
     prompt_sha256: String,
     worker_uid: u32,
     peer_uid: u32,
+    invocation: String,
+    system_instance: String,
+    start_identity: String,
+    namespace_pid: u32,
+    started_unix_ms: u64,
     reason: String,
     exit_code: Option<i32>,
+    exit_signal: Option<i32>,
     tree_retired: bool,
     output_complete: bool,
     output_length: usize,
@@ -278,6 +284,17 @@ fn id(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn boot_id(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if matches!(index, 8 | 13 | 18 | 23) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_hexdigit()
+            }
+        })
 }
 
 fn private_dir(path: &Path, mode: u32) -> io::Result<()> {
@@ -1259,6 +1276,19 @@ fn execute_agent<R: Read, W: Write>(
             || reply.worker_uid == 0
             || reply.worker_uid == desktop_uid
             || reply.peer_uid != 0
+            || !id(&reply.invocation, 32)
+            || !boot_id(&reply.system_instance)
+            || !matches!(reply.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
+            || reply.namespace_pid == 0
+            || reply.started_unix_ms == 0
+            || reply
+                .exit_code
+                .is_some_and(|code| !(0..=255).contains(&code))
+            || reply
+                .exit_signal
+                .is_some_and(|signal| !(1..=64).contains(&signal))
+            || reply.exit_code.is_some() && reply.exit_signal.is_some()
+            || reply.reason == "exited" && reply.exit_code.is_none() && reply.exit_signal.is_none()
             || !reply.tree_retired
             || reply.output_length > MAX_OUTPUT
             || !id(&reply.output_sha256, 64)
