@@ -33,6 +33,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
   let view: SignIn = {attempt: 0, phase: 'idle', prompt: null, error: null};
   let accounts: Account[] = [];
   let localError: string | null = null;
+  let readError: string | null = null;
   let interaction = 0;
 
   function render() {
@@ -49,7 +50,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       expiry.textContent = seconds ? `Code expires in ${Math.ceil(seconds / 60)} minutes.` : 'This code has expired.';
     } else code.textContent = '';
     if (!ready) status.textContent = 'Saved accounts are unavailable until Factory is ready.';
-    else if (localError ?? view.error) status.textContent = (localError ?? view.error)!;
+    else if (readError ?? localError ?? view.error) status.textContent = (readError ?? localError ?? view.error)!;
     else
       status.textContent = {
         idle: accounts.length ? 'Your saved GitHub accounts.' : 'Sign in to access your GitHub repositories.',
@@ -112,14 +113,17 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       ]);
       if (captured !== generation || capturedInteraction !== interaction || !ready) return;
       if (next.phase !== view.phase) localError = null;
+      readError = null;
       view = next;
       accounts = saved.filter((account) => account.provider === 'github');
       changed(accounts);
       render();
     } catch {
       if (captured === generation && capturedInteraction === interaction) {
-        changed([]);
-        status.textContent = 'Saved accounts are unavailable. Unlock your desktop keyring and refresh.';
+        accounts = [];
+        changed(accounts);
+        readError = 'Saved accounts are unavailable. Unlock your desktop keyring and refresh.';
+        render();
       }
     } finally {
       reading = false;
@@ -173,6 +177,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       accounts = [];
       changed(accounts);
       localError = null;
+      readError = null;
       view = {attempt: 0, phase: 'idle', prompt: null, error: null};
     }
     render();

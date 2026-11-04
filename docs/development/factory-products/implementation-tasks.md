@@ -24774,3 +24774,15 @@ provider operation or installed journey ran. The failed `ui-v4` artifacts
 described above are absent from this workspace, so the pre-consent crash remains
 undiagnosed. CONNECT stays Active;
 the connected outcome and downstream gates remain open.
+
+T06-CONNECT desktop account failure checkpoint (2026-11-04): a production-bundle
+Playwright/Chromium check with a local Tauri command fixture reproduced a stale
+saved-account row after `credential_status` failed. The repository selector was
+cleared, but the account list still showed the old account. The desktop account
+owner now clears its own saved-account state, notifies the selector, and renders
+the unavailable state on the same current generation/interaction. The check
+fails before this change and passes after rebuilding the production desktop UI;
+it observes both the empty selector and empty account list. This is a local UI
+failure/recovery check with a mocked keyring command. It does not diagnose the
+WebKit crash or prove connected consent, credential custody, authenticated IPC,
+or an installed desktop journey. T06-CONNECT remains Active.

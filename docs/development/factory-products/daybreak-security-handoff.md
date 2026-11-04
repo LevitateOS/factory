@@ -19,6 +19,10 @@ could not be re-inspected here. Retrieve them before claiming a diagnosis.
 The current worktree passes normal and opt-in native desktop source checks after
 the generated UI is built; these checks do not diagnose the crash or qualify
 connected authentication and IPC.
+A production-bundle Chromium check with a local Tauri command fixture now proves
+that a failed `credential_status` read removes stale saved-account UI rows and
+repository options. It uses no real keyring, provider, consent or authenticated
+IPC, so the connected gate remains open.
 
 ## Gate register
 
