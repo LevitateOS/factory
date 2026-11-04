@@ -444,6 +444,23 @@ failed or retired instances. The production broker has no start request.
 prepared an exact candidate from its root-owned manifest and staged bundle as
 a separate UID, then exited successfully. The unit and proof state were removed.
 
+The dormant `soda-factory-preparation-cleaner@.service` now has a fixed Rust
+cleaner that validates one 32-hex run and the root-owned preparation layout,
+then removes only the stopped preparer's output and manifest. Its system unit
+grants only `CAP_DAC_OVERRIDE` and `CAP_FOWNER` and write access to that run's
+preparation child. It leaves the empty run directory for the broker's locked
+state transition and refuses unexpected entries. A live fixed-unit check
+prepared a checkout as one dynamic UID, froze it, then removed it with this
+cleaner. Retry succeeded, malformed instance failed, and the source bundle
+remained. `Type=oneshot` with `TimeoutStartSec` made the manager's start result
+reflect the actual process exit; `Type=exec` had returned success before a
+malformed instance failed. The temporary units and proof state were removed.
+An unexpected-entry probe then refused cleanup before changing the checkout
+or manifest, and cleanup succeeded once that entry was removed. Its temporary
+state was removed.
+The broker still has no request or lifecycle code to stop active instances,
+invoke the cleaner, verify the final state or remove the empty run directory.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;

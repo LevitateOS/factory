@@ -121,6 +121,28 @@ exact candidate as a dynamic UID, then exited successfully with the checkout
 under the expected private run path. The temporary unit, binary, source,
 checkout and scratch repository were removed.
 
+The dormant `soda-factory-preparation-cleaner@.service` runs a fixed Rust
+cleaner as root with only `CAP_DAC_OVERRIDE` and `CAP_FOWNER`, no network, and
+write access limited to the selected root-private preparation child. It accepts
+only a 32-character lowercase hex run ID, validates the root-owned path and
+manifest, and removes the stopped preparer's output and manifest. It leaves
+the empty root-owned run directory for the broker to remove under its state
+lock. Missing contents are safe to retry; unexpected entries cause refusal.
+The broker must first stop and reconcile any preparer and reviewer service,
+then invoke the cleaner and verify its final result before retiring the run.
+Neither service is started by the production broker yet.
+
+A live fixed-unit proof prepared a checkout owned by a dynamic UID, froze its
+output, then removed it and the manifest with the limited-capability cleaner.
+The staged source and empty per-run directory remained. Repeating cleanup
+succeeded. A malformed instance failed. Both units use `Type=oneshot` with
+`TimeoutStartSec`, so `systemctl start` reports the process outcome rather
+than only successful exec. The temporary units, binaries, state and scratch
+repository were removed.
+A separate exact-run probe inserted an unexpected root-owned entry. The
+cleaner refused before changing the output or manifest; after that entry was
+removed, it cleaned the expected contents. The proof state was removed.
+
 A transient check also confirmed that a root service with no capabilities, no
 new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged
 service. The staging broker has no such request yet; future launch code must

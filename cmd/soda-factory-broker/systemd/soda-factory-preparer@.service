@@ -2,7 +2,7 @@
 Description=Factory isolated reviewer checkout preparation for %i
 
 [Service]
-Type=exec
+Type=oneshot
 DynamicUser=yes
 EnvironmentFile=/run/soda-factory-broker/preparations/%i/manifest.env
 ExecStart=/usr/libexec/soda-factory-preparer %i ${FACTORY_CANDIDATE} ${FACTORY_BUNDLE_SHA256}
@@ -39,5 +39,5 @@ TasksAccounting=yes
 CPUQuota=100%
 MemoryMax=128M
 TasksMax=32
-RuntimeMaxSec=30s
+TimeoutStartSec=30s
 KillMode=control-group

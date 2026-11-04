@@ -1,0 +1,40 @@
+[Unit]
+Description=Factory exact preparation cleanup for %i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/soda-factory-preparation-cleaner %i
+UMask=0077
+ProtectHome=yes
+PrivateTmp=yes
+PrivateIPC=yes
+KeyringMode=private
+PrivateDevices=yes
+ProtectProc=invisible
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ReadWritePaths=-/run/soda-factory-broker/preparations/%i
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+NoNewPrivileges=yes
+SystemCallArchitectures=native
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER
+AmbientCapabilities=
+CPUAccounting=yes
+MemoryAccounting=yes
+TasksAccounting=yes
+CPUQuota=100%
+MemoryMax=64M
+TasksMax=8
+TimeoutStartSec=15s
+KillMode=control-group
