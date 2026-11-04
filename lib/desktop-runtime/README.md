@@ -239,15 +239,19 @@ cancellation token is available to the future desktop Quit owner. No Go
 admission or desktop lifecycle currently constructs this owner.
 `RunOwner::start` now also requires the existing private profile directory and
 checks its retained `profile.id` before staging. On a completed broker reply,
-it writes a framed receipt to `native-run-receipts/<run>.receipt` under that
-profile: a bounded JSON header with exact run, profile, role, source, tool,
-prompt, process and output-digest facts, followed by at most 16 MiB of output.
+it writes a framed v2 receipt to `native-run-receipts/<run>.receipt` under that
+profile: a bounded JSON header with exact run, profile, role, admitted source,
+tool, prompt, process, output and candidate-bundle digest facts, followed by at
+most 16 MiB of output and 4 MiB of candidate bundle bytes.
 It syncs the file and directory before broker retirement. A failed execution
 or receipt write stops local token use and asks the broker to quiesce the exact
 run without erasing root staging. An incomplete `.pending` receipt is retained
-as uncertainty. This native file still needs a Go reader, exact retained-run
-transaction and restart reconciliation; its presence alone is not a product
-outcome or permission to reactivate an agent.
+as uncertainty. `factory_provider::read_retained` checks the private file and
+exact trusted run scope before returning the retained observation. Its caller
+must obtain that scope from the Go ledger. The native receipt still needs an
+admitted Go consumer, exact retained-run transaction and restart reconciliation;
+its presence alone is not a product outcome, proof of root retirement, or
+permission to reactivate an agent.
 After the broker returns, `RunOwner` retains the external cancellation signal
 through owner and broker retirement and refuses a result if it was set during
 that cleanup. The native caller still must join execution and

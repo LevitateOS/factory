@@ -90,6 +90,18 @@ part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
 worker or owner interruption. Do not treat the direct bundle fixture as D3.
 
+For D3 restart reconciliation, `Children::start` in
+`lib/desktop-runtime/src/supervisor.rs` calls
+`Broker::reconcile_profile` before starting the Go backend. That broker client
+retires unlaunched staging but refuses a launched run; it cannot compare the
+new native receipt to the Go ledger because the ledger is not yet available.
+The new read-only receipt API does not change this startup order. A crash with
+launched root state therefore remains a startup blocker. Keep launch disabled
+until a trusted Go-record read, exact receipt validation, root/process and
+credential retirement, and atomic outcome reconciliation are composed and
+proved across an interrupted owner and a full restart. The source inspection
+establishes this ordering; no crash/restart run has qualified it.
+
 If a later slice reveals another authentication, IPC admission, credential or
 isolation requirement, add a row with its exact dependency, files, positive and
 negative evidence. Route only hacking-like work to Daybreak. Do not mark a
