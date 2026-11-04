@@ -577,8 +577,21 @@ candidate and owner-socket permissions; systemd waited for relay readiness
 after its own socket checks. Wrong-digest retirement preserved the service;
 exact retirement stopped it, removed the run and denied replay. Temporary
 units, sockets and state were removed. Go run/role admission, desktop owner
-provider policy, credentials, agent launch and the finite provider task remain
-unqualified, so D3 remains open.
+integration, agent launch and the finite provider task remain unqualified, so
+D3 remains open.
+
+The desktop-owned provider socket now gates requests by the relay's exact UID,
+a run-specific placeholder, native Muse request policy and a fresh OS keyring
+revision. It sends only to fixed Meta HTTPS routes and bounds requests, wire
+responses, concurrent work and time. An isolated GNOME Keyring and subordinate
+host-UID check confirmed direct desktop connections were reset; the admitted
+UID saw 400 without the placeholder and 403 for an out-of-policy Responses
+body. An invalid fixture token reached Meta's model catalog and yielded a
+sanitized 401. Local withdrawal made the same request return 503; stopping
+removed the socket. The check did not exercise the actual systemd relay because
+the system manager required interactive administrator authentication. The
+desktop broker client, verified Muse account enrollment, confined agent and
+finite provider task remain to be connected and qualified before D3 closes.
 
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only

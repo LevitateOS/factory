@@ -70,12 +70,14 @@ impl From<secret_service::Error> for Error {
 pub enum Provider {
     Github,
     Fountain,
+    Muse,
 }
 impl Provider {
     fn name(self) -> &'static str {
         match self {
             Self::Github => "github",
             Self::Fountain => "fountain",
+            Self::Muse => "muse",
         }
     }
 }
@@ -105,7 +107,9 @@ impl Account {
             return Err(Error::Invalid);
         }
         let origin = parsed.origin().ascii_serialization();
-        if provider == Provider::Github && origin != "https://github.com" {
+        if (provider == Provider::Github && origin != "https://github.com")
+            || (provider == Provider::Muse && origin != "https://api.meta.ai")
+        {
             return Err(Error::Invalid);
         }
         Ok(Self {
@@ -312,6 +316,7 @@ impl Credentials {
         let provider = match get("provider")? {
             "github" => Provider::Github,
             "fountain" => Provider::Fountain,
+            "muse" => Provider::Muse,
             _ => return Err(Error::Invalid),
         };
         let mut account = Account::new(provider, get("origin")?, get("account")?)?;
@@ -579,12 +584,19 @@ impl Credentials {
     ) -> Result<T> {
         self.with_secret_operation(cap, false, operation).await
     }
-    async fn current_stream_revision(&self, original: &TokenCapability) -> Result<()> {
+    /// Reissue a short lease only while the same native owner, connection,
+    /// account and OS revision remain current. A run may use this between
+    /// streaming calls without turning a replaced key into fresh authority.
+    pub async fn renew_capability(&self, original: &TokenCapability) -> Result<TokenCapability> {
         let current = self.capability(&original.connection).await?;
         if current.owner != original.owner || !original.admits(&current.account, &current.revision)
         {
             return Err(Error::Retired);
         }
+        Ok(current)
+    }
+    async fn current_stream_revision(&self, original: &TokenCapability) -> Result<()> {
+        let current = self.renew_capability(original).await?;
         self.with_secret(&current, false, |_| ()).await
     }
     /// Run-owned streaming provider I/O. The native caller supplies its finite
