@@ -291,6 +291,15 @@ requests were refused, and the temporary installation was removed. No execution
 request exists. D3 remains open until the actual N3/N4 workspace, role,
 credential and retirement path passes its required negative and provider checks.
 
+The worker unit now explicitly uses a private kernel session keyring. A fixed
+diagnostic executable under that same socket-activated service profile ran as
+UID 61739: the nonempty mode-0600 desktop file and connecting desktop process
+environment were denied, `/run/user/1000/bus` was hidden, and access to UID
+1000's persistent keyring was denied. The same-UID keyring control succeeded,
+so the denial was not a broken `keyctl` invocation. The temporary diagnostic
+installation was removed. The actual agent launch path still needs this check
+alongside role, workspace, credential and retirement evidence.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

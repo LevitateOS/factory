@@ -15,6 +15,7 @@ RuntimeDirectoryMode=0700
 ProtectHome=yes
 PrivateTmp=yes
 PrivateIPC=yes
+KeyringMode=private
 PrivateDevices=yes
 ProtectProc=invisible
 ProtectSystem=strict

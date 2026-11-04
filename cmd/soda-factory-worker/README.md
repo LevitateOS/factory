@@ -41,3 +41,12 @@ The follow-up live activation with `RuntimeDirectory=soda-factory-worker/%i`
 reported `private_runtime:true` for UID 61739; the per-instance directory was
 gone after the service exited. The worker refuses admission if that directory
 is absent, not worker-owned, or not mode `0700`.
+
+The unit explicitly selects `KeyringMode=private`. A temporary fixed diagnostic
+executable under the same service settings ran as UID 61739 and reported denied
+reads of a nonempty mode-0600 desktop canary and the connecting desktop process
+environment; the desktop session bus was hidden. A corrected `keyctl`
+`get_persistent` check denied UID 1000's keyring while a same-UID control could
+access the worker's own keyring. The diagnostic executable and units were
+removed. This qualifies those host boundaries for this service profile, not
+the later provider execution path.
