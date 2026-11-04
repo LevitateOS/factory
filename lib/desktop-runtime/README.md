@@ -119,13 +119,15 @@ Existing incompatible clusters and private credentials are retained on failure.
 
 After taking the exclusive native profile lock and reading its retained ID,
 supervisor startup now reconciles exact root broker staging before launching Go.
-The broker returns one root-verified selector per call; Rust retires each exact
-run and refuses startup on uncertain cleanup. If a broker unit is installed but
+The broker returns one root-verified selector and its consumed-launch flag per
+call. Rust retires unlaunched staging and refuses startup when a launch marker
+survives or cleanup is uncertain. If a broker unit is installed but
 its socket is absent, startup fails closed and stops PostgreSQL. An uninstalled
 broker is skipped because this product still cannot admit native execution.
 A disposable real PostgreSQL/Go supervisor check retired one staged profile
 while preserving another and verified stopped-socket refusal. Go's retained
-execution outcome still needs its own recovery before D3 closes.
+execution outcome still needs durable recovery before D3 closes. The marker
+fence alone cannot recover an outcome after retirement or host reboot.
 
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should

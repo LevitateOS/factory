@@ -74,15 +74,21 @@ before removing its workspace.
 
 Restart reconciliation uses `{"kind":"next_profile_run","version":1,
 "profile":"<32 lowercase hex>"}`. The root broker returns at most one
-`profile_run` selector with exact run and SHA-256, or both fields null. It reads
+`profile_run` selector with exact run, SHA-256 and a `launched` boolean, or
+both selectors null with `launched:false`. It reads
 the root-owned profile declaration and rehashes the bounded bundle; retiring
 tombstones use their profile/digest-bound name. Under the same state lock it
 removes incomplete `.stage` directories, which never represented admitted
 runs. It does not return source bytes or another profile's run. The desktop
-client retires each returned selector through the existing exact operation,
-then asks again until empty. Uncertain or conflicting cleanup fails startup.
+client retires each unlaunched selector through the existing exact operation,
+then asks again until empty. An active run whose root-private preparation still
+has the broker's `agent.launch` marker refuses startup cleanup: process death
+does not establish its outcome. Uncertain or conflicting cleanup fails startup.
 The caller must already hold its exclusive native profile lock; this broker
-operation does not independently grant Go execution admission.
+operation does not independently grant Go execution admission. The marker is
+not a durable result. If retirement already removed it, or the host rebooted
+and cleared `/run`, this check cannot recover the run outcome; Go must
+reconcile its retained record before native execution is enabled.
 
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
 `/run/soda-factory-broker/runs/<run>/bundle`. The same child contains a

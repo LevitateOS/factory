@@ -150,6 +150,7 @@ struct ProfileRun {
     profile: String,
     run: Option<String>,
     sha256: Option<String>,
+    launched: bool,
 }
 
 #[derive(Deserialize)]
@@ -371,7 +372,7 @@ impl Broker {
     /// Inspect one root-owned selector for this exact native profile. The
     /// caller must hold the profile's exclusive supervisor lock before using
     /// this to clean a prior desktop incarnation.
-    pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
+    pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
         if !id(profile, 32) {
             return Err(refused("broker profile inspection declaration invalid"));
         }
@@ -383,22 +384,30 @@ impl Broker {
         if reply.kind != "profile_run" || reply.version != 1 || reply.profile != profile {
             return Err(refused("broker profile inspection identity invalid"));
         }
-        match (reply.run, reply.sha256) {
-            (None, None) => Ok(None),
-            (Some(run), Some(sha256)) if id(&run, 32) && id(&sha256, 64) => Ok(Some((run, sha256))),
+        match (reply.run, reply.sha256, reply.launched) {
+            (None, None, false) => Ok(None),
+            (Some(run), Some(sha256), launched) if id(&run, 32) && id(&sha256, 64) => {
+                Ok(Some((run, sha256, launched)))
+            }
             _ => Err(refused("broker profile inspection selector invalid")),
         }
     }
 
     /// Recover stale root staging before a new Go product incarnation starts.
-    /// Each exact retirement is separately acknowledged; any uncertain cleanup
-    /// fails startup and can be retried without accepting a stale run.
+    /// Each exact retirement is separately acknowledged. A consumed launch
+    /// remains for Go outcome reconciliation; this startup path cannot safely
+    /// infer its result from a stopped process or an absent desktop owner.
     pub fn reconcile_profile(profile: &str) -> io::Result<usize> {
         let mut retired = BTreeSet::new();
         for _ in 0..64 {
-            let Some((run, sha256)) = Self::next_profile_run(profile)? else {
+            let Some((run, sha256, launched)) = Self::next_profile_run(profile)? else {
                 return Ok(retired.len());
             };
+            if launched {
+                return Err(refused(
+                    "broker launched run outcome requires reconciliation",
+                ));
+            }
             if !retired.insert(run.clone()) || !Self::retire_bundle(&run, profile, &sha256)? {
                 return Err(refused("broker profile cleanup did not advance"));
             }

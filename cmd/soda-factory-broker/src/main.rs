@@ -133,6 +133,7 @@ struct ProfileRun<'a> {
     profile: &'a str,
     run: Option<&'a str>,
     sha256: Option<&'a str>,
+    launched: bool,
 }
 
 #[derive(Serialize)]
@@ -1503,7 +1504,27 @@ fn retiring_run(name: &str) -> Option<&str> {
 // Return one exact selector at a time to stay inside the fixed 768-byte wire
 // bound. The desktop supervisor holds its profile lock while consuming these;
 // the root broker validates every selector from its own private declarations.
-fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
+fn launched_run(run: &str) -> io::Result<bool> {
+    let Some(directory) = preparation_run(&preparations()?, run)? else {
+        return Ok(false);
+    };
+    match directory.join("agent.launch").symlink_metadata() {
+        Ok(metadata)
+            if metadata.is_file()
+                && metadata.uid() == 0
+                && matches!(metadata.mode() & 0o7777, 0o400 | 0o444) =>
+        {
+            // The marker is created before the worker receives launch bytes.
+            // Even an incomplete marker means the outcome is unknown to Go.
+            Ok(true)
+        }
+        Ok(_) => Err(denied("agent launch marker invalid")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     for entry in fs::read_dir(&runs)? {
@@ -1548,7 +1569,7 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
             if staged_digest(&path)?.is_some_and(|actual| actual != digest) {
                 return Err(denied("retiring bundle digest mismatch"));
             }
-            return Ok(Some((run.to_owned(), digest.to_owned())));
+            return Ok(Some((run.to_owned(), digest.to_owned(), false)));
         }
         if id(&name, 32) {
             private_dir(&path, 0o555)?;
@@ -1560,7 +1581,8 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
             read_digest(&path, "owner.prompt_sha256")?;
             let digest =
                 staged_digest(&path)?.ok_or_else(|| denied("staged run bundle missing"))?;
-            return Ok(Some((name, digest)));
+            let launched = launched_run(&name)?;
+            return Ok(Some((name, digest, launched)));
         }
         return Err(denied("broker run entry invalid"));
     }
@@ -1794,8 +1816,9 @@ fn serve() -> io::Result<()> {
                 kind: "profile_run",
                 version: 1,
                 profile: &profile,
-                run: next.as_ref().map(|(run, _)| run.as_str()),
-                sha256: next.as_ref().map(|(_, sha256)| sha256.as_str()),
+                run: next.as_ref().map(|(run, _, _)| run.as_str()),
+                sha256: next.as_ref().map(|(_, sha256, _)| sha256.as_str()),
+                launched: next.as_ref().is_some_and(|(_, _, launched)| *launched),
             })?
         }
         Request::PrepareReviewer {

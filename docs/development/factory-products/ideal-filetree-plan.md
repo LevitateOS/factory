@@ -888,6 +888,17 @@ refused startup and left no PostgreSQL process; a frozen partial stage was
 removed. Temporary units and fixture state were removed. Go's durable run
 outcome reconciliation, product admission and production Quit remain D3 gates.
 
+Root profile inspection now reports whether a matching active run still has
+its consumed `agent.launch` marker. Native startup refuses to erase that run
+while its Go result is unknown; unlaunched staging remains eligible for exact
+retirement. A disposable actual broker staged two runs in one profile: the
+marker returned `launched:true`, the Rust reconciliation client refused it,
+and exact cleanup removed the separate unlaunched run. After removing the
+artificial marker, both runs retired and root inspection was empty; temporary
+units and binary were removed. This fences one restart window, but the marker
+disappears during normal retirement and `/run` is transient across host
+reboot. It is not durable Go outcome reconciliation.
+
 The Go retained isolated-run and checkpoint validators now require the broker's
 36-character boot ID and a positive decimal kernel start tick. Historical
 same-user records keep their earlier text shape. The existing native
