@@ -45,6 +45,11 @@ static UID so unrelated processes cannot share that identity. The temporary
 checkout and source were removed. No preparation service or reviewer launch is
 currently wired to this broker.
 
+A transient check also confirmed that a root service with no capabilities, no
+new privileges and Unix-only IPC can ask systemd to start a fixed unprivileged
+service. The staging broker has no such request yet; future launch code must
+derive every manager property from validated run state, not desktop input.
+
 This is a staging primitive, not the D3 broker closure. It does not check a
 Go-admitted profile/role/preparation, prepare an immutable reviewer checkout,
 select a worker unit, mediate provider credentials, retire active runs or

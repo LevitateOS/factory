@@ -407,6 +407,15 @@ UID distinct from the dynamic worker range, a root-controlled fixed unit and
 mount selection, exact Git HEAD/commit validation, and retirement of the
 staging/worker lifetimes before this role boundary can be used.
 
+A bounded transient manager check showed a root service with
+`NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
+Unix address families could ask systemd to run a fixed `User=nobody` service;
+both services exited successfully. This confirms the intended manager call is
+available from the restricted broker profile. It does not authorize a desktop
+run or prove a safe unit-property whitelist. The broker must construct every
+unit property from validated run state and must never forward request-supplied
+properties or paths to systemd.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
