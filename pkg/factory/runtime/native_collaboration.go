@@ -57,7 +57,7 @@ type NativeIdentity struct {
 type NativeRepository struct {
 	ExternalID    string `json:"external_id"`
 	Name          string `json:"name"`
-	Private       bool   `json:"private"`
+	Private       *bool  `json:"private"`
 	DefaultBranch string `json:"default_branch"`
 	// Push is a provider observation, not Factory execution or spending authority.
 	Push *bool `json:"push"`
@@ -77,6 +77,12 @@ type NativePortError struct {
 }
 
 func (e *NativePortError) Error() string { return e.Code }
+
+// CollaborationReadFailure supplies only bounded failure facts to the shared
+// Go response projector, without coupling it to a desktop or provider SDK.
+func (e *NativePortError) CollaborationReadFailure() (int, *uint64, *uint64) {
+	return e.Status, e.RetryAfter, e.Reset
+}
 
 // NativeRequestPort rejects ambient/readiness-only authority. Its context value
 // is set after the existing same-user/key/instance HTTP admission, and Rust

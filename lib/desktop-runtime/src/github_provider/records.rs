@@ -89,7 +89,7 @@ fn labels(v: &Value) -> Result<Value> {
 pub(super) fn repository(v: &Value) -> Result<Value> {
     id(&v["owner"]["id"])?;
     Ok(
-        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?.as_bool().unwrap_or(false),"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?}),
+        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?,"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?}),
     )
 }
 pub(super) fn issue(v: &Value) -> Result<Value> {
@@ -244,8 +244,14 @@ pub(super) fn status(v: &Value, head: &str) -> Result<Value> {
         Some(s @ ("pending" | "success" | "failure" | "error")) => s,
         _ => "unknown",
     };
+    let (check_state, conclusion) = match state {
+        "pending" => ("pending", "unknown"),
+        "success" => ("completed", "success"),
+        "failure" | "error" => ("completed", "failure"),
+        _ => ("unknown", "unknown"),
+    };
     Ok(
-        json!({"external_id":id(&v["id"])?,"head":head,"context":string(v,"context")?,"provider_state":provider,"state":state,
+        json!({"external_id":id(&v["id"])?,"head":head,"context":string(v,"context")?,"provider_state":provider,"state":state,"check_state":check_state,"conclusion":conclusion,
         "description":string(v,"description")?,"target_url":string(v,"target_url")?,"creator":actor(&v["creator"])?,"created_at":date(v,"created_at")?,"updated_at":date(v,"updated_at")?}),
     )
 }

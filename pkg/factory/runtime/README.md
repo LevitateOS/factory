@@ -96,10 +96,26 @@ The existing final current-account gates run before disclosure, including after
 writes. A late refusal can conceal a reply to an already committed save; the
 immutable record remains available to its owner on reconnect. No command is
 automatically replayed. Intake/capture, planning, environment setup, execution,
-artifacts and normalized collaboration source composition retain explicit
-unavailable states until their dependencies are supplied. The coordinator is
-never started by this binding. T06-CONNECT-READS supplies shared issue/PR/evidence
-sources; T06-CONNECT supplies the actual desktop selection and shared UI.
+artifacts retain explicit unavailable states until their dependencies are supplied.
+The coordinator is never started by this binding. T06-CONNECT supplies the actual
+desktop selection and shared UI.
+
+The native_product_* read sources compose the defining shared issue, PR,
+discussion, review, thread, file, check, repository and capability services.
+Rust owns authenticated requests and provider decoding; Go validates the bounded
+nonsecret envelope and maps participants and referenced repositories in one Store
+transaction before neutral projection. Mentioned fork repositories gain canonical
+identities without a connection/access association. The repository catalog lists
+only the operation's selected resource; Rust's account catalog supplies selection.
+Opaque cursors bind scope, filters, page size and observed diff/check commits.
+Filtered empty issue pages retain their continuation. Safe provider status and
+rate facts survive both HTTP and the native JSON transport.
+
+REST review reply groups use actual root comment IDs, with unknown resolution,
+review staleness and unproved diff anchors. Check runs and statuses have distinct
+identities; they do not establish workflow jobs, requiredness or branch rules.
+Jobs remain unavailable and CI gates unknown pending T06-GITHUB-EVIDENCE.
+Human mutations remain unavailable until their admitted ports exist.
 
 Native executable composition supplies a credential-free observation handler at
 `/api/native/collaboration/observe`. The peer/key/instance and coordinator gates

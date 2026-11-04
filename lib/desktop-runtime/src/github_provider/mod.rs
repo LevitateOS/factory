@@ -7,6 +7,7 @@ mod reads;
 mod records;
 mod request;
 mod transport;
+mod threads;
 
 use crate::credentials::{Account, Provider, Token};
 pub use oauth::{DeviceAuthorization, DevicePrompt};

@@ -60,6 +60,9 @@ func (s CollaborationPullFiles) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		if collaborationReadFailure(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, factoryservice.ErrPullFilesQuery):
 			writeError(w, 400, "invalid_request", "Invalid diff query.")

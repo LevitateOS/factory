@@ -78,6 +78,9 @@ func (s CollaborationThreads) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		if collaborationReadFailure(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, factoryservice.ErrThreadQuery):
 			writeError(w, 400, "invalid_request", "Invalid thread query.")

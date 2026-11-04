@@ -82,7 +82,17 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Runs:    factoryhttp.Runs{Store: application.Store, Visibility: bound.visible, Status: factoryservice.RunStatus{Store: application.Store}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
-	// Capture/judgment, setup, native execution and collaboration sources are
+	reads := nativeCollaborationReads{bound}
+	product.CollaborationIssues = factoryhttp.CollaborationIssues{Service: factoryservice.CollaborationIssues{Source: reads}}
+	product.CollaborationPulls = factoryhttp.CollaborationPulls{Service: factoryservice.CollaborationPulls{Source: reads}}
+	product.Discussions = factoryhttp.CollaborationDiscussions{Service: factoryservice.CollaborationDiscussions{Source: reads}}
+	product.Reviews = factoryhttp.CollaborationReviews{Service: factoryservice.CollaborationReviews{Source: reads}}
+	product.Threads = factoryhttp.CollaborationThreads{Service: factoryservice.CollaborationThreads{Source: reads}}
+	product.PullFiles = factoryhttp.CollaborationPullFiles{Service: factoryservice.CollaborationPullFiles{Source: reads}}
+	product.Checks = factoryhttp.CollaborationChecks{Service: factoryservice.CollaborationChecks{Source: reads}}
+	product.RepositoryCatalog = factoryhttp.CollaborationRepositories{Service: factoryservice.CollaborationRepositories{Source: reads}}
+	product.CapabilityReads = factoryhttp.CollaborationCapabilities{Service: factoryservice.CollaborationCapabilities{Source: reads}}
+	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started
 	// by logging in, by reading stored work, or by saving an owner-private draft.

@@ -80,6 +80,9 @@ func (s CollaborationIssues) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		if collaborationReadFailure(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, factoryservice.ErrCollaborationIssueQuery):
 			writeError(w, 400, "invalid_request", "Invalid issue query.")

@@ -87,6 +87,9 @@ func discussionWindow(r *http.Request) (factoryservice.DiscussionQuery, error) {
 	return q, q.Validate()
 }
 func discussionReadError(w http.ResponseWriter, err error) {
+	if collaborationReadFailure(w, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, factoryservice.ErrDiscussionQuery):
 		writeError(w, 400, "invalid_request", "Invalid discussion query.")

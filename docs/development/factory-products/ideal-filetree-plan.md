@@ -160,10 +160,15 @@ Rust owner, scoped to one finite native account/repository operation. It retains
 Go's canonical identity, service admission and transactional product owner;
 the product binder now maps fresh account and optional selected repository facts
 transactionally and serves shared core Factory APIs with current per-resource
-admission. Shared normalized collaboration readers and desktop selection remain
-explicit consumers. A direct production-server journey verifies this Go consumer
-with declared nonsecret native facts plus real Rust/GitHub refusal; it does not
-claim live connected or installed UI qualification.
+admission. Shared canonical issue/PR/discussion/review/reply-group/file/check
+readers now consume Rust observations, with Go atomic participant/fork identity
+mapping and neutral projection. Fork references grant no connection access.
+Scoped cursors preserve pagination, pins and nullable evidence. REST root groups
+leave resolution/anchors unknown; jobs and branch rules are the explicit required
+T06-GITHUB-EVIDENCE producer after CONNECT and before the final provider gate.
+Desktop selection/shared UI and installed qualification remain consumers.
+Direct production-server evidence distinguishes declared semantic facts from
+actual approved Rust connector reads; neither claims connected UI qualification.
 T05-CONTROL is complete: bounded product I/O has a separate joined native owner,
 desktop calls release the lifecycle mutex before awaiting, cancellation retires
 polling I/O, and native product routes enforce captured instance scope. Actual

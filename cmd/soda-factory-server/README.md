@@ -39,9 +39,13 @@ Rust owns complete authenticated GitHub requests, device flow, refresh, account
 verification and provider-local decoding. Go receives only bounded nonsecret
 observations through private peer/key/instance/lifetime gates; its observation
 handler maps canonical identities in one transaction. The old native Go SDK and
-credential-carrying routes are removed. Shared normalized collaboration readers,
-desktop selection/UI, native execution and installed qualification remain the
-next consumers. No provider credential passes through this executable.
+credential-carrying routes are removed. Shared canonical issue/PR, discussion,
+review/reply-group, pinned file and check/status reads now consume these native
+facts through the same product services and Store. Fork references never confer
+access. Unknown resolution/anchors/branch rules remain unknown; workflow jobs and
+human mutations remain unavailable. Desktop selection/UI, remaining provider
+evidence, native execution and installed qualification are subsequent consumers.
+No provider credential passes through this executable.
 macOS native execution/qualification remains deferred.
 
 ## Forge integration

@@ -62,8 +62,8 @@ A separate joined collaboration runtime serves semantic callbacks on the owned
 observations while its shared services run. Rust uses the existing complete
 GitHub connector and its defining `Read` selectors; it accepts no provider URL,
 HTTP signing request, canonical selector or credential from Go. The Go client
-currently exposes Current, Identity and Repository; remaining shared read
-consumers follow in the product composition packet. Current proves custody only,
+exposes Current, Identity, Repository and finite semantic read observations for
+the Go shared collaboration services. Current proves custody only,
 while Identity performs the actual provider account check. Replies include the
 operation's admitted optional remote repository, never a product/browser-selected
 scope. The provider decodes nullable push permission; Go decides whether those
@@ -81,8 +81,9 @@ protects stale owned-socket recovery; cleanup preserves any replacement inode.
 
 The production Go executable now binds its shared core product services only for
 these admitted operations, using fresh verified facts and one canonical mapping
-transaction. Ordinary unscoped calls still refuse. Shared normalized collaboration
-sources and desktop selection/UI remain consumers. This runtime does not start
+transaction. Ordinary unscoped calls still refuse. Shared collaboration read
+sources now consume these ports; desktop selection/UI remains a consumer.
+This runtime does not start
 the product coordinator or grant planning/execution authority.
 
 `health()` freshly checks owned child exits and authenticated bounded Unix HTTP
@@ -177,7 +178,14 @@ locator to a stable repository ID; Link URLs are never followed.
 `NativeSupervisor.github_read(credentials, capability, github::Read)` freshly
 admits native custody and verifies the actual account through /user. It accepts
 semantic selectors for repositories, issues, PRs, ordinary discussions, reviews,
-inline comments, check runs, statuses, immutable diffs and file pages. One Rust
+inline comments, REST review reply groups, check runs, statuses, immutable diffs
+and file pages. Reply groups collect a complete bounded forest (1,000 comments,
+20 upstream pages, 8 MiB aggregate) under the existing operation deadline; cycles,
+dangling replies and duplicate identities refuse. Catalog previews contain ten
+comments and retain continuation; detail pages use actual root comment IDs.
+These observations do not claim GraphQL resolution or immutable/current anchors.
+Nullable private/push facts remain nullable. Workflow jobs and branch-rule reads
+remain a required later producer. One Rust
 selector defines request bounds. Stable repository/parent/current-head checks
 bracket the relevant operations. Unknown/null facts remain unknown; read access
 and CI observations never create product mutation or execution authority.
@@ -202,7 +210,12 @@ Real native refusal, Secret Service, PostgreSQL, removed-route, nonsecret mappin
 and late-rollback checks pass. The corrected approved Rust journey also passes:
 two repository pages, private access, canonical issues, PR/diff/file and evidence
 reads, actual refresh, credential reload and stable canonical IDs after restart.
-The locally stored test grant was withdrawn and owned PostgreSQL stopped. The
+The later shared-reader journey also passes through production Go services backed
+by Rust: live paged issues, PR discussion/reviews/files/checks, an actual REST reply
+group and stable canonical account after restart. Declared semantic-boundary
+checks separately cover nullable facts, scoped cursors, reply continuation and
+atomic fork-reference isolation. Neither claims connected or installed UI.
+The locally stored test grants were withdrawn and owned PostgreSQL stopped. The
 initial pagination-alias failure remains retained evidence. Actual Linux Tauri
 controls render a real device challenge, hand off the fixed browser URL and cancel
 without storing a credential. The opener receiver is a declared fixture.

@@ -52,6 +52,9 @@ func (s CollaborationCapabilities) readSubject(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err != nil {
+		if collaborationReadFailure(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, factoryservice.ErrCapabilitiesQuery):
 			writeError(w, 400, "invalid_request", "Invalid capability query.")

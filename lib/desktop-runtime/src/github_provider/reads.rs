@@ -85,6 +85,7 @@ impl Client {
                         "pull_review_comments" | "pull_review_comment" => {
                             ("review_comments", reader.reviews(&q, true).await?)
                         }
+                        "pull_threads" => ("threads", reader.threads(&q).await?),
                         "pull_check_runs" | "pull_commit_statuses" => (
                             if kind == "pull_check_runs" {
                                 "checks"
@@ -287,7 +288,7 @@ impl<'a> Reader<'a> {
             json!({"repository":self.repository,"name":self.name,"subject":before,"items":projected,"next_page":response.next}),
         )
     }
-    async fn reviews(&self, q: &Value, comments: bool) -> Result<Value> {
+    pub(super) async fn reviews(&self, q: &Value, comments: bool) -> Result<Value> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let before = self.subject(true, number).await?;
         let selected = q[if comments { "comment_id" } else { "review_id" }].as_str();

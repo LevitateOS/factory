@@ -125,6 +125,7 @@ sodaos/
 │           │   ├── reads.rs
 │           │   ├── records.rs
 │           │   ├── diff.rs
+│           │   ├── threads.rs          # bounded native REST reply forest
 │           │   └── patch.rs
 │           ├── connections.rs
 │           └── bridge.rs
@@ -336,8 +337,14 @@ atomically maps account/repository identities, and supplies the existing shared
 feed, request and retained-read services. Semantic replies carry the native
 selected repository and nullable push permission. Go owns admission and all
 product transactions; Rust retains credential/provider and operation lifetime.
-T06-CONNECT-READS maps normalized collaboration sources next, before the desktop
-selection/UI consumer. Missing planning/execution dependencies remain explicit.
+T06-CONNECT-READS defines native_product_observations.go (bounded facts, canonical
+mapping and scoped cursors), native_product_reads.go (subjects/catalog/capabilities),
+native_product_discussions.go and native_product_evidence.go. They compose the
+shared services in the same binder; Rust threads.rs owns the bounded REST reply
+forest. References are mapped transactionally without access associations.
+collaboration_errors.go retains only safe provider failure/rate observations.
+Desktop selection/UI remains the next consumer. Workflow jobs and branch rules
+remain T06-GITHUB-EVIDENCE; planning/execution dependencies remain explicit.
 T04-UI closes the shared source/build boundary after its listed recovery and
 composition prerequisites. `frontend/factory/app/browser.ts` exposes the defining
 application and its request-error constructor, plus typed host contracts.

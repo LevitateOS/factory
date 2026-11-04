@@ -84,6 +84,13 @@ pub enum Read {
         number: u32,
         comment_id: String,
     },
+    PullThreads {
+        repository: String,
+        number: u32,
+        page: u32,
+        limit: u32,
+        thread_id: String,
+    },
     PullCheckRuns {
         repository: String,
         number: u32,
@@ -153,6 +160,14 @@ impl Read {
             return Err(Failure::invalid());
         }
         let files = matches!(self, Self::PullFiles { .. });
+        if let Self::PullThreads {
+            thread_id, limit, ..
+        } = self
+        {
+            if !thread_id.is_empty() && !remote_id(thread_id) || *limit > 20 {
+                return Err(Failure::invalid());
+            }
+        }
         if let Some(page) = value.get("page") {
             if page
                 .as_u64()

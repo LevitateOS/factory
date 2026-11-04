@@ -11,7 +11,7 @@ import (
 // runs inside this transaction. A late conflict rolls back the complete batch.
 func (s *Store) ApplyCollaborationObservation(ctx context.Context, batch collaboration.ConnectionObservationBatch) (collaboration.ConnectionObservationMapping, error) {
 	var empty collaboration.ConnectionObservationMapping
-	if batch.Repository < 0 || len(batch.Repositories) > 50 || len(batch.Actors) > 50_050 || batch.Repository > 0 && len(batch.Repositories) > 1 {
+	if batch.Repository < 0 || len(batch.Repositories) > 50 || len(batch.References) > 100 || len(batch.Actors) > 50_050 || batch.Repository > 0 && len(batch.Repositories) > 1 {
 		return empty, collaboration.ErrIdentityConflict
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -23,7 +23,7 @@ func (s *Store) ApplyCollaborationObservation(ctx context.Context, batch collabo
 	if err != nil {
 		return empty, err
 	}
-	result := collaboration.ConnectionObservationMapping{Binding: binding, Repositories: []collaboration.RepositoryRef{}, Actors: map[string]collaboration.ActorRef{}}
+	result := collaboration.ConnectionObservationMapping{Binding: binding, Repositories: []collaboration.RepositoryRef{}, Actors: map[string]collaboration.ActorRef{}, References: map[string]collaboration.RepositoryRef{}}
 	if batch.Repository > 0 {
 		var ref collaboration.RepositoryRef
 		err = tx.QueryRowContext(ctx, `SELECT id,host,external_id,name FROM collaboration_repositories WHERE host=$1 AND id=$2 FOR SHARE`, binding.Host.ID, batch.Repository).Scan(&ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
@@ -58,6 +58,17 @@ func (s *Store) ApplyCollaborationObservation(ctx context.Context, batch collabo
 			return empty, registryWriteError(err)
 		}
 		result.Actors[raw.ExternalID] = actor
+	}
+	for _, raw := range batch.References {
+		if !collaboration.ValidText(raw.ExternalID, 512) || !collaboration.ValidText(raw.Name, 512) {
+			return empty, collaboration.ErrIdentityConflict
+		}
+		var ref collaboration.RepositoryRef
+		err := tx.QueryRowContext(ctx, observeCollaborationRepositorySQL, binding.Host.ID, raw.ExternalID, raw.Name).Scan(&ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
+		if err != nil {
+			return empty, registryWriteError(err)
+		}
+		result.References[raw.ExternalID] = ref
 	}
 	if err := tx.Commit(); err != nil {
 		return empty, err

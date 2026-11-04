@@ -46,10 +46,15 @@ type ConnectionObservationBatch struct {
 	Repository   RepositoryID
 	Repositories []ObservedRepository
 	Actors       []ObservedActor
+	// References are provider-observed repository identities mentioned by the
+	// resource (for example a PR fork). Recording them never associates the
+	// connection with access to those repositories.
+	References []ObservedRepository
 }
 type ConnectionObservationMapping struct {
 	Binding      ConnectionBinding
 	Repository   *RepositoryRef
 	Repositories []RepositoryRef
 	Actors       map[string]ActorRef
+	References   map[string]RepositoryRef
 }
