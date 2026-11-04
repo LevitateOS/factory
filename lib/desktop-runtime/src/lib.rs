@@ -8,7 +8,19 @@ pub mod collaboration;
 pub mod credentials;
 #[cfg(target_os = "linux")]
 pub mod database;
-#[cfg(target_os = "linux")]
+#[cfg(all(
+    target_os = "linux",
+    feature = "trusted-host-process-probe",
+    not(debug_assertions)
+))]
+compile_error!("trusted-host-process-probe cannot be enabled in release builds");
+#[cfg(all(
+    target_os = "linux",
+    feature = "trusted-host-process-probe",
+    debug_assertions
+))]
+// Direct process diagnostics only. The production runtime cannot compile this
+// same-user launch path into a selectable native agent executor.
 pub mod execution;
 #[cfg(target_os = "linux")]
 pub mod github;

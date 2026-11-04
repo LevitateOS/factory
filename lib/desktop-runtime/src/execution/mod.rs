@@ -1,6 +1,6 @@
-//! Headless Linux native process authority. No product decisions, SQL, Tauri,
-//! provider login or browser command surface. The admitted harness/workspace
-//! consumer constructs invocations; Go retains the durable product transition.
+//! Headless Linux native process diagnostic. This module is omitted from normal
+//! builds: its workers still have the desktop user's host identity and cannot
+//! satisfy the isolated native-agent admission gate. Go retains product transitions.
 use crate::database::{private_dir, private_file};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;

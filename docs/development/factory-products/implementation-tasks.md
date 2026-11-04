@@ -726,7 +726,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
 | 331 | T12-PLACEMENT | T01-RUNTIME, T03-APP, T06-CONNECT | Persist/enforce runtime placement, generation and explicit policy enrollment before dispatch. Prove local GitHub single-controller behavior; preserve appliance admission. Remote Fountain placement is qualified in T10-GATEWAY. Automation stays inactive. | Pending |
 | 332 | T09-NATIVE-PROCESS | T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3 producer: Implement reusable Rust captured native executable/process/PTY ownership with kernel process-tree and resource scopes, hard deadlines, bounded output and joined cancellation/retirement. Qualify actual finite child/descendant execution independently of Go polling; missing delegation refuses launch. No product workflow/SQL or browser process API. | Complete |
-| 333 | T09-NATIVE-EXECUTOR | T09-NATIVE-PROCESS, T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3: Implement headless Rust native process/tree/PTY/deadline/workspace/Git/artifact/custody operations behind admitted execution contracts, with independent cleanup and no duplicate Go workflow/SQL state machine. Qualify finite execution, cancellation and retirement before the execution consumer. | Pending |
+| 333 | T09-NATIVE-EXECUTOR | T09-NATIVE-PROCESS, T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3: Implement a worker with a host identity isolated from the desktop user's files and keyring, plus headless Rust process/tree/PTY/deadline/workspace/Git/artifact/custody operations behind admitted execution contracts. Broker only scoped credentials; qualify actual isolation, finite execution, cancellation and retirement before the execution consumer. | Pending |
 | 334 | T09-EXECUTION | T09-NATIVE-EXECUTOR, T02-ENGINE, T05-LIFECYCLE, T05-CREDENTIALS, T06-CONNECT, T12-PLACEMENT | N4: Supply the admitted Rust execution ports to the single Go coordinator; start it only when dependencies are admitted. Preserve native worktrees, provider custody, provenance, cancellation, candidate capture and ledger recovery. Integrate executor retirement into Quit/crash/recovery before unattended intake; qualify D3 and a real finite provider run. | Pending |
 | 335 | T10-GATEWAY | T05-CREDENTIALS, T06-FOUNTAIN, T10-WRITES, T12-PLACEMENT | Supported Fountain desktop login/enrollment, revocable grants, authenticated HTTPS reads/operations and centrally coordinated runtime placement; prove D2 and connect the existing desktop views. Candidate transfer is the next slice. | Pending |
 | 336 | T10-PUBLISH | T09-EXECUTION, T10-GATEWAY | Digest-bound candidate transfer/staging and conditional Fountain publication with retained operation lookup; prove native execution to PR and lost-upload/write recovery. | Pending |
@@ -23932,8 +23932,10 @@ and the existing consuming HostFactory/BrokerExecution interfaces.
   implementation. Native runtime owns enrolled local roots, isolated run worktrees,
   process identity/descendants/PTY/deadlines, checkpoint/export and restart receipts.
   Existing user working changes are never overwritten by preparation or cleanup.
-- **C:** D3 defines trusted same-user execution and the actually enforceable role/
-  credential boundaries. Retain repository/capacity/provider sponsorship gates.
+- **C:** D3 requires a worker identity isolated from the desktop user's files
+  and keyring, with qualified role and credential boundaries. Retain repository/
+  capacity/provider sponsorship gates. The same-user process probe cannot be
+  promoted into the product executor.
   Git credential helper/SSH agent, collaboration token and provider CLI account
   remain different integrations. Never scrape private CLI auth formats.
 - **C:** Reuse provider-tools freshness/discovery and supported provider login;

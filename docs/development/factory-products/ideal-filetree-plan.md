@@ -219,12 +219,42 @@ issue/PR mutation or deployment was performed for the extraction.
 | --- | --- | --- |
 | D1 | Adopt an explicit GitHub standing automation policy over current verified facts, or retain original-author creation evidence as mandatory. Recommendation: the former, with eligible authors/forks, actor, repository, limits and accepted content revision recorded. | Automatic GitHub intake activation, not read/write UI or connector development. Until resolved, discovered work waits for explicit maintainer adoption. |
 | D2 | Prove Fountain desktop enrollment/login and revocation using supported native authentication. Existing OAuth PKCE code is evidence for a spike, not proof the new gateway is admitted. | Remote Fountain operations; no spoofed browser authority or raw Unix socket exposure. |
-| D3 | Qualify native same-user execution as a distinct trusted-host mode. It does not inherit appliance UID/container isolation. Determine and document which role/custody invariants the native executor actually enforces. | Selectable native execution and unattended work, not desktop browsing or Storybook. |
+| D3 | Require a native worker identity isolated from the desktop user's files and keyring. Keep the existing same-user process primitive internal and unavailable to product execution. Qualify worker UID, filesystem and process visibility, session/keyring access, exact worktree mounts, credential handoff/withdrawal, role capabilities and retirement on the actual launch path. A namespace mapped to the desktop user's host UID alone does not satisfy this gate. | Selectable native execution and unattended work, not desktop browsing or Storybook. |
 | D4 | Select native PG packaging and diff renderer from the early spikes. Resolve fresh official artifacts and actual target behavior. | Shipping those components, not the independent extraction packets. |
 | D5 | Current repository extension admission requires code-unit read. Issue-only collaborators require a Fountain capability change for full native visibility parity. | Full collaborator parity; initial Factory/code-reader journeys can use current extension routes. External Fountain edits need their own authorized implementation scope. |
 
 These are precise implementation gates, not requests to stop planning. The task
 list includes their producers and useful work that proceeds independently.
+
+### D3 native-agent isolation decision
+
+The user selected isolation from the desktop user's files and keyring. The
+current Rust process primitive is a verified resource/retirement probe, not an
+admitted agent executor: it launches under the desktop user's host UID. It is
+therefore compiled only for explicit debug process diagnostics. The production
+Go native server starts no execution coordinator and continues to report its
+missing execution ports as unavailable.
+
+Before a native coding agent becomes selectable, the N3/N4 path must prove:
+
+- The worker has a distinct host identity and cannot read the desktop user's
+  private files, Secret Service session bus or kernel keyring, inspect its
+  processes, or modify the desktop user's cgroup scopes. A user namespace that
+  maps back to the desktop UID is insufficient. Grant only the exact run
+  worktree and required system/runtime paths; verify this with actual negative
+  reads and an unrelated private-file canary.
+- The native owner keeps provider account secrets, Git credentials, collaboration
+  tokens and the MCP signing key outside the worker. It brokers only scoped,
+  revocable capabilities needed by the admitted run. Withdrawal, owner crash and
+  restart must deny new use and retire or reconcile old capabilities without
+  claiming that direct-child exit proves credential return.
+- The actual worker path enforces the admitted role's tool set, resource ceilings,
+  deadline, process-tree retirement and exact candidate capture. A real finite
+  provider run, plus denied role/file/keyring probes, is required for D3 closure.
+
+No current N3/N4 consumer satisfies these checks; D3 remains open and native
+agent execution remains unavailable. The earlier same-user acceptance evidence
+continues to cover only process and cgroup behavior.
 
 ## Inspection identity and evidence limits
 

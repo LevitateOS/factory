@@ -26,8 +26,9 @@ profile paths; T14 implements supported distribution/upgrades.
 
 ## Admitted native processes
 
-`execution::Processes` owns finite native processes without Tauri or a Go
-progress loop. Its native harness consumer supplies a private directory,
+The opt-in diagnostic `execution::Processes` primitive owns finite native
+processes without Tauri or a Go progress loop. Its native harness consumer
+supplies a private directory,
 `Executable`, explicit arguments/environment, terminal size and resource limits.
 These are Rust-only inputs, with no generic Go RPC, browser shell command,
 serialization or inherited parent environment. Product admission and durable
@@ -63,10 +64,15 @@ exclusive reopen. Reopen retires only that profile's retained native scopes.
 
 This is trusted same-user host execution. It does not isolate a hostile process
 from that user's files, logins or cgroup authority, and cannot turn an
-uninterruptible kernel task into a proved retirement. Native workspace/Git,
-credential delivery, durable invocation/restart receipts and actual provider
-integration remain the N3/N4 consumers. Their absence keeps product execution
-unavailable.
+uninterruptible kernel task into a proved retirement. Its module is absent from
+normal builds and available only with the `trusted-host-process-probe` feature
+in debug builds; release builds reject that feature. No production consumer can
+select or launch this primitive as a native agent executor.
+Native workspace/Git, an isolated worker identity, brokered credential delivery,
+durable invocation/restart receipts and actual provider integration remain the
+N3/N4 consumers. Their absence keeps product execution unavailable. A mount/user
+namespace that maps the worker back to the desktop user's host UID is not proof
+of the required identity separation.
 
 ## Managed native children
 

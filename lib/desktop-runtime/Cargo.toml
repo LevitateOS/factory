@@ -6,6 +6,11 @@ license = "Apache-2.0"
 publish = false
 description = "Native Factory desktop process and storage lifecycle"
 
+[features]
+# Explicit direct-process diagnostics only. Native agent execution must use an
+# isolated worker identity and brokered credentials before it is exposed.
+trusted-host-process-probe = []
+
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "=0.2.191"
 getrandom = { version = "=0.4.3", features = ["std"] }
