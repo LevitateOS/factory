@@ -667,6 +667,7 @@ fn arm_agent(
         Err(error) => return Err(error),
         Ok(_) => false,
     };
+    let mut socket_attempted = false;
     let checked = (|| {
         let file = OpenOptions::new()
             .read(true)
@@ -685,6 +686,7 @@ fn arm_agent(
         if actual != expected {
             return Err(denied("agent role already differs"));
         }
+        socket_attempted = true;
         manager_unit("start", &format!("soda-factory-agent@{run}.socket"))?;
         let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
         let parent = socket.parent().expect("fixed agent socket parent");
@@ -698,7 +700,7 @@ fn arm_agent(
         }
         Ok(())
     })();
-    if checked.is_err() {
+    if checked.is_err() && (created || socket_attempted) {
         // Keep the declaration on a failed stop so retirement can still find
         // and stop a potentially armed unit on its next exact-run retry.
         if stop_agent(run, &directory).is_ok() && created {

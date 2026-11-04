@@ -265,6 +265,20 @@ read-only candidate mount, then reports `execution_available:false`.
 disposable system installation of the agent service and a mock private relay
 activated the exact-run socket. The desktop client accepted its exact worker
 attestation, and an unknown path field produced no reply. The mock relay did
-not exercise the broker's `arm_agent` request or full retirement chain. Go
-admission, coder workspace, role tool policy, credential withdrawal and a real
-finite provider task are still required before D3 closes.
+not exercise the broker's `arm_agent` request or full retirement chain.
+
+A subsequent disposable installation used the real broker, preparer, provider
+relay and agent units with a 365-byte dummy Git bundle and credential-free
+owner socket. The typed desktop client staged the bundle, prepared its exact
+candidate, attested relay UID 64727, armed the reviewer role and attested agent
+UID 64596. A role-change replay was refused. The live check found that the
+refusal also stopped the existing socket; the broker now stops a socket after
+an arm failure only if it attempted to start that socket. Repeating the role
+replay preserved the active socket and an exact attestation still succeeded.
+A wrong retirement digest left the run active. Exact retirement stopped the
+agent socket and relay, removed its checkout and staged bundle, and made later
+agent attestation fail; repeating retirement reported the run absent. Root
+inspection found no source, preparation, socket or run runtime afterward. All
+temporary units, binaries, dummy sockets and state were removed. Go admission,
+coder workspace, role tool policy, credential withdrawal and a real finite
+provider task are still required before D3 closes.

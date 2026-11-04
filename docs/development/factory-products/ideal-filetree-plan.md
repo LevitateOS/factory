@@ -355,9 +355,16 @@ persistent keyring and original checkout reads were denied, as were writes and
 chmod on the read-only mount. Its network namespace matched a mock relay and
 differed from the host; an unknown path field failed without a reply. The
 temporary units and dummy workspace were removed. The actual broker arm and
-retirement chain, admitted role-limited tool execution, coder workspace,
-credential withdrawal, cgroup boundary probe and finite provider task remain
-D3 requirements.
+retirement chain was then exercised with the real broker, preparer, relay and
+agent units, a dummy Git bundle and a credential-free owner socket. Wrong-role
+replay initially stopped the valid socket; the broker cleanup path was fixed
+and a repeat refusal left the socket active and attestable. Wrong-digest
+retirement preserved the run. Exact retirement stopped both units and removed
+the staged bundle and prepared checkout; replayed retirement found the run
+absent, and agent attestation could not revive it. Temporary system state was
+removed. Admitted role-limited tool execution, coder workspace, credential
+withdrawal, cgroup boundary probe and a finite provider task remain D3
+requirements.
 
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do

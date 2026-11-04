@@ -195,3 +195,12 @@ normal host user. The temporary service, mock relay, binaries, socket and
 checkout were removed. The mock relay did not prove an owner-backed provider
 request or credential withdrawal; the agent remains attestation-only and D3
 remains open.
+
+A separate exact-run proof then used the real broker, preparer, provider relay
+and agent units. The broker armed only the staged and prepared reviewer run;
+the agent attested UID 64596 and the exact candidate. A changed role was
+refused without stopping the valid socket after the broker cleanup fix. Exact
+retirement stopped the agent and relay and removed the mounted source; a later
+agent attestation failed. The owner socket supplied no account credential, and
+no agent execution or provider request was attempted. Temporary system state
+was removed.
