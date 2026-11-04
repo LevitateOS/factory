@@ -13,7 +13,10 @@ authorization belong to the later harness consumer.
 `Executable::from_stream` bounds, hashes and seals bytes under the receiving
 worker UID. Its source path is retained only as provenance; the worker never
 opens that desktop path to execute. The protocol owner must bound transfer time
-and validate the complete frame. On this Rocky Linux host, passing the
+and validate the complete frame. `Executable::copy_to` streams the exact sealed
+capture without rereading the mutable source. Both capture and import use a
+512 MiB ceiling: the currently installed Muse ELF is 415 MB and exceeded the
+old 128 MiB limit. On this Rocky Linux host, passing the
 desktop-created sealed memfd with `SCM_RIGHTS` across the UID boundary failed:
 SELinux denied the worker write access to its `user_tmp_t` labeled memfd and
 `recvmsg` returned truncated control data. A same-UID transfer control passed.
@@ -25,6 +28,9 @@ socket-activated UID-61739 worker with delegated CPU/memory/process cgroups.
 The worker could not read the source path. Digest, ELF header, truncation and
 declared-size refusals passed; the valid child exited zero and its tree retired.
 This checks the import/process boundary, not a product launch or provider run.
+The observed 415 MB Muse 1.4.14 ELF separately streamed and ran `--version`
+under the same worker service profile; it exited zero and its tree retired.
+This did not authenticate, invoke a model or qualify provider credential custody.
 
 The caller must supply a user-delegated cgroup-v2 root with CPU, memory and
 process controllers enabled, and permission to move its children into that

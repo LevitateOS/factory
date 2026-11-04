@@ -312,6 +312,14 @@ length were refused. This establishes a viable executable import primitive;
 scripts/provider bundles, admitted run binding, workspace, role, credentials
 and a real provider run remain unqualified.
 
+The observed installed Muse 1.4.14 binary is a 415 MB static ELF, above the
+old 128 MiB process-capture ceiling. Capture and worker import now share an
+explicit 512 MiB ceiling, and the desktop side can stream only the sealed
+captured bytes. The actual Muse ELF crossed the isolated socket, ran its finite
+`--version` command as the worker UID, exited zero and retired its process tree.
+That version check used no provider account, model or real task and does not
+close the remaining credential, role, workspace or provider-run gates.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

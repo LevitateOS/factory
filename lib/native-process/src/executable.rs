@@ -3,8 +3,10 @@ use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{FileExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
+
+const MAX_EXECUTABLE_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Captured native ELF bytes, sealed before any launch. This is native authority,
 /// not a serializable command supplied by Go or the webview. Script/bundle and
@@ -62,7 +64,7 @@ impl Executable {
             || meta.mode() & 0o111 == 0
             || meta.mode() & 0o022 != 0
             || meta.len() < 4
-            || meta.len() > 128 * 1024 * 1024
+            || meta.len() > MAX_EXECUTABLE_BYTES
         {
             return Err(Error::Executable);
         }
@@ -79,7 +81,7 @@ impl Executable {
                 return Err(Error::Executable);
             }
             size += n as u64;
-            if size > 128 * 1024 * 1024 {
+            if size > MAX_EXECUTABLE_BYTES {
                 return Err(Error::Executable);
             }
             hash.update(&buffer[..n]);
@@ -114,7 +116,7 @@ impl Executable {
     ) -> Result<Self> {
         if !source.is_absolute()
             || source.as_os_str().len() > 4096
-            || !(4..=128 * 1024 * 1024).contains(&length)
+            || !(4..=MAX_EXECUTABLE_BYTES).contains(&length)
             || expected_sha256.len() != 64
             || !expected_sha256
                 .bytes()
@@ -153,6 +155,35 @@ impl Executable {
     }
     pub fn source(&self) -> &Path {
         &self.source
+    }
+    pub fn len(&self) -> Result<u64> {
+        let length = self.file.metadata().map_err(|_| Error::Executable)?.len();
+        if !(4..=MAX_EXECUTABLE_BYTES).contains(&length) {
+            return Err(Error::Executable);
+        }
+        Ok(length)
+    }
+    /// Send the exact sealed capture without consulting its mutable source
+    /// path. The receiver must rehash and seal its own imported copy.
+    pub fn copy_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        let length = self.len()?;
+        let mut buffer = [0u8; 65536];
+        let mut offset = 0u64;
+        while offset < length {
+            let want = buffer.len().min((length - offset) as usize);
+            let n = self
+                .file
+                .read_at(&mut buffer[..want], offset)
+                .map_err(|_| Error::Executable)?;
+            if n == 0 {
+                return Err(Error::Executable);
+            }
+            writer
+                .write_all(&buffer[..n])
+                .map_err(|_| Error::Executable)?;
+            offset += n as u64;
+        }
+        Ok(())
     }
     pub fn sha256(&self) -> &str {
         &self.sha256
