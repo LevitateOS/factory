@@ -18,16 +18,19 @@ mod agent_candidate;
 use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
 
 const SOURCE: &str = "/run/factory-source";
-const WORKSPACE: &str = "/run/factory-agent-private/workspace";
+const WORKSPACE: &str = "/run/factory-agent-private/run/workspace";
 const ROLE: &str = "/run/factory-role";
-const PRIVATE: &str = "/run/factory-agent-private";
+const PRIVATE: &str = "/run/factory-agent-private/run";
+const PRIVATE_MOUNT: &str = "/run/factory-agent-private";
+const PRIVATE_MAX_BYTES: u64 = 768 * 1024 * 1024;
+const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
 const MAX_REQUEST: usize = 512;
 const MAX_PROMPT: usize = 320 * 1024;
 const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
-const PROMPT: &str = "/run/factory-agent-private/agent.prompt";
+const PROMPT: &str = "/run/factory-agent-private/run/agent.prompt";
 
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -127,6 +130,41 @@ fn close_on_exec(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
+fn bounded_tmpfs(path: &str, max_bytes: u64) -> io::Result<()> {
+    let mount = Path::new(path);
+    let metadata = mount.symlink_metadata()?;
+    let parent = mount
+        .parent()
+        .ok_or_else(|| refused("agent storage mount path invalid"))?
+        .symlink_metadata()?;
+    let path = std::ffi::CString::new(path).map_err(|_| refused("agent storage path invalid"))?;
+    let mut filesystem = std::mem::MaybeUninit::<libc::statfs>::uninit();
+    let mut capacity = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+    if !metadata.is_dir()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o7777 != 0o1777
+        || metadata.dev() == parent.dev()
+        || unsafe { libc::statfs(path.as_ptr(), filesystem.as_mut_ptr()) } != 0
+        || unsafe { filesystem.assume_init() }.f_type != libc::TMPFS_MAGIC
+        || unsafe { libc::statvfs(path.as_ptr(), capacity.as_mut_ptr()) } != 0
+    {
+        return Err(refused("agent storage mount invalid"));
+    }
+    let capacity = unsafe { capacity.assume_init() };
+    if capacity.f_blocks.saturating_mul(capacity.f_frsize) > max_bytes {
+        return Err(refused("agent storage mount capacity invalid"));
+    }
+    Ok(())
+}
+
+fn inaccessible_storage(path: &str) -> io::Result<()> {
+    let metadata = Path::new(path).symlink_metadata()?;
+    if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0 {
+        return Err(refused("agent scratch storage remains accessible"));
+    }
+    Ok(())
+}
+
 fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     let uid = unsafe { libc::geteuid() };
     if uid == 0
@@ -158,6 +196,12 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     {
         return Err(refused("agent host runtime path visible"));
     }
+    bounded_tmpfs(PRIVATE_MOUNT, PRIVATE_MAX_BYTES)?;
+    for path in ["/tmp", "/var/tmp", "/dev/shm", "/run/lock"] {
+        inaccessible_storage(path)?;
+    }
+    fs::create_dir(PRIVATE)?;
+    fs::create_dir(PRIVATE_TMP)?;
     let metadata = Path::new(PRIVATE).symlink_metadata()?;
     if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != 0o700 {
         return Err(refused("agent private runtime identity invalid"));
@@ -287,6 +331,7 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
     let executable = Executable::capture(Path::new("/usr/bin/git"))
         .map_err(|_| refused("agent Git executable unavailable"))?;
     let environment = BTreeMap::from([
+        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
         (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
         (
             OsString::from("GIT_CONFIG_GLOBAL"),
@@ -668,6 +713,7 @@ fn execute_agent(
         arguments.extend(["--disable-shell", "--disable-write"].map(OsString::from));
     }
     let environment = BTreeMap::from([
+        (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
         (OsString::from("HOME"), OsString::from(PRIVATE)),
         (
             OsString::from("XDG_CONFIG_HOME"),

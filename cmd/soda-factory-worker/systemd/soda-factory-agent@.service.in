@@ -12,7 +12,10 @@ UMask=0077
 RuntimeDirectory=soda-factory-agent/%i
 RuntimeDirectoryMode=0700
 TemporaryFileSystem=/run/soda-factory-agent:mode=0700
-BindPaths=/run/soda-factory-agent/%i:/run/factory-agent-private
+# This mount belongs to this service instance. The worker creates its 0700
+# run directory inside it after checking the mount identity and size.
+TemporaryFileSystem=/run/factory-agent-private:mode=1777,size=768M
+InaccessiblePaths=/tmp /var/tmp /dev/shm /run/lock
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output/repo:/run/factory-source
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/agent.role:/run/factory-role
 ProtectHome=yes

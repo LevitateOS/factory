@@ -298,9 +298,10 @@ this check.
 A concurrent probe found that two instances of one `DynamicUser=yes` template
 can share the same host UID (62475 here), so UID and mode `0700` alone did not
 isolate their run directories or cgroups from each other. A per-run systemd
-profile now places each agent in a private PID namespace, overlays the shared
-runtime parent with a root-owned mode-`0700` tmpfs, and binds only its own
-runtime at `/run/factory-agent-private`. It also overlays the host cgroup tree
+profile placed each agent in a private PID namespace, overlaid the shared
+runtime parent with a root-owned mode-`0700` tmpfs, and bound only its own
+runtime at `/run/factory-agent-private` during that check. It also overlaid the
+host cgroup tree
 and binds only its exact system unit cgroup at `/sys/fs/cgroup/factory`.
 Two concurrent dummy instances with the same UID had distinct PID namespaces,
 could read only their own runtime and cgroup mount, could not see the host
@@ -320,9 +321,25 @@ emitted a marker, and was cancelled; the monitor reported `Cancelled` and a
 retired tree. The process owner retired, and the service exited successfully.
 The diagnostic unit, binary and dummy preparation were removed. This verifies
 child launch and descendant cancellation under the unit's private runtime,
-PID namespace and delegated cgroup. The production agent remains
-attestation-only; concurrent execution, cross-run denial, role-limited tools,
+PID namespace and delegated cgroup. At that checkpoint the production agent
+remained attestation-only; concurrent execution, cross-run denial, role-limited tools,
 credential withdrawal and a finite provider run remain open.
+
+The current agent unit mounts a separate 768 MiB tmpfs for each service
+instance at `/run/factory-agent-private`. The worker checks the mount type,
+device, mode and capacity, then creates its own mode-`0700` `run` and `tmp`
+directories as the dynamic UID. Git and the agent CLI use this bounded `tmp`
+directory. The unit makes `/tmp`, `/var/tmp`, `/dev/shm` and `/run/lock`
+inaccessible; the worker checks their inaccessible mounts before handling a
+request. A disposable systemd service with `DynamicUser`, `PrivateTmp`,
+`PrivateDevices` and `ProtectSystem=strict` confirmed the 768 MiB mount, denied
+writes to those four scratch paths, and created the private directories under
+the dynamic UID. A first disposable probe showed that `PrivateTmp` overrode
+separate tmpfs size options on `/tmp` and `/var/tmp`, so those options were
+removed. The actual worker binary passed a locked offline source check and a
+rendered unit passed syntax verification; the installed agent service, coder
+growth/refusal, aggregate writable surfaces and multi-run isolation have not
+been requalified under this profile. D3 remains open.
 
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
@@ -400,6 +417,6 @@ direct temporary Git-repository check passed unchanged, dirty checkpoint,
 detached HEAD, deletion/replacement, rename, changed-configuration refusal,
 33 MiB dirty refusal and a 5 MiB incompressible bundle refusal. Locked offline
 worker source checking passes. This has not run through an installed isolated
-agent service or the Go coordinator. The aggregate workspace storage bound,
-artifact custody, failed-checkpoint recovery and canonical result transaction
-remain N3/N4 work.
+agent service or the Go coordinator. Qualification of the aggregate workspace
+storage bound, artifact custody, failed-checkpoint recovery and canonical result
+transaction remain N3/N4 work.

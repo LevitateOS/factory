@@ -66,15 +66,27 @@ T09-NATIVE-EXECUTOR is itself D3 work; T09-EXECUTION and its publication,
 automation, packaging, installed and upgrade consumers remain pending. T10-GATEWAY
 is D2 work. T12-PLACEMENT depends on T06-CONNECT and must keep automation inactive.
 
-For D3 storage, the broker now has a source-level and direct filesystem check of
+For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.
 `cargo check --locked --offline -p soda-factory-broker` passes. The current host
 has no installed `soda-factory-broker.socket`; no live broker/preparer activation
-qualified this change. The bound does not cover coder workspace, agent output or
-all tmpfs allocation. Close the storage part only after actual service-path
-checks of retained multi-run capacity/refusal, cleanup/retry, coder/output bounds
-and denial when `/run` has low free space, with exact process and filesystem
-observations. This source checkpoint does not close D3.
+qualified this change. The worker unit now gives each agent service a separate
+768 MiB tmpfs for workspace, output, Git state and its preferred temporary
+directory; the worker checks mount type, device, mode and capacity and refuses
+other common writable scratch mounts. A disposable dynamic-UID systemd service
+confirmed the mount size, mode-`0700` private directory creation and denied
+writes to `/tmp`, `/var/tmp`, `/dev/shm` and `/run/lock` under the relevant unit
+properties. Its first trial showed that `PrivateTmp` overrode separately sized
+tmpfs mounts on `/tmp` and `/var/tmp`; the unit now marks those paths
+inaccessible. Locked offline worker compilation and rendered unit syntax
+verification pass. No actual installed agent/broker service, real coder growth,
+multi-run capacity or cross-run isolation check used this new storage profile.
+The worker mount does not prove that every writable surface is bounded or that
+failed checkpoints remain recoverable. Close the storage part only after actual
+service-path checks of retained multi-run capacity/refusal, cleanup/retry,
+coder/output bounds, writable mounts, and denial when `/run` has low free
+space, with exact process and filesystem observations. These component checks
+do not close D3.
 The agent unit also now disables swap under its existing 1 GiB memory ceiling;
 its binary built and a rendered scratch unit passed parser verification, but no
 live agent service ran. Actual coder workspace/output limits, cleanup and
@@ -105,7 +117,8 @@ The actual system-service worker/broker reply, live receipt writer-to-reader
 roundtrip, cross-run refusal, Go admission/checkpoint binding, service-path
 dirty coder checkpoint, candidate retrieval/publication and crash/reboot
 reconciliation are unverified. The aggregate worker workspace and ignored-file
-storage bound is still open; the changed-file preflight is not that bound. A
+storage bound is still unqualified on the actual worker service; the
+changed-file preflight is not that bound. A
 failed checkpoint currently yields uncertainty, but no recovered worker
 workspace has been proved after the service exits. Close this
 part only with an admitted real coder run that produces an exact retained

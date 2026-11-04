@@ -24880,3 +24880,20 @@ retained historical desktop crash entry. Neither the source/build success nor
 the offline check diagnoses the pre-consent WebKit crash or qualifies connected
 authentication/IPC. Obtain reproducible crash and connected journey evidence
 before closing T06-CONNECT; it remains Active.
+
+T09-NATIVE-EXECUTOR bounded-agent-storage checkpoint (2026-11-05): the current
+systemd agent unit now supplies each instance a 768 MiB private tmpfs for its
+workspace, output, Git state and preferred temporary directory. The worker
+checks the mount's type, device, mode and capacity before creating its own
+mode-`0700` run and temp directories as the dynamic UID. The unit makes `/tmp`,
+`/var/tmp`, `/dev/shm` and `/run/lock` inaccessible, and the worker checks those
+overlays before admission. A first disposable service demonstrated that
+`PrivateTmp` overrides separate `/tmp` and `/var/tmp` tmpfs size options on this
+host; the revised disposable dynamic-UID service confirmed the 768 MiB mount,
+denied writes to the four scratch paths and created the private directories.
+Locked offline worker compilation, changed-file formatting, whitespace and
+rendered unit syntax checks pass. No installed agent/broker service, real coder
+growth/refusal, full writable-mount inventory, multi-run isolation, failed
+checkpoint recovery or finite provider run qualified this profile. The changed
+file preflight and disposable mount probe do not close D3; T09-NATIVE-EXECUTOR
+remains Pending.
