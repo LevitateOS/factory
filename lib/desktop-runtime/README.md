@@ -176,6 +176,33 @@ storage is a webview command. Withdrawal also retires the browser binding and
 observations. Provider request/refresh consumers must use the native capability
 boundary; connected provider work is not implemented by credential storage alone.
 
+## Factory provider request policy
+
+`factory_provider::Policy` is a native-only request gate for one exact run and
+candidate. Its trusted caller supplies a reviewer/coder role, finite deadline
+and bounded call, input-byte and output-token budget. It admits only the Muse
+model catalog and streaming Responses routes at fixed Meta HTTPS destinations.
+For Responses it pins `muse-spark-1.3-contributor`, requires `store:false`,
+reduces each request to at most 4,096 output tokens, disables parallel tool
+calls, removes unneeded response includes and filters the nested Muse function
+namespace by role. Reviewers retain only `read_file` and `search`; coders may
+also retain `write_file`, `edit_file`, `bash` and `bash_input`. Unknown top-level
+request fields, built-in tool namespaces and duplicate tool names fail closed.
+This policy does not itself open a socket, borrow a credential or launch an
+agent. The later desktop owner must apply it before each provider call and
+retire in-flight I/O on withdrawal or run termination.
+
+A dummy-key Muse 1.4.14 request to a local fake provider showed that the CLI
+advertised `workflow`, memory, monitoring and reminder functions even with
+shell, write, web, reminder and user-input flags disabled. It requested
+128,000 output tokens for one model step. The actual 117,775-byte coder body
+passed the native policy checker after filtering: 4,096 output tokens and the
+six named coder functions remained. The same body under reviewer policy kept
+only two read functions. Wrong model, stored response, built-in tool namespace,
+extra routes, retirement and exhausted budget were refused. The fake provider
+returned 401; no saved credential or real model was used. The temporary
+listener and scratch source were removed.
+
 ## Native GitHub connector
 
 The headless `github_provider` owner implements fixed-origin authenticated HTTPS,

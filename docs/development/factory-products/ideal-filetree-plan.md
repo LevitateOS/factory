@@ -397,6 +397,19 @@ operation was refused. The isolated keyring processes and fixture state were
 removed. This is a credential-custody prerequisite, not a worker proxy or a
 real provider run; D3 remains open.
 
+The native owner now has a bounded provider-request policy primitive. A
+dummy-key Muse 1.4.14 probe showed its one-step coder request advertises
+workflow, memory and monitor functions and asks for 128,000 output tokens;
+the reviewer launch flags also left several of those schemas advertised.
+The policy filters the actual request's nested Muse tools by reviewer/coder
+role, pins the selected model and fixed routes, requires streaming and no
+provider storage, caps each response to 4,096 output tokens, and consumes a
+finite per-run byte/token/call budget. The actual 117,775-byte coder request
+passed after filtering; wrong model, stored response, built-in tools, extra
+routes, retired run and exhausted budget failed. The local fake provider
+returned 401 and no real credential was used. This policy has no socket or
+credential-bearing caller yet, so it does not qualify the owner proxy or D3.
+
 The first privileged workspace-transfer component is now
 `cmd/soda-factory-broker`. It is a root-owned, socket-activated staging service
 with no launch request: it admits only a desktop-UID peer and a bounded Git
