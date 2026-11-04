@@ -11,13 +11,15 @@
   Rust owns native execution, resource lifetime, credential custody and complete
   authenticated desktop provider connectors. Lit owns the shared UI. Preserve
   these dependency directions and keep one defining implementation.
-- Security work is reserved for a Daybreak session that the user manually starts.
-  Normal coding agents may continue non-security product work and the selected
-  Go-to-Rust responsibility moves, but must not implement or qualify security
-  gates, including D3 worker isolation, credential custody, authentication/IPC
-  admission, or their security tests. Leave any dependent gate pending and report
-  its exact blocker for a later user-initiated Daybreak session. Do not delegate
-  security work to a normal subagent or infer Daybreak access from a model name.
+- Use a user-started Daybreak session only when the work looks like hacking;
+  Daybreak has the anti-hacking audit for that work. Routine product security
+  engineering belongs in the normal implementation queue. Normal coding agents
+  may implement and verify D3 worker isolation, credential custody,
+  authentication and IPC admission, including ordinary checks. Route a check
+  that looks like hacking to Daybreak. Apply the same real evidence and
+  completion rules to these gates as to other slices.
+  Do not claim a gate complete from source checks or component probes alone, and
+  do not infer Daybreak access from a model name.
 - Preserve existing work, retained profiles, credentials and historical evidence.
   All builds, caches, state and scratch belong under `/home`; set TMPDIR there.
 - No authored Python, new unit tests, Rust test modules in `src/`, or new unit-test
