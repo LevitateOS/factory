@@ -43,17 +43,28 @@ type Provenance struct {
 	Appliance           *ApplianceProvenance      `json:"appliance"`
 }
 
-// NativeProvenance describes trusted same-user host execution, with no container,
-// image, systemd unit, isolated UID or broker-return claim. Profile/instance/
-// invocation distinguish process lifetimes; a reused PID alone is not identity.
+// NativeProvenance distinguishes historical trusted same-user execution from
+// the isolated system worker. Isolation is observed only after a process starts;
+// a selected trust mode alone never proves a worker launch or credential return.
 // Native selectable-executor qualification remains the separate D3 gate.
 type NativeProvenance struct {
-	TrustMode  string                  `json:"trust_mode"` // only same_user_trusted_host
+	TrustMode  string                  `json:"trust_mode"`
 	Profile    collaboration.ProfileID `json:"profile"`
 	InstanceID string                  `json:"instance_id"`
 	WorktreeID string                  `json:"worktree_id"`
+	BrokerRun  string                  `json:"broker_run,omitempty"`
+	Isolation  *NativeIsolation        `json:"isolation,omitempty"`
 	Process    *NativeProcess          `json:"process"`
 	Custody    NativeCustody           `json:"custody"`
+}
+
+// NativeIsolation retains distinct host identities observed after a brokered
+// child launch. It is not proof that the worker was actually confined or that
+// Go admitted this run. The process PID is inside that worker's private PID
+// namespace, not the desktop host PID namespace.
+type NativeIsolation struct {
+	DesktopUID int `json:"desktop_uid"`
+	WorkerUID  int `json:"worker_uid"`
 }
 
 // Local executable paths are server-side metadata, never browser instructions.
@@ -214,8 +225,27 @@ func (p Provenance) Settled() bool {
 }
 
 func validNative(n NativeProvenance) bool {
-	if n.TrustMode != "same_user_trusted_host" || !collaboration.ValidID(string(n.Profile)) ||
+	if !collaboration.ValidID(string(n.Profile)) ||
 		!collaboration.ValidID(n.InstanceID) || !collaboration.ValidText(n.WorktreeID, 128) || !validCustody(n.Custody.State) {
+		return false
+	}
+	switch n.TrustMode {
+	case "same_user_trusted_host":
+		if n.BrokerRun != "" || n.Isolation != nil {
+			return false
+		}
+	case "isolated_system_worker":
+		if !collaboration.ValidID(n.BrokerRun) {
+			return false
+		}
+		if n.Process == nil {
+			if n.Isolation != nil {
+				return false
+			}
+		} else if n.Isolation == nil || !validNativeIsolation(*n.Isolation) {
+			return false
+		}
+	default:
 		return false
 	}
 	if !validNativeCustody(n.Custody) {
@@ -231,6 +261,10 @@ func validNative(n NativeProvenance) bool {
 		(p.ExitCode == nil || *p.ExitCode >= 0 && *p.ExitCode <= 255) &&
 		(p.ExitSignal == nil || collaboration.ValidText(*p.ExitSignal, 128)) &&
 		(p.ExitCode == nil || p.ExitSignal == nil)
+}
+
+func validNativeIsolation(i NativeIsolation) bool {
+	return i.DesktopUID > 0 && i.WorkerUID > 0 && i.WorkerUID != i.DesktopUID
 }
 
 func validNativeCustody(c NativeCustody) bool {

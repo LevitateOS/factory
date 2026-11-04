@@ -31,6 +31,9 @@ type NativeCheckpointAnchor struct {
 	StartIdentity    string                  `json:"start_identity"`
 	PID              int                     `json:"pid"`
 	ExecutableSHA256 string                  `json:"executable_sha256"`
+	BrokerRun        string                  `json:"broker_run,omitempty"`
+	DesktopUID       int                     `json:"desktop_uid,omitempty"`
+	WorkerUID        int                     `json:"worker_uid,omitempty"`
 }
 
 // Appliance fields preserve the original retained encoding. Native selects a
@@ -52,7 +55,13 @@ func NativeCheckpoint(provenance NativeProvenance) (*NativeCheckpointAnchor, err
 		return nil, ErrCheckpoint
 	}
 	p := provenance.Process
-	return &NativeCheckpointAnchor{Profile: provenance.Profile, InstanceID: provenance.InstanceID, WorktreeID: provenance.WorktreeID, SystemInstance: p.SystemInstance, StartIdentity: p.StartIdentity, PID: p.PID, ExecutableSHA256: p.ExecutableSHA256}, nil
+	anchor := &NativeCheckpointAnchor{Profile: provenance.Profile, InstanceID: provenance.InstanceID, WorktreeID: provenance.WorktreeID, SystemInstance: p.SystemInstance, StartIdentity: p.StartIdentity, PID: p.PID, ExecutableSHA256: p.ExecutableSHA256}
+	if provenance.Isolation != nil {
+		anchor.BrokerRun = provenance.BrokerRun
+		anchor.DesktopUID = provenance.Isolation.DesktopUID
+		anchor.WorkerUID = provenance.Isolation.WorkerUID
+	}
+	return anchor, nil
 }
 
 func (r CheckpointRequest) RuntimeKind() collaboration.RuntimeKind {
@@ -84,6 +93,13 @@ func (r CheckpointRequest) Validate(final bool) error {
 	} else {
 		n := r.Native
 		if r.Container != "" || !collaboration.ValidID(string(n.Profile)) || !collaboration.ValidID(n.InstanceID) || !collaboration.ValidText(n.WorktreeID, 128) || !collaboration.ValidText(n.SystemInstance, 128) || !collaboration.ValidText(n.StartIdentity, 128) || n.PID <= 0 || !validDigest(n.ExecutableSHA256) {
+			return ErrCheckpoint
+		}
+		if n.BrokerRun == "" {
+			if n.DesktopUID != 0 || n.WorkerUID != 0 {
+				return ErrCheckpoint
+			}
+		} else if !collaboration.ValidID(n.BrokerRun) || !validNativeIsolation(NativeIsolation{DesktopUID: n.DesktopUID, WorkerUID: n.WorkerUID}) {
 			return ErrCheckpoint
 		}
 	}

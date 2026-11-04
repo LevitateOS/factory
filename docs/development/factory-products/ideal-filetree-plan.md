@@ -820,6 +820,17 @@ and a second full launch/retirement passed. All temporary units and state were
 removed. This does not change the D3 conclusion because Go admission and real
 credential custody/provider work are still unconnected.
 
+Go's retained native evidence now distinguishes historical
+`same_user_trusted_host` from `isolated_system_worker`. An isolated prelaunch
+record captures the exact broker run ID; a started record also needs distinct
+desktop and worker UIDs. The immutable record comparison and native checkpoint
+anchor retain that broker run and UID pair, and a captured isolated launch
+refuses a same-user observation or a different broker run. This is a typed
+admission/evidence prerequisite. The existing checkpoint retention integration
+case exercised the isolated anchor and forged broker/UID refusal through a
+disposable native PostgreSQL profile, including reopen. No production Go
+execution port yet consumes the broker receipt, so D3 remains open.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

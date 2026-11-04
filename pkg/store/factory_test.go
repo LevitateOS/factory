@@ -23,7 +23,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	ctx := t.Context()
 	r := factoryRun(time.Now().UTC())
 	r.Image, r.Harness, r.Role = "", "muse-fixture-1", project.RoleCoder
-	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "same_user_trusted_host", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
+	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
 	r.Native.Provenance.Process = &execution.NativeProcess{InvocationID: factory.NewID(), SystemInstance: "owned-boot", StartIdentity: "owned-start-tick", PID: 1001, StartedAt: r.Started, Executable: r.Native.Tool.Executable, ExecutableSHA256: r.Native.Tool.SHA256}
 	plan := phaseTestPlan(t, factory.NewID(), r.InputSHA, "f"+strings.Repeat("1", 24))
 	planBytes, err := json.Marshal(plan)
@@ -43,7 +43,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	}
 	request := execution.CheckpointRequest{Project: r.ProjectID, ID: r.ID, Invocation: r.InvocationID(), ManifestDigest: project.ExecutionManifestDigest(r.ExecutionManifest), ExpectedHead: r.InputSHA, Native: anchor}
 	result := execution.CheckpointReceipt{Request: request, FinalCandidate: true, Status: "pending"}
-	for _, field := range []string{"profile", "instance", "worktree", "boot", "start", "pid", "digest", "container", "kind"} {
+	for _, field := range []string{"profile", "instance", "worktree", "broker", "desktop_uid", "worker_uid", "boot", "start", "pid", "digest", "container", "kind"} {
 		bad := result
 		native := *anchor
 		bad.Request.Native = &native
@@ -58,6 +58,12 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		case "worktree":
 			native.WorktreeID = "another-checkout"
 			forgedRun.Native.Provenance.WorktreeID = native.WorktreeID
+		case "broker":
+			native.BrokerRun = factory.NewID()
+		case "desktop_uid":
+			native.DesktopUID++
+		case "worker_uid":
+			native.WorkerUID++
 		case "boot":
 			native.SystemInstance = "another-boot"
 		case "start":

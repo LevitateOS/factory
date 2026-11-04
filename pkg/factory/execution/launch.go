@@ -22,10 +22,24 @@ type NativeLaunch struct {
 	Tool                NativeTool              `json:"tool"`
 	Runtime             collaboration.RuntimeID `json:"runtime"`
 	PlacementGeneration int64                   `json:"placement_generation,string"`
+	TrustMode           string                  `json:"trust_mode,omitempty"`
+	BrokerRun           string                  `json:"broker_run,omitempty"`
 }
 
 func (n NativeLaunch) Validate() error {
 	if !validWorkspaceRef(n.Workspace) || n.Tool.Validate() != nil || !collaboration.ValidID(string(n.Runtime)) || n.PlacementGeneration <= 0 {
+		return ErrLaunch
+	}
+	switch n.TrustMode {
+	case "", "same_user_trusted_host":
+		if n.BrokerRun != "" {
+			return ErrLaunch
+		}
+	case "isolated_system_worker":
+		if !collaboration.ValidID(n.BrokerRun) {
+			return ErrLaunch
+		}
+	default:
 		return ErrLaunch
 	}
 	return nil
@@ -33,7 +47,13 @@ func (n NativeLaunch) Validate() error {
 
 func (n NativeLaunch) MatchesRecord(record NativeRecord) bool {
 	p := record.Provenance
-	return n.Validate() == nil && record.Validate() == nil && n.Tool == record.Tool && n.Workspace.Profile == p.Profile && n.Workspace.InstanceID == p.InstanceID && n.Workspace.WorktreeID == p.WorktreeID
+	if n.Validate() != nil || record.Validate() != nil || n.Tool != record.Tool || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
+		return false
+	}
+	if n.TrustMode == "isolated_system_worker" {
+		return p.TrustMode == n.TrustMode && p.BrokerRun == n.BrokerRun
+	}
+	return p.TrustMode == "same_user_trusted_host"
 }
 
 // LaunchRequest reuses the semantic prompt/manifest contract. Runtime-specific
@@ -81,6 +101,13 @@ func (r LaunchRequest) MatchesObservation(o RunObservation) bool {
 	if r.Native != nil {
 		n := o.Native
 		if n == nil || n.Profile != r.Native.Workspace.Profile || n.InstanceID != r.Native.Workspace.InstanceID || n.WorktreeID != r.Native.Workspace.WorktreeID {
+			return false
+		}
+		if r.Native.TrustMode == "isolated_system_worker" {
+			if n.TrustMode != r.Native.TrustMode || n.BrokerRun != r.Native.BrokerRun {
+				return false
+			}
+		} else if n.TrustMode != "same_user_trusted_host" {
 			return false
 		}
 		if p := n.Process; p != nil && (p.Executable != r.Native.Tool.Executable || p.ExecutableSHA256 != r.Native.Tool.SHA256) {

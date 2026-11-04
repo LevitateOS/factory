@@ -84,18 +84,24 @@ qualification label or auto-enrolling a login.
 runtime and placement generation. Custody generation, placement generation and
 appliance boundary generation remain distinct.
 
-Native evidence explicitly names `same_user_trusted_host`: profile, supervisor
-instance, worktree identity and optional process. A started process retains its
-invocation, PID, kernel instance/start identity, start time, exact executable path
-and SHA-256, plus observed exit code or signal. On Linux, the instance/start facts
-are boot UUID and `/proc/PID/stat` start ticks. PID alone is insufficient. Local
-paths are server-side evidence, never browser-selected launch instructions.
+Historical native evidence names `same_user_trusted_host`: profile, supervisor
+instance, worktree identity and optional process. New isolated-worker evidence
+names `isolated_system_worker` and captures the exact root broker run before
+launch. A started isolated process must also carry distinct desktop and worker
+host UIDs; a checkpoint binds those identities to the process. A started process
+retains its invocation, PID, kernel instance/start identity, start time, exact
+executable path and SHA-256, plus observed exit code or signal. The isolated
+worker's PID is relative to its private PID namespace. On Linux, the instance/
+start facts are boot UUID and `/proc/PID/stat` start ticks. PID alone is
+insufficient. Local paths are server-side evidence, never browser-selected
+launch instructions.
 
 Native custody separately records not-acquired/held/released/uncertain material
 and its acquisition/connection/generation. Released concerns this run's custody;
 it does not prove that same-user code never copied credentials or erased the
-user's global login. Native evidence has no container/image/unit/isolated-UID or
-broker-return fields. D3 remains a real native executor/custody qualification gate.
+user's global login. The isolated record adds broker-run and worker-UID facts,
+but it does not by itself prove confinement, Go admission, credential withdrawal
+or a real provider task. D3 remains a native executor/custody qualification gate.
 
 Appliance evidence retains the actual Project/boundary generation, image,
 container, unit, invocation, UID/GID/login, credential-return fact and separate

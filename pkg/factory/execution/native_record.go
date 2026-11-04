@@ -62,7 +62,8 @@ func (r NativeRecord) Settled() bool {
 func (r NativeRecord) Advances(prior NativeRecord) bool {
 	if r.Validate() != nil || prior.Validate() != nil || r.Tool != prior.Tool ||
 		r.Provenance.Profile != prior.Provenance.Profile || r.Provenance.InstanceID != prior.Provenance.InstanceID ||
-		r.Provenance.WorktreeID != prior.Provenance.WorktreeID || r.Provenance.TrustMode != prior.Provenance.TrustMode ||
+		r.Provenance.WorktreeID != prior.Provenance.WorktreeID || r.Provenance.TrustMode != prior.Provenance.TrustMode || r.Provenance.BrokerRun != prior.Provenance.BrokerRun ||
+		(prior.Provenance.Isolation != nil && !reflect.DeepEqual(r.Provenance.Isolation, prior.Provenance.Isolation)) ||
 		(prior.Sealed && !r.Sealed) || (prior.Retirement == Retired && r.Retirement != Retired) ||
 		(prior.Retirement == Exited && (r.Retirement == Running || r.Retirement == NotStarted)) {
 		return false
