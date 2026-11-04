@@ -425,8 +425,15 @@ The actual unit prepared a normal bundle and refused an 81,810-byte bundle
 containing an 80 MiB zero-filled file before that file appeared; the partial
 repository used 176 KiB. This is a raw blob-size preflight, not an exact disk
 quota. A separate local `.gitattributes` `ident` probe expanded a 1 MiB blob
-to 10,066,321 worktree bytes. Attribute expansion and filesystem overhead
-remain open for the workspace storage boundary.
+to 10,066,321 worktree bytes. The preparer now queries effective attributes
+from `HEAD` for every path before checkout, budgets conservative `ident`, CRLF
+and supported UTF-16/UTF-32 expansion, and refuses other worktree encodings.
+Under the actual unit, the 1 MiB `ident` fixture prepared cleanly, while an
+8 MiB `ident` blob was refused before materialization; the partial repository
+used 112 KiB. A UTF-16LE-BOM plus CRLF fixture prepared cleanly under the
+actual unit. The temporary service state was removed. Filesystem allocation
+and repository metadata still require a strict storage quota or a separately
+proved upper bound for D3.
 
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do

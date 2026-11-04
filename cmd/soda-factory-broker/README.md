@@ -301,7 +301,17 @@ Under the actual unit, a normal local bundle prepared successfully. An
 81,810-byte bundle containing an 80 MiB zero-filled file was refused with
 `reviewer tree byte bound exceeded` before that file appeared; the partial
 no-checkout repository used 176 KiB. Both disposable runs were removed.
-This preflight does not yet establish a strict disk quota: a local Git
-`ident` attribute probe expanded a 1 MiB blob to 10,066,321 worktree bytes.
-Attribute expansion and filesystem overhead still need an admission or
-quota bound before D3 can rely on this workspace limit.
+The preflight now asks Git for the effective `ident`, `eol`, legacy `crlf` and
+`working-tree-encoding` attributes of every path in `HEAD`, with bounded
+input and output. It budgets conservative expansion factors before checkout:
+16 for `ident`, 2 for CRLF and 4 plus a BOM for admitted UTF-16/UTF-32
+encodings; other declared worktree encodings are refused. The service also
+fixes Git's default line ending and global/system attribute sources. Under
+the actual unit, a 1 MiB `ident` blob checked out to 10,066,321 bytes and
+remained clean. An 8 MiB `ident` blob was refused with `reviewer expanded tree
+byte bound exceeded` before its worktree file appeared; its partial repository
+used 112 KiB. The temporary units, bundles and checkouts were removed.
+A UTF-16LE-BOM plus CRLF fixture also prepared cleanly under the actual unit,
+producing its expected 16-byte worktree file. Its disposable state was removed.
+This is a bound on admitted logical file content, not a strict filesystem
+quota: block allocation and repository metadata still consume storage.

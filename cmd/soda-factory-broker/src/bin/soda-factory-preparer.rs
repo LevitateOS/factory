@@ -2,8 +2,9 @@
 //! Unprivileged, fixed-path reviewer checkout preparation. The privileged
 //! broker must select both mounts and the exact run/candidate/digest arguments.
 use sha2::{Digest, Sha256};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Read};
+use std::collections::BTreeMap;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -15,6 +16,7 @@ const CHECKOUT: &str = "/run/factory-output/repo";
 const MAX_BUNDLE: u64 = 512 * 1024;
 const MAX_CHECKOUT_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_TREE_LIST_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_ATTRIBUTE_LIST_BYTES: u64 = 48 * 1024 * 1024;
 const MAX_ENTRIES: usize = 20_000;
 const MAX_DEPTH: usize = 64;
 
@@ -84,10 +86,159 @@ fn git(args: &[&str]) -> Command {
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_LFS_SKIP_SMUDGE", "1")
+        .env("GIT_ATTR_NOSYSTEM", "1")
         .args(["-k", "1s", "20s", "/usr/bin/git"])
+        .args([
+            "-c",
+            "core.autocrlf=false",
+            "-c",
+            "core.eol=lf",
+            "-c",
+            "core.attributesFile=/dev/null",
+        ])
         .args(args)
         .stderr(Stdio::null());
     command
+}
+
+struct TreeEntry {
+    size: u64,
+    seen: u8,
+    ident: bool,
+    crlf: bool,
+    encoding: bool,
+}
+
+fn attribute_bound(entries: &mut BTreeMap<Vec<u8>, TreeEntry>) -> io::Result<()> {
+    let input_path = Path::new(CHECKOUT).join(".git/factory-attribute-paths");
+    let result = (|| {
+        let mut input = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&input_path)?;
+        for path in entries.keys() {
+            input.write_all(path)?;
+            input.write_all(&[0])?;
+        }
+        input.flush()?;
+        drop(input);
+        let input = File::open(&input_path)?;
+        let mut query = git(&[
+            "-C",
+            CHECKOUT,
+            "check-attr",
+            "--source=HEAD",
+            "-z",
+            "--stdin",
+            "ident",
+            "eol",
+            "working-tree-encoding",
+            "crlf",
+        ])
+        .stdin(Stdio::from(input))
+        .stdout(Stdio::piped())
+        .spawn()?;
+        let mut output = Vec::new();
+        let read = query
+            .stdout
+            .take()
+            .ok_or_else(|| refused("preparer attribute query unavailable"))?
+            .take(MAX_ATTRIBUTE_LIST_BYTES + 1)
+            .read_to_end(&mut output);
+        if read.is_err() || output.len() as u64 > MAX_ATTRIBUTE_LIST_BYTES {
+            let _ = query.kill();
+            let _ = query.wait();
+            return Err(refused("reviewer attribute listing bound exceeded"));
+        }
+        if !query.wait()?.success() || (!output.is_empty() && !output.ends_with(&[0])) {
+            return Err(refused("reviewer attribute listing invalid"));
+        }
+        let mut fields = output.split(|byte| *byte == 0);
+        while let Some(path) = fields.next() {
+            if path.is_empty() {
+                if fields.next().is_some() {
+                    return Err(refused("reviewer attribute record invalid"));
+                }
+                break;
+            }
+            let name = fields
+                .next()
+                .ok_or_else(|| refused("reviewer attribute record invalid"))?;
+            let value = fields
+                .next()
+                .ok_or_else(|| refused("reviewer attribute record invalid"))?;
+            let entry = entries
+                .get_mut(path)
+                .ok_or_else(|| refused("reviewer attribute path invalid"))?;
+            let bit = match name {
+                b"ident" => 1,
+                b"eol" => 2,
+                b"working-tree-encoding" => 4,
+                b"crlf" => 8,
+                _ => return Err(refused("reviewer attribute name invalid")),
+            };
+            if entry.seen & bit != 0 {
+                return Err(refused("reviewer attribute repeated"));
+            }
+            entry.seen |= bit;
+            let active = value != b"unspecified" && value != b"unset";
+            match bit {
+                1 => entry.ident = active,
+                2 => {
+                    if active && value != b"crlf" && value != b"lf" {
+                        return Err(refused("reviewer line ending attribute invalid"));
+                    }
+                    entry.crlf = value == b"crlf";
+                }
+                4 if active => {
+                    const ENCODINGS: &[&str] = &[
+                        "UTF-16",
+                        "UTF-16LE",
+                        "UTF-16BE",
+                        "UTF-16LE-BOM",
+                        "UTF-16BE-BOM",
+                        "UTF-32",
+                        "UTF-32LE",
+                        "UTF-32BE",
+                    ];
+                    if !ENCODINGS
+                        .iter()
+                        .any(|encoding| value.eq_ignore_ascii_case(encoding.as_bytes()))
+                    {
+                        return Err(refused("reviewer worktree encoding unsupported"));
+                    }
+                    entry.encoding = true;
+                }
+                8 => entry.crlf |= active,
+                _ => (),
+            }
+        }
+        let mut total = 0u64;
+        for entry in entries.values() {
+            if entry.seen != 0b1111 {
+                return Err(refused("reviewer attribute record missing"));
+            }
+            let factor = (if entry.ident { 16u64 } else { 1 })
+                * (if entry.crlf { 2 } else { 1 })
+                * (if entry.encoding { 4 } else { 1 });
+            let size = entry
+                .size
+                .checked_mul(factor)
+                .and_then(|size| size.checked_add(if entry.encoding { 4 } else { 0 }))
+                .ok_or_else(|| refused("reviewer expanded tree byte bound exceeded"))?;
+            total = total
+                .checked_add(size)
+                .ok_or_else(|| refused("reviewer expanded tree byte bound exceeded"))?;
+            if total > MAX_CHECKOUT_BYTES {
+                return Err(refused("reviewer expanded tree byte bound exceeded"));
+            }
+        }
+        Ok(())
+    })();
+    let removed = fs::remove_file(&input_path);
+    result?;
+    removed
 }
 
 fn preflight_tree() -> io::Result<()> {
@@ -111,10 +262,19 @@ fn preflight_tree() -> io::Result<()> {
     }
     let mut total = 0u64;
     let mut entries = 0usize;
-    for record in output
-        .split(|byte| *byte == 0)
-        .filter(|record| !record.is_empty())
-    {
+    let mut paths = BTreeMap::new();
+    let records = if output.is_empty() {
+        &output[..]
+    } else {
+        &output[..output.len() - 1]
+    };
+    for record in records.split(|byte| *byte == 0) {
+        if record.is_empty() {
+            if output.is_empty() {
+                break;
+            }
+            return Err(refused("reviewer tree record empty"));
+        }
         entries += 1;
         if entries > MAX_ENTRIES {
             return Err(refused("reviewer tree entry bound exceeded"));
@@ -159,8 +319,23 @@ fn preflight_tree() -> io::Result<()> {
         if total > MAX_CHECKOUT_BYTES {
             return Err(refused("reviewer tree byte bound exceeded"));
         }
+        if paths
+            .insert(
+                path.to_vec(),
+                TreeEntry {
+                    size,
+                    seen: 0,
+                    ident: false,
+                    crlf: false,
+                    encoding: false,
+                },
+            )
+            .is_some()
+        {
+            return Err(refused("reviewer tree path repeated"));
+        }
     }
-    Ok(())
+    attribute_bound(&mut paths)
 }
 
 fn contained_symlink(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
