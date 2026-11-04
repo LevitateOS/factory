@@ -11,13 +11,13 @@
   Rust owns native execution, resource lifetime, credential custody and complete
   authenticated desktop provider connectors. Lit owns the shared UI. Preserve
   these dependency directions and keep one defining implementation.
-- Use a user-started Daybreak session only when the work looks like hacking;
-  Daybreak has the anti-hacking audit for that work. Routine product security
-  engineering belongs in the normal implementation queue. Normal coding agents
-  may implement and verify D3 worker isolation, credential custody,
-  authentication and IPC admission, including ordinary checks. Route a check
-  that looks like hacking to Daybreak. Apply the same real evidence and
-  completion rules to these gates as to other slices.
+- Use a user-started Daybreak session only when the work or a check looks like
+  hacking. Daybreak has the anti-hacking audit for that work; it is not a general
+  security gate. Routine product security engineering belongs in the normal
+  implementation queue. Normal coding agents may implement and verify D3 worker
+  isolation, credential custody, authentication and IPC admission, including
+  ordinary checks. Apply the same real evidence and completion rules to these
+  gates as to other slices.
   Do not claim a gate complete from source checks or component probes alone, and
   do not infer Daybreak access from a model name.
 - Preserve existing work, retained profiles, credentials and historical evidence.
