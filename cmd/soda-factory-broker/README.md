@@ -72,6 +72,18 @@ the staged source in place. The response reports `removed:true`, or
 Retirement also stops and reconciles the exact-run agent service and socket
 before removing its workspace.
 
+Restart reconciliation uses `{"kind":"next_profile_run","version":1,
+"profile":"<32 lowercase hex>"}`. The root broker returns at most one
+`profile_run` selector with exact run and SHA-256, or both fields null. It reads
+the root-owned profile declaration and rehashes the bounded bundle; retiring
+tombstones use their profile/digest-bound name. Under the same state lock it
+removes incomplete `.stage` directories, which never represented admitted
+runs. It does not return source bytes or another profile's run. The desktop
+client retires each returned selector through the existing exact operation,
+then asks again until empty. Uncertain or conflicting cleanup fails startup.
+The caller must already hold its exclusive native profile lock; this broker
+operation does not independently grant Go execution admission.
+
 Under a serialized lock, the broker checks SHA-256 and stages the bytes under
 `/run/soda-factory-broker/runs/<run>/bundle`. The same child contains a
 root-owned mode-`0444` `owner.profile` declaration. Every existing-run request
@@ -88,6 +100,16 @@ under the lock before another run is staged. No Git command runs as root, and
 the raw bundle is not treated as a verified candidate until the unprivileged
 preparer checks its Git contents. A current coordinator admission is still
 required before any agent run.
+
+A disposable actual-broker check staged two different profile IDs, then started
+the real native PostgreSQL/Go supervisor under one profile's lock. It retired
+only that profile's stale run; the other remained available for exact cleanup.
+With the installed broker unit left in place but its socket stopped, supervisor
+startup refused and its PostgreSQL child stopped. A root-owned frozen partial
+stage was removed by the inspection call. Temporary units, binaries, fixture
+profiles and bundles were removed. This proves root staging reconciliation for
+that path; Go's retained run outcome recovery and production executor admission
+are still separate work.
 
 On 2026-11-04, the rendered units passed `systemd-analyze verify`. A temporary
 root-owned installation staged a 359-byte local Git bundle; an identical replay

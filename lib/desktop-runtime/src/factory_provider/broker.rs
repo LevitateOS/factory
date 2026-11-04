@@ -4,6 +4,7 @@ use super::Role;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
@@ -139,6 +140,16 @@ struct Staged {
     tool_sha256: String,
     prompt_sha256: String,
     sha256: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProfileRun {
+    kind: String,
+    version: u8,
+    profile: String,
+    run: Option<String>,
+    sha256: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -357,6 +368,48 @@ impl RelayAttestation {
 /// admission. No request selects a path, command, unit property or credential.
 pub struct Broker;
 impl Broker {
+    /// Inspect one root-owned selector for this exact native profile. The
+    /// caller must hold the profile's exclusive supervisor lock before using
+    /// this to clean a prior desktop incarnation.
+    pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
+        if !id(profile, 32) {
+            return Err(refused("broker profile inspection declaration invalid"));
+        }
+        let reply: ProfileRun = exchange(
+            json!({"kind":"next_profile_run","version":1,"profile":profile}),
+            None,
+            PREPARE_TIME,
+        )?;
+        if reply.kind != "profile_run" || reply.version != 1 || reply.profile != profile {
+            return Err(refused("broker profile inspection identity invalid"));
+        }
+        match (reply.run, reply.sha256) {
+            (None, None) => Ok(None),
+            (Some(run), Some(sha256)) if id(&run, 32) && id(&sha256, 64) => Ok(Some((run, sha256))),
+            _ => Err(refused("broker profile inspection selector invalid")),
+        }
+    }
+
+    /// Recover stale root staging before a new Go product incarnation starts.
+    /// Each exact retirement is separately acknowledged; any uncertain cleanup
+    /// fails startup and can be retried without accepting a stale run.
+    pub fn reconcile_profile(profile: &str) -> io::Result<usize> {
+        let mut retired = BTreeSet::new();
+        for _ in 0..64 {
+            let Some((run, sha256)) = Self::next_profile_run(profile)? else {
+                return Ok(retired.len());
+            };
+            if !retired.insert(run.clone()) || !Self::retire_bundle(&run, profile, &sha256)? {
+                return Err(refused("broker profile cleanup did not advance"));
+            }
+        }
+        if Self::next_profile_run(profile)?.is_some() {
+            Err(refused("broker profile cleanup capacity exceeded"))
+        } else {
+            Ok(retired.len())
+        }
+    }
+
     pub fn stage_bundle(
         run: &str,
         profile: &str,

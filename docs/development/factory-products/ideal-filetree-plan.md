@@ -877,6 +877,17 @@ exit, and exact retirement removed the staged run. This closes idle and active
 owner-death process teardown on this host. Root run-state recovery on restart,
 Go admission and production Quit remain D3 gates.
 
+Root broker restart inspection now yields one exact staged or retiring selector
+for a specified profile, rehashing the root-owned bundle and cleaning frozen
+partial stages under its lock. The native supervisor holds its exclusive profile
+lock and retires those selectors before starting Go; an installed but stopped
+broker socket makes startup fail closed. A disposable actual broker and real
+PostgreSQL/Go supervisor run staged two profiles: startup removed only its own
+stale run, then exact cleanup removed the other. A stopped installed socket
+refused startup and left no PostgreSQL process; a frozen partial stage was
+removed. Temporary units and fixture state were removed. Go's durable run
+outcome reconciliation, product admission and production Quit remain D3 gates.
+
 The Go retained isolated-run and checkpoint validators now require the broker's
 36-character boot ID and a positive decimal kernel start tick. Historical
 same-user records keep their earlier text shape. The existing native

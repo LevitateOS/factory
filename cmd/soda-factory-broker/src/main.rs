@@ -44,6 +44,10 @@ enum Request {
         profile: String,
         sha256: String,
     },
+    NextProfileRun {
+        version: u8,
+        profile: String,
+    },
     PrepareReviewer {
         version: u8,
         run: String,
@@ -120,6 +124,15 @@ struct Retired<'a> {
     run: &'a str,
     profile: &'a str,
     removed: bool,
+}
+
+#[derive(Serialize)]
+struct ProfileRun<'a> {
+    kind: &'static str,
+    version: u8,
+    profile: &'a str,
+    run: Option<&'a str>,
+    sha256: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -414,7 +427,7 @@ fn preparations() -> io::Result<PathBuf> {
     Ok(directory)
 }
 
-fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
+fn staged_digest(directory: &Path) -> io::Result<Option<String>> {
     let bundle_path = directory.join("bundle");
     let file = match OpenOptions::new()
         .read(true)
@@ -422,7 +435,7 @@ fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
         .open(bundle_path)
     {
         Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
     let metadata = file.metadata()?;
@@ -435,13 +448,21 @@ fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
     }
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take(MAX_BUNDLE as u64 + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 != metadata.len() || hash(&bytes) != digest {
-        return Err(denied("staged bundle digest mismatch"));
+    if bytes.len() as u64 != metadata.len() {
+        return Err(denied("staged bundle length changed"));
     }
-    Ok(true)
+    Ok(Some(hash(&bytes)))
 }
 
-fn verified_profile(directory: &Path, profile: &str) -> io::Result<()> {
+fn verified_bundle(directory: &Path, digest: &str) -> io::Result<bool> {
+    match staged_digest(directory)? {
+        Some(actual) if actual == digest => Ok(true),
+        Some(_) => Err(denied("staged bundle digest mismatch")),
+        None => Ok(false),
+    }
+}
+
+fn read_profile(directory: &Path) -> io::Result<String> {
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -456,7 +477,19 @@ fn verified_profile(directory: &Path, profile: &str) -> io::Result<()> {
     }
     let mut bytes = Vec::with_capacity(33);
     file.take(34).read_to_end(&mut bytes)?;
-    if bytes.len() != 33 || bytes.as_slice() != format!("{profile}\n").as_bytes() {
+    if bytes.len() != 33 || bytes[32] != b'\n' {
+        return Err(denied("staged profile declaration invalid"));
+    }
+    let profile = std::str::from_utf8(&bytes[..32])
+        .map_err(|_| denied("staged profile declaration invalid"))?;
+    if !id(profile, 32) {
+        return Err(denied("staged profile declaration invalid"));
+    }
+    Ok(profile.to_owned())
+}
+
+fn verified_profile(directory: &Path, profile: &str) -> io::Result<()> {
+    if read_profile(directory)? != profile {
         return Err(denied("run belongs to another profile"));
     }
     Ok(())
@@ -1457,10 +1490,81 @@ fn hash(bytes: &[u8]) -> String {
         .collect()
 }
 
-fn retiring_run(name: &str) -> Option<&str> {
+fn retiring_identity(name: &str) -> Option<(&str, &str, &str)> {
     let (run, rest) = name.strip_prefix(".retiring-")?.split_once('-')?;
     let (profile, digest) = rest.split_once('-')?;
-    (id(run, 32) && id(profile, 32) && id(digest, 64)).then_some(run)
+    (id(run, 32) && id(profile, 32) && id(digest, 64)).then_some((run, profile, digest))
+}
+
+fn retiring_run(name: &str) -> Option<&str> {
+    retiring_identity(name).map(|(run, _, _)| run)
+}
+
+// Return one exact selector at a time to stay inside the fixed 768-byte wire
+// bound. The desktop supervisor holds its profile lock while consuming these;
+// the root broker validates every selector from its own private declarations.
+fn next_profile_run(profile: &str) -> io::Result<Option<(String, String)>> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    for entry in fs::read_dir(&runs)? {
+        let entry = entry?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| denied("broker run entry name invalid"))?;
+        let path = entry.path();
+        if name == ".lock" {
+            continue;
+        }
+        if name.len() == 39
+            && name.starts_with('.')
+            && name.ends_with(".stage")
+            && id(&name[1..33], 32)
+        {
+            let metadata = path.symlink_metadata()?;
+            if !metadata.is_dir()
+                || metadata.uid() != 0
+                || !matches!(metadata.mode() & 0o7777, 0o700 | 0o555)
+            {
+                return Err(denied("partial broker staging invalid"));
+            }
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700))?;
+            fs::remove_dir_all(path)?;
+            File::open(&runs)?.sync_all()?;
+            continue;
+        }
+        if let Some((run, stored_profile, digest)) = retiring_identity(&name) {
+            if stored_profile != profile {
+                continue;
+            }
+            let metadata = path.symlink_metadata()?;
+            if !metadata.is_dir()
+                || metadata.uid() != 0
+                || !matches!(metadata.mode() & 0o7777, 0o555 | 0o700)
+            {
+                return Err(denied("retiring run directory invalid"));
+            }
+            verified_retiring_profile(&path, profile)?;
+            if staged_digest(&path)?.is_some_and(|actual| actual != digest) {
+                return Err(denied("retiring bundle digest mismatch"));
+            }
+            return Ok(Some((run.to_owned(), digest.to_owned())));
+        }
+        if id(&name, 32) {
+            private_dir(&path, 0o555)?;
+            if read_profile(&path)? != profile {
+                continue;
+            }
+            read_role(&path)?;
+            read_digest(&path, "owner.tool_sha256")?;
+            read_digest(&path, "owner.prompt_sha256")?;
+            let digest =
+                staged_digest(&path)?.ok_or_else(|| denied("staged run bundle missing"))?;
+            return Ok(Some((name, digest)));
+        }
+        return Err(denied("broker run entry invalid"));
+    }
+    Ok(None)
 }
 
 fn stage(
@@ -1678,6 +1782,20 @@ fn serve() -> io::Result<()> {
                 run: &run,
                 profile: &profile,
                 removed,
+            })?
+        }
+        Request::NextProfileRun { version, profile } => {
+            if version != 1 || !id(&profile, 32) {
+                return Err(denied("broker profile inspection declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let next = next_profile_run(&profile)?;
+            serde_json::to_vec(&ProfileRun {
+                kind: "profile_run",
+                version: 1,
+                profile: &profile,
+                run: next.as_ref().map(|(run, _)| run.as_str()),
+                sha256: next.as_ref().map(|(_, sha256)| sha256.as_str()),
             })?
         }
         Request::PrepareReviewer {

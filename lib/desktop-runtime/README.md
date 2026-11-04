@@ -117,6 +117,16 @@ consumes it. UI activation, single-instance window messaging, suspend/resume and
 the bounded Tauri product bridge belong to the desktop host.
 Existing incompatible clusters and private credentials are retained on failure.
 
+After taking the exclusive native profile lock and reading its retained ID,
+supervisor startup now reconciles exact root broker staging before launching Go.
+The broker returns one root-verified selector per call; Rust retires each exact
+run and refuses startup on uncertain cleanup. If a broker unit is installed but
+its socket is absent, startup fails closed and stops PostgreSQL. An uninstalled
+broker is skipped because this product still cannot admit native execution.
+A disposable real PostgreSQL/Go supervisor check retired one staged profile
+while preserving another and verified stopped-socket refusal. Go's retained
+execution outcome still needs its own recovery before D3 closes.
+
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should
 use `NativeSupervisor`, whose dedicated owner supplies that lifetime even when

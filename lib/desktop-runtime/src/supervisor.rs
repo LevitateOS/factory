@@ -353,6 +353,32 @@ impl Children {
             .backend_config()
             .map_err(|error| error.to_string())?;
         let identity = read_private(&profile.join("profile.id"), 32)?;
+        // The supervisor lock excludes another live owner of this profile.
+        // If the dedicated broker is installed, settle its exact stale run
+        // state before Go can admit a new product incarnation. An unavailable
+        // installed broker is a startup failure, not an empty reconciliation.
+        match fs::symlink_metadata("/run/soda-factory/broker.sock") {
+            Ok(_) => {
+                crate::factory_provider::Broker::reconcile_profile(&identity)
+                    .map_err(|_| "native broker restart cleanup unconfirmed")?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                for unit in [
+                    "/etc/systemd/system/soda-factory-broker.socket",
+                    "/run/systemd/system/soda-factory-broker.socket",
+                    "/usr/lib/systemd/system/soda-factory-broker.socket",
+                ] {
+                    match fs::symlink_metadata(unit) {
+                        Ok(_) => return Err("installed native broker socket unavailable".into()),
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                        Err(_) => {
+                            return Err("native broker installation inspection unavailable".into())
+                        }
+                    }
+                }
+            }
+            Err(_) => return Err("native broker inspection unavailable".into()),
+        }
         let key = read_private(&profile.join("backend.key"), 64)?;
         let log = private_file(&profile.join("backend.log"), false)
             .map_err(|_| "native backend log is unavailable")?;
