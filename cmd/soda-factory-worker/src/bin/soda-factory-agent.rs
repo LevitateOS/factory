@@ -37,6 +37,7 @@ struct Attestation<'a> {
     profile: &'a str,
     candidate: &'a str,
     role: &'a str,
+    tool_sha256: &'a str,
     worker_uid: u32,
     peer_uid: u32,
     readonly_source: bool,
@@ -158,19 +159,19 @@ fn process_owner(run: &str, worker_uid: u32) -> io::Result<Processes> {
         .map_err(|_| refused("agent process scope unavailable"))
 }
 
-fn manifest(run: &str) -> io::Result<(String, String, String)> {
+fn manifest(run: &str) -> io::Result<(String, String, String, String)> {
     let path = Path::new(ROLE);
     let metadata = path.symlink_metadata()?;
     if !metadata.is_file()
         || metadata.uid() != 0
         || metadata.mode() & 0o7777 != 0o444
-        || metadata.len() > 256
+        || metadata.len() > 384
         || !readonly(path)?
     {
         return Err(refused("agent role mount invalid"));
     }
     let mut bytes = Vec::new();
-    File::open(path)?.take(257).read_to_end(&mut bytes)?;
+    File::open(path)?.take(385).read_to_end(&mut bytes)?;
     if bytes.len() as u64 != metadata.len() {
         return Err(refused("agent role changed during read"));
     }
@@ -192,17 +193,27 @@ fn manifest(run: &str) -> io::Result<(String, String, String)> {
         .next()
         .and_then(|value| value.strip_prefix("FACTORY_BUNDLE_SHA256="))
         .ok_or_else(|| refused("agent digest missing"))?;
+    let tool_sha256 = lines
+        .next()
+        .and_then(|value| value.strip_prefix("FACTORY_TOOL_SHA256="))
+        .ok_or_else(|| refused("agent tool digest missing"))?;
     if !matches!(role, "reviewer" | "coder")
         || !id(profile, 32)
         || !id(candidate, 40)
         || !id(digest, 64)
+        || !id(tool_sha256, 64)
         || lines.next().is_some()
         || !value.ends_with('\n')
         || !id(run, 32)
     {
         return Err(refused("agent role manifest invalid"));
     }
-    Ok((role.into(), profile.into(), candidate.into()))
+    Ok((
+        role.into(),
+        profile.into(),
+        candidate.into(),
+        tool_sha256.into(),
+    ))
 }
 
 fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io::Result<Vec<u8>> {
@@ -435,7 +446,7 @@ fn serve() -> io::Result<()> {
     }
     let worker_uid = identity(&args[1], desktop_uid)?;
     let mut processes = process_owner(&args[1], worker_uid)?;
-    let (role, profile, candidate) = manifest(&args[1])?;
+    let (role, profile, candidate, tool_sha256) = manifest(&args[1])?;
     source(&candidate, &mut processes)?;
     if role == "coder" {
         coder_workspace(&candidate, worker_uid, &mut processes)?;
@@ -482,6 +493,7 @@ fn serve() -> io::Result<()> {
         profile: &profile,
         candidate: &candidate,
         role: &role,
+        tool_sha256: &tool_sha256,
         worker_uid,
         peer_uid: desktop_uid,
         readonly_source: true,

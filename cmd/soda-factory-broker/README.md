@@ -10,17 +10,18 @@ credential-free reviewer, relay and agent-boundary attestations; it cannot
 launch an agent.
 
 One connection carries a 4-byte little-endian JSON length (at most 512), then
-`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","role":"reviewer|coder","length":N,"sha256":"<64 lowercase hex>"}`,
+`{"kind":"stage_bundle","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","role":"reviewer|coder","tool_sha256":"<64 lowercase hex>","length":N,"sha256":"<64 lowercase hex>"}`,
 then exactly `N` raw bytes. `N` must be from 1 through 512 KiB, matching the
 current Go reviewer source-bundle bound. The service checks the Unix stream's
 kernel peer UID against the desktop-owned mode-`0600` socket, requires a
 root-owned mode-`0755` socket parent, no-new-privileges and a root-owned
 mode-`0700` systemd runtime directory. It accepts no host path, credential
-or unit property. The role is fixed for the run in a root-owned declaration;
-an exact replay with another role is refused. The systemd profile has no
+or unit property. The role and captured tool digest are fixed for the run in
+root-owned declarations; an exact replay with either value changed is refused.
+The systemd profile has no
 capabilities, no IP access and a 90-second lifetime to cover bounded preparation
 and cleanup. A JSON response
-names the run, profile, role and digest.
+names the run, profile, role, tool digest and bundle digest.
 
 An exact reviewer preparation uses
 `{"kind":"prepare_reviewer","version":1,"run":"<32 lowercase hex>","profile":"<32 lowercase hex>","sha256":"<64 lowercase hex>","candidate":"<40 lowercase hex>"}`
@@ -273,11 +274,18 @@ The broker also accepts `arm_agent` with only the exact run, staged bundle
 digest, prepared candidate and fixed `reviewer` or `coder` role. It requires an
 active run-specific provider relay, writes a root-owned role declaration and
 starts only `soda-factory-agent@<run>.socket`. A different role on replay is
-refused. The declaration stays discoverable for retirement even if unit stop
+refused. The role declaration carries the root-staged tool digest, and the
+broker returns it in the arm response for the desktop to compare with its
+captured executable. The declaration stays discoverable for retirement even if unit stop
 fails; a mode-`0400` interrupted write is stopped, removed and recreated on
 exact retry. Retirement stops the agent service/socket before the relay and
 checkout. The paired worker currently attests only its identity, role and
 read-only candidate mount, then reports `execution_available:false`.
+The worker echoes the same tool digest; its current attestation does not import
+or execute those bytes. A disposable activation of the actual broker socket
+on 2026-11-04 accepted staging and exact replay with a 64-hex tool digest,
+refused replay with a different digest, and retired the staged run. The broker
+unit, binary, socket and runtime state were removed afterward.
 `Broker::arm_agent` and `Broker::attest_agent` use the existing public provider
 `Role` type, but no production admission calls them. On 2026-11-04, a
 disposable system installation of the agent service and a mock private relay

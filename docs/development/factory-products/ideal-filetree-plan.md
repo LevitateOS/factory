@@ -341,8 +341,9 @@ real provider task. The existing `Accept=yes` worker instance names a socket
 connection rather than a run and cannot carry an exact `%i` checkout mount;
 the production agent needs a separately broker-started run service.
 
-The broker now has an exact `arm_agent` declaration tied to its staged digest,
-prepared candidate, active relay and one fixed role. It arms only a run-specific
+The broker now has an exact `arm_agent` declaration tied to its staged bundle
+and captured tool digests, prepared candidate, active relay and one fixed role.
+It arms only a run-specific
 socket. A separate dynamic-UID service checks the root role declaration and
 read-only Git mount, then responds only to an attestation request; execution
 remains unavailable. The broker stops that socket/service before relay and

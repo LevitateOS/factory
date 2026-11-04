@@ -115,6 +115,7 @@ struct Staged {
     run: String,
     profile: String,
     role: String,
+    tool_sha256: String,
     sha256: String,
 }
 
@@ -151,6 +152,7 @@ struct AgentArmed {
     profile: String,
     candidate: String,
     role: String,
+    tool_sha256: String,
     execution_available: bool,
 }
 
@@ -163,6 +165,7 @@ struct AgentAttested {
     profile: String,
     candidate: String,
     role: String,
+    tool_sha256: String,
     worker_uid: u32,
     peer_uid: u32,
     readonly_source: bool,
@@ -225,8 +228,19 @@ impl RelayAttestation {
 /// admission. No request selects a path, command, unit property or credential.
 pub struct Broker;
 impl Broker {
-    pub fn stage_bundle(run: &str, profile: &str, role: Role, bundle: &[u8]) -> io::Result<String> {
-        if !id(run, 32) || !id(profile, 32) || bundle.is_empty() || bundle.len() > MAX_BUNDLE {
+    pub fn stage_bundle(
+        run: &str,
+        profile: &str,
+        role: Role,
+        tool_sha256: &str,
+        bundle: &[u8],
+    ) -> io::Result<String> {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(tool_sha256, 64)
+            || bundle.is_empty()
+            || bundle.len() > MAX_BUNDLE
+        {
             return Err(refused("broker bundle declaration invalid"));
         }
         let sha256: String = Sha256::digest(bundle)
@@ -234,7 +248,7 @@ impl Broker {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let reply: Staged = exchange(
-            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"length":bundle.len(),"sha256":sha256}),
+            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"length":bundle.len(),"sha256":sha256}),
             Some(bundle),
             PREPARE_TIME,
         )?;
@@ -243,6 +257,7 @@ impl Broker {
             || reply.run != run
             || reply.profile != profile
             || reply.role != role.as_str()
+            || reply.tool_sha256 != tool_sha256
             || reply.sha256 != sha256
         {
             return Err(refused("broker staged identity invalid"));
@@ -322,8 +337,14 @@ impl Broker {
         sha256: &str,
         candidate: &str,
         role: Role,
+        tool_sha256: &str,
     ) -> io::Result<()> {
-        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(sha256, 64)
+            || !id(candidate, 40)
+            || !id(tool_sha256, 64)
+        {
             return Err(refused("broker agent declaration invalid"));
         }
         let role = role.as_str();
@@ -338,6 +359,7 @@ impl Broker {
             || reply.profile != profile
             || reply.candidate != candidate
             || reply.role != role
+            || reply.tool_sha256 != tool_sha256
             || reply.execution_available
         {
             return Err(refused("broker agent identity invalid"));
@@ -347,8 +369,14 @@ impl Broker {
 
     /// Check the separately activated worker's exact identity and mounted
     /// source. This reply is evidence only; no agent command is accepted.
-    pub fn attest_agent(run: &str, profile: &str, candidate: &str, role: Role) -> io::Result<u32> {
-        if !id(run, 32) || !id(profile, 32) || !id(candidate, 40) {
+    pub fn attest_agent(
+        run: &str,
+        profile: &str,
+        candidate: &str,
+        role: Role,
+        tool_sha256: &str,
+    ) -> io::Result<u32> {
+        if !id(run, 32) || !id(profile, 32) || !id(candidate, 40) || !id(tool_sha256, 64) {
             return Err(refused("agent attestation declaration invalid"));
         }
         let uid = unsafe { libc::geteuid() };
@@ -407,6 +435,7 @@ impl Broker {
             || reply.profile != profile
             || reply.candidate != candidate
             || reply.role != role.as_str()
+            || reply.tool_sha256 != tool_sha256
             || reply.worker_uid == 0
             || reply.worker_uid == uid
             || reply.peer_uid != uid
