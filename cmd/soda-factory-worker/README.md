@@ -65,3 +65,14 @@ was supplied through `BindReadOnlyPaths`; write and `chmod` were denied. The
 source and services were removed. A privileged broker must bind a root-selected
 exact run snapshot read-only for reviewers and supply a separate writable
 workspace for coders. This inert socket service currently does neither.
+
+A follow-up probe showed that the bind source must be a readable child beneath
+a root-owned mode-`0700` parent. Binding the private parent itself did not make
+its contents readable. Binding a mode-`0755` child did: the worker read only the
+mounted snapshot, could not traverse the original parent, and could not write
+to the mount. The privileged broker must preserve that source layout per run.
+
+The observed Muse `exec --api-key-stdin` input would place the provider key in
+the worker and cannot satisfy Factory's credential custody rule for an account
+secret. Its `--base-url` setting offers a possible broker endpoint, but needs
+run-bound authorization, network confinement and withdrawal proof before use.

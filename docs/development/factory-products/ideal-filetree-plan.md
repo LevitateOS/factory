@@ -335,6 +335,23 @@ mount source, destination, or unit property. The coder needs a separate writable
 run workspace. Both roles remain unavailable until that broker and the actual
 role/file probes are implemented.
 
+The source also needs a private parent with a readable child. A follow-up
+transient unit bound the mode-`0700` root-owned parent itself and the worker
+could not read the mounted file: bind mounting does not override the source
+directory's mode. Binding its mode-`0755` child into the service instead let the
+unprivileged worker read the mounted file, while traversal through the original
+root-private parent and writes through the mount were denied. That layout keeps
+the original run source inaccessible to other worker instances while exposing
+only the selected child at the per-run mount target. The temporary source and
+transient units were removed.
+
+The observed Muse 1.4.14 `exec` interface can read an API key from stdin and
+can override its provider base URL. Supplying the owner's reusable key over
+stdin would put that secret inside the worker and fail the selected custody
+rule. A brokered provider endpoint is a possible route, but its protocol,
+network confinement, per-run authorization, withdrawal and actual model call
+remain unproven. The base-URL option alone is not a credential boundary.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
