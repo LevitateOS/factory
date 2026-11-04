@@ -336,8 +336,13 @@ request. A disposable systemd service with `DynamicUser`, `PrivateTmp`,
 writes to those four scratch paths, and created the private directories under
 the dynamic UID. A first disposable probe showed that `PrivateTmp` overrode
 separate tmpfs size options on `/tmp` and `/var/tmp`, so those options were
-removed. The actual worker binary passed a locked offline source check and a
-rendered unit passed syntax verification; the installed agent service, coder
+removed. The actual worker binary passed a locked offline build and a rendered
+unit passed syntax verification. In a separate disposable unit the built worker
+passed its early service identity and storage checks, then refused at its cgroup
+identity check because the probe intentionally omitted the production cgroup
+bind. An earlier transient attempt failed in systemd mount setup before the
+worker started because its cgroup bind destination was absent. Neither run
+activated the installed agent/broker path, a coder, or a provider. Coder
 growth/refusal, aggregate writable surfaces and multi-run isolation have not
 been requalified under this profile. D3 remains open.
 

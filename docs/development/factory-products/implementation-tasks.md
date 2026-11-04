@@ -24897,3 +24897,10 @@ growth/refusal, full writable-mount inventory, multi-run isolation, failed
 checkpoint recovery or finite provider run qualified this profile. The changed
 file preflight and disposable mount probe do not close D3; T09-NATIVE-EXECUTOR
 remains Pending.
+The built worker was then started once in a disposable dynamic-UID systemd
+unit. Its identity and storage checks passed; it refused at the cgroup identity
+check because this isolated probe omitted the production cgroup bind. A prior
+transient attempt stopped before worker startup when systemd could not find the
+cgroup bind destination. The temporary executable was removed. This advances
+the storage-profile evidence but does not qualify the installed broker/worker,
+run admission, workspace exhaustion or D3.

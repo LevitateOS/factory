@@ -81,6 +81,12 @@ tmpfs mounts on `/tmp` and `/var/tmp`; the unit now marks those paths
 inaccessible. Locked offline worker compilation and rendered unit syntax
 verification pass. No actual installed agent/broker service, real coder growth,
 multi-run capacity or cross-run isolation check used this new storage profile.
+The built worker also ran in a disposable systemd unit: it passed its early
+identity/storage checks and refused the expected cgroup identity check because
+that probe omitted the production bind. A prior transient attempt stopped at
+systemd namespace setup before worker startup because the cgroup bind
+destination was absent. Both probes were collected and the temporary binary
+was removed. Neither is a worker/broker execution or storage exhaustion check.
 The worker mount does not prove that every writable surface is bounded or that
 failed checkpoints remain recoverable. Close the storage part only after actual
 service-path checks of retained multi-run capacity/refusal, cleanup/retry,
