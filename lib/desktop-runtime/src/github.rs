@@ -3,121 +3,12 @@ use crate::credentials::{
     Account, Credentials, Error as CredentialError, Provider, Token, TokenCapability,
 };
 use crate::supervisor::{NativeChannel, NativeSupervisor};
-use serde::Serialize;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Read {
-    Identity,
-    Binding,
-    CanonicalRepositories {
-        page: u32,
-        limit: u32,
-    },
-    CanonicalIssues {
-        repository: String,
-        page: u32,
-        limit: u32,
-        state: String,
-    },
-    CanonicalIssue {
-        repository: String,
-        number: u32,
-    },
-    Repositories {
-        page: u32,
-        limit: u32,
-    },
-    Repository {
-        repository: String,
-    },
-    Issues {
-        repository: String,
-        page: u32,
-        limit: u32,
-        state: String,
-    },
-    Issue {
-        repository: String,
-        number: u32,
-    },
-    Pulls {
-        repository: String,
-        page: u32,
-        limit: u32,
-        state: String,
-    },
-    Pull {
-        repository: String,
-        number: u32,
-    },
-    PullDiff {
-        repository: String,
-        number: u32,
-        base: String,
-        head: String,
-    },
-    PullFiles {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-        base: String,
-        head: String,
-    },
-    PullReviews {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-    },
-    PullReview {
-        repository: String,
-        number: u32,
-        review_id: String,
-    },
-    PullReviewComments {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-    },
-    PullReviewComment {
-        repository: String,
-        number: u32,
-        comment_id: String,
-    },
-    PullCheckRuns {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-        head: String,
-    },
-    PullCommitStatuses {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-        head: String,
-    },
-    IssueComments {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-    },
-    PullComments {
-        repository: String,
-        number: u32,
-        page: u32,
-        limit: u32,
-    },
-}
+pub use crate::github_provider::Read;
 pub struct Reply {
     pub status: u16,
     pub body: Value,

@@ -1,0 +1,93 @@
+use super::reads::{paging, unique, Reader};
+use super::request::commit;
+use super::{records as r, Failure, Result};
+use serde_json::{json, Value};
+use std::collections::HashSet;
+
+impl Reader<'_> {
+    pub(super) async fn diff(&self, q: &Value) -> Result<Value> {
+        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
+        let pull = self.raw_subject(true, number).await?;
+        let before = self.diff_state(&pull)?;
+        if q["head"] != "" && q["head"] != before["head"] {
+            return Err(Failure::new(409, "github_diff_changed"));
+        }
+        let comparison = self
+            .get(
+                &format!(
+                    "/compare/{}...{}",
+                    r::text(&before, "base")?,
+                    r::text(&before, "head")?
+                ),
+                &[("page", "2".into()), ("per_page", "1".into())],
+            )
+            .await?
+            .value;
+        let merge_base = r::text(&comparison["merge_base_commit"], "sha")?;
+        if comparison["base_commit"]["sha"] != before["base"] || !commit(merge_base) {
+            return Err(Failure::protocol());
+        }
+        if q["base"] != "" && q["base"] != merge_base {
+            return Err(Failure::new(409, "github_diff_changed"));
+        }
+        let scope = json!({"repository":self.repository,"name":self.name,"pull":{"kind":"pull","external_id":before["pull"],"number":number},"base":merge_base,"head":before["head"],"pull_base":before["base"],"base_branch":before["branch"]});
+        let files = q["kind"] == "pull_files";
+        let mut result = scope.clone();
+        let mut file_count = None;
+        if files {
+            let total = pull["changed_files"]
+                .as_u64()
+                .ok_or_else(Failure::unavailable)?;
+            if total > 3000 {
+                return Err(Failure::new(413, "github_files_too_large"));
+            }
+            file_count = Some(total);
+            let (page, limit) = paging(q);
+            let offset = (page as u64 - 1) * limit as u64;
+            if offset >= total && !(page == 1 && total == 0) {
+                return Err(Failure::invalid());
+            }
+            let response = self
+                .get(
+                    &format!("/pulls/{number}/files"),
+                    &[("page", page.to_string()), ("per_page", limit.to_string())],
+                )
+                .await?;
+            let want = (limit as u64).min(total - offset);
+            let next = if offset + want < total { page + 1 } else { 0 };
+            let items = response.value.as_array().ok_or_else(Failure::protocol)?;
+            if items.len() as u64 != want
+                || response.next != next
+                || response.last != 0 && response.last as u64 != total.div_ceil(limit as u64)
+            {
+                return Err(Failure::protocol());
+            }
+            let mut seen = HashSet::new();
+            let mut projected = Vec::new();
+            for item in items {
+                unique(&mut seen, r::text(item, "filename")?)?;
+                projected.push(r::file(item)?);
+            }
+            result = json!({"diff":scope,"items":projected,"page":page,"limit":limit,"total":total,"next_page":next});
+        }
+        let after = self.raw_subject(true, number).await?;
+        if self.diff_state(&after)? != before
+            || file_count.is_some_and(|total| after["changed_files"].as_u64() != Some(total))
+        {
+            return Err(Failure::new(409, "github_diff_changed"));
+        }
+        self.recheck().await?;
+        Ok(result)
+    }
+    fn diff_state(&self, pull: &Value) -> Result<Value> {
+        let base = r::text(&pull["base"], "sha")?;
+        let head = r::text(&pull["head"], "sha")?;
+        let branch = r::nonempty(&pull["base"], "ref")?;
+        if !commit(base) || !commit(head) {
+            return Err(Failure::unavailable());
+        }
+        Ok(
+            json!({"repository":self.repository,"pull":r::id(&pull["id"])?,"base":base,"head":head,"branch":branch}),
+        )
+    }
+}

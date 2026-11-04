@@ -331,6 +331,16 @@ session owner with fixed-origin HTTPS, explicit no-retry/no-redirect behavior,
 refresh decoding. Its own runtime retires and joins DNS/TLS/HTTP work separately
 from child control. A direct check observed actual GitHub invalid-token refusal,
 an unapproved device challenge and refusal after joined retirement. This is an
-inactive producer until the read decoder and canonical-observation cutover;
+inactive producer until the canonical-observation cutover;
 desktop still uses the transitional Go connector at this checkpoint. No real
 refresh, stored sign-in, private read or complete connector parity is claimed yet.
+
+The same Rust module now defines `Read` and the provider-local readers for
+repositories, issues, PRs, discussions, reviews, inline comments, pinned diffs and
+file pages, check runs and legacy statuses. Stable repository/parent/head checks
+bracket each applicable read. Empty filtered issue pages retain continuation;
+nullable facts remain unknown, and no check/history reader infers merge authority.
+The file reader uses Diffy for hunk syntax and retains partial/truncated provider
+fragments with explicit span/stat checks. A direct Rust read check returned real
+GitHub 401 and refused invalid paging/pins/local canonical selectors/retired work.
+Positive authenticated parity remains required at the application cutover.

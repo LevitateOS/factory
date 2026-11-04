@@ -1,10 +1,16 @@
 //! Complete native GitHub session. No Tauri, product SQL, or browser HTTP bridge.
 //! The transport owner is joined on retirement, including its TLS/HTTP drivers.
+mod diff;
 mod oauth;
+mod patch;
+mod reads;
+mod records;
+mod request;
 mod transport;
 
 use crate::credentials::{Account, Provider, Token};
 pub use oauth::{DeviceAuthorization, DevicePrompt};
+pub use request::Read;
 use serde::Serialize;
 pub use transport::{Client, Owner};
 

@@ -17,3 +17,5 @@ secret-service = { version = "=5.2.0", default-features = false, features = ["rt
 tokio = { version = "=1.54.1", features = ["sync", "time", "rt", "net", "macros"] }
 zeroize = "=1.9.1"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+time = { version = "=0.3.55", features = ["parsing"] }
+diffy = "=0.5.2"

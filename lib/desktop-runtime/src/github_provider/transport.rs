@@ -16,6 +16,7 @@ const TIMEOUT: Duration = Duration::from_secs(8);
 pub(crate) struct Response {
     pub value: Value,
     pub next: u32,
+    pub last: u32,
 }
 struct Wire {
     status: u16,
@@ -223,8 +224,10 @@ impl Client {
         if value.is_null() {
             return Err(Failure::protocol());
         }
-        let next = next_page(&wire.headers, &wire.path)?;
-        Ok(Response { value, next })
+        let next = link_page(&wire.headers, &wire.path, "next")?;
+        let last = link_page(&wire.headers, &wire.path, "last")?;
+        self.current()?;
+        Ok(Response { value, next, last })
     }
     pub(crate) async fn oauth(
         &self,
@@ -358,13 +361,13 @@ fn provider_failure(wire: &Wire) -> Failure {
         reset: integer(&wire.headers, "x-ratelimit-reset"),
     }
 }
-fn next_page(headers: &header::HeaderMap, path: &str) -> Result<u32> {
+fn link_page(headers: &header::HeaderMap, path: &str, relation: &str) -> Result<u32> {
     let mut next = 0;
     for value in headers.get_all(header::LINK) {
         for link in value.to_str().map_err(|_| Failure::protocol())?.split(',') {
             let mut pieces = link.trim().split(';');
             let target = pieces.next().ok_or_else(Failure::protocol)?.trim();
-            if !pieces.any(|piece| piece.trim() == "rel=\"next\"") {
+            if !pieces.any(|piece| piece.trim() == format!("rel=\"{relation}\"")) {
                 continue;
             }
             let target = target
