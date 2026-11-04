@@ -10,6 +10,22 @@ into the production desktop runtime and does not itself qualify an agent worker.
 source path cannot replace an admitted invocation. Script/provider freshness and
 authorization belong to the later harness consumer.
 
+`Executable::from_stream` bounds, hashes and seals bytes under the receiving
+worker UID. Its source path is retained only as provenance; the worker never
+opens that desktop path to execute. The protocol owner must bound transfer time
+and validate the complete frame. On this Rocky Linux host, passing the
+desktop-created sealed memfd with `SCM_RIGHTS` across the UID boundary failed:
+SELinux denied the worker write access to its `user_tmp_t` labeled memfd and
+`recvmsg` returned truncated control data. A same-UID transfer control passed.
+The byte-stream design avoids that label crossing.
+
+An external live check sent `/usr/bin/true` bytes captured under the desktop
+home, replaced the source path, and ran the re-sealed image inside the
+socket-activated UID-61739 worker with delegated CPU/memory/process cgroups.
+The worker could not read the source path. Digest, ELF header, truncation and
+declared-size refusals passed; the valid child exited zero and its tree retired.
+This checks the import/process boundary, not a product launch or provider run.
+
 The caller must supply a user-delegated cgroup-v2 root with CPU, memory and
 process controllers enabled, and permission to move its children into that
 subtree. The primitive never enables host-wide controllers or falls back to a

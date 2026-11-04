@@ -300,6 +300,18 @@ so the denial was not a broken `keyctl` invocation. The temporary diagnostic
 installation was removed. The actual agent launch path still needs this check
 alongside role, workspace, credential and retirement evidence.
 
+The cross-UID executable transfer also has a concrete host constraint: SELinux
+denied the system worker receipt of a desktop-created sealed memfd labeled
+`user_tmp_t`; `SCM_RIGHTS` control data was truncated. A same-UID control
+passed. `lib/native-process` now supports a bounded byte stream that the worker
+hashes and seals into its own memfd. Under the actual socket service profile,
+an externally captured ELF whose desktop source was replaced ran as UID 61739;
+the worker could not read the original desktop path, and its cgroup tree
+retired. Wrong digest, non-ELF header, truncated payload and oversized declared
+length were refused. This establishes a viable executable import primitive;
+scripts/provider bundles, admitted run binding, workspace, role, credentials
+and a real provider run remain unqualified.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

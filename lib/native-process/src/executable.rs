@@ -15,6 +15,38 @@ pub struct Executable {
     sha256: String,
 }
 impl Executable {
+    fn empty() -> Result<File> {
+        let fd = unsafe {
+            libc::memfd_create(
+                c"factory-executable".as_ptr(),
+                libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
+            )
+        };
+        if fd < 0 {
+            return Err(Error::Executable);
+        }
+        // SAFETY: memfd_create returned a new exclusively owned descriptor.
+        Ok(unsafe { File::from_raw_fd(fd) })
+    }
+    fn seal(mut file: File, source: PathBuf, sha256: String) -> Result<Self> {
+        file.seek(SeekFrom::Start(0))
+            .map_err(|_| Error::Executable)?;
+        let fd = file.as_raw_fd();
+        let required =
+            libc::F_SEAL_WRITE | libc::F_SEAL_GROW | libc::F_SEAL_SHRINK | libc::F_SEAL_SEAL;
+        let sealed = unsafe {
+            libc::fchmod(fd, 0o500) == 0 && libc::fcntl(fd, libc::F_ADD_SEALS, required) == 0
+        };
+        let seals = unsafe { libc::fcntl(fd, libc::F_GET_SEALS) };
+        if !sealed || seals < 0 || seals & required != required {
+            return Err(Error::Executable);
+        }
+        Ok(Self {
+            file,
+            source,
+            sha256,
+        })
+    }
     pub fn capture(path: &Path) -> Result<Self> {
         if !path.is_absolute() {
             return Err(Error::Invalid);
@@ -34,17 +66,7 @@ impl Executable {
         {
             return Err(Error::Executable);
         }
-        let fd = unsafe {
-            libc::memfd_create(
-                c"factory-executable".as_ptr(),
-                libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
-            )
-        };
-        if fd < 0 {
-            return Err(Error::Executable);
-        }
-        // SAFETY: memfd_create returned a new exclusively owned descriptor.
-        let mut file = unsafe { File::from_raw_fd(fd) };
+        let mut file = Self::empty()?;
         let mut hash = Sha256::new();
         let mut buffer = [0; 65536];
         let mut size = 0u64;
@@ -74,27 +96,60 @@ impl Executable {
         {
             return Err(Error::Executable);
         }
-        file.seek(SeekFrom::Start(0))
-            .map_err(|_| Error::Executable)?;
-        let sealed = unsafe {
-            libc::fchmod(fd, 0o500) == 0
-                && libc::fcntl(
-                    fd,
-                    libc::F_ADD_SEALS,
-                    libc::F_SEAL_WRITE
-                        | libc::F_SEAL_GROW
-                        | libc::F_SEAL_SHRINK
-                        | libc::F_SEAL_SEAL,
-                ) == 0
-        };
-        if !sealed {
-            return Err(Error::Executable);
-        }
-        Ok(Self {
+        Self::seal(
             file,
             source,
-            sha256: hash.finalize().iter().map(|b| format!("{b:02x}")).collect(),
-        })
+            hash.finalize().iter().map(|b| format!("{b:02x}")).collect(),
+        )
+    }
+    /// Import bounded executable bytes through a stream into a new worker-owned
+    /// sealed memfd. The source path is provenance only, never used for worker
+    /// filesystem access or execution. The caller must bound the stream's time
+    /// and ensure the declared bytes are the entire executable payload.
+    pub fn from_stream<R: Read>(
+        reader: &mut R,
+        length: u64,
+        source: &Path,
+        expected_sha256: &str,
+    ) -> Result<Self> {
+        if !source.is_absolute()
+            || source.as_os_str().len() > 4096
+            || !(4..=128 * 1024 * 1024).contains(&length)
+            || expected_sha256.len() != 64
+            || !expected_sha256
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(Error::Invalid);
+        }
+        let mut file = Self::empty()?;
+        let mut header = [0u8; 4];
+        reader
+            .read_exact(&mut header)
+            .map_err(|_| Error::Executable)?;
+        if &header != b"\x7fELF" {
+            return Err(Error::Executable);
+        }
+        file.write_all(&header).map_err(|_| Error::Executable)?;
+        let mut hash = Sha256::new();
+        hash.update(header);
+        let mut remaining = length - header.len() as u64;
+        let mut buffer = [0u8; 65536];
+        while remaining != 0 {
+            let want = buffer.len().min(remaining as usize);
+            reader
+                .read_exact(&mut buffer[..want])
+                .map_err(|_| Error::Executable)?;
+            file.write_all(&buffer[..want])
+                .map_err(|_| Error::Executable)?;
+            hash.update(&buffer[..want]);
+            remaining -= want as u64;
+        }
+        let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        if digest != expected_sha256 {
+            return Err(Error::Executable);
+        }
+        Self::seal(file, source.into(), digest)
     }
     pub fn source(&self) -> &Path {
         &self.source
