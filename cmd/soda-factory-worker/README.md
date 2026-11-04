@@ -262,6 +262,24 @@ owner retired them. The temporary installation and fixture were removed. This
 proves native custody and withdrawal at this path, not Go product admission,
 real model work or production Quit.
 
+The relay now pins the desktop socket owner's exact process with a Linux pidfd
+before reporting readiness. It checks that handle every second and stops when
+the owner process exits; missing pidfd support fails relay startup closed. Both
+the exact agent socket and service are bound to the relay unit with systemd
+`BindsTo`, so relay loss stops their admission and process service. A disposable
+actual-unit check killed only a fake desktop socket owner: the relay and an
+armed root-only agent socket both became inactive, and the temporary units and
+socket were removed. A separate cross-UID kernel probe observed a pidfd become
+readable after owner exit. A second disposable run staged a real bundle and
+started a sleeping ELF in the isolated reviewer service. Killing its fake
+desktop owner stopped the relay and active agent service; systemd then showed
+`MainPID=0` and no control group. The broker returned a retired-process receipt
+with exit signal 15, not a clean exit code, and exact bundle retirement
+succeeded. Temporary units, binaries, source and child were removed. This
+qualifies owner-death process teardown on this host; the fake owner was separate
+from the surviving broker client, and production desktop crash/restart recovery
+of retained root staging remains open.
+
 The agent service now opens `soda-native-process::Processes` under its own
 run-specific runtime and delegated cgroup before accepting an attestation.
 Its unit places the main process in `init`, leaving the parent cgroup empty so

@@ -294,6 +294,16 @@ idempotent; temporary root units, binaries, run state and fixture data were
 removed. This qualifies the native owner-to-worker custody path for a dummy
 token, not real account enrollment, a model response, Go admission or Quit.
 
+The isolated relay now pins the bound desktop owner process with a pidfd before
+readiness, and its systemd dependency closes the exact agent socket and service
+on owner death. A disposable real-unit probe observed relay and agent-socket
+shutdown after killing the fake owner. A second actual-unit probe launched a
+sleeping child in the isolated reviewer service, then killed the fake owner.
+The relay and agent service stopped, with `MainPID=0` and no control group;
+the broker returned a signal-15 retired-process receipt and exact cleanup
+succeeded. The native `RunOwner` still needs production lifecycle registration
+and retained-run restart recovery before Quit/restart can report settled work.
+
 ## Native GitHub connector
 
 The headless `github_provider` owner implements fixed-origin authenticated HTTPS,

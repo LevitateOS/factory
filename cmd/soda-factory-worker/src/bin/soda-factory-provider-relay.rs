@@ -4,7 +4,7 @@
 //! request and applies provider, run, route and credential policy.
 use std::io;
 use std::net::Ipv4Addr;
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::Path;
@@ -84,7 +84,7 @@ fn owner_socket(desktop_uid: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn owner_peer(stream: &UnixStream, desktop_uid: u32) -> io::Result<()> {
+fn owner_peer(stream: &UnixStream, desktop_uid: u32) -> io::Result<libc::pid_t> {
     let mut peer = libc::ucred {
         pid: 0,
         uid: 0,
@@ -106,7 +106,34 @@ fn owner_peer(stream: &UnixStream, desktop_uid: u32) -> io::Result<()> {
     {
         return Err(refused("provider relay owner peer invalid"));
     }
-    Ok(())
+    Ok(peer.pid)
+}
+
+async fn owner_liveness(desktop_uid: u32) -> io::Result<OwnedFd> {
+    // Pin the exact desktop process that bound the owner socket. An inode-only
+    // check cannot distinguish a dead owner from an abandoned mounted socket.
+    let stream = tokio::time::timeout(Duration::from_secs(3), UnixStream::connect(OWNER))
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "provider owner unavailable"))??;
+    let pid = owner_peer(&stream, desktop_uid)?;
+    let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+    if fd < 0 {
+        return Err(refused("provider owner process handle unavailable"));
+    }
+    Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
+}
+
+fn owner_gone(pidfd: &OwnedFd) -> io::Result<bool> {
+    let mut watched = libc::pollfd {
+        fd: pidfd.as_raw_fd(),
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    let ready = unsafe { libc::poll(&mut watched, 1, 0) };
+    if ready < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(ready != 0)
 }
 
 fn notify_ready() -> io::Result<()> {
@@ -201,9 +228,11 @@ async fn transfer(client: TcpStream, desktop_uid: u32) -> io::Result<()> {
 async fn serve() -> io::Result<()> {
     let desktop_uid = identity()?;
     owner_socket(desktop_uid)?;
+    let owner = owner_liveness(desktop_uid).await?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, PORT)).await?;
     notify_ready()?;
     let deadline = tokio::time::Instant::now() + LIFETIME;
+    let mut monitor = tokio::time::interval(Duration::from_secs(1));
     let mut tasks = JoinSet::new();
     let mut count = 0;
     loop {
@@ -212,6 +241,11 @@ async fn serve() -> io::Result<()> {
         }
         tokio::select! {
             biased;
+            _ = monitor.tick() => {
+                if owner_gone(&owner)? {
+                    break;
+                }
+            }
             _ = tokio::time::sleep_until(deadline) => break,
             Some(result) = tasks.join_next(), if !tasks.is_empty() => {
                 if let Err(error) = result {

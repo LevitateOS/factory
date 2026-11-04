@@ -864,6 +864,19 @@ were removed. This proves native worker/owner custody for an invalid token;
 Go admission, durable receipt consumption, real provider work and production
 Quit remain D3 gates.
 
+The isolated provider relay now holds a Linux pidfd for the exact desktop
+socket owner and fails closed when it cannot obtain one. It checks owner exit
+once per second. The agent socket and service use systemd `BindsTo` on that
+relay. A disposable real-unit probe killed a fake desktop owner and observed
+both the relay and armed agent socket inactive; a cross-UID kernel probe showed
+the pidfd become readable after process exit. A second actual-unit probe had a
+sleeping child mark its start inside the isolated reviewer service. Owner death
+stopped the relay and agent service, leaving `MainPID=0` and no control group.
+The broker returned a signal-15 retired-process receipt rather than a clean
+exit, and exact retirement removed the staged run. This closes idle and active
+owner-death process teardown on this host. Root run-state recovery on restart,
+Go admission and production Quit remain D3 gates.
+
 The Go retained isolated-run and checkpoint validators now require the broker's
 36-character boot ID and a positive decimal kernel start tick. Historical
 same-user records keep their earlier text shape. The existing native

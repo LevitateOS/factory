@@ -1,5 +1,7 @@
 [Unit]
 Description=Factory exact-run agent admission socket for %i
+BindsTo=soda-factory-provider-relay@%i.service
+After=soda-factory-provider-relay@%i.service
 
 [Socket]
 ListenStream=/run/soda-factory/agents/%i.sock

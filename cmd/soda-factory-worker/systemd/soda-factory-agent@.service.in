@@ -1,6 +1,6 @@
 [Unit]
 Description=Factory isolated agent boundary for run %i
-Requires=soda-factory-provider-relay@%i.service
+BindsTo=soda-factory-provider-relay@%i.service
 After=soda-factory-provider-relay@%i.service
 JoinsNamespaceOf=soda-factory-provider-relay@%i.service
 
