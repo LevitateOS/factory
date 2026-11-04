@@ -1,0 +1,15 @@
+[Unit]
+Description=Factory privileged run staging socket
+
+[Socket]
+ListenStream=/run/soda-factory/broker.sock
+SocketUser=@DESKTOP_USER@
+SocketMode=0600
+DirectoryMode=0755
+Accept=yes
+MaxConnections=4
+MaxConnectionsPerSource=4
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

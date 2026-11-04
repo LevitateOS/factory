@@ -378,6 +378,22 @@ carrying an unprivileged placeholder credential. The fake endpoint, scratch
 workspace and listener were removed. It does not establish all provider
 routes, proxy token replacement, live account authority or a finite model run.
 
+The first privileged workspace-transfer component is now
+`cmd/soda-factory-broker`. It is a root-owned, socket-activated staging service
+with no launch request: it admits only a desktop-UID peer and a bounded Git
+bundle byte stream keyed by a 32-hex run ID and SHA-256 digest. It has no host
+path, role, credential or unit-property input. It stores up to 64 exact bundles
+under a root-private state parent, with each finished child readable only via a
+manager-selected bind mount. Its systemd profile has no capabilities or IP
+access and a 15-second lifetime. The rendered units verified, and a transient
+installation staged and identically replayed a tiny local bundle while refusing
+changed bytes, wrong digest, invalid run, extra path, oversize and truncation.
+An unprivileged service could clone that bundle from the selected read-only
+mount but could not traverse the original source. The temporary installation
+and state were removed. The broker does not parse Git as root or authorize a
+role, snapshot, worker launch, credential, retirement or provider run. D3
+remains open; this staging endpoint is not installed by the current desktop.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
