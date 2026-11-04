@@ -13,6 +13,9 @@ use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, UNIX_EPOCH};
+#[path = "../agent_candidate.rs"]
+mod agent_candidate;
+use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
 
 const SOURCE: &str = "/run/factory-source";
 const WORKSPACE: &str = "/run/factory-agent-private/workspace";
@@ -89,6 +92,10 @@ struct Execution<'a> {
     output_complete: bool,
     output_length: usize,
     output_sha256: &'a str,
+    candidate_state: &'a str,
+    result_candidate: Option<&'a str>,
+    bundle_length: usize,
+    bundle_sha256: Option<&'a str>,
 }
 
 fn refused(message: &'static str) -> io::Error {
@@ -288,6 +295,10 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
         (OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")),
         (OsString::from("GIT_LFS_SKIP_SMUDGE"), OsString::from("1")),
         (OsString::from("GIT_ATTR_NOSYSTEM"), OsString::from("1")),
+        (
+            OsString::from("GIT_NO_REPLACE_OBJECTS"),
+            OsString::from("1"),
+        ),
     ]);
     let arguments = [
         "-c",
@@ -583,6 +594,7 @@ fn execute_agent(
     tool_sha256: &str,
     prompt_sha256: &str,
     worker_uid: u32,
+    repository_identity: Option<&RepositoryIdentity>,
     executable_length: u64,
     prompt_length: usize,
     placeholder: &str,
@@ -700,17 +712,44 @@ fn execute_agent(
             process.cancel();
         }
     };
-    processes
-        .retire()
-        .map_err(|_| refused("agent process tree retirement unconfirmed"))?;
     if !observed.tree_retired {
         return Err(refused("agent process tree retirement unconfirmed"));
     }
+    let captured = match repository_identity {
+        Some(identity) => agent_candidate::capture(
+            Path::new(WORKSPACE),
+            candidate,
+            Path::new(PRIVATE).join("candidate.bundle").as_path(),
+            identity,
+            |arguments, duration| git(processes, arguments, duration),
+        )
+        .unwrap_or(Candidate::Unavailable),
+        None => Candidate::NotApplicable,
+    };
+    processes
+        .retire()
+        .map_err(|_| refused("agent process tree retirement unconfirmed"))?;
     let output = fs::read(&observed.output)?;
     if output.len() > MAX_OUTPUT {
         return Err(refused("agent output bound invalid"));
     }
     let output_sha256 = sha256(&output);
+    let (candidate_state, result_candidate, bundle, bundle_sha256): (
+        &str,
+        Option<&str>,
+        &[u8],
+        Option<&str>,
+    ) = match &captured {
+        Candidate::NotApplicable => ("not_applicable", None, &[], None),
+        Candidate::Unchanged => ("unchanged", None, &[], None),
+        Candidate::Dirty => ("dirty", None, &[], None),
+        Candidate::Unavailable => ("unavailable", None, &[], None),
+        Candidate::Captured {
+            commit,
+            bundle,
+            sha256,
+        } => ("captured", Some(commit), bundle, Some(sha256)),
+    };
     let started_unix_ms = observed
         .started_at
         .duration_since(UNIX_EPOCH)
@@ -720,7 +759,7 @@ fn execute_agent(
         .map_err(|_| refused("agent process start time invalid"))?;
     let reply = serde_json::to_vec(&Execution {
         kind: "agent_executed",
-        version: 1,
+        version: 2,
         run,
         profile,
         candidate,
@@ -741,11 +780,19 @@ fn execute_agent(
         output_complete: observed.output_complete,
         output_length: output.len(),
         output_sha256: &output_sha256,
+        candidate_state,
+        result_candidate,
+        bundle_length: bundle.len(),
+        bundle_sha256,
     })?;
+    if reply.len() > 1536 {
+        return Err(refused("agent execution reply bound invalid"));
+    }
     drop(prompt_file);
     stream.write_all(&(reply.len() as u32).to_le_bytes())?;
     stream.write_all(&reply)?;
-    stream.write_all(&output)
+    stream.write_all(&output)?;
+    stream.write_all(bundle)
 }
 
 fn serve() -> io::Result<()> {
@@ -772,6 +819,11 @@ fn serve() -> io::Result<()> {
     if role == "coder" {
         coder_workspace(&candidate, worker_uid, &mut processes)?;
     }
+    let candidate_identity = if role == "coder" {
+        Some(repository_identity(Path::new(WORKSPACE))?)
+    } else {
+        None
+    };
     let listener = listener(&args[1])?;
     let deadline = Instant::now() + Duration::from_secs(10);
     let (mut stream, _) = loop {
@@ -862,6 +914,7 @@ fn serve() -> io::Result<()> {
                 &tool_sha256,
                 &prompt_sha256,
                 worker_uid,
+                candidate_identity.as_ref(),
                 executable_length,
                 prompt_length,
                 &placeholder,

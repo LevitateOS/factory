@@ -20,7 +20,8 @@ const MAX_BUNDLE: usize = 512 * 1024;
 const MAX_PROMPT: usize = 320 * 1024;
 const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
-const MAX_AGENT_REPLY: usize = 1024;
+const MAX_CANDIDATE_BUNDLE: usize = 4 * 1024 * 1024;
+const MAX_AGENT_REPLY: usize = 1536;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
 const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
@@ -295,6 +296,39 @@ struct AgentExecutionReply {
     output_complete: bool,
     output_length: usize,
     output_sha256: String,
+    candidate_state: String,
+    result_candidate: Option<String>,
+    bundle_length: usize,
+    bundle_sha256: Option<String>,
+}
+
+fn candidate_reply_valid(reply: &AgentExecutionReply) -> bool {
+    if reply.role == "reviewer" {
+        return reply.candidate_state == "not_applicable"
+            && reply.result_candidate.is_none()
+            && reply.bundle_length == 0
+            && reply.bundle_sha256.is_none();
+    }
+    if reply.role != "coder" {
+        return false;
+    }
+    if reply.candidate_state == "captured" {
+        return reply
+            .result_candidate
+            .as_deref()
+            .is_some_and(|commit| id(commit, 40) && commit != reply.candidate)
+            && (1..=MAX_CANDIDATE_BUNDLE).contains(&reply.bundle_length)
+            && reply
+                .bundle_sha256
+                .as_deref()
+                .is_some_and(|digest| id(digest, 64));
+    }
+    matches!(
+        reply.candidate_state.as_str(),
+        "unchanged" | "dirty" | "unavailable"
+    ) && reply.result_candidate.is_none()
+        && reply.bundle_length == 0
+        && reply.bundle_sha256.is_none()
 }
 
 #[derive(Serialize)]
@@ -1319,7 +1353,7 @@ fn execute_agent<R: Read, W: Write>(
         let reply: AgentExecutionReply = serde_json::from_slice(&bytes)
             .map_err(|_| denied("agent execution reply shape invalid"))?;
         if reply.kind != "agent_executed"
-            || reply.version != 1
+            || reply.version != 2
             || reply.run != run
             || reply.profile != profile
             || reply.candidate != candidate
@@ -1345,6 +1379,7 @@ fn execute_agent<R: Read, W: Write>(
             || !reply.tree_retired
             || reply.output_length > MAX_OUTPUT
             || !id(&reply.output_sha256, 64)
+            || !candidate_reply_valid(&reply)
             || !matches!(
                 reply.reason.as_str(),
                 "exited"
@@ -1361,12 +1396,21 @@ fn execute_agent<R: Read, W: Write>(
         }
         let mut body = vec![0u8; reply.output_length];
         read_worker(&mut worker, &mut body, deadline)?;
-        if hash(&body) != reply.output_sha256 || client_closed()? {
+        let mut bundle = vec![0u8; reply.bundle_length];
+        read_worker(&mut worker, &mut bundle, deadline)?;
+        if hash(&body) != reply.output_sha256
+            || reply
+                .bundle_sha256
+                .as_deref()
+                .is_some_and(|digest| hash(&bundle) != digest)
+            || client_closed()?
+        {
             return Err(denied("agent execution output invalid"));
         }
         output.write_all(&(bytes.len() as u32).to_le_bytes())?;
         output.write_all(&bytes)?;
         output.write_all(&body)?;
+        output.write_all(&bundle)?;
         output.flush()
     })();
     if result.is_err() {

@@ -379,3 +379,21 @@ inputs, and a rendered scratch unit pointing at that binary passed
 actual unit is not installed in this workspace and was not started for this
 change. The effect on a real coder/provider run, workspace growth and cleanup
 still needs live qualification; this setting alone does not close D3.
+
+The agent now observes a coder checkout after its tool tree has retired and
+before the Git process owner stops. It refuses changed workspace/.git identity
+or local Git configuration, reports dirty or unchanged work without inventing a
+commit, and exports a clean descendant HEAD as a Git bundle of at most 4 MiB.
+The bundle is verified against its base in the worker, hashed, and streamed with
+the bounded output and exact run receipt. Reviewer runs report no candidate.
+The broker and desktop client independently check the declared state, commit,
+size and digest; the desktop owner fsyncs the bundle inside its private run
+receipt before retiring root staging. The changed reply and durable receipt use
+version 2, so retained version-1 observations cannot be read as bundles. A
+direct temporary Git-repository check
+passed unchanged, dirty, clean committed, changed-configuration refusal and a
+5 MiB incompressible bundle refusal. Locked offline worker, broker and desktop
+runtime source checks pass. This has not run through an installed isolated
+agent service or the Go coordinator. The current CLI call does not make a
+commit on behalf of a dirty coder; candidate checkpoint and canonical result
+binding remain N3/N4 work.

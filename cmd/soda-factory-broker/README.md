@@ -502,3 +502,13 @@ activation simulated interruption after both bundle and profile declaration
 were unlinked. A wrong-profile retry was refused, while the exact-profile
 retry removed the empty tombstone; restaging and retiring the same run then
 succeeded. All disposable units and runtime state were removed.
+
+The broker now forwards a separately bounded, digested candidate bundle after
+the process output when a coder worker reports a clean descendant commit.
+Unchanged, dirty and unavailable coder states carry no bundle; reviewer runs
+cannot claim one. The desktop client repeats these checks and retains the
+bundle in its private fsynced run receipt before root retirement. A direct
+temporary Git checkout exercises the worker capture function, and locked
+offline source checks pass for worker, broker and desktop runtime. No installed
+broker/agent service or Go execution consumer exercised the new reply path;
+this does not qualify candidate publication or D3.

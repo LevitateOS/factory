@@ -24,7 +24,8 @@ const MAX_BUNDLE: usize = 512 * 1024;
 const MAX_PROMPT: usize = 320 * 1024;
 const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
-const MAX_EXEC_REPLY: usize = 1024;
+const MAX_CANDIDATE_BUNDLE: usize = 4 * 1024 * 1024;
+const MAX_EXEC_REPLY: usize = 1536;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
 const AGENT_TIME: Duration = Duration::from_secs(60);
@@ -234,6 +235,39 @@ struct AgentExecuted {
     output_complete: bool,
     output_length: usize,
     output_sha256: String,
+    candidate_state: String,
+    result_candidate: Option<String>,
+    bundle_length: usize,
+    bundle_sha256: Option<String>,
+}
+
+fn candidate_reply_valid(reply: &AgentExecuted) -> bool {
+    if reply.role == "reviewer" {
+        return reply.candidate_state == "not_applicable"
+            && reply.result_candidate.is_none()
+            && reply.bundle_length == 0
+            && reply.bundle_sha256.is_none();
+    }
+    if reply.role != "coder" {
+        return false;
+    }
+    if reply.candidate_state == "captured" {
+        return reply
+            .result_candidate
+            .as_deref()
+            .is_some_and(|commit| id(commit, 40) && commit != reply.candidate)
+            && (1..=MAX_CANDIDATE_BUNDLE).contains(&reply.bundle_length)
+            && reply
+                .bundle_sha256
+                .as_deref()
+                .is_some_and(|digest| id(digest, 64));
+    }
+    matches!(
+        reply.candidate_state.as_str(),
+        "unchanged" | "dirty" | "unavailable"
+    ) && reply.result_candidate.is_none()
+        && reply.bundle_length == 0
+        && reply.bundle_sha256.is_none()
 }
 
 pub struct AgentProcess {
@@ -253,6 +287,10 @@ pub struct AgentRun {
     pub exit_signal: Option<i32>,
     pub output_complete: bool,
     pub output: Vec<u8>,
+    pub candidate_state: String,
+    pub result_candidate: Option<String>,
+    pub candidate_bundle: Vec<u8>,
+    pub bundle_sha256: Option<String>,
 }
 
 /// A trusted native owner can cancel a blocked broker call from its lifecycle
@@ -739,7 +777,7 @@ impl Broker {
             .map_err(|_| refused("agent execution reply shape invalid"))?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "agent_executed"
-            || reply.version != 1
+            || reply.version != 2
             || reply.run != run
             || reply.profile != profile
             || reply.candidate != candidate
@@ -757,6 +795,7 @@ impl Broker {
             || !reply.tree_retired
             || reply.output_length > MAX_OUTPUT
             || !id(&reply.output_sha256, 64)
+            || !candidate_reply_valid(&reply)
             || reply
                 .exit_code
                 .is_some_and(|code| !(0..=255).contains(&code))
@@ -788,6 +827,17 @@ impl Broker {
         if observed != reply.output_sha256 {
             return Err(refused("agent execution output digest invalid"));
         }
+        let mut bundle = vec![0u8; reply.bundle_length];
+        stream.read_exact(&mut bundle)?;
+        if reply.bundle_sha256.as_deref().is_some_and(|digest| {
+            let observed: String = Sha256::digest(&bundle)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            observed != digest
+        }) {
+            return Err(refused("agent candidate bundle digest invalid"));
+        }
         let run = AgentRun {
             worker_uid: reply.worker_uid,
             process: AgentProcess {
@@ -802,6 +852,10 @@ impl Broker {
             exit_signal: reply.exit_signal,
             output_complete: reply.output_complete,
             output,
+            candidate_state: reply.candidate_state,
+            result_candidate: reply.result_candidate,
+            candidate_bundle: bundle,
+            bundle_sha256: reply.bundle_sha256,
         };
         if cancellation.cancelled() {
             Err(refused("agent execution cancelled"))

@@ -16,9 +16,15 @@ The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 this workspace on 2026-11-04. The recorded crash and the backtrace description
 are historical plan evidence; the original logs, cores and exact input hashes
 could not be re-inspected here. Retrieve them before claiming a diagnosis.
-The current worktree passes normal and opt-in native desktop source checks after
-the generated UI is built; these checks do not diagnose the crash or qualify
-connected authentication and IPC.
+A prior worktree checkpoint passed normal and opt-in native desktop source
+checks after the generated UI was built; those checks did not diagnose the
+crash or qualify connected authentication and IPC.
+On 2026-11-05 a repeat `cargo check` for the native desktop stopped before
+compiling the app because the current environment has no pkg-config entries for
+GDK Pixbuf, Pango, libsoup 3 or JavaScriptCoreGTK 4.1. The earlier successful
+desktop checks remain historical evidence; restore the Linux desktop sysroot
+before repeating them. The current system coredump index and user journal did
+not contain the recorded WebKit crash artifact.
 A production-bundle Chromium check with a local Tauri command fixture now proves
 that a failed `credential_status` read removes stale saved-account UI rows and
 repository options. It uses no real keyring, provider, consent or authenticated
@@ -62,6 +68,18 @@ its binary built and a rendered scratch unit passed parser verification, but no
 live agent service ran. Actual coder workspace/output limits, cleanup and
 captured results still need service-path evidence before the D3 storage
 requirement can close.
+
+For D3 result custody, the worker now has a direct Git check of clean committed
+candidate bundling and explicit dirty/unchanged states. The broker and desktop
+source bind and hash up to 4 MiB of bundle bytes; the desktop fsyncs them into a
+private receipt before retiring root staging. This has only direct Git and
+source-compilation evidence. The actual system-service worker/broker reply,
+cross-run refusal, Go admission/checkpoint binding, dirty coder checkpoint,
+candidate retrieval/publication and crash/reboot reconciliation are unverified.
+The current CLI invocation does not create a commit for dirty work. Close this
+part only with an admitted real coder run that produces an exact retained
+candidate, denied altered/stale bundle replies, and successful recovery after
+worker or owner interruption. Do not treat the direct bundle fixture as D3.
 
 If a later slice reveals another authentication, IPC admission, credential or
 isolation requirement, add a row with its exact dependency, files, positive and

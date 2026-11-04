@@ -204,6 +204,32 @@ impl RunOwner {
         if run.output.len() > 16 * 1024 * 1024 {
             return Err(refused("provider receipt output bound exceeded"));
         }
+        let observed_bundle_sha256: String = Sha256::digest(&run.candidate_bundle)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let captured = run.candidate_state == "captured"
+            && self.role == Role::Coder
+            && run.result_candidate.as_ref().is_some_and(|commit| {
+                commit.len() == 40
+                    && commit
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            })
+            && (1..=4 * 1024 * 1024).contains(&run.candidate_bundle.len())
+            && run.bundle_sha256.as_deref() == Some(observed_bundle_sha256.as_str());
+        let no_bundle = match self.role {
+            Role::Reviewer => run.candidate_state == "not_applicable",
+            Role::Coder => matches!(
+                run.candidate_state.as_str(),
+                "unchanged" | "dirty" | "unavailable"
+            ),
+        } && run.result_candidate.is_none()
+            && run.candidate_bundle.is_empty()
+            && run.bundle_sha256.is_none();
+        if !captured && !no_bundle {
+            return Err(refused("provider receipt candidate bundle invalid"));
+        }
         let role = match self.role {
             Role::Reviewer => "reviewer",
             Role::Coder => "coder",
@@ -213,7 +239,7 @@ impl RunOwner {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let header = serde_json::to_vec(&json!({
-            "kind":"native_agent_receipt","version":1,
+            "kind":"native_agent_receipt","version":2,
             "run":self.run,"profile":self.profile,"bundle_sha256":self.sha256,
             "candidate":self.candidate,"role":role,
             "tool_sha256":self.tool_sha256,"prompt_sha256":self.prompt_sha256,
@@ -226,6 +252,10 @@ impl RunOwner {
             "reason":run.reason,"exit_code":run.exit_code,"exit_signal":run.exit_signal,
             "output_complete":run.output_complete,
             "output_length":run.output.len(),"output_sha256":output_sha256,
+            "candidate_state":run.candidate_state,
+            "result_candidate":run.result_candidate,
+            "bundle_length":run.candidate_bundle.len(),
+            "bundle_sha256":run.bundle_sha256,
         }))
         .map_err(|_| refused("provider receipt header invalid"))?;
         if header.is_empty() || header.len() > 2048 {
@@ -242,6 +272,7 @@ impl RunOwner {
         file.write_all(&(header.len() as u32).to_le_bytes())?;
         file.write_all(&header)?;
         file.write_all(&run.output)?;
+        file.write_all(&run.candidate_bundle)?;
         file.sync_all()?;
         fs::hard_link(&pending, &committed)?;
         File::open(&self.receipts)?.sync_all()?;

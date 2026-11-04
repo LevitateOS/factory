@@ -24809,3 +24809,32 @@ local binary path in place of the absent installed binary.
 No agent service was installed or started, and no real coder or provider run
 was exercised. Live workspace growth/retirement and candidate/artifact capture
 remain open. T09-NATIVE-EXECUTOR and D3 remain Pending/open.
+
+T09-NATIVE-EXECUTOR candidate-result source checkpoint (2026-11-05): after the
+isolated agent tree retires, the worker now checks unchanged workspace/.git
+identity and Git configuration before inspecting a coder result. Dirty or
+unchanged work yields no invented commit. A clean descendant HEAD yields a
+verified, at-most-4 MiB Git bundle; the worker streams its digest and bytes
+after process output. The broker and desktop client independently validate
+run/role/candidate state, bundle length and digest, and the native owner fsyncs
+the bundle in its private receipt before root staging retirement. Reviewer
+runs cannot report a candidate. The reply and durable receipt use version 2;
+retained version-1 observations remain distinct. A direct temporary Git
+repository check passed
+unchanged, dirty, clean committed, changed-config refusal and oversized-bundle
+refusal. Locked offline worker/broker/desktop-runtime checks, changed-file
+formatting and whitespace checks pass. No installed system broker/agent, real
+provider run, Go admission/checkpoint consumer or candidate publication ran.
+The CLI invocation does not itself commit dirty coder work; canonical checkpoint
+and artifact/result reconciliation remain open. T09-NATIVE-EXECUTOR remains
+Pending, T09-EXECUTION remains Pending, and D3 remains open.
+
+T06-CONNECT environment recheck (2026-11-05): a repeat native desktop
+`cargo check --locked --offline --features native-ui` stopped in system-library
+build scripts because pkg-config cannot find GDK Pixbuf, Pango, libsoup 3 and
+JavaScriptCoreGTK 4.1 in the current workspace environment. This does not
+invalidate the earlier successful source check or diagnose the pre-consent
+WebKit crash. The current system coredump index and user journal contain no
+retained desktop crash entry. No browser challenge or provider operation ran.
+Restore the desktop sysroot and obtain reproducible crash evidence before the
+connected acceptance; T06-CONNECT remains Active.
