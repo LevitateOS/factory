@@ -35,8 +35,11 @@ observation ports here; a caller cannot claim another profile in read JSON.
 `RunNativeWithBinding` uses the same defining runner with the existing trusted
 per-request product binding port. It creates no actor from readiness or IPC;
 account authority must be established independently on every bound request.
-The normal executable still supplies no active product binding. Native control
-acceptance supplies a declared blocking binding to exercise cancellation/drain.
+The normal executable supplies `BindNativeProduct`. It requires an admitted
+native operation and fresh Rust account verification, then transactionally maps
+the account and optional selected repository in the existing Go Store. Ordinary
+readiness-only calls still refuse. Native control acceptance can supply a
+declared blocking binding to exercise cancellation/drain.
 
 The runtime owns the Go network/store lifetime from those inputs. It
 claims only `backend.lock` for one network process, opens the canonical store
@@ -74,7 +77,29 @@ captured credential revision and selected remote repository. No provider token,
 SDK request, arbitrary URL, actor claim or SQL transition crosses this port.
 Returned account/resource facts still require Go's canonical mapping and service
 admission. Current is custody freshness only; it cannot replace Identity.
-The production product binder stays inactive until its explicit consumer packet.
+The reply includes the operation's optional admitted remote repository. It is
+independent of product request selectors and remains fixed throughout the port
+lifetime. Repository facts include nullable provider `push` permission; missing
+permission is unknown, not an inferred write grant.
+
+`BindNativeProduct` composes the shared product router with the same Store and
+coordinator. It supplies feed/subscription, owner-private request, retained
+assignment/priority and library reads. Resource callbacks resolve the exact
+canonical repository on the bound host before asking Rust for fresh provider
+facts; each check also applies current display metadata transactionally. A
+registered association cannot expand the operation's selected scope. Go admits
+bound request saves only on confirmed push permission. Confirmed denial returns
+403, missing permission returns 503 and a foreign/unselected resource returns
+404. Unbound drafts retain canonical owner privacy and need no repository grant.
+
+The existing final current-account gates run before disclosure, including after
+writes. A late refusal can conceal a reply to an already committed save; the
+immutable record remains available to its owner on reconnect. No command is
+automatically replayed. Intake/capture, planning, environment setup, execution,
+artifacts and normalized collaboration source composition retain explicit
+unavailable states until their dependencies are supplied. The coordinator is
+never started by this binding. T06-CONNECT-READS supplies shared issue/PR/evidence
+sources; T06-CONNECT supplies the actual desktop selection and shared UI.
 
 Native executable composition supplies a credential-free observation handler at
 `/api/native/collaboration/observe`. The peer/key/instance and coordinator gates
@@ -97,8 +122,8 @@ The returned product must use the owned store. Missing/error/mismatched bindings
 refuse without exposing account/provider error details. The binding must use
 current credential/connection truth and give resource callbacks the same bound
 account/generation; registered rows alone are not login evidence. No binding is
-decoded from browser JSON. Connector/account storage and actual login remain
-their later consumers; the executable currently has no configured resolver.
+decoded from browser JSON. The headless product binding is now supplied by the
+executable; desktop selection and connected presentation remain consumers.
 
 Duplicate processes refuse before store startup. Stale socket removal requires
 exclusive profile use, an owned socket inode and confirmed connection refusal;

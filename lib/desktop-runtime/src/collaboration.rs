@@ -475,7 +475,7 @@ async fn dispatch(
     }
     let account = scope.capability.account();
     Ok(
-        json!({"connection":{"connection":account.connection,"provider":account.provider,"origin":account.origin,"account":account.account},"observation":observation}),
+        json!({"connection":{"connection":account.connection,"provider":account.provider,"origin":account.origin,"account":account.account},"repository":scope.repository,"observation":observation}),
     )
 }
 

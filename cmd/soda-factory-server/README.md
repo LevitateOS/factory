@@ -27,14 +27,21 @@ application, without replaying model calls or inviting agents. Live and unknown
 historical claims remain unchanged; recovery failure prevents readiness. Store
 opening and recovery share a cancellable ten-second startup budget.
 It preserves unobserved execution records and never dispatches retained work.
-Shared product routes are mounted through the same
-application owner, but refuse without a current connector/account resolver.
-The native composition also supplies the typed GitHub read handler behind its
-authenticated private IPC/instance/lifetime gates. Rust lends credentials for
-one bounded request; the Go SDK verifies the remote account before reads. This
-transport does not itself establish login, bind the product or enable work.
-Actual account/resource admission, execution observation/retirement, executor and the installed
-Tauri supervisor remain subsequent consumers.
+Shared product routes use that same application owner and the production
+`BindNativeProduct` resolver. A finite Rust-admitted operation must supply fresh
+verified account/repository observations through semantic callbacks. Go maps
+identities transactionally and supplies shared feed/subscription, request and
+retained-read services. Readiness, a stored mapping or a browser selector cannot
+admit the account or enlarge its resource scope. Missing setup, planning and
+execution dependencies remain unavailable; the coordinator is not started.
+
+Rust owns complete authenticated GitHub requests, device flow, refresh, account
+verification and provider-local decoding. Go receives only bounded nonsecret
+observations through private peer/key/instance/lifetime gates; its observation
+handler maps canonical identities in one transaction. The old native Go SDK and
+credential-carrying routes are removed. Shared normalized collaboration readers,
+desktop selection/UI, native execution and installed qualification remain the
+next consumers. No provider credential passes through this executable.
 macOS native execution/qualification remains deferred.
 
 ## Forge integration

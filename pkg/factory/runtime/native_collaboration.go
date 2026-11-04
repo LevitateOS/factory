@@ -31,9 +31,14 @@ type nativeOperation struct {
 // Current proves current custody, not remote identity; Identity must succeed
 // before the product owner transactionally maps an actor.
 type NativeCollaboration struct {
-	operation  nativeOperation
-	mu         sync.Mutex
-	connection *NativeConnection
+	operation nativeOperation
+	mu        sync.Mutex
+	scope     *nativeScope
+}
+
+type nativeScope struct {
+	Connection NativeConnection
+	Repository string
 }
 
 type NativeConnection struct {
@@ -45,12 +50,17 @@ type NativeConnection struct {
 type NativeIdentity struct {
 	Connection NativeConnection
 	Account    collaboration.ObservedActor
+	// SelectedRepository is the native operation's admitted remote scope.
+	// Product request bodies and query parameters cannot select this authority.
+	SelectedRepository string
 }
 type NativeRepository struct {
 	ExternalID    string `json:"external_id"`
 	Name          string `json:"name"`
 	Private       bool   `json:"private"`
 	DefaultBranch string `json:"default_branch"`
+	// Push is a provider observation, not Factory execution or spending authority.
+	Push *bool `json:"push"`
 }
 type NativeRepositoryObservation struct {
 	NativeIdentity
@@ -120,22 +130,22 @@ func nativeObservedText(value string, bound int, empty bool) bool {
 }
 func (p *NativeCollaboration) Current(ctx context.Context) (NativeConnection, error) {
 	var observation json.RawMessage
-	connection, err := p.call(ctx, map[string]any{"kind": "current"}, &observation)
+	scope, err := p.call(ctx, map[string]any{"kind": "current"}, &observation)
 	if err == nil && !bytes.Equal(bytes.TrimSpace(observation), []byte("null")) {
 		err = errors.New("invalid native observation")
 	}
-	return connection, err
+	return scope.Connection, err
 }
 func (p *NativeCollaboration) Identity(ctx context.Context) (NativeIdentity, error) {
 	var observation struct {
 		Kind    string                      `json:"kind"`
 		Account collaboration.ObservedActor `json:"account"`
 	}
-	connection, err := p.call(ctx, map[string]any{"kind": "read", "query": map[string]any{"kind": "identity"}}, &observation)
-	if err == nil && (observation.Kind != "identity" || !nativeActor(observation.Account) || observation.Account.ExternalID != connection.Account) {
+	scope, err := p.call(ctx, map[string]any{"kind": "read", "query": map[string]any{"kind": "identity"}}, &observation)
+	if err == nil && (observation.Kind != "identity" || !nativeActor(observation.Account) || observation.Account.ExternalID != scope.Connection.Account) {
 		err = errors.New("invalid native account observation")
 	}
-	return NativeIdentity{Connection: connection, Account: observation.Account}, err
+	return NativeIdentity{Connection: scope.Connection, Account: observation.Account, SelectedRepository: scope.Repository}, err
 }
 func (p *NativeCollaboration) Repository(ctx context.Context, repository string) (NativeRepositoryObservation, error) {
 	if !nativeRemoteID(repository) {
@@ -146,11 +156,11 @@ func (p *NativeCollaboration) Repository(ctx context.Context, repository string)
 		Account    collaboration.ObservedActor `json:"account"`
 		Repository NativeRepository            `json:"repository"`
 	}
-	connection, err := p.call(ctx, map[string]any{"kind": "read", "query": map[string]any{"kind": "repository", "repository": repository}}, &observation)
-	if err == nil && (observation.Kind != "repository" || !nativeActor(observation.Account) || observation.Account.ExternalID != connection.Account || observation.Repository.ExternalID != repository || !nativeObservedText(observation.Repository.Name, 512, false) || !nativeObservedText(observation.Repository.DefaultBranch, 1024, true)) {
+	scope, err := p.call(ctx, map[string]any{"kind": "read", "query": map[string]any{"kind": "repository", "repository": repository}}, &observation)
+	if err == nil && (observation.Kind != "repository" || !nativeActor(observation.Account) || observation.Account.ExternalID != scope.Connection.Account || scope.Repository != repository || observation.Repository.ExternalID != repository || !nativeObservedText(observation.Repository.Name, 512, false) || !nativeObservedText(observation.Repository.DefaultBranch, 1024, true)) {
 		err = errors.New("invalid native repository observation")
 	}
-	return NativeRepositoryObservation{NativeIdentity: NativeIdentity{Connection: connection, Account: observation.Account}, Repository: observation.Repository}, err
+	return NativeRepositoryObservation{NativeIdentity: NativeIdentity{Connection: scope.Connection, Account: observation.Account, SelectedRepository: scope.Repository}, Repository: observation.Repository}, err
 }
 func nativeDecode(raw []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -163,8 +173,8 @@ func nativeDecode(raw []byte, value any) error {
 	}
 	return nil
 }
-func (p *NativeCollaboration) call(ctx context.Context, effect any, observation any) (NativeConnection, error) {
-	var zero NativeConnection
+func (p *NativeCollaboration) call(ctx context.Context, effect any, observation any) (nativeScope, error) {
+	var zero nativeScope
 	if ctx.Err() != nil {
 		return zero, errors.New("native operation cancelled")
 	}
@@ -211,19 +221,26 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	}
 	var envelope struct {
 		Connection  NativeConnection `json:"connection"`
+		Repository  *string          `json:"repository"`
 		Observation json.RawMessage  `json:"observation"`
 	}
 	if nativeDecode(raw, &envelope) != nil || !nativeOpaqueID(envelope.Connection.Connection) || envelope.Connection.Provider != "github" || envelope.Connection.Origin != "https://github.com" || !nativeRemoteID(envelope.Connection.Account) || nativeDecode(envelope.Observation, observation) != nil {
 		return zero, errors.New("invalid native observation")
 	}
+	scope := nativeScope{Connection: envelope.Connection}
+	if envelope.Repository != nil {
+		if !nativeRemoteID(*envelope.Repository) {
+			return zero, errors.New("invalid native repository scope")
+		}
+		scope.Repository = *envelope.Repository
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.connection != nil && *p.connection != envelope.Connection {
+	if p.scope != nil && *p.scope != scope {
 		return zero, errors.New("native account scope changed")
 	}
-	connection := envelope.Connection
-	p.connection = &connection
-	return connection, nil
+	p.scope = &scope
+	return scope, nil
 }
 func nativeErrorCode(code string) bool {
 	if len(code) == 0 || len(code) > 96 {

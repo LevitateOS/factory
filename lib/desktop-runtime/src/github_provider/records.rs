@@ -89,7 +89,7 @@ fn labels(v: &Value) -> Result<Value> {
 pub(super) fn repository(v: &Value) -> Result<Value> {
     id(&v["owner"]["id"])?;
     Ok(
-        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?.as_bool().unwrap_or(false),"default_branch":full_text(v,"default_branch")?}),
+        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?.as_bool().unwrap_or(false),"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?}),
     )
 }
 pub(super) fn issue(v: &Value) -> Result<Value> {

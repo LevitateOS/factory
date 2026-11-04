@@ -153,12 +153,17 @@ they do not block independent Fountain implementation or source preservation.
 
 The selected language allocation now requires the complete authenticated desktop
 connector in Rust. The queue maps N1 to T05-CONTROL, P1/C1 to T06-GITHUB-RUST,
-N2 to T06-CONNECT-PORTS, T06-CONNECT-PRODUCT and their desktop consumer
+N2 to T06-CONNECT-PORTS, T06-CONNECT-PRODUCT, T06-CONNECT-READS and their desktop consumer
 T06-CONNECT, N3 to T09-NATIVE-EXECUTOR and N4 to T09-EXECUTION. The N2 port
 producer gives Go services fresh semantic callbacks into the joined headless
 Rust owner, scoped to one finite native account/repository operation. It retains
 Go's canonical identity, service admission and transactional product owner;
-the product binder and shared desktop selection remain explicit consumers.
+the product binder now maps fresh account and optional selected repository facts
+transactionally and serves shared core Factory APIs with current per-resource
+admission. Shared normalized collaboration readers and desktop selection remain
+explicit consumers. A direct production-server journey verifies this Go consumer
+with declared nonsecret native facts plus real Rust/GitHub refusal; it does not
+claim live connected or installed UI qualification.
 T05-CONTROL is complete: bounded product I/O has a separate joined native owner,
 desktop calls release the lifecycle mutex before awaiting, cancellation retires
 polling I/O, and native product routes enforce captured instance scope. Actual

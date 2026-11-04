@@ -137,9 +137,10 @@ impl Products {
         operation: Option<&str>,
         reply: Reply,
     ) -> Result<Cancel> {
-        if !matches!(method, "GET" | "POST")
+        if !(matches!(method, "GET" | "POST") || operation.is_some() && method == "PUT")
             || target.len() > 2048
-            || !target.starts_with("/api/factory/")
+            || !(target.starts_with("/api/factory/")
+                || operation.is_some() && target.starts_with("/api/repositories/"))
             || target.bytes().any(|b| b.is_ascii_control())
             || body.len() > 65536
         {

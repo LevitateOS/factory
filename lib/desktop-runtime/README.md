@@ -39,6 +39,9 @@ even an unpolled future cancels its request. The blocking `product()` adapter
 uses the same admission and I/O owner. Sixteen permits bound queued/in-flight
 requests and unread native completions. Bodies remain limited to 64 KiB in and
 2 MiB out, with a 15-second wire deadline and 20-second caller wait limit.
+Admitted requests also support subscription PUTs and the shared repository
+product routes. Ordinary readiness-only product calls retain their narrower
+GET/POST Factory route surface.
 
 Product requests carry the captured process instance as well as the private key.
 Retirement closes admission, cancels and joins request tasks, and drops their
@@ -61,7 +64,10 @@ GitHub connector and its defining `Read` selectors; it accepts no provider URL,
 HTTP signing request, canonical selector or credential from Go. The Go client
 currently exposes Current, Identity and Repository; remaining shared read
 consumers follow in the product composition packet. Current proves custody only,
-while Identity performs the actual provider account check.
+while Identity performs the actual provider account check. Replies include the
+operation's admitted optional remote repository, never a product/browser-selected
+scope. The provider decodes nullable push permission; Go decides whether those
+facts admit a bound product request save.
 
 Callbacks require the current-user peer, private key, captured Go instance and
 a live admitted operation. Browser Origin/Fetch headers refuse. Requests are
@@ -73,9 +79,11 @@ owner. Retirement cancels and joins callbacks and finalizations before retiring
 the provider/product owners and stopping the children. The supervisor lock
 protects stale owned-socket recovery; cleanup preserves any replacement inode.
 
-This producer does not activate product account binding or the coordinator.
-The ordinary production product request remains unavailable until the next
-packet composes fresh canonical account/repository admission in Go.
+The production Go executable now binds its shared core product services only for
+these admitted operations, using fresh verified facts and one canonical mapping
+transaction. Ordinary unscoped calls still refuse. Shared normalized collaboration
+sources and desktop selection/UI remain consumers. This runtime does not start
+the product coordinator or grant planning/execution authority.
 
 `health()` freshly checks owned child exits and authenticated bounded Unix HTTP
 readiness. The response must bind the retained profile and the same captured

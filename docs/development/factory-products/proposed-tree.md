@@ -330,6 +330,14 @@ Product I/O retains its existing separate owner. The next product composition
 packet supplies Go canonical mapping/admission; the desktop consumer supplies
 account/repository selection and the shared Lit context. Native readiness and
 custody-only checks never bind an actor or start the coordinator.
+T06-CONNECT-PRODUCT defines `pkg/factory/runtime/native_product.go` and wires it
+into the production native server. The Go binder verifies current native facts,
+atomically maps account/repository identities, and supplies the existing shared
+feed, request and retained-read services. Semantic replies carry the native
+selected repository and nullable push permission. Go owns admission and all
+product transactions; Rust retains credential/provider and operation lifetime.
+T06-CONNECT-READS maps normalized collaboration sources next, before the desktop
+selection/UI consumer. Missing planning/execution dependencies remain explicit.
 T04-UI closes the shared source/build boundary after its listed recovery and
 composition prerequisites. `frontend/factory/app/browser.ts` exposes the defining
 application and its request-error constructor, plus typed host contracts.
