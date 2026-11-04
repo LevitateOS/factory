@@ -24843,12 +24843,18 @@ produced a receipt for recovery, and Go has not yet consumed the retained
 observation in its transaction. The live writer-to-reader path, root retirement,
 crash/reboot reconciliation and D3 gate remain open.
 
-T06-CONNECT environment recheck (2026-11-05): a repeat native desktop
+T06-CONNECT environment recheck (2026-11-05): an unconfigured native desktop
 `cargo check --locked --offline --features native-ui` stopped in system-library
-build scripts because pkg-config cannot find GDK Pixbuf, Pango, libsoup 3 and
-JavaScriptCoreGTK 4.1 in the current workspace environment. This does not
-invalidate the earlier successful source check or diagnose the pre-consent
-WebKit crash. The current system coredump index and user journal contain no
-retained desktop crash entry. No browser challenge or provider operation ran.
-Restore the desktop sysroot and obtain reproducible crash evidence before the
-connected acceptance; T06-CONNECT remains Active.
+build scripts because pkg-config could not find GDK Pixbuf, Pango, libsoup 3 or
+JavaScriptCoreGTK 4.1. The retained desktop sysroot does contain those files.
+With its pkg-config paths set explicitly, the locked offline `native-ui` check
+passed. The opt-in `native-check` desktop, current Go backend and retained
+PostgreSQL payload also built into an ignored scratch stage under `/home`.
+A headless Cage trial failed before desktop launch: the sandbox presents
+`/tmp/.X11-unix` with an owner Cage rejects and did not permit its Wayland
+socket bind. No current Tauri/WebKit journey, browser challenge or provider
+operation ran. The current system coredump index and user journal contain no
+retained historical desktop crash entry. The source/build success does not
+diagnose the pre-consent WebKit crash or qualify connected authentication/IPC.
+Obtain a working display and reproducible crash evidence before connected
+acceptance; T06-CONNECT remains Active.
