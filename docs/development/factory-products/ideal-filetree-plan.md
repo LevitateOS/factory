@@ -352,6 +352,18 @@ rule. A brokered provider endpoint is a possible route, but its protocol,
 network confinement, per-run authorization, withdrawal and actual model call
 remain unproven. The base-URL option alone is not a credential boundary.
 
+A transient network comparison used two known reachable loopback listeners.
+Without an IP policy, an unprivileged system service reached both. With
+`IPAddressDeny=any`, it could not connect; with only
+`IPAddressAllow=127.0.0.1/32`, it reached the listener on `127.0.0.1` but not
+the one on `127.0.0.2`. Each connection was bounded by `nc -w 2` and a
+four-second process timeout; a preceding unbounded TCP-open probe had to be
+stopped and is not evidence of a successful policy check. The listeners and
+transient units were stopped. This proves an address allowlist is enforced on
+this host, but allowing `127.0.0.1` permits other services on that address; it
+does not yet confine an agent to one authenticated broker endpoint or prove
+provider credential withdrawal.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original

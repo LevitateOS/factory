@@ -76,3 +76,10 @@ The observed Muse `exec --api-key-stdin` input would place the provider key in
 the worker and cannot satisfy Factory's credential custody rule for an account
 secret. Its `--base-url` setting offers a possible broker endpoint, but needs
 run-bound authorization, network confinement and withdrawal proof before use.
+
+On this host, a bounded transient systemd comparison confirmed
+`IPAddressDeny=any` blocked a reachable loopback endpoint, while adding
+`IPAddressAllow=127.0.0.1/32` restored access to that address and still blocked
+a known reachable listener on `127.0.0.2`. The listeners and temporary units
+were stopped. An address allowlist alone cannot select a single service or
+authenticate a run, so it is not yet a provider credential boundary.
