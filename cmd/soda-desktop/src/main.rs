@@ -1,4 +1,9 @@
 mod bridge;
+mod product;
+use product::{
+    factory_connect, factory_disconnect, factory_product_cancel, factory_product_request,
+    factory_repositories,
+};
 mod signin;
 use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
 #[cfg(feature = "native-check")]
@@ -51,6 +56,7 @@ struct Desktop {
     windows: AtomicU64,
     streams: Mutex<HashMap<String, Observation>>,
     signin: signin::SignIn,
+    product: product::Connections,
     #[cfg(feature = "native-check")]
     check: check::Check,
 }
@@ -61,7 +67,7 @@ impl Desktop {
             return;
         }
         let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
-        state.retire_credentials();
+        let product_tasks = state.retire_credentials();
         state.cancel_streams();
         {
             let mut status = state.status.lock().unwrap();
@@ -70,6 +76,11 @@ impl Desktop {
             status.generation = generation;
         }
         std::thread::spawn(move || {
+            tauri::async_runtime::block_on(async move {
+                for task in product_tasks {
+                    let _ = task.await;
+                }
+            });
             let state = app.state::<Desktop>();
             let mut runtime = state.runtime.lock().unwrap();
             if let Some(old) = runtime.take() {
@@ -127,11 +138,13 @@ impl Desktop {
         }
         tasks
     }
-    fn retire_credentials(&self) {
+    fn retire_credentials(&self) -> Vec<tauri::async_runtime::JoinHandle<()>> {
+        let tasks = self.product.retire(None);
         if let Some(store) = self.credentials.lock().unwrap().take() {
             store.retire();
         }
         self.signin.retire();
+        tasks
     }
     fn credentials(&self) -> Result<Arc<Credentials>, String> {
         if self.starting.load(Ordering::SeqCst)
@@ -215,16 +228,25 @@ async fn runtime_status(window: WebviewWindow, app: tauri::AppHandle) -> Result<
             && !state.quitting.load(Ordering::SeqCst)
             && state.status.lock().unwrap().phase == "ready"
         {
-            if let Some(owner) = state.runtime.lock().unwrap().as_ref() {
-                if owner.health().is_err() {
-                    state.generation.fetch_add(1, Ordering::SeqCst);
-                    state.cancel_streams();
-                    state.retire_credentials();
-                    let mut status = state.status.lock().unwrap();
-                    status.phase = "failed".into();
-                    status.instance = None;
-                    status.generation = state.generation.load(Ordering::SeqCst);
-                }
+            let failed = {
+                let runtime = state.runtime.lock().unwrap();
+                runtime
+                    .as_ref()
+                    .is_some_and(|owner| owner.health().is_err())
+            };
+            if failed {
+                state.generation.fetch_add(1, Ordering::SeqCst);
+                state.cancel_streams();
+                let tasks = state.retire_credentials();
+                tauri::async_runtime::block_on(async move {
+                    for task in tasks {
+                        let _ = task.await;
+                    }
+                });
+                let mut status = state.status.lock().unwrap();
+                status.phase = "failed".into();
+                status.instance = None;
+                status.generation = state.generation.load(Ordering::SeqCst);
             }
         }
         let status = state.status.lock().unwrap().clone();
@@ -271,7 +293,11 @@ async fn credential_withdraw(
     state.signin.retire();
     let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     state.cancel_streams();
+    let tasks = state.product.retire(None);
     state.status.lock().unwrap().generation = generation;
+    for task in tasks {
+        let _ = task.await;
+    }
     store.withdraw(&connection).await.map_err(|e| e.to_string())
 }
 #[tauri::command]
@@ -430,9 +456,15 @@ fn quit(app: tauri::AppHandle) {
         .generation
         .fetch_add(1, Ordering::SeqCst);
     let streams = app.state::<Desktop>().take_streams(None);
-    app.state::<Desktop>().retire_credentials();
+    let product_tasks = app.state::<Desktop>().retire_credentials();
     app.state::<Desktop>().status.lock().unwrap().phase = "stopping".into();
     tauri::async_runtime::spawn(async move {
+        for stream in streams {
+            let _ = stream.await;
+        }
+        for task in product_tasks {
+            let _ = task.await;
+        }
         let runtime_app = app.clone();
         let result = tauri::async_runtime::spawn_blocking(move || {
             runtime_app
@@ -444,9 +476,6 @@ fn quit(app: tauri::AppHandle) {
                 .map(|owner| owner.stop())
         })
         .await;
-        for stream in streams {
-            let _ = stream.await;
-        }
         let code = if result.map_or(true, |r| r.is_some_and(|r| r.is_err())) {
             1
         } else {
@@ -584,6 +613,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         windows: AtomicU64::new(1),
         streams: Mutex::new(HashMap::new()),
         signin: signin::SignIn::new(),
+        product: product::Connections::new(),
         #[cfg(feature = "native-check")]
         check: check::Check::new(
             checking,
@@ -619,6 +649,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_cancel,
         github_sign_in_open,
         factory_query,
+        factory_connect,
+        factory_disconnect,
+        factory_repositories,
+        factory_product_request,
+        factory_product_cancel,
         factory_command,
         factory_stream,
         cancel_stream,
@@ -638,6 +673,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_cancel,
         github_sign_in_open,
         factory_query,
+        factory_connect,
+        factory_disconnect,
+        factory_repositories,
+        factory_product_request,
+        factory_product_cancel,
         factory_command,
         factory_stream,
         cancel_stream,
@@ -666,6 +706,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .await;
                 });
                 let state = window.state::<Desktop>();
+                join_streams(state.product.retire(Some(window.label())));
                 join_streams(state.take_streams(Some(window.label())));
             }
         })

@@ -375,6 +375,11 @@ pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
         if((await invoke('factory_command',{command:{kind:'save_request',revision:{}}})).status!==503)throw Error('unbound mutation succeeded');
         let refused=false;try{await invoke('factory_query',{query:{kind:'url',url:'file:///etc/passwd'}})}catch{refused=true;}if(!refused)throw Error('arbitrary target accepted');
         refused=false;try{await invoke('factory_command',{command:{kind:'save_request',revision:{objective:'x'.repeat(66000)}}})}catch{refused=true;}if(!refused)throw Error('oversized command accepted');
+        for(const request of [{kind:'read',path:'https://github.com'},{kind:'read',path:'/api/native/collaboration/observe'},{kind:'read',path:'/api/factory/../healthz'},{kind:'write',path:'/api/factory/intents',body:{objective:'x'.repeat(66000)}}]){
+          refused=false;try{await invoke('factory_product_request',{session:'missing',request,channel:new window.__TAURI__.core.Channel()})}catch{refused=true;}if(!refused)throw Error('unadmitted product operation accepted');
+        }
+        refused=false;try{await invoke('factory_connect',{connection:'0'.repeat(32),repository:null})}catch{refused=true;}if(!refused)throw Error('missing credential admitted connection');
+        await invoke('factory_disconnect');
         const channel=new window.__TAURI__.core.Channel();const observed=new Promise(resolve=>channel.onmessage=resolve);
         const id=await invoke('factory_stream',{run:'a'.repeat(32),channel});if((await observed).status!==503)throw Error('unbound observation succeeded');await invoke('cancel_stream',{id});
         await invoke('open_window');await invoke('report',{stage:'mounted',error:null});
@@ -412,6 +417,14 @@ pub fn report(
     }
     if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-complete" {
         crate::check_credentials::start_consent_checks(app);
+        return Ok(());
+    }
+    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-product-complete" {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(state.paths.profile.join("product-bridge-complete"))
+            .map_err(|_| "product IPC acknowledgement failed")?;
         return Ok(());
     }
     if state.check.signin.is_some() && stage.starts_with("signin-") {

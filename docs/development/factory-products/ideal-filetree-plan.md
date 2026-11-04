@@ -153,7 +153,8 @@ they do not block independent Fountain implementation or source preservation.
 
 The selected language allocation now requires the complete authenticated desktop
 connector in Rust. The queue maps N1 to T05-CONTROL, P1/C1 to T06-GITHUB-RUST,
-N2 to T06-CONNECT-PORTS, T06-CONNECT-PRODUCT, T06-CONNECT-READS and their desktop consumer
+N2 to T06-CONNECT-PORTS, T06-CONNECT-PRODUCT, T06-CONNECT-READS,
+T06-CONNECT-BRIDGE and their desktop consumer
 T06-CONNECT, N3 to T09-NATIVE-EXECUTOR and N4 to T09-EXECUTION. The N2 port
 producer gives Go services fresh semantic callbacks into the joined headless
 Rust owner, scoped to one finite native account/repository operation. It retains
@@ -166,7 +167,12 @@ mapping and neutral projection. Fork references grant no connection access.
 Scoped cursors preserve pagination, pins and nullable evidence. REST root groups
 leave resolution/anchors unknown; jobs and branch rules are the explicit required
 T06-GITHUB-EVIDENCE producer after CONNECT and before the final provider gate.
-Desktop selection/shared UI and installed qualification remain consumers.
+The native per-window bridge now admits account/repository connections, obtains
+canonical Go binding, and supplies cancellable bounded product IPC. Its actual
+approved Linux Tauri/WebKit journey verifies discovery, selected canonical scope,
+feed/issue/PR reads, cancellation, disconnect and reconnect; private access and
+refresh also pass. The shared application's selectors/context and installed
+qualification remain consumers.
 Direct production-server evidence distinguishes declared semantic facts from
 actual approved Rust connector reads; neither claims connected UI qualification.
 T05-CONTROL is complete: bounded product I/O has a separate joined native owner,

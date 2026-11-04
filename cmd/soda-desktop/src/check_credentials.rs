@@ -665,6 +665,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
         identity["account"]["external_id"] == account.account,
         "remote identity mismatch",
     )?;
+    product_bridge_check(app, &account.connection).await?;
     let mut page = 1;
     let mut pages = 0;
     let mut private = None;
@@ -761,9 +762,56 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "repository_pages":pages, "private_repository_read":private_read,
             "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
             "owned_local_account_removed":true, "remote_revocation_exercised":false,
-            "canonical_factory_binding":false
+            "canonical_factory_binding":true, "native_product_bridge":true,
+            "connected_shared_ui":false
         }),
     )
+}
+
+async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Result<(), String> {
+    // Exercise the production commands through real WebKit IPC. Provider reads
+    // are real and read-only; these ports do not mount a second product view.
+    let script = r#"(async()=>{
+      const invoke=window.__TAURI__.core.invoke, assert=(ok,m)=>{if(!ok)throw Error(m)};
+      const request=(session,path)=>new Promise((resolve,reject)=>{
+        const channel=new window.__TAURI__.core.Channel();
+        channel.onmessage=value=>value.error?reject(Error(value.error)):resolve(value.reply);
+        invoke('factory_product_request',{session,request:{kind:'read',path},channel}).catch(reject);
+      });
+      try {
+        const account=await invoke('factory_connect',{connection:__CONNECTION__,repository:null});
+        assert(account.repository===null&&account.identity.actor&&account.identity.host,'account connection missing');
+        const first=await invoke('factory_repositories',{session:account.session,page:1});
+        assert(first.status===200&&Array.isArray(first.body.items),'native repository discovery unavailable');
+        if(first.body.next_page) assert((await invoke('factory_repositories',{session:account.session,page:first.body.next_page})).status===200,'next discovery page unavailable');
+        const selected=await invoke('factory_connect',{connection:__CONNECTION__,repository:'724712'});
+        assert(selected.session!==account.session&&selected.identity.actor===account.identity.actor&&selected.identity.host===account.identity.host,'connection switch changed account identity');
+        assert(selected.repository.external_id==='724712'&&selected.repository.host===selected.identity.host,'canonical selected repository missing');
+        let refused=false;try{await invoke('factory_repositories',{session:account.session,page:1})}catch{refused=true}assert(refused,'stale selection admitted discovery');
+        const root='/api/factory/collaboration/repositories/'+selected.repository.id;
+        const identity=await request(selected.session,'/api/factory/identity');
+        assert(identity.status===200&&identity.body.actor===selected.identity.actor,'bound product identity mismatch');
+        assert((await request(selected.session,'/api/factory/feed?scope=project&repositories='+selected.repository.id+'&limit=1')).status===200,'bound feed unavailable');
+        assert((await request(selected.session,root+'/issues?state=all&limit=1')).status===200,'bound issue reads unavailable');
+        assert((await request(selected.session,root+'/pulls/165146')).status===200,'bound PR reads unavailable');
+        assert((await request(selected.session,root+'/pulls/165146/checks/jobs?limit=1')).status===503,'missing native execution evidence invented');
+        let completions=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
+        const pending=await invoke('factory_product_request',{session:selected.session,request:{kind:'read',path:root+'/pulls/165146/threads?limit=1'},channel});
+        await invoke('factory_product_cancel',{session:selected.session,request:pending});
+        await new Promise(r=>setTimeout(r,100));assert(completions===0,'cancelled native request delivered a reply');
+        await invoke('factory_disconnect');
+        refused=false;try{await invoke('factory_repositories',{session:selected.session,page:1})}catch{refused=true}assert(refused,'disconnected selection admitted discovery');
+        const reconnected=await invoke('factory_connect',{connection:__CONNECTION__,repository:'724712'});
+        assert(reconnected.identity.actor===selected.identity.actor&&reconnected.repository.id===selected.repository.id,'reconnect changed canonical mappings');
+        await invoke('factory_disconnect');
+        await invoke('report',{stage:'signin-product-complete',error:null});
+      }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+    })()"#.replace("__CONNECTION__", &serde_json::to_string(connection).map_err(|_| "connection encoding failed")?);
+    app.get_webview_window("main")
+        .ok_or("main window missing")?
+        .eval(&script)
+        .map_err(|_| "product IPC observer unavailable")?;
+    barrier(app, "product-bridge-ready", "product-bridge-complete").await
 }
 
 pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String> {
@@ -873,6 +921,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
       const begin=async()=>{await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();await until(async()=>{const s=await view();return s.phase==='waiting'&&!document.querySelector('#github-prompt').hidden;});return view();};
       const cancel=async()=>{document.querySelector('#github-cancel').click();await until(async()=>(await view()).phase==='cancelled');};
       try{
+        if(consent&&(await invoke('credential_status')).length===1){await report('signin-consent-complete');return;}
         if(!live)await mode('pause-wait');
         const first=await begin();
         assert(Object.keys(first).sort().join(',')==='attempt,error,phase,prompt','sign-in state exposes extra data');
@@ -975,8 +1024,13 @@ async fn barrier(app: &tauri::AppHandle, ready: &str, done: &str) -> Result<(), 
         .map_err(|_| "credential check marker failed")?;
     println!("Credential check barrier: {ready}");
     let done = profile.join(done);
+    let seconds = if ready == "product-bridge-ready" {
+        120
+    } else {
+        15
+    };
     tauri::async_runtime::spawn_blocking(move || {
-        let until = std::time::Instant::now() + Duration::from_secs(15);
+        let until = std::time::Instant::now() + Duration::from_secs(seconds);
         while !done.is_file() {
             if std::time::Instant::now() >= until {
                 return Err("credential check driver timed out".into());

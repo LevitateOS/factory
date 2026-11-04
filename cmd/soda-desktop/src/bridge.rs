@@ -1,6 +1,53 @@
 use serde::Deserialize;
 use serde_json::Value;
 
+/// Shared product HTTP operations, never provider requests or native URLs.
+/// Product policy and resource authorization remain in Go. Native custody and
+/// selected-resource scope are supplied independently of this untrusted path.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ProductRequest {
+    Read { path: String },
+    Write { path: String, body: Value },
+    Subscription { body: Value },
+}
+impl ProductRequest {
+    pub fn request(self) -> Result<(&'static str, String, Vec<u8>), String> {
+        let (method, path, body) = match self {
+            Self::Read { path } => ("GET", path, None),
+            Self::Write { path, body } => ("POST", path, Some(body)),
+            Self::Subscription { body } => {
+                ("PUT", "/api/factory/feed/subscription".into(), Some(body))
+            }
+        };
+        let pathname = path.split('?').next().unwrap_or("");
+        if path.len() > 2048
+            || !path.is_ascii()
+            || path.bytes().any(|b| b.is_ascii_control() || b == b'#')
+            || !(pathname.starts_with("/api/factory/")
+                || pathname.starts_with("/api/repositories/"))
+            || pathname.split('/').skip(1).any(|part| {
+                part.is_empty()
+                    || !part
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+            })
+            || body.as_ref().is_some_and(|b| !b.is_object())
+        {
+            return Err("unsupported Factory product operation".into());
+        }
+        let body = body
+            .map(|b| serde_json::to_vec(&b))
+            .transpose()
+            .map_err(|_| "invalid Factory product body")?
+            .unwrap_or_default();
+        if body.len() > 65536 {
+            return Err("Factory product body exceeds the native limit".into());
+        }
+        Ok((method, path, body))
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Query {

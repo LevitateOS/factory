@@ -29,14 +29,37 @@ Startup failure is visible in the toolbar;
 Retry startup retries the same retained profile. UI refresh and visibility changes
 request fresh native readiness. A dead backend or database retires the binding.
 
-The webview receives opaque readiness IDs and typed product operations. It never
-receives the bootstrap key, database credentials, socket paths, arbitrary HTTP
-targets or filesystem/shell access. Query and mutation bodies are bounded, as
-are responses. Observations currently poll recorded run status over Tauri
-channels, with cancellation scoped to each window and binding generation; these
-are not executor terminal streams. Account/connector binding is a later slice,
-so the application currently displays its shared disconnected state. Runtime
-readiness does not create an account or authorize provider work.
+The webview receives opaque readiness IDs and product operations. It never
+receives the bootstrap key, database credentials, socket paths, provider request
+URLs or filesystem/shell access. The window-owned product bridge now admits a
+saved native connection and optional remote repository, then obtains canonical
+account and selected repository identities through the production Go services.
+Readiness and browser-supplied canonical IDs cannot establish this binding.
+
+factory_connect replaces only its window's selection. factory_repositories uses
+the defining headless Rust connector for current account repository discovery;
+selection maps the chosen remote identity through Go. factory_product_request
+accepts only normalized paths under the two shared product API roots, with typed
+read/write/subscription operations, 2-KiB targets and 64-KiB JSON object bodies.
+It cannot reach provider/native APIs or arbitrary origins. Go applies product
+policy and resource authorization inside the independently admitted native scope.
+Responses retain the existing 2-MiB bound and native deadlines.
+
+Each product request returns a native request ID and one channel completion.
+factory_product_cancel is scoped to its window and selection, cancels and joins
+the task, and permits cancellation even after window closure. Replacement,
+disconnect, closure, credential withdrawal, runtime failure/restart and Quit
+retire pending work and suppress stale completions. Explicit disconnect and
+replacement join cancelled product tasks; native runtime retirement also joins
+its provider/callback/I/O owners before stopping children. Quit joins shell tasks
+before stopping the runtime. Product I/O never holds the child lifecycle lock.
+The UI consumer must also discard buffered completions from an older selection.
+
+The shared application still displays its disconnected state until T06-CONNECT
+consumes this bridge for account/repository selection and its Lit context. The old
+four unbound query/mutation commands remain only until that consumer cutover;
+they confer no connected authority. Existing recorded-run polling is separate
+from executor terminal streams. No coordinator or execution port is activated.
 
 Linux account tokens use the login session's OS Secret Service through the
 [native credential owner](../../lib/desktop-runtime/README.md#native-account-credentials).
@@ -56,8 +79,9 @@ backend failure and Quit retire the attempt. Cancellation and the bounded save
 have one ordering: an already completed save remains saved. Saved accounts remain
 after runtime restart. A locked or absent keyring reports an error; there is no
 file fallback. Native refresh transport/custody exists; automatic connection
-management, canonical account/repository binding and connected browsing remain
-later consumers. A saved GitHub account does not itself admit Factory work.
+management and connected browsing remain later consumers. Native connection
+admission and Go canonical binding now exist behind the product bridge; a saved
+GitHub account alone still does not admit Factory work.
 
 `--check-control` extends the opt-in native acceptance root with a declared slow
 trusted Go product binding over real private PostgreSQL/Go/IPC. It checks shell
@@ -105,6 +129,12 @@ The historical `--check-signin` declared provider observer depended on the retir
 Go connector and is no longer current cutover evidence. Its source is retained
 for the existing check migration, without adding a second production connector.
 The real `--check-signin-live`/`--check-signin-consent` paths use the Rust owner.
+The consent check additionally exercises actual WebKit IPC for native connection,
+repository paging/selection, canonical Go identity, feed/issue/PR reads, explicit
+request cancellation, disconnect and reconnect. It keeps missing job evidence
+unavailable and does not claim the shared connected views are mounted. Failed
+attempts can reuse the same saved approved account while the external driver
+retains its isolated keyring; no successful result is inferred from that reuse.
 Historically, `--check-signin` extended the same native acceptance hook for declared authorization
 responses through actual Linux WebKit, native Go/PostgreSQL and an isolated Secret
 Service. It checks production controls, fixed browser handoff, prompt/metadata

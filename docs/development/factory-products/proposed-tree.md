@@ -343,7 +343,12 @@ native_product_discussions.go and native_product_evidence.go. They compose the
 shared services in the same binder; Rust threads.rs owns the bounded REST reply
 forest. References are mapped transactionally without access associations.
 collaboration_errors.go retains only safe provider failure/rate observations.
-Desktop selection/UI remains the next consumer. Workflow jobs and branch rules
+T06-CONNECT-BRIDGE defines cmd/soda-desktop/src/product.rs for per-window native
+selection, current custody, canonical Go binding and cancellable product IPC.
+bridge.rs admits only normalized shared product API operations, not provider URLs.
+The existing headless runtime remains the provider/native lifetime owner. Go
+retains all product policy, canonical mapping and SQL. Desktop selection/shared UI
+remains the next consumer. Workflow jobs and branch rules
 remain T06-GITHUB-EVIDENCE; planning/execution dependencies remain explicit.
 T04-UI closes the shared source/build boundary after its listed recovery and
 composition prerequisites. `frontend/factory/app/browser.ts` exposes the defining
