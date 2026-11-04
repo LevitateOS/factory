@@ -404,6 +404,13 @@ no attestation. Repeated refusal hit systemd's start limit. The temporary
 socket, units, binary and source were removed. This closes the unbounded
 admission subprocess gap; agent execution and D3 remain open.
 
+The earlier root-private reviewer attester's Git HEAD check now caps stdout at
+42 bytes and runs through a three-second `timeout` with a one-second kill grace,
+within its 15-second service lifetime and control-group kill. A disposable
+activation of its actual socket and service attested the dummy candidate as a
+separate UID and root peer; the temporary socket, unit, binary and checkout
+were removed. The reviewer remains credential-free and attestation-only.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first

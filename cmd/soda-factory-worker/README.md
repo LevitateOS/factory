@@ -261,3 +261,12 @@ Changing the root role declaration to a different well-formed candidate caused
 hit systemd's start limit. The socket, units, binary and dummy preparation were
 removed. The service still accepts only `attest_agent` and reports execution
 unavailable.
+
+The earlier root-private reviewer attester's fixed Git HEAD check now uses a
+three-second `timeout` with a one-second kill grace and reads at most 42 bytes
+from stdout. The exact candidate line is 41 bytes; excess output is refused
+without buffering it in memory. Its systemd service also has a 15-second
+lifetime and control-group kill. A disposable activation of the actual reviewer
+socket and service returned the dummy candidate, root peer UID and a distinct
+worker UID with read-only worktree and execution unavailable. The temporary
+socket, unit, binary and checkout were removed.

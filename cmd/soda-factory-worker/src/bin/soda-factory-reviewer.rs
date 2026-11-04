@@ -139,11 +139,15 @@ fn checkout(candidate: &str) -> io::Result<()> {
     {
         return Err(refused("reviewer checkout is writable"));
     }
-    let head = Command::new("/usr/bin/git")
+    let mut child = Command::new("/usr/bin/timeout")
         .env_clear()
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .args([
+            "-k",
+            "1s",
+            "3s",
+            "/usr/bin/git",
             "-c",
             "safe.directory=/run/factory-worktree",
             "-C",
@@ -152,9 +156,23 @@ fn checkout(candidate: &str) -> io::Result<()> {
             "--verify",
             "HEAD^{commit}",
         ])
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .output()?;
-    if !head.status.success() || head.stdout != format!("{candidate}\n").as_bytes() {
+        .spawn()?;
+    let mut output = Vec::with_capacity(42);
+    let read = child
+        .stdout
+        .take()
+        .ok_or_else(|| refused("reviewer Git output unavailable"))?
+        .take(42)
+        .read_to_end(&mut output);
+    if read.is_err() || output.len() > 41 {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(refused("reviewer Git output invalid"));
+    }
+    let status = child.wait()?;
+    if !status.success() || output != format!("{candidate}\n").as_bytes() {
         return Err(refused("reviewer checkout candidate differs"));
     }
     Ok(())
