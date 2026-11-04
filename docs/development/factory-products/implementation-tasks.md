@@ -575,7 +575,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 179 | T06-CONNECT-PRODUCT | T06-CONNECT-PORTS | N2 producer: Compose Go current-account/canonical repository binding and shared Factory feed/request/retained-read services over the admitted native semantic ports; retain Go transaction/policy authority and explicit missing execution/planning states. Qualify the actual bound HTTP operation before desktop selection/UI. | Complete |
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
-| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and empty filtered issue pages with continuations (the current shared parser rejects them). Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
+| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
@@ -24645,3 +24645,37 @@ monitor-getter issue (https://github.com/tauri-apps/tauri/pull/15630) has simila
 symptoms but is not an established cause: this checkout uses runtime-wry 2.12.3,
 which routes these getters through the event loop. Preserve unfinished work and
 the same selected Go/Rust owners; do not infer qualification from compilation.
+
+T06-CONNECT native qualification checkpoint (2026-11-04): the explicit debugger
+retry reproduced the old runtime's heap abort after waiting for consent. Its
+argument-free backtrace detects corruption during a Rust allocation in zbus
+credential polling; that is the detection site, not proof of the corrupting
+operation. No saved account object or owned native child remained. The diagnostic
+and failed evidence are retained outside this repository; no source-level cause
+or fix is claimed.
+
+Official current stable WebKitGTK 2.54.2 and matching Fedora 45 runtime packages
+were resolved from official release/update mirrors. All 340 downloaded RPMs pass
+rpmkeys verification against Fedora's public keys in an isolated task-owned
+key database. Packages were extracted into a separate owned prefix with the host
+read-only and without executing package scripts. The desktop and WebKit helpers
+use matching libraries, libexec, injected bundle and runtime share data. Required
+GLib schema and MIME caches were generated in that prefix. Initial missing
+loader-configuration/cache failures and the overlong check-profile socket path
+are retained as failed attempts, not application successes.
+
+Native-check compilation against these headers passes. The existing actual
+unapproved sign-in/cancellation journey then passes through real Tauri/WebKit,
+isolated Secret Service and private PostgreSQL/Go (ui-current, native exit 0).
+Its result explicitly records successful consent, product bridge and connected
+shared UI as false. This confirms startup/prompt/cancellation behavior on this
+runtime, not that the earlier heap corruption has been diagnosed or eliminated.
+The whole dependency/distribution baseline is not newly qualified.
+
+The replacement connected journey (ui-v4) is running in the same existing
+external check root and awaiting browser consent. Its exact application hashes,
+runtime package hashes, source checkpoint 63fc4c2 and logs are retained there.
+No connected success result exists yet. Keep that credential session available
+for explicit assertion retries after consent rather than withdrawing its grant
+or issuing another challenge just because an observer fails. CONNECT remains
+the sole Active slice; the full Linux product/allocation goal is unfinished.
