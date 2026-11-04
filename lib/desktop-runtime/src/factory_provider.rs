@@ -3,6 +3,7 @@
 //! no worker-supplied URL, model, tool namespace or spend limit is authority.
 mod broker;
 mod owner;
+mod response;
 pub use broker::{Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
 use serde_json::Value;
@@ -41,6 +42,7 @@ pub struct Admitted {
     pub route: Route,
     pub body: Vec<u8>,
     pub output_tokens: u64,
+    pub offered_tools: BTreeSet<String>,
 }
 
 pub struct Budget {
@@ -183,6 +185,7 @@ impl Policy {
                     route: Route::Models,
                     body: Vec::new(),
                     output_tokens: 0,
+                    offered_tools: BTreeSet::new(),
                 })
             }
             ("POST", "/responses" | "/v1/responses") => self.admit_response(body),
@@ -290,6 +293,10 @@ impl Policy {
                 .and_then(Value::as_str)
                 .is_some_and(|name| allowed(self.role, name))
         });
+        let offered_tools = nested
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_owned))
+            .collect();
         object.insert("max_output_tokens".into(), Value::from(granted));
         object.insert("parallel_tool_calls".into(), Value::Bool(false));
         let output = serde_json::to_vec(&request).map_err(|_| Error::Invalid)?;
@@ -303,6 +310,7 @@ impl Policy {
             route: Route::Responses,
             body: output,
             output_tokens: granted,
+            offered_tools,
         })
     }
 }

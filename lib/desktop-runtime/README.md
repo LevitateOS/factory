@@ -189,6 +189,13 @@ calls, removes unneeded response includes and filters the nested Muse function
 namespace by role. Reviewers retain only `read_file` and `search`; coders may
 also retain `write_file`, `edit_file`, `bash` and `bash_input`. Unknown top-level
 request fields, built-in tool namespaces and duplicate tool names fail closed.
+For successful Responses replies, the owner holds the bounded SSE body until
+every event is parsed. It permits at most one function call, whose name must
+appear in that request's filtered tool list. It refuses built-in tool events,
+malformed or incomplete streams, and a disallowed call even after allowed
+text. Nothing from a refused stream reaches the CLI. Holding the complete
+response delays CLI streaming until the provider finishes; a finite real
+provider run must qualify that behavior before execution is enabled.
 `factory_provider::BoundOwner` now binds a per-run Unix socket under the
 desktop user's `0700` runtime directory. Before binding, it requires the policy
 profile to match its credential owner and the policy connection to match the
@@ -219,6 +226,15 @@ only two read functions. Wrong model, stored response, built-in tool namespace,
 extra routes, retirement and exhausted budget were refused. The fake provider
 returned 401; no saved credential or real model was used. The temporary
 listener and scratch source were removed.
+
+A later dummy-key loopback probe returned scripted Muse SSE. Under the reviewer
+flags, Muse rejected `write_file` as unavailable but attempted the still
+registered `read_memory` tool; that tool failed on the scratch-only arguments.
+This confirms that removing a tool from the upstream request alone cannot be
+the role boundary. A native check against the production SSE parser accepted
+text and offered `read_file`, and refused late `read_memory`, `write_file`,
+built-in tool events and incomplete streams. The probe used an isolated scratch
+HOME and no saved credential; its listener and files were removed.
 
 A separate isolated GNOME Keyring check used an invalid fixture token and a
 subordinate host UID in a private mount namespace. The desktop UID was reset

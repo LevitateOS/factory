@@ -747,6 +747,17 @@ mismatched-candidate refusal. The production desktop caller, verified Muse
 account enrollment, confined agent and finite provider task remain to be
 connected and qualified before D3 closes.
 
+A dummy-key loopback Muse probe then showed an inbound role risk: reviewer
+flags rejected a scripted `write_file` call, but the CLI still attempted its
+registered `read_memory` tool when the fake provider returned that function.
+Factory's upstream filter would remove `read_memory` from the offered tool
+list, so the desktop owner now validates every event of a complete, bounded
+Responses SSE body against the exact filtered names before forwarding any
+bytes to the worker. A native check accepted text and offered `read_file` and
+rejected late `read_memory`, `write_file`, built-in tool items and incomplete
+streams. The scratch provider and HOME were removed. Real provider streaming
+behavior and the admitted worker launch still need qualification for D3.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;

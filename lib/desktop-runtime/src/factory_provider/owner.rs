@@ -1,6 +1,6 @@
 //! Desktop-owned, run-specific Unix endpoint. The relay system unit mounts
 //! this socket; only its attested UID may request fixed Meta HTTPS I/O.
-use super::{Admitted, Broker, Policy, RelayAttestation, Route};
+use super::{response::admitted_sse, Admitted, Broker, Policy, RelayAttestation, Route};
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use reqwest::{header, redirect, Client};
 use std::fs::{self, DirBuilder, Metadata};
@@ -605,23 +605,34 @@ async fn forward(
     {
         return Ok(Upstream::Unavailable);
     }
-    let header = format!("HTTP/1.1 200 OK\r\nContent-Type: {expected_type}\r\nTransfer-Encoding: chunked\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n");
-    stream.write_all(header.as_bytes()).await?;
-    *began = true;
-    let mut total = header.len() + 5; // Include HTTP headers and the final chunk.
+    // Keep the whole bounded response private until every SSE event has passed
+    // the exact tool list offered to this run. A rejected late tool call must
+    // not follow earlier bytes already delivered to the CLI.
+    let mut body = Vec::new();
     while let Some(chunk) = response
         .chunk()
         .await
         .map_err(|_| refused("provider response interrupted"))?
     {
-        let size = format!("{:x}\r\n", chunk.len());
-        total = total.saturating_add(size.len() + chunk.len() + 2);
-        if total > MAX_RESPONSE {
+        if body.len().saturating_add(chunk.len()) > MAX_RESPONSE - 1024 {
             return Err(refused("provider response bound exceeded"));
         }
-        stream.write_all(size.as_bytes()).await?;
-        stream.write_all(&chunk).await?;
-        stream.write_all(b"\r\n").await?;
+        body.extend_from_slice(&chunk);
     }
+    if body.is_empty()
+        || admitted.route == Route::Responses && !admitted_sse(&body, &admitted.offered_tools)
+    {
+        return Ok(Upstream::Unavailable);
+    }
+    let header = format!("HTTP/1.1 200 OK\r\nContent-Type: {expected_type}\r\nTransfer-Encoding: chunked\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n");
+    let size = format!("{:x}\r\n", body.len());
+    if header.len() + size.len() + body.len() + 2 + 5 > MAX_RESPONSE {
+        return Err(refused("provider response bound exceeded"));
+    }
+    stream.write_all(header.as_bytes()).await?;
+    *began = true;
+    stream.write_all(size.as_bytes()).await?;
+    stream.write_all(&body).await?;
+    stream.write_all(b"\r\n").await?;
     Ok(Upstream::Success)
 }
