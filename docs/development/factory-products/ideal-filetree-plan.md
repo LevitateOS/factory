@@ -517,6 +517,15 @@ contained chain prepared successfully. Temporary units and source were
 removed. This closes that checkout-input escape, not D3's admission,
 credential or provider-run gates.
 
+The subsequent review found that even a directory symlink resolving within
+the checkout could be followed by `..` during an agent file operation and
+leave a lexical workspace boundary. The preparer now refuses directory
+symlinks and accepts only links resolving to regular files inside the
+checkout. Kernel-enforced beneath-root resolution remains necessary for
+actual agent file tools. The actual preparer unit refused a directory link
+with the intended error and prepared a contained file link; temporary proof
+state was removed. The native execution gate stays closed.
+
 A bounded transient manager check showed a root service with
 `NoNewPrivileges=yes`, an empty capability bounding set, no IP access and only
 Unix address families could ask systemd to run a fixed `User=nobody` service;

@@ -142,8 +142,12 @@ fn check_tree(root: &Path) -> io::Result<()> {
                 // chain while the private preparer owns the frozen input.
                 // Dangling links are refused because their destination cannot
                 // be proven to stay inside the reviewer mount.
-                if !fs::canonicalize(&path)?.starts_with(&canonical_root) {
+                let resolved = fs::canonicalize(&path)?;
+                if !resolved.starts_with(&canonical_root) {
                     return Err(refused("reviewer symlink resolves outside checkout"));
+                }
+                if !fs::metadata(&resolved)?.is_file() {
+                    return Err(refused("reviewer directory symlink is not admitted"));
                 }
                 total = total.saturating_add(target.as_os_str().len() as u64);
             } else {
