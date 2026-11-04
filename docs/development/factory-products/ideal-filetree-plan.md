@@ -281,6 +281,16 @@ afterward. These checks prove the selected system-worker profile is feasible on
 this host; no production broker, worker admission, worktree transfer, scoped
 credential delivery, role enforcement or provider run was exercised.
 
+An inert `cmd/soda-factory-worker` boundary is now in the Rust workspace, still
+outside the desktop runtime dependency graph. Its systemd templates admit one
+connection per dynamic UID; the binary requires peer credentials, a different
+non-root UID, no-new-privileges and a private mode-0700 runtime directory. The
+live rendered socket had a root-owned parent and desktop-owned mode-0600 entry;
+an attestation ran as UID 61739 for a UID-1000 peer. Extra-path and launch
+requests were refused, and the temporary installation was removed. No execution
+request exists. D3 remains open until the actual N3/N4 workspace, role,
+credential and retirement path passes its required negative and provider checks.
+
 ## Inspection identity and evidence limits
 
 The source identities and review descriptions below describe the original
