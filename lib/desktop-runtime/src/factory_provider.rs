@@ -297,6 +297,9 @@ impl Policy {
             .iter()
             .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_owned))
             .collect();
+        // Keep provider cache affinity inside this admitted run. The isolated
+        // worker may ask for a key, but it cannot link another run's context.
+        object.insert("prompt_cache_key".into(), Value::from(self.run.clone()));
         object.insert("max_output_tokens".into(), Value::from(granted));
         object.insert("parallel_tool_calls".into(), Value::Bool(false));
         let output = serde_json::to_vec(&request).map_err(|_| Error::Invalid)?;

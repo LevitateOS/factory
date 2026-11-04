@@ -184,9 +184,10 @@ supplies a reviewer/coder role, finite deadline and bounded call, input-byte
 and output-token budget. It admits only the Muse
 model catalog and streaming Responses routes at fixed Meta HTTPS destinations.
 For Responses it pins `muse-spark-1.3-contributor`, requires `store:false`,
-reduces each request to at most 4,096 output tokens, disables parallel tool
-calls, removes unneeded response includes and filters the nested Muse function
-namespace by role. Reviewers retain only `read_file` and `search`; coders may
+reduces each request to at most 4,096 output tokens, pins the provider cache
+key to the admitted run, disables parallel tool calls, removes unneeded response
+includes and filters the nested Muse function namespace by role. Reviewers
+retain only `read_file` and `search`; coders may
 also retain `write_file`, `edit_file`, `bash` and `bash_input`. Unknown top-level
 request fields, built-in tool namespaces and duplicate tool names fail closed.
 For successful Responses replies, the owner holds the bounded SSE body until
