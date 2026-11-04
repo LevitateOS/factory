@@ -3,11 +3,13 @@
 //! no worker-supplied URL, model, tool namespace or spend limit is authority.
 mod broker;
 mod owner;
+mod receipt;
 mod response;
 mod run;
 pub use broker::{AgentCancellation, AgentProcess, AgentRun, Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
 pub use run::RunOwner;
+pub use receipt::{read_retained, ReceiptScope};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};

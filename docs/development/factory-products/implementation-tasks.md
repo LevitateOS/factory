@@ -24829,6 +24829,20 @@ The CLI invocation does not itself commit dirty coder work; canonical checkpoint
 and artifact/result reconciliation remain open. T09-NATIVE-EXECUTOR remains
 Pending, T09-EXECUTION remains Pending, and D3 remains open.
 
+T09-NATIVE-EXECUTOR retained-result readback checkpoint (2026-11-05): the
+desktop receipt v2 header now has distinct admitted `source_sha256` and returned
+`bundle_sha256` keys. A read-only Rust reader validates the exact trusted
+run/profile/source/base candidate/role/tool/prompt scope, private profile and
+receipt file identity, bounds and content digests before returning the retained
+observation. An interrupted pending write is uncertain; reading a committed
+receipt does not prove broker or credential retirement. A local native on-disk
+fixture passed complete readback, wrong-source refusal, altered-output refusal,
+pending-write uncertainty and version-1 refusal. The locked offline desktop
+runtime source check passed. No installed broker/worker or actual provider run
+produced a receipt for recovery, and Go has not yet consumed the retained
+observation in its transaction. The live writer-to-reader path, root retirement,
+crash/reboot reconciliation and D3 gate remain open.
+
 T06-CONNECT environment recheck (2026-11-05): a repeat native desktop
 `cargo check --locked --offline --features native-ui` stopped in system-library
 build scripts because pkg-config cannot find GDK Pixbuf, Pango, libsoup 3 and

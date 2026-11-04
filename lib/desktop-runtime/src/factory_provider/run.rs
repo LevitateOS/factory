@@ -240,7 +240,7 @@ impl RunOwner {
             .collect();
         let header = serde_json::to_vec(&json!({
             "kind":"native_agent_receipt","version":2,
-            "run":self.run,"profile":self.profile,"bundle_sha256":self.sha256,
+            "run":self.run,"profile":self.profile,"source_sha256":self.sha256,
             "candidate":self.candidate,"role":role,
             "tool_sha256":self.tool_sha256,"prompt_sha256":self.prompt_sha256,
             "desktop_uid":desktop_uid,"worker_uid":run.worker_uid,

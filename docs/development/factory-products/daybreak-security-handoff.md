@@ -1,6 +1,6 @@
 # Open security gates and Daybreak handoff
 
-Updated 2026-11-04. This is an evidence register, not a completion ledger. The
+Updated 2026-11-05. This is an evidence register, not a completion ledger. The
 canonical order and statuses remain in
 [implementation-tasks.md](implementation-tasks.md); the selected ownership remains
 in [language-allocation.md](language-allocation.md). All gates below are open.
@@ -72,10 +72,19 @@ requirement can close.
 For D3 result custody, the worker now has a direct Git check of clean committed
 candidate bundling and explicit dirty/unchanged states. The broker and desktop
 source bind and hash up to 4 MiB of bundle bytes; the desktop fsyncs them into a
-private receipt before retiring root staging. This has only direct Git and
-source-compilation evidence. The actual system-service worker/broker reply,
-cross-run refusal, Go admission/checkpoint binding, dirty coder checkpoint,
-candidate retrieval/publication and crash/reboot reconciliation are unverified.
+private receipt before retiring root staging. A v2 writer header collision was
+corrected: `source_sha256` now records the admitted source while `bundle_sha256`
+records the returned candidate bundle. A read-only native reader checks the
+trusted run/profile/source/base candidate/role/tool/prompt identity, private
+profile and receipt file, size and content hashes. A pending file without a
+committed receipt reports uncertainty; a committed file does not prove root
+retirement. The reader passed a local on-disk fixture with valid readback,
+wrong source, altered output digest, interrupted pending write and older-version
+refusal. This is only direct Git, source-compilation and local fixture evidence.
+The actual system-service worker/broker reply, live receipt writer-to-reader
+roundtrip, cross-run refusal, Go admission/checkpoint binding, dirty coder
+checkpoint, candidate retrieval/publication and crash/reboot reconciliation are
+unverified.
 The current CLI invocation does not create a commit for dirty work. Close this
 part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
