@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 )
@@ -12,6 +13,22 @@ import (
 // IDs and existing profile names, while fresh observed account labels may change.
 // A retained unadopted ledger is never implicitly assigned to this provider.
 func (s *Store) BindCollaborationConnection(ctx context.Context, observed collaboration.ConnectionObservation) (collaboration.ConnectionBinding, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return collaboration.ConnectionBinding{}, err
+	}
+	defer tx.Rollback()
+	binding, err := bindCollaborationConnection(ctx, tx, observed)
+	if err != nil {
+		return collaboration.ConnectionBinding{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return collaboration.ConnectionBinding{}, err
+	}
+	return binding, nil
+}
+
+func bindCollaborationConnection(ctx context.Context, tx *sql.Tx, observed collaboration.ConnectionObservation) (collaboration.ConnectionBinding, error) {
 	var binding collaboration.ConnectionBinding
 	base, err := collaboration.CanonicalAPIBase(observed.APIBase)
 	if err != nil {
@@ -23,11 +40,6 @@ func (s *Store) BindCollaborationConnection(ctx context.Context, observed collab
 		observed.Provider != collaboration.GitHub && observed.Provider != collaboration.Fountain {
 		return binding, collaboration.ErrIdentityConflict
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return binding, err
-	}
-	defer tx.Rollback()
 	if err := initializeEmptyCollaborationLedger(ctx, tx); err != nil {
 		return binding, err
 	}
@@ -58,9 +70,6 @@ func (s *Store) BindCollaborationConnection(ctx context.Context, observed collab
 	if err != nil {
 		return binding, registryWriteError(err)
 	}
-	if err := tx.Commit(); err != nil {
-		return binding, err
-	}
 	return result, nil
 }
 
@@ -69,17 +78,28 @@ func (s *Store) BindCollaborationConnection(ctx context.Context, observed collab
 // remotely observed metadata; this association is never an access grant or a
 // complete inventory, and it must not survive as cached permission evidence.
 func (s *Store) ObserveCollaborationConnectionRepository(ctx context.Context, connection collaboration.ConnectionRef, externalID, name string) (collaboration.RepositoryRef, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return collaboration.RepositoryRef{}, err
+	}
+	defer tx.Rollback()
+	ref, err := observeCollaborationConnectionRepository(ctx, tx, connection, externalID, name)
+	if err != nil {
+		return collaboration.RepositoryRef{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return collaboration.RepositoryRef{}, err
+	}
+	return ref, nil
+}
+
+func observeCollaborationConnectionRepository(ctx context.Context, tx *sql.Tx, connection collaboration.ConnectionRef, externalID, name string) (collaboration.RepositoryRef, error) {
 	var ref collaboration.RepositoryRef
 	if !collaboration.ValidID(string(connection.ID)) || !collaboration.ValidID(string(connection.Profile)) ||
 		!collaboration.ValidID(string(connection.Host)) || connection.Actor < 1 ||
 		!collaboration.ValidText(externalID, 512) || name != "" && !collaboration.ValidText(name, 512) {
 		return ref, collaboration.ErrIdentityConflict
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return ref, err
-	}
-	defer tx.Rollback()
 	var adopted bool
 	if err := tx.QueryRowContext(ctx, `SELECT adopted FROM collaboration_ledger WHERE singleton FOR SHARE`).Scan(&adopted); err != nil {
 		return ref, err
@@ -88,7 +108,7 @@ func (s *Store) ObserveCollaborationConnectionRepository(ctx context.Context, co
 		return ref, collaboration.ErrUnboundLedger
 	}
 	var id collaboration.ConnectionID
-	err = tx.QueryRowContext(ctx, `SELECT id FROM collaboration_connections WHERE id=$1 AND profile=$2 AND host=$3 AND actor=$4 FOR SHARE`,
+	err := tx.QueryRowContext(ctx, `SELECT id FROM collaboration_connections WHERE id=$1 AND profile=$2 AND host=$3 AND actor=$4 FOR SHARE`,
 		connection.ID, connection.Profile, connection.Host, connection.Actor).Scan(&id)
 	if err != nil {
 		return ref, registryWriteError(err)
@@ -102,9 +122,6 @@ func (s *Store) ObserveCollaborationConnectionRepository(ctx context.Context, co
 	if _, err := tx.ExecContext(ctx, `INSERT INTO collaboration_repository_connections(repository,connection,host) VALUES($1,$2,$3)
  ON CONFLICT(repository,connection) DO NOTHING`, result.ID, connection.ID, connection.Host); err != nil {
 		return ref, registryWriteError(err)
-	}
-	if err := tx.Commit(); err != nil {
-		return ref, err
 	}
 	return result, nil
 }

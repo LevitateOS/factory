@@ -4,21 +4,20 @@ go 1.26.7
 
 require (
 	github.com/coder/websocket v1.8.15
-	github.com/google/go-github/v93 v93.0.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	github.com/sourcegraph/go-diff v0.9.0
-	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0
 )
 
-require github.com/stretchr/testify v1.12.1 // indirect
+require (
+	github.com/stretchr/testify v1.12.1 // indirect
+	golang.org/x/oauth2 v0.37.0 // indirect
+)
 
 require (
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

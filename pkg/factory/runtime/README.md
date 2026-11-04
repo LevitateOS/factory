@@ -62,12 +62,14 @@ header. Missing, stale or duplicate instances refuse before product binding.
 Without a current connector binding, those routes return unavailable; IPC
 capability never becomes a provider login or an empty successful feed/account.
 
-Native executable composition can supply a provider-owned handler for the fixed
-`/api/native/github/read` RPC. The existing peer/key gate additionally checks its
-captured process-instance header. The same coordinator admission/drain gate owns
-that request lifetime. Provider HTTP and token handling stay outside this runtime
-package; no provider SDK enters the engine/store closure. This read RPC does not
-install a product account resolver or turn process readiness into account access.
+Native executable composition supplies a credential-free observation handler at
+`/api/native/collaboration/observe`. The peer/key/instance and coordinator gates
+admit it. Rust owns complete authenticated GitHub operations; this Go handler
+accepts bounded account/repository/issue facts, maps each registry batch in one
+transaction and projects neutral records through the shared issue service.
+Legacy provider credential headers refuse; the old GitHub read/device/refresh
+routes are absent. No provider SDK enters the engine/store closure. Registered
+identity facts neither install a product resolver nor start work.
 
 `NewNativeApplication` constructs the same `service.Application` used by the
 appliance once. A trusted `NativeProductBinding` resolves current account and

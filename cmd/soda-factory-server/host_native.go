@@ -11,7 +11,6 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
-	githubprovider "github.com/levitateos/factory/pkg/github"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -30,6 +29,6 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	return factoryruntime.RunNative(ctx, *config, func(profile collaboration.Profile, db *store.Store) http.Handler {
-		return githubprovider.NewNativeAccountHandler(http.DefaultTransport, githubprovider.NativeAccountScope{Profile: profile, Registry: db})
+		return factoryruntime.NewNativeObservationHandler(profile, collaboration.GitHub, "https://api.github.com", db)
 	})
 }

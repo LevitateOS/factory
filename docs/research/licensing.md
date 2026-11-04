@@ -125,3 +125,15 @@ Assess maintenance and security releases on the maintained 15.0 LTS line and upd
 the source and runtime base together through the release workflow. A major upgrade
 requires its own compatibility and migration decision. Only Forgejo performs its
 migrations; selecting an older image is not data rollback.
+
+## Native Rust connector selection, 2026-11-04
+
+The adopted complete native GitHub connector uses Reqwest 0.13.5, Time 0.3.55
+and Diffy 0.5.2. Their downloaded crate manifests each declare MIT OR Apache-2.0;
+retain the chosen license texts and transitive notices when the native bundle
+is assembled. Provider-local consistency/span checks are ported from existing
+Factory source; no Go SDK source was copied into the Rust implementation. The
+superseded Go GitHub SDK, query-string helper and Go diff parser are removed from
+the standalone dependency closure. OAuth2 remains an indirect Go MCP dependency,
+not a native GitHub operation owner. This records selected mechanisms, not a full
+bundle/transitive license qualification or a distribution approval.

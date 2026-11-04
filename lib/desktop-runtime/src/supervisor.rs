@@ -52,6 +52,7 @@ pub struct NativeSupervisor {
     owner: Option<JoinHandle<Result<()>>>,
     alive: Arc<AtomicBool>,
     products: Option<crate::product::Products>,
+    github: Option<crate::github_provider::Client>,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -95,17 +96,31 @@ impl NativeSupervisor {
                         return children.stop();
                     }
                 };
-                if started.send(Ok(products.handle.clone())).is_err() {
+                let mut github =
+                    match crate::github_provider::Owner::start_with_alive(owner_alive.clone()) {
+                        Ok(github) => github,
+                        Err(_) => {
+                            let _ = started.send(Err("native GitHub owner could not start".into()));
+                            products.stop()?;
+                            return children.stop();
+                        }
+                    };
+                if started
+                    .send(Ok((products.handle.clone(), github.client())))
+                    .is_err()
+                {
+                    github.stop().map_err(|error| error.to_string())?;
                     products.stop()?;
                     return children.stop();
                 }
-                let failure = run_owner(&mut children, &products, commands);
+                let failure = run_owner(&mut children, &products, &github, commands);
                 owner_alive.store(false, Ordering::SeqCst);
+                let provider_stopped = github.stop().map_err(|error| error.to_string());
                 let requests_stopped = products.stop();
                 let stopped = children.stop();
                 match (failure, stopped) {
                     (Some(error), _) => Err(error),
-                    (None, stopped) => requests_stopped.and(stopped),
+                    (None, stopped) => provider_stopped.and(requests_stopped).and(stopped),
                 }
             })
             .map_err(|_| "native supervisor owner could not start")?;
@@ -114,10 +129,12 @@ impl NativeSupervisor {
             owner: Some(owner),
             alive,
             products: None,
+            github: None,
         };
         match ready.recv() {
-            Ok(Ok(products)) => {
+            Ok(Ok((products, github))) => {
                 supervisor.products = Some(products);
+                supervisor.github = Some(github);
                 Ok(supervisor)
             }
             Ok(Err(error)) => {
@@ -170,6 +187,14 @@ impl NativeSupervisor {
     pub fn stop(mut self) -> Result<()> {
         self.stop_inner()
     }
+    pub(crate) fn github_client(&self) -> Result<crate::github_provider::Client> {
+        if !self.alive.load(Ordering::SeqCst) {
+            return Err("native runtime is retired".into());
+        }
+        self.github
+            .clone()
+            .ok_or("native GitHub owner is unavailable".into())
+    }
     pub(crate) fn github_channel(
         &self,
     ) -> Result<(
@@ -190,6 +215,9 @@ impl NativeSupervisor {
             return Ok(());
         };
         self.alive.store(false, Ordering::SeqCst);
+        if let Some(github) = &self.github {
+            github.retire();
+        }
         if let Some(products) = &self.products {
             products.retire();
         }
@@ -207,6 +235,7 @@ impl Drop for NativeSupervisor {
 fn run_owner(
     children: &mut Children,
     products: &crate::product::Owner,
+    github: &crate::github_provider::Owner,
     commands: Receiver<Control>,
 ) -> Option<String> {
     loop {
@@ -236,6 +265,9 @@ fn run_owner(
         }
         if let Err(error) = products.check_running() {
             return Some(error);
+        }
+        if let Err(error) = github.check_running() {
+            return Some(error.to_string());
         }
     }
 }

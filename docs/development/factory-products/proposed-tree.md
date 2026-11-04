@@ -1,7 +1,7 @@
 # Target defining tree and cutovers
 
 The product was extracted to `LevitateOS/factory` on 2026-11-03. Current defining
-Go owners are `factory/pkg/{factory,store,application,collaboration,github,identity,project,strictjson,filelock}`;
+Go owners are `factory/pkg/{factory,store,application,collaboration,identity,project,strictjson,filelock}`;
 the frontend and native Rust owners keep their relative paths in Factory. The
 diagram below retains the original in-repository allocation and unfinished
 consumer targets. Appliance/Fountain files stay in their owning repositories.
@@ -79,16 +79,6 @@ sodaos/
 │   │   ├── collaboration_issues.go
 │   │   ├── collaboration_pulls.go
 │   │   └── collaboration_operations.go
-│   ├── github/
-│   │   ├── client.go
-│   │   ├── identity.go
-│   │   ├── issues.go
-│   │   ├── pulls.go
-│   │   ├── reviews.go
-│   │   ├── checks.go
-│   │   ├── mutations.go
-│   │   ├── polling.go
-│   │   └── capabilities.go
 │   ├── fountainclient/
 │   │   ├── client.go
 │   │   ├── connection.go
@@ -128,6 +118,14 @@ sodaos/
 │           ├── database.rs
 │           ├── bootstrap.rs
 │           ├── credentials.rs
+│           ├── github_provider/       # complete authenticated native connector
+│           │   ├── transport.rs
+│           │   ├── oauth.rs
+│           │   ├── request.rs
+│           │   ├── reads.rs
+│           │   ├── records.rs
+│           │   ├── diff.rs
+│           │   └── patch.rs
 │           ├── connections.rs
 │           └── bridge.rs
 ├── frontend/

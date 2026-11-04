@@ -10,7 +10,8 @@ connected execution and installed product journeys remain unfinished.
 Deliver two hosts for one Factory product: the Fountain extension inside Soda
 Forge and an installable Linux desktop application, followed by macOS. Both consume the same Lit
 feed, issue, PR, conversation and review components. Factory remains a Go engine;
-Rust owns native execution, credentials and desktop lifecycle. Issues and PRs
+Rust owns native execution, credentials, the complete authenticated desktop
+GitHub connector and desktop lifecycle. Issues and PRs
 remain authoritative records on Fountain or GitHub.
 
 Desktop must run work on the host computer without a CoreOS container, Fountain
@@ -158,10 +159,13 @@ desktop calls release the lifecycle mutex before awaiting, cancellation retires
 polling I/O, and native product routes enforce captured instance scope. Actual
 Linux acceptance holds 16 requests while exercising health, cancellation,
 ordered stop, child failure and Quit. Existing sign-in/canonical-read acceptance
-also passes after transient upstream transport failures were recorded. The full
-Rust connector cutover is next; retained Go provider implementations/token routes
-must retire together after behavioral parity. This does not complete connected
-UI, native execution, automation or installed journeys.
+also passes after transient upstream transport failures were recorded. The Rust connector is now the defining native owner: OAuth/refresh/identity/HTTPS
+and all current provider-local readers moved together, and the Go SDK/token routes
+are removed. Go receives bounded nonsecret facts, maps each registry batch in one
+transaction and retains all product authority/SQL. Actual approved native reads,
+private access, refresh and retained canonical identity pass; Linux Tauri challenge
+and cancellation also pass. Remote revocation, connected UI, native execution,
+automation and installed journeys remain separate gates.
 
 Extraction checks on 2026-11-03, using the imported dependency versions:
 

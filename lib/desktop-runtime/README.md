@@ -3,7 +3,8 @@
 Rust owns the desktop's native process/storage lifetime. Go retains the Factory
 workflow, admission and canonical PostgreSQL schema. This crate currently
 implements the Linux PostgreSQL lifecycle, private backend inputs, managed
-PG/Go supervisor and OS account credential custody. The production Tauri host
+PG/Go supervisor, OS account credential custody and the complete authenticated
+GitHub connector. The production Tauri host
 is [`cmd/soda-desktop`](../../cmd/soda-desktop/README.md); native executor work
 remains a later slice.
 
@@ -122,72 +123,53 @@ storage is a webview command. Withdrawal also retires the browser binding and
 observations. Provider request/refresh consumers must use the native capability
 boundary; connected provider work is not implemented by credential storage alone.
 
-## Native GitHub read transport
+## Native GitHub connector
 
-`NativeSupervisor.github_read(credentials, capability, github::Read)` accepts
-typed identity, account repository-page, stable repository-ID, issue/PR and
-ordinary conversation reads. It uses the owner thread's fresh private
-channel/instance and the awaited credential boundary above. Only GitHub-scoped
-credentials can reach it. A future does not
-borrow the supervisor, so runtime retirement can proceed while it is pending;
-retired runtime or credential authority prevents a result from being returned.
+The headless `github_provider` owner implements fixed-origin authenticated HTTPS,
+device authorization, refresh, current-account verification and provider-local
+read decoding. It has no Tauri dependency. Its dedicated runtime admits at most
+16 outstanding requests, including unread completions; requests have eight-second
+bounds, 16-KiB headers/OAuth bodies and 8-MiB upstream API bodies. Native read replies
+remain bounded to 2 MiB. Redirects, cookies and automatic retries are disabled.
+Host proxy settings and platform TLS trust remain native inputs. Only numeric
+bounded pagination is retained: GitHub may change a Link path from an owner/name
+locator to a stable repository ID; Link URLs are never followed.
 
-`Read::Issues` selects a stable remote repository, page/limit and open/closed/all
-state (empty defaults to open). `Read::Issue` selects any-state detail by display
-number. Native validation rejects invalid limits, state, repository IDs and zero
-numbers before GitHub I/O. Go still verifies the current account first. Successful
-replies must match the selected kind, account, connection and issue repository.
-The returned issue facts contain remote identities; canonical registry mapping
-and the production UI connection remain consumers.
+`NativeSupervisor.github_read(credentials, capability, github::Read)` freshly
+admits native custody and verifies the actual account through /user. It accepts
+semantic selectors for repositories, issues, PRs, ordinary discussions, reviews,
+inline comments, check runs, statuses, immutable diffs and file pages. One Rust
+selector defines request bounds. Stable repository/parent/current-head checks
+bracket the relevant operations. Unknown/null facts remain unknown; read access
+and CI observations never create product mutation or execution authority.
 
-`Read::Pulls` selects open (default), closed or all PR pages; `Read::Pull`
-selects any-state detail by number. Both use stable repository IDs and require
-the same descriptor/account/reply-scope checks. Missing draft/mergeability facts
-and deleted fork repositories remain null. Branch commits are PR-payload
-observations; file/diff and current merge eligibility are later readers.
+Native OAuth produces an opaque grant; account verification precedes encrypted
+OS storage. Refresh uses the existing durable reservation and conditional custody
+publication, with no old-pair reuse on uncertain outcomes. An explicitly rotated
+complete pair and freshly verified account are required. A retired owner closes
+admission, cancels and joins HTTP/DNS/TLS work, refuses stale replies and cancels
+operations waiting for native mapping/custody. No slow provider call holds the
+child-control thread or desktop lifecycle mutex.
 
-`Read::PullDiff` discovers a PR merge-base/head pair with two empty commit
-selectors or verifies an explicit full pair. Native validation rejects malformed
-and half-pairs. Go captures the actual PR base/head, resolves the merge base and
-rechecks current PR/repository facts; changed pairs refuse. Rust checks returned
-scope, parent and commits before releasing a result. The captured PR base remains
-separate from the diff merge base and current target-tip/protection consumers.
-Real public discovery/pinned-pair/mismatch checks and production-native full-pair
-authentication refusal pass. Authenticated/private scope and canonical/UI
-integration remain consumers. No file catalogue is returned by this operation.
+Canonical operations send bounded nonsecret observations to Go at
+`/api/native/collaboration/observe`, behind peer/key/instance/coordinator admission.
+Go resolves host-scoped local repository IDs and atomically maps each observed
+account/repository/participant batch. Rust validates the returned canonical scope;
+Go owns neutral issue projection and all SQL. The old Go provider implementation,
+SDK and credential-carrying native routes are removed. Canonical mappings remain
+observations, never cached provider permission or an active product binding.
 
-`Read::IssueComments` and `Read::PullComments` select an explicit parent number,
-stable repository ID and bounded page. Go verifies the matching parent before
-and after the ordinary comment read, including the actual pull ID for a PR, and
-rechecks repository visibility. Rust checks the reply's parent kind/number and
-repository alongside the native account scope. Review submissions/inline threads
-remain separate resources. Native selectors expose no token or execution grant.
-
-The token travels only as a sensitive per-request header on authenticated Unix
-IPC to the trusted Go child. It is not browser state, a bootstrap configuration
-field, environment variable or stored Go token source. The native Go composition
-registers a fixed private read RPC behind peer/key/instance and application
-lifetime admission. Its GitHub adapter verifies `/user` against the captured
-account on each call before any repository read, then uses the existing bounded
-Go SDK client. It neither binds a Factory account nor starts automation.
-Dropping the Rust future closes IPC and cancels the Go request context.
-
-The read port consumes an already stored connection. For initial login,
-`NativeSupervisor.github_verify(Token)` consumes a new, unpersisted native token
-and requests only actual GitHub `/user`. Its eight-second total deadline includes
-channel acquisition and I/O. On success, it returns a remotely observed `Account`
-and the original opaque `Token` to native login code for `Credentials::store`;
-neither type implements Serialize or Debug. It never stores a placeholder account
-or writes to OS custody. Provider refusals expose only HTTP status. Cancellation,
-failure or retired runtime drops the token and cannot return an account.
-
-The new-token request uses the same peer/key/instance/admission gates, sensitive
-header and cancellable Go SDK path as stored reads. It accepts no claimed account,
-connection or repository selector; stored reads still require their captured
-account/connection. Real native OAuth consent, complete encrypted storage, private
-reads and provider refresh were qualified in T06-GITHUB-LIVE. Product account
-selection and connected canonical surfaces remain consumers. Generated invalid
-credentials qualify refusal only, not successful login or private access.
+Real native refusal, Secret Service, PostgreSQL, removed-route, nonsecret mapping
+and late-rollback checks pass. The corrected approved Rust journey also passes:
+two repository pages, private access, canonical issues, PR/diff/file and evidence
+reads, actual refresh, credential reload and stable canonical IDs after restart.
+The locally stored test grant was withdrawn and owned PostgreSQL stopped. The
+initial pagination-alias failure remains retained evidence. Actual Linux Tauri
+controls render a real device challenge, hand off the fixed browser URL and cancel
+without storing a credential. The opener receiver is a declared fixture.
+Remote grant revocation, connected shared UI, native execution and installed
+product qualification remain downstream; historical Go evidence is not reused
+as proof of the new owner.
 
 ## Private backend inputs
 
@@ -244,7 +226,7 @@ make install
 Copy the runtime subset above into a separate payload. Keep its PostgreSQL
 license. These options use PostgreSQL's built-in `C.UTF-8` locale and private
 socket transport, avoiding unrelated ICU, interactive readline, TLS and optional
-compression dependencies. This does not disable HTTPS in the Go provider clients.
+compression dependencies. This does not disable HTTPS in native provider clients.
 Building requires C/Make, Bison/Flex, Perl's build modules and zlib development
 headers; these are developer requirements, not desktop installation requirements.
 
@@ -300,47 +282,10 @@ architectures. T14 selects/qualifies the distribution baseline. The new crate
 reuses current getrandom/url; the freshness check selected libc 0.2.191, requiring
 the workspace's exact libc selectors and lock to advance together.
 
-`Read::Binding` and `Read::CanonicalRepositories { page, limit }` consume the
-runtime-owned canonical registry composition. They share the same credential
-borrowing, per-request `/user` verification, instance and retirement gates as
-provider-local reads. Canonical operations additionally refuse a credential
-owner from another profile before provider dispatch. Rust checks profile, host,
-connection, local actor and actual remote account scope in the returned binding.
-Neutral repository pages retain canonical local IDs as strings, opaque remote
-IDs, bounded numeric continuation and observation metadata; duplicates, wrong
-host/profile and invalid identity/page shapes refuse. This does not select an
-active Factory account, admit execution or add browser token commands. Native
-acceptance uses actual keyring/PG/Go/IPC with declared positive provider facts
-and actual GitHub invalid-credential refusals; full live canonical UI
-qualification remains downstream.
-
-`Read::CanonicalIssues` and `Read::CanonicalIssue` select a canonical local
-repository ID; `Read::Issues`/`Issue` retain remote-ID semantics. Canonical issue
-operations share owned-profile and current credential guards with canonical
-account/catalogue reads. Go resolves host-scoped repository identity and rechecks
-current account/provider visibility. Rust checks returned local repository,
-issue kind/number, opaque record identity, participants, filters, nullable facts
-and paging. Empty filtered pages may have a continuation; PR wrappers cannot
-become ordinary issue detail. Capabilities remain unknown. Native acceptance
-qualifies declared positives and real authentication refusal, cancellation and
-retained IDs after restart. Connected UI/live canonical journeys remain consumers.
-
-The adopted provider migration starts in `github_provider`: a headless Rust
-session owner with fixed-origin HTTPS, explicit no-retry/no-redirect behavior,
-16 bounded outstanding requests, safe errors, opaque device authorization and
-refresh decoding. Its own runtime retires and joins DNS/TLS/HTTP work separately
-from child control. A direct check observed actual GitHub invalid-token refusal,
-an unapproved device challenge and refusal after joined retirement. This is an
-inactive producer until the canonical-observation cutover;
-desktop still uses the transitional Go connector at this checkpoint. No real
-refresh, stored sign-in, private read or complete connector parity is claimed yet.
-
-The same Rust module now defines `Read` and the provider-local readers for
-repositories, issues, PRs, discussions, reviews, inline comments, pinned diffs and
-file pages, check runs and legacy statuses. Stable repository/parent/head checks
-bracket each applicable read. Empty filtered issue pages retain continuation;
-nullable facts remain unknown, and no check/history reader infers merge authority.
-The file reader uses Diffy for hunk syntax and retains partial/truncated provider
-fragments with explicit span/stat checks. A direct Rust read check returned real
-GitHub 401 and refused invalid paging/pins/local canonical selectors/retired work.
-Positive authenticated parity remains required at the application cutover.
+Canonical `Binding`, `CanonicalRepositories`, `CanonicalIssues` and `CanonicalIssue`
+keep local-ID semantics separate from raw provider reads. Go resolves a local
+repository on the selected host before Rust reads its remote ID. Rust verifies
+the current provider account and repository evidence, then Go transactionally
+maps the resulting facts and projects neutral pages. Empty filtered issue pages
+can retain a continuation; PR wrappers cannot become ordinary issue detail.
+Capabilities remain unknown. Product selection and connected UI remain consumers.

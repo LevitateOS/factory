@@ -22,7 +22,6 @@ struct Wire {
     status: u16,
     headers: header::HeaderMap,
     bytes: Zeroizing<Vec<u8>>,
-    path: String,
 }
 enum Request {
     Api {
@@ -81,7 +80,6 @@ impl Owner {
                 .redirect(redirect::Policy::none())
                 .retry(reqwest::retry::never())
                 .referer(false)
-                .no_proxy()
                 .connect_timeout(TIMEOUT)
                 .timeout(TIMEOUT)
                 .http1_max_headers(64)
@@ -148,6 +146,15 @@ impl Drop for Owner {
     }
 }
 impl Client {
+    // Retire the whole admitted native operation as well as each wire request.
+    // This includes waits for Go mapping and native conditional credential I/O.
+    pub(crate) async fn scope<F: std::future::Future>(&self, work: F) -> Result<F::Output> {
+        self.current()?;
+        let mut retirement = self.retired.subscribe();
+        let output = tokio::select! {biased; _=retirement.changed()=>return Err(Failure::unavailable()),value=work=>value};
+        self.current()?;
+        Ok(output)
+    }
     pub(crate) fn current(&self) -> Result<()> {
         if self.alive.load(Ordering::SeqCst) && !*self.retired.borrow() {
             Ok(())
@@ -224,8 +231,8 @@ impl Client {
         if value.is_null() {
             return Err(Failure::protocol());
         }
-        let next = link_page(&wire.headers, &wire.path, "next")?;
-        let last = link_page(&wire.headers, &wire.path, "last")?;
+        let next = link_page(&wire.headers, "next")?;
+        let last = link_page(&wire.headers, "last")?;
         self.current()?;
         Ok(Response { value, next, last })
     }
@@ -311,7 +318,6 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
     }
     let status = response.status().as_u16();
     let headers = response.headers().clone();
-    let path = response.url().path().into();
     let mut bytes = Zeroizing::new(Vec::new());
     while let Some(chunk) = response.chunk().await.map_err(network_failure)? {
         if bytes.len() + chunk.len() > limit {
@@ -323,7 +329,6 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         status,
         headers,
         bytes,
-        path,
     })
 }
 fn network_failure(error: reqwest::Error) -> Failure {
@@ -340,11 +345,24 @@ fn integer(headers: &header::HeaderMap, name: &str) -> Option<u64> {
     headers.get(name)?.to_str().ok()?.parse().ok()
 }
 fn provider_failure(wire: &Wire) -> Failure {
+    // GitHub can report a secondary limit without a numeric Retry-After.
+    // Inspect the bounded provider error locally, retaining only safe facts.
+    let rate_limited = serde_json::from_slice::<Value>(&wire.bytes)
+        .ok()
+        .is_some_and(|value| {
+            value["message"].as_str().is_some_and(|message| {
+                let message = message.to_ascii_lowercase();
+                message.contains("secondary rate limit") || message.contains("rate limit exceeded")
+            }) || value["documentation_url"]
+                .as_str()
+                .is_some_and(|url| url.contains("secondary-rate-limits"))
+        });
     let (status, code) = match wire.status {
         401 => (401, "github_sign_in_required"),
         404 => (404, "github_not_visible"),
         403 if integer(&wire.headers, "x-ratelimit-remaining") == Some(0)
-            || wire.headers.contains_key("retry-after") =>
+            || wire.headers.contains_key("retry-after")
+            || rate_limited =>
         {
             (429, "github_rate_limited")
         }
@@ -361,7 +379,7 @@ fn provider_failure(wire: &Wire) -> Failure {
         reset: integer(&wire.headers, "x-ratelimit-reset"),
     }
 }
-fn link_page(headers: &header::HeaderMap, path: &str, relation: &str) -> Result<u32> {
+fn link_page(headers: &header::HeaderMap, relation: &str) -> Result<u32> {
     let mut next = 0;
     for value in headers.get_all(header::LINK) {
         for link in value.to_str().map_err(|_| Failure::protocol())?.split(',') {
@@ -381,11 +399,14 @@ fn link_page(headers: &header::HeaderMap, path: &str, relation: &str) -> Result<
                 || !url.username().is_empty()
                 || url.password().is_some()
                 || url.fragment().is_some()
-                || url.path() != path
                 || next != 0
             {
                 return Err(Failure::protocol());
             }
+            // GitHub legitimately uses /repositories/{id} links for a request
+            // made through /repos/{owner}/{name}. Extract only the bounded page
+            // number. Never follow a Link URL or adopt its path/query/resource;
+            // the semantic reader reconstructs the next request in its scope.
             let pages: Vec<_> = url
                 .query_pairs()
                 .filter(|(k, _)| k == "page")

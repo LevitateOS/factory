@@ -19,7 +19,7 @@ import (
 
 type nativePeerKey struct{}
 
-// NativeConnector composes private provider ports after the owned Store opens.
+// NativeConnector composes credential-free observation ports after Store opens.
 // The profile comes from Rust's validated bootstrap, never a browser payload.
 // Construction must perform no provider I/O or select an active product actor.
 type NativeConnector func(collaboration.Profile, *store.Store) http.Handler
@@ -131,9 +131,7 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 			}
 			connector.ServeHTTP(w, r)
 		}))
-		for _, path := range []string{"/api/native/github/read", "/api/native/github/device/start", "/api/native/github/device/wait", "/api/native/github/refresh"} {
-			mux.Handle(path, nativeConnector)
-		}
+		mux.Handle("/api/native/collaboration/observe", nativeConnector)
 	}
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -183,7 +181,11 @@ func nativeHandler(config NativeConfig, application *NativeApplication, connecto
 			nativeResponse(w, 400, map[string]string{"error": "invalid_request"})
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 65536)
+		limit := int64(65536)
+		if r.URL.Path == "/api/native/collaboration/observe" {
+			limit = 2 << 20
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		mux.ServeHTTP(w, r)
 	})
 }

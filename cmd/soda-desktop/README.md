@@ -42,8 +42,9 @@ Linux account tokens use the login session's OS Secret Service through the
 [native credential owner](../../lib/desktop-runtime/README.md#native-account-credentials).
 Click **Sign in to GitHub**, then **Open GitHub**, and enter the displayed code in
 your default browser. Factory requests repository and profile access using its
-public device-flow client ID. Grant exchange, account verification and complete
-access/refresh credential storage stay native. The webview receives the short
+public device-flow client ID. Grant exchange, account verification, authenticated provider HTTP/decoding and
+complete access/refresh credential storage are owned by headless Rust. Go accepts
+only credential-free observations and owns canonical mapping/product transactions. The webview receives the short
 user code, fixed verification URL, expiration and safe account metadata; it has no
 token getter, token writer, arbitrary opener or keyring-passphrase command.
 Native metadata shows the provider-observed account name while stable provider
@@ -100,7 +101,11 @@ reauthentication, withdrawal across reopen, locked/unavailable errors, encrypted
 retention across daemon restart and actual capability expiry. Run it with a fresh
 profile and a private session bus/data directory, preserving the personal keyring.
 
-`--check-signin` extends the same native acceptance hook for declared authorization
+The historical `--check-signin` declared provider observer depended on the retired
+Go connector and is no longer current cutover evidence. Its source is retained
+for the existing check migration, without adding a second production connector.
+The real `--check-signin-live`/`--check-signin-consent` paths use the Rust owner.
+Historically, `--check-signin` extended the same native acceptance hook for declared authorization
 responses through actual Linux WebKit, native Go/PostgreSQL and an isolated Secret
 Service. It checks production controls, fixed browser handoff, prompt/metadata
 custody, cancellation, stale attempts, multiple windows, verification/storage,
