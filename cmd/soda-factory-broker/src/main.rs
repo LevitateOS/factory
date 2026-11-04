@@ -11,6 +11,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+mod preparation_quota;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
@@ -780,11 +781,13 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
                 return Err(denied("completed preparation manifest invalid"));
             }
             prepared_checkout(&directory)?;
+            preparation_quota::capacity(&preparations, 0)?;
             return Ok(());
         }
         clean_preparation(&preparations, run)?;
     }
     runtime_capacity(MAX_PREPARATION_CHARGE)?;
+    preparation_quota::capacity(&preparations, MAX_PREPARATION_CHARGE)?;
     let directory = preparations.join(run);
     DirBuilder::new().mode(0o700).create(&directory)?;
     let output = directory.join("output");
@@ -804,6 +807,7 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
         prepared_checkout(&directory)?;
         private_dir(&output, 0o777)?;
         runtime_capacity(0)?;
+        preparation_quota::capacity(&preparations, 0)?;
         fs::set_permissions(&output, fs::Permissions::from_mode(0o555))?;
         File::open(&directory)?.sync_all()
     })();

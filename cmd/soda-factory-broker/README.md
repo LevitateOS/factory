@@ -472,6 +472,19 @@ This verifies the normal path through the checks. A low-free-space refusal
 under a constrained `/run` mount has not been exercised; concurrent non-Factory
 writers can also consume free space after admission.
 
+The broker now also walks every retained preparation under its serialized run
+lock, without following symlinks or crossing filesystems. It refuses a new
+preparer when current allocated blocks plus the full 128 MiB preparation charge
+would exceed 512 MiB, then rechecks actual allocation before freezing a
+checkout. The walk limits the aggregate namespace to 200,000 entries and
+refuses unexpected file types or depth. A direct filesystem check exercised
+the exact admission boundary and a symlink outside the tree; the broker passed
+locked offline compilation. The currently installed broker socket is absent on
+this host, so this change has not passed an actual root broker/preparer service
+activation. The bound covers retained preparation trees, not coder workspace,
+agent output or every tmpfs allocation. Those storage paths and the final live
+qualification remain open for D3.
+
 The staged run now carries a root-owned profile declaration. The broker checks
 it before preparation, reviewer and relay attestation, agent arming, and
 retirement, and echoes it in replies. The agent role manifest and direct agent

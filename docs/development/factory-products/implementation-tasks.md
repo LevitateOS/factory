@@ -24786,3 +24786,16 @@ it observes both the empty selector and empty account list. This is a local UI
 failure/recovery check with a mocked keyring command. It does not diagnose the
 WebKit crash or prove connected consent, credential custody, authenticated IPC,
 or an installed desktop journey. T06-CONNECT remains Active.
+
+T09-NATIVE-EXECUTOR retained-preparation source checkpoint (2026-11-04): the
+root broker now applies a 512 MiB aggregate allocated-block bound to retained
+preparation trees under its run lock. It reserves the preparer's full 128 MiB
+charge before launch and rechecks actual allocation before freezing the output;
+the walk refuses symlink traversal, cross-filesystem entries, unsupported node
+types and more than 200,000 entries. A direct Rust filesystem check passed the
+exact charge boundary and non-following of an outside symlink. Locked offline
+broker compilation and changed-file formatting pass. This is not a live broker
+service check: its systemd socket is not installed on the current host. Coder
+workspace, agent output, authenticated Go admission, credential custody, role
+policy, candidate/artifact capture and the finite provider run remain open.
+T09-NATIVE-EXECUTOR stays Pending; D3 and product execution stay unavailable.

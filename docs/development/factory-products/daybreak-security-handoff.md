@@ -48,6 +48,16 @@ T09-NATIVE-EXECUTOR is itself D3 work; T09-EXECUTION and its publication,
 automation, packaging, installed and upgrade consumers remain pending. T10-GATEWAY
 is D2 work. T12-PLACEMENT depends on T06-CONNECT and must keep automation inactive.
 
+For D3 storage, the broker now has a source-level and direct filesystem check of
+a 512 MiB aggregate allocated-block bound over retained preparation trees.
+`cargo check --locked --offline -p soda-factory-broker` passes. The current host
+has no installed `soda-factory-broker.socket`; no live broker/preparer activation
+qualified this change. The bound does not cover coder workspace, agent output or
+all tmpfs allocation. Close the storage part only after actual service-path
+checks of retained multi-run capacity/refusal, cleanup/retry, coder/output bounds
+and denial when `/run` has low free space, with exact process and filesystem
+observations. This source checkpoint does not close D3.
+
 If a later slice reveals another authentication, IPC admission, credential or
 isolation requirement, add a row with its exact dependency, files, positive and
 negative evidence. Route only hacking-like work to Daybreak. Do not mark a
