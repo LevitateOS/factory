@@ -2,14 +2,15 @@
 //! One exact-run isolated service boundary. This attests role, mounted source
 //! and desktop peer; it does not yet admit or launch an agent process.
 use serde::{Deserialize, Serialize};
-use soda_native_process::Processes;
+use soda_native_process::{Executable, Invocation, Limits, Processes, StopReason};
+use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{Duration, Instant};
 
 const SOURCE: &str = "/run/factory-source";
@@ -195,7 +196,7 @@ fn manifest(run: &str) -> io::Result<(String, String)> {
     Ok((role.into(), candidate.into()))
 }
 
-fn source(candidate: &str) -> io::Result<()> {
+fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
     let path = Path::new(SOURCE);
     let metadata = path.symlink_metadata()?;
     if !metadata.is_dir()
@@ -205,25 +206,53 @@ fn source(candidate: &str) -> io::Result<()> {
     {
         return Err(refused("agent source mount invalid"));
     }
-    let output = Command::new("/usr/bin/timeout")
-        .env_clear()
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null")
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .args([
-            "3s",
-            "/usr/bin/git",
-            "-C",
-            SOURCE,
-            "-c",
-            "safe.directory=/run/factory-source",
-            "rev-parse",
-            "HEAD",
-        ])
-        .output()?;
-    if !output.status.success()
-        || output.stdout != format!("{candidate}\n").as_bytes()
-        || !output.stderr.is_empty()
+    let executable = Executable::capture(Path::new("/usr/bin/git"))
+        .map_err(|_| refused("agent Git executable unavailable"))?;
+    let environment = BTreeMap::from([
+        (OsString::from("GIT_CONFIG_NOSYSTEM"), OsString::from("1")),
+        (
+            OsString::from("GIT_CONFIG_GLOBAL"),
+            OsString::from("/dev/null"),
+        ),
+        (OsString::from("GIT_TERMINAL_PROMPT"), OsString::from("0")),
+    ]);
+    let process = processes
+        .launch(Invocation {
+            executable: &executable,
+            directory: Path::new(PRIVATE),
+            arguments: [
+                "-C",
+                SOURCE,
+                "-c",
+                "safe.directory=/run/factory-source",
+                "rev-parse",
+                "HEAD",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+            environment,
+            limits: Limits {
+                duration: Duration::from_secs(3),
+                output_bytes: 4096,
+                memory_bytes: 128 * 1024 * 1024,
+                processes: 8,
+                cpu_percent: 100,
+            },
+            columns: 80,
+            rows: 24,
+        })
+        .map_err(|_| refused("agent Git scope unavailable"))?;
+    let observed = process.wait(Duration::from_secs(5));
+    let output = if observed.finished && observed.tree_retired && observed.output_complete {
+        fs::read(&observed.output)?
+    } else {
+        return Err(refused("agent Git scope did not retire"));
+    };
+    if observed.reason != Some(StopReason::Exited)
+        || observed.exit.and_then(|exit| exit.code) != Some(0)
+        || (output != format!("{candidate}\r\n").as_bytes()
+            && output != format!("{candidate}\n").as_bytes())
     {
         return Err(refused("agent source candidate invalid"));
     }
@@ -329,9 +358,9 @@ fn serve() -> io::Result<()> {
         return Err(refused("agent desktop UID invalid"));
     }
     let worker_uid = identity(&args[1], desktop_uid)?;
-    let _processes = process_owner(&args[1], worker_uid)?;
+    let mut processes = process_owner(&args[1], worker_uid)?;
     let (role, candidate) = manifest(&args[1])?;
-    source(&candidate)?;
+    source(&candidate, &mut processes)?;
     let listener = listener(&args[1], desktop_uid)?;
     let deadline = Instant::now() + Duration::from_secs(10);
     let (mut stream, _) = loop {

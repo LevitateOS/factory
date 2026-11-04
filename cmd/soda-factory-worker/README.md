@@ -248,3 +248,16 @@ child launch and descendant cancellation under the unit's private runtime,
 PID namespace and delegated cgroup. The production agent remains
 attestation-only; concurrent execution, cross-run denial, role-limited tools,
 credential withdrawal and a finite provider run remain open.
+
+The production agent's Git HEAD admission check now runs the fixed captured
+`/usr/bin/git` executable inside its native process owner, with a three-second
+deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree
+retirement. It accepts only the exact candidate line after complete output and
+zero exit. This replaces the ordinary `timeout` subprocess, whose descendants
+and output were outside that owner. A disposable activation of the actual agent
+socket and service attested the dummy reviewer candidate under the new check.
+Changing the root role declaration to a different well-formed candidate caused
+`agent source candidate invalid` and no attestation; repeated activation then
+hit systemd's start limit. The socket, units, binary and dummy preparation were
+removed. The service still accepts only `attest_agent` and reports execution
+unavailable.

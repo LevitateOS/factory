@@ -394,6 +394,16 @@ unit and dummy source were removed. Actual concurrent execution, cross-run
 denial, role-limited tools, credential withdrawal and a finite provider run
 on the production launch path remain D3 requirements.
 
+The production agent's fixed Git HEAD admission check now uses its native
+process owner instead of an ordinary `timeout` subprocess. The captured Git
+binary runs with a three-second deadline, 4 KiB output limit, resource limits
+and required process-tree retirement. A disposable exact-run socket activation
+attested the dummy reviewer candidate; changing the root role declaration to
+a different valid candidate failed with `agent source candidate invalid` and
+no attestation. Repeated refusal hit systemd's start limit. The temporary
+socket, units, binary and source were removed. This closes the unbounded
+admission subprocess gap; agent execution and D3 remain open.
+
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do
 not keep that checkout read-only. A transient system service on 2026-11-04 first
