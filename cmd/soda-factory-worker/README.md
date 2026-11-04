@@ -237,4 +237,14 @@ names the host PID; the worker now validates its numeric presence and the
 inherited listening FD's type, state and exact fixed socket path. The worker
 also accepts a desktop peer whose PID is hidden by that namespace while still
 requiring the kernel peer UID. Temporary units and dummy state were removed.
-An actual concurrent agent-child run and tree-retirement check remain open.
+A disposable activation using the actual agent unit profile, with only
+`ExecStart` replaced by a diagnostic binary, launched a captured finite child
+through `soda-native-process::Processes`. It exited zero with complete output
+and a retired tree. A second invocation started a background `sleep` child,
+emitted a marker, and was cancelled; the monitor reported `Cancelled` and a
+retired tree. The process owner retired, and the service exited successfully.
+The diagnostic unit, binary and dummy preparation were removed. This verifies
+child launch and descendant cancellation under the unit's private runtime,
+PID namespace and delegated cgroup. The production agent remains
+attestation-only; concurrent execution, cross-run denial, role-limited tools,
+credential withdrawal and a finite provider run remain open.

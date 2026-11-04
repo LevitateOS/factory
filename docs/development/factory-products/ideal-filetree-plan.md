@@ -384,8 +384,15 @@ The updated actual agent unit attested its dummy reviewer source after opening
 `Processes` with those fixed mounts; a failed first activation showed
 `LISTEN_PID` had to be interpreted in the host PID namespace, and the worker
 now checks the inherited listener itself. All disposable units and source
-were removed. Actual concurrent agent-child execution, cancellation and
-cross-run denial on the final launch path remain D3 requirements.
+were removed. A later disposable activation used the actual agent unit
+profile with only `ExecStart` replaced by a diagnostic binary. It launched a
+captured finite child through `Processes`, observed zero exit, complete output
+and a retired tree, then cancelled a second invocation after it spawned a
+background child and observed `Cancelled` with tree retirement. Its process
+owner retired and the service exited successfully. The diagnostic binary,
+unit and dummy source were removed. Actual concurrent execution, cross-run
+denial, role-limited tools, credential withdrawal and a finite provider run
+on the production launch path remain D3 requirements.
 
 The reviewer workspace needs a manager-owned mount boundary: the dynamic worker
 UID owns its private runtime directory, so file modes on a checkout it owns do

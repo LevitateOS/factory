@@ -69,8 +69,13 @@ host UID. The agent unit therefore gives each run a private PID namespace and
 binds only its own delegated cgroup under a tmpfs overlay that hides the host
 cgroup tree. A two-instance dummy probe denied cross-run runtime and cgroup
 visibility while both instances remained active. The actual agent unit then
-attested after opening `Processes` under that fixed private mount. A child
-launch and cancellation on this updated unit profile still need qualification.
+attested after opening `Processes` under that fixed private mount. A diagnostic
+binary substituted only for that unit's `ExecStart` launched a captured finite
+child, observed zero exit and tree retirement, then cancelled an invocation
+after it spawned a background child and observed `Cancelled` with tree
+retirement. The disposable unit and binary were removed. This qualifies the
+primitive under the agent service profile, not the production agent's still
+unavailable execution path.
 
 The desktop user's host UID does not isolate a hostile process from that user's
 files, login session or cgroup authority. D3 requires a dedicated system worker
