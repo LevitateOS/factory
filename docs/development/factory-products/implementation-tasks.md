@@ -24850,11 +24850,17 @@ JavaScriptCoreGTK 4.1. The retained desktop sysroot does contain those files.
 With its pkg-config paths set explicitly, the locked offline `native-ui` check
 passed. The opt-in `native-check` desktop, current Go backend and retained
 PostgreSQL payload also built into an ignored scratch stage under `/home`.
-A headless Cage trial failed before desktop launch: the sandbox presents
-`/tmp/.X11-unix` with an owner Cage rejects and did not permit its Wayland
-socket bind. No current Tauri/WebKit journey, browser challenge or provider
-operation ran. The current system coredump index and user journal contain no
-retained historical desktop crash entry. The source/build success does not
-diagnose the pre-consent WebKit crash or qualify connected authentication/IPC.
-Obtain a working display and reproducible crash evidence before connected
-acceptance; T06-CONNECT remains Active.
+A first headless Cage trial failed before desktop launch: the sandbox presented
+`/tmp/.X11-unix` with an owner Cage rejected and did not permit its Wayland
+socket bind. With a disposable namespace supplying the retained matching loader
+and WebKit helpers, a subsequent opt-in `--check` ran through actual Tauri,
+WebKit, private PostgreSQL/Go readiness, shared UI, bounded bridge,
+close/reopen, second-launch activation and Quit, exiting zero. A scratch copy
+of the check binary had its ELF interpreter set to the retained runtime so the
+second-launch check executed the app itself. This is offline development
+acceptance; no browser challenge, provider operation, real account or installed
+package ran. The current system coredump index and user journal contain no
+retained historical desktop crash entry. Neither the source/build success nor
+the offline check diagnoses the pre-consent WebKit crash or qualifies connected
+authentication/IPC. Obtain reproducible crash and connected journey evidence
+before closing T06-CONNECT; it remains Active.
