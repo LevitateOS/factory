@@ -3136,3 +3136,37 @@ unverified. Existing-draft update/concurrent-submission and other concrete T11
 condition limits remain recorded; no atomic publication guarantee follows from
 these reads. All actual canonical/broad gates remain open, shared writes remain
 unavailable, and no Daybreak work ran or was marked complete.
+
+T11-WRITES fixed exact pending-review submission producer (2026-11-05):
+`github_provider/review_submit.rs`, `mod.rs` and `transport.rs` now submit only the
+saved current account's exact pending Node identity, actual reviewed commit,
+explicit final event and optional summary, after current saved pending/comment
+hash, scope/state/deadline checks. An omitted summary preserves writing; a supplied
+summary is exact. No replacement review or comment mutation is sent. A valid causal
+reply returns a bounded known-primary receipt with original pending/comment pins
+and actual counts, explicitly requiring separate publication verification. It is
+not full completion, atomic publication or remote deduplication.
+
+Production provider/transport passed 58 declared cases, 15 invalid descriptors,
+serialized/paced clones and retirement with 41 dummy mutation attempts. Evidence:
+`/home/vince/tmp/factory-pending-review-submit-1105/attempt1/pending-review-submit-result.json`,
+SHA-256 `1452a23f8527c94a05c37466cb50599efb9abcd59349cb57e86cdce13bf28348`.
+The plan records exact peer/binaries/runners. Preserve/replace/clear/max writing,
+nullable IDs/old commit, causal count difference, separate publication/comment
+readback, stale/refused preflight, all post-send uncertainty and lost reply without
+attribution passed. This is dummy-only/no-forwarding component evidence. Real
+provider scope/privacy/permission/notification and longest combined identity receipt
+bounds remain unqualified; no Go consumer or shared capability was activated.
+
+Exact remaining dependencies: admitted typed callback, versioned canonical Go
+preparation and schema-89 committed reservation, durable immutable causal primary
+receipt, then separately admitted publication completion. Verification failure or
+count/writing/identity mismatch must retain known commitment with unfinished
+completion, without changing its receipt or resending. A later current review alone
+cannot settle a lost causal reply. Real native/Go/PostgreSQL replay/cancel/loss/
+custody replacement/restart/original expiry and full writing, then actual owner-
+authorized provider/shared UI/installed cases remain needed. Existing-draft body
+editing/concurrent submission, concrete head/body/comment-set limits and other
+review/branch/merge work remain normal T11 tasks, not D5's Fountain admission gate.
+Shared writes and all actual canonical/broad gate claims remain unavailable/open.
+No Daybreak work ran or was marked complete.

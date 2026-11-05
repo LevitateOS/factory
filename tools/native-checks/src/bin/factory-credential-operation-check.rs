@@ -1249,6 +1249,11 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 2 && args[0] == "--github-pending-review-submit-declared" {
+            return runtime.block_on(native_github_review_requests::pending_submit(Path::new(
+                &args[1],
+            )));
+        }
         if args.len() == 2 && args[0] == "--github-review-create-declared" {
             return runtime.block_on(native_github_review_requests::creation(Path::new(&args[1])));
         }

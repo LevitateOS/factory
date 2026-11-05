@@ -30,6 +30,12 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    ReviewSubmit {
+        review: String,
+        event: &'static str,
+        body: Option<String>,
+        token: Zeroizing<Vec<u8>>,
+    },
     ReviewCreate {
         pull: String,
         head: String,
@@ -467,6 +473,19 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn post_pending_review(
+        &self,
+        q: &super::PendingReviewSubmit,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::ReviewSubmit {
+            review: q.review_node_id.clone(),
+            event: q.wire_event(),
+            body: q.body.clone(),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     pub(super) async fn review_preparation_query(
         &self,
         query: super::review_preparation::PreparationQuery,
@@ -748,6 +767,28 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Threads { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::ReviewSubmit {
+            review,
+            event,
+            body,
+            token,
+        } => {
+            let mut input = serde_json::Map::new();
+            input.insert("pullRequestReviewId".into(), serde_json::json!(review));
+            input.insert("event".into(), serde_json::json!(event));
+            if let Some(body) = body {
+                input.insert("body".into(), serde_json::json!(body));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::review_submit::SUBMIT,
+                    serde_json::json!({"input":input}),
+                )?,
+                1024 * 1024,
+            )
         }
         Request::ReviewCreate {
             pull,

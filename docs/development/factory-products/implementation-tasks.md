@@ -29717,3 +29717,79 @@ provider-condition limits remain separate T11 work. D5 retains its actual Founta
 issue-only admission scope. Shared writes and all actual broad gates remain
 unavailable/open; T11-WRITES and the full product are unfinished. No Daybreak work
 was completed.
+
+### T11-WRITES checkpoint: bounded native exact pending-review submission (2026-11-05)
+
+`github_provider/review_submit.rs` adds one fixed `PendingReviewSubmit` attempt
+over saved numeric/Node repository/PR identity, current head, exact pending review
+Node/nullable numeric identity, its actual reviewed commit, native pending digest
+and complete comment identity/writing digest/count. Current authenticated account,
+pending preparation, digest/scope/state/permission/deadline checks precede sending.
+A historical reviewed commit remains distinct from a newer PR head. A changed,
+missing or already submitted pending review refuses; another record is never
+substituted. Draft-body editing is not part of this operation.
+
+The private fixed GraphQL mutation sends only the exact pending review Node ID,
+explicit final event and optional summary. `None` omits the body and preserves the
+pending summary; an explicitly supplied body, including empty approval summary,
+is retained exactly. It creates no replacement review, comment/thread, deletion,
+dismissal or compensating action. The causal reply must match review/author/
+repository/PR/number/head/actual commit, event, effective body and submission dates.
+A bounded receipt retains the original pending/comment digests, expected and
+provider-returned comment counts, primary body hash and provider evidence.
+
+A valid causal reply returns the known primary separately from completion:
+`publication_verification` is explicitly `required`. A returned comment-count
+difference retains that known primary and actual count instead of discarding it
+or claiming complete preservation. The future Go consumer must commit that
+receipt before separately using the publication observer; current matching facts
+cannot create a receipt after loss. The shared one-shot Go fence remains required
+before every product attempt. Cloned clients serialize full preflight/mutation/
+reply and pace starts; the whole eight-second maximum includes mutex/pacing and
+clips an optional caller deadline. Any error/refusal/invalid or lost reply after
+attempting stays indeterminate with no retry or search attribution.
+
+The existing native executable gained
+`--github-pending-review-submit-declared FRESH_PROFILE`. Production provider/
+transport passed 58 declared cases, 15 invalid descriptors before I/O, clone
+serialization/pacing and in-flight/stopped-owner retirement under
+`/home/vince/tmp/factory-pending-review-submit-1105/attempt1/`, with 41 dummy
+mutation attempts. Coverage includes all final events, preserve/replace/clear
+summary, maximum Unicode/control writing, historical commit, nullable original
+numeric review ID and 64-bit IDs; a valid primary with changed reply count;
+separate normal publication/comment writing readback; stale pending/comment/scope/
+count/head/commit pins, current state/permission/body/deadline refusal before send;
+provider/error/redirect/partial/malformed/size/header/deadline and each causal
+identity/body/state/parent/commit/date mismatch after send; and a lost reply followed
+by a readable published review without attributing that reply. A paused predecessor
+held a clone beyond the pacing interval; after release the same already-submitted
+pending record could not be submitted again. No product journal or UI was enabled.
+
+| Artifact under `/home/vince/tmp/factory-pending-review-submit-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `d328156ec00ea0128ae7608aa52ccf95b9c6657e6bd52cd8974c9da72cd463d6` |
+| `provider` | `40bdb83294152cd9597892fdb5a638b635ffa0791dcf64c7baaff31f2a26c3ba` |
+| `check-bin` | `366f81db568b623506c270217806ebbb7a763b4e9ee7f57ece0d5a6c026eb00d` |
+| `run.sh` | `eff752b880257a712e2ab28fb894a902eace8f814a09d1cdd1d9e3982c85f120` |
+| `session.sh` | `f50fa3330d43383cd664a4d0aca980dd6f5409e0d72bd5c983946225acf9776f` |
+| `attempt1/result.log` | `386f90a6d37cc2f2b221d044d259240f6a72e158a259de558bb365facc0695ce` |
+| `attempt1/pending-review-submit-result.json` | `1452a23f8527c94a05c37466cb50599efb9abcd59349cb57e86cdce13bf28348` |
+
+Locked/offline native executable and desktop-feature source builds, ownership
+boundaries and whitespace checks passed. No dependency/unit-test root was added.
+The owned fixed-credential TLS peer never forwards; no real GitHub submission,
+permission or notification was created/inspected. The observed digests and matching
+reply are not an atomic expected-head/body/comment-set condition or remote
+idempotency. Longest combined identity receipt bounds and live schema/commit-
+repository semantics remain unqualified beyond the recorded component cases.
+
+Next: typed callback, versioned Go preparation/writer and schema-89 primary receipt
+persistence before separate publication completion. Preserve known commitment and
+its immutable receipt if verification is unavailable or mismatches; never resend
+to finish it or treat a later current match as attribution after loss. Qualify real
+native/Go/PostgreSQL completion, replay/cancel/loss/custody/restart/expiry and exact
+writing envelopes, then fresh scoped actual-provider/shared UI/installed behavior.
+Existing-draft updates and other concrete T11 condition/branch/merge obligations
+remain unfinished; no new D5 decision is inferred. Shared writes and all actual
+broad gate claims remain unavailable/open. No Daybreak work or whole-product
+completion was declared.

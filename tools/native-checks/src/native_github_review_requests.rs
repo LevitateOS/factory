@@ -2759,3 +2759,369 @@ pub(super) async fn publication(profile: &Path) -> Result<()> {
     println!("review publication observer passed {} declared cases, three invalid selectors and retirement; current facts only, no mutations or attribution",cases.len());
     Ok(())
 }
+
+pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::{PendingReviewSubmit, Read, WriteOutcome};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        for key in ["armed", "entered", "release", "cancelled"] {
+            match fs::remove_file(io.join(key)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let hash = |s: &str| {
+        Sha256::digest(s.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    async fn saved(
+        client: &soda_desktop_runtime::github_provider::Client,
+        io: &Path,
+    ) -> Result<PendingReviewSubmit> {
+        let v = client
+            .observe(
+                Token::new(b"factory-declared-review-preparation".to_vec())?,
+                "321",
+                &Read::PullPendingReviewSnapshot {
+                    repository: "123".into(),
+                    number: 7,
+                },
+            )
+            .await
+            .map_err(|f| format!("pending submission preparation: {} {}", f.status, f.code))?;
+        let p = &v["preparation"];
+        let text = |v: &serde_json::Value| -> Result<String> {
+            Ok(v.as_str().ok_or("native pending pin absent")?.to_owned())
+        };
+        let q = PendingReviewSubmit {
+            repository: "123".into(),
+            repository_node_id: text(&p["repository_node_id"])?,
+            pull_id: text(&p["pull"]["external_id"])?,
+            pull_node_id: text(&p["pull"]["node_id"])?,
+            number: 7,
+            head: text(&p["pull"]["head"])?,
+            review_id: p["pending"]["external_id"].as_str().map(str::to_owned),
+            review_node_id: text(&p["pending"]["node_id"])?,
+            review_commit: text(&p["pending"]["commit"])?,
+            pending_sha256: text(&p["pending_sha256"])?,
+            comments_sha256: text(&p["comments_snapshot"]["identity_writing_sha256"])?,
+            comments_count: p["comments_snapshot"]["count"]
+                .as_u64()
+                .ok_or("native pending count absent")?,
+            event: "comment".into(),
+            body: None,
+        };
+        fs::write(io.join("armed"), b"")?;
+        Ok(q)
+    }
+    for name in [
+        "comment",
+        "approve",
+        "request_changes",
+        "explicit-body",
+        "clear-approval",
+        "max-unicode",
+        "max-control",
+        "historical-commit",
+        "unknown-review-id",
+        "big-ids",
+        "changed-count-reply",
+        "no-request-id",
+    ] {
+        mode(&format!("submit-{name}"))?;
+        let mut q = saved(&client, &io).await?;
+        if name == "approve" || name == "clear-approval" {
+            q.event = "approve".into()
+        };
+        if name == "request_changes" {
+            q.event = name.into()
+        }
+        if name == "explicit-body" {
+            q.body = Some("Exact replacement summary 🍵".into())
+        };
+        if name == "clear-approval" {
+            q.body = Some(String::new())
+        };
+        if name == "max-unicode" {
+            q.body = Some("🍵".repeat(16384))
+        };
+        if name == "max-control" {
+            q.body = Some("\u{0001}".repeat(65536))
+        }
+        let before = writes()?;
+        let r = match client.submit_pending_review(token()?, "321", &q).await {
+            WriteOutcome::Applied(r) => r,
+            WriteOutcome::NotSent(f) | WriteOutcome::Indeterminate(f) => {
+                return Err(format!("pending submit {name}: {} {}", f.status, f.code).into())
+            }
+        };
+        let body = q
+            .body
+            .as_deref()
+            .unwrap_or("Exact pending writing 🍵\n[link](relative.md)");
+        ensure(
+            r["pending"]["node_id"] == q.review_node_id
+                && r["pending"]["sha256"] == q.pending_sha256
+                && r["review"]["node_id"] == q.review_node_id
+                && r["review"]["body_sha256"] == hash(body)
+                && r["review"]["commit"] == q.review_commit
+                && r["event"] == q.event
+                && r["publication_verification"] == "required"
+                && writes()? == before + 1,
+            "pending causal primary lost identity/body/commit or claimed verification",
+        )?;
+        if name == "changed-count-reply" {
+            ensure(
+                r["review"]["comments_count"] == 4 && r["expected_comments"]["count"] == 3,
+                "known primary/count difference was discarded",
+            )?
+        } else {
+            let id = r["review"]["external_id"]
+                .as_str()
+                .ok_or("causal review ID absent")?
+                .to_owned();
+            let v = client
+                .observe(
+                    token()?,
+                    "321",
+                    &Read::PullReviewPublication {
+                        repository: q.repository.clone(),
+                        number: 7,
+                        review_id: id,
+                        review_node_id: q.review_node_id.clone(),
+                    },
+                )
+                .await
+                .map_err(|f| format!("pending publication {name}: {} {}", f.status, f.code))?;
+            ensure(
+                v["publication"]["comments_snapshot"]["identity_writing_sha256"]
+                    == q.comments_sha256
+                    && v["publication"]["review"]["body_sha256"] == hash(body),
+                "submitted existing review lost exact comment identities/writing",
+            )?;
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&r)?)?;
+        cases.push(name);
+    }
+    for name in [
+        "missing-pending",
+        "read-only",
+        "locked",
+        "closed",
+        "merged",
+        "unknown-merged",
+        "identity-denied",
+        "changed-pending-hash",
+        "changed-comments-hash",
+        "changed-count",
+        "changed-review-node",
+        "changed-review-id",
+        "changed-review-commit",
+        "changed-pull-id",
+        "changed-pull-node",
+        "changed-repo-node",
+        "changed-head",
+        "empty-changes",
+        "preflight-deadline",
+    ] {
+        mode(&format!("submit-{name}"))?;
+        let mut q = saved(&client, &io).await?;
+        match name {
+            "changed-pending-hash" => q.pending_sha256 = "0".repeat(64),
+            "changed-comments-hash" => q.comments_sha256 = "0".repeat(64),
+            "changed-count" => q.comments_count += 1,
+            "changed-review-node" => q.review_node_id = "REV_other".into(),
+            "changed-review-id" => q.review_id = Some("801".into()),
+            "changed-review-commit" => q.review_commit = "d".repeat(40),
+            "changed-pull-id" => q.pull_id = "701".into(),
+            "changed-pull-node" => q.pull_node_id = "P_other".into(),
+            "changed-repo-node" => q.repository_node_id = "R_other".into(),
+            "changed-head" => q.head = "d".repeat(40),
+            "empty-changes" => {
+                q.event = "request_changes".into();
+                q.body = Some(String::new())
+            }
+            _ => (),
+        }
+        let before = writes()?;
+        ensure(
+            matches!(
+                client.submit_pending_review(token()?, "321", &q).await,
+                WriteOutcome::NotSent(_)
+            ) && writes()? == before,
+            &format!("pending pre-send {name} attempted an effect"),
+        )?;
+        cases.push(name);
+    }
+    for name in [
+        "denied",
+        "validation",
+        "limited",
+        "server-error",
+        "redirect",
+        "malformed",
+        "oversized",
+        "partial-errors",
+        "drop-reply",
+        "deadline",
+        "wrong-node",
+        "wrong-id",
+        "wrong-state",
+        "wrong-body",
+        "wrong-author",
+        "wrong-repo",
+        "wrong-pull",
+        "wrong-pull-id",
+        "wrong-number",
+        "wrong-head",
+        "wrong-parent-repo",
+        "wrong-commit",
+        "wrong-commit-repo",
+        "wrong-date",
+        "missing-submission",
+        "oversized-request-id",
+        "duplicate-request-id",
+    ] {
+        mode(&format!("submit-{name}"))?;
+        let q = saved(&client, &io).await?;
+        let before = writes()?;
+        let outcome = client.submit_pending_review(token()?, "321", &q).await;
+        ensure(
+            matches!(outcome, WriteOutcome::Indeterminate(_)) && writes()? == before + 1,
+            &format!("pending post-send {name} lost uncertainty or retried"),
+        )?;
+        if name == "drop-reply" {
+            let v = client
+                .observe(
+                    token()?,
+                    "321",
+                    &Read::PullReviewPublication {
+                        repository: "123".into(),
+                        number: 7,
+                        review_id: "800".into(),
+                        review_node_id: q.review_node_id.clone(),
+                    },
+                )
+                .await
+                .map_err(|f| format!("lost pending publication: {} {}", f.status, f.code))?;
+            ensure(
+                v["publication"]["review"]["external_id"] == "800"
+                    && matches!(outcome, WriteOutcome::Indeterminate(_)),
+                "current publication attributed lost reply",
+            )?;
+        }
+        cases.push(name);
+    }
+    mode("submit-invalid")?;
+    let q = saved(&client, &io).await?;
+    let before = fs::read(io.join("gets"))?;
+    let w = writes()?;
+    for i in 0..15 {
+        let mut q = q.clone();
+        match i {
+            0 => q.repository = "0".into(),
+            1 => q.repository_node_id.clear(),
+            2 => q.pull_id = "0".into(),
+            3 => q.pull_node_id.clear(),
+            4 => q.number = 0,
+            5 => q.head = "invalid".into(),
+            6 => q.review_node_id.clear(),
+            7 => q.review_id = Some("0".into()),
+            8 => q.review_commit = "invalid".into(),
+            9 => q.pending_sha256 = "a".repeat(40),
+            10 => q.comments_sha256 = "a".repeat(40),
+            11 => q.comments_count = 1001,
+            12 => q.event = "draft".into(),
+            13 => q.body = Some("x".repeat(65537)),
+            _ => q.body = Some("\0".into()),
+        };
+        ensure(
+            matches!(
+                client.submit_pending_review(token()?, "321", &q).await,
+                WriteOutcome::NotSent(_)
+            ),
+            "invalid pending descriptor sent",
+        )?;
+    }
+    ensure(
+        fs::read(io.join("gets"))? == before && writes()? == w,
+        "invalid pending descriptor reached provider",
+    )?;
+    mode("submit-serialize")?;
+    let q = saved(&client, &io).await?;
+    let first_token = token()?;
+    let first =
+        async { Ok::<_, String>(client.submit_pending_review(first_token, "321", &q).await) };
+    tokio::pin!(first);
+    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    let before = writes()?;
+    let clone = client.clone();
+    let second = clone.submit_pending_review(token()?, "321", &q);
+    tokio::pin!(second);
+    tokio::select! {_=&mut second=>return Err("pending clone completed while predecessor paused".into()),_=tokio::time::sleep(Duration::from_millis(1200))=>()}
+    ensure(
+        writes()? == before,
+        "pending clone sent before predecessor returned",
+    )?;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        matches!(first.await?, WriteOutcome::Applied(_))
+            && matches!(second.await, WriteOutcome::NotSent(_))
+            && writes()? == before,
+        "pending serialization/replay duplicated submission",
+    )?;
+    mode("submit-pause-post")?;
+    let q = saved(&client, &io).await?;
+    let t = token()?;
+    let pending = async { Ok::<_, String>(client.submit_pending_review(t, "321", &q).await) };
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        matches!(pending.await?, WriteOutcome::Indeterminate(_))
+            && started.elapsed() < Duration::from_secs(2),
+        "pending retirement lost uncertainty or blocked",
+    )?;
+    let w = writes()?;
+    ensure(
+        matches!(
+            client.submit_pending_review(token()?, "321", &q).await,
+            WriteOutcome::NotSent(_)
+        ) && writes()? == w,
+        "retired pending owner mutated",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists()
+            && !io.join("overlap").exists()
+            && !io.join("too-fast").exists(),
+        "pending fixture saw undeclared request/overlap/pacing failure",
+    )?;
+    fs::write(
+        root.join("pending-review-submit-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":15,"causal_primary_separate_from_verification":true,"same_pending_identity":true,"preserve_or_replace_summary":true,"cloned_serialization":true,"pacing":true,"retirement":true,"provider_mutations":writes()?,"real_github":false,"atomic_publication_condition":false,"product_consumer_connected":false}),
+        )?,
+    )?;
+    println!("pending review submission passed {} declared cases, 15 invalid descriptors, serialization/pacing and retirement; causal primary requires separate verification",cases.len());
+    Ok(())
+}
