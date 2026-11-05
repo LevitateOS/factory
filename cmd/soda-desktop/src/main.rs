@@ -524,6 +524,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     let mut crash_check = false;
     #[cfg(feature = "native-check")]
+    let mut preconsent_check = false;
+    #[cfg(feature = "native-check")]
     let mut resume_check = false;
     #[cfg(feature = "native-check")]
     let mut credential_check = false;
@@ -569,6 +571,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         if arg == "--check-crash" {
             checking = true;
             crash_check = true;
+            continue;
+        }
+        #[cfg(feature = "native-check")]
+        if arg == "--check-preconsent" {
+            checking = true;
+            preconsent_check = true;
             continue;
         }
         #[cfg(feature = "native-check")]
@@ -627,6 +635,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             checking,
             startup_error,
             crash_check,
+            preconsent_check,
             resume_check,
             credential_check,
             signin_check,

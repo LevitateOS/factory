@@ -25365,3 +25365,19 @@ passed these denials on both ordered backend incarnations while retaining
 matching active, wrong-secret, revoked and expired behavior. This is still a
 synthetic listener and capability, not the native production listener, a
 canonical Store row or an isolated worker. N3 and D3 remain open.
+
+T06-CONNECT controlled pre-consent WebKit checkpoint (2026-11-05): an opt-in
+`--check-preconsent` observer kept the real headless Tauri/WebKit shared UI,
+two windows and private PostgreSQL/Go backend responsive for 20 seconds,
+then exited zero through Quit. It did not initiate OAuth. The retained ignored
+`.artifacts/preconsent-20261105.log` has SHA-256
+`86f290d6d1747962baeca7c6033f8bc491ac41542a64d3bb54064f74dff705d4`.
+The source base was `c3ce1ab0c6d453d4321b89cc3793df66d5e06491` plus
+this observer; its scratch desktop ELF was SHA-256
+`a17a11606896751d252e1c996eb9d7b17f39750f888c1023807f1739e4f35f0c`,
+and the retained WebKit 4.1 library was SHA-256
+`3b303f80773d04c3ca3478eb297675e45c432e72682513ab8f29e0bcff6f4737`.
+The former `connected-ui-v2`/`ui-v4` crash artifacts remain unavailable and
+their failure remains undiagnosed. A fresh observed connected challenge,
+consent, account binding, authenticated reads and IPC retirement still need
+evidence before T06-CONNECT can close; it remains Active.

@@ -11,6 +11,7 @@ pub struct Check {
     pub enabled: bool,
     startup_error: bool,
     crash: bool,
+    preconsent: bool,
     resume: bool,
     credentials: bool,
     control: bool,
@@ -23,6 +24,7 @@ impl Check {
         enabled: bool,
         startup_error: bool,
         crash: bool,
+        preconsent: bool,
         resume: bool,
         credentials: bool,
         signin: Option<SignInMode>,
@@ -32,6 +34,7 @@ impl Check {
             enabled,
             startup_error,
             crash,
+            preconsent,
             resume,
             credentials,
             signin,
@@ -417,6 +420,24 @@ pub fn report(
         quit(app);
         return Ok(());
     }
+    if state.check.preconsent && stage == "preconsent-stable" {
+        if state.check.stage.swap(2, Ordering::SeqCst) != 1
+            || app.webview_windows().len() < 2
+            || state
+                .runtime
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|owner| owner.health().ok())
+                .is_none()
+        {
+            app.exit(1);
+            return Ok(());
+        }
+        println!("PASS: current Tauri/WebKit shared UI and native runtime remained available before consent");
+        quit(app);
+        return Ok(());
+    }
     if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-prompt" {
         return crate::check_credentials::publish_consent_prompt(&app);
     }
@@ -492,6 +513,15 @@ pub fn report(
     }
     if state.check.crash {
         println!("Native crash ready: {}", std::process::id());
+        return Ok(());
+    }
+    if state.check.preconsent {
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(20));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.eval(r#"window.__TAURI__.core.invoke('report',{stage:'preconsent-stable',error:null})"#);
+            }
+        });
         return Ok(());
     }
     for window in app.webview_windows().values() {
