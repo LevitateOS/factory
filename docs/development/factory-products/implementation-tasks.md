@@ -29367,3 +29367,88 @@ merge operations, reviewer/thread constraints, D1/D2/D3/D5, custody/root absence
 scoped delivery, IPC/window/instance, isolation/execution/retirement/settlement and
 release/upgrade/freshness retain recorded requirements. Shared writes remain
 unavailable. No broad gate, Daybreak work or whole product was completed.
+
+### T11-WRITES checkpoint: journaled native new-review creation (2026-11-05)
+
+`native_product_review_creates.go` composes new-review creation through the
+existing `HumanReviews` application service and schema-89 dispatch fence. Go
+resolves the current canonical account/repository, consumes the defining Rust
+pending/head preparation, refuses an existing current-account pending review,
+and saves immutable version-1 preparation with exact PR/repository identities,
+head, event, full writing and original five-minute deadline. Lookup/cancel recover
+the exact saved request without new preparation or pending-review adoption.
+Only a committed reservation winner can invoke the typed native effect; a
+reserved or uncertain capture cannot regain send permission.
+
+`collaboration.rs` admits `create_review` under the existing one-effect current
+credential/repository scope, command/digest echo and bounded original deadline.
+Rust retains the defining complete authenticated preflight/mutation/receipt owner.
+Go independently checks the bounded causal receipt against the saved capture
+before recording a committed effect. New drafts and submitted reviews retain
+their explicit events; a completed draft-creation command is not evidence that a
+review was submitted or a notification sent. Existing pending submission/editing
+remain unavailable through this new-review adapter.
+
+Exact positive repository/PR POST `/api/factory/collaboration/repositories/{id}/pulls/{number}/reviews`
+receives the 512-KiB escaped-writing envelope in native request decoding, Go's
+private server and the typed callback client. Review lookup/cancel and unrelated
+routes retain their existing limits. Go/TypeScript share the small `ReviewRef`
+contract. The optional destination reader first authenticates the saved causal
+receipt, then uses normal review reads to require the exact review, canonical
+parent repository/number/PR and author. HTTP returns only that currently readable
+reference or null. A hidden/replaced destination cannot erase the separately
+recorded effect; restoration can return a reference without another mutation.
+Final current-account validation runs after destination projection.
+
+The existing executable gained
+`--github-review-create-product-declared BACKEND PG_PAYLOAD FRESH_PROFILE` in
+`native_github_review_requests.rs`. The actual native credential/supervisor/
+callback, current Go HTTP/service/registry/journal and owned PostgreSQL path passed
+14 declared cases with 10 dummy mutations under
+`/home/vince/tmp/factory-review-create-product-1105/attempt1/`. Coverage includes
+new approval/comment/draft/request-changes events, exact empty permitted and full
+64-KiB Unicode/control writing and normal readback, saved event conflict and
+replay/lookup/cancel, concurrent identical submission, other-primary refusal,
+existing-pending refusal, committed but hidden/replaced/restored destination,
+lost mutation reply followed by normally readable matching review without
+attribution or resend, cancellation racing committed and pre-send refusal,
+withdrawal/replacement, retained native/Go/PostgreSQL restart and another account's
+lookup/adoption refusal. Final owned dummy accounts were removed and the native
+supervisor stopped. The declared event scenarios use independently selected
+provider fixture states; this does not qualify a continuous real pending-review
+submission/editing lifecycle.
+
+The owned TLS peer accepts only declared fixed requests/dummy credentials and
+never forwards. No actual GitHub review, scope grant or notification was created
+or inspected. Normal readback cannot manufacture a causal receipt after loss.
+
+| Artifact under `/home/vince/tmp/factory-review-create-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `227fdbbce8c8bb5d7e31f458d917938bb917ca4d21101386c7003761d988fedb` |
+| `provider` | `fa95934ea875eb12496e90bdb6eb093b8ec18aea01447d1a6b5e2704af6cf498` |
+| `check-bin` | `61591d05f724540fefc2723ba8b10b121b07e9634ea7d54da0a12c209252cfc1` |
+| `server` | `5559242dd5a1eda70b877cd3287ed96af71e2d7a9bf663e7c540bef36226e02a` |
+| `run.sh` | `b395f3e7189248f6a5484f8d8b9cdd6a5c8d7db3e4a1833998c73d3ab1e2971a` |
+| `session.sh` | `45c95db1e62d692015489122834d9b047ae5816ffc43690a10d7ace0b571a529` |
+| `attempt1/result.log` | `4b38e983d1c40555cf0d4f096df7f13b206006c67af16a1981e2713b238c2918` |
+| `attempt1/review-product-result.json` | `4caa9a912759a0ff017a0a374e4a3e1ec84ac779af4923cf4497559445aab144` |
+
+Go/native/desktop-feature source builds, shared TypeScript typechecks, ownership
+boundaries and whitespace checks passed. No unit-test root, dependency, Go
+provider SDK owner or competing product transaction implementation was added.
+Captured locked/offline builds are not fresh or installed qualification.
+
+This resolves the preceding checkpoint's new-review typed callback, Go capture/
+writer, normal destination and maximum-writing composition dependencies. Original
+unclaimed capture expiration remains unverified; reserved/terminal replay and
+short whole-call deadlines do not prove it. Existing pending submission still
+needs complete comment identity/writing/commit preservation and a dedicated exact
+review owner. Existing-draft body editing retains its concurrent-submission
+constraint. Actual current schema/grant/permission/event/notification behavior,
+supported D5 head/body/visibility policy and fresh scoped owner-authorized provider/
+shared UI/installed journeys remain pending. Shared write capabilities remain
+unavailable. T11-WRITES stays Active for those requirements and remaining review/
+branch/merge behavior. T07-EDIT/T08 retain their predecessors. Reviewer/thread/PR
+constraints, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
+isolation/execution/retirement/settlement and release/upgrade/freshness retain
+recorded blockers. No broad gate, Daybreak work or whole product is complete.

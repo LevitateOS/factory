@@ -22,7 +22,12 @@ const HumanReviewRequestLimit = 512 << 10
 
 func IsHumanReviewSubmission(r *http.Request) bool {
 	p := strings.Split(r.URL.Path, "/")
-	return r.Method == http.MethodPost && len(p) == 9 && p[1] == "api" && p[2] == "factory" && p[3] == "collaboration" && p[4] == "repositories" && p[6] == "pulls" && p[8] == "reviews"
+	if r.Method != http.MethodPost || len(p) != 9 || p[1] != "api" || p[2] != "factory" || p[3] != "collaboration" || p[4] != "repositories" || p[6] != "pulls" || p[8] != "reviews" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" {
+		return false
+	}
+	_, repo := positiveID(p[5])
+	_, number := positiveID(p[7])
+	return repo && number
 }
 
 type HumanReviews struct {
@@ -129,18 +134,33 @@ func (s HumanReviews) handle(w http.ResponseWriter, r *http.Request, kind, actio
 		humanReviewHTTPError(w, factoryservice.ErrHumanReviewUnavailable)
 		return
 	}
-	// Provider receipts, native IDs, intent digests, installation/admission data
-	// and retained preparation stay server-side. Review reads retain their normal
-	// scope after a committed effect.
-	response := humanCommandResponse{CommandID: q.ID, Observation: o.State, Finished: factory.HumanReviewFinished(o)}
+	// Only a currently readable canonical destination is projected. Preparation,
+	// original writing and causal receipts stay private; a failed read does not
+	// erase the separately recorded effect.
+	response := humanReviewResponse{humanCommandResponse: humanCommandResponse{CommandID: q.ID, Observation: o.State, Finished: factory.HumanReviewFinished(o)}}
 	if o.Record != nil {
 		response.Effect, response.Cancellation, response.Completion = o.Record.Effect, o.Record.Cancellation, o.Record.Completion
+		if o.Record.Effect == collaboration.EffectCommitted {
+			scope := q
+			scope.Event, scope.Body = "", ""
+			if ref, readErr := s.Service.CreatedReview(ctx, scope, o); readErr == nil {
+				response.Review = &ref
+			}
+		}
+	}
+	if !currentAccount(w, r, s.Host, s.Actor, s.Current) {
+		return
 	}
 	status := http.StatusOK
 	if action != "lookup" && !response.Finished {
 		status = http.StatusAccepted
 	}
 	writeJSON(w, status, response)
+}
+
+type humanReviewResponse struct {
+	humanCommandResponse
+	Review *collaboration.ReviewRef `json:"review"`
 }
 
 func humanReviewHTTPError(w http.ResponseWriter, err error) {

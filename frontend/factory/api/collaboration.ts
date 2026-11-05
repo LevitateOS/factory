@@ -150,6 +150,11 @@ export interface Review {
   official: boolean | null;
   submitted_at: Timestamp | null;
 }
+
+export interface ReviewRef {
+  pull: PullRef;
+  external_id: string;
+}
 export interface DiffRef {
   pull: PullRef;
   base: CommitID;

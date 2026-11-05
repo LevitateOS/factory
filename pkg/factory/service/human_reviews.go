@@ -30,6 +30,12 @@ type HumanReviewWriter interface {
 	CancelHumanReview(context.Context, factory.HumanReviewCapture) (collaboration.OperationRecord, error)
 }
 
+// A destination requires causal provider evidence and a fresh normal read.
+// Hosts without that reader retain their existing command-only response.
+type HumanReviewDestinationReader interface {
+	ReadCreatedHumanReview(context.Context, factory.HumanReviewCapture, collaboration.OperationLookup) (collaboration.ReviewRef, error)
+}
+
 // HumanReviews runs admitted human commands on the application's single store.
 // Provider evidence stays internal; HTTP owns the safe public projection.
 type HumanReviews struct {
@@ -39,6 +45,33 @@ type HumanReviews struct {
 
 func (a Application) HumanReviews(writer HumanReviewWriter) HumanReviews {
 	return HumanReviews{Store: a.Store, Writer: writer}
+}
+
+func (s HumanReviews) CreatedReview(ctx context.Context, scope factory.HumanReviewCommand, outcome collaboration.OperationLookup) (collaboration.ReviewRef, error) {
+	var empty collaboration.ReviewRef
+	q, err := s.command(ctx, scope)
+	if err != nil {
+		return empty, err
+	}
+	c, err := s.capture(ctx, q, false)
+	if err != nil {
+		return empty, err
+	}
+	if factory.ValidateHumanReviewObservation(c, outcome) != nil || outcome.Record == nil || outcome.Record.Effect != collaboration.EffectCommitted {
+		return empty, ErrHumanReviewQuery
+	}
+	reader, ok := s.Writer.(HumanReviewDestinationReader)
+	if !ok {
+		return empty, ErrHumanReviewUnavailable
+	}
+	ref, err := reader.ReadCreatedHumanReview(ctx, c, outcome)
+	if err != nil {
+		return empty, err
+	}
+	if ctx.Err() != nil || ref.Pull.Kind != collaboration.SubjectPull || ref.Pull.Repository != q.Repository || ref.Pull.Number != q.Number || !collaboration.ValidText(ref.Pull.ExternalID, 512) || !collaboration.ValidText(ref.ExternalID, 1024) {
+		return empty, ErrHumanReviewUnavailable
+	}
+	return ref, nil
 }
 
 // command resolves original server-retained review event/prose only within its

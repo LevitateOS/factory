@@ -2958,3 +2958,44 @@ Remaining review/branch/merge effects, thread/reviewer/PR-delegation constraints
 and earlier D1/D2/D3/D5, custody/admission/isolation/execution/distribution gates
 retain their recorded blockers and closure evidence. No Daybreak work ran or was
 marked complete.
+
+T11-WRITES journaled native new-review composition (2026-11-05):
+The source dependencies for new-review callback/Go writer/destination/large-writing
+composition are now resolved in `native_product_review_creates.go`,
+`native_product_observations.go`, `native_collaboration.go`, `native_product.go`,
+`native_server.go`, `collaboration.rs`, `product_request.rs`, shared human-review
+services/HTTP and the Go/TypeScript `ReviewRef`. Go retains canonical IDs, original
+preparation/deadline and the schema-89 one-shot reservation; Rust retains the
+complete authenticated operation. Existing pending reviews refuse during
+preparation. Matching current state cannot attribute a lost creation reply, and
+replacement generations cannot regain permission to send. A causal saved receipt
+plus exact normal review/parent/author read is required to project a destination;
+visibility failure cannot erase the committed effect.
+
+The actual native credential/callback/Go HTTP/registry/journal/PostgreSQL path
+passed 14 declared cases and 10 dummy mutations, all four new-review events,
+maximum Unicode/control writing, replay/concurrency/conflicts, existing-pending
+refusal, destination disappearance/replacement/restoration, lost reply, cancellation,
+withdrawal/replacement, restart and another account's refusal. Final owned dummy
+accounts were removed and the supervisor stopped. Evidence:
+`/home/vince/tmp/factory-review-create-product-1105/attempt1/review-product-result.json`,
+SHA-256 `4caa9a912759a0ff017a0a374e4a3e1ec84ac779af4923cf4497559445aab144`.
+The canonical plan records exact binaries/peer/runners. Event scenarios use
+independently selected declared provider states; they do not qualify a continuous
+pending-review lifecycle. No live GitHub permission, actual notification, shared
+review UI, installed admission or broad gate was qualified. Builds remain captured
+source/locked-input evidence. Shared write capabilities remain unavailable.
+
+Exact remaining dependencies: genuinely unclaimed original-capture expiry;
+complete pending comment identities/full writing/commit and a dedicated native
+existing-review submission owner; a supported existing-draft body/submission race
+condition or explicit safe product policy; supported D5 head/body/visibility policy
+and actual races; fresh scoped owner-authorized current provider grant/permission/
+event/notification and shared UI/installed evidence. Closure needs the actual
+admitted operation, immutable saved scope/intent, causal receipt and normal readback,
+exact pending/comment preservation, truthful draft-versus-submitted behavior and
+no duplicate/unrequested publication after loss/cancel/custody replacement/restart.
+No pending edit/submission protection is inferred from this new-review refusal.
+Other review/branch/merge effects, reviewer/thread/PR-delegation constraints and
+D1/D2/D3/D5, custody/admission/isolation/execution/distribution requirements remain
+open. No Daybreak work ran or was marked complete.

@@ -5,7 +5,8 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    IssueCreate, PullCreate, Read, ReviewRequestChange, ThreadResolution, WriteOutcome,
+    IssueCreate, PullCreate, Read, ReviewCreate, ReviewRequestChange, ThreadResolution,
+    WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -367,6 +368,12 @@ enum Effect {
         not_after: u64,
         pull: PullCreate,
     },
+    CreateReview {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        review: ReviewCreate,
+    },
     SetDiscussionState {
         command_id: String,
         digest: String,
@@ -419,6 +426,12 @@ impl Effect {
                 not_after,
                 pull,
             } => Some((command_id, digest, *not_after, &pull.repository)),
+            Self::CreateReview {
+                command_id,
+                digest,
+                not_after,
+                review,
+            } => Some((command_id, digest, *not_after, &review.repository)),
             Self::SetDiscussionState {
                 command_id,
                 digest,
@@ -586,6 +599,7 @@ async fn dispatch(
         Effect::CreateComment { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
+            | Effect::CreateReview { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
     ) && body.len() > 8192
@@ -623,6 +637,7 @@ async fn dispatch(
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
             Effect::CreatePull { pull, .. } => pull.validate()?,
+            Effect::CreateReview { review, .. } => review.validate()?,
             Effect::SetDiscussionState { state, .. } => state.validate()?,
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
             Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
@@ -658,6 +673,7 @@ async fn dispatch(
             Effect::CreateComment { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
+            | Effect::CreateReview { .. }
             | Effect::SetDiscussionState { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
@@ -750,6 +766,11 @@ async fn mutate(
             Effect::CreatePull { pull, .. } => {
                 provider
                     .pull_create_account(token, account, pull, Some(deadline))
+                    .await
+            }
+            Effect::CreateReview { review, .. } => {
+                provider
+                    .review_create_account(token, account, review, Some(deadline))
                     .await
             }
             _ => return Err(Failure::invalid()),

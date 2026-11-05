@@ -209,6 +209,13 @@ type Review struct {
 	SubmittedAt *time.Time  `json:"submitted_at"`
 }
 
+// ReviewRef locates a currently readable review within its canonical PR scope.
+// It is not a creation receipt or evidence of the review's current state.
+type ReviewRef struct {
+	Pull       PullRef `json:"pull"`
+	ExternalID string  `json:"external_id"`
+}
+
 type DiffRef struct {
 	Pull PullRef  `json:"pull"`
 	Base CommitID `json:"base"`
