@@ -24976,3 +24976,18 @@ broker retirement removed the run, and the temporary units, binaries and
 owner socket were removed. The credential-bearing `RunOwner` path, Go ledger
 admission/settlement, cross-run/storage bounds, crash/reboot reconciliation
 and real provider task remain open. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR bounded coder growth (2026-11-05): a disposable current
+broker/preparer/relay/agent installation ran a 17,256-byte credential-free
+coder ELF that attempted 820 MiB of writes to the worker's private `TMPDIR`.
+It reported progress through 704 MiB, then received signal 9. The typed Rust
+broker client validated a complete reply with retired process tree, unchanged
+candidate and that exit signal. The systemd journal recorded an OOM kill in
+the agent unit and a 773.9 MiB peak; the unit had `MainPID=0` afterward.
+Exact broker retirement removed run source, preparation, agent socket and
+relay runtime. Temporary units, binaries and owner socket were removed. This
+is one service-path resource-bound/cleanup observation, not a tmpfs `ENOSPC`
+result, aggregate writable-surface or multi-run qualification. The future Go
+consumer must treat signal 9 as a failed execution even though systemd
+reported service `Result=success`. Workspace/output growth, low-free-space
+denial, cross-run separation, credential custody and D3 remain open.

@@ -389,6 +389,21 @@ temporary owner socket and all run-specific services and state were removed.
 The native desktop receipt, Go coordinator, real provider and storage/cross-run
 qualification remain open; D3 is not complete.
 
+A disposable current broker/preparer/relay/agent run also exercised private
+scratch growth. A 17,256-byte credential-free coder ELF attempted up to 820 MiB
+of writes under the worker's `TMPDIR`, reporting progress every 64 MiB. Its
+last reported progress was 704 MiB; the child then received signal 9. The
+typed broker client accepted a complete worker reply with the retired tree,
+`candidate_state=unchanged` and that signal. The systemd journal recorded an
+OOM kill in the agent unit and a 773.9 MiB peak. The unit ended with
+`MainPID=0`; exact broker retirement removed the run source, preparation,
+socket and relay runtime. The temporary units and owner socket were removed.
+This demonstrates bounded growth ending in a child kill and cleanup for one
+dummy run. It does not prove an `ENOSPC` path, all writable surfaces, multi-run
+capacity or a real provider task. A future Go consumer must retain the signal
+as a failed execution observation; systemd's service `Result=success` is not
+the child outcome.
+
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
 deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree

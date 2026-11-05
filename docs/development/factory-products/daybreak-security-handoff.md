@@ -119,9 +119,18 @@ space, with exact process and filesystem observations. These component checks
 do not close D3.
 The agent unit also disables swap under its existing 1 GiB memory ceiling.
 The current disposable service attested workspace creation and separately ran a
-small coder edit, but did not exercise workspace/output limits or cleanup under
-growth. Those require service-path evidence before the D3 storage requirement
-can close.
+small coder edit. A later actual broker/preparer/relay/agent run drove a
+17,256-byte credential-free ELF to write under the worker's bounded `TMPDIR`.
+It reported progress through 704 MiB, then exited by signal 9. The systemd
+journal recorded an OOM kill in the agent unit and a 773.9 MiB memory peak;
+the typed client accepted a complete, retired-tree reply with no candidate.
+The service ended with `MainPID=0`, and exact broker retirement removed all
+run-specific source, preparation, socket and relay paths. This proves one
+bounded growth and cleanup observation, not the tmpfs `ENOSPC` path, all
+writable surfaces, multi-run capacity or denial with low `/run` free space.
+The service reported `Result=success` even though the child was killed, so the
+future Go transaction must preserve the exit signal as a failed execution
+observation. Prove that consumer behavior before D3 closure.
 
 For D3 result custody, the worker now has a direct Git check of clean committed
 candidate bundling and bounded dirty-edit checkpointing. After the agent tree
