@@ -2578,3 +2578,31 @@ thread context, other T11 effects, D1/D2/D3/D5, custody/root absence/scoped deli
 IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
 freshness retain their recorded blockers and required evidence. No broad gate or
 Daybreak work was closed.
+
+T11-WRITES atomic canonical team observation prerequisite (2026-11-05):
+`pkg/collaboration/observations.go`, `pkg/store/collaboration_observations.go` and
+`collaboration_identities.go` now share bounded complete team mapping in the
+existing account/repository/actor/reference transaction. A late invalid fact rolls
+back the whole batch; teams retain their separate host-scoped canonical identity.
+No membership, permission, action or credential authority follows from this map.
+Provider-neutral external IDs remain opaque; the native consumer must validate
+the actual GitHub team Node ID without guessing or rekeying historical mappings.
+
+Actual Store/native PostgreSQL evidence passed rollback before/after team writes,
+rename/replay identity, equal numeric actor/team and equal external-string namespace
+separation, 16 concurrent mappings, host/repository refusal, cancellation and
+1,000/1,001 bounds. Retained owned/foreign team identities survived restart and
+owned-child WAL recovery with clean shutdown. Evidence
+`/home/vince/tmp/factory-team-observation-batch-1105/result.log`, SHA-256
+`70dcbaf8f5c668b9167b483d949fb7faea0a68d894b9d9e8d6564ddff113437b`;
+observer source/binary hashes are in the plan. No provider/installed check ran.
+
+The atomic mapping prerequisite is resolved. Exact next dependencies remain the
+authenticated reviewer read consumer, canonical projection and ordinary shared
+selection/readback, then actual current target eligibility/permission, supported
+mutable-name/concurrency policy, captured expiry and fresh owner-authorized
+provider/WebKit/installed evidence. Shared writes remain unavailable. Other T11
+effects, original thread context, D1/D2/D3/D5, custody/root absence/scoped delivery,
+IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
+freshness retain their recorded blockers and closure evidence. No broad gate or
+Daybreak work closed.

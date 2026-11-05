@@ -28706,3 +28706,41 @@ T11 operations, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/in
 isolation/execution/retirement/settlement and release/upgrade/freshness remain open.
 T11-WRITES stays Active. No broad gate or Daybreak work closed; the full product
 remains unfinished.
+
+### T11-WRITES checkpoint: atomic canonical team observation batches (2026-11-05)
+
+The existing Go `ConnectionObservationBatch` and its defining Store transaction
+now include bounded complete team facts and a separate external-ID-to-`TeamRef`
+mapping. This supplies the missing transactional prerequisite for authenticated
+reviewer observations. Repository, actor, team and reference updates commit or
+roll back together. Teams use the existing independent canonical namespace and
+the same defining team upsert as `ObserveCollaborationTeam`; no schema or identity
+rekeying is needed. The provider-neutral Store accepts opaque external identities;
+the native GitHub consumer must separately require actual team Node identity.
+Registry observations remain facts without membership, permission or capability.
+
+The smallest existing native PostgreSQL driver ran the actual Store using the
+owned observer `/home/vince/tmp/factory-team-observation-batch-1105/check`.
+It passed complete repository/actor/team mapping, stable IDs across replay/rename,
+equal numeric actor/team IDs and equal external strings in separate namespaces,
+rollback on an invalid later team and on a later invalid repository reference,
+no leaked metadata/identity from failed batches, 16 concurrent identical mappings,
+cancelled context, foreign-host/repository refusal, exactly 1,000 team facts and
+1,001/invalid-name refusal. Retained restart, owned-child crash/WAL recovery and
+clean native shutdown passed for the recorded owned and foreign team identities.
+
+| Artifact under `/home/vince/tmp/factory-team-observation-batch-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `0697f21772b489dc968cf3fc15f96e512d766fbc05e043ccd67075bff8b14ac3` |
+| `check` | `0a03207827eea0a6f3768759650f618ef66f7e7188ecd698127b1aaaecac0072` |
+| `result.log` | `70dcbaf8f5c668b9167b483d949fb7faea0a68d894b9d9e8d6564ddff113437b` |
+
+Go Store/runtime builds, ownership boundaries and whitespace checks passed.
+No dependency, migration or unit-test hierarchy was added. This resolves only the
+atomic team-mapping prerequisite. Native reviewer read/canonical consumer/shared
+selection and normal readback remain next, followed by the recorded live/installed
+and policy evidence. Shared write capabilities remain unavailable. T11-WRITES,
+mutable-name/concurrent target binding, original thread context, D1/D2/D3/D5,
+custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
+retirement/settlement and release/upgrade/freshness retain their open requirements.
+No broad gate or Daybreak work was closed; the full product remains unfinished.

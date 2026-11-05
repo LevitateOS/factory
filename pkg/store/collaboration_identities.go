@@ -136,6 +136,9 @@ func (s *Store) CollaborationActor(ctx context.Context, id collaboration.ActorID
 	return ref, err
 }
 
+const observeCollaborationTeamSQL = `INSERT INTO collaboration_teams(host,external_id,name) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
+ ON CONFLICT(host,external_id) DO UPDATE SET name=CASE WHEN $3='' THEN collaboration_teams.name ELSE excluded.name END RETURNING id,host,external_id,name`
+
 // ObserveCollaborationTeam records an observed provider team, not membership or
 // current access. An empty display name preserves known metadata. The shared
 // allocation gate runs before evaluating the independent team's ID sequence.
@@ -144,8 +147,7 @@ func (s *Store) ObserveCollaborationTeam(ctx context.Context, host collaboration
 	if !collaboration.ValidID(string(host)) || !collaboration.ValidText(externalID, 512) || name != "" && !collaboration.ValidText(name, 512) {
 		return ref, errors.New("invalid collaboration team observation")
 	}
-	err := s.observeCollaborationIdentity(ctx, `INSERT INTO collaboration_teams(host,external_id,name) VALUES($1,$2,COALESCE(NULLIF($3,''),$2))
- ON CONFLICT(host,external_id) DO UPDATE SET name=CASE WHEN $3='' THEN collaboration_teams.name ELSE excluded.name END RETURNING id,host,external_id,name`, []any{host, externalID, name}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
+	err := s.observeCollaborationIdentity(ctx, observeCollaborationTeamSQL, []any{host, externalID, name}, &ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
 	return ref, registryWriteError(err)
 }
 

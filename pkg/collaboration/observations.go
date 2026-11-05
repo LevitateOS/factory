@@ -8,6 +8,10 @@ type ObservedActor struct {
 	ExternalID string `json:"external_id"`
 	Login      string `json:"login"`
 }
+type ObservedTeam struct {
+	ExternalID string `json:"external_id"`
+	Name       string `json:"name"`
+}
 type ObservedRepository struct {
 	ExternalID string `json:"external_id"`
 	Name       string `json:"name"`
@@ -46,6 +50,7 @@ type ConnectionObservationBatch struct {
 	Repository   RepositoryID
 	Repositories []ObservedRepository
 	Actors       []ObservedActor
+	Teams        []ObservedTeam
 	// References are provider-observed repository identities mentioned by the
 	// resource (for example a PR fork). Recording them never associates the
 	// connection with access to those repositories.
@@ -56,5 +61,6 @@ type ConnectionObservationMapping struct {
 	Repository   *RepositoryRef
 	Repositories []RepositoryRef
 	Actors       map[string]ActorRef
+	Teams        map[string]TeamRef
 	References   map[string]RepositoryRef
 }
