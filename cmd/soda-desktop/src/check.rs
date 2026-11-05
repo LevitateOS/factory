@@ -53,6 +53,8 @@ pub fn timeout(app: &tauri::AppHandle) {
         std::thread::sleep(Duration::from_secs(
             if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
                 1000
+            } else if std::env::args_os().any(|arg| arg == "--check-issue-read") {
+                180
             } else if app.state::<Desktop>().check.signin.is_some()
                 || app.state::<Desktop>().check.control
             {

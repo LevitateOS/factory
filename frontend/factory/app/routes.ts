@@ -10,7 +10,7 @@ export type FactoryRoute =
   | {readonly kind: 'work'; readonly repository: string; readonly intent?: string}
   | {readonly kind: 'issues'; readonly repository: string}
   | {readonly kind: 'issue-new'; readonly repository: string}
-  | {readonly kind: 'issue'; readonly repository: string; readonly issue: string}
+  | {readonly kind: 'issue'; readonly repository: string; readonly issue: string; readonly fragment?: string}
   | {readonly kind: 'work-detail'; readonly repository: string; readonly issue: string}
   | {readonly kind: 'plan'; readonly repository: string; readonly issues: readonly string[]}
   | {readonly kind: 'library'; readonly repository: string; readonly item?: string}
@@ -43,6 +43,15 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       check(id(route.repository));
       return;
     case 'issue':
+      check(
+        route.fragment === undefined ||
+          (typeof route.fragment === 'string' &&
+            route.fragment.length > 0 &&
+            route.fragment.length <= 4096 &&
+            !/[\\\u0000-\u001f\u007f]/.test(route.fragment))
+      );
+      check(id(route.repository) && id(route.issue));
+      return;
     case 'work-detail':
       check(id(route.repository) && id(route.issue));
       return;

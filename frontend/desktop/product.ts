@@ -89,7 +89,30 @@ export class DesktopProduct {
       check(route);
       this.navigate(route);
     } else {
-      await this.core.invoke('factory_open_link', {session: this.selected.session, url});
+      const target = new URL(url),
+        repository = this.selected.repository;
+      const path = target.origin === 'https://github.com' ? target.pathname.split('/').map(decodeURIComponent) : [];
+      if (
+        repository &&
+        target.origin === 'https://github.com' &&
+        !target.username &&
+        !target.password &&
+        !target.search &&
+        path.length === 5 &&
+        path.slice(1, 3).join('/').toLowerCase() === repository.name.toLowerCase() &&
+        path[3] === 'issues' &&
+        id(path[4])
+      ) {
+        const fragment = target.hash ? decodeURIComponent(target.hash.slice(1)) : undefined;
+        const route: FactoryRoute = {
+          kind: 'issue',
+          repository: repository.id,
+          issue: path[4],
+          ...(fragment ? {fragment} : {}),
+        };
+        admitFactoryRoute(route);
+        this.navigate(route);
+      } else await this.core.invoke('factory_open_link', {session: this.selected.session, url});
     }
     joined.throwIfAborted();
   };

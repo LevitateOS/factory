@@ -1,4 +1,4 @@
-import type {SodaFactoryApp, FactoryRoute} from '../factory/app/browser.js';
+import type {SodaFactoryApp, SodaFactoryIssue, FactoryRoute} from '../factory/app/browser.js';
 import {check, id, object} from '../factory/api/models.js';
 import type {Account} from './accounts.js';
 import {binding} from './transport.js';
@@ -46,6 +46,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   let accountOptions = '',
     repositoryOptions = '',
     mounted = '';
+  let fragmentObserver: MutationObserver | undefined;
   const live = (captured: number) => ready && serial === captured && !document.hidden;
   function render() {
     const options = JSON.stringify(
@@ -85,6 +86,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     status.textContent = message;
   }
   function clear() {
+    fragmentObserver?.disconnect();
+    fragmentObserver = undefined;
     const old = selected?.session ?? pending;
     product?.retire();
     product = undefined;
@@ -99,11 +102,34 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     try {
       const context = product.context(route);
       const hash = routeURL(context.route);
-      if (mounted !== hash) {
-        mounted = hash;
+      const view =
+        context.route.kind === 'issue'
+          ? routeURL({kind: 'issue', repository: context.route.repository, issue: context.route.issue})
+          : hash;
+      fragmentObserver?.disconnect();
+      fragmentObserver = undefined;
+      if (mounted !== view) {
+        mounted = view;
         app.context = context;
       }
       if (location.hash !== hash) history.pushState(null, '', hash);
+      if (context.route.kind === 'issue' && context.route.fragment) {
+        const target = context.route,
+          current = product;
+        const scroll = () => {
+          if (product !== current || mounted !== view) return;
+          const detail = app.querySelector<SodaFactoryIssue>('soda-factory-issue');
+          if (detail?.context?.repository !== target.repository || detail.context.issue !== target.issue) return;
+          const node = [...detail.querySelectorAll<HTMLElement>('[id]')].find((node) => node.id === target.fragment);
+          if (!node) return;
+          node.scrollIntoView();
+          fragmentObserver?.disconnect();
+          fragmentObserver = undefined;
+        };
+        fragmentObserver = new MutationObserver(scroll);
+        fragmentObserver.observe(app, {childList: true, subtree: true});
+        scroll();
+      }
     } catch {
       message = 'Choose the repository for this destination.';
       render();

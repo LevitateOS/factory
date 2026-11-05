@@ -1458,3 +1458,30 @@ credential-root absence, finite paid-provider work or durable execution
 settlement. These tasks remain normal engineering; only particular work that
 looks like hacking needs the owner-started Daybreak session. Next product row
 is T07-READ; the overall product goal remains active and incomplete.
+
+T07-READ desktop navigation checkpoint (2026-11-05): typed issue fragments now
+stay in the selected canonical repository's shared issue view. Fragment-only
+history preserves the mounted issue and conversation page; host scrolling looks
+only inside that current issue DOM and its observer is retired on selection
+change/disconnect. Other-repository/provider destinations retain the existing
+native external-link admission. Files: `frontend/{desktop/product.ts,
+desktop/connections.ts,factory/app/routes.ts}` and the opt-in existing native
+check `--check-signin --check-issue-read` in `cmd/soda-desktop/src/`.
+
+The actual native Tauri/WebKit/private-keyring/Rust/Go/PG journey passed under
+`/home/vince/tmp/factory-gh-read-1105/a2/` with a dummy-only, no-forwarding HTTPS
+producer. It checked sanitized Markdown DOM, explicit attachments/default-branch
+links, ordinary conversation and paging, scoped heading/comment/issue routing,
+view retention, Back/Forward/deep links and Back from Factory work. Primary read
+denial removed the issue and optional Factory facts, and disconnect cancelled
+pending Rust comment I/O and removed the shared screen. This is a bounded
+connected source result, not a hostile installed-context or full admission gate.
+Actual GitHub consent/revocation remains the separately recorded real journey.
+
+T07-READ remains Active for actual Fountain shell composition and its complete
+supported-host read finish condition. Installed peer/window/instance/account/
+resource admission, D1/D2/D3/D5 and executor/custody/isolation journeys still
+require the exact evidence registered above; this navigation check closes none
+of those broader gates. Attempt1's missing issue-10 fixture detail is preserved;
+the provider fixture was corrected without a product fallback. No new authority
+or security bypass was introduced.

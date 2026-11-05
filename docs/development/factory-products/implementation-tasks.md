@@ -584,7 +584,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 188 | T07-FOUNTAIN-NAVIGATION | T07-ISSUE-COMPOSITION | Supply live native default-branch navigation metadata through the existing SDK/private callback and canonical repository identity boundary; qualify real native/HTTP identity, changed branch and access/session refusal before Fountain Markdown/route consumers. | Complete |
 | 189 | T07-FOUNTAIN-ISSUE-HOST | T07-FOUNTAIN-NAVIGATION | Build the Fountain shared-issue context adapter with fresh canonical/native/account binding, provider-relative Markdown and separate cancellable native/external navigation ports; qualify rendered production issue views over browser HTTP before the coherent route/template cutover. | Complete |
 | 190 | T07-FOUNTAIN-ISSUE-ROUTES | T07-FOUNTAIN-ISSUE-HOST | Mount shared issue list/detail and Factory facts in Fountain; replace the two status patterns with work/{kind} routes and update native header/templates plus all current request/feed/work callers together. Preserve existing Factory workflow controls, explicit native originals and truthful unsupported PR routes; qualify host browser navigation and native route/template behavior. | Complete |
-| 191 | T07-READ | T07-FOUNTAIN-ISSUE-ROUTES, T07-FOUNTAIN-ISSUE-HOST, T07-FOUNTAIN-NAVIGATION, T07-ISSUE-COMPOSITION, T07-ISSUE-DETAIL, T07-ISSUE-LIST, T04-UI, T06-FOUNTAIN, T06-CONNECT | Shared issue list/detail/conversation with safe Markdown and Factory facts in the Fountain host and connected Linux desktop. Verify supported provider/host combinations; desktop Fountain is qualified later. | Pending |
+| 191 | T07-READ | T07-FOUNTAIN-ISSUE-ROUTES, T07-FOUNTAIN-ISSUE-HOST, T07-FOUNTAIN-NAVIGATION, T07-ISSUE-COMPOSITION, T07-ISSUE-DETAIL, T07-ISSUE-LIST, T04-UI, T06-FOUNTAIN, T06-CONNECT | Shared issue list/detail/conversation with safe Markdown and Factory facts in the Fountain host and connected Linux desktop. Verify supported provider/host combinations; desktop Fountain is qualified later. | Active |
 | 192 | T10-COMMENT-SNAPSHOT | T03-APP, T06-FOUNTAIN | Produce live human comment preparation snapshots with exact issue/PR parent IDs, current comment capability and a stable idle native revision; qualify actual callback/SDK permissions, races and absence of effects. This is a condition read, never mutation authority. | Complete |
 | 193 | T10-COMMENT-NATIVE | T10-COMMENT-SNAPSHOT | Produce native human issue/PR comment submission through the existing conditional journal/reservation, with fresh human-authorizer checks, atomic comment/receipt, replay and offline recovery; qualify real native SQL effects/refusals. No background completion-note broadening or public activation. | Complete |
 | 194 | T10-COMMENT-SDK | T10-COMMENT-NATIVE | Wire native comment submit/get/cancel through typed SDK and current callback admission, with actor/repository/installation operation scope, current human/permission checks and real private transport effects/replay/refusal. | Complete |
@@ -26613,3 +26613,69 @@ N3/N4 native execution work and installed D1/D2/D3/D5/security/resource gates
 remain open. The full product goal remains active and incomplete. This provider
 slice does not close those gates or require Daybreak merely because it includes
 ordinary authentication/custody engineering.
+
+## T07-READ — connected shared issue read audit (Active, 2026-11-05)
+
+The preceding T06-GITHUB turn made verified progress. Its committed actual
+connected journey supplies real GitHub selection/shared issue rendering and
+retirement proof; its declared native journey supplies current canonical large
+IDs/nullable/filtered-page/refusal/restart evidence. T07-READ consumes those
+producers, but requires the complete shared list/detail/conversation/Markdown,
+Factory facts and history/link journey separately. Fountain's completed route
+producer recorded its browser/native route evidence; the actual Fountain shell
+composition is still part of this consumer. Desktop Fountain waits for
+T10-GATEWAY and is not a dependency of this slice.
+
+Current desktop gap: `DesktopProduct.resolveLink` produces GitHub fragment URLs
+and `openLink` forwards them to the external opener. Description headings and
+ordinary-comment jumps therefore leave the app. Implement typed issue-fragment
+history with current-account/repository scope, preserve the mounted issue view
+for fragment-only navigation, and scroll only the matching current issue DOM.
+Use the existing actual native WebKit declared journey for conversation,
+sanitized Markdown, internal navigation/Back/deep-link, paging and retirement
+checks; keep declared upstream observations separate from live GitHub evidence.
+No new unit-test root or alternate shared renderer/provider is needed. Broad
+installed/security/executor gates stay open and the overall goal stays active.
+
+T07-READ desktop issue/history checkpoint (2026-11-05, verified):
+
+- Added an optional validated issue fragment to the shared typed route. The
+  desktop intercepts same-repository GitHub issue/heading/comment destinations
+  into canonical local routes. It preserves the mounted issue on fragment-only
+  navigation, records browser history and scopes deferred scrolling to the
+  matching current issue DOM. Selection change/disconnect retires the observer.
+  External destinations still use the existing native current-session opener.
+- Extended the existing real native sign-in journey with opt-in
+  `--check-issue-read`, using the same production shared bundle, Rust connector,
+  Go canonical service, PostgreSQL and isolated real Secret Service. The
+  external dummy-only HTTPS fixture supplies description/conversation pages,
+  provider denial and a controlled pending comment read. No unit-test root,
+  alternative renderer/provider or real provider mutation was added.
+- `/home/vince/tmp/factory-gh-read-1105/a2/` exited 0. Actual WebKit rendered
+  the shared feed/list/detail/conversation, sanitized Markdown and explicit
+  attachment/default-branch links; heading/comment jumps retained the view,
+  Back/Forward and direct fragment links scrolled the current issue, conversation
+  pages did not mix, another issue stayed internal, and Back from Factory work
+  restored the fragment. Primary read denial removed issue content and optional
+  Factory facts; restoring access reloaded; disconnect cancelled pending Rust
+  comment I/O and removed the shared screen. The rest of the existing sign-in
+  journey then withdrew the owned account, checked retired sign-in and shut
+  down owned PG. The wrapper saw no unexpected provider request.
+- Safe result SHA-256
+  `ae553b7feb9d3397b9414e765b386a8444a5d70df8143e98900ba81ff549b678`,
+  log `2433f90b7059e894ad11481509ec1651c0000365ccb799a6ad5bc3e53806793d`,
+  fixture `d857cf2efffd898137d3f6080873e85212c7f6af6651228466686b053f203546`.
+  Attempt1 reached internal issue navigation but lacked the fixture's issue-10
+  detail response; its failed profile/log/source remain preserved. No product
+  fallback or permission relaxation was introduced for that fixture correction.
+- Production desktop assets and locked/offline native-check desktop build,
+  TypeScript, Lit (143 sources), boundary, TS unit-ban and whitespace checks
+  passed. These captured source inputs are not a fresh installed baseline.
+
+T07-READ remains Active. The actual connected GitHub consent/read journey is
+already recorded separately; this declared WebKit check does not claim fresh
+real consent or an installed admission/security gate. The remaining host
+consumer must qualify actual Fountain page/extension/shared-issue composition
+and its supported read journey. Recorded Fountain producer checks alone do not
+prove that joined shell. Full installed D1/D2/D3/D5, native executor/custody/
+isolation, desktop Fountain and later mutation/PR journeys stay open.

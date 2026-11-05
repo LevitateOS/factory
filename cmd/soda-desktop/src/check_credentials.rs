@@ -206,6 +206,9 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
             "runtime restart changed canonical account/repository",
         )?;
         issue_checks(app, connection, &binding, &page["items"][0], true).await?;
+        if std::env::args_os().any(|arg| arg == "--check-issue-read") {
+            issue_read_journey(app, connection).await?;
+        }
         return write_consent_evidence(
             app,
             "canonical-binding-retained.json",
@@ -340,6 +343,91 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
         }),
     )
 }
+async fn issue_read_journey(app: &tauri::AppHandle, connection: &str) -> Result<(), String> {
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    std::fs::write(root.join("io/mode"), "issues-ui")
+        .map_err(|_| "issue UI fixture unavailable")?;
+    let script = r#"(async()=>{
+      const invoke=window.__TAURI__.core.invoke;
+      const assert=(ok,message)=>{if(!ok)throw Error(message);};
+      const until=async(check,label)=>{const end=Date.now()+20000;for(;;){if(await check())return;assert(Date.now()<end,'issue read deadline: '+label);await new Promise(r=>setTimeout(r,25));}};
+      const app=document.querySelector('soda-factory-app');
+      const nav=label=>{const button=[...app.querySelectorAll('nav[aria-label="Factory"] button')].find(b=>b.textContent.trim()===label);assert(button&&!button.disabled,'navigation unavailable: '+label);button.click();};
+      const report=stage=>invoke('report',{stage,error:null});
+      const mode=value=>report('signin-mode-'+value);
+      const marker=stage=>until(async()=>{try{await report(stage);return true;}catch{return false;}},stage);
+      const detail=()=>app.querySelector('soda-factory-issue');
+      const route=()=>new URLSearchParams(location.hash.slice(1));
+      const link=(parent,label)=>[...parent.querySelectorAll('a')].find(a=>a.textContent===label);
+      const scrollTarget=async(id)=>{await until(()=>{const node=detail()?.querySelector('[id="'+id+'"]');if(!node)return false;const box=node.getBoundingClientRect();return box.top>=-2&&box.top<innerHeight;},'scrolled '+id);};
+      try{
+        await until(()=>[...document.querySelector('#factory-account').options].some(o=>o.value===__CONNECTION__),'saved account');
+        const accounts=document.querySelector('#factory-account');accounts.value=__CONNECTION__;accounts.dispatchEvent(new Event('change',{bubbles:true}));
+        const repositories=document.querySelector('#factory-repository');
+        await until(()=>!repositories.disabled&&[...repositories.options].some(o=>o.value==='9007199254740993'),'repository catalogue');
+        repositories.value='9007199254740993';repositories.dispatchEvent(new Event('change',{bubbles:true}));
+        await until(()=>document.querySelector('#connection-status').textContent==='Connected to owner/repo.','repository selection');
+        await until(()=>app.querySelector('soda-factory-feed'),'shared feed');
+        nav('Issues');await until(()=>app.querySelector('.soda-issue-title:not([disabled])'),'issue list');
+        app.querySelector('.soda-issue-title').click();
+        await until(()=>detail()?.querySelector('#issuecomment-81'),'detail and ordinary conversation');
+        const current=detail(), comment=current.querySelector('#issuecomment-81');
+        assert(current.context.issue==='7'&&route().get('view')==='issue','canonical issue route differs');
+        const description=current.querySelector('article[aria-label="Issue description"]');
+        assert(description.textContent.includes('Read heading')&&comment.textContent.includes('Reply heading'),'shared Markdown not rendered');
+        assert(!current.querySelector('script,iframe,img,[onclick],[onerror]')&&!current.querySelector('a[href^="javascript:"]'),'unsafe Markdown DOM survived');
+        assert(link(description,'Attachment')&&link(description,'File').href==='https://github.com/owner/repo/blob/main/README.md','attachment/default-branch links differ');
+        assert(app.querySelector('soda-factory-work-journey button'),'Factory facts missing after primary read');
+        const heading=current.querySelector('article[aria-label="Issue description"] h1');
+        link(description,'Heading').click();await until(()=>route().get('fragment')===heading.id,'heading route');
+        await scrollTarget(heading.id);
+        assert(detail()===current&&current.querySelector('#issuecomment-81')===comment,'fragment navigation remounted the issue');
+        link(description,'Comment').click();await until(()=>route().get('fragment')==='issuecomment-81','comment route');
+        await scrollTarget('issuecomment-81');
+        history.back();await until(()=>route().get('fragment')===heading.id,'Back to heading');await scrollTarget(heading.id);
+        history.forward();await until(()=>route().get('fragment')==='issuecomment-81','Forward to comment');
+        const next=[...current.querySelectorAll('nav[aria-label="Conversation pages"] button')].find(b=>b.textContent.includes('Next'));
+        assert(next&&!next.disabled,'conversation continuation unavailable');next.click();
+        await until(()=>current.querySelector('#issuecomment-101'),'next conversation page');
+        assert(!current.querySelector('#issuecomment-81'),'conversation pages mixed');
+        [...current.querySelectorAll('nav[aria-label="Conversation pages"] button')].find(b=>b.textContent.includes('Previous')).click();
+        await until(()=>current.querySelector('#issuecomment-81'),'previous conversation page');
+        link(current.querySelector('article[aria-label="Issue description"]'),'Other issue').click();
+        await until(()=>detail()?.context?.issue==='10'&&detail()?.textContent.includes('No comments on this page.'),'internal issue link');
+        history.back();await until(()=>detail()?.context?.issue==='7'&&detail()?.querySelector('#issuecomment-81'),'Back to issue');
+        await scrollTarget('issuecomment-81');
+        const deep=new URLSearchParams(location.hash.slice(1));deep.set('fragment',heading.id);location.hash=deep.toString();
+        await until(()=>route().get('fragment')===heading.id,'deep link fragment');await scrollTarget(heading.id);
+        nav('Work');await until(()=>app.querySelector('soda-factory-work-overview'),'Factory work view');
+        history.back();await until(()=>detail()?.querySelector('#issuecomment-81'),'Back from Factory work');await scrollTarget(heading.id);
+        await mode('issues-ui-denied');
+        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        await until(()=>detail()?.textContent.includes('This issue is not available to this account.'),'access refusal');
+        assert(!detail().querySelector('article')&&!app.querySelector('soda-factory-work-journey button'),'access loss retained issue or Factory facts');
+        await mode('issues-ui');
+        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        await until(()=>detail()?.querySelector('#issuecomment-81'),'restored read');
+        await mode('issues-ui-pause');
+        [...detail().querySelectorAll('button')].find(b=>b.textContent.includes('Refresh issue')).click();
+        await marker('signin-entered');document.querySelector('#connection-disconnect').click();
+        await marker('signin-upstream-cancelled');
+        await until(()=>app.textContent.includes('Choose an account to open Factory.'),'disconnected shared app');
+        assert(!detail()&&!app.querySelector('soda-factory-work-journey'),'retired view retained issue facts');
+        await mode('grant');await report('signin-issue-read-complete');
+      }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+    })()"#.replace("__CONNECTION__", &serde_json::to_string(connection).map_err(|_| "connection encoding failed")?);
+    app.get_webview_window("main")
+        .ok_or("main window missing")?
+        .eval(&script)
+        .map_err(|_| "issue UI observer unavailable")?;
+    barrier(app, "issue-read-ready", "issue-read-complete").await
+}
+
 async fn issue_checks(
     app: &tauri::AppHandle,
     connection: &str,
@@ -1314,10 +1402,14 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         .ok_or("fixture parent missing")?;
     let io = root.join("io");
     if let Some(mode) = stage.strip_prefix("signin-mode-") {
-        if !matches!(
-            mode,
-            "grant" | "pause-wait" | "denied" | "expired" | "identity-denied"
-        ) {
+        let issue_mode = std::env::args_os().any(|arg| arg == "--check-issue-read")
+            && matches!(mode, "issues-ui" | "issues-ui-denied" | "issues-ui-pause");
+        if !issue_mode
+            && !matches!(
+                mode,
+                "grant" | "pause-wait" | "denied" | "expired" | "identity-denied"
+            )
+        {
             return Err("unknown declared sign-in mode".into());
         }
         for name in ["entered", "cancelled", "release"] {
@@ -1330,6 +1422,30 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
     }
     match stage {
+        "signin-issue-read-complete" => {
+            ensure(
+                std::env::args_os().any(|arg| arg == "--check-issue-read"),
+                "issue observer disabled",
+            )?;
+            write_consent_evidence(
+                app,
+                "issue-read-result.json",
+                &serde_json::json!({
+                    "actual_native_webkit":true,"declared_https_provider":true,
+                    "shared_list_detail_conversation":true,"markdown_sanitized":true,
+                    "internal_heading_comment_and_issue_navigation":true,"fragment_retains_view":true,
+                    "history_and_deep_link":true,"conversation_paging":true,
+                    "factory_facts_retired_on_denial":true,"pending_read_cancelled_on_disconnect":true,
+                    "actual_github_consent_claimed":false,"installed_gate_qualified":false
+                }),
+            )?;
+            std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(state.paths.profile.join("issue-read-complete"))
+                .map(|_| ())
+                .map_err(|_| "issue read evidence marker failed".into())
+        }
         "signin-revocation-product-refused" => std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -1423,7 +1539,13 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
       const report=stage=>invoke('report',{stage,error:null});
       const view=()=>invoke('github_sign_in_status');
       const until=async check=>{for(let i=0;i<300;i++){document.querySelector('#refresh').click();if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('sign-in observation deadline');};
-      const control=async stage=>{await until(async()=>{try{await report(stage);return true;}catch{return false;}});};
+      const control=async stage=>{
+        if(stage==='signin-binding-retained-done'&&__ISSUE_READ__){
+          const deadline=Date.now()+120000;
+          for(;;){try{await report(stage);return;}catch{}assert(Date.now()<deadline,'issue journey deadline');await new Promise(r=>setTimeout(r,50));}
+        }
+        await until(async()=>{try{await report(stage);return true;}catch{return false;}});
+      };
       const mode=value=>report('signin-mode-'+value);
       const begin=async()=>{await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();await until(async()=>{const s=await view();return s.phase==='waiting'&&!document.querySelector('#github-prompt').hidden;});return view();};
       const cancel=async()=>{document.querySelector('#github-cancel').click();await until(async()=>(await view()).phase==='cancelled');};
@@ -1493,7 +1615,8 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
         await report('signin-done');
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#.replace("__LIVE__",if mode != check::SignInMode::Declared {"true"} else {"false"})
-    .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"});
+    .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"})
+    .replace("__ISSUE_READ__",if std::env::args_os().any(|arg| arg == "--check-issue-read") {"true"} else {"false"});
     if mode == check::SignInMode::Consent {
         tauri::async_runtime::spawn(async move {
             let ready = match app.state::<Desktop>().credentials() {
@@ -1555,6 +1678,8 @@ async fn barrier(app: &tauri::AppHandle, ready: &str, done: &str) -> Result<(), 
         600
     } else if ready == "product-bridge-ready" {
         180
+    } else if ready == "issue-read-ready" {
+        120
     } else {
         15
     };
