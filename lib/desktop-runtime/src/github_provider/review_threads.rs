@@ -349,7 +349,7 @@ fn project(
         };
         let dates = json!({"created_at":comment["createdAt"],"updated_at":comment["updatedAt"]});
         items.push(json!({"external_id":comment_id,"review_id":review,"author":author,"body":r::text(comment,"body")?,
-            "created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"minimized_reason":null}));
+            "created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?}));
     }
     // These are native stored coordinates, never a proven two-commit diff pair.
     let roots = thread["root"]["nodes"]

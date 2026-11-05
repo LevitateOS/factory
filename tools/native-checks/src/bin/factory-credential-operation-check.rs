@@ -1227,6 +1227,13 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-threads-declared" {
             return runtime.block_on(native_github_threads::producer(Path::new(&args[1])));
         }
+        if args.len() == 4 && args[0] == "--github-threads-product-declared" {
+            return runtime.block_on(native_github_threads::product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 4 && args[0] == "--github-lock-product-declared" {
             return runtime.block_on(native_github_locks::product(
                 Path::new(&args[1]),

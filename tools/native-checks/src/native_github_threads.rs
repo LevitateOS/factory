@@ -261,3 +261,263 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     println!("native GraphQL thread producer passed {} declared cases, 8 invalid descriptors and retirement",cases.len());
     Ok(())
 }
+
+pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
+    use super::native_github_issues::{call, set_mode};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+    };
+    use std::sync::Arc;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    set_mode(&io, "product-positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "thread check needs empty owned custody",
+    )?;
+    let saved = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "321")?
+                .with_label("declared-reader")?,
+            Token::new(b"factory-declared-thread".to_vec())?,
+        )
+        .await?;
+    let connection = saved.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "thread canonical catalogue refused")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let target = format!("/api/factory/collaboration/repositories/{repository}/pulls/7/threads");
+    let first = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{target}?limit=1"),
+        &[],
+    )
+    .await?;
+    ensure(
+        first.0 == 200,
+        &format!("thread first page refused: {} {}", first.0, first.1),
+    )?;
+    let first_item = &first.1["items"][0];
+    ensure(
+        first_item["external_id"] == "PRRT_declared1"
+            && first_item["pull"]["repository"] == repository
+            && first_item["resolution"] == "unresolved"
+            && first_item["outdated"] == false
+            && first_item["capabilities"].is_null()
+            && first_item["anchor"].is_null()
+            && first_item["current_anchor"].is_null()
+            && first_item["recorded_location"]["line"] == 9
+            && first_item["comments"]["items"]
+                .as_array()
+                .is_some_and(|v| v.len() == 10)
+            && first_item["comments"]["items"][0]["comment"]["author"]["id"]
+                .as_str()
+                .is_some(),
+        "canonical thread facts/actor mapping lost",
+    )?;
+    let next = first.1["next"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or("thread cursor absent")?;
+    let second = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{target}?limit=1&cursor={next}"),
+        &[],
+    )
+    .await?;
+    ensure(
+        second.0 == 200
+            && second.1["items"][0]["external_id"] == "PRRT_declared2"
+            && second.1["items"][0]["resolution"] == "resolved"
+            && second.1["items"][0]["outdated"] == true
+            && second.1["complete"] == true,
+        "canonical thread continuation changed identity/state",
+    )?;
+    let comment_next = first_item["comments"]["next"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or("preview comment cursor absent")?;
+    let continued = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{target}/PRRT_declared1/comments?limit=20&cursor={comment_next}"),
+        &[],
+    )
+    .await?;
+    ensure(
+        continued.0 == 200
+            && continued.1["items"]
+                .as_array()
+                .is_some_and(|v| v.len() == 2)
+            && continued.1["items"][0]["comment"]["external_id"] == "911"
+            && continued.1["complete"] == true,
+        "preview continuation changed comment page size",
+    )?;
+    let detail = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{target}/PRRT_declared1"),
+        &[],
+    )
+    .await?;
+    ensure(
+        detail.0 == 200
+            && detail.1["external_id"] == "PRRT_declared1"
+            && detail.1["comments"]["items"]
+                .as_array()
+                .is_some_and(|v| v.len() == 10),
+        "canonical thread detail refused",
+    )?;
+    let mut cases = vec![
+        "catalogue",
+        "thread-pages",
+        "comment-preview-continuation",
+        "detail",
+        "canonical-actor",
+        "unknown-anchor",
+    ];
+    // Captured REST cursors refuse even when all resource/page fields otherwise match.
+    let legacy_cursor = base64::Engine::encode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        serde_json::to_vec(
+            &json!({"kind":"pull_threads","repository":"123","number":7,"page":2,"limit":1}),
+        )?,
+    );
+    for suffix in [
+        format!("?limit=1&cursor={legacy_cursor}"),
+        "/901".into(),
+        format!("/PRRT_declared2/comments?limit=20&cursor={comment_next}"),
+    ] {
+        let before = fs::read(io.join("queries"))?;
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "GET",
+                &format!("{target}{suffix}"),
+                &[],
+            )
+            .await?
+            .0 == 400
+                && fs::read(io.join("queries"))? == before,
+            "legacy/numeric/other-thread cursor reached provider",
+        )?;
+    }
+    cases.push("legacy-and-mismatched-cursor-refusal");
+    for name in ["nullable", "no-anchor", "big-id", "empty"] {
+        set_mode(&io, &format!("product-{name}"))?;
+        let result = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+        ensure(
+            result.0 == 200,
+            &format!("canonical thread {name} refused: {} {}", result.0, result.1),
+        )?;
+        let item = &result.1["items"][0];
+        match name {
+            "nullable" => ensure(
+                item["comments"]["items"][0]["review_id"].is_null()
+                    && item["comments"]["items"][0]["comment"]["author"].is_null(),
+                "canonical consumer invented unknown links",
+            )?,
+            "no-anchor" => ensure(
+                item["recorded_location"].is_null() && item["anchor"].is_null(),
+                "canonical consumer invented anchor",
+            )?,
+            "big-id" => ensure(
+                item["comments"]["items"][0]["comment"]["external_id"] == "5000000000",
+                "canonical BigInt truncated",
+            )?,
+            _ => ensure(
+                result.1["items"].as_array().is_some_and(Vec::is_empty),
+                "canonical empty catalogue invented thread",
+            )?,
+        }
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("wrong-thread-pull", 409),
+        ("wrong-thread-repository", 409),
+        ("count-change", 409),
+        ("partial-errors", 502),
+        ("too-many-threads", 413),
+    ] {
+        set_mode(&io, &format!("product-{name}"))?;
+        let result = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+        ensure(
+            result.0 == status,
+            &format!("canonical refusal {name}: {} {}", result.0, result.1),
+        )?;
+        cases.push(name);
+    }
+    set_mode(&io, "product-positive")?;
+    store.retire();
+    runtime.stop()?;
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    let restarted = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{target}?limit=1&cursor={next}"),
+        &[],
+    )
+    .await?;
+    ensure(
+        restarted.0 == 200 && restarted.1["items"][0]["external_id"] == "PRRT_declared2",
+        "canonical identity/cursor failed retained restart",
+    )?;
+    cases.push("retained-restart");
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "thread check left owned account",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "canonical reader sent undeclared request",
+    )?;
+    fs::write(
+        root.join("thread-product-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"native_go_postgresql":true,"legacy_cursor_refused":true,"real_github":false,"capabilities_enabled":false,"owned_grant_removed":true}),
+        )?,
+    )?;
+    fs::write(
+        root.join("thread-first-page.json"),
+        serde_json::to_vec(&first.1)?,
+    )?;
+    println!(
+        "native GraphQL thread canonical consumer passed {} declared cases and retained restart",
+        cases.len()
+    );
+    Ok(())
+}

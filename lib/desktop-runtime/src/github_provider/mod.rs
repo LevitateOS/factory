@@ -14,7 +14,6 @@ mod records;
 mod request;
 mod review_threads;
 mod states;
-mod threads;
 mod transport;
 mod writes;
 

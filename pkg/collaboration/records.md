@@ -176,6 +176,15 @@ Thread roots follow native grouping and have independent reply cursors. The
 first embedded reply window is bounded; clients follow the comments endpoint
 for the rest. Original/current context never grants resolution or merge rights.
 
+GitHub thread IDs are opaque GraphQL review-thread Node IDs. Historical decimal
+REST root-comment groups are not thread targets; the native GitHub reader rejects
+their selectors and cursor kind instead of remapping them. Other hosts retain
+their own opaque native identity. ReviewComment.review_id is nullable when the
+provider no longer supplies the associated review; the comment's own identity,
+body and observations remain available. A missing link is not a fabricated review
+or a resolution permission. Provider viewer action facts do not activate shared
+write capabilities.
+
 Changed files preserve added/deleted/renamed/copied metadata and distinguish
 complete, truncated, binary, unavailable and unknown patch content. A renderer
 cannot interpret absent content as an empty complete diff. Check state and

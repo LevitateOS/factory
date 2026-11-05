@@ -286,7 +286,7 @@ func cursorDecode(raw string, expected nativeCursor) (nativeCursor, error) {
 	want.Page = c.Page
 	// Thread catalogue previews use ten comments; continuation keeps that size
 	// even when the detail reader asks for a larger upper bound.
-	if c.Kind == "pull_threads" && c.Root != "" && c.Limit <= want.Limit {
+	if c.Kind == "pull_review_threads_v1" && c.Root != "" && c.Limit <= want.Limit {
 		want.Limit = c.Limit
 	}
 	if c != want {

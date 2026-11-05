@@ -161,7 +161,7 @@ export interface ReviewAnchor {
   lines: LineRange | null;
 }
 export interface ReviewComment {
-  review_id: string;
+  review_id: string | null;
   comment: Comment;
   anchor: ReviewAnchor | null;
 }

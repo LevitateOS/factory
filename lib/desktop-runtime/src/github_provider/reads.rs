@@ -93,7 +93,26 @@ impl Client {
                         "pull_review_comments" | "pull_review_comment" => {
                             ("review_comments", reader.reviews(&q, true).await?)
                         }
-                        "pull_threads" => ("threads", reader.threads(&q).await?),
+                        "pull_threads" => {
+                            let Read::PullThreads {
+                                repository,
+                                number,
+                                page,
+                                limit,
+                                thread_id,
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            let selector = super::ThreadRead {
+                                repository: repository.clone(),
+                                number: u64::from(*number),
+                                page: *page,
+                                limit: *limit,
+                                thread_id: thread_id.clone(),
+                            };
+                            ("threads", reader.graph_threads(&selector).await?)
+                        }
                         "workflow_runs" => ("workflow_runs", reader.workflow_runs(&q).await?),
                         "workflow_run_jobs" => ("jobs", reader.workflow_jobs(&q).await?),
                         "pull_workflow_jobs" => ("jobs", reader.pull_workflow_jobs(&q).await?),

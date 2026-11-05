@@ -28075,3 +28075,80 @@ Actual GitHub schema/permission/paging behavior, admitted canonical reads, share
 WebKit/installed checks, current policy and original-anchor evidence are still
 unverified. Viewer action facts alone grant no product permission. T11-WRITES
 remains Active; all broader gates and the unfinished product remain open.
+
+### T11-WRITES checkpoint: canonical GitHub thread read cutover (2026-11-05)
+
+`Read::PullThreads` now calls the single GraphQL thread decoder introduced by
+`9f88e1a`; the former REST reply-group implementation and module are removed.
+Rust and the Go consumer admit genuine opaque printable thread IDs and reject
+numeric legacy root-comment selectors. The native cursor kind is now
+`pull_review_threads_v1`; old `pull_threads` cursors refuse even when repository,
+PR, window and other fields would match. No retained record or ID is rewritten.
+Catalogue previews preserve their ten-comment window on continuation, including
+when the caller supplies a larger upper bound. Current canonical mapping remains
+Go-owned; all authenticated observations/HTTP/pagination remain Rust-owned.
+
+The canonical ReviewComment review link is nullable in Go, service validation
+and the shared TypeScript contract. A deleted/unavailable provider review remains
+null while the comment retains its own identity/body/observation and mapped author.
+Existing non-null other-host links retain their meaning. The shared records
+contract documents opaque host-specific thread identity and explicit unknowns.
+Provider viewer booleans are validated native facts; shared capabilities remain
+null/unavailable and are not inferred from them. Root coordinates remain separate
+from null original/current two-commit anchors.
+
+The first composed run exposed an unused `minimized_reason:null` in the new
+producer's comment projection; Go correctly rejected that unknown field. Removing
+that unused field corrected the producer contract without weakening strict
+validation. The second run passed the normal/null/cursor cases but expected 503
+for partial GraphQL errors; the existing safe public mapping correctly returned
+502 `invalid_provider_observation`. Only the fixture expectation changed. Failed
+profiles/logs/executables remain preserved, and neither is passing evidence.
+
+The existing executable gained
+`--github-threads-product-declared BACKEND PG FRESH_PROFILE`. The real native
+custody/product callback, Go canonical registry/service/HTTP and owned PostgreSQL
+path passed 17 declared cases, including retained restart, under
+`/home/vince/tmp/factory-review-thread-product-1105/attempt3/`. It verified genuine
+thread IDs and resolved/unresolved/outdated facts, canonical actor mapping,
+thread list windows, detail, ten-comment previews and two-comment continuation,
+nullable review/author linkage, unknown coordinates/anchors, BigInt comment IDs,
+empty catalogues, numeric legacy ID and old/mismatched cursor refusal before a
+GraphQL query, wrong PR/repository and changing-count refusal, partial-error and
+oversized-catalogue errors. The current cursor and canonical identities survived
+restart. Shared thread capabilities stayed null despite a true provider viewer
+fact. The successful owned grant was removed, and native/Go/PostgreSQL children
+stopped. The HTTPS fixture accepts only its dummy token and never forwards.
+
+| Artifact under `/home/vince/tmp/factory-review-thread-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `6e3fcfb3a62af46e37535df7b763c7322c0fdc982cfcb3f28c8f1a9eeccdaea8` |
+| `provider` | `f843f0cfd2e7c9d4b7a038c44ee660e863427906120e8b59bfafafa6d0e48205` |
+| `check-bin` | `d4689da1d80dd086c0aa225fcb4e7844e0fe33ad34f58990b64aa7c006b8fd2d` |
+| `server` (also preserved as `server-a1`) | `bda4f3178b8dace4a7be042b01041819a90dd636daa0df11226732a48504c066` |
+| `check-a1` | `a65f5a5dbcd24875aff8b8075fbe8e9595df1b6c0c65cc5a0f091aa88b6741c1` |
+| `check-a2` | `e83d2af509785ee2726c319b00abaae9c4138b63953b185aab577758f2816d1a` |
+| `run.sh` | `4d77dd030ca1abd8bb41b299b0b35b97bd30ceb619b80415f0aa15247496244d` |
+| `session.sh` | `12c378781fe73f81cd125ea4ffefe593779bbc12399fcb508fdf98e253f67ba2` |
+| `attempt1/result.log` (failed) | `ee733797b2c94367f2d19d1215a4d107846d48d678b38a999048f6093a3b430f` |
+| `attempt2/result.log` (failed) | `628d61d4302bac465224456a72aba4c05bb1714071d450355c6fc51d94fa36d9` |
+| `attempt3/result.log` | `c5913592eb4cce2ed945b362ca38619cbabe3e7e72cd9f712bd0e1e5050525e0` |
+| `attempt3/thread-product-result.json` | `27c0b8bb00e5c37c8699b6a0b542f1bd12ae6c0f0d7a5031efbc386ad158dc7f` |
+
+Locked/offline native and desktop-feature builds, the production Go backend and
+runtime/service/collaboration builds, shared TypeScript checks, ownership
+boundaries and whitespace checks passed. No dependency, new unit test or unit-test
+root was added. This resolves the canonical thread read/cursor/null-link source
+blocker from the previous checkpoint. It does not qualify actual GitHub schema,
+permissions, consistency during live pagination or an installed shared WebKit
+journey; the other host's next full journey must also retain its existing known
+review links and explicit unknowns.
+
+Next dependency-ready source slice: extend the Go one-shot human dispatch fence
+for `pull_request.review.thread.resolve`, then the bounded native resolve/unresolve effect,
+admitted Go writer and canonical selection. Preserve full/unknown original
+anchors, current custody and causal outcomes; matching current resolution is not
+attribution for a lost reply. Fresh specifically authorized GitHub writes/readback,
+shared UI, delayed deadlines and selected-resource/visibility/transfer policy
+remain pending. T11-WRITES remains Active; all broader security and installed/
+release/freshness gates remain open, and the product is unfinished.

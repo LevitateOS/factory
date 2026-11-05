@@ -210,7 +210,7 @@ type ReviewAnchor struct {
 }
 
 type ReviewComment struct {
-	ReviewID string        `json:"review_id"`
+	ReviewID *string       `json:"review_id"` // nil when the provider no longer supplies its review
 	Comment  Comment       `json:"comment"`
 	Anchor   *ReviewAnchor `json:"anchor"`
 }

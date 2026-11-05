@@ -79,7 +79,7 @@ func (s CollaborationThreads) Read(ctx context.Context, actor collaboration.Acto
 		}
 		comments := map[string]bool{}
 		for _, r := range c.Items {
-			if r.ReviewID == "" || r.Comment.ExternalID == "" || comments[r.Comment.ExternalID] || r.Comment.Observation.State != collaboration.ReadAvailable || r.Comment.Observation.Revision == "" || !validThreadAnchor(r.Anchor, t.Pull) {
+			if r.ReviewID != nil && !collaboration.ValidText(*r.ReviewID, 1024) || r.Comment.ExternalID == "" || comments[r.Comment.ExternalID] || r.Comment.Observation.State != collaboration.ReadAvailable || r.Comment.Observation.Revision == "" || !validThreadAnchor(r.Anchor, t.Pull) {
 				return empty, ErrThreadUnavailable
 			}
 			comments[r.Comment.ExternalID] = true

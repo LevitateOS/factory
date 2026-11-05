@@ -142,11 +142,13 @@ func (s nativeCollaborationReads) ReadReviews(ctx context.Context, actor collabo
 }
 
 type nativeThread struct {
-	ExternalID       string                        `json:"external_id"`
-	RecordedLocation *collaboration.ReviewLocation `json:"recorded_location"`
-	Resolution       string                        `json:"resolution"`
-	Outdated         *bool                         `json:"outdated"`
-	Comments         struct {
+	ExternalID         string                        `json:"external_id"`
+	RecordedLocation   *collaboration.ReviewLocation `json:"recorded_location"`
+	Resolution         string                        `json:"resolution"`
+	Outdated           *bool                         `json:"outdated"`
+	ViewerCanResolve   *bool                         `json:"viewer_can_resolve"`
+	ViewerCanUnresolve *bool                         `json:"viewer_can_unresolve"`
+	Comments           struct {
 		Items    []nativeReviewComment `json:"items"`
 		NextPage int                   `json:"next_page"`
 	} `json:"comments"`
@@ -154,13 +156,13 @@ type nativeThread struct {
 
 func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64, q factoryservice.ThreadQuery) (collaboration.Page[collaboration.ReviewThread], error) {
 	var empty collaboration.Page[collaboration.ReviewThread]
-	if q.Validate() != nil || !nativeIndex(number) || q.ThreadID != "" && !nativeRemoteID(q.ThreadID) {
+	if q.Validate() != nil || !nativeIndex(number) || q.ThreadID != "" && !nativeThreadID(q.ThreadID) {
 		return empty, factoryservice.ErrThreadQuery
 	}
 	if err := s.admitRead(ctx, actor, repo, factoryservice.ErrThreadMissing); err != nil {
 		return empty, err
 	}
-	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: "pull_threads", Repository: s.identity.SelectedRepository, Number: number, Root: q.ThreadID, Limit: q.Limit})
+	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: "pull_review_threads_v1", Repository: s.identity.SelectedRepository, Number: number, Root: q.ThreadID, Limit: q.Limit})
 	if err != nil {
 		return empty, factoryservice.ErrThreadQuery
 	}
@@ -192,11 +194,11 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 		if q.ThreadID != "" {
 			limit, page = c.Limit, c.Page
 		}
-		if !nativeRemoteID(thread.ExternalID) || q.ThreadID != "" && thread.ExternalID != q.ThreadID || thread.Comments.Items == nil || !validNativePage(thread.Comments.NextPage, page, limit, len(thread.Comments.Items), false) {
+		if !nativeThreadID(thread.ExternalID) || thread.Outdated == nil || thread.ViewerCanResolve == nil || thread.ViewerCanUnresolve == nil || q.ThreadID != "" && thread.ExternalID != q.ThreadID || thread.Comments.Items == nil || !validNativePage(thread.Comments.NextPage, page, limit, len(thread.Comments.Items), false) {
 			return empty, errNativeRead
 		}
 		for _, comment := range thread.Comments.Items {
-			if !nativeRemoteID(comment.ExternalID) || comment.Body == nil || comment.ReviewID == nil || !nativeRemoteID(*comment.ReviewID) {
+			if !nativeRemoteID(comment.ExternalID) || comment.Body == nil || comment.ReviewID != nil && !nativeRemoteID(*comment.ReviewID) {
 				return empty, errNativeRead
 			}
 			actors = appendNativeActor(actors, comment.Author)
@@ -216,7 +218,7 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 			if comment.Body != nil {
 				body = *comment.Body
 			}
-			comments = append(comments, collaboration.ReviewComment{ReviewID: *comment.ReviewID, Comment: collaboration.Comment{ExternalID: comment.ExternalID, Observation: s.observation(comment), Author: nativeActorRef(mapping, comment.Author), Body: body, CreatedAt: comment.CreatedAt, UpdatedAt: comment.UpdatedAt}})
+			comments = append(comments, collaboration.ReviewComment{ReviewID: comment.ReviewID, Comment: collaboration.Comment{ExternalID: comment.ExternalID, Observation: s.observation(comment), Author: nativeActorRef(mapping, comment.Author), Body: body, CreatedAt: comment.CreatedAt, UpdatedAt: comment.UpdatedAt}})
 		}
 		commentCursor := c
 		commentCursor.Root = thread.ExternalID
@@ -227,4 +229,20 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 			Comments: nativePage(obs, comments, cursorEncode(commentCursor, thread.Comments.NextPage))})
 	}
 	return nativePage(obs, items, cursorEncode(c, raw.NextPage)), nil
+}
+
+// GitHub thread selectors are opaque printable Node IDs. Historical decimal
+// root-comment selectors cannot acquire the new thread identity by remapping.
+func nativeThreadID(value string) bool {
+	if value == "" || len(value) > 1024 {
+		return false
+	}
+	nonDigit := false
+	for _, b := range []byte(value) {
+		if b < 33 || b > 126 {
+			return false
+		}
+		nonDigit = nonDigit || b < '0' || b > '9'
+	}
+	return nonDigit
 }

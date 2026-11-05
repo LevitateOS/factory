@@ -207,7 +207,10 @@ impl Read {
             thread_id, limit, ..
         } = self
         {
-            if !thread_id.is_empty() && !remote_id(thread_id) || *limit > 20 {
+            if !thread_id.is_empty()
+                && (!node_id(thread_id) || thread_id.bytes().all(|b| b.is_ascii_digit()))
+                || *limit > 20
+            {
                 return Err(Failure::invalid());
             }
         }

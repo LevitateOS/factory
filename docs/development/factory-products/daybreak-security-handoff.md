@@ -2242,3 +2242,39 @@ Transfer/visibility policy, delayed deadlines, D1/D2/D3/D5, credential root abse
 scoped delivery, installed IPC/window/instance, isolation/execution/retirement/
 settlement and release/upgrade/freshness retain their earlier blockers. No broad
 gate was closed, and no hacking-like work or Daybreak session was performed.
+
+T11-WRITES canonical thread read cutover (2026-11-05):
+The preceding read-consumer blocker is now resolved in source.
+`github_provider/reads.rs` uses `review_threads.rs`; the REST grouping owner was
+removed. `request.rs` and `native_product_discussions.go` reject decimal root IDs.
+`native_product_observations.go` now binds cursors to `pull_review_threads_v1`,
+refusing the old kind and another thread's comment cursor. Go/shared records and
+`collaboration_threads.go` preserve a nullable review link; no ID is invented.
+Viewer booleans do not activate shared capabilities. Unknown original/current
+anchors remain null, separately from recorded root coordinates.
+
+Actual native custody/callback, Go canonical mapping/service/HTTP and owned
+PostgreSQL passed 17 declared cases including retained restart, old-cursor
+refusal, scope/count/partial-error refusals, null links, paging and disabled write
+capabilities. Successful owned grant and children were cleaned up. Result
+`/home/vince/tmp/factory-review-thread-product-1105/attempt3/thread-product-result.json`,
+SHA-256 `27c0b8bb00e5c37c8699b6a0b542f1bd12ae6c0f0d7a5031efbc386ad158dc7f`.
+Failed attempt1's strict rejection of an unused producer field and attempt2's
+incorrect fixture expectation for the existing 502 error mapping remain preserved.
+The canonical plan records artifact identities. These are local dummy-only,
+no-forwarding observations; actual GitHub/installed/other-host full journeys remain
+unverified.
+
+Exact next blocker: Go `pull_request.review.thread.resolve` one-shot dispatch fencing in
+`pkg/store/factory_command_dispatch.go` and migration/native checks, then a fixed
+Rust resolve/unresolve effect in `github_provider` and its admitted callback in
+`collaboration.rs`, the Go writer/selection in `pkg/factory/runtime` and shared
+human action evidence. Closing requires full/unknown original-anchor bindings,
+exact account/repository/PR/genuine-thread identity, reserve/replay/cancel/races/
+restart and withdrawal, causal receipt/readback, plus fresh specifically scoped
+owner-authorized actual provider checks. A matching resolution observation cannot
+close lost-reply uncertainty. No real grant is retained. Delayed deadlines,
+visibility/transfer policy, D1/D2/D3/D5, custody/root absence/scoped delivery,
+installed IPC/window/instance admission, worker isolation/execution/retirement/
+settlement and release/upgrade/freshness retain their earlier exact dependencies
+and evidence requirements. No broad gate or Daybreak work is closed here.
