@@ -246,10 +246,31 @@ be whole environment references such as `${SODA_FACTORY_MCP_AUTH}`; literal
 values refuse startup. A local echo-only check reached a synthetic MCP
 server with the exact fixture headers, initialized it and listed its tools;
 an absent endpoint refused required-server startup. This is a local CLI
-contract check. The isolated worker still has no MCP binding or transport,
-and the production Go native backend still has no MCP listener. Deliver only
-an exact-run capability secret through the native owner; the IPC/root key and
-provider account credential must not be supplied to the worker.
+contract check. The worker now always configures required MCP at the fixed
+private `http://127.0.0.1:37377/mcp` route. Its header uses only the same
+owner-generated run placeholder as its provider stdin. The owner accepts that
+route only from its attested relay and forwards bytes through an exact-run
+`WorkerMcp` port supplied before launch by `RunOwner::start_with_mcp`.
+The port captures its destination/capability; worker headers cannot select
+either. No port returns 503 without forwarding. The production Go native
+listener and admitted consumer remain unimplemented; its MCP secret, IPC/root
+key and provider account credential must stay outside the worker.
+The native owner bounds MCP bodies at 72 KiB, successful JSON replies at 1 MiB,
+calls at 256 per attempt and operation time at the earlier of 30 seconds or the
+run deadline. Both relay and owner allow at most 512 connections over the run;
+their existing concurrency and byte bounds remain. Credential withdrawal or
+owner retirement drops and joins in-flight forwarding. Go still owns MCP
+decoding, current capability/work/tool admission and transactions.
+A disposable actual-service check used a tiny local ELF to verify the fixed
+arguments and placeholder environment, then initialized and discovered tools
+through the native owner and the real Go bound MCP handler with a synthetic
+capability. A missing-port run returned 503 with no callback. Separate pending
+operations were dropped on credential withdrawal and owner cancellation;
+uncertain cancellation retained its root launch evidence. All exact services
+retired. These checks used a private dummy keyring and no model request. The
+actual Muse model request/response policy still admits only its builtin
+`muse` namespace; Factory tool negotiation and execution need the next cutover
+before a real finite provider task can qualify D3.
 The execution receipt now carries the process owner's invocation ID, boot ID,
 start tick, start time, namespace PID and exit code/signal for later native
 provenance binding. These added fields have source/build validation; the prior

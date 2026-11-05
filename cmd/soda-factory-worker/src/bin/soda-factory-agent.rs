@@ -731,7 +731,15 @@ fn execute_agent(
     if role == "reviewer" {
         arguments.extend(["--disable-shell", "--disable-write"].map(OsString::from));
     }
+    arguments.extend([
+        OsString::from("--config"),
+        OsString::from(r#"mcpServers.factory={"enabled":true,"transport":"streamable_http","url":"http://127.0.0.1:37377/mcp","headers":{"Authorization":"${SODA_FACTORY_RUN_AUTH}"}}"#),
+    ]);
     let environment = BTreeMap::from([
+        (
+            OsString::from("SODA_FACTORY_RUN_AUTH"),
+            OsString::from(format!("Bearer {placeholder}")),
+        ),
         (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
         (OsString::from("HOME"), OsString::from(PRIVATE)),
         (

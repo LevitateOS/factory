@@ -18,7 +18,7 @@ const PORT: u16 = 37377;
 const MAX_REQUEST_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_CONCURRENT: usize = 8;
-const MAX_CONNECTIONS: usize = 64;
+const MAX_CONNECTIONS: usize = 512;
 const LIFETIME: Duration = Duration::from_secs(4 * 60 * 60);
 const IDLE: Duration = Duration::from_secs(120);
 

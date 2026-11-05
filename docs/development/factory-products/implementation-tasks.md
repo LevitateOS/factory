@@ -25503,3 +25503,33 @@ and echo transcript SHA-256 is
 The temporary local server was stopped. This establishes the installed CLI
 contract for the missing isolated MCP transport; it does not implement that
 transport, a native listener, Go current-run admission or D3 qualification.
+
+T09-NATIVE-EXECUTOR private MCP producer (2026-11-05): the isolated worker
+now configures required streamable-HTTP MCP at its fixed private relay `/mcp`
+route, using only the owner-generated run placeholder. Rust accepts the route
+from the attested relay and forwards through a trusted exact-run `WorkerMcp`
+port bound before launch. Worker input selects no endpoint, capability or
+Go credential; missing binding returns 503 without a callback. Body, reply,
+connection, call and deadline bounds are enforced locally, while Go retains
+protocol, current-work/role admission and SQL ownership. A disposable current
+service/private-dummy-keyring check verified worker arguments/environment and
+performed initialize, initialized notification and tool discovery through the
+real Go bound MCP handler with a synthetic active capability/verifier. A
+second run without a binding refused and made no Go callback. Both produced
+bounded receipts and exact retirement. External evidence is retained under
+`/home/vince/tmp/factory-native-mcp-owner-20261105/`; result SHA-256 is
+`8f99b498b5b45db0d6fdfd9c8d7169bcd5fb60d12657287683b60a88ff09318c`.
+A separate fresh fixture proved that credential withdrawal and native owner
+cancellation each dropped a pending MCP future without delivering a late
+response. Cancelled outcome stayed uncertain and its root launch record was
+preserved before explicit fixture disposal. Those services were inactive with
+`MainPID=0`, and temporary services/fixture daemons were removed. The external
+result is `/home/vince/tmp/factory-native-mcp-lifetime-20261105/result.log`,
+SHA-256 `6c324f6eb5a712691e555540e378e742952e257e0b7d07f4fecb3095db1f6a5e`.
+Locked offline runtime/worker builds and touched-file formatting passed. The
+service checks used a tiny ELF, not Muse; the earlier echo-only check separately
+proved its CLI configuration. No canonical capability row, Rust signing-key
+join, production Go native MCP listener/current-run observer, full Muse
+Factory-tool policy or real model task ran. The provider policy still accepts
+only builtin `muse` tools and must be cut over to the actual Factory namespace
+with response validation before a real finite task. N3, N4 and D3 remain open.

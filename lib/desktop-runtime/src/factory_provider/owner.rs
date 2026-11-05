@@ -1,6 +1,9 @@
 //! Desktop-owned, run-specific Unix endpoint. The relay system unit mounts
 //! this socket; only its attested UID may request fixed Meta HTTPS I/O.
-use super::{response::admitted_sse, Admitted, Broker, Policy, RelayAttestation, Route};
+use super::{
+    response::admitted_sse, Admitted, Broker, Policy, RelayAttestation, Route, WorkerMcp,
+    WorkerMcpReply,
+};
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use reqwest::{header, redirect, Client};
 use std::fs::{self, DirBuilder, Metadata};
@@ -21,10 +24,14 @@ use zeroize::Zeroizing;
 const MAX_HEADER: usize = 16 * 1024;
 const MAX_BODY: usize = 256 * 1024;
 const MAX_RESPONSE: usize = 16 * 1024 * 1024;
-const MAX_CONNECTIONS: usize = 32;
+const MAX_CONNECTIONS: usize = 512;
 const MAX_IN_FLIGHT: usize = 4;
 const REQUEST_TIME: Duration = Duration::from_secs(8);
 const PROVIDER_TIME: Duration = Duration::from_secs(5 * 60);
+const MCP_TIME: Duration = Duration::from_secs(30);
+const MAX_MCP_CALLS: usize = 256;
+const MAX_MCP_BODY: usize = 64 * 1024 + 8192;
+const MAX_MCP_REPLY: usize = 1024 * 1024;
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -62,6 +69,7 @@ pub struct BoundOwner {
     placeholder: Zeroizing<String>,
     desktop_uid: u32,
     cleanup: bool,
+    mcp: Option<WorkerMcp>,
 }
 
 impl BoundOwner {
@@ -139,7 +147,21 @@ impl BoundOwner {
             placeholder,
             desktop_uid: uid,
             cleanup: true,
+            mcp: None,
         })
+    }
+
+    pub fn with_mcp(mut self, mcp: WorkerMcp) -> io::Result<Self> {
+        if self.mcp.is_some()
+            || self
+                .policy
+                .as_ref()
+                .is_none_or(|policy| policy.run() != mcp.run)
+        {
+            return Err(refused("worker MCP differs from admitted run"));
+        }
+        self.mcp = Some(mcp);
+        Ok(self)
     }
 
     /// Scoped, non-account placeholder supplied to the isolated CLI's stdin.
@@ -182,6 +204,8 @@ impl BoundOwner {
             capability: self.capability.clone(),
             placeholder: self.placeholder.clone(),
             relay_uid,
+            mcp: self.mcp.take(),
+            mcp_calls: std::sync::atomic::AtomicUsize::new(0),
         });
         let thread = thread::Builder::new()
             .name("factory-provider-owner".into())
@@ -302,6 +326,8 @@ struct State {
     capability: Arc<TokenCapability>,
     placeholder: Zeroizing<String>,
     relay_uid: u32,
+    mcp: Option<WorkerMcp>,
+    mcp_calls: std::sync::atomic::AtomicUsize,
 }
 
 async fn serve(
@@ -400,7 +426,11 @@ async fn read_request(stream: &mut UnixStream, placeholder: &str) -> io::Result<
     let method = parts.next().unwrap_or("");
     let path = parts.next().unwrap_or("");
     if !matches!(method, "GET" | "POST")
-        || !matches!(path, "/muse-code/models" | "/responses" | "/v1/responses")
+        || !matches!(
+            path,
+            "/muse-code/models" | "/responses" | "/v1/responses" | "/mcp"
+        )
+        || path == "/mcp" && method != "POST"
         || parts.next() != Some("HTTP/1.1")
         || parts.next().is_some()
     {
@@ -439,7 +469,11 @@ async fn read_request(stream: &mut UnixStream, placeholder: &str) -> io::Result<
             | "content-encoding"
             | "expect"
             | "upgrade"
-            | "proxy-authorization" => return Err(refused("provider request header unsupported")),
+            | "proxy-authorization"
+            | "origin" => return Err(refused("provider request header unsupported")),
+            name if name.starts_with("sec-fetch-") => {
+                return Err(refused("provider request browser metadata refused"))
+            }
             _ => (),
         }
     }
@@ -459,7 +493,11 @@ async fn read_request(stream: &mut UnixStream, placeholder: &str) -> io::Result<
         None if method == "GET" => 0,
         _ => return Err(refused("provider request length missing")),
     };
-    if length > MAX_BODY || (method == "GET" && length != 0) || (method == "POST" && length == 0) {
+    if length > MAX_BODY
+        || path == "/mcp" && length > MAX_MCP_BODY
+        || (method == "GET" && length != 0)
+        || (method == "POST" && length == 0)
+    {
         return Err(refused("provider request body bound invalid"));
     }
     let mut body = vec![0u8; length];
@@ -516,6 +554,10 @@ async fn handle(mut stream: UnixStream, state: Arc<State>, http: Client) {
                 return;
             }
         };
+    if request.path == "/mcp" {
+        handle_mcp(&mut stream, &state, request.body).await;
+        return;
+    }
     let admission = {
         let Ok(mut policy) = state.policy.lock() else {
             return;
@@ -568,6 +610,75 @@ async fn handle(mut stream: UnixStream, state: Arc<State>, http: Client) {
         }
         _ => {}
     }
+}
+
+async fn handle_mcp(stream: &mut UnixStream, state: &State, body: Vec<u8>) {
+    use std::sync::atomic::Ordering;
+    let Some(mcp) = state.mcp.as_ref() else {
+        let _ = write_mcp_reply(stream, None).await;
+        return;
+    };
+    if state.mcp_calls.fetch_add(1, Ordering::SeqCst) >= MAX_MCP_CALLS {
+        let _ = write_error(stream, 429).await;
+        return;
+    }
+    let remaining = state
+        .policy
+        .lock()
+        .ok()
+        .and_then(|policy| policy.remaining().ok());
+    let Some(remaining) = remaining else {
+        let _ = write_error(stream, 410).await;
+        return;
+    };
+    let current = match state.credentials.renew_capability(&state.capability).await {
+        Ok(current) => current,
+        Err(_) => {
+            let _ = write_mcp_reply(stream, None).await;
+            return;
+        }
+    };
+    // Borrowing validates current credential lifetime and cancels the local
+    // forwarding operation on withdrawal; no account token enters Go or MCP.
+    let result = state
+        .credentials
+        .with_token_stream(&current, remaining.min(MCP_TIME), async |_| {
+            (mcp.forward)(body).await
+        })
+        .await;
+    let reply = result.ok().and_then(Result::ok);
+    let _ = write_mcp_reply(stream, reply).await;
+}
+
+async fn write_mcp_reply(stream: &mut UnixStream, reply: Option<WorkerMcpReply>) -> io::Result<()> {
+    let (status, body) = match reply {
+        Some(reply)
+            if reply.status == 200
+                && reply.body.len() <= MAX_MCP_REPLY
+                && serde_json::from_slice::<serde_json::Value>(&reply.body)
+                    .is_ok_and(|body| body.is_object()) =>
+        {
+            ("200 OK", reply.body)
+        }
+        Some(reply) if reply.status == 202 && reply.body.is_empty() => ("202 Accepted", Vec::new()),
+        Some(reply) if matches!(reply.status, 400 | 401 | 403 | 410 | 429) => {
+            let status = match reply.status {
+                400 => "400 Bad Request",
+                401 => "401 Unauthorized",
+                403 => "403 Forbidden",
+                410 => "410 Gone",
+                _ => "429 Too Many Requests",
+            };
+            (status, b"{\"error\":\"factory_mcp_refused\"}".to_vec())
+        }
+        _ => (
+            "503 Service Unavailable",
+            b"{\"error\":\"factory_mcp_unavailable\"}".to_vec(),
+        ),
+    };
+    let header = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n", body.len());
+    stream.write_all(header.as_bytes()).await?;
+    stream.write_all(&body).await
 }
 
 async fn forward(

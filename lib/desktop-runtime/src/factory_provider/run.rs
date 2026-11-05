@@ -3,7 +3,7 @@
 use super::receipt::ensure_receipts;
 use super::{
     write_retained, AgentCancellation, AgentRun, AgentStarted, BoundOwner, Broker, Owner, Policy,
-    ReceiptScope, Role,
+    ReceiptScope, Role, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
@@ -75,6 +75,51 @@ impl RunOwner {
         tool_sha256: &str,
         prompt_sha256: &str,
     ) -> io::Result<Self> {
+        Self::start_inner(
+            policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            None,
+        )
+    }
+
+    /// Bind the exact-run Go MCP port before the relay or worker can start.
+    pub fn start_with_mcp(
+        policy: Policy,
+        profile_dir: &Path,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        bundle: &[u8],
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        mcp: WorkerMcp,
+    ) -> io::Result<Self> {
+        Self::start_inner(
+            policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            Some(mcp),
+        )
+    }
+
+    fn start_inner(
+        policy: Policy,
+        profile_dir: &Path,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        bundle: &[u8],
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        mcp: Option<WorkerMcp>,
+    ) -> io::Result<Self> {
         policy
             .remaining()
             .map_err(|_| refused("provider run deadline expired"))?;
@@ -108,6 +153,10 @@ impl RunOwner {
         let role = policy.role();
         let deadline = policy.deadline;
         let bound = BoundOwner::bind(policy, credentials, capability)?;
+        let bound = match mcp {
+            Some(mcp) => bound.with_mcp(mcp)?,
+            None => bound,
+        };
         let staged =
             match Broker::stage_bundle(&run, &profile, role, tool_sha256, prompt_sha256, bundle) {
                 Ok(staged) => staged,
