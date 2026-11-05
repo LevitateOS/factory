@@ -196,7 +196,7 @@ impl RunOwner {
 
     fn quiesce_uncertain(&mut self) -> io::Result<()> {
         self.cancellation.cancel();
-        let stopped = self.owner.stop();
+        let stopped = self.owner.stop_preserving_bundle();
         let quiesced = Broker::quiesce_run(&self.run, &self.profile, &self.sha256);
         stopped.and(quiesced)
     }

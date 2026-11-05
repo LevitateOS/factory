@@ -268,6 +268,13 @@ impl Owner {
         result
     }
 
+    /// An attempted run without a durable receipt must keep its broker record
+    /// for reconciliation, including when this local owner is later dropped.
+    pub(super) fn stop_preserving_bundle(&mut self) -> io::Result<()> {
+        self.attestation.take();
+        self.stop()
+    }
+
     /// Retire local token use first, then ask the broker to stop the exact
     /// relay and remove its staged run. A failed broker call remains retryable.
     pub fn retire(&mut self) -> io::Result<()> {

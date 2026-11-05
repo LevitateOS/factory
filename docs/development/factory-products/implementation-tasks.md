@@ -25457,3 +25457,29 @@ the external `driver.rs` records the disposable check. This event proves a
 process started, not continuing liveness, Go current-work admission, MCP
 activation/delivery, credential custody, a model task or crash/reboot
 settlement. N3 and D3 remain open; N4 remains Pending.
+
+T09-NATIVE-EXECUTOR owned attempt lifetime (2026-11-05): a headless
+`RunOwner::spawn` now transfers the admitted native attempt to a retained
+`RunExecution` thread handle. Inspect and timed wait do not cancel it; finish
+joins the one complete result, and drop cancels and joins the native owner.
+The first disposable real-service/private-dummy-keyring check passed its finite
+result but exposed a recovery defect: after cancellation, the nested `Owner`
+destructor removed broker staging even though the result was unconfirmed.
+The uncertain path now removes that destructor's retirement authority while
+stopping local token use and quiescing the exact services, preserving the root
+launch record for later reconciliation. The failed evidence remains at
+`/home/vince/tmp/factory-native-handle-20261105/result.log` (SHA-256
+`2a7b7f2825a8865ebc4061e2c7e294c176282815edde2464d27e7f2336d8b97a`).
+A fresh fixture with new run identities then passed finite start/timed-wait,
+durable result/retirement, explicit cancellation and active-handle drop. Both
+uncertain cases had stopped agent/relay services, no invented receipt and the
+exact retained launched root before explicit fixture disposal. All three
+agent/relay units were inactive with `MainPID=0` afterward; temporary services
+and fixture daemons were stopped and removed. The successful external log is
+`/home/vince/tmp/factory-native-handle-fixed-20261105/result.log` (SHA-256
+`2edfab49b3104ce5899af61520a6190209cd81391b4b386b92fd3b0833f8257a`);
+that directory retains the driver and private fixture. Locked offline runtime
+checking and touched-file formatting passed. No provider request, Go ledger
+settlement, production Quit, current-liveness observer or crash/reboot recovery
+ran. The new handle is not composed into the supervisor/coordinator yet. N3,
+N4 and D3 remain open.

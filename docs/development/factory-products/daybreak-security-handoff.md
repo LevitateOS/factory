@@ -105,6 +105,21 @@ now exposes this producer event, but it is not a current-liveness observer or
 Go admission. The native consumer must still prove those facts, MCP activation
 and delivery, custody and transactional crash/reboot recovery on the admitted
 path before D3 closes.
+A new headless attempt-handle check exposed a destructor defect: an uncertain
+cancelled `RunOwner` stopped local use, but its nested credential `Owner` then
+retired the root staging on drop. The source now detaches that automatic root
+retirement on the uncertain path. A fresh real-service/private-dummy-keyring
+check passed finite completion and verified that explicit cancellation and
+handle drop both joined the owner, stopped agent/relay services, created no
+receipt and preserved the exact launched root before explicit fixture disposal.
+Failed and successful evidence are retained respectively under
+`/home/vince/tmp/factory-native-handle-20261105/` and
+`/home/vince/tmp/factory-native-handle-fixed-20261105/`. Relevant files are
+`lib/desktop-runtime/src/factory_provider/{attempt,run,owner}.rs`. The handle
+still needs supervisor ownership and Go consumer composition; its `Executing`
+state is not a fresh process-liveness observation. No actual owner crash,
+reboot, provider task or atomic ledger settlement was proved. Those remain
+required to close D3 and the N4 recovery gate.
 A production-bundle Chromium check with a local Tauri command fixture now proves
 that a failed `credential_status` read removes stale saved-account UI rows and
 repository options. It uses no real keyring, provider, consent or authenticated

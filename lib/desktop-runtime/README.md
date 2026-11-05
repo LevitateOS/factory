@@ -544,3 +544,15 @@ the current provider account and repository evidence, then Go transactionally
 maps the resulting facts and projects neutral pages. Empty filtered issue pages
 can retain a continuation; PR wrappers cannot become ordinary issue detail.
 Capabilities remain unknown. Product selection and connected UI remain consumers.
+
+`factory_provider::RunOwner::spawn` transfers one already staged native attempt
+to a headless `RunExecution` handle. The lifecycle owner retains the handle;
+requests may inspect it or wait with a timeout without cancelling the attempt.
+The handle records the exact process-start event, joins the complete result on
+`finish`, and cancels and joins on drop. `Executing` means no terminal result
+has arrived; it does not assert fresh process liveness. `Retired` requires the
+existing durable receipt and local/broker retirement path. Cancellation or an
+unconfirmed result remains `Uncertain`, with root launch evidence preserved
+even when the credential owner is dropped. Go still owns admission, ledger
+settlement and recovery decisions. This handle is not yet composed into the
+production supervisor or coordinator.
