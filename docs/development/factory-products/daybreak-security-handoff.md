@@ -11,6 +11,16 @@ for that work. Do not infer a passed gate from a proposed design, a source build
 fixture, or an earlier component probe. Do not place credentials or private
 profile contents in this file.
 
+Canonical decision scope: D1 gates standing GitHub automation, D2 supported
+Fountain desktop enrollment/revocation, D3 isolated native worker execution,
+D4 packaging/diff selection and D5 Fountain issue-only collaborator admission.
+See the decision table in [ideal-filetree-plan.md](ideal-filetree-plan.md).
+GitHub mutation target/head/body/concurrent-edit limits belong to their concrete
+T11 operations. Earlier checkpoint labels that called those limits D5 have been
+corrected; they never established a new canonical decision or a general stop on
+independent reads, writing UI or connector development. Preserve truthful API
+limits and explicit unavailable cases without claiming stronger atomicity.
+
 The latest Go producer, `pkg/factory/mcpserver/catalog.go::BoundToolNames`, shares
 role and recorded task-controller selection with the bound SDK server in
 `bound.go`. It supplies the canonical names Rust's
@@ -1747,7 +1757,7 @@ schema/write/readback evidence. Reference: GitHub's current
 [addComment and AddCommentInput documentation](https://docs.github.com/en/graphql/reference/issues#addcomment).
 Client mutation correlation is not a documented deduplication guarantee.
 
-Separate remaining D5/policy question: neither the inspected REST comment API nor
+Separate remaining T11 mutation-policy question: neither the inspected REST comment API nor
 `AddCommentInput` exposes an expected repository/lock revision precondition. A
 Node ID pins the logical subject; it must not be described as an atomic guarantee
 that a transferable subject remains in its original repository or unlocked.
@@ -1760,7 +1770,7 @@ transfer/name-reuse experiment or broader D5 gate qualification has run here.
 
 T11-WRITES current composed Node-ID checkpoint (2026-11-05): the preceding
 composition and proposed cutover now pass their bounded declared source checks.
-This supersedes the unverified cutover status above, not its open D5 policy
+This supersedes the unverified cutover status above, not its open T11 mutation-policy
 question or actual-provider/installed qualification requirements.
 
 The Go native human-comment writer now uses the existing service and sole
@@ -1803,7 +1813,7 @@ write check needs fresh owner authorization and a specifically scoped owned
 repository/subject; the earlier revoked account is absent. No app secret or old
 refresh pair should be requested/replayed to work around this dependency.
 
-The D5 issue-transfer/lock invariant remains a policy/provider dependency:
+The T11 comment transfer/lock question remains a policy/provider dependency:
 preflight checks plus a logical Node ID are not an atomic guarantee that a
 movable subject stays in its original repository or unlocked during mutation.
 Define the supported invariant and qualify its permitted/refused behavior in an
@@ -2339,7 +2349,7 @@ writer/selection are the relevant files. No full-anchor write support is claimed
 GitHub's selected input also has no conversation-revision or repository condition.
 Membership/action/lock preflights and post-reply validation therefore do not prove
 atomic protection against intervening conversation, visibility, lock or transfer
-changes. Those stronger D5/selected-resource claims require an adopted supported
+changes. Those stronger T11 selected-resource claims require an adopted supported
 policy/invariant and actual permitted/refused evidence before closure.
 
 The existing native observer passed 52 declared cases, eight invalid descriptors,
@@ -2567,7 +2577,7 @@ normal shared readback, real GitHub write or installed admission was proved.
 
 Callback/writer/existing canonical binding are now composed. Exact remaining
 reviewer dependencies: authenticated target observation-to-registry mapping and
-shared selection/readback; actual current eligibility/permission; supported D5
+shared selection/readback; actual current eligibility/permission; supported T11 mutation
 policy and evidence for mutable-name removal, unseen rename/reuse and concurrent
 membership; original captured-deadline expiration; fresh scoped owner-authorized
 provider/shared WebKit/installed checks. Source files for those consumers include
@@ -2637,7 +2647,7 @@ grant/write, shared browser or installed check ran.
 Authenticated mapping and normal API readback dependencies are resolved in source
 with declared-peer evidence. Remaining reviewer blockers: shared selection/action
 UI, actual target eligibility/permission and fresh scoped owner-authorized provider
-evidence; supported D5 policy and evidence for unseen mutable-name rename/reuse,
+evidence; supported T11 mutation policy and evidence for unseen mutable-name rename/reuse,
 concurrent requests and absent atomic conversation/repository conditions; captured
 expiration; shared WebKit/installed lifetime/custody/admission. The private channel
 still caps replies at 2 MiB; maximum metadata across all product/browser envelopes
@@ -2717,7 +2727,7 @@ Current native PR POST still has the ordinary 64 KiB request limit. Relevant
 files include the new producer, `collaboration.rs`, runtime product adapters,
 `product_request.rs`, native collaboration envelopes and shared PR services/UI.
 The official creation input lists no expected-tip condition; preflight/recheck is
-not an atomic write condition. Supported D5 policy and actual tip/repository/
+not an atomic write condition. Supported T11 mutation policy and actual tip/repository/
 visibility/race evidence remain open, alongside current fork/branch/maintainer
 permission, captured expiry, causal/lost reply/replay/cancel/withdrawal/replacement/
 restart and fresh owner-authorized provider/shared WebKit/installed evidence.
@@ -2824,7 +2834,7 @@ capture surviving its five-minute expiry without reprepare/resend (whole-call
 8-second timeout and reserved/terminal replay do not prove it); fresh specifically
 owner-authorized GitHub schema/grant and current fork/branch/write/maintainer
 acceptance/refusal; truthful shared UI for the delegation option, including its
-workflow/secrets implications; supported D5 policy and actual tip/repository/
+workflow/secrets implications; supported T11 mutation policy and actual tip/repository/
 visibility races despite the absent expected-tip creation condition; and fresh
 provider/shared WebKit/installed evidence. The private creator's personal-fork
 restriction and dummy option propagation are not proof of informed live grant
@@ -2864,7 +2874,7 @@ head atomicity or retry safety. Closure needs actual current identity/scope/head
 and existing pending review binding, causal bounded receipt, exact event/writing,
 no duplicate after lost reply/cancel/withdrawal/replacement/restart, original
 unclaimed expiry and truthful refusal/visibility retirement. Existing review
-comments/threads, reviewer mutable-name, PR delegation and D5 tip conditions
+comments/threads, reviewer mutable-name, PR delegation and T11 tip-condition limits
 retain their separate requirements. Relevant consumers are the future
 `github_provider` review effect/observation, `collaboration.rs`, native product
 adapters and shared review UI; Go registry/transactions stay in Go. Shared writes
@@ -2890,7 +2900,7 @@ SHA-256 `47f6060c2a9e0f8e189ea148914d758e0d7f6cdf8fc481e1d72819ed50300831`.
 The plan records the exact peer/binary/runner hashes, first expected-status
 correction and preserved artifacts. This is dummy-only/no-forwarding TLS, not
 live GitHub schema/grant/visibility/permission, all combined maximum-body/page
-bounds, shared UI, installed admission or a D5 condition. Shared writes remain
+bounds, shared UI, installed admission or an atomic mutation condition. Shared writes remain
 unavailable.
 
 New exact review lifecycle blocker identified in the
@@ -2950,7 +2960,7 @@ claiming full preservation. Existing-draft body edits retain the separately
 recorded race with another client's submission; this new-review refusal is not a
 verified fix for that operation.
 
-D5 current-head/body/visibility policy, actual owner-authorized provider
+T11 current-head/body/visibility policy, actual owner-authorized provider
 permission/event/notification behavior and shared UI/installed checks remain
 required. Preflight plus a matching causal reply is not an expected-head
 condition or remote deduplication. Shared write capabilities remain unavailable.
@@ -2989,7 +2999,7 @@ source/locked-input evidence. Shared write capabilities remain unavailable.
 Exact remaining dependencies: genuinely unclaimed original-capture expiry;
 complete pending comment identities/full writing/commit and a dedicated native
 existing-review submission owner; a supported existing-draft body/submission race
-condition or explicit safe product policy; supported D5 head/body/visibility policy
+condition or explicit safe product policy; supported T11 mutation head/body/visibility policy
 and actual races; fresh scoped owner-authorized current provider grant/permission/
 event/notification and shared UI/installed evidence. Closure needs the actual
 admitted operation, immutable saved scope/intent, causal receipt and normal readback,

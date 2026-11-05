@@ -27234,7 +27234,7 @@ Other issue/branch/PR/review/thread/merge operations remain unfinished.
 Node addressing pins the logical subject; it does not create an atomic
 repository/lock revision precondition that `AddCommentInput` does not expose.
 The permitted/refused issue-transfer and lock-change policy, and evidence for
-any stronger D5 selected-resource guarantee, remain open in the security handoff.
+any stronger T11 selected-resource guarantee, remain open in the security handoff.
 No full D1/D2/D3/D5, credential custody/root absence, installed peer/window/IPC
 admission, native executor/isolation/retirement/settlement, finite provider run,
 release/freshness/upgrade or whole-product gate is closed by this checkpoint.
@@ -28594,7 +28594,7 @@ REST's mutable removal selector has **no atomic immutable-target precondition**.
 Preflight and post-reply login/slug checks detect observable changes; they cannot
 exclude an unseen rename/reuse between those observations. The traversal likewise
 is not an atomic point-in-time snapshot or conversation/repository CAS. These
-limits are explicit in source/receipt and remain D5/product-policy blockers; this
+limits are explicit in source/receipt and remain T11 product-policy blockers; this
 component does not qualify stronger binding or concurrent preservation guarantees.
 
 Provider contracts were checked against the official
@@ -28700,7 +28700,7 @@ and existing canonical target binding are now composed; ordinary target
 observation-to-registry mapping, shared selection/readback, actual eligibility/
 permission, captured expiration and fresh scoped owner-authorized provider/shared
 WebKit/installed checks remain pending. Mutable removal/name reuse and concurrent
-membership require the supported D5 policy/invariant and actual evidence recorded
+membership require the supported T11 mutation policy/invariant and actual evidence recorded
 above; no atomic binding or snapshot was proved. Original thread context, other
 T11 operations, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
 isolation/execution/retirement/settlement and release/upgrade/freshness remain open.
@@ -28959,7 +28959,7 @@ Current official [creation input](https://docs.github.com/en/graphql/reference/p
 lists repository Node IDs and branch names, with no expected-tip condition. The
 [reference contract](https://docs.github.com/en/graphql/reference/git#ref) supports
 the observed identity/prefix/target checks. These documented shapes do not prove
-live compatibility or atomic protection. Supported D5 policy/invariants and real
+live compatibility or atomic protection. Supported T11 mutation policy/invariants and real
 evidence remain required; preflight/readback alone cannot establish CAS.
 
 The bounded current-branch producer prerequisite is resolved in source. Next:
@@ -29047,7 +29047,7 @@ Go preparation/writer and destination/normal readback using schema 88. Exact-rou
 native/product writing envelopes, original captured expiration, journal replay/
 cancel/races/withdrawal/replacement/restart and maximum-envelope composition still
 need evidence. Actual provider scope/permission/maintainer behavior and informed
-shared UI, supported D5 policy for non-atomic tip/repository/visibility conditions,
+shared UI, supported T11 mutation policy for non-atomic tip/repository/visibility conditions,
 and fresh scoped owner-authorized provider/shared WebKit/installed checks remain
 pending. No Go consumer or shared capability was activated; shared writes remain
 unavailable. T11-WRITES, reviewer/thread constraints, other effects, D1/D2/D3/D5,
@@ -29145,7 +29145,7 @@ Actual expiration of an unclaimed original capture remains unverified; an
 Current live GitHub schema/grant/permission/fork/maintainer acceptance/refusal,
 informed shared UI and actual provider/WebKit/installed journeys still need fresh,
 scoped owner-authorized evidence. Preflight and causal reply do not provide the
-expected-tip condition absent from the provider input; supported D5 policy and
+expected-tip condition absent from the provider input; supported T11 mutation policy and
 actual tip/repository/visibility race evidence remain open. Shared write
 capabilities stay unavailable. T11-WRITES is Active for remaining review/branch/
 merge behavior and provider evidence; T07-EDIT/T08 retain their recorded
@@ -29286,7 +29286,7 @@ addresses an existing review. The
 [body update input](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestreviewinput)
 lists no expected-state/body condition. A pending preflight cannot establish that
 a later body update remains draft-only if another client submits it meanwhile.
-No supported D5 policy, provider condition or race fix was inferred from this
+No supported T11 mutation policy, provider condition or race fix was inferred from this
 research. Exact remaining dependency and closure evidence are in the security
 handoff. T11-WRITES and all previously recorded broad/provider/execution/
 distribution gates remain open; no Daybreak work or full product was completed.
@@ -29360,7 +29360,7 @@ Original unclaimed expiration remains a separate check. Existing pending-review
 submission needs exact pending identity, writing/commit and comment preservation;
 the current preparation records comment count, not complete comment identities.
 A count alone cannot prove those identities unchanged. Existing draft-body updates
-retain the documented concurrent-submission constraint. Supported D5 head/body/
+retain the documented concurrent-submission constraint. Supported T11 mutation head/body/
 visibility policy and fresh specifically scoped owner-authorized provider/shared
 UI/installed evidence remain pending. T11-WRITES stays Active; other review/branch/
 merge operations, reviewer/thread constraints, D1/D2/D3/D5, custody/root absence/
@@ -29445,10 +29445,25 @@ short whole-call deadlines do not prove it. Existing pending submission still
 needs complete comment identity/writing/commit preservation and a dedicated exact
 review owner. Existing-draft body editing retains its concurrent-submission
 constraint. Actual current schema/grant/permission/event/notification behavior,
-supported D5 head/body/visibility policy and fresh scoped owner-authorized provider/
+supported T11 mutation head/body/visibility policy and fresh scoped owner-authorized provider/
 shared UI/installed journeys remain pending. Shared write capabilities remain
 unavailable. T11-WRITES stays Active for those requirements and remaining review/
 branch/merge behavior. T07-EDIT/T08 retain their predecessors. Reviewer/thread/PR
 constraints, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
 isolation/execution/retirement/settlement and release/upgrade/freshness retain
 recorded blockers. No broad gate, Daybreak work or whole product is complete.
+
+### Decision-label correction: D5 versus T11 mutation limits (2026-11-05)
+
+The defining decision table in `ideal-filetree-plan.md` assigns D5 specifically
+to Fountain extension admission for issue-only collaborators and full native
+visibility parity. D1 concerns standing GitHub automation, D2 Fountain desktop
+enrollment/revocation, D3 native isolated execution and D4 artifact/diff selection.
+Earlier T11 checkpoint wording incorrectly attached D5 to GitHub provider target/
+head/body/transfer/name-binding races. Those labels are corrected in this plan and
+the handoff. The concrete API limits, evidence and unsupported atomicity claims
+remain recorded under their T11 operations; no verified result or canonical D5
+finish condition changed. They do not create a general stop on independent
+connector, read/write UI or product implementation. Routine security engineering
+remains normal queue work under AGENTS.md; Daybreak is only user-started for work
+that looks like hacking. No gate or product completion is inferred.
