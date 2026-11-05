@@ -972,7 +972,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
         assert(!/device_code|access_token|refresh_token/.test(JSON.stringify(first)),'prompt leaked a secret field');
         let refused=false;try{await invoke('github_sign_in');}catch{refused=true;}assert(refused,'duplicate native sign-in replaced the active attempt');
         refused=false;try{await invoke('plugin:opener|open_url',{url:'file:///etc/passwd'});}catch{refused=true;}assert(refused,'generic browser opener authority admitted');
-        document.querySelector('#github-open').click();await control('signin-browser-opened');
+        if(!consent){document.querySelector('#github-open').click();if(!live)await control('signin-browser-opened');}
         await report('signin-close-secondary');assert((await view()).phase==='waiting','closing another window cancelled owner sign-in');
         if(!live)await control('signin-entered');
         if(consent){
@@ -981,7 +981,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
           for(;;){
             document.querySelector('#refresh').click();const s=await view();
             if(s.phase==='complete')break;
-            assert(s.phase!=='failed'&&s.phase!=='cancelled'&&s.phase!=='idle','approved native sign-in failed');
+            assert(s.phase!=='failed'&&s.phase!=='cancelled'&&s.phase!=='idle','approved native sign-in failed: '+String(s.error));
             assert(Date.now()<deadline,'browser consent deadline');
             await new Promise(r=>setTimeout(r,250));
           }

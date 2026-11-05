@@ -25370,7 +25370,7 @@ T06-CONNECT controlled pre-consent WebKit checkpoint (2026-11-05): an opt-in
 `--check-preconsent` observer kept the real headless Tauri/WebKit shared UI,
 two windows and private PostgreSQL/Go backend responsive for 20 seconds,
 then exited zero through Quit. It did not initiate OAuth. The retained ignored
-`.artifacts/preconsent-20261105.log` has SHA-256
+`/home/vince/tmp/factory-evidence-20261105/preconsent-20261105.log` has SHA-256
 `86f290d6d1747962baeca7c6033f8bc491ac41542a64d3bb54064f74dff705d4`.
 The source base was `c3ce1ab0c6d453d4321b89cc3793df66d5e06491` plus
 this observer; its scratch desktop ELF was SHA-256
@@ -25381,3 +25381,24 @@ The former `connected-ui-v2`/`ui-v4` crash artifacts remain unavailable and
 their failure remains undiagnosed. A fresh observed connected challenge,
 consent, account binding, authenticated reads and IPC retirement still need
 evidence before T06-CONNECT can close; it remains Active.
+
+T06-CONNECT approved consent/storage diagnostic (2026-11-05): after the
+controlled pre-consent pass, the first real device check reached the shared
+WebKit sign-in UI but stopped at an observer bug that expected a fake-browser
+marker. The corrected observer published a fresh code; the user approved it,
+and the app reported a generic sign-in failure without storing an account.
+Another fresh diagnostic run ended without a result or exit marker after
+Xwayland window errors; no fresh host coredump or user-journal entry was found.
+The next run omitted the extra Chrome window in the headless display and
+retained the app's safe failure reason. The user approved its code; the native
+client reached account storage, but the disposable desktop keyring refused
+the save and the run exited 1. The retained log is
+`/home/vince/tmp/factory-evidence-20261105/consent-20261105-d.log`, SHA-256
+`f8b4965a9221b3f5825924154cae0a66768e681d4f91d72e87fb73209b22f111`.
+The isolated data root had no default `login.keyring`. A separate new
+dummy-only Secret Service probe passed storage after explicit keyring unlock,
+so the next fixture must initialize and verify its private default collection
+before any new challenge. This does not prove actual OAuth grant persistence,
+authenticated reads, connected product IPC or historical crash diagnosis.
+The user is unavailable for another consent step for four to six hours;
+continue independent slices. T06-CONNECT remains Active.
