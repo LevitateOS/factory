@@ -19,6 +19,8 @@ var errNativeReadScope = errors.New("native collaboration resource outside scope
 // These are decoded, credential-free native facts. Rust owns the defining
 // provider selectors and provider decoding. Go owns canonical IDs/projection.
 type nativeRead struct {
+	Name           string  `json:"name,omitempty"`
+	Commit         string  `json:"commit,omitempty"`
 	HeadRepository string  `json:"head_repository,omitempty"`
 	BaseBranch     string  `json:"base_branch,omitempty"`
 	HeadBranch     string  `json:"head_branch,omitempty"`
@@ -161,7 +163,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if count != 1 {
 		return NativeIdentity{}, errNativeRead
 	}
-	expected := map[string]json.RawMessage{"pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
+	expected := map[string]json.RawMessage{"branch_creation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
 		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead

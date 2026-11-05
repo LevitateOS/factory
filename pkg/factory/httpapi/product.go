@@ -43,6 +43,7 @@ type Product struct {
 	HumanMerges         HumanMerges
 	HumanEdits          HumanEdits
 	HumanIssueCreates   HumanIssueCreates
+	HumanBranchCreates  HumanBranchCreates
 	HumanPullCreates    HumanPullCreates
 	RepositoryCatalog   CollaborationRepositories
 	CapabilityReads     CollaborationCapabilities
@@ -110,6 +111,8 @@ func (s Product) Handler() http.Handler {
 	pullCreates.Host, pullCreates.Actor, pullCreates.Current = s.Host, s.Actor, current
 	creates := s.HumanIssueCreates
 	creates.Host, creates.Actor, creates.Current = s.Host, s.Actor, current
+	branchCreates := s.HumanBranchCreates
+	branchCreates.Host, branchCreates.Actor, branchCreates.Current = s.Host, s.Actor, current
 	guard := func(handler http.Handler, stores ...*store.Store) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !current(w, r) {
@@ -164,6 +167,11 @@ func (s Product) Handler() http.Handler {
 	mux.Handle("GET "+pullCreateCommand, guard(pullCreates.Handler(), pullCreates.Service.Store))
 	mux.Handle("POST "+pullCreateCommand+"/cancel", guard(pullCreates.Handler(), pullCreates.Service.Store))
 	createBase := "/api/factory/collaboration/repositories/{repository}/issues"
+	branchCreateBase := "/api/factory/collaboration/repositories/{repository}/branches"
+	branchCreateCommand := "/api/factory/collaboration/repositories/{repository}/branch-creation/commands/{command}"
+	mux.Handle("POST "+branchCreateBase, guard(branchCreates.Handler(), branchCreates.Service.Store))
+	mux.Handle("GET "+branchCreateCommand, guard(branchCreates.Handler(), branchCreates.Service.Store))
+	mux.Handle("POST "+branchCreateCommand+"/cancel", guard(branchCreates.Handler(), branchCreates.Service.Store))
 	createCommand := "/api/factory/collaboration/repositories/{repository}/issue-creation/commands/{command}"
 	mux.Handle("POST "+createBase, guard(creates.Handler(), creates.Service.Store))
 	mux.Handle("GET "+createCommand, guard(creates.Handler(), creates.Service.Store))

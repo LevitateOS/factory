@@ -30104,3 +30104,122 @@ and fresh owner-authorized real provider/rule/permission evidence. Native commit
 availability is not candidate execution or permission to publish another input.
 All other T11 work and canonical/broad gates remain open; T11-WRITES and the full
 product are unfinished. No Daybreak work ran or was marked complete.
+
+### T11-WRITES checkpoint: composed native human branch product path (2026-11-06)
+
+`service/human_branch_creates.go`, `httpapi/human_branch_creates.go`,
+`httpapi/product.go`, `runtime/native_product_branch_creates.go`, native product
+binding/observation decoding and Rust `collaboration.rs` now compose canonical
+human branch creation with the schema-90 journal and defining Rust provider.
+POST `/api/factory/collaboration/repositories/{repository}/branches` accepts only
+command ID, literal name and immutable commit. Lookup/cancel use the saved
+command under its original host/actor/repository scope and accept no preparation
+or replacement name/commit. These bodies remain within an 8 KiB HTTP bound;
+the fixed native effect retains the ordinary 8 KiB descriptor bound. The large
+Markdown mutation allowance was not extended to branches.
+
+Preparation reads the current numeric/Node repository and exact branch/commit
+facts, refuses an existing branch, maps canonical identity and captures the
+original five-minute deadline. Submission re-admits current namespace/account,
+commits the shared one-shot reservation, calls only the fixed native branch
+effect, and validates its echoed connection/repository/command/digest and bounded
+causal ref/commit receipt. Failed/lost/malformed replies retain uncertainty and
+cannot regain send ownership. A later matching current ref cannot attribute
+the earlier command. Valid no-send and causal primary receipts settle through
+the existing journal reducer; cancellation uncertainty survives late evidence.
+
+The response exposes a `GitRef` only after authenticating a committed receipt
+and a fresh bounded native read of the same repository/name/ref Node identity.
+Its commit describes the **current destination tip**, which can differ from the
+immutable creation commit retained privately in the command/receipt. Hidden or
+replaced destination identity yields a null reference without erasing commitment
+or causing a second creation. Raw preparation/receipt evidence stays private.
+No standing automation, executor or shared write capability was activated.
+
+The existing native executable gained
+`--github-branch-product-declared BACKEND PG_PAYLOAD READ_ONLY_HELPER FRESH_PROFILE`.
+Actual Rust custody/supervisor, Go HTTP/service and native PostgreSQL passed 14
+cases with ten dummy mutation attempts under
+`/home/vince/tmp/factory-branch-product-1106/attempt1/`. The owned no-forwarding
+provider retains branches by repository/name across this journey. Exact names,
+Unicode, maximum escaped name, nested literal refs and SHA-256 commit intent;
+same-command replay/lookup/cancel/conflict; a new command targeting an existing
+branch; simultaneous identical commands; null/invalid/extra fields, HTTP bounds
+and other-repository refusal; hidden/replaced/advanced/restored destinations;
+lost reply followed by native current readback without journal attribution;
+late committed and known no-send primary after cancellation; in-flight account
+withdrawal/replacement and actual stop/restart; retained committed/uncertain
+commands; and other-account refusal passed. The read-only helper compared full
+durable command/outcome bytes after replay/cancel/destination changes and restart.
+It inserts or changes no journal rows. Successful final withdrawal left owned
+custody empty and the supervisor stopped.
+
+| Artifact under `/home/vince/tmp/factory-branch-product-1106/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `630a712515f3c26c169e187ffff23db877f7d62ba20f7843c136ff05de08c1b8` |
+| `provider` | `20b3be472d749e5eba01089c43bf468304b2a2ade81d0393103ef2fbb16c449a` |
+| `helper.go` | `a52612dbbceabab6350c973f07a5aff1c0b4b329c6e41c6ea8e38959523df991` |
+| `helper` | `f232843f7e6c23f75b7652537c83ff50b8fc98d00d24dbbbe4e29b97d8cb6d55` |
+| `server` | `d0e998d3a68b8b3e1f8b9959b7eee7bfbda3fed573589a48b20f49ba80a150bd` |
+| `check-bin` | `7ce840c45243118588c052bffd24652c9d297331111e4920a8c1c5adfa6cecdc` |
+| `run.sh` | `75fea634d01b008dbcfa16ff895871cf25bae8728d5f9cfeb88b334de0d7d4f9` |
+| `session.sh` | `9ae342bfc1c371030df90eb25bbb5aff1627d511f7cfc5ae49fc3c2c0454b7f3` |
+| `attempt1/result.log` | `92de610661b8b6c85e9ba5ae3854d505325f7f73754ba221e138b7caf68cfeb5` |
+| `attempt1/branch-product-result.json` | `05018a0685d757ae7476c80baf40088a3b508a069a8d02a892cf0cd24b49c665` |
+
+Go production server, locked/offline native executable and desktop-feature builds,
+ownership boundaries and whitespace checks passed. No dependency, unit-test root
+or Rust test module was added. Fixture setup initially stopped on an exact source
+edit match; that occurred before its files/provider run and was corrected without
+changing production checks. No real GitHub grant/write/notification was used.
+This is composed declared product evidence, not live permission/rules/object
+association, longest combined identity receipt bounds, fresh dependencies or
+shared UI/installed qualification. Original branch capture expiry is checked in
+the separate record below; this 14-case run itself does not qualify it.
+
+Inline/draft/merge and remaining T11 product conditions still require their own
+slices, then specifically authorized actual-provider and shared UI/installed
+journeys. Historical sign-ins/dummy approvals do not authorize real writes.
+All actual canonical/broad gates remain open, the shared write capability remains
+unavailable, and T11-WRITES/the full product remain unfinished. No Daybreak work
+ran or was marked complete.
+
+### T11-WRITES checkpoint: original human branch capture expiration (2026-11-06)
+
+The existing native executable gained
+`--github-branch-expiry-product-declared BACKEND PG_PAYLOAD HELPER FRESH_PROFILE`.
+Its separate owned PostgreSQL first-outcome delay fixture left a real product
+branch capture unclaimed after the initial request timed out and rolled back
+that outcome transaction. The helper checked the actual version-1 account/name/
+commit preparation and its original five-minute deadline against capture creation,
+then removed the delay trigger/function. It did not insert/replace a capture,
+change a deadline, or seed a provider observation.
+
+Under `/home/vince/tmp/factory-branch-product-1106/ex1/`, the observer waited
+**286 real seconds** until the saved original deadline plus one. Exact replay
+returned 403. SQL identity, scope, principal, digest, payload/preparation, created
+time and original deadline remained identical; the dispatch stayed unclaimed.
+Preparation query count stayed unchanged and zero mutations occurred. Lookup
+invented no effect. Local unclaimed cancellation completed as known no-effect/
+cancelled, followed by owned account withdrawal and clean supervisor stop.
+This closes this branch consumer's original-expiry evidence only.
+
+| Artifact under `/home/vince/tmp/factory-branch-product-1106/` | SHA-256 |
+| --- | --- |
+| `expiry-check-bin` | `35459e1a82b7834de5929fd858113c67b6a445d65bfb30a50984d305a806ef20` |
+| `expiry-provider.go` | `7803ac32b15eda0c18c8ae28c924987a4a8907b1f036cf5ba591cf4c2273b842` |
+| `expiry-provider` | `d2084538906dc73a5b4aefda429c93bda309e65bbd099982669840a6351fc682` |
+| `expiry-helper.go` | `beba87a5d37855c6a497953fed2f8f9690e56871a4da49e464c2e97e0252d4fa` |
+| `expiry-helper` | `57235898d589b491651ba9bd87d1cf3623ab264f1a1120c974de582c5ccc8c27` |
+| `expiry-run.sh` | `4e969c1de823e9c1cdcd5ea937025491b71fa16bc007ba8f39812986b209d9cf` |
+| `expiry-session.sh` | `ffb1756a756e9ea8dc0ff2c3dd11fafe0aa5b6060156a8ec229129f08ce2dc3c` |
+| `ex1/result.log` | `fc29f6e77f7bd8d64144622336dcc63eaee181a2503971ec3a957513f3e90192` |
+| `ex1/branch-expiry-result.json` | `f7ca6282961146c97fee2f4bfd05c9e9e6187b116422c75f01cb269a27816afb` |
+
+The exact Go server is in the preceding product table. The separate expiry peer
+adds only the preparation query counter; the original product peer/observer and
+evidence remain retained. The expiry observer adds no production implementation.
+These are dummy-only native/Go/PG observations with historical cached inputs,
+not actual GitHub, freshness, shared UI, installed or broad gate qualification.
+Combined identity bounds, other writers' expiry and all other dependencies in the
+preceding checkpoint remain independent and unfinished. No Daybreak work ran.

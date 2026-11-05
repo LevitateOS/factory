@@ -307,6 +307,518 @@ pub(super) async fn branch_creation(profile: &Path) -> Result<()> {
     Ok(())
 }
 
+pub(super) async fn branch_product(
+    production: &Path,
+    payload: &Path,
+    helper: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        github_provider::Read,
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{os::unix::fs::PermissionsExt, process::Command, sync::Arc};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let mode = |name: &str| -> Result<()> {
+        for marker in ["entered", "release", "cancelled"] {
+            match fs::remove_file(io.join(marker)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let journal = |id: &str, stage: &str| -> Result<()> {
+        ensure(
+            Command::new(helper)
+                .arg(profile)
+                .arg(id)
+                .arg(stage)
+                .status()?
+                .success(),
+            "owned branch journal comparison failed",
+        )
+    };
+    let uncertain = |r: &(u16, serde_json::Value)| -> Result<()> {
+        ensure(
+            matches!(r.0, 200 | 202)
+                && r.1["effect"] == "indeterminate"
+                && r.1["finished"] == false
+                && r.1["branch"].is_null(),
+            "uncertain branch became attributable",
+        )
+    };
+    mode("positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "branch product requires empty owned custody",
+    )?;
+    let account = || {
+        Account::new(Provider::Github, "https://github.com", "321")
+            .and_then(|a| a.with_label("declared-writer"))
+    };
+    let token = || Token::new(b"factory-declared-branch-create".to_vec());
+    let mut connection = store.store(account()?, token()?).await?.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "branch canonical catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repo absent")?
+        .to_owned();
+    let submit = format!("/api/factory/collaboration/repositories/{repository}/branches");
+    let command = |id: &str| {
+        format!(
+            "/api/factory/collaboration/repositories/{repository}/branch-creation/commands/{id}"
+        )
+    };
+    let envelope = |id: &str, name: &str, oid: &str| -> Result<Vec<u8>> {
+        let q: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":submit,"body":{"command_id":id,"name":name,"commit":oid}}),
+        )?;
+        Ok(q.request()?.2)
+    };
+    let oid = "b".repeat(40);
+    let mut cases = Vec::new();
+    for (i, (name, commit)) in [
+        ("topic/new".to_owned(), oid.clone()),
+        ("topic/π/茶".into(), oid.clone()),
+        ("&".repeat(501), oid.clone()),
+        ("refs/tags/literal-branch".into(), "a".repeat(64)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("{:032x}", 100 + i);
+        let bytes = envelope(&id, &name, &commit)?;
+        let before = writes()?;
+        let r = call(&runtime, &store, &connection, "POST", &submit, &bytes).await?;
+        completed(&r, "committed")?;
+        ensure(
+            r.1["branch"]["repository"]["id"] == repository
+                && r.1["branch"]["name"] == name
+                && r.1["branch"]["commit"] == commit,
+            "branch creation lost exact canonical destination",
+        )?;
+        journal(&id, "capture")?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(&id)),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        journal(&id, "verify")?;
+        let conflict = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &envelope(&id, &format!("{name}x"), &commit)?,
+        )
+        .await?;
+        ensure(
+            conflict.0 == 409 || conflict.0 == 400,
+            "changed branch intent adopted",
+        )?;
+        ensure(
+            writes()? == before + 1,
+            "branch replay/lookup/cancel repeated creation",
+        )?;
+        cases.push(format!("positive-{i}"));
+    }
+    let before = writes()?;
+    let exists = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &submit,
+        &envelope("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "topic/new", &oid)?,
+    )
+    .await?;
+    ensure(
+        exists.0 == 409 && writes()? == before,
+        "new command adopted existing branch",
+    )?;
+    cases.push("existing-branch-conflict".into());
+    let id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let bytes = envelope(id, "topic/concurrent", &oid)?;
+    let before = writes()?;
+    let (a, b) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &bytes),
+        call(&runtime, &store, &connection, "POST", &submit, &bytes)
+    );
+    for r in [a?, b?] {
+        if r.1["finished"] == true {
+            completed(&r, "committed")?
+        } else {
+            uncertain(&r)?
+        }
+    }
+    completed(
+        &call(&runtime, &store, &connection, "GET", &command(id), &[]).await?,
+        "committed",
+    )?;
+    ensure(
+        writes()? == before + 1,
+        "concurrent branch command duplicated creation",
+    )?;
+    cases.push("concurrent".into());
+    for body in [
+        json!({"command_id":"cccccccccccccccccccccccccccccccc","name":null,"commit":oid}),
+        json!({"command_id":"cccccccccccccccccccccccccccccccc","name":"valid","commit":null}),
+        json!({"command_id":"cccccccccccccccccccccccccccccccc","name":"bad..name","commit":oid}),
+        json!({"command_id":"cccccccccccccccccccccccccccccccc","name":"valid","commit":oid,"provider_intent":{}}),
+    ] {
+        let r = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &serde_json::to_vec(&body)?,
+        )
+        .await?;
+        ensure(
+            r.0 == 400 && writes()? == before + 1,
+            "invalid branch input reached provider",
+        )?;
+    }
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &submit,
+        &vec![b' '; 8193],
+    )
+    .await?;
+    ensure(r.0 == 413, "branch HTTP envelope exceeded ordinary bound")?;
+    let wrong = repository.parse::<i64>()? + 1;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &format!("/api/factory/collaboration/repositories/{wrong}/branches"),
+        &envelope("cccccccccccccccccccccccccccccccc", "topic/wrong-repo", &oid)?,
+    )
+    .await?;
+    ensure(
+        r.0 == 403 && writes()? == before + 1,
+        "branch scope expanded",
+    )?;
+    cases.push("input-and-scope-refusal".into());
+    mode("hide-created")?;
+    let hidden_id = "dddddddddddddddddddddddddddddddd";
+    let hidden = envelope(hidden_id, "topic/hidden", &oid)?;
+    let before = writes()?;
+    let r = call(&runtime, &store, &connection, "POST", &submit, &hidden).await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["branch"].is_null(),
+        "hidden destination became readable",
+    )?;
+    journal(hidden_id, "capture")?;
+    mode("replace-destination")?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &command(hidden_id),
+        &[],
+    )
+    .await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["branch"].is_null(),
+        "different ref identity was adopted",
+    )?;
+    journal(hidden_id, "verify")?;
+    mode("advance-destination")?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &command(hidden_id),
+        &[],
+    )
+    .await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["branch"]["commit"] == "c".repeat(40),
+        "current branch tip was replaced by historical creation commit",
+    )?;
+    journal(hidden_id, "verify")?;
+    mode("positive")?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &command(hidden_id),
+        &[],
+    )
+    .await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["branch"]["commit"] == oid && writes()? == before + 1,
+        "destination recovery repeated creation",
+    )?;
+    cases.push("known-primary-destination-changes".into());
+    mode("drop-reply")?;
+    let lost_id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let lost = envelope(lost_id, "topic/lost", &oid)?;
+    let before = writes()?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    mode("positive")?;
+    let mut read_owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let read = read_owner
+        .client()
+        .observe(
+            token()?,
+            "321",
+            &Read::BranchCreation {
+                repository: "123".into(),
+                name: "topic/lost".into(),
+                commit: oid.clone(),
+            },
+        )
+        .await
+        .map_err(|_| "lost branch normal native read failed")?;
+    ensure(
+        read["preparation"]["branch"]["commit"] == oid,
+        "lost branch is not currently observable",
+    )?;
+    read_owner.stop()?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "matching branch attributed a lost reply or resent",
+    )?;
+    cases.push("lost-reply-no-attribution".into());
+    for (name, id, effect) in [
+        (
+            "pause-post",
+            "11111111111111111111111111111111",
+            "committed",
+        ),
+        (
+            "pause-preflight",
+            "22222222222222222222222222222222",
+            "not_committed",
+        ),
+    ] {
+        mode(name)?;
+        let bytes = envelope(id, &format!("topic/{name}"), &oid)?;
+        let before = writes()?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &bytes);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(id)),
+            b"{}",
+        )
+        .await?;
+        uncertain(&cancelled)?;
+        ensure(
+            cancelled.1["cancellation"] == "indeterminate",
+            "cancel fabricated an acknowledgment",
+        )?;
+        fs::write(io.join("release"), b"")?;
+        let reply = pending.await?;
+        let r = (reply.status, serde_json::from_slice(&reply.body)?);
+        completed(&r, effect)?;
+        ensure(
+            r.1["cancellation"] == "indeterminate"
+                && writes()? == before + u64::from(effect == "committed"),
+            "late causal primary/no-effect lost or duplicated",
+        )?;
+        journal(id, "capture")?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(id), &[]).await?,
+            effect,
+        )?;
+        journal(id, "verify")?;
+        cases.push(name.into());
+    }
+    mode("pause-post")?;
+    let withdrawn_id = "33333333333333333333333333333333";
+    let withdrawn = envelope(withdrawn_id, "topic/withdrawn", &oid)?;
+    let before = writes()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &withdrawn);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    store.withdraw(&connection).await?;
+    connection = store.store(account()?, token()?).await?.connection;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        pending.await.is_err(),
+        "replaced custody delivered old branch reply",
+    )?;
+    mode("positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(withdrawn_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &withdrawn).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "reconsent replayed ambiguous branch creation",
+    )?;
+    cases.push("withdrawal-replacement".into());
+    mode("pause-post")?;
+    let stopped_id = "44444444444444444444444444444444";
+    let stopped = envelope(stopped_id, "topic/stopped", &oid)?;
+    let before = writes()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &stopped);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        pending.await.is_err(),
+        "stopped runtime delivered an old branch reply",
+    )?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    mode("positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(stopped_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &stopped).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    for i in 0..4 {
+        let id = format!("{:032x}", 100 + i);
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        journal(&id, "verify")?;
+    }
+    ensure(writes()? == before + 1, "restart replayed branch creation")?;
+    cases.push("retained-restart".into());
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?
+                .with_label("declared-other")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    let before = writes()?;
+    let r = call(
+        &runtime,
+        &store,
+        &other.connection,
+        "GET",
+        &command(lost_id),
+        &[],
+    )
+    .await?;
+    ensure(r.0 == 404, "other account read captured branch")?;
+    let r = call(&runtime, &store, &other.connection, "POST", &submit, &lost).await?;
+    ensure(
+        r.0 == 409 && writes()? == before,
+        "other account adopted or resent branch",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account-refusal".into());
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "branch product fixture saw unexpected provider request",
+    )?;
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "branch product left owned grants",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("branch-product-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"provider_mutations":writes()?,"native_go_postgresql":true,"immutable_journal_proved":true,"actual_provider":false,"capabilities_enabled":false,"original_expiry_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: composed native branch creation retains exact intent, causal identity, current destination, immutable journal, one-shot replay, loss/cancel/custody/restart; dummy-only provider");
+    Ok(())
+}
+
 pub(super) async fn producer(profile: &Path) -> Result<()> {
     prepare(profile)?;
     let root = profile.parent().ok_or("fixture parent absent")?;
@@ -1604,5 +2116,145 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?,
     )?;
     println!("PASS: composed native/Rust/Go/PG pull creation retains exact writing, causal identity, readable destination, one-shot replay, ambiguous replies, cancel races, withdrawal, other-account refusal and restart; dummy-only provider, no actual GitHub or installed gate qualification");
+    Ok(())
+}
+
+// Original-expiry observer uses the existing disposable SQL delay fixture.
+pub(super) async fn branch_expiry(
+    production: &Path,
+    payload: &Path,
+    helper: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{
+        process::Command,
+        sync::Arc,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::write(io.join("mode"), "expiry")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "expiry requires empty owned custody",
+    )?;
+    let connection = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "321")?,
+            Token::new(b"factory-declared-branch-create".to_vec())?,
+        )
+        .await?
+        .connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "expiry catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("expiry canonical repository absent")?;
+    let submit = format!("/api/factory/collaboration/repositories/{repository}/branches");
+    let id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let command = format!(
+        "/api/factory/collaboration/repositories/{repository}/branch-creation/commands/{id}"
+    );
+    let q: ProductRequest = serde_json::from_value(
+        json!({"kind":"write","path":submit,"body":{"command_id":id,"name":"topic/expiry","commit":"b".repeat(40)}}),
+    )?;
+    let body = q.request()?.2;
+    let run_helper = async |action: &str| -> Result<()> {
+        let helper = helper.to_path_buf();
+        let profile = profile.to_path_buf();
+        let action = action.to_owned();
+        let status = tokio::task::spawn_blocking(move || {
+            Command::new(helper).arg(action).arg(profile).status()
+        })
+        .await??;
+        ensure(status.success(), "owned expiry SQL helper refused")
+    };
+    run_helper("install").await?;
+    let initial = call(&runtime, &store, &connection, "POST", &submit, &body).await;
+    ensure(
+        initial.is_err(),
+        "delayed first outcome unexpectedly completed",
+    )?;
+    run_helper("capture").await?;
+    run_helper("disarm").await?;
+    let deadline = fs::read_to_string(io.join("expiry-deadline"))?.parse::<u64>()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    ensure(
+        deadline > now && deadline - now <= 300,
+        "original expiry deadline was not captured in the future",
+    )?;
+    let queries = fs::read(io.join("queries"))?;
+    let wait = deadline.saturating_add(1).saturating_sub(now);
+    fs::write(
+        root.join("expiry-wait.json"),
+        serde_json::to_vec(
+            &json!({"original_not_after":deadline,"wait_seconds":wait,"capture_unclaimed":true,"deadline_rewritten":false}),
+        )?,
+    )?;
+    println!("original branch capture is unclaimed; waiting {wait} real seconds until its saved deadline passes");
+    tokio::time::sleep(Duration::from_secs(wait)).await;
+    let r = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
+    ensure(r.0 == 403, "expired original branch was admitted")?;
+    run_helper("verify").await?;
+    ensure(
+        fs::read(io.join("queries"))? == queries && !io.join("writes").exists(),
+        "expired capture was reprepared or reached a mutation",
+    )?;
+    let lookup = call(&runtime, &store, &connection, "GET", &command, &[]).await?;
+    ensure(
+        lookup.0 == 200 && lookup.1["finished"] == false && lookup.1["effect"].is_null(),
+        "expired unclaimed lookup invented a provider outcome",
+    )?;
+    let cancel = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &format!("{command}/cancel"),
+        b"{}",
+    )
+    .await?;
+    completed(&cancel, "not_committed")?;
+    ensure(
+        cancel.1["cancellation"] == "cancelled",
+        "expired unclaimed cancellation became uncertain",
+    )?;
+    run_helper("cancelled").await?;
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "expiry left owned account",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists() && !io.join("writes").exists(),
+        "expiry sent undeclared or mutating provider request",
+    )?;
+    fs::write(
+        root.join("branch-expiry-result.json"),
+        serde_json::to_vec(
+            &json!({"command_kind":"git.branch.create","actual_product_capture":true,"original_not_after":deadline,"waited_real_seconds":wait,"capture_unclaimed":true,"intent_deadline_unchanged":true,"no_reprepare":true,"provider_mutations":0,"expired_http_status":r.0,"local_cancellation_complete":true,"owned_account_removed":true,"native_go_postgresql":true,"real_github":false}),
+        )?,
+    )?;
+    println!("PASS: real product branch capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
     Ok(())
 }

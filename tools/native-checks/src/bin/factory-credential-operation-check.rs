@@ -1292,6 +1292,22 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 5 && args[0] == "--github-branch-expiry-product-declared" {
+            return runtime.block_on(native_github_pull_branches::branch_expiry(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+                Path::new(&args[4]),
+            ));
+        }
+        if args.len() == 5 && args[0] == "--github-branch-product-declared" {
+            return runtime.block_on(native_github_pull_branches::branch_product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+                Path::new(&args[4]),
+            ));
+        }
         if args.len() == 2 && args[0] == "--github-pull-create-declared" {
             return runtime.block_on(native_github_pull_branches::creation(Path::new(&args[1])));
         }

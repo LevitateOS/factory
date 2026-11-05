@@ -4,8 +4,8 @@
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
-    Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate, ReviewRequestChange,
+    BranchCreate, Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState,
+    Failure, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate, ReviewRequestChange,
     ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
@@ -346,6 +346,12 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    CreateBranch {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        branch: BranchCreate,
+    },
     Current,
     Read {
         query: Read,
@@ -414,6 +420,12 @@ enum Effect {
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
         match self {
+            Self::CreateBranch {
+                command_id,
+                digest,
+                not_after,
+                branch,
+            } => Some((command_id, digest, *not_after, &branch.repository)),
             Self::CreateComment {
                 command_id,
                 digest,
@@ -649,6 +661,7 @@ async fn dispatch(
         match &call.call {
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
+            Effect::CreateBranch { branch, .. } => branch.validate()?,
             Effect::CreatePull { pull, .. } => pull.validate()?,
             Effect::CreateReview { review, .. } => review.validate()?,
             Effect::SubmitPendingReview { review, .. } => review.validate()?,
@@ -685,6 +698,7 @@ async fn dispatch(
                     .await
             }
             Effect::CreateComment { .. }
+            | Effect::CreateBranch { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
             | Effect::CreateReview { .. }
@@ -773,6 +787,11 @@ async fn mutate(
         }
     } else {
         let outcome = match effect {
+            Effect::CreateBranch { branch, .. } => {
+                provider
+                    .branch_create_account(token, account, branch, Some(deadline))
+                    .await
+            }
             Effect::CreateComment { comment, .. } => {
                 provider
                     .comment_account(token, account, comment, Some(deadline))

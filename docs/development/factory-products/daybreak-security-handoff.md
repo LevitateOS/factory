@@ -3300,3 +3300,56 @@ collision and shared UI/installed evidence. No source check or SQL fixture
 qualifies real GitHub permission, a fresh/installed upgrade, candidate execution,
 D1/D2/D3/D4/D5 or the complete product. All other concrete tasks and gates remain
 open. No Daybreak work ran or was marked complete.
+
+T11-WRITES composed native branch product path (2026-11-06):
+`factory/service/human_branch_creates.go`, `httpapi/{human_branch_creates,product}.go`,
+`runtime/{native_product_branch_creates,native_product,native_product_observations}.go`
+and Rust `collaboration.rs` now compose admitted current-account branch intent,
+original five-minute preparation, schema-90 committed reservation and the fixed
+native provider effect. HTTP and native descriptors stay within ordinary 8 KiB
+bounds. Valid causal identity/commit evidence is durably retained; no reserved
+dispatch can recover ownership. Current matching branches cannot attribute a
+lost reply. Only a validated committed receipt plus a fresh same-identity read
+projects a public current destination; changed visibility/ref identity hides
+that reference while retaining primary commitment. Current tip and historical
+creation commit remain separate facts, with immutable command/receipt bytes.
+
+Actual Rust custody/supervisor, Go HTTP and native PostgreSQL passed 14 cases with
+ten dummy attempts under
+`/home/vince/tmp/factory-branch-product-1106/attempt1/branch-product-result.json`,
+SHA-256 `05018a0685d757ae7476c80baf40088a3b508a069a8d02a892cf0cd24b49c665`;
+log SHA-256 `92de610661b8b6c85e9ba5ae3854d505325f7f73754ba221e138b7caf68cfeb5`.
+Exact/max/Unicode/escaped names, immutable commits, replay/concurrency/conflict,
+input/scope refusal, hidden/replaced/advanced/restored destinations, readback
+after lost reply without attribution, late committed/no-send evidence after
+cancellation, withdrawal/replacement, stop/restart and other-account refusal
+passed. A read-only helper compared complete saved command/outcome bytes. The
+canonical plan records exact retained artifacts and the separate expiry check.
+The dummy peer never forwards, and no actual provider request or security gate
+was qualified.
+
+Remaining evidence: genuine original branch-capture expiry (separate record
+below), longest combined identity/receipt/descriptor bounds, fresh actual GitHub
+object/repository association, current grant/push permission/rule enforcement/
+name collision, followed by shared UI and installed readback/recovery. Actual
+provider checks need fresh specifically scoped owner authorization; historical
+sign-ins/dummy approvals do not authorize real branch writes. Inline/draft/merge
+work and all canonical/broad gates remain open. The shared write capability is
+unavailable; no Daybreak work ran or was marked complete.
+
+T11-WRITES original branch capture expiry (2026-11-06): the existing native
+observer's separate PostgreSQL first-outcome delay left a real product capture
+unclaimed without changing its command, version-1 preparation or original
+five-minute deadline. After **286 real seconds** to that saved deadline plus one,
+exact replay returned 403. Actual SQL intent/deadline bytes stayed identical,
+there was no new preparation query or mutation, lookup invented no effect, and
+local unclaimed cancellation completed as known no-effect/cancelled. The owned
+delay trigger/function were removed; account withdrawal and clean stop passed.
+Evidence: `/home/vince/tmp/factory-branch-product-1106/ex1/branch-expiry-result.json`,
+SHA-256 `f7ca6282961146c97fee2f4bfd05c9e9e6187b116422c75f01cb269a27816afb`;
+log SHA-256 `fc29f6e77f7bd8d64144622336dcc63eaee181a2503971ec3a957513f3e90192`.
+The plan records the exact separate observer/peer/helper/runners and unchanged
+production server. This closes original-expiry evidence for this branch consumer
+only. Actual GitHub permission/rules, combined bounds, shared UI, installed/
+freshness and all other concrete gates/dependencies above remain open. No
+Daybreak work was completed.
