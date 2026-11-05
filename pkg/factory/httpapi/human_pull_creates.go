@@ -21,7 +21,11 @@ const HumanPullCreateRequestLimit = 512 << 10
 
 func IsHumanPullCreateSubmission(r *http.Request) bool {
 	p := strings.Split(r.URL.Path, "/")
-	return r.Method == http.MethodPost && len(p) == 7 && p[1] == "api" && p[2] == "factory" && p[3] == "collaboration" && p[4] == "repositories" && p[6] == "pulls"
+	if r.Method != http.MethodPost || len(p) != 7 || p[1] != "api" || p[2] != "factory" || p[3] != "collaboration" || p[4] != "repositories" || p[6] != "pulls" || r.URL.RawQuery != "" || r.URL.ForceQuery || r.URL.RawPath != "" {
+		return false
+	}
+	_, valid := positiveID(p[5])
+	return valid
 }
 
 type HumanPullCreates struct {
@@ -155,17 +159,33 @@ func (s HumanPullCreates) handle(w http.ResponseWriter, r *http.Request, action 
 		humanPullCreateHTTPError(w, factoryservice.ErrHumanPullCreateUnavailable)
 		return
 	}
-	// Receipts, provider IDs, captured preparation and original writing remain
-	// private. Refresh normal PR reads under current visibility after commit.
-	response := humanCommandResponse{CommandID: q.ID, Observation: o.State, Finished: factory.HumanPullCreateFinished(o)}
+	// Only a canonical destination checked against a fresh normal PR read is
+	// public. Failure to read it cannot erase the committed effect.
+	response := humanPullCreateResponse{humanCommandResponse: humanCommandResponse{CommandID: q.ID, Observation: o.State, Finished: factory.HumanPullCreateFinished(o)}}
 	if o.Record != nil {
 		response.Effect, response.Cancellation, response.Completion = o.Record.Effect, o.Record.Cancellation, o.Record.Completion
+		if o.Record.Effect == collaboration.EffectCommitted {
+			scope := q
+			scope.HeadRepository, scope.BaseBranch, scope.HeadBranch = 0, "", ""
+			scope.Title, scope.Body, scope.AllowMaintainerEdit = "", "", false
+			if pull, readErr := s.Service.CreatedPull(ctx, scope, o); readErr == nil {
+				response.Pull = &pull
+			}
+		}
+	}
+	if !currentAccount(w, r, s.Host, s.Actor, s.Current) {
+		return
 	}
 	status := http.StatusOK
 	if action != "lookup" && !response.Finished {
 		status = http.StatusAccepted
 	}
 	writeJSON(w, status, response)
+}
+
+type humanPullCreateResponse struct {
+	humanCommandResponse
+	Pull *collaboration.PullRef `json:"pull"`
 }
 
 func humanPullCreateHTTPError(w http.ResponseWriter, err error) {

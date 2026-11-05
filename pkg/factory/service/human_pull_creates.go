@@ -28,6 +28,12 @@ type HumanPullCreateWriter interface {
 	CancelHumanPullCreate(context.Context, factory.HumanPullCreateCapture) (collaboration.OperationRecord, error)
 }
 
+// Destination reads are optional for hosts without a causal creation receipt.
+// A current PR read cannot itself establish which command created that PR.
+type HumanPullCreateDestinationReader interface {
+	ReadCreatedHumanPull(context.Context, factory.HumanPullCreateCapture, collaboration.OperationLookup) (collaboration.PullRef, error)
+}
+
 // HumanPullCreates runs admitted human commands on the application's single store.
 // Provider evidence stays internal; HTTP owns the safe public projection.
 type HumanPullCreates struct {
@@ -80,6 +86,35 @@ func (s HumanPullCreates) CancelCommand(ctx context.Context, scope factory.Human
 		return collaboration.OperationLookup{}, err
 	}
 	return s.Cancel(ctx, q)
+}
+
+// CreatedPull checks a fresh normal read without changing the recorded effect
+// if the destination is no longer visible.
+func (s HumanPullCreates) CreatedPull(ctx context.Context, scope factory.HumanPullCreateCommand, outcome collaboration.OperationLookup) (collaboration.PullRef, error) {
+	var empty collaboration.PullRef
+	q, err := s.command(ctx, scope)
+	if err != nil {
+		return empty, err
+	}
+	c, err := s.capture(ctx, q, false)
+	if err != nil {
+		return empty, err
+	}
+	if factory.ValidateHumanPullCreateObservation(c, outcome) != nil || outcome.Record == nil || outcome.Record.Effect != collaboration.EffectCommitted {
+		return empty, ErrHumanPullCreateQuery
+	}
+	reader, ok := s.Writer.(HumanPullCreateDestinationReader)
+	if !ok {
+		return empty, ErrHumanPullCreateUnavailable
+	}
+	pull, err := reader.ReadCreatedHumanPull(ctx, c, outcome)
+	if err != nil {
+		return empty, err
+	}
+	if ctx.Err() != nil || pull.Kind != collaboration.SubjectPull || pull.Repository != q.Repository || pull.Number <= 0 || !collaboration.ValidText(pull.ExternalID, 512) {
+		return empty, ErrHumanPullCreateUnavailable
+	}
+	return pull, nil
 }
 
 func (s HumanPullCreates) capture(ctx context.Context, q factory.HumanPullCreateCommand, prepare bool) (factory.HumanPullCreateCapture, error) {

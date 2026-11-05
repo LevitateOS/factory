@@ -94,6 +94,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.CapabilityReads = factoryhttp.CollaborationCapabilities{Service: factoryservice.CollaborationCapabilities{Source: reads}}
 	product.HumanComments = factoryhttp.HumanComments{Service: application.HumanComments(nativeHumanComments{bound})}
 	product.HumanIssueCreates = factoryhttp.HumanIssueCreates{Service: application.HumanIssueCreates(nativeHumanIssueCreates{bound})}
+	product.HumanPullCreates = factoryhttp.HumanPullCreates{Service: application.HumanPullCreates(nativeHumanPullCreates{bound})}
 	product.HumanStates = factoryhttp.HumanStates{Service: application.HumanStates(nativeHumanStates{bound})}
 	product.HumanEdits = factoryhttp.HumanEdits{Service: application.HumanEdits(nativeHumanEdits{bound})}
 	product.HumanLocks = factoryhttp.HumanLocks{Service: application.HumanLocks(nativeHumanLocks{bound})}

@@ -19,19 +19,22 @@ var errNativeReadScope = errors.New("native collaboration resource outside scope
 // These are decoded, credential-free native facts. Rust owns the defining
 // provider selectors and provider decoding. Go owns canonical IDs/projection.
 type nativeRead struct {
-	Kind       string  `json:"kind"`
-	Repository string  `json:"repository"`
-	Number     uint32  `json:"number,omitempty"`
-	Page       uint32  `json:"page,omitempty"`
-	Limit      uint32  `json:"limit,omitempty"`
-	State      *string `json:"state,omitempty"`
-	Base       *string `json:"base,omitempty"`
-	Head       *string `json:"head,omitempty"`
-	ReviewID   string  `json:"review_id,omitempty"`
-	ThreadID   *string `json:"thread_id,omitempty"`
-	RunID      string  `json:"run_id,omitempty"`
-	Attempt    string  `json:"attempt,omitempty"`
-	RunPage    uint32  `json:"run_page,omitempty"`
+	HeadRepository string  `json:"head_repository,omitempty"`
+	BaseBranch     string  `json:"base_branch,omitempty"`
+	HeadBranch     string  `json:"head_branch,omitempty"`
+	Kind           string  `json:"kind"`
+	Repository     string  `json:"repository"`
+	Number         uint32  `json:"number,omitempty"`
+	Page           uint32  `json:"page,omitempty"`
+	Limit          uint32  `json:"limit,omitempty"`
+	State          *string `json:"state,omitempty"`
+	Base           *string `json:"base,omitempty"`
+	Head           *string `json:"head,omitempty"`
+	ReviewID       string  `json:"review_id,omitempty"`
+	ThreadID       *string `json:"thread_id,omitempty"`
+	RunID          string  `json:"run_id,omitempty"`
+	Attempt        string  `json:"attempt,omitempty"`
+	RunPage        uint32  `json:"run_page,omitempty"`
 }
 type nativeBranch struct {
 	Repository *collaboration.ObservedRepository `json:"repository"`
@@ -134,6 +137,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 		Jobs           json.RawMessage             `json:"jobs"`
 		Protection     json.RawMessage             `json:"protection"`
 		ReviewRequests json.RawMessage             `json:"review_requests"`
+		Branches       json.RawMessage             `json:"branches"`
 	}
 	scope, err := p.call(ctx, map[string]any{"kind": "read", "query": query}, &envelope)
 	if err != nil {
@@ -142,7 +146,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests}
+	fields := []json.RawMessage{envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.Branches}
 	var selected json.RawMessage
 	count := 0
 	for _, field := range fields {
@@ -154,7 +158,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if count != 1 {
 		return NativeIdentity{}, errNativeRead
 	}
-	expected := map[string]json.RawMessage{"issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
+	expected := map[string]json.RawMessage{"pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
 		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead

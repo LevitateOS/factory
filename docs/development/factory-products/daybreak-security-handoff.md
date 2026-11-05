@@ -2789,3 +2789,50 @@ remain unavailable. Reviewer/thread limits, other T11 effects, D1/D2/D3/D5, cust
 root absence/scoped delivery, IPC/window/instance, isolation/execution/retirement/
 settlement and release/upgrade/freshness retain recorded blockers. No broad gate
 or Daybreak work was closed.
+
+T11-WRITES journaled native PR-creation composition (2026-11-05):
+The earlier source blockers for the typed callback, explicit secondary head, Go
+preparation/writer, canonical destination and maximum-writing envelopes are now
+resolved in source. `native_product_pull_creates.go`,
+`native_product_pull_branches.go`, `native_product_observations.go`,
+`native_collaboration.go`, `native_server.go`, `collaboration.rs`,
+`product_request.rs` and shared `human_pull_creates.go` services/HTTP compose the
+schema-88 fence and fixed native creator. Canonical head references do not grant
+access; Rust freshly observes the explicit numeric head, saved pins, permission
+and network. Go preserves the original preparation/deadline and requires a
+committed one-shot reservation before calling Rust. Only a matching causal receipt
+plus a fresh exact normal PR read can project a destination. Lost replies and
+replacement generations remain unresolved without another attempt; hidden or
+changed destinations cannot erase a committed effect.
+
+Actual native custody/Go HTTP/registry/journal/PostgreSQL composition passed 22
+owned declared cases with 14 dummy mutations, maximum Unicode/control writing,
+selected branch/delegation variants, pre-send permission/network refusals,
+replay/concurrency/input conflicts, lost-reply normal readback, cancellation,
+withdrawal/replacement, retained restart and other-account refusal. The canonical
+head came from an authenticated normal PR read without a registry seed. The final
+owned dummy accounts were removed and the supervisor stopped. Evidence:
+`/home/vince/tmp/factory-pull-create-product-1105/attempt6/pull-product-result.json`,
+SHA-256 `df0441081d91b914f9d9e0fdcfb756b0ed16f52cb119c01e5db9aeb2d92de855`.
+The canonical plan records exact binaries/peer/runner hashes and all retained
+failures, including the fixed Go large-submission whitelist omission. This is a
+no-forwarding TLS fixture; no real GitHub mutation, permission or delegation was
+proved. Source/desktop/ownership builds are not installed qualification.
+
+Exact remaining creation blockers/dependencies: a genuinely unclaimed original
+capture surviving its five-minute expiry without reprepare/resend (whole-call
+8-second timeout and reserved/terminal replay do not prove it); fresh specifically
+owner-authorized GitHub schema/grant and current fork/branch/write/maintainer
+acceptance/refusal; truthful shared UI for the delegation option, including its
+workflow/secrets implications; supported D5 policy and actual tip/repository/
+visibility races despite the absent expected-tip creation condition; and fresh
+provider/shared WebKit/installed evidence. The private creator's personal-fork
+restriction and dummy option propagation are not proof of informed live grant
+scope. Closure requires the actual admitted request, captured intent and causal
+provider receipt/normal readback under current identity, plus no duplicate after
+loss/cancel/withdrawal/replacement/restart and truthful visibility retirement.
+Shared writes remain unavailable. Remaining T11 review/branch/merge operations,
+reviewer mutable-name and historical-thread-anchor constraints, D1/D2/D3/D5,
+custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
+retirement/settlement and release/upgrade/freshness retain recorded requirements.
+No broad gate or Daybreak work was closed; the product remains unfinished.

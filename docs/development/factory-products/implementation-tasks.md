@@ -29054,3 +29054,102 @@ unavailable. T11-WRITES, reviewer/thread constraints, other effects, D1/D2/D3/D5
 custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
 retirement/settlement and release/upgrade/freshness retain open requirements. No
 broad gate or Daybreak work closed; the full product remains unfinished.
+
+### T11-WRITES checkpoint: journaled native human PR creation (2026-11-05)
+
+The saved branch producer, schema-88 one-shot dispatch fence and fixed Rust
+creator now compose through the admitted product request. Go owns canonical
+host/base/head/actor resolution, immutable preparation, original five-minute
+expiration, capture-before-dispatch, reservation and outcome persistence.
+`native_product_pull_creates.go` saves exact base/head repository/owner/ref Node
+identities and tips, branch names, writing and maintainer choice. Preparation
+observes the explicitly selected head through the bounded Rust reader; canonical
+mapping updates its authenticated display facts without granting repository
+access. The defining provider owner freshly checks that exact secondary numeric
+head, saved pins, head write permission and network before attempting creation.
+No generic provider or secondary-repository authority channel was added.
+
+`collaboration.rs` admits the typed `create_pull` callback under the existing
+single-effect/current-custody owner, primary repository scope, command/digest echo
+and bounded deadline. Rust still owns the complete authenticated effect and its
+causal receipt. Go validates the bounded receipt against the saved intent. Only
+the winner of the committed schema-88 reservation can attempt a mutation; a lost
+reply, reserved capture or replacement native generation never reacquires it.
+No lookup searches matching PRs or rewrites branch pins/writing/delegation.
+
+The exact positive-repository POST `/api/factory/collaboration/repositories/{id}/pulls`
+gets the 512-KiB escaped-writing envelope in the shared native request decoder,
+Go private server and typed callback client. Ordinary lookup/cancel and other
+routes retain their existing bounds. Maximum 255-byte title and 65,536-byte
+Unicode/control bodies passed the actual composed path. A missing Go server
+whitelist entry initially rejected large submissions and was fixed before the
+successful run.
+
+The optional `HumanPullCreateDestinationReader` preserves existing host writers.
+The native implementation authenticates the causal saved receipt and then reads
+the created number through the normal PR reader, requiring the exact external
+identity, canonical base repository and number. HTTP projects only that canonical
+`pull` reference (or null), never preparation, receipt or original writing.
+Destination disappearance/replacement cannot erase a recorded committed effect;
+restoration permits a fresh reference without creating another PR. Final current
+account validation runs after the destination read.
+
+The existing native executable gained
+`--github-pull-create-product-declared BACKEND PG_PAYLOAD FRESH_PROFILE`. The real
+native custody/supervisor, current Go HTTP/service/registry/journal and owned
+PostgreSQL path passed 22 declared cases with 14 dummy mutations under
+`/home/vince/tmp/factory-pull-create-product-1105/attempt6/`. The selected canonical
+head came from an authenticated normal PR read; no head registry seed was used.
+Coverage includes exact empty/Unicode/maximum writing and readback; same-repository,
+cross-fork same-named and Unicode branches; exact personal-fork maintainer choice;
+changed saved selectors/writing/choice refusal; known read-only/head-write/network/
+no-difference refusal before sending; simultaneous identical submissions;
+other-primary scope refusal; committed but hidden/replaced/restored destination;
+a lost creation reply followed by a normally readable matching PR that remains
+unattributed; cancellation racing committed and pre-send refusal; withdrawal and
+same-account replacement; retained native/Go/PostgreSQL restart; and another
+account's lookup/adoption refusal. Seven native route-envelope assertions also
+passed. Final-run owned dummy accounts were removed and the supervisor stopped.
+
+The owned loopback TLS peer never forwards and accepts only declared requests
+with fixed dummy credentials. No actual GitHub PR, grant or maintainer delegation
+was created. Earlier failed attempts and their profiles/logs/binaries are retained:
+(1) the peer omitted the normal PR API URL; (2–3) the large-writing check exposed
+the missing Go server route; (4) the observer expected 409 where changing a
+cross-repository same-named branch into an invalid same-repository pair correctly
+returned 400; (5) the peer mixed historical/current repository names in one list
+and Go correctly rejected that contradictory snapshot. The peer now projects
+consistent current names. These fixture corrections do not weaken production
+validation. Attempt 6 passed without a production overlay.
+
+| Artifact under `/home/vince/tmp/factory-pull-create-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `4f47917b5ec8471730467865ae727a9e86a913fea3346b03ef29d1f32609dd8c` |
+| `provider` | `60ceaaf83522805df7db8ae0883bce66f0c0476bdc69d3fcb87630d8aa2254bc` |
+| `check-bin` | `6a00d9128929020648adbf3dca7330d0eb8148f01bbd42b594d43237dda67ad2` |
+| `server` | `efa307b46e3798a1fad1ab8523b581f45da2c97ca4b6b7d9a52e08c8126a49cc` |
+| `run.sh` | `a7198cf93c5c07d0cca58837938fb0d64cef413f6864d915ab4e0796939b95d9` |
+| `session.sh` | `89bad4822a4602921277b0b27a1f72c73c0a17bf5a122da9d33fd222ce6bf307` |
+| `attempt6/result.log` | `24a518cacdf946a59d44c18f491e32733034ffac1c32b24d36f31503b81e6972` |
+| `attempt6/pull-product-result.json` | `df0441081d91b914f9d9e0fdcfb756b0ed16f52cb119c01e5db9aeb2d92de855` |
+
+Go runtime/service/HTTP and native executable builds, the desktop-feature source
+build, ownership boundaries and whitespace checks passed. No unit tests, test
+roots, dependencies or competing product/provider implementation were added.
+Captured locked/offline inputs are not a fresh or installed qualification.
+
+This resolves the preceding checkpoint's source callback, secondary-head consumer,
+Go writer, destination/readback and maximum-envelope composition dependencies.
+Actual expiration of an unclaimed original capture remains unverified; an
+8-second deadline or replay of a reserved/terminal record is not that evidence.
+Current live GitHub schema/grant/permission/fork/maintainer acceptance/refusal,
+informed shared UI and actual provider/WebKit/installed journeys still need fresh,
+scoped owner-authorized evidence. Preflight and causal reply do not provide the
+expected-tip condition absent from the provider input; supported D5 policy and
+actual tip/repository/visibility race evidence remain open. Shared write
+capabilities stay unavailable. T11-WRITES is Active for remaining review/branch/
+merge behavior and provider evidence; T07-EDIT/T08 retain their recorded
+predecessors. Reviewer name-binding and historical thread-anchor limits, D1/D2/D3/
+D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
+retirement/settlement and release/upgrade/freshness remain unfinished. No broad
+gate, Daybreak work or whole product was marked complete.
