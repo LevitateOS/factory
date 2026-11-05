@@ -575,7 +575,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 179 | T06-CONNECT-PRODUCT | T06-CONNECT-PORTS | N2 producer: Compose Go current-account/canonical repository binding and shared Factory feed/request/retained-read services over the admitted native semantic ports; retain Go transaction/policy authority and explicit missing execution/planning states. Qualify the actual bound HTTP operation before desktop selection/UI. | Complete |
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
-| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Active |
+| 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Complete |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
@@ -25992,3 +25992,47 @@ output/candidate adoption and atomic Go outcome/accounting recovery. Remaining
 interrupted launch/write/commit boundaries, worker death, reboot/power loss,
 actual finite provider work and installed Quit remain unverified. N3/N4/D3 stay
 open; this resource-only recovery does not close a canonical slice or gate.
+
+
+T06-CONNECT connected shared desktop qualification (2026-11-05):
+Complete. The user approved a new device challenge after a fresh private default
+Secret Service collection passed actual dummy store/reopen/remove. Production
+native OAuth verified and retained the encrypted grant. The first connected
+attempt passed the direct authenticated product checks but timed out at the
+shared feed: selecting a repository had kept the account-wide New request route.
+`frontend/desktop/connections.ts` now opens a newly selected repository's feed
+while retaining the current route on a same-repository reconnect. The failing
+attempt and exact source diff are preserved. The retry reused the same encrypted
+grant without another challenge and exited zero.
+
+The actual Tauri/WebKit shared UI, complete Rust connector, native PostgreSQL and
+Go product services passed account/repository selection and paging, canonical
+identity and reconnect, direct feed/issues/PR reads, missing-job unavailability,
+stale selection/disconnect refusal, cancelled request suppression, shared feed
+and issues/detail, repository switching, scoped issue drafts and restored request
+drafts. The existing issue-continuation producer/source checks remain as recorded
+under CONNECT; no empty filtered page is fabricated as the end. Native checks
+also passed grant reload, two repository pages, private repository detail, real
+provider refresh with old-revision refusal, local account removal and withdrawal
+refusal. Quit completed and owned PostgreSQL logged shutdown. Remote revocation
+is explicitly false in the safe result and remains in T06-GITHUB.
+
+Evidence/scripts/source identities:
+`/home/vince/tmp/factory-consent-keyring-1105/`; final log SHA-256:
+`4f660c774e29cad8889804379353bd166e5d64cc8b6bfa3f41de448af13ac6ce`;
+safe result SHA-256:
+`74d46b64895abd2a429ec900e855d9b1406063478fe1db5499e323d4e2769e28`.
+The scratch desktop ELF SHA-256 is
+`6d764aed3bf801cc10cb1425a377de5a91d5ff7297ae3e4794168213f8b6ccd8`.
+Its WebKit hash matches the retained 2.54.2 runtime; the official stable release
+index at https://webkitgtk.org/releases/ was rechecked and still selects 2.54.2.
+Type checking, affected lint, shared desktop bundle, locked offline native-check
+build and whitespace checks passed. This source journey neither diagnoses the
+unavailable historical heap crash nor newly qualifies the whole dependency/
+distribution baseline, installed package, Fountain desktop or executor.
+
+The canonical row is Complete; T06-GITHUB-EVIDENCE is next in row order, followed
+by the full provider gate. T07-READ and T12-PLACEMENT have their CONNECT
+prerequisite satisfied. Native intake remains fenced pending N3/placement/N4.
+D1/D2/D3/D5, remote revocation, installed and cross-host gates remain open. The
+overall product/allocation goal is active and unfinished.

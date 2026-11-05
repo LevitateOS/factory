@@ -502,7 +502,9 @@ The locally stored test grants were withdrawn and owned PostgreSQL stopped. The
 initial pagination-alias failure remains retained evidence. Actual Linux Tauri
 controls render a real device challenge, hand off the fixed browser URL and cancel
 without storing a credential. The opener receiver is a declared fixture.
-Remote grant revocation, connected shared UI, native execution and installed
+The separate T06-CONNECT consumer now has a passing actual connected Tauri/WebKit
+shared-UI journey, including grant reload/refresh, repository switching, scoped
+drafts and local removal. Remote grant revocation, native execution and installed
 product qualification remain downstream; historical Go evidence is not reused
 as proof of the new owner.
 
@@ -623,7 +625,8 @@ repository on the selected host before Rust reads its remote ID. Rust verifies
 the current provider account and repository evidence, then Go transactionally
 maps the resulting facts and projects neutral pages. Empty filtered issue pages
 can retain a continuation; PR wrappers cannot become ordinary issue detail.
-Capabilities remain unknown. Product selection and connected UI remain consumers.
+Capabilities remain unknown. The separate product selection/shared-UI consumer
+now has connected GitHub evidence; native execution admission remains unavailable.
 
 `factory_provider::RunOwner::spawn` transfers one already staged native attempt
 to a headless `RunExecution` handle. The lifecycle owner retains the handle;

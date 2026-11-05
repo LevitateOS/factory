@@ -532,7 +532,8 @@ that initialization works in this host, not that the OAuth grant saves. Before
 another real challenge, initialize and verify a fresh private keyring for the
 headless fixture, then retain the actual native save/reload and connected
 read/IPC result. The user is unavailable for another consent step for the
-next four to six hours. No connected gate is closed.
+next four to six hours at that checkpoint. The later connected result below
+supersedes that temporary consent blocker.
 The opt-in consent observer now checks for an unlocked default collection
 before starting a new challenge. Locked offline native-check compilation
 passed. A fresh uninitialized private-keyring Tauri/WebKit run reached the
@@ -544,6 +545,56 @@ This proves only the negative preflight; it does not prove a write or restore
 the absent collection. Initialize and verify the disposable keyring before
 another approval request, then retain the actual grant save/reload and
 connected result.
+
+### Current connected desktop evidence
+
+T06-CONNECT is now Complete. On 2026-11-05 the user approved a fresh GitHub
+device sign-in after an actual dummy store/reopen/remove check in a fresh private
+default Secret Service collection. Native OAuth verified and stored the encrypted
+grant. The first connected attempt passed direct account/repository/product IPC
+but timed out waiting for the shared feed: repository selection had preserved the
+account-wide New request route. `frontend/desktop/connections.ts` now opens a
+new repository's feed while preserving the route for a same-repository reconnect.
+The first failed log and exact source diff remain retained. The retry reopened
+the same encrypted grant without another challenge; it exited zero.
+
+Actual production Rust connector, Go canonical services and real Tauri/WebKit
+shared Lit views passed identity, repository paging and private detail, direct
+feed/issue/PR reads, missing-job unavailability, stale selection/disconnect
+refusal, request cancellation, canonical reconnect, account/repository controls,
+feed/issues/detail, repository-specific issue drafts and restored request drafts.
+The native owner exercised real refresh and refused the prior local revision,
+then removed the owned local account and refused its capability. Quit completed
+and PostgreSQL logged shutdown. The safe result records two repository pages,
+private read and refresh as true; remote revocation is explicitly false.
+
+Evidence/scripts/source identity are under
+`/home/vince/tmp/factory-consent-keyring-1105/`. Final result log SHA-256:
+`4f660c774e29cad8889804379353bd166e5d64cc8b6bfa3f41de448af13ac6ce`;
+safe `consent-result.json` SHA-256:
+`74d46b64895abd2a429ec900e855d9b1406063478fe1db5499e323d4e2769e28`.
+The scratch desktop ELF SHA-256 is
+`6d764aed3bf801cc10cb1425a377de5a91d5ff7297ae3e4794168213f8b6ccd8`;
+the retained WebKit library hash matches the earlier 2.54.2 runtime. Official
+[stable metadata](https://webkitgtk.org/releases/) was rechecked on 2026-11-05 and
+still selects 2.54.2. Type checking, affected lint, shared desktop bundle and
+locked offline native-check build passed. This is an actual connected source
+journey using the retained runtime, not a fresh whole-distribution or installed
+qualification, diagnosis of the unavailable historical heap crash, Fountain
+desktop result or executor admission.
+
+Remaining dependencies: T06-GITHUB-EVIDENCE must supply actual workflow-job and
+branch-protection facts without filling unknown requirements; T06-GITHUB must
+finish full provider normalization/current-head and remote-revocation evidence
+and retire historical Go-observer consumers. Installed authentication/IPC and
+multi-host parity remain their packaging/journey gates. Relevant files remain
+`cmd/soda-desktop/src/{check_credentials,check,product,bridge,signin}.rs`,
+`frontend/desktop/{connections,product,transport}.ts`,
+`lib/desktop-runtime/src/{credentials,github_provider}/` and the Go canonical
+projection/services. Close each remaining gate with actual scoped positive and
+refused operations on its target path, exact retained source/runtime identity,
+revocation/retirement and appropriate installed evidence. T06-CONNECT success
+does not close those gates or D1/D2/D3/D5.
 A subsequent disposable PostgreSQL/Go/Rust supervisor check exercised a
 synthetic bound MCP initialization through the real Rust secret verifier.
 Exact current-work preparation and run observation returned 200; missing
@@ -622,8 +673,8 @@ IPC, so the connected gate remains open.
 | Gate and dependent slices | Exact blocker and dependency | Relevant files | Proven so far | Still unverified; evidence needed to close |
 | --- | --- | --- | --- | --- |
 | Worker MCP transport and Factory tool policy within D3/N4 | The private native producer and namespaced model policy exist, but the production Go native listener/current-run observer and its exact backend/instance/capability binding are missing. Go must supply the captured canonical tool catalog from the same server definition before launch. N4 also depends on T06-CONNECT and T12-PLACEMENT. | `lib/desktop-runtime/src/factory_provider/{mcp,owner,run,response}.rs`, `lib/desktop-runtime/src/factory_provider.rs`, `cmd/soda-factory-worker/src/bin/{soda-factory-agent,soda-factory-provider-relay}.rs`, `pkg/factory/{runtime/native_server,mcpserver/bound}.go` | Current local Muse echo completed MCP startup/discovery; a tiny isolated ELF separately verified fixed configuration and run-placeholder delivery through the real relay/native owner/Go bound handler with a synthetic active capability. Missing binding made no callback. Credential withdrawal and owner cancellation each dropped a pending native MCP future; uncertain cancellation retained root evidence. A local scripted provider then made the actual CLI execute a qualified Factory call and return its fixture result. The native component check accepted those captured requests/replies and Go's 24-tool catalog, and refused catalog, namespace and execution-call identity changes. | Compose the trusted catalog/port with the current Go backend and Rust signer under the admitted canonical capability. Prove actual provider Factory tool handling through the isolated native owner, current Go work/run/role checks, expiry/revocation, exact backend/instance binding and no root/IPC/provider secret in the worker. Then qualify a real finite task, transaction settlement and crash/reboot recovery. The checks used synthetic capabilities and locally scripted replies, with no canonical Store row or real inference, and do not close this gate. |
-| Desktop authentication and IPC admission: T06-CONNECT, then T06-GITHUB-EVIDENCE, T06-GITHUB, T07-READ and T11-WRITES | The connected desktop journey has not completed. T06-CONNECT consumes the completed T06-CONNECT-BRIDGE, but real current-account selection, authenticated reads and per-window product IPC have not passed together. A pre-consent WebKit/heap crash interrupted an earlier journey; its artifacts are unavailable. Do not repeat a challenge merely to bypass the crash. | `cmd/soda-desktop/src/{main,signin,bridge,product,check_credentials}.rs`, `frontend/desktop/{main,accounts,connections,transport,product}.ts`, `lib/desktop-runtime/src/{github,credentials,supervisor}.rs`, `pkg/factory/runtime/{native_application,native_product}.go` | Source/component builds, shared selector/draft checks and bridge producer checks are recorded under T06-CONNECT. A current WebKit runtime passed an unapproved challenge/cancel journey. The retained sysroot supports locked offline native-ui checking and an opt-in native-check build. A current disposable headless Tauri/WebKit offline check exited zero for PostgreSQL/Go readiness, shared UI, bounded bridge, windows and Quit. Earlier approved headless native GitHub reads and private account retention passed in the P1 producer. | The current connected check reached credential storage but its isolated default keyring was absent; initialize and verify that collection before rerunning the connected Tauri/WebKit account, repository, issue/detail/feed, switch/reconnect, draft and retirement journey with current IPC admission. Capture exact runtime/source identity, successful and denied caller/resource observations, and a retained result. Offline check success does not prove connected consent or authenticated IPC. |
-| GitHub credential custody and revocation: T06-GITHUB and the connected GitHub consumers | The cohesive Rust connector is implemented, but the final provider gate depends on T06-CONNECT and T06-GITHUB-EVIDENCE. The connected desktop has not proved remote revocation and full private/paged/current-head observations. | `lib/desktop-runtime/src/credentials/`, `lib/desktop-runtime/src/github_provider/`, `lib/desktop-runtime/src/github.rs`, `pkg/factory/runtime/native_product_observations.go`, `pkg/factory/runtime/native_product_reads.go` | The Go native token route was retired; Rust owns OAuth, refresh, HTTPS, decoding and native credential lifetime. Approved native reads, private access, refresh and retained identity are recorded in the plan. | Prove final connected consent/identity/storage, current-account and canonical binding, private/paged observations, refresh if issued, remote revocation and local removal without credential disclosure. Retire or migrate historical Go-observer check consumers only with equivalent current evidence. |
+| Desktop authentication and IPC admission: connected source evidence complete; final provider and installed consumers open | T06-CONNECT passed the real connected source journey. T06-GITHUB-EVIDENCE/T06-GITHUB and packaging/installed parity retain their separate requirements. No installed authentication/IPC or full remote-revocation result is inferred. | `cmd/soda-desktop/src/{main,signin,bridge,product,check_credentials}.rs`, `frontend/desktop/{connections,product,transport}.ts`, `lib/desktop-runtime/src/{github_provider,credentials,supervisor}.rs`, `pkg/factory/runtime/{native_application,native_product}.go` | The current connected section records user-approved OAuth, verified encrypted grant reload, actual canonical account/repository/product IPC, shared feed/issues/drafts, switches/reconnects, local withdrawal, real refresh and Quit. The first route failure and passing retry are retained. Historical missing crash artifacts remain undiagnosed. | Complete workflow/protection observations and provider revocation on the actual connector, then demonstrate authenticated peer/window and exact instance/account/resource admission, stale/foreign refusal and retirement in the installed package. Keep missing execution unavailable. The source connected result does not qualify an installer or Fountain desktop. |
+| GitHub credential custody and revocation: T06-GITHUB and the connected GitHub consumers | The cohesive Rust connector is implemented, but the final provider gate depends on T06-CONNECT and T06-GITHUB-EVIDENCE. The connected desktop now proves private/paged reads and refresh; remote revocation and full current-head/evidence observations remain open. | `lib/desktop-runtime/src/credentials/`, `lib/desktop-runtime/src/github_provider/`, `lib/desktop-runtime/src/github.rs`, `pkg/factory/runtime/native_product_observations.go`, `pkg/factory/runtime/native_product_reads.go` | The Go native token route was retired; Rust owns OAuth, refresh, HTTPS, decoding and native credential lifetime. Approved native reads, private access, refresh and retained identity are recorded in the plan. | Connected consent/identity/storage, canonical binding, private/paged reads, actual refresh and local removal now have evidence above. Complete remaining normalized/current-head observations and remote revocation without credential disclosure. Retire or migrate historical Go-observer check consumers only with equivalent current evidence. |
 | D1 standing GitHub automation policy: T11-INTAKE, T12-GITHUB-PRS and installed GitHub automation | T11-INTAKE depends on T09-EXECUTION, T11-WRITES and T12-PLACEMENT. Before automatic intake, select and enforce the explicit standing authorization policy or retain original-author creation evidence as mandatory; discovered work must wait for maintainer adoption until then. | `pkg/factory/runtime/placement.go`, `pkg/factory/control/dispatch_launch.go`, `pkg/factory/execution/`, `lib/desktop-runtime/src/github_provider/` | The plan identifies the policy choices and keeps automatic intake inactive. Existing canonical authorization and ledger owners remain Go. | Record the selected policy, eligible actor/fork/repository, limits and accepted revision; prove authenticated polling/cursors, wake reconciliation, refusal of unauthorized or self-triggered work, and the eligible issue-to-PR journey through the admitted isolated executor. |
 | D2 Fountain desktop authentication and grant revocation: T10-GATEWAY, then T10-PUBLISH/T10-INTAKE and desktop Fountain journeys | T10-GATEWAY depends on T05-CREDENTIALS, T06-FOUNTAIN, T10-WRITES and T12-PLACEMENT. Supported native enrollment/login and revocable grants have not been proved. Browser authority must not be spoofed and the raw Unix socket must not be exposed. | `lib/desktop-runtime/src/credentials.rs`, `cmd/soda-desktop/src/{main,bridge}.rs`, `pkg/factory/runtime/placement.go`, Fountain host adapters described by T10-GATEWAY | Existing OAuth PKCE code is only spike evidence; Fountain SDK/native writes and shared UI components have separate completed producer evidence. | Prove supported actual desktop enrollment, current authenticated HTTPS reads and operations, scoped IPC admission, grant withdrawal/revocation, and centrally coordinated placement using the real host. Include denial after withdrawal and retained recovery. |
 | Native recovery intent binding within N3/N4/D3 | A Go-defined immutable intent and native pre-staging copy/read comparison now exist. A facts-only Go observation transaction now records first process/acquisition evidence and replays without settling work. Production dispatch/native ports do not yet compose the admitted binding. Startup now compares exact sealed complete evidence after ledger readiness; missing proof still fences recovery. Receipt/custody alone and historical missing intents grant no recovery authority. | `pkg/factory/execution/{native_intent,launch,native_record}.go`, `pkg/factory/run.go`, `pkg/store/{factory_execution_schema,factory_native_recovery,factory_native_observation,factory_native_retirement}.go`, `pkg/factory/runtime/{native_execution_observation,native_execution_retirement}.go`, `pkg/factory/execution/native_observation.go`, `lib/desktop-runtime/src/factory_provider/{intent,executions,receipt,custody,recovery,run}.rs`, `lib/desktop-runtime/src/supervisor.rs` | The real registry/local-ELF/private-keyring/Go fixture retained an exact intent before the observed child, preserved it through process/custody recording and normal restart, refused byte replacement in Store/SQL and changed/partial native evidence, and fenced an intent-only legacy start. The later fresh fixture passed actual owner death before root retirement and after root removal/lost Go acknowledgement, plus missing-seal startup refusal and retained original facts. The record/runtime/placement were declared fixture metadata; no production admission was granted. | Wire exact intent bytes through the atomic admitted dispatch and native effect ports, retain uncertainty across remaining interrupted writes/launches/lost replies, and compose atomic output/candidate/outcome recovery with fresh Go transaction validation. Prove root/process/credential retirement and atomic outcomes across worker/owner death, restart/reboot, actual provider handling and installed Quit. Never synthesize an intent for historical acquisition or treat an unplaced intent as admitted placement. |
@@ -636,14 +687,13 @@ IPC, so the connected gate remains open.
 
 ## Current dependencies
 
-The canonical table has T06-CONNECT Active. Its ordinary shared UI source and
-component checks are recorded, but the connected acceptance still waits for the
-native crash to be resolved and the actual authentication/IPC proof. In row
-order, T06-GITHUB-EVIDENCE and T06-GITHUB then block T11-WRITES and the shared
-cross-provider editor/PR slices. T07-READ also depends directly on T06-CONNECT.
+The canonical table now has T06-CONNECT Complete after the actual connected
+journey above. T06-GITHUB-EVIDENCE is the next row in order; it and T06-GITHUB
+block T11-WRITES and the shared cross-provider editor/PR consumers. T07-READ
+and T12-PLACEMENT now have their connected desktop prerequisite satisfied.
 T09-NATIVE-EXECUTOR is itself D3 work; T09-EXECUTION and its publication,
 automation, packaging, installed and upgrade consumers remain pending. T10-GATEWAY
-is D2 work. T12-PLACEMENT depends on T06-CONNECT and must keep automation inactive.
+is D2 work. T12-PLACEMENT must keep automation inactive until placement and execution admission are proved.
 
 The native MCP signer now commits first-use key material from a synced private
 pending file with a no-replace rename and directory sync. An interrupted

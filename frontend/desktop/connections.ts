@@ -129,6 +129,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   }
   async function choose(account: string, remote = '') {
     const captured = ++serial;
+    const previousRepository = selected?.repository?.external_id;
     clear();
     connection = account;
     wanted = remote;
@@ -163,7 +164,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       product = new DesktopProduct(core, value, profile, navigate, metadata?.default_branch);
       const route = readRoute();
       navigate(
-        route && (!('repository' in route) || route.repository === value.repository?.id)
+        route &&
+          ('repository' in route ? route.repository === value.repository?.id : !remote || remote === previousRepository)
           ? route
           : remote
             ? {kind: 'feed', repository: value.repository!.id}
