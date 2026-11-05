@@ -827,3 +827,518 @@ pub(super) async fn resolution(profile: &Path) -> Result<()> {
     println!("native thread resolve/unresolve passed {} declared cases, 8 invalid descriptors, unproved anchor refusal, pacing and both retirement boundaries",cases.len());
     Ok(())
 }
+
+pub(super) async fn resolution_product(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed, set_mode, uncertain};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::sync::Arc;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let posts = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("posts"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let envelope = |path: &str,
+                    id: &str,
+                    thread: &str,
+                    resolved: bool,
+                    anchor: serde_json::Value|
+     -> Result<Vec<u8>> {
+        let q: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":path,"body":{"command_id":id,"thread_id":thread,"resolved":resolved,"anchor":anchor}}),
+        )?;
+        Ok(q.request()?.2)
+    };
+    set_mode(&io, "positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "thread product needs empty owned custody",
+    )?;
+    let account = || {
+        Account::new(Provider::Github, "https://github.com", "321")
+            .and_then(|a| a.with_label("declared-reader"))
+    };
+    let mut connection = store
+        .store(
+            account()?,
+            Token::new(b"factory-declared-thread-effect".to_vec())?,
+        )
+        .await?
+        .connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "thread product catalogue refused")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let base = format!("/api/factory/collaboration/repositories/{repository}/pulls/7");
+    let submit = format!("{base}/thread-resolutions");
+    let command = |id: &str| format!("{submit}/commands/{id}");
+    let selection_target = format!("{base}/threads/PRRT_declared1/selection");
+    let selection = call(&runtime, &store, &connection, "GET", &selection_target, &[]).await?;
+    ensure(
+        selection.0 == 200
+            && selection.1["thread_id"] == "PRRT_declared1"
+            && selection.1["resolved"] == false
+            && selection.1["original_anchor"].is_null()
+            && selection.1["resolve"]["state"] == "unavailable"
+            && selection.1["unresolve"]["state"] == "unavailable"
+            && posts()? == 0,
+        "thread selection invented context/state/authority or wrote",
+    )?;
+    let mut cases = vec!["safe-selection".to_owned()];
+    for (i, resolved) in [true, false].into_iter().enumerate() {
+        let id = format!("{:032x}", 100 + i);
+        let body = envelope(
+            &submit,
+            &id,
+            "PRRT_declared1",
+            resolved,
+            serde_json::Value::Null,
+        )?;
+        let before = posts()?;
+        let reply = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
+        completed(&reply, "committed")?;
+        let read = call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{base}/threads/PRRT_declared1"),
+            &[],
+        )
+        .await?;
+        ensure(
+            read.0 == 200
+                && read.1["resolution"] == if resolved { "resolved" } else { "unresolved" }
+                && read.1["anchor"].is_null(),
+            "thread normal readback lost effect/context",
+        )?;
+        let selected = call(&runtime, &store, &connection, "GET", &selection_target, &[]).await?;
+        ensure(
+            selected.0 == 200 && selected.1["resolved"] == resolved,
+            "selection lost current state",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &body).await?,
+            "committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(&id)),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        for (thread, state, anchor) in [
+            ("PRRT_declared1", !resolved, serde_json::Value::Null),
+            ("PRRT_other", resolved, serde_json::Value::Null),
+            (
+                "PRRT_declared1",
+                resolved,
+                json!({"base":"a".repeat(40),"head":"b".repeat(40),"path":"src/fixture.rs","side":"new","scope":"lines","start_line":9,"end_line":9}),
+            ),
+        ] {
+            ensure(
+                call(
+                    &runtime,
+                    &store,
+                    &connection,
+                    "POST",
+                    &submit,
+                    &envelope(&submit, &id, thread, state, anchor)?,
+                )
+                .await?
+                .0 == 409,
+                "changed thread/state/context adopted command",
+            )?;
+        }
+        ensure(
+            posts()? == before + 1,
+            "thread replay/lookup/cancel/conflict repeated POST",
+        )?;
+        cases.push(format!("positive-{i}"));
+    }
+    let no_op_id = "22222222222222222222222222222222";
+    let no_op = envelope(
+        &submit,
+        no_op_id,
+        "PRRT_declared1",
+        false,
+        serde_json::Value::Null,
+    )?;
+    let before = posts()?;
+    completed(
+        &call(&runtime, &store, &connection, "POST", &submit, &no_op).await?,
+        "not_committed",
+    )?;
+    completed(
+        &call(&runtime, &store, &connection, "POST", &submit, &no_op).await?,
+        "not_committed",
+    )?;
+    ensure(posts()? == before, "already desired state sent a mutation")?;
+    cases.push("known-no-send-no-op".into());
+    let full = json!({"base":"a".repeat(40),"head":"b".repeat(40),"path":"p".repeat(4096),"side":"new","scope":"lines","start_line":9,"end_line":9});
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &envelope(
+                &submit,
+                "23232323232323232323232323232323",
+                "PRRT_declared1",
+                true,
+                full,
+            )?,
+        )
+        .await?
+        .0 == 409
+            && posts()? == before,
+        "unproved full anchor was discarded or sent",
+    )?;
+    cases.push("full-original-anchor-refusal".into());
+    let pre_cancel_id = "24242424242424242424242424242424";
+    // Establish a saved command through a preflight pause after capture/reserve;
+    // the separate SQL driver covers cancellation winning before reservation.
+    set_mode(&io, "concurrent")?;
+    let concurrent_id = "33333333333333333333333333333333";
+    let concurrent = envelope(
+        &submit,
+        concurrent_id,
+        "PRRT_declared1",
+        true,
+        serde_json::Value::Null,
+    )?;
+    let before = posts()?;
+    let (a, b) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &concurrent),
+        call(&runtime, &store, &connection, "POST", &submit, &concurrent)
+    );
+    for r in [a?, b?] {
+        if r.1["finished"] == true {
+            completed(&r, "committed")?
+        } else {
+            uncertain(&r)?
+        }
+    }
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(concurrent_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    ensure(
+        posts()? == before + 1,
+        "concurrent thread command dispatched twice",
+    )?;
+    cases.push("concurrent-identical-command".into());
+    let wrong = format!(
+        "/api/factory/collaboration/repositories/{}/pulls/7/thread-resolutions",
+        repository.parse::<i64>()? + 1
+    );
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &wrong,
+            &envelope(
+                &wrong,
+                "99999999999999999999999999999999",
+                "PRRT_declared1",
+                true,
+                serde_json::Value::Null,
+            )?,
+        )
+        .await?
+        .0 == 403
+            && posts()? == before + 1,
+        "thread write expanded selected repository",
+    )?;
+    cases.push("other-repository-refusal".into());
+    set_mode(&io, "drop-reply")?;
+    let lost_id = "44444444444444444444444444444444";
+    let lost = envelope(
+        &submit,
+        lost_id,
+        "PRRT_declared1",
+        true,
+        serde_json::Value::Null,
+    )?;
+    let before = posts()?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    set_mode(&io, "observe-after-loss")?;
+    let read = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{base}/threads/PRRT_declared1"),
+        &[],
+    )
+    .await?;
+    ensure(
+        read.0 == 200 && read.1["resolution"] == "resolved",
+        "fixture lost reply did not apply desired state",
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        posts()? == before + 1,
+        "matching state attributed lost thread reply or resent",
+    )?;
+    cases.push("lost-reply-no-state-attribution".into());
+    for (name, id, effect) in [
+        (
+            "pause-post",
+            "55555555555555555555555555555555",
+            "committed",
+        ),
+        ("pause-preflight", pre_cancel_id, "not_committed"),
+    ] {
+        set_mode(&io, name)?;
+        let body = envelope(&submit, id, "PRRT_declared1", true, serde_json::Value::Null)?;
+        let before = posts()?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &body);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(id)),
+            b"{}",
+        )
+        .await?;
+        uncertain(&cancelled)?;
+        ensure(
+            cancelled.1["cancellation"] == "indeterminate",
+            "racing cancellation claimed rollback",
+        )?;
+        fs::write(io.join("release"), b"")?;
+        let response = pending.await?;
+        let reply = (response.status, serde_json::from_slice(&response.body)?);
+        completed(&reply, effect)?;
+        ensure(
+            reply.1["cancellation"] == "indeterminate"
+                && posts()? == before + u64::from(name == "pause-post"),
+            "late thread result lost cancellation uncertainty or retried",
+        )?;
+        cases.push(name.into());
+    }
+    set_mode(&io, "pause-withdrawal")?;
+    let withdrawn_id = "77777777777777777777777777777777";
+    let withdrawn = envelope(
+        &submit,
+        withdrawn_id,
+        "PRRT_declared1",
+        true,
+        serde_json::Value::Null,
+    )?;
+    let before = posts()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &withdrawn);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    store.withdraw(&connection).await?;
+    connection = store
+        .store(
+            account()?,
+            Token::new(b"factory-declared-thread-effect".to_vec())?,
+        )
+        .await?
+        .connection;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        pending.await.is_err(),
+        "withdrawn generation returned thread result",
+    )?;
+    set_mode(&io, "observe-after-withdrawal")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(withdrawn_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &withdrawn).await?)?;
+    ensure(
+        posts()? == before + 1,
+        "replacement custody repeated uncertain thread write",
+    )?;
+    cases.push("withdrawal-replacement".into());
+    set_mode(&io, "pause-stop")?;
+    let stopped_id = "88888888888888888888888888888888";
+    let stopped = envelope(
+        &submit,
+        stopped_id,
+        "PRRT_declared1",
+        true,
+        serde_json::Value::Null,
+    )?;
+    let before = posts()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &stopped);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        pending.await.is_err(),
+        "stopped native runtime returned a thread result",
+    )?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    set_mode(&io, "observe-after-stop")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(stopped_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &stopped).await?)?;
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(&format!("{:032x}", 100)),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(no_op_id),
+            &[],
+        )
+        .await?,
+        "not_committed",
+    )?;
+    ensure(
+        posts()? == before + 1,
+        "restart repeated thread dispatch or lost terminal state",
+    )?;
+    cases.push("retained-restart".into());
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &other.connection,
+            "GET",
+            &command(lost_id),
+            &[],
+        )
+        .await?
+        .0 == 404,
+        "another account read thread capture",
+    )?;
+    ensure(
+        call(&runtime, &store, &other.connection, "POST", &submit, &lost)
+            .await?
+            .0
+            == 409
+            && posts()? == before + 1,
+        "another account adopted thread capture",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account-refusal".into());
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "thread product left owned grant",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "thread product fixture saw undeclared request",
+    )?;
+    fs::write(
+        root.join("thread-resolution-product-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"provider_posts":posts()?,"native_go_postgresql":true,"real_github":false,"known_original_context_supported":false,"shared_write_capabilities_enabled":false,"owned_accounts_removed":true}),
+        )?,
+    )?;
+    println!(
+        "composed native thread resolution passed {} declared cases with {} dummy POSTs",
+        cases.len(),
+        posts()?
+    );
+    Ok(())
+}

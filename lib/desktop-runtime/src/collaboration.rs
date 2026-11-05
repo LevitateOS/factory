@@ -5,7 +5,7 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    IssueCreate, Read, WriteOutcome,
+    IssueCreate, Read, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -379,6 +379,12 @@ enum Effect {
         not_after: u64,
         lock: DiscussionLock,
     },
+    SetThreadResolution {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        thread: ThreadResolution,
+    },
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
@@ -413,6 +419,12 @@ impl Effect {
                 not_after,
                 lock,
             } => Some((command_id, digest, *not_after, &lock.repository)),
+            Self::SetThreadResolution {
+                command_id,
+                digest,
+                not_after,
+                thread,
+            } => Some((command_id, digest, *not_after, &thread.repository)),
             _ => None,
         }
     }
@@ -588,6 +600,7 @@ async fn dispatch(
             Effect::SetDiscussionState { state, .. } => state.validate()?,
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
             Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
+            Effect::SetThreadResolution { thread, .. } => thread.validate()?,
             _ => unreachable!(),
         }
         if !opaque_id(command_id)
@@ -619,7 +632,8 @@ async fn dispatch(
             | Effect::CreateIssue { .. }
             | Effect::SetDiscussionState { .. }
             | Effect::EditDiscussion { .. }
-            | Effect::SetDiscussionLock { .. } => {
+            | Effect::SetDiscussionLock { .. }
+            | Effect::SetThreadResolution { .. } => {
                 mutate(&state.provider, &scope, token, &call.call).await
             }
         });
@@ -672,6 +686,11 @@ async fn mutate(
         Effect::SetDiscussionLock { lock, .. } => Some(
             provider
                 .lock_account(token, account, lock, Some(deadline))
+                .await,
+        ),
+        Effect::SetThreadResolution { thread, .. } => Some(
+            provider
+                .thread_resolution_account(token, account, thread, Some(deadline))
                 .await,
         ),
         _ => None,

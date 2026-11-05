@@ -2363,3 +2363,46 @@ policy and the known-original-context dependency above remain open. D1/D2/D3/D5,
 custody/root absence/scoped delivery, installed IPC/window/instance, isolation/
 execution/retirement/settlement and release/upgrade/freshness retain earlier exact
 blockers and evidence requirements. No broad gate or Daybreak work was closed.
+
+T11-WRITES composed human thread resolution (2026-11-05):
+`pkg/factory/runtime/native_product_threads.go` now binds the current admitted
+writer/selection to the schema-86 fence; `native_product.go` supplies the existing
+Application/HTTP service. `lib/desktop-runtime/src/collaboration.rs` supplies the
+typed callback with selected repository/account, exact command/digest, captured
+deadline, one native write per operation, current token lifetime and final custody.
+Ordinary 8 KiB thread effect limits remain. Canonical selection returns observed
+state and explicit unknown original context; both shared action capabilities remain
+unavailable. Native causal receipts and exact saved preparation remain internal.
+
+Actual native custody/callback, Go canonical service/HTTP/journal and owned
+PostgreSQL passed 13 declared cases with seven dummy mutations. Safe selection,
+resolve/unresolve/readback, exact replay/lookup/cancel, changed thread/state/context
+refusal, explicit no-send no-op, supplied full-anchor refusal, concurrent claims,
+other repository refusal, lost reply without state attribution, both late-result
+cancellation races, withdrawal/replacement, other account and retained restart
+passed. The peer retains its dummy thread across restart and never forwards.
+Successful owned accounts/children were cleaned up. Evidence root
+`/home/vince/tmp/factory-thread-resolution-product-1105/attempt1/`, result SHA-256
+`11cb1977b2e23d3a22e642b0934139d16e2e820970737a38d42d5b4c77679548`.
+The canonical plan records exact artifacts and coverage. The separate prior SQL
+check covers cancellation winning before reservation. None of this proves actual
+provider or installed admission/custody, shared WebKit or full-original-context
+support, and no real grant is retained.
+
+The callback/Go writer/selection composition blocker is resolved for explicitly
+unknown original context. Remaining exact thread blockers: an authenticated
+original two-commit-pair producer/retained identity join before accepting any full
+anchor; actual specifically owner-authorized permission/schema/no-op/resolve/
+unresolve and normal readback; original captured-deadline expiration evidence;
+shared UI/installed peer/window/instance and custody; and an adopted supported
+policy/invariant with evidence for intervening conversation, lock, visibility or
+PR transfer changes. Relevant files remain `github_provider/review_threads.rs`,
+`thread_resolution.rs`, `collaboration.rs` and `native_product_threads.go`; native
+input has no expected conversation revision/repository condition, and a matching
+resolution cannot attribute a lost prior write. Stronger protection is unverified.
+
+Other T11 operations still require their typed canonical/native composition and
+actual evidence. D1/D2/D3/D5, credential root absence/scoped delivery, installed
+IPC/window/instance, worker isolation/execution/retirement/settlement and release/
+upgrade/freshness retain their earlier dependencies and closure evidence. No broad
+security gate or Daybreak work was completed; routine independent work continues.

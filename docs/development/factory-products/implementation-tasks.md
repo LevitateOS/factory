@@ -28312,3 +28312,85 @@ shared WebKit actions and installed qualification remain unverified. T11-WRITES
 stays Active. D1/D2/D3/D5, custody/root absence/scoped delivery, installed IPC/window/
 instance, worker isolation/execution/retirement/settlement, release/upgrade/freshness
 and the full unfinished product remain open.
+
+### T11-WRITES checkpoint: composed native human thread resolution (2026-11-05)
+
+`pkg/factory/runtime/native_product_threads.go` supplies the admitted thread
+writer and safe original-selection reader; `native_product.go` binds both to the
+existing Application/HTTP services. `lib/desktop-runtime/src/collaboration.rs`
+admits the typed `set_thread_resolution` callback with current native account,
+selected repository, exact command/digest echo, original captured deadline,
+per-operation one-write claim, token-operation lifetime and final custody check.
+The thread callback keeps the ordinary 8 KiB private effect bound; read/MCP limits
+and existing larger human-writing exceptions are unchanged.
+
+Go preparation uses the single canonical thread reader to bind the immutable PR
+and genuine thread identity. It retains the exact desired state and explicit
+unknown original context in a five-minute captured preparation. Supplied full
+anchors refuse as conflicts because current GitHub observations have no proved
+original two-commit pair; a stronger condition is not silently discarded. This
+known-context limitation remains open. Lookup/cancel reuse the exact schema-86
+capture and one-shot fence. Reserved/legacy history cannot regain dispatch rights,
+and matching current resolution never attributes an uncertain command. Native
+causal receipts must match account, repository, PR, thread, desired state, nullable
+original/resolver facts and response identity. Go retains the provider-intent hash
+and command binding in its existing journal; no provider HTTP/credentials moved
+to Go. Same-account custody replacement retains the authority namespace without
+recovering a claim.
+
+Selection now returns the scoped thread ID, observed resolved state and explicitly
+null original anchor without preparing a command. Resolve/unresolve capabilities
+stay unavailable pending qualification, even when the provider viewer fact is true.
+The shared ordinary thread reader remains the normal post-write readback owner.
+No UI write capability, automatic intake or executor authority was enabled.
+
+The existing native executable gained
+`--github-thread-resolution-product-declared BACKEND PG FRESH_PROFILE`.
+`/home/vince/tmp/factory-thread-resolution-product-1105/attempt1/` exited 0 with
+13 declared cases and seven intended dummy mutations through actual native
+custody/product/callback, Go canonical mapping/service/HTTP/journal and owned
+PostgreSQL. The local TLS peer retains thread state across native/Go restart,
+accepts only fixed dummy tokens/declared requests, and never forwards.
+
+Coverage includes safe selection without a mutation, resolve/unresolve with normal
+readback and updated selection, exact submit/lookup/cancel replay without another
+POST, changed thread/state/null-to-full-anchor conflicts, distinct already-desired
+known no-effect completion without a mutation, refusal of a supplied full anchor
+with a maximum 4,096-byte path, concurrent identical commands with one dispatch,
+other selected repository refusal, and a dropped reply remaining uncertain despite
+matching current state. A cancellation during POST retains the late known primary
+result and uncertain cancellation; a cancellation during post-reservation preflight
+retains late known no-effect and uncertain cancellation. The separate SQL driver
+above proves cancellation winning before reservation. Withdrawal/replacement
+refuses the old generation and does not resend its uncertain command. Joined
+runtime stop/restart retains known outcomes and fences unresolved history. Another
+account can neither read nor adopt captures. Successful owned accounts were removed;
+native/Go/PostgreSQL children stopped. No real grant or actual GitHub write was used.
+
+| Artifact under `/home/vince/tmp/factory-thread-resolution-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `1c539e19397b840f35a006a0edcb9a1ce85f49108f4caea3f1edd2857b551fba` |
+| `provider` | `51349e14358c696869ce642c18fd25e49e8c3d6c1e21d8a56e8e0d324493718d` |
+| `check-bin` | `d8f6a3a9bb17405ecce077f8a5443a03eb2e8db1c1e11887aad34269da24282d` |
+| `server` | `95b8ccdd09efa445e35e1a050695ce5a144bc33244ac62d3e652d902e85e31eb` |
+| `run.sh` | `c2d5b934e51972e6d3168a2b9fcf95b20c8de032503c0f8e86d49307b6c45092` |
+| `session.sh` | `5c26fa31e7a1daaad6c3fc1a0b589b3eea632bb8f321c8bb90129e4133b2a16e` |
+| `attempt1/result.log` | `0731c4a25ad8c2a9d9bafb75c4242937f476db850a41f46584d205ce79c1d3e4` |
+| `attempt1/thread-resolution-product-result.json` | `11cb1977b2e23d3a22e642b0934139d16e2e820970737a38d42d5b4c77679548` |
+
+Production Go backend and locked/offline native/desktop-feature builds, ownership
+boundaries and whitespace checks passed. No dependency, unit test or unit-test root
+was added. This resolves the missing native callback/Go writer/selection source
+composition from the prior checkpoint, within explicit unknown-original-context
+support. It is not actual provider, shared WebKit or installed qualification.
+
+Next dependency-ready source work remains the other T11 human operations, including
+canonical user/team reviewer-request one-shot dispatch and complete authenticated
+native effects. Full original thread context still requires an authenticated
+original-pair producer/retained identity join and actual evidence. Fresh specifically
+authorized GitHub permission/schema/no-op/mutation/readback, delayed captured
+expiration, shared UI and selected-resource/conversation/visibility/transfer policy
+remain pending. T11-WRITES stays Active. D1/D2/D3/D5, custody/root absence/scoped
+delivery, installed IPC/window/instance admission, worker isolation/execution/
+retirement/settlement and release/upgrade/freshness remain open. The full product
+is unfinished; no broad security gate was closed by these declared checks.
