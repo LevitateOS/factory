@@ -185,6 +185,7 @@ impl RunOwner {
                 Err(refused("broker source cleanup unconfirmed"))
             };
         }
+        let cancellation = AgentCancellation::default();
         let result = (|| {
             Broker::prepare_reviewer(&run, &profile, &staged, &candidate)?;
             let relay = Broker::attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
@@ -206,7 +207,7 @@ impl RunOwner {
                 tool_sha256,
                 prompt_sha256,
             )?;
-            bound.activate(relay)
+            bound.activate_cancellable(relay, cancellation.clone())
         })();
         let owner = match result {
             Ok(owner) => owner,
@@ -221,7 +222,7 @@ impl RunOwner {
         cleanup.active = false;
         Ok(Self {
             owner,
-            cancellation: AgentCancellation::default(),
+            cancellation,
             observer: AgentObserver::default(),
             run,
             profile,

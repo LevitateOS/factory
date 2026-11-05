@@ -25628,3 +25628,38 @@ placement/admission/custody join, actual finite Muse result and crash/restart
 settlement remain open. Withdrawal of an idle model which makes no provider/MCP
 request is separately unverified; the handoff records its exact lifetime ports
 and required evidence. N3, N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR idle credential lifetime (2026-11-05):
+`Credentials::while_current` now guards native work without supplying a token to
+the callback. It shares the defining revision checks with streaming requests.
+The whole native provider owner is guarded and requests exact-run cancellation
+on credential loss, autonomous exit or failure; explicit normal retirement still
+allows a complete finite result. Initialization completes before periodic
+rechecks, and callback progress continues during checks. This fixes a self-blocking
+initialization/recheck path found by three preserved failed readiness attempts;
+readiness now reports a safe native reason. The existing private-keyring and
+distinct-UID handle integration passed normal finite completion, cancellation,
+drop and idle withdrawal/local replacement/credential-owner retirement; those
+idle cases stopped and joined in 180/170/166 ms, before a 15-second ELF could
+exit naturally. A separate native process replaced the fixture credential and
+periodic revision observation stopped the old worker in 1,452 ms. Uncertain
+cases refused further process observation, preserved launched roots without a
+receipt and had agent/relay `MainPID=0`; exact fixture disposal removed roots
+and temporary units. Evidence is external under
+`/home/vince/tmp/factory-native-idle-custody-v4-20261105/`, result SHA-256
+`ca116ad028d39138711a9b286281c843b009720063b54074235ca03819016ea9`.
+The existing real-keyring credential-operation check passed withdrawal,
+replacement, caller cancellation, deadlines and streaming beyond the actual
+30-second lease (`/home/vince/tmp/fcs-1105/`, result SHA-256
+`77ea5b0e16e31e355420f4db153c3c02273be103b534c4c15a5b2427a5acf898`).
+The existing pending-MCP native mode also passed withdrawal/cancellation dropping
+its future with no late tool result and uncertain root preservation/disposal
+(`/home/vince/tmp/factory-native-mcp-life-v2-20261105/`, result SHA-256
+`6c324f6eb5a712691e555540e378e742952e257e0b7d07f4fecb3095db1f6a5e`).
+Locked offline runtime/build checks and touched-file formatting passed. These
+are retained-input, local-ELF/dummy-keyring checks. Actual Muse/Meta cancellation,
+installed connected behavior, canonical execution/custody observations, complete
+Go work/placement admission, ledger settlement and interrupted/crash/reboot
+recovery remain open; profile-wide local-change notification is still
+conservative and multi-account behavior is unqualified. The handoff records
+these dependencies. N3, N4 and D3 remain open.

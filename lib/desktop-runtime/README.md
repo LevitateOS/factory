@@ -566,6 +566,17 @@ non-live thereafter; uncertain connection loss refuses. This supplies native
 facts only: `Executing` stays cached phase, current Go admission remains a
 consumer, and process exit does not imply owner/custody retirement.
 
+`Credentials::while_current` guards the complete provider-owner lifetime without
+passing a token to the callback. It shares revision validation, change signals,
+deadlines and final checks with streaming requests. Initialization runs before
+periodic checks; a callback continues to progress while a check is pending.
+Credential loss or autonomous owner termination cancels the exact native attempt,
+including an idle process which makes no provider/MCP call. Its lifecycle owner
+still joins and quiesces, preserving uncertain launch evidence. Disposable real
+services/keyring checks cover local withdrawal/replacement, independent-process
+replacement and owner retirement. They do not qualify real Muse/Meta cancellation,
+canonical custody/Go settlement or crash/restart recovery.
+
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.
 Go's `mcpserver.BoundToolNames` exposes that catalog using the same role and
 recorded task-controller selection as its SDK server, without activating a

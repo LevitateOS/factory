@@ -174,7 +174,15 @@ impl BoundOwner {
         &self.placeholder
     }
 
-    pub fn activate(mut self, attestation: RelayAttestation) -> io::Result<Owner> {
+    pub fn activate(self, attestation: RelayAttestation) -> io::Result<Owner> {
+        self.activate_cancellable(attestation, super::AgentCancellation::default())
+    }
+
+    pub(super) fn activate_cancellable(
+        mut self,
+        attestation: RelayAttestation,
+        cancellation: super::AgentCancellation,
+    ) -> io::Result<Owner> {
         let policy = self
             .policy
             .as_ref()
@@ -215,24 +223,62 @@ impl BoundOwner {
         let thread = thread::Builder::new()
             .name("factory-provider-owner".into())
             .spawn(move || {
+                let mut failure = CancelOnFailure(Some(cancellation));
+                let failed = send.clone();
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .map_err(|_| refused("provider owner runtime unavailable"))?;
-                runtime.block_on(async move {
-                    let listener = UnixListener::from_std(listener)?;
-                    let http = Client::builder()
-                        .https_only(true)
-                        .no_proxy()
-                        .redirect(redirect::Policy::none())
-                        .retry(reqwest::retry::never())
-                        .connect_timeout(Duration::from_secs(5))
-                        .timeout(PROVIDER_TIME)
-                        .build()
-                        .map_err(|_| refused("provider owner transport unavailable"))?;
-                    let _ = send.send(Ok(()));
-                    serve(listener, state, http, retirement).await
-                })
+                let result = runtime
+                    .block_on(async move {
+                        let listener = UnixListener::from_std(listener)?;
+                        let http = Client::builder()
+                            .https_only(true)
+                            .no_proxy()
+                            .redirect(redirect::Policy::none())
+                            .retry(reqwest::retry::never())
+                            .connect_timeout(Duration::from_secs(5))
+                            .timeout(PROVIDER_TIME)
+                            .build()
+                            .map_err(|_| refused("provider owner transport unavailable"))?;
+                        let duration = state
+                            .policy
+                            .lock()
+                            .map_err(|_| refused("provider owner policy unavailable"))?
+                            .remaining()
+                            .map_err(|_| refused("provider owner deadline expired"))?;
+                        let credentials = state.credentials.clone();
+                        let capability = state.capability.clone();
+                        let stopping = retirement.clone();
+                        let result = credentials
+                            .while_current(&capability, duration, async move {
+                                let _ = send.send(Ok(()));
+                                serve(listener, state, http, retirement).await
+                            })
+                            .await
+                            .map_err(|error| {
+                                io::Error::new(
+                                    io::ErrorKind::PermissionDenied,
+                                    format!("provider owner credential lifetime ended: {error}"),
+                                )
+                            })?;
+                        // Only an explicit owner stop is normal completion. An
+                        // autonomous listener/capacity exit must also cancel the
+                        // isolated process instead of leaving idle work running.
+                        if result.is_ok() && *stopping.borrow() {
+                            Ok(true)
+                        } else {
+                            result.map(|()| false)
+                        }
+                    })
+                    .map_err(|error: io::Error| {
+                        let _ = failed.send(Err(io::Error::new(error.kind(), error.to_string())));
+                        error
+                    })?;
+                if result {
+                    failure.0 = None;
+                }
+                Ok(())
             })?;
         match ready.recv_timeout(Duration::from_secs(3)) {
             Ok(Ok(())) => {
@@ -247,11 +293,31 @@ impl BoundOwner {
                     thread: Some(thread),
                 })
             }
-            _ => {
+            Ok(Err(error)) => {
                 retired.send_replace(true);
                 let _ = thread.join();
-                Err(refused("provider owner did not start"))
+                Err(error)
             }
+            _ => {
+                retired.send_replace(true);
+                match thread.join() {
+                    Ok(Err(error)) => Err(error),
+                    Err(_) => Err(refused("provider owner startup thread failed")),
+                    Ok(Ok(())) => Err(refused(
+                        "provider owner did not start before readiness timeout",
+                    )),
+                }
+            }
+        }
+    }
+}
+
+struct CancelOnFailure(Option<super::AgentCancellation>);
+
+impl Drop for CancelOnFailure {
+    fn drop(&mut self) {
+        if let Some(cancellation) = self.0.take() {
+            cancellation.cancel();
         }
     }
 }

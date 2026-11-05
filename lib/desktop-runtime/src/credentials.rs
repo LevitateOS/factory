@@ -625,18 +625,58 @@ impl Credentials {
         duration: Duration,
         operation: impl AsyncFnOnce(&[u8]) -> T,
     ) -> Result<T> {
+        let changes = self.changes.subscribe();
+        self.during_revision(cap, duration, changes, async {
+            let token = self
+                .with_secret(cap, false, |bytes| Token(Zeroizing::new(bytes.to_vec())))
+                .await?;
+            Ok(async move { operation(&token.0).await })
+        })
+        .await
+    }
+
+    /// Keep native work within this exact credential revision even while it
+    /// makes no authenticated request. No token is supplied to the operation.
+    /// Dropping the future on withdrawal does not itself retire a process: its
+    /// native owner must cancel and join that work before reporting cleanup.
+    pub async fn while_current<T>(
+        &self,
+        cap: &TokenCapability,
+        duration: Duration,
+        operation: impl Future<Output = T>,
+    ) -> Result<T> {
+        let changes = self.changes.subscribe();
+        self.during_revision(cap, duration, changes, async {
+            self.with_secret(cap, false, |_| ()).await?;
+            Ok(operation)
+        })
+        .await
+    }
+
+    async fn during_revision<T, F: Future<Output = T>>(
+        &self,
+        cap: &TokenCapability,
+        duration: Duration,
+        mut changes: watch::Receiver<()>,
+        initialize: impl Future<Output = Result<F>>,
+    ) -> Result<T> {
         if duration.is_zero() || duration > MAX_STREAM {
             return Err(Error::Invalid);
         }
         let deadline = Instant::now() + duration;
-        let mut changes = self.changes.subscribe();
         let work = async {
-            let token = self
-                .with_secret(cap, false, |bytes| Token(Zeroizing::new(bytes.to_vec())))
-                .await?;
-            let operation = operation(&token.0);
+            // Initialization may hold the credential gate. Complete it before
+            // starting rechecks, while still allowing withdrawal to interrupt.
+            let operation = tokio::select! {
+                biased;
+                _ = changes.changed() => return Err(Error::Retired),
+                initialized = initialize => initialized?,
+            };
             tokio::pin!(operation);
-            let mut recheck = tokio::time::interval(STREAM_RECHECK);
+            let mut recheck = tokio::time::interval_at(
+                tokio::time::Instant::now() + STREAM_RECHECK,
+                STREAM_RECHECK,
+            );
             recheck.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 tokio::select! {
@@ -645,13 +685,21 @@ impl Credentials {
                         let _ = changed;
                         return Err(Error::Retired);
                     }
-                    _ = recheck.tick() => self.current_stream_revision(cap).await?,
-                    result = &mut operation => {
-                        self.current_stream_revision(cap).await?;
-                        if changes.has_changed().unwrap_or(true) {
-                            return Err(Error::Retired);
+                    _ = recheck.tick() => {
+                        tokio::select! {
+                            biased;
+                            _ = changes.changed() => return Err(Error::Retired),
+                            // A callback may itself be waiting on credential
+                            // I/O. Keep polling it during the revision check.
+                            result = &mut operation => {
+                                return self.checked_stream_result(cap, &mut changes, result).await;
+                            },
+                            result = self.current_stream_revision(cap) => result?,
                         }
-                        return Ok(result);
+                        recheck.reset();
+                    },
+                    result = &mut operation => {
+                        return self.checked_stream_result(cap, &mut changes, result).await;
                     }
                 }
             }
@@ -659,6 +707,23 @@ impl Credentials {
         tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), work)
             .await
             .unwrap_or(Err(Error::Deadline))
+    }
+
+    async fn checked_stream_result<T>(
+        &self,
+        cap: &TokenCapability,
+        changes: &mut watch::Receiver<()>,
+        result: T,
+    ) -> Result<T> {
+        tokio::select! {
+            biased;
+            _ = changes.changed() => return Err(Error::Retired),
+            checked = self.current_stream_revision(cap) => checked?,
+        }
+        if changes.has_changed().unwrap_or(true) {
+            return Err(Error::Retired);
+        }
+        Ok(result)
     }
     /// Native refresh transport only. Expired access authority is never borrowed
     /// here; the independent refresh expiration and current revision still gate

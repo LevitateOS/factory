@@ -61,18 +61,46 @@ these process facts to the captured run and custody, then complete admitted
 worker/tool/settlement qualification. Current positive process facts alone grant
 no product authority.
 
-Idle-worker credential withdrawal still needs explicit qualification and any
-required lifetime implementation. `factory_provider/owner.rs` guards provider
-and MCP requests with the current credential lifetime; `run.rs` has an explicit
-execution cancellation handle. The current query check withdraws its dummy
-credential only after the cases, and the earlier MCP-lifetime check proved an
-in-flight future was dropped. Neither proves that withdrawal alone promptly
-stops a model process which is idle and makes no provider/MCP request. Inspect
-`owner.rs::serve`, `RunOwner::execute_observed`, `attempt.rs` and the Credentials
-revocation ports; bind retirement to the native lifetime owner and prove an
-actual idle isolated process stops, observation cannot admit withdrawn work,
-custody is retired and uncertain root evidence is preserved. This remains
-ordinary implementation/check work; no security gate is closed.
+Idle-worker withdrawal now has a native lifetime implementation and component
+evidence. `credentials.rs::while_current` uses the same revision guard as
+`with_token_stream`, supplies no token to its callback, and keeps initialization
+separate from periodic rechecks. The whole `owner.rs` listener runs inside that
+guard; loss of credential validity or autonomous owner exit requests the exact
+run's existing cancellation handle. `run.rs` then joins/quiesces the worker and
+retains uncertain root evidence. Initialization, rechecks and callback progress
+remain cancellable. Three initial readiness failures are retained externally;
+the new guard had allowed a revision recheck to wait on a credential gate held by
+its suspended initialization. Restructuring initialization and polling callback
+progress during later checks removed that self-blocking path. Safe readiness
+errors now retain the native reason without credential contents.
+
+The existing real-unit/private-keyring handle check ran an idle 15-second local
+ELF with no provider/MCP traffic. Local withdrawal, replacement and owner
+retirement cancelled/joined it in 180, 170 and 166 ms respectively; a separate
+native process replacing its disposable credential was detected in 1,452 ms.
+Each uncertain case refused further process observation, retained its launched
+root with no receipt and had stopped agent/relay services before explicit fixture
+disposal. The unchanged finite-success, explicit-cancel and handle-drop cases
+also passed. Evidence is under
+`/home/vince/tmp/factory-native-idle-custody-v4-20261105/`; result SHA-256 is
+`ca116ad028d39138711a9b286281c843b009720063b54074235ca03819016ea9`.
+The existing credential-operation check also passed actual keyring withdrawal,
+replacement, cancellation/deadlines and streaming beyond its initial 30-second
+lease (`/home/vince/tmp/fcs-1105/result.log`, SHA-256
+`77ea5b0e16e31e355420f4db153c3c02273be103b534c4c15a5b2427a5acf898`).
+The existing pending-MCP check passed withdrawal/cancellation dropping the native
+future without a late tool result, now requiring an uncertain attempt and exact
+root disposal (`/home/vince/tmp/factory-native-mcp-life-v2-20261105/`, result SHA-256
+`6c324f6eb5a712691e555540e378e742952e257e0b7d07f4fecb3095db1f6a5e`).
+
+These checks used retained inputs and private dummy credentials. They do not
+prove actual Muse/Meta cancellation, an installed connected account, canonical
+Go custody/admission facts, interrupted owner/revision updates, crash/reboot or
+ledger settlement. The guard retains the existing conservative profile-wide
+local-change notification behavior; multi-account product behavior was not
+qualified here. The remaining dependency is a lifecycle-owned execution/custody
+registry and the current Go observer, followed by complete finite-provider,
+withdrawal, Quit and restart reconciliation evidence. D3 remains open.
 
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
