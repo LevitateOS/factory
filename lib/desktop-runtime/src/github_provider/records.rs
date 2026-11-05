@@ -23,7 +23,7 @@ pub(super) fn nonempty<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
         }
     })
 }
-fn string(v: &Value, key: &str) -> Result<Value> {
+pub(super) fn string(v: &Value, key: &str) -> Result<Value> {
     let v = &v[key];
     if v.is_null() || v.is_string() {
         Ok(v.clone())
@@ -31,7 +31,7 @@ fn string(v: &Value, key: &str) -> Result<Value> {
         Err(Failure::protocol())
     }
 }
-fn boolean(v: &Value, key: &str) -> Result<Value> {
+pub(super) fn boolean(v: &Value, key: &str) -> Result<Value> {
     let v = &v[key];
     if v.is_null() || v.is_boolean() {
         Ok(v.clone())
@@ -39,7 +39,7 @@ fn boolean(v: &Value, key: &str) -> Result<Value> {
         Err(Failure::protocol())
     }
 }
-fn integer(v: &Value, key: &str, min: i64) -> Result<Value> {
+pub(super) fn integer(v: &Value, key: &str, min: i64) -> Result<Value> {
     let v = &v[key];
     if v.is_null() || v.as_i64().is_some_and(|n| n >= min) {
         Ok(v.clone())
@@ -47,7 +47,7 @@ fn integer(v: &Value, key: &str, min: i64) -> Result<Value> {
         Err(Failure::protocol())
     }
 }
-fn date(v: &Value, key: &str) -> Result<Value> {
+pub(super) fn date(v: &Value, key: &str) -> Result<Value> {
     if v[key].is_null() {
         return Ok(Value::Null);
     }
@@ -206,22 +206,28 @@ pub(super) fn review_comment(v: &Value) -> Result<Value> {
     }
     Ok(record)
 }
-pub(super) fn check(v: &Value, head: &str) -> Result<Value> {
-    let status = string(v, "status")?;
-    let conclusion = string(v, "conclusion")?;
-    let state = match status.as_str() {
+pub(super) fn check_state(status: &Value) -> &'static str {
+    match status.as_str() {
         Some("queued" | "waiting" | "requested" | "pending") => "pending",
         Some("in_progress") => "running",
         Some("completed") => "completed",
         _ => "unknown",
-    };
-    let result = match conclusion.as_str() {
+    }
+}
+pub(super) fn check_conclusion(conclusion: &Value) -> &str {
+    match conclusion.as_str() {
         Some(
             s @ ("success" | "failure" | "neutral" | "skipped" | "cancelled" | "timed_out"
             | "action_required" | "stale"),
         ) => s,
         _ => "unknown",
-    };
+    }
+}
+pub(super) fn check(v: &Value, head: &str) -> Result<Value> {
+    let status = string(v, "status")?;
+    let conclusion = string(v, "conclusion")?;
+    let state = check_state(&status);
+    let result = check_conclusion(&conclusion);
     let app = if v["app"].is_null() {
         Value::Null
     } else {

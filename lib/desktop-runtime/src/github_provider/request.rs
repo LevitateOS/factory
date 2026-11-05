@@ -106,6 +106,25 @@ pub enum Read {
         limit: u32,
         head: String,
     },
+    WorkflowRuns {
+        repository: String,
+        page: u32,
+        limit: u32,
+        head: String,
+    },
+    WorkflowRunJobs {
+        repository: String,
+        run_id: String,
+        attempt: String,
+        head: String,
+        page: u32,
+        limit: u32,
+    },
+    PullProtection {
+        repository: String,
+        number: u32,
+        head: String,
+    },
     IssueComments {
         repository: String,
         number: u32,
@@ -149,7 +168,7 @@ impl Read {
         {
             return Err(Failure::invalid());
         }
-        for key in ["review_id", "comment_id"] {
+        for key in ["review_id", "comment_id", "run_id", "attempt"] {
             if value
                 .get(key)
                 .is_some_and(|id| !id.as_str().is_some_and(remote_id))
@@ -195,6 +214,12 @@ impl Read {
             self,
             Self::PullCheckRuns { .. } | Self::PullCommitStatuses { .. }
         ) && !(head.is_empty() && value["page"] == 1 || commit(head))
+        {
+            return Err(Failure::invalid());
+        }
+        if matches!(self, Self::WorkflowRuns { .. } | Self::PullProtection { .. })
+            && !head.is_empty() && !commit(head)
+            || matches!(self, Self::WorkflowRunJobs { .. }) && !commit(head)
         {
             return Err(Failure::invalid());
         }

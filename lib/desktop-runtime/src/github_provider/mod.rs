@@ -1,6 +1,7 @@
 //! Complete native GitHub session. No Tauri, product SQL, or browser HTTP bridge.
 //! The transport owner is joined on retirement, including its TLS/HTTP drivers.
 mod diff;
+mod evidence;
 mod oauth;
 mod patch;
 mod reads;

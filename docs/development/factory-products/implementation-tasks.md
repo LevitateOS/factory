@@ -576,7 +576,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
 | 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Complete |
-| 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Pending |
+| 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Active |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
 | 186 | T07-ISSUE-DETAIL | T07-ISSUE-LIST | Build the shared read-only issue detail/conversation over canonical reads, with sanitized Markdown, host-owned links, bounded comment paging and scoped retirement/access handling; verify emitted assets, stories and browser behavior before connected navigation. | Complete |
@@ -26036,3 +26036,42 @@ by the full provider gate. T07-READ and T12-PLACEMENT have their CONNECT
 prerequisite satisfied. Native intake remains fenced pending N3/placement/N4.
 D1/D2/D3/D5, remote revocation, installed and cross-host gates remain open. The
 overall product/allocation goal is active and unfinished.
+
+
+T06-GITHUB-EVIDENCE native provider producer (2026-11-05):
+Active. Added typed Rust workflow-run lists, exact run-attempt job pages and
+PR-bound classic protection/active-ruleset reads. Captured repository, run,
+attempt, job, head, PR base and branch identities stay distinct. Native decoding
+retains nullable fields and original provider state/conclusion; status
+normalization shares the existing check decoder. A hidden/forbidden classic
+rule remains unknown, never proof that no rule exists. A ruleset result with a
+continuation beyond the bounded first 100 rules refuses. No Go product job/
+protection path is activated in this producer.
+
+The existing actual approved native consent journey observed one real public
+workflow job, checked its run/attempt/head and refused changed heads for both
+jobs and PR protection. Active branch rules were visible; classic protection
+was not, and remained null. The first checks exposed an attempt-scoped jobs URL
+that differed from the workflow-list representation; the producer now accepts
+only the exact run or exact run-attempt jobs URL and follows neither. Three
+failed logs and the final passing retry are retained. Reusing the same encrypted
+grant required no further challenge. The full connected shared UI, private/paged
+reads, actual refresh, local removal and Quit also passed again; final exit 0.
+Evidence/scripts/source identities: `/home/vince/tmp/factory-github-evidence-1105/`;
+result log SHA-256:
+`471b3a59ec93557ff3fb971b9f932231d4fa037f919049f2e9289b6efd1c43c3`;
+native evidence result SHA-256:
+`0fa93a0753f5cb55eb65740dafa916f97ea624cca56ce4fe874981fb28a13be8`.
+Locked offline runtime/native-check builds, touched formatting and whitespace
+checks passed. Official GitHub API 2026-03-10 workflow-run/attempt-job/active-rule
+contracts were checked; retained local runtime inputs are not a newly qualified
+whole-distribution or installed baseline.
+
+Remaining in this same slice: consume the native evidence in Go's canonical
+check/protection projection, with exact current PR/head/base and opaque
+continuations; qualify actual job pagination and shared HTTP, rule changes,
+partial/unavailable classic or ruleset data, app-qualified requirements and
+scope/withdrawal refusal. Do not guess workflow-definition commits, approval
+state, requiredness or a passing merge gate. The Go job path remains explicitly
+unavailable until its consumer is ready. T06-GITHUB remote revocation and the
+installed/D1/D2/D3/D5 gates remain open.

@@ -467,8 +467,17 @@ and file pages. Reply groups collect a complete bounded forest (1,000 comments,
 dangling replies and duplicate identities refuse. Catalog previews contain ten
 comments and retain continuation; detail pages use actual root comment IDs.
 These observations do not claim GraphQL resolution or immutable/current anchors.
-Nullable private/push facts remain nullable. Workflow jobs and branch-rule reads
-remain a required later producer. One Rust
+Nullable private/push facts remain nullable. The native evidence producer now
+reads workflow runs and exact attempt-scoped job pages, retaining run/attempt/head
+and provider state independently. It checks repository and run/job URLs without
+following them, refuses changed heads and compares the run snapshot around jobs.
+PR protection reads bind head, base, base branch and observed branch commit;
+classic protection and active repository/organization rules remain separate.
+Forbidden/hidden protection stays unknown, including app-qualified requirements.
+Ruleset pages exceeding the bounded first 100 rules refuse rather than becoming
+a complete empty rule set. These typed native facts passed actual authenticated
+job/ruleset reads; the canonical Go job/protection projection remains required
+by T06-GITHUB-EVIDENCE before enabling those product reads. One Rust
 selector defines request bounds. Stable repository/parent/current-head checks
 bracket the relevant operations. Unknown/null facts remain unknown; read access
 and CI observations never create product mutation or execution authority.

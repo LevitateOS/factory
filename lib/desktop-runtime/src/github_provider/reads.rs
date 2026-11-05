@@ -92,6 +92,9 @@ impl Client {
                             ("review_comments", reader.reviews(&q, true).await?)
                         }
                         "pull_threads" => ("threads", reader.threads(&q).await?),
+                        "workflow_runs" => ("workflow_runs", reader.workflow_runs(&q).await?),
+                        "workflow_run_jobs" => ("jobs", reader.workflow_jobs(&q).await?),
+                        "pull_protection" => ("protection", reader.protection(&q).await?),
                         "pull_check_runs" | "pull_commit_statuses" => (
                             if kind == "pull_check_runs" {
                                 "checks"

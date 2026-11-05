@@ -665,6 +665,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
         identity["account"]["external_id"] == account.account,
         "remote identity mismatch",
     )?;
+    workflow_evidence_check(app, &account.connection).await?;
     product_bridge_check(app, &account.connection).await?;
     let mut page = 1;
     let mut pages = 0;
@@ -766,6 +767,160 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "connected_shared_ui":true
         }),
     )
+}
+
+// Extend the existing real native journey. These are authenticated public
+// provider reads, not a substitute for the later canonical Go consumer.
+async fn workflow_evidence_check(app: &tauri::AppHandle, connection: &str) -> Result<(), String> {
+    use soda_desktop_runtime::github::Read as Query;
+    let repository = consent_read(
+        app,
+        connection,
+        Query::FindRepository {
+            name: "cli/cli".into(),
+        },
+    )
+    .await?;
+    let repository = repository["repository"]["external_id"]
+        .as_str()
+        .ok_or("workflow repository identity missing")?
+        .to_owned();
+    let mut observed_jobs = 0usize;
+    let mut pages = 0usize;
+    for page in 1..=3 {
+        let runs = consent_read(
+            app,
+            connection,
+            Query::WorkflowRuns {
+                repository: repository.clone(),
+                head: String::new(),
+                page,
+                limit: 2,
+            },
+        )
+        .await?;
+        let runs = &runs["workflow_runs"];
+        ensure(
+            runs["repository"] == repository,
+            "workflow repository changed",
+        )?;
+        let items = runs["items"].as_array().ok_or("workflow page missing")?;
+        ensure(items.len() <= 2, "workflow page exceeded request")?;
+        pages += 1;
+        for run in items {
+            let id = run["external_id"]
+                .as_str()
+                .ok_or("workflow run id missing")?;
+            let attempt = run["attempt"].as_str().ok_or("workflow attempt missing")?;
+            let head = run["head"].as_str().ok_or("workflow head missing")?;
+            let result = native_github_read(
+                app,
+                connection,
+                Query::WorkflowRunJobs {
+                    repository: repository.clone(),
+                    run_id: id.into(),
+                    attempt: attempt.into(),
+                    head: head.into(),
+                    page: 1,
+                    limit: 2,
+                },
+            )
+            .await?;
+            // An actively changing run is an observed refusal; inspect another
+            // real run rather than combining mutable metadata with its jobs.
+            if result.status == 409 {
+                continue;
+            }
+            if result.status != 200 {
+                return Err(format!(
+                    "workflow jobs unavailable: {} {}",
+                    result.status,
+                    result.body["error"]
+                        .as_str()
+                        .unwrap_or("invalid_native_reply")
+                ));
+            }
+            let result = &result.body["jobs"];
+            ensure(
+                result["run"]["external_id"] == id
+                    && result["run"]["attempt"] == attempt
+                    && result["run"]["head"] == head,
+                "workflow job run/attempt/head changed",
+            )?;
+            let jobs = result["items"].as_array().ok_or("job page missing")?;
+            ensure(jobs.len() <= 2, "job page exceeded request")?;
+            for job in jobs {
+                ensure(
+                    job["run_id"] == id && job["attempt"] == attempt && job["head"] == head,
+                    "job escaped captured run/attempt/head",
+                )?;
+            }
+            observed_jobs += jobs.len();
+            let changed = native_github_read(
+                app,
+                connection,
+                Query::WorkflowRunJobs {
+                    repository: repository.clone(),
+                    run_id: id.into(),
+                    attempt: attempt.into(),
+                    head: "1".repeat(40),
+                    page: 1,
+                    limit: 2,
+                },
+            )
+            .await?;
+            ensure(changed.status == 409, "changed workflow head admitted")?;
+            if observed_jobs > 0 {
+                break;
+            }
+        }
+        if observed_jobs > 0 || runs["next_page"] == 0 {
+            break;
+        }
+    }
+    ensure(observed_jobs > 0, "no actual workflow job observed")?;
+    let protection = consent_read(
+        app,
+        connection,
+        Query::PullProtection {
+            repository: "724712".into(),
+            number: 165146,
+            head: String::new(),
+        },
+    )
+    .await?;
+    let facts = &protection["protection"];
+    ensure(
+        facts["repository"] == "724712"
+            && facts["pull"]["number"] == 165146
+            && facts["head"].is_string()
+            && facts["base"].is_string()
+            && facts["branch"].is_string(),
+        "protection lost pull/head/base binding",
+    )?;
+    let changed = native_github_read(
+        app,
+        connection,
+        Query::PullProtection {
+            repository: "724712".into(),
+            number: 165146,
+            head: "1".repeat(40),
+        },
+    )
+    .await?;
+    ensure(changed.status == 409, "changed protection head admitted")?;
+    write_consent_evidence(
+        app,
+        "native-workflow-evidence.json",
+        &serde_json::json!({
+            "actual_authenticated_reads":true,"workflow_pages":pages,"jobs_observed":observed_jobs,
+            "exact_run_attempt_head":true,"changed_head_refused":true,"pull_base_branch_bound":true,
+            "classic_visible":!facts["classic"].is_null(),"active_rules_visible":!facts["rules"].is_null(),
+            "canonical_consumer_qualified":false,"merge_gate_qualified":false
+        }),
+    )?;
+    println!("PASS: actual native workflow/job and branch-rule reads retain run/attempt/head/base scope; changed heads refuse; canonical consumer remains separate");
+    Ok(())
 }
 
 async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Result<(), String> {
