@@ -1126,6 +1126,13 @@ fn main() {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
+        if args.len() == 4 && args[0] == "--github-evidence-declared" {
+            return runtime.block_on(native_github_transport::run_evidence_declared(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 5 && args[0] == "--github-refresh" {
             return runtime.block_on(native_github_transport::run_refresh(
                 Path::new(&args[1]),

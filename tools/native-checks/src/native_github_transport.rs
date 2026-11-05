@@ -11,8 +11,286 @@ use std::future::Future;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, Instant};
+
+// Runs the existing native/keyring/Go/PG integration against an explicitly
+// declared HTTPS provider fixture. The launcher supplies process-local trust
+// and a loopback-only proxy. Never use a retained account or real grant here.
+pub(super) async fn run_evidence_declared(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use serde_json::{json, Value};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let mode = |value: &str| -> Result<()> {
+        fs::write(io.join("mode"), value)?;
+        Ok(())
+    };
+    mode("positive-start")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "declared evidence requires empty credential fixture",
+    )?;
+    let saved = store
+        .store(
+            account(),
+            Token::new(b"factory-declared-evidence".to_vec())?,
+        )
+        .await?;
+    let query = || Read::PullProtection {
+        repository: "123".into(),
+        number: 7,
+        head: "a".repeat(40),
+    };
+    let mut cases = Vec::new();
+    for name in [
+        "positive",
+        "empty",
+        "hidden-classic",
+        "hidden-rules",
+        "legacy",
+        "unknown-rule",
+        "unknown-parameter",
+    ] {
+        mode(name)?;
+        let cap = store.capability(&saved.connection).await?;
+        let reply = runtime.github_read(&store, &cap, query()).await?;
+        ensure(
+            reply.status == 200,
+            &format!("declared {name} protection refused: {}", reply.status),
+        )?;
+        let p = &reply.body["protection"]["summary"];
+        ensure(
+            reply.body["protection"]["head"] == "a".repeat(40)
+                && reply.body["protection"]["base"] == "b".repeat(40)
+                && reply.body["protection"]["branch"] == "main",
+            "declared protection lost scope",
+        )?;
+        match name {
+            "positive" => ensure(
+                p["requirements_complete"] == true
+                    && p["required_approvals"] == 3
+                    && p["require_up_to_date"] == true
+                    && p["require_code_owner_reviews"] == true
+                    && p["require_last_push_approval"] == true
+                    && p["require_signed"] == true
+                    && p["required_contexts"].is_null()
+                    && p["required_checks"].as_array().is_some_and(|v| {
+                        v.len() == 3
+                            && v.iter().any(|c| c["context"] == "build" && c["app"] == "7")
+                            && v.iter().any(|c| c["context"] == "build" && c["app"] == "9")
+                            && v.iter()
+                                .any(|c| c["context"] == "lint" && c["source"] == "any")
+                    }),
+                "declared classic/rules lost app or combined constraints",
+            )?,
+            "empty" => ensure(
+                p["requirements_complete"] == true
+                    && p["status_checks"] == false
+                    && p["required_contexts"] == json!([])
+                    && p["required_approvals"] == 0,
+                "declared empty requirements differ",
+            )?,
+            "hidden-classic" | "hidden-rules" => ensure(
+                p["requirements_complete"] == false
+                    && p["required_approvals"].is_null()
+                    && p["required_contexts"].is_null(),
+                "declared hidden source became complete or zero",
+            )?,
+            "legacy" => ensure(
+                p["requirements_complete"] == false
+                    && p["required_checks"].as_array().is_some_and(|v| {
+                        v.iter()
+                            .any(|c| c["context"] == "build" && c["source"] == "unknown")
+                    }),
+                "legacy context invented an app binding",
+            )?,
+            _ => ensure(
+                p["requirements_complete"] == false
+                    && p["unknown_rule_kinds"]
+                        .as_array()
+                        .is_some_and(|v| !v.is_empty()),
+                "unrepresented rule or parameter became complete",
+            )?,
+        }
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("classic-change", 409),
+        ("rules-change", 409),
+        ("branch-change", 409),
+        ("head-change", 409),
+        ("base-change", 409),
+        ("identity-change", 409),
+        ("repository-change", 404),
+        ("revoked", 401),
+        ("limited", 429),
+        ("oversized", 413),
+    ] {
+        mode(name)?;
+        let cap = store.capability(&saved.connection).await?;
+        let reply = runtime.github_read(&store, &cap, query()).await?;
+        ensure(
+            reply.status == status && reply.body.get("protection").is_none(),
+            &format!("declared {name} did not refuse: {}", reply.status),
+        )?;
+        cases.push(name);
+    }
+    // The same facts must survive the real canonical consumer, not merely the
+    // defining provider decoder. Each request admits fresh native custody.
+    mode("positive-canonical")?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&saved.connection).await?,
+        Some("123".into()),
+    )?;
+    let catalog = request
+        .request("GET", "/api/factory/collaboration/repositories", &[])
+        .await?;
+    let catalog: Value = serde_json::from_slice(&catalog.body)?;
+    let repository = catalog["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository missing")?;
+    let target =
+        format!("/api/factory/collaboration/repositories/{repository}/pulls/7/checks?limit=1");
+    let mut status_cursor = String::new();
+    for name in [
+        "positive-product",
+        "empty-product",
+        "hidden-classic-product",
+        "unknown-rule-product",
+    ] {
+        mode(name)?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&saved.connection).await?,
+            Some("123".into()),
+        )?;
+        let response = request.request("GET", &target, &[]).await?;
+        ensure(
+            response.status == 200,
+            &format!("declared canonical {name} refused: {}", response.status),
+        )?;
+        let body: Value = serde_json::from_slice(&response.body)?;
+        let p = &body["protection"];
+        ensure(
+            body["pull"]["repository"] == repository
+                && body["commit"] == "a".repeat(40)
+                && body["status_gate"] == "unknown"
+                && p["repository"] == repository
+                && p["branch"] == "main"
+                && p["observation"]["state"] == "available",
+            "canonical protection lost identity or invented gate",
+        )?;
+        if name == "positive-product" {
+            ensure(
+                p["requirements_complete"] == true
+                    && p["required_contexts"].is_null()
+                    && p["required_checks"]
+                        .as_array()
+                        .is_some_and(|v| v.len() == 3)
+                    && body["checks"]["items"][0]["source_app"] == "7"
+                    && body["checks"]["items"][0]["required"].is_null(),
+                "canonical app-qualified requirements changed",
+            )?;
+            status_cursor = body["checks"]["next"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .ok_or("status continuation missing")?
+                .into();
+        }
+        if name == "empty-product" {
+            ensure(
+                p["requirements_complete"] == true && p["required_approvals"] == 0,
+                "canonical empty policy changed",
+            )?;
+        }
+        if name == "hidden-classic-product" || name == "unknown-rule-product" {
+            ensure(
+                p["requirements_complete"] == false && p["required_contexts"].is_null(),
+                "canonical partial policy became complete",
+            )?;
+        }
+        cases.push(name);
+    }
+    for name in [
+        "classic-change-product",
+        "rules-change-product",
+        "branch-change-product",
+        "head-change-product",
+        "base-change-product",
+        "base-change-between-product",
+        "base-change-empty-product",
+        "identity-change-product",
+        "repository-change-product",
+        "revoked-product",
+        "limited-product",
+        "oversized-product",
+    ] {
+        mode(name)?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&saved.connection).await?,
+            Some("123".into()),
+        )?;
+        if let Ok(response) = request.request("GET", &target, &[]).await {
+            let body: Value = serde_json::from_slice(&response.body)?;
+            ensure(
+                response.status != 200 && body.get("protection").is_none(),
+                &format!("canonical {name} released partial/cached protection"),
+            )?;
+        }
+        cases.push(name);
+    }
+    for name in ["cursor-base-change-product", "cursor-branch-change-product"] {
+        mode(name)?;
+        let target = format!("{target}&head={}&cursor={}", "a".repeat(40), status_cursor);
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&saved.connection).await?,
+            Some("123".into()),
+        )?;
+        let response = request.request("GET", &target, &[]).await?;
+        ensure(
+            response.status == 409,
+            "status continuation ignored changed base or branch",
+        )?;
+        cases.push(name);
+    }
+    let retired = runtime.admit_product(
+        store.clone(),
+        store.capability(&saved.connection).await?,
+        Some("123".into()),
+    )?;
+    store.withdraw(&saved.connection).await?;
+    ensure(
+        retired.request("GET", &target, &[]).await.is_err(),
+        "withdrawn declared capability admitted canonical protection",
+    )?;
+    ensure(
+        store.status().await?.is_empty(),
+        "declared account remained after withdrawal",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("evidence-result.json"),
+        serde_json::to_vec(
+            &json!({"declared_provider_responses":true,"real_native_keyring_go_pg":true,"cases":cases,"local_withdrawal":true,"live_github_qualification":false,"merge_gate_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: declared HTTPS protection facts/refusals cross production native decoder, canonical Go reads and private keyring/PG; no live provider or merge gate qualified");
+    Ok(())
+}
 
 fn account() -> Account {
     Account::new(Provider::Github, "https://github.com", "1").unwrap()

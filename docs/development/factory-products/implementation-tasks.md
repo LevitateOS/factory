@@ -26172,3 +26172,69 @@ native executor, full provider, installed or D1/D2/D3/D5 gate is closed. Continu
 this parent qualification next; do not treat successful builds or this source
 journey as installed qualification. Routine security engineering remains in the
 normal queue under the corrected Daybreak boundary.
+
+T06-GITHUB-EVIDENCE declared protection qualification checkpoint (2026-11-05):
+
+The existing `factory-credential-operation-check` now has a
+`--github-evidence-declared BACKEND PG_PAYLOAD NEW_PROFILE` mode. It uses a fresh
+private bus/keyring/profile and an explicitly declared loopback HTTPS provider
+with a process-local fixture CA and dummy token. The external fixture accepts
+only the fixed provider CONNECT target and performs no outbound forwarding;
+production transport verification and selectors are unchanged. It exercises the
+real native provider decoder, credential lifetime, PostgreSQL, Go canonical
+mapping and shared HTTP read services. No new unit-test root or production
+provider bypass was added.
+
+Attempt 5 exited zero with 35 declared cases plus local withdrawal. Positive
+classic and ruleset observations preserve two different app bindings for the
+same context, unqualified requirements, maximum approvals and combined review,
+strictness and signing constraints. Empty policy remains distinct from hidden
+classic/rules, legacy unknown app binding, and unrepresented policies. Observed
+classic/rules/branch/head/base/identity/repository changes, provider refusal,
+rate limit and oversized rules refuse without releasing a partial policy.
+Canonical checks repeat the positive/empty/partial/refusal cases, preserve source
+app and unknown requiredness/merge gate, and refuse base/branch changes across
+status continuations. Withdrawal invalidates an already admitted local request.
+
+The check found and fixed two product defects. Unknown parameters on represented
+rule kinds could leave representation completeness true; they now produce an
+explicit unknown-policy marker and incomplete result. Status checks previously
+compared only the PR head, permitting a changed base to cross the combined
+status/protection read. Native status observations now capture and recheck base
+commit and branch too. Go checks those same pins between status and protection,
+across empty check-run fallback and in opaque status cursors. Declared changes
+inside an operation, between operations, across empty fallback and on cursor
+continuation all refused. Cursors captured before this additional pin are
+rejected rather than silently promoted to the stronger scope.
+
+Private source/fixture/scripts/results:
+`/home/vince/tmp/factory-github-declared-1105/attempt5/`;
+safe result SHA-256
+`5b0e8cc3d263b55a660a9e7fadbaed98064528c5e533ca03f50be8042b9437df`,
+result log
+`8647d1a2330c0a002e5e285093fb1d067509687a682a55e50ecd7d85172014a0`.
+Earlier attempts remain: shell assignment, enforced private-bus requirement,
+unknown-parameter defect and changed-base defect. The successful attempt records
+exact source and binary hashes. Go build/vet, locked offline native integration
+and native-check builds, dependency-boundary and whitespace checks passed.
+
+This qualifies declared provider policy behavior through real components. It is
+not live positive classic protection, provider-side revocation, installed
+qualification or a passing merge gate. T06-GITHUB-EVIDENCE remains Active for the
+remaining workflow-job run/attempt/count/cursor/empty-page cases. The final
+T06-GITHUB provider revocation, historical Go-observer migration, native executor
+and D1/D2/D3/D5/installed gates retain their own finish conditions.
+
+The follow-up rebuilt live connected journey also exited zero with the updated
+native/Go status snapshot protocol. Actual canonical protection, progressing job
+continuation, head/cursor refusals, private access, refresh and shared UI passed.
+The approved encrypted account remains retained; no local-removal or remote-
+revocation result is claimed for this attempt. Current live evidence is under
+`/home/vince/tmp/factory-github-jobs-1105/`; the previous protection checkpoint is
+preserved in `protection-projection-checkpoint/`. Current live result log SHA-256
+`7b72a2b70483b91b2b84e59a7e4c3975acea4b4396264395a06b0ff573bb042d`,
+safe result `bf7d3f18307d75fb9ef8969519cdd6204056651ed7ec79d81b4b6096c49f8007`,
+canonical evidence
+`295e7dba0e461997c28d0ea784a3fd1cfe657be7f3387c267ddf5fa407477f85`.
+The declared mutation proof and the live connected read proof remain separate;
+neither is installed or full-provider qualification.

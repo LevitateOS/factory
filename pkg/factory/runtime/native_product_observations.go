@@ -252,6 +252,7 @@ type nativeCursor struct {
 	Root       string `json:"root,omitempty"`
 	State      string `json:"state,omitempty"`
 	Base       string `json:"base,omitempty"`
+	Branch     string `json:"branch,omitempty"`
 	Head       string `json:"head,omitempty"`
 	Page       int    `json:"page"`
 	Limit      int    `json:"limit"`

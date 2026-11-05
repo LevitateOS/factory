@@ -1,4 +1,4 @@
-use super::request::{commit, remote_id};
+use super::request::remote_id;
 use super::transport::Response;
 use super::{records as r, Client, Failure, Read, Result};
 use crate::credentials::Token;
@@ -427,7 +427,7 @@ impl<'a> Reader<'a> {
             return Err(Failure::new(409, "github_checks_changed"));
         }
         self.recheck().await?;
-        let mut result = json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":head,"items":projected,"next_page":response.next});
+        let mut result = json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":head,"base":before["base"],"branch":before["branch"],"items":projected,"next_page":response.next});
         if checks {
             result["total"] = total;
         }
@@ -435,13 +435,7 @@ impl<'a> Reader<'a> {
     }
     async fn check_head(&self, number: u64) -> Result<Value> {
         let raw = self.raw_subject(true, number).await?;
-        let head = r::text(&raw["head"], "sha")?;
-        if !commit(head) {
-            return Err(Failure::new(503, "github_unavailable"));
-        }
-        Ok(
-            json!({"pull":{"kind":"pull","number":number,"external_id":r::id(&raw["id"])?},"head":head}),
-        )
+        self.protection_binding(&raw)
     }
 }
 pub(super) fn paging(q: &Value) -> (u32, u32) {

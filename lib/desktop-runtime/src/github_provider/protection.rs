@@ -128,6 +128,26 @@ pub(super) fn summarize(
         for rule in rules {
             let kind = text(&rule["type"])?;
             let p = &rule["parameters"];
+            let fields: Option<&[&str]> = match kind {
+                "required_status_checks" => Some(&[
+                    "required_status_checks",
+                    "strict_required_status_checks_policy",
+                ]),
+                "pull_request" => Some(&[
+                    "required_approving_review_count",
+                    "dismiss_stale_reviews_on_push",
+                    "require_code_owner_review",
+                    "require_last_push_approval",
+                    "required_review_thread_resolution",
+                ]),
+                "required_signatures" | "required_linear_history" => Some(&[]),
+                _ => None,
+            };
+            if let (Some(fields), Some(params)) = (fields, p.as_object()) {
+                if params.keys().any(|key| !fields.contains(&key.as_str())) {
+                    unknown.insert(format!("{kind}_parameters"));
+                }
+            }
             match kind {
                 "required_status_checks" => {
                     let required = p["required_status_checks"]
@@ -136,6 +156,13 @@ pub(super) fn summarize(
                         .ok_or_else(Failure::protocol)?;
                     for check in required {
                         add(&check["context"], &check["integration_id"], true)?;
+                        if check.as_object().is_some_and(|check| {
+                            check
+                                .keys()
+                                .any(|key| !matches!(key.as_str(), "context" | "integration_id"))
+                        }) {
+                            unknown.insert("required_status_check_parameters".into());
+                        }
                     }
                     // GitHub applies strictness only with a required check.
                     let value = if required.is_empty() {
@@ -158,26 +185,6 @@ pub(super) fn summarize(
                         flag(&p["required_review_thread_resolution"])?,
                         true,
                     );
-                    // New parameters (e.g. review teams) must remain visible as
-                    // unknown policy rather than being silently dropped.
-                    if let Some(params) = p.as_object() {
-                        if params.keys().any(|k| {
-                            !matches!(
-                                k.as_str(),
-                                "required_approving_review_count"
-                                    | "dismiss_stale_reviews_on_push"
-                                    | "require_code_owner_review"
-                                    | "require_last_push_approval"
-                                    | "required_review_thread_resolution"
-                                    | "allowed_merge_methods"
-                            )
-                        }) {
-                            unknown.insert("pull_request_parameters".into());
-                        }
-                        if params.contains_key("allowed_merge_methods") {
-                            unknown.insert("allowed_merge_methods".into());
-                        }
-                    }
                 }
                 "required_signatures" => signed = Some(true),
                 "required_linear_history" => linear = Some(true),

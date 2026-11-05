@@ -133,6 +133,8 @@ type nativeCheckPage struct {
 	Name       string                 `json:"name"`
 	Pull       nativeSubjectRef       `json:"pull"`
 	Head       collaboration.CommitID `json:"head"`
+	Base       collaboration.CommitID `json:"base"`
+	Branch     string                 `json:"branch"`
 	Items      []json.RawMessage      `json:"items"`
 	NextPage   int                    `json:"next_page"`
 	Total      *int64                 `json:"total,omitempty"`
@@ -150,18 +152,20 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 		return s.readJobs(ctx, actor, repo, number, q)
 	}
 	kind := "pull_check_runs"
+	basePin, branchPin := "", ""
 	if q.Cursor != "" {
 		data, err := base64.RawURLEncoding.DecodeString(q.Cursor)
 		if err != nil || len(q.Cursor) > 4096 {
 			return result, factoryservice.ErrChecksQuery
 		}
 		var supplied nativeCursor
-		if nativeDecode(data, &supplied) != nil || !(supplied.Kind == kind || supplied.Kind == "pull_commit_statuses") {
+		if nativeDecode(data, &supplied) != nil || !(supplied.Kind == kind || supplied.Kind == "pull_commit_statuses") || !collaboration.ValidCommitID(collaboration.CommitID(supplied.Base)) || !collaboration.ValidText(supplied.Branch, 4096) {
 			return result, factoryservice.ErrChecksQuery
 		}
 		kind = supplied.Kind
+		basePin, branchPin = supplied.Base, supplied.Branch
 	}
-	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: kind, Repository: s.identity.SelectedRepository, Number: number, Head: string(q.Head), Limit: q.Limit})
+	c, err := cursorDecode(q.Cursor, nativeCursor{Kind: kind, Repository: s.identity.SelectedRepository, Number: number, Head: string(q.Head), Base: basePin, Branch: branchPin, Limit: q.Limit})
 	if err != nil {
 		return result, factoryservice.ErrChecksQuery
 	}
@@ -177,10 +181,14 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 			}
 			return result, nativeMissing(err, factoryservice.ErrChecksMissing)
 		}
-		if raw.Repository != c.Repository || raw.Pull.Kind != "pull" || raw.Pull.Number != number || !nativeRemoteID(raw.Pull.ExternalID) || !collaboration.ValidCommitID(raw.Head) || c.Head != "" && c.Head != string(raw.Head) || raw.Items == nil || !validNativePage(raw.NextPage, c.Page, c.Limit, len(raw.Items), false) || raw.Total != nil && *raw.Total < 0 {
+		if raw.Repository != c.Repository || raw.Pull.Kind != "pull" || raw.Pull.Number != number || !nativeRemoteID(raw.Pull.ExternalID) || !collaboration.ValidCommitID(raw.Head) || !collaboration.ValidCommitID(raw.Base) || !collaboration.ValidText(raw.Branch, 4096) || c.Head != "" && c.Head != string(raw.Head) || raw.Items == nil || !validNativePage(raw.NextPage, c.Page, c.Limit, len(raw.Items), false) || raw.Total != nil && *raw.Total < 0 {
 			return result, errNativeRead
 		}
 		c.Head = string(raw.Head)
+		if c.Base != "" && (c.Base != string(raw.Base) || c.Branch != raw.Branch) {
+			return result, factoryservice.ErrChecksChanged
+		}
+		c.Base, c.Branch = string(raw.Base), raw.Branch
 		if c.Kind == "pull_check_runs" && len(raw.Items) == 0 && raw.NextPage == 0 {
 			c.Kind = "pull_commit_statuses"
 			c.Page = 1
@@ -242,7 +250,7 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 		next = 1
 	}
 	obs := s.observation(raw)
-	protection, err := s.readProtection(ctx, repo, raw.Pull, raw.Head)
+	protection, err := s.readProtection(ctx, repo, raw.Pull, raw.Head, raw.Base, raw.Branch)
 	if err != nil {
 		return result, err
 	}

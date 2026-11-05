@@ -194,7 +194,7 @@ impl Reader<'_> {
         }
     }
 
-    fn protection_binding(&self, raw: &Value) -> Result<Value> {
+    pub(super) fn protection_binding(&self, raw: &Value) -> Result<Value> {
         let head = r::nonempty(&raw["head"], "sha")?;
         let base = r::nonempty(&raw["base"], "sha")?;
         let branch = r::nonempty(&raw["base"], "ref")?;

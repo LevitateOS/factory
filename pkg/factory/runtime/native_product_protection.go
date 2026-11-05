@@ -11,7 +11,7 @@ import (
 
 // Rust defines the provider policy decoding. Go binds that observation to the
 // canonical repository and pull; it does not reinterpret provider parameters.
-func (s nativeCollaborationReads) readProtection(ctx context.Context, repo collaboration.RepositoryID, pull nativeSubjectRef, head collaboration.CommitID) (*collaboration.BranchProtection, error) {
+func (s nativeCollaborationReads) readProtection(ctx context.Context, repo collaboration.RepositoryID, pull nativeSubjectRef, head, base collaboration.CommitID, branch string) (*collaboration.BranchProtection, error) {
 	var raw struct {
 		Repository   string                         `json:"repository"`
 		Name         string                         `json:"name"`
@@ -37,6 +37,9 @@ func (s nativeCollaborationReads) readProtection(ctx context.Context, repo colla
 			}
 		}
 		return nil, nativeMissing(err, factoryservice.ErrChecksMissing)
+	}
+	if raw.Base != base || raw.Branch != branch {
+		return nil, factoryservice.ErrChecksChanged
 	}
 	b := raw.Summary
 	if raw.Repository != s.identity.SelectedRepository || raw.Pull != pull || raw.Head != head || !collaboration.ValidCommitID(raw.Base) || !collaboration.ValidCommitID(raw.BranchCommit) || !collaboration.ValidText(raw.Branch, 4096) || b.Repository != 0 || b.Branch != "" || b.Observation != (collaboration.Observation{}) || b.RequirementsComplete == nil || b.ClassicVisible == nil || b.RulesVisible == nil || (raw.Protected == nil) != (b.Protected == nil) || raw.Protected != nil && *raw.Protected != *b.Protected {
