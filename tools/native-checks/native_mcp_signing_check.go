@@ -690,10 +690,152 @@ func nativeIntentFixture(profile, instance, operation, argument string) error {
 	return nil
 }
 
+// Compare the actual native result with facts recorded by the production Rust
+// RPC consumer. This helper performs no observation write through Store.
+func checkNativeObservation(profile, instance, path string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	if path != filepath.Join(profile, "native-recovery-fixture.json") {
+		return errors.New("observation fixture path differs")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var input struct {
+		Run           factory.Run
+		StartedUnixMS int64 `json:"started_unix_ms"`
+	}
+	if json.Unmarshal(raw, &input) != nil || input.Run.Native == nil || input.Run.Native.Provenance.Process == nil {
+		return errors.New("observation fixture invalid")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	id, err := os.ReadFile(filepath.Join(profile, "native-recovery-canonical.id"))
+	if err != nil {
+		return err
+	}
+	prior, err := db.FactoryRun(ctx, string(id))
+	if err != nil {
+		return err
+	}
+	expected := *input.Run.Native
+	expected.Intent = prior.Native.Intent
+	expected.Retirement = execution.Exited
+	expected.Provenance.Process.StartedAt = time.UnixMilli(input.StartedUnixMS).UTC()
+	if prior.Reconciled || prior.Outcome != "" || prior.Admission != nil || !reflect.DeepEqual(prior.Native, &expected) {
+		return errors.New("native facts lost scope or promoted outcome/placement/retirement")
+	}
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	var active, settled bool
+	if err = rawDB.QueryRowContext(ctx, "SELECT active,settled FROM factory_runs WHERE id=$1", prior.ID).Scan(&active, &settled); err != nil || !active || settled {
+		return errors.New("native observation changed active/settled projections")
+	}
+	p := expected.Provenance.Process
+	receipt := execution.NativeReceiptObservation{WorkerUID: expected.Provenance.Isolation.WorkerUID, Invocation: p.InvocationID, SystemInstance: p.SystemInstance, StartIdentity: p.StartIdentity, PID: p.PID, StartedUnixMS: input.StartedUnixMS, ExitCode: p.ExitCode}
+	custody := execution.NativeCustodyObservation{NativeCustody: expected.Provenance.Custody, Sealed: expected.Sealed}
+	payload := func(receipt execution.NativeReceiptObservation, custody execution.NativeCustodyObservation, intent string) map[string]any {
+		return map[string]any{"intent": intent, "receipt": receipt, "custody": custody}
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", config.Socket)
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+	post := func(body map[string]any, selected string, mutate func(*http.Request)) (int, error) {
+		encoded, err := json.Marshal(body)
+		if err != nil {
+			return 0, err
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://soda-native/api/native/execution/recovery/observations", strings.NewReader(string(encoded)))
+		if err != nil {
+			return 0, err
+		}
+		request.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
+		request.Header.Set("X-Soda-Native-Instance", selected)
+		if mutate != nil {
+			mutate(request)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return 0, err
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, response.Body)
+		return response.StatusCode, nil
+	}
+	check := func(body map[string]any, selected string, mutate func(*http.Request), expected int) error {
+		status, err := post(body, selected, mutate)
+		if err != nil || status != expected {
+			return fmt.Errorf("native observation refusal differs: %d want %d, %v", status, expected, err)
+		}
+		return nil
+	}
+	correct := payload(receipt, custody, expected.Intent)
+	if err = check(correct, instance, nil, 200); err != nil {
+		return err
+	}
+	if err = check(correct, factory.NewID(), nil, 401); err != nil {
+		return err
+	}
+	if err = check(correct, instance, func(r *http.Request) { r.Header.Set("Origin", "http://fixture.invalid") }, 403); err != nil {
+		return err
+	}
+	if err = check(correct, instance, func(r *http.Request) { r.Header.Set("Authorization", "Bearer wrong") }, 401); err != nil {
+		return err
+	}
+	if err = check(correct, instance, func(r *http.Request) { r.URL.RawQuery = "extra=1" }, 400); err != nil {
+		return err
+	}
+	if err = check(payload(receipt, custody, expected.Intent+" "), instance, nil, 409); err != nil {
+		return err
+	}
+	for _, field := range []string{"root_retired", "outcome", "reconciled"} {
+		body := payload(receipt, custody, expected.Intent)
+		body[field] = true
+		if err = check(body, instance, nil, 400); err != nil {
+			return err
+		}
+	}
+	changed := receipt
+	changed.StartIdentity = "999999999999"
+	if err = check(payload(changed, custody, expected.Intent), instance, nil, 409); err != nil {
+		return err
+	}
+	altered := custody
+	altered.AcquisitionID = factory.NewID()
+	if err = check(payload(receipt, altered, expected.Intent), instance, nil, 409); err != nil {
+		return err
+	}
+	altered = execution.NativeCustodyObservation{NativeCustody: execution.NativeCustody{State: execution.NotAcquired}, Sealed: true}
+	if err = check(payload(receipt, altered, expected.Intent), instance, nil, 409); err != nil {
+		return err
+	}
+	after, err := db.FactoryRun(ctx, prior.ID)
+	if err != nil || !reflect.DeepEqual(after, prior) {
+		return errors.New("replay or refused observation changed retained facts")
+	}
+	fmt.Println("PASS: production native observation RPC retains first process/acquisition facts atomically, replay is stable, active/unsettled state remains; stale/browser/changed identity and invented retirement/outcome/no-acquisition refuse")
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "create-native-intent" || os.Args[3] == "finish-native-intent" {
+		if os.Args[3] == "check-native-observation" {
+			err = checkNativeObservation(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "create-native-intent" || os.Args[3] == "finish-native-intent" {
 			err = nativeIntentFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 		} else {
 			err = nativeReceiptFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])

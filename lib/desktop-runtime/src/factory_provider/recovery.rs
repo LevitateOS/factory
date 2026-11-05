@@ -145,6 +145,7 @@ struct RecordedCustody {
 /// A validated channel/scope snapshot, not a current product capability. Its
 /// original instance/worktree and optional placement are retained unchanged.
 pub struct NativeRecovery {
+    products: Products,
     context: RecoveryContext,
     run: RecordedRun,
 }
@@ -185,7 +186,11 @@ impl NativeRecovery {
         {
             return Err(refused("native recovery ledger binding differs"));
         }
-        let recovery = Self { context, run };
+        let recovery = Self {
+            products,
+            context,
+            run,
+        };
         recovery.scope()?;
         Ok(recovery)
     }
@@ -254,16 +259,22 @@ impl NativeRecovery {
             self.compare_process(receipt)?;
         }
         let expected = &self.run.native.provenance.custody;
-        // A missing captured connection cannot be replaced by a selector read
-        // from an unrelated local journal. It remains unobserved.
-        let custody = if expected.connection.is_empty() {
-            None
+        // The verified intent can bind the first acquisition not yet in Go.
+        // An unrelated local journal never fills a missing captured connection.
+        let connection = if !expected.connection.is_empty() {
+            Some(expected.connection.as_str())
         } else {
-            read_custody(&self.context.directory, &scope, &expected.connection)?
+            intent.as_ref().map(LaunchIntent::connection)
+        };
+        let custody = if let Some(connection) = connection {
+            read_custody(&self.context.directory, &scope, connection)?
+        } else {
+            None
         };
         if let Some(observed) = &custody {
-            if observed.acquisition_id != expected.acquisition_id
-                || observed.generation.to_string() != expected.generation
+            if !expected.acquisition_id.is_empty()
+                && (observed.acquisition_id != expected.acquisition_id
+                    || observed.generation.to_string() != expected.generation)
                 || expected.state == "released" && observed.state != CustodyState::Released
                 || self.run.native.sealed && !observed.sealed
             {
@@ -278,6 +289,58 @@ impl NativeRecovery {
             receipt,
             custody,
         })
+    }
+
+    /// Report retained native facts through the same joined private owner.
+    /// The Go transaction rechecks its current row and immutable intent. This
+    /// does not retire the broker root or settle an outcome/reservation.
+    pub async fn record_evidence(&self) -> io::Result<()> {
+        let evidence = self.read_evidence()?;
+        let intent = evidence
+            .intent
+            .ok_or_else(|| refused("native recovery intent not observed"))?;
+        let receipt = evidence
+            .receipt
+            .ok_or_else(|| refused("native recovery receipt not observed"))?;
+        let custody = evidence.custody.as_ref().map(|custody|serde_json::json!({
+            "state":match custody.state {CustodyState::Held=>"held",CustodyState::Uncertain=>"uncertain",CustodyState::Released=>"released"},
+            "acquisition_id":custody.acquisition_id,"connection":custody.connection,
+            "generation":custody.generation.to_string(),"sealed":custody.sealed,
+        }));
+        let body = serde_json::to_vec(&serde_json::json!({"intent":intent.raw(),"custody":custody,"receipt":{
+            "worker_uid":receipt.worker_uid,"invocation":receipt.process.invocation,
+            "system_instance":receipt.process.system_instance,"start_identity":receipt.process.start_identity,
+            "namespace_pid":receipt.process.namespace_pid,"started_unix_ms":receipt.process.started_unix_ms,
+            "exit_code":receipt.exit_code,"exit_signal":receipt.exit_signal,
+        }})).map_err(|_|refused("native recovery observation encoding invalid"))?;
+        self.context.current()?;
+        let response = self
+            .products
+            .record_recovery(&body)
+            .await
+            .map_err(|_| refused("native recovery observation unavailable"))?;
+        self.context.current()?;
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Ack {
+            status: String,
+            instance: String,
+            profile: String,
+            run: String,
+        }
+        if response.status != 200 || response.body.len() > 1024 {
+            return Err(refused("native recovery observation refused"));
+        }
+        let ack: Ack = serde_json::from_slice(&response.body)
+            .map_err(|_| refused("native recovery acknowledgement invalid"))?;
+        if ack.status != "native_observation_recorded"
+            || ack.instance != self.context.instance
+            || ack.profile != self.context.profile
+            || ack.run != self.run.id
+        {
+            return Err(refused("native recovery acknowledgement binding differs"));
+        }
+        Ok(())
     }
 
     fn compare_process(&self, observed: &AgentRun) -> io::Result<()> {

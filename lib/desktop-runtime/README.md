@@ -173,8 +173,20 @@ intent is recorded; absence on both sides stays unknown. No intent is synthesize
 for history. This producer/read consumer passed a real registry/worker/ledger
 fixture with declared unplaced metadata, not actual dispatch admission. Wire it
 through the atomic Go dispatch packet and admitted native ports before intake.
-Post-ledger startup ordering and atomic Go recovery remain unimplemented; the
-current pre-Go broker fence is unchanged.
+`NativeRecovery::record_evidence` now reports retained receipt/custody facts via
+the joined private owner to Go's fixed native observation endpoint. A verified
+intent can bind the first acquisition not yet observed by Go; no connection or
+acquisition is guessed from an unrelated journal. The Go transaction locks the
+current canonical run, compares the immutable intent and advances only native
+facts using `NativeRecord.Advances`. Its child-exit projection cannot establish
+root retirement. Active/settled flags, admission, outcome and accounting stay
+untouched. Missing history remains unknown. Replays use fresh row validation.
+This path passed an actual local-worker/Go transaction check before any fixture
+observation write, including concurrent replay and normal supervisor restart.
+
+Production admitted dispatch/ports, post-ledger startup ordering, root retirement
+and Go outcome/accounting recovery remain unimplemented/unqualified; the current
+pre-Go broker fence is unchanged.
 
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should

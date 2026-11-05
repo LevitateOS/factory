@@ -14,6 +14,7 @@ use tokio::task::JoinSet;
 enum RequestRoute {
     Product,
     Recovery,
+    RecoveryObservation,
 }
 
 type Result<T> = std::result::Result<T, String>;
@@ -168,6 +169,12 @@ impl Products {
                                 })
                         })
             }
+            RequestRoute::RecoveryObservation => {
+                method == "POST"
+                    && target == "/api/native/execution/recovery/observations"
+                    && !body.is_empty()
+                    && operation.is_none()
+            }
         };
         if !supported
             || target.len() > 2048
@@ -229,6 +236,18 @@ impl Products {
     }
     pub(crate) fn recovery_context(&self) -> crate::factory_provider::recovery::RecoveryContext {
         self.recovery.clone()
+    }
+    pub(crate) fn record_recovery(
+        &self,
+        body: &[u8],
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(
+            "POST",
+            "/api/native/execution/recovery/observations",
+            body,
+            None,
+            RequestRoute::RecoveryObservation,
+        )
     }
     fn request_scoped(
         &self,

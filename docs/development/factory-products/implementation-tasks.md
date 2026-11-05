@@ -25904,3 +25904,45 @@ recovery remain unfinished. Actual interrupted writes/launches/replies,
 worker/owner death, full restart/reboot, real finite provider work and installed
 Quit remain unverified. The pre-Go launched-root fence remains active. N3/N4/D3
 remain open; no canonical slice or security gate is closed by these checks.
+
+
+T09-NATIVE-EXECUTOR transactional native fact recovery (2026-11-05):
+The canonical dispatch transaction still explicitly refuses native packets until
+its placement/execution dependencies are admitted; this slice preserves that
+fence. The independent native recovery consumer now reports receipt/custody facts
+through a fixed private Go endpoint without starting intake or the coordinator.
+`Store.ObserveNativeRecovery` locks the current run, validates exact immutable
+intent/profile/state, and advances only native fields through the existing
+`NativeRecord.Advances` rules. Child exit is at most Exited, never root-retirement
+proof. Outcome, admission, active/settled projections and accounting stay
+untouched. Unknown evidence cannot become NotAcquired or caller-supplied success.
+
+The Rust reader now uses the verified intent's captured connection for the first
+acquisition not yet in Go, while preserving known acquisition/generation and
+seal/release facts. Its production `record_evidence` uses the same bounded joined
+private owner and validates the instance/profile/run acknowledgement. Native
+selectors do not become canonical addresses or placement authority.
+
+The existing real isolated local-ELF/registry/private-keyring/PostgreSQL/backend
+fixture passed the first-observation path before any fixture observation write.
+Actual process/acquisition facts were retained atomically; concurrent replays and
+normal supervisor restart after dummy withdrawal succeeded. Go verified exact
+facts with active=true, settled=false, no outcome and no admission. Stale/browser/
+wrong-key/noncanonical requests, changed intent/process/custody, invented root/
+outcome/reconciled fields and fabricated NotAcquired custody refused, preserving
+the row. Existing changed-evidence, pending-publication and legacy-start fences
+also passed. Exact roots were absent, services stopped and temporary units
+removed. Evidence/driver: `/home/vince/tmp/fnr-observe1-1105/`;
+result SHA-256:
+`07eeb2023b6e9801729438be5e1f6ac9f6c01a6e5fd0d0fcbe2eca5eca83c968`.
+Affected Go builds, locked offline native builds/checks, formatting and whitespace
+checks passed. These are retained-input/dummy-only checks with declared unplaced
+Go metadata and synthetic native runtime/placement, not actual admitted dispatch,
+provider inference, interrupted owner or fresh release qualification.
+
+Remaining: compose admitted dispatch/ports after their dependencies, order startup
+after ledger availability, prove exact broker retirement independently, and join
+output/candidate handling to the existing Go outcome/accounting owner. Actual
+interrupted writes/launches/lost commit replies, worker/owner death, full restart/
+reboot, finite provider work and installed Quit remain unverified. N3/N4/D3 remain
+open; no security gate or canonical slice is marked complete from these facts.
