@@ -1243,3 +1243,65 @@ credential delivery/custody, listener/tool admission, finite provider work,
 retirement/recovery and durable settlement. No dummy-token or local-withdrawal
 result closes those gates. Routine implementation continues normally; only a
 particular check that looks like hacking needs a user-started Daybreak session.
+
+T06-GITHUB actual revocation attempt (2026-11-05, incomplete):
+The new opt-in `--check-provider-revocation` consent observer in
+`cmd/soda-desktop/src/{main,check_credentials}.rs` passed its full positive
+connected journey and wrote a positive native identity/canonical repository
+ready record. The owner then confirmed revocation of the exact client-specific
+GitHub authorization. The observer passed actual native identity 401, canonical
+identity/catalogue/job refusal and actual WebKit reconnect refusal. It failed at
+its expected revoked-refresh classification before final proof/local cleanup.
+This attempt is failed; do not promote it to a full provider gate result.
+
+The retained profile has a durable `refreshing-credentials` marker. Do not replay
+that refresh or clear its uncertainty fence to recover a token. No final safe
+revocation result or local-withdrawal result was produced. Relevant private root:
+`/home/vince/tmp/factory-github-jobs-1105/` with the current failed `result.log`,
+`provider-revocation-ready.json` and `p/provider-revocation-ui-refused` barrier.
+The preceding completed producer evidence is preserved in
+`workflow-evidence-complete/`. Grants, profiles and prior failures remain intact.
+
+Exact blocker: the failed check did not record which safe refresh failure class
+occurred; expected `bad_refresh_token` was not established. Diagnose the provider
+contract using noncredential fixtures and safe bounded failure classification;
+retain pending custody. A full refresh-after-revocation proof needs a confirmed
+provider outcome on a correctly instrumented, separately authorized fresh grant,
+not replay of this uncertain pair. Historical observer check migration remains
+independent work. No installed, D3, credential-custody or full-provider gate is
+closed, and the manually confirmed app action alone is not refresh proof.
+
+Revocation follow-up (2026-11-05): the dedicated native-check-only
+`--check-provider-revocation-cleanup` invocation verified the sole fixture was
+`RefreshPending`, refused access, withdrew it through the existing custody owner,
+and refused its captured capability. It exited 0 in the real isolated
+Tauri/WebKit/keyring/runtime journey. No refresh was replayed and no uncertainty
+marker was cleared to recover a token. The failed attempt is preserved under
+`/home/vince/tmp/factory-github-jobs-1105/revocation-attempt1/`; the safe
+`provider-revocation-cleanup.json` in its parent has SHA-256
+`dacc7ca5aa3156be0d86a28d27124c78c88834ddb4c6bc57985dca9ee00f8ffa`.
+The owned revoked fixture is now removed; other profiles and historical evidence
+remain intact. This supersedes the preceding retained-account cleanup blocker,
+not the unverified refresh outcome.
+
+GitHub's documented `incorrect_client_credentials` OAuth error now has a bounded
+typed native refresh outcome, distinct from an unconfirmed exchange and from
+`bad_refresh_token`. No upstream description, raw response or secret is retained.
+The existing native operation check gained `--github-refresh-refusal` to run its
+actual-provider negative phase independently of the obsolete Go observer. Its
+real Rust/Go/PostgreSQL/private-keyring run exited 0 under
+`/home/vince/tmp/factory-github-refresh-refusal-1105/`: generated invalid fixture,
+client rejection, durable pending custody, second exchange refused before
+network, then normal withdrawal. No real grant was used and this does not
+identify the previous failed exchange. Unknown/provider/network outcomes keep
+their uncertainty behavior.
+
+The corrected revocation observer writes access/WebKit evidence and a bounded
+refresh outcome before asserting. A fresh isolated connected check is awaiting
+owner consent under `/home/vince/tmp/factory-github-revocation-v2-1105/`.
+Closing the remaining remote qualification requires its actual owner-approved
+grant revocation, recorded provider refusal and local cleanup. A client rejection
+must remain labelled as client rejection; it does not establish a
+`bad_refresh_token` response. T06-GITHUB also still requires migration/retirement
+of the historical Go-observer check consumers. Installed and D1/D2/D3/D5 gates
+remain open with their existing dependencies.

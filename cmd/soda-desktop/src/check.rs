@@ -72,7 +72,13 @@ pub fn consent_done(app: &tauri::AppHandle) {
         .check
         .stage
         .store(2, Ordering::SeqCst);
-    println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
+    if std::env::args_os().any(|arg| arg == "--check-provider-revocation-cleanup") {
+        println!(
+            "PASS: owned pending account cleanup; provider refresh outcome remains unverified"
+        );
+    } else {
+        println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
+    }
     quit(app.clone());
 }
 fn control_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {

@@ -577,7 +577,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
 | 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Complete |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Complete |
-| 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
+| 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Active |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
 | 186 | T07-ISSUE-DETAIL | T07-ISSUE-LIST | Build the shared read-only issue detail/conversation over canonical reads, with sanitized Markdown, host-owned links, bounded comment paging and scoped retirement/access handling; verify emitted assets, stories and browser behavior before connected navigation. | Complete |
 | 187 | T07-ISSUE-COMPOSITION | T07-ISSUE-DETAIL | Compose shared issue list/detail and admitted Factory journey in the production app with distinct typed issue/work-detail destinations, exact account/resource binding and coordinated read retirement; verify actual browser navigation and unavailable facts before host route cutover. | Complete |
@@ -26307,3 +26307,65 @@ producer results nor local withdrawal close that final provider gate. Installed,
 D1/D2/D3/D5 and native executor gates remain open; the full product goal remains
 active. No unrelated edits, retained credentials/profiles or evidence were
 removed, and no remote repository was changed.
+
+## T06-GITHUB — final connected provider audit (Active, 2026-11-05)
+
+T06-CONNECT and T06-GITHUB-EVIDENCE now satisfy the producer dependencies. This
+slice must audit each full-provider requirement against current evidence, prove
+actual provider-side grant revocation and subsequent refusal through the native
+and canonical consumers, then remove the owned local fixture account. Audit the
+retained historical Go-observer check consumers and migrate useful obligations
+to the current Rust-owned real integration/connected checks, retiring obsolete
+hooks only with equivalent current proof. Preserve historical source/results and
+all unrelated profiles/credentials. No installed or executor gate is implied.
+
+The current public desktop client has no app secret. GitHub's documented app
+HTTP grant/token deletion endpoints require client-ID/secret authentication;
+the supported user action is the fixed client-specific authorization settings
+page. Prepare the native retained-account observer and its positive check before
+requesting that manual action. Grant deletion affects all authorizations for that
+client/user, so the owner must perform that scoped action knowingly. The exposed-
+credential reporting API is not the normal owned-grant management flow. Do not
+embed or request an app secret or relabel local deletion as remote revocation.
+Official provider contracts checked 2026-11-05:
+[OAuth authorization deletion](https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2026-03-10),
+[user authorization settings](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#directing-users-to-review-their-access).
+
+Revocation observer checkpoint (2026-11-05):
+
+- The owner revoked the exact application grant after a positive connected
+  journey. Actual Rust identity returned 401; canonical identity/catalogue/jobs
+  and actual WebKit reconnect refused. The observer then failed its strict
+  refresh-401 expectation without recording the failure class. This is a failed
+  attempt, not full-provider qualification. Evidence is preserved in
+  `/home/vince/tmp/factory-github-jobs-1105/revocation-attempt1/`; failed log
+  SHA-256 `e965fae6ada2929a59e4958e1ebe040c6f8c1e3b6dde7fb27c8ece35e4e5216f`.
+- A separate cleanup-only invocation on the same isolated native desktop proved
+  pending-custody access refusal, normal local withdrawal and old-capability
+  refusal. It exited 0. No pending refresh was replayed or cleared for reuse.
+  Safe cleanup result SHA-256
+  `dacc7ca5aa3156be0d86a28d27124c78c88834ddb4c6bc57985dca9ee00f8ffa`.
+- GitHub's known `incorrect_client_credentials` refresh error now has a distinct
+  bounded native outcome. Unknown outcomes remain unconfirmed; failed rotations
+  remain fenced. Existing operation check `--github-refresh-refusal` extracts
+  the actual-provider negative phase from the historical Go-observer consumer.
+  It passed with current Rust/Go/PostgreSQL/private keyring and a generated
+  invalid noncredential: client rejection, pending custody, no-network replay
+  refusal, normal withdrawal. Result under
+  `/home/vince/tmp/factory-github-refresh-refusal-1105/` has SHA-256
+  `0e3a831b9851f6eb177d0f4071de9659026b502a4fec924b32e11bec7b098262`;
+  log `e1230fb4c01e68b0ce967116791fb0551455e0b5eca7deb187c8960534c8665a`.
+  This does not establish the earlier exchange's class or prove an actual
+  revoked refresh token returned `bad_refresh_token`.
+- The corrected observer writes each passed access phase and bounded refresh
+  outcome before asserting. Fresh connected qualification is in progress under
+  `/home/vince/tmp/factory-github-revocation-v2-1105/`. Source builds of the real
+  native-check desktop and existing operation binary passed offline/locked;
+  `bun run check:boundaries` and whitespace checks passed. No fresh installed
+  baseline or broad custody/isolation gate is claimed.
+
+T06-GITHUB remains Active. Exact remaining requirements are confirmed fresh
+remote revocation/refusal/local cleanup and equivalent current coverage before
+retiring historical Go-observer consumers. D1/D2/D3/D5, native executor and
+installed gates remain open. Provider error contract:
+[GitHub OAuth request errors](https://docs.github.com/en/apps/oauth-apps/maintaining-oauth-apps/troubleshooting-oauth-app-access-token-request-errors).

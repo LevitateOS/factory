@@ -621,6 +621,9 @@ async fn issue_checks(
     )
 }
 async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
+    if std::env::args_os().any(|arg| arg == "--check-provider-revocation-cleanup") {
+        return revocation_cleanup(app).await;
+    }
     use soda_desktop_runtime::github::Read as GitHubRead;
     let state = app.state::<Desktop>();
     let store = state.credentials()?;
@@ -739,6 +742,10 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "post-refresh identity mismatch",
         )?;
     }
+    let revocation = std::env::args_os().any(|arg| arg == "--check-provider-revocation");
+    if revocation {
+        provider_revocation_check(app, &account.connection, refresh_available).await?;
+    }
     let cap = store
         .capability(&account.connection)
         .await
@@ -765,11 +772,255 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "approved_native_signin":true, "verified_identity":true, "encrypted_grant_reload":true,
             "repository_pages":pages, "private_repository_read":private_read,
             "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
-            "owned_local_account_removed":!retain, "owned_account_retained_for_followup":retain, "remote_revocation_exercised":false,
+            "owned_local_account_removed":!retain, "owned_account_retained_for_followup":retain, "remote_revocation_exercised":revocation,
             "canonical_factory_binding":true, "native_product_bridge":true,
             "connected_shared_ui":true,"canonical_job_read":true,
             "canonical_job_continuation":true,"canonical_protection_read":true
         }),
+    )
+}
+
+// Only withdraw the owned failed-check account. Never reopen or replay its
+// uncertain refresh pair, and never turn cleanup into a provider-pass result.
+async fn revocation_cleanup(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("fixture parent missing")?;
+    let ready: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(root.join("provider-revocation-ready.json"))
+            .map_err(|_| "revocation ready evidence missing")?,
+    )
+    .map_err(|_| "revocation ready evidence invalid")?;
+    ensure(
+        ready["positive_native_identity"] == true
+            && ready["positive_canonical_repository"] == true
+            && state
+                .paths
+                .profile
+                .join("provider-revocation-approved")
+                .is_file()
+            && state
+                .paths
+                .profile
+                .join("provider-revocation-ui-refused")
+                .is_file(),
+        "owned failed revocation-check evidence missing",
+    )?;
+    let store = state.credentials()?;
+    let accounts = store.status().await.map_err(|e| e.to_string())?;
+    ensure(accounts.len() == 1, "cleanup account not uniquely stored")?;
+    let account = &accounts[0];
+    ensure(
+        account.provider == Provider::Github
+            && account.origin == "https://github.com"
+            && matches!(account.state, CredentialState::RefreshPending),
+        "cleanup requires the fenced GitHub fixture account",
+    )?;
+    let cap = store
+        .capability(&account.connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure(
+        store.with_token(&cap, |_| ()).await.is_err(),
+        "pending refresh admitted access",
+    )?;
+    store
+        .withdraw(&account.connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure(
+        store.status().await.map_err(|e| e.to_string())?.is_empty(),
+        "cleanup left an account",
+    )?;
+    ensure(
+        store.with_token(&cap, |_| ()).await.is_err(),
+        "withdrawn capability survived cleanup",
+    )?;
+    write_consent_evidence(
+        app,
+        "provider-revocation-cleanup.json",
+        &serde_json::json!({
+            "owned_pending_account_removed":true,"pending_access_refused":true,
+            "withdrawn_capability_refused":true,"refresh_replayed":false,
+            "provider_refresh_outcome_unverified":true,"full_provider_gate_complete":false
+        }),
+    )
+}
+
+async fn revocation_product(
+    app: &tauri::AppHandle,
+    connection: &str,
+    path: &str,
+) -> Result<Reply, String> {
+    let state = app.state::<Desktop>();
+    let store = state.credentials()?;
+    let cap = store
+        .capability(connection)
+        .await
+        .map_err(|e| e.to_string())?;
+    let request = state
+        .runtime
+        .lock()
+        .unwrap()
+        .as_ref()
+        .ok_or("runtime missing")?
+        .admit_product(store, cap, Some("724712".into()))?;
+    let response = request.request("GET", path, &[]).await?;
+    Ok(Reply {
+        status: response.status,
+        body: serde_json::from_slice(&response.body).map_err(|_| "invalid product reply")?,
+    })
+}
+
+// The owner revokes the application grant in GitHub settings. This observer
+// never accepts an app secret or substitutes local withdrawal for remote proof.
+async fn provider_revocation_check(
+    app: &tauri::AppHandle,
+    connection: &str,
+    refresh_available: bool,
+) -> Result<(), String> {
+    use soda_desktop_runtime::github::{Error as GitHubError, Read};
+    consent_read(app, connection, Read::Identity).await?;
+    let catalog =
+        revocation_product(app, connection, "/api/factory/collaboration/repositories").await?;
+    ensure(
+        catalog.status == 200
+            && catalog.body["items"]
+                .as_array()
+                .is_some_and(|v| v.len() == 1)
+            && catalog.body["items"][0]["external_id"] == "724712",
+        "pre-revocation canonical repository unavailable",
+    )?;
+    let repository = catalog.body["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical revocation repository missing")?
+        .to_owned();
+    let review = format!(
+        "https://github.com/settings/connections/applications/{}",
+        soda_desktop_runtime::github_provider::OAUTH_CLIENT_ID
+    );
+    write_consent_evidence(
+        app,
+        "provider-revocation-ready.json",
+        &serde_json::json!({"positive_native_identity":true,"positive_canonical_repository":true,"review_url":review,"manual_app_grant_revocation_pending":true,"affects_all_tokens_for_this_app_and_user":true}),
+    )?;
+    barrier(
+        app,
+        "provider-revocation-ready",
+        "provider-revocation-approved",
+    )
+    .await?;
+    let state = app.state::<Desktop>();
+    let store = state.credentials()?;
+    ensure(
+        store
+            .status()
+            .await
+            .map_err(|e| e.to_string())?
+            .iter()
+            .any(|a| a.connection == connection && matches!(a.state, CredentialState::Stored)),
+        "grant was removed locally before remote observation",
+    )?;
+    let refused = native_github_read(app, connection, Read::Identity).await?;
+    ensure(
+        refused.status == 401 && refused.body.get("account").is_none(),
+        "GitHub did not refuse revoked access",
+    )?;
+    for path in [
+        "/api/factory/identity".to_owned(),
+        "/api/factory/collaboration/repositories".to_owned(),
+        format!(
+            "/api/factory/collaboration/repositories/{repository}/pulls/165146/checks/jobs?limit=1"
+        ),
+    ] {
+        let refused = revocation_product(app, connection, &path).await?;
+        ensure(
+            (400..=599).contains(&refused.status)
+                && refused.body.get("actor").is_none()
+                && refused.body.get("items").is_none()
+                && refused.body.get("checks").is_none(),
+            "revoked grant released canonical cached facts",
+        )?;
+    }
+    let script=r#"(async()=>{const invoke=window.__TAURI__.core.invoke;try{const session=await invoke('factory_prepare_connection',{connection:__CONNECTION__,repository:'724712'});let refused=false;try{await invoke('factory_connect',{session});}catch{refused=true;}if(!refused)throw Error('revoked account connected through WebKit');await invoke('factory_disconnect');await invoke('report',{stage:'signin-revocation-product-refused',error:null});}catch(error){await invoke('report',{stage:'failed',error:String(error)});}})()"#.replace("__CONNECTION__",&serde_json::to_string(connection).map_err(|_|"connection encoding failed")?);
+    app.get_webview_window("main")
+        .ok_or("main window missing")?
+        .eval(&script)
+        .map_err(|_| "revocation UI unavailable")?;
+    barrier(
+        app,
+        "provider-revocation-ui-ready",
+        "provider-revocation-ui-refused",
+    )
+    .await?;
+    write_consent_evidence(
+        app,
+        "provider-revocation-access-result.json",
+        &serde_json::json!({
+            "manual_grant_revocation_confirmed":true,"actual_identity_401":true,
+            "canonical_reads_refused":true,"actual_webkit_connect_refused":true,
+            "refresh_outcome_pending":refresh_available,"local_removal_pending":true
+        }),
+    )?;
+    let mut refresh_refusal = None;
+    if refresh_available {
+        let cap = store
+            .capability(connection)
+            .await
+            .map_err(|e| e.to_string())?;
+        let refresh = state
+            .runtime
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("runtime missing")?
+            .github_refresh(&store, &cap);
+        let outcome = refresh.await;
+        let class = match &outcome {
+            Err(GitHubError::Provider(401)) => "sign_in_required",
+            Err(GitHubError::RefreshClientRejected) => "client_credentials_rejected",
+            Err(GitHubError::Provider(_)) => "provider_unconfirmed",
+            Err(GitHubError::Credential(_)) => "custody_refused",
+            Err(GitHubError::Unavailable) => "unavailable",
+            Err(GitHubError::Invalid | GitHubError::Protocol) => "invalid_or_protocol",
+            Ok(_) => "unexpected_success",
+        };
+        write_consent_evidence(
+            app,
+            "provider-revocation-refresh-result.json",
+            &serde_json::json!({
+                "safe_outcome_class":class,"refresh_replayed":false,
+                "revoked_refresh_token_error":class=="sign_in_required",
+                "client_credentials_rejected":class=="client_credentials_rejected"
+            }),
+        )?;
+        ensure(
+            matches!(
+                outcome,
+                Err(GitHubError::Provider(401) | GitHubError::RefreshClientRejected)
+            ),
+            "GitHub revoked-refresh outcome was unconfirmed",
+        )?;
+        refresh_refusal = Some(class);
+        ensure(
+            store
+                .status()
+                .await
+                .map_err(|e| e.to_string())?
+                .iter()
+                .any(|a| {
+                    a.connection == connection && matches!(a.state, CredentialState::RefreshPending)
+                }),
+            "failed revoked refresh lost its durable fence",
+        )?;
+    }
+    write_consent_evidence(
+        app,
+        "provider-revocation-result.json",
+        &serde_json::json!({"positive_native_and_canonical_before":true,"manual_grant_revocation_confirmed":true,"actual_identity_401":true,"canonical_reads_refused":true,"actual_webkit_connect_refused":true,"refresh_issued":refresh_available,"post_revocation_refresh_refused":refresh_available,"refresh_refusal_class":refresh_refusal,"local_removal_remains_separate":true}),
     )
 }
 
@@ -1079,6 +1330,12 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
     }
     match stage {
+        "signin-revocation-product-refused" => std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(state.paths.profile.join("provider-revocation-ui-refused"))
+            .map(|_| ())
+            .map_err(|_| "revocation UI evidence unavailable".into()),
         "signin-evidence-observed" => write_consent_evidence(
             app,
             "canonical-workflow-evidence.json",
@@ -1294,7 +1551,9 @@ async fn barrier(app: &tauri::AppHandle, ready: &str, done: &str) -> Result<(), 
         .map_err(|_| "credential check marker failed")?;
     println!("Credential check barrier: {ready}");
     let done = profile.join(done);
-    let seconds = if ready == "product-bridge-ready" {
+    let seconds = if ready == "provider-revocation-ready" {
+        600
+    } else if ready == "product-bridge-ready" {
         180
     } else {
         15

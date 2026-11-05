@@ -18,6 +18,7 @@ pub enum Error {
     Invalid,
     Unavailable,
     Protocol,
+    RefreshClientRejected,
     Provider(u16),
 }
 impl std::fmt::Display for Error {
@@ -27,6 +28,9 @@ impl std::fmt::Display for Error {
             Self::Invalid => f.write_str("invalid native GitHub read"),
             Self::Unavailable => f.write_str("native GitHub transport is unavailable"),
             Self::Protocol => f.write_str("invalid native GitHub response"),
+            Self::RefreshClientRejected => {
+                f.write_str("GitHub rejected the refresh client credentials")
+            }
             Self::Provider(status) => write!(f, "GitHub verification refused (HTTP {status})"),
         }
     }
@@ -286,6 +290,8 @@ impl NativeSupervisor {
 pub(crate) fn provider_error(failure: crate::github_provider::Failure) -> Error {
     if failure.code == "github_unavailable" {
         Error::Unavailable
+    } else if failure.code == "github_refresh_client_rejected" {
+        Error::RefreshClientRejected
     } else {
         Error::Provider(failure.status)
     }

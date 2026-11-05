@@ -1133,6 +1133,13 @@ fn main() {
                 Path::new(&args[3]),
             ));
         }
+        if args.len() == 4 && args[0] == "--github-refresh-refusal" {
+            return runtime.block_on(native_github_transport::run_refresh_refusal(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 5 && args[0] == "--github-refresh" {
             return runtime.block_on(native_github_transport::run_refresh(
                 Path::new(&args[1]),

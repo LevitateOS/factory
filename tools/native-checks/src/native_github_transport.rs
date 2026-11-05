@@ -497,9 +497,8 @@ fn invalid() -> Result<Vec<u8>> {
     value.extend(fixture()?);
     Ok(value)
 }
-pub(super) async fn run_refresh(
+pub(super) async fn run_refresh_refusal(
     production: &Path,
-    observed: &Path,
     payload: &Path,
     profile: &Path,
 ) -> Result<()> {
@@ -516,15 +515,13 @@ pub(super) async fn run_refresh(
         .await?;
     let cap = store.capability(&saved.connection).await?;
     let actual = runtime.github_refresh(&store, &cap).await;
-    if !matches!(actual, Err(Error::Provider(502))) {
-        return Err(format!(
-            "actual GitHub invalid refresh returned {}",
-            actual
-                .err()
-                .map_or_else(|| "unexpected success".into(), |e| e.to_string())
-        )
-        .into());
-    }
+    let refusal_class = match actual {
+        Err(Error::RefreshClientRejected) => "client_credentials_rejected",
+        Err(Error::Provider(401)) => "sign_in_required",
+        _ => {
+            return Err("actual GitHub invalid refresh outcome was not a confirmed refusal".into())
+        }
+    };
     ensure(
         matches!(
             store.status().await?[0].state,
@@ -542,7 +539,30 @@ pub(super) async fn run_refresh(
     store.withdraw(&saved.connection).await?;
     store.retire();
     runtime.stop()?;
-    println!("PASS: actual GitHub rejects a generated non-GitHub refresh fixture through private native Go/Rust/keyring/PG (unconfirmed provider refusal, not a verified bad_refresh_token classification); old pair stays blocked and a second request refuses before network; no successful real refresh claimed");
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("refresh-refusal-result.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "generated_invalid_fixture":true,"owned_grant_used":false,
+            "safe_refusal_class":refusal_class,"pending_custody_retained":true,
+            "second_request_refused_before_network":true,"local_account_removed":true,
+            "actual_revoked_refresh_token_proved":false
+        }))?,
+    )?;
+    println!("PASS: actual GitHub refused a generated invalid refresh fixture ({refusal_class}); Rust connector/custody retained the pending fence, refused replay and withdrew the fixture; no real grant or revoked-token classification claimed");
+    Ok(())
+}
+
+pub(super) async fn run_refresh(
+    production: &Path,
+    observed: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    run_refresh_refusal(production, payload, profile).await?;
+    let io = profile.parent().ok_or("fixture parent missing")?.join("io");
 
     let runtime = NativeSupervisor::start(payload, observed, profile)?;
     let store = Credentials::open(profile, &runtime.health()?.profile)?;

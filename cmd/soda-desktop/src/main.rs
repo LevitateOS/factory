@@ -534,9 +534,23 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     let mut retain_check_account = false;
     #[cfg(feature = "native-check")]
+    let mut revocation_check = false;
+    #[cfg(feature = "native-check")]
+    let mut revocation_cleanup = false;
+    #[cfg(feature = "native-check")]
     let mut control_check = false;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        #[cfg(feature = "native-check")]
+        if arg == "--check-provider-revocation-cleanup" {
+            revocation_cleanup = true;
+            continue;
+        }
+        #[cfg(feature = "native-check")]
+        if arg == "--check-provider-revocation" {
+            revocation_check = true;
+            continue;
+        }
         #[cfg(feature = "native-check")]
         if arg == "--check-retain-account" {
             retain_check_account = true;
@@ -612,6 +626,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     if retain_check_account && signin_check != Some(check::SignInMode::Consent) {
         return Err("retained check account requires the consent check".into());
+    }
+    #[cfg(feature = "native-check")]
+    if revocation_check
+        && (signin_check != Some(check::SignInMode::Consent) || retain_check_account)
+    {
+        return Err("provider revocation requires a consent check with local withdrawal".into());
+    }
+    #[cfg(feature = "native-check")]
+    if revocation_cleanup
+        && (signin_check != Some(check::SignInMode::Consent)
+            || retain_check_account
+            || revocation_check)
+    {
+        return Err("revocation cleanup requires a separate consent-check invocation".into());
     }
     prepare_profile(&paths.profile)?;
     let bus = format!(

@@ -121,10 +121,12 @@ impl Client {
         let reply: OAuthReply = serde_json::from_slice(&raw)
             .map_err(|_| Failure::new(502, "github_refresh_unconfirmed"))?;
         if let Some(code) = &reply.error {
-            return Err(if code == "bad_refresh_token" {
-                Failure::new(401, "github_sign_in_required")
-            } else {
-                Failure::new(502, "github_refresh_unconfirmed")
+            return Err(match code.as_str() {
+                "bad_refresh_token" => Failure::new(401, "github_sign_in_required"),
+                "incorrect_client_credentials" => {
+                    Failure::new(403, "github_refresh_client_rejected")
+                }
+                _ => Failure::new(502, "github_refresh_unconfirmed"),
             });
         }
         if reply
