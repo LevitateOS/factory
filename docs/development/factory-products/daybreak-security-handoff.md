@@ -118,9 +118,10 @@ coder/output bounds, writable mounts, and denial when `/run` has low free
 space, with exact process and filesystem observations. These component checks
 do not close D3.
 The agent unit also disables swap under its existing 1 GiB memory ceiling.
-The current disposable service attested workspace creation but did not exercise
-workspace/output limits, cleanup under growth, or captured results. Those
-require service-path evidence before the D3 storage requirement can close.
+The current disposable service attested workspace creation and separately ran a
+small coder edit, but did not exercise workspace/output limits or cleanup under
+growth. Those require service-path evidence before the D3 storage requirement
+can close.
 
 For D3 result custody, the worker now has a direct Git check of clean committed
 candidate bundling and bounded dirty-edit checkpointing. After the agent tree
@@ -140,19 +141,24 @@ retirement. The reader passed a local on-disk fixture with valid readback,
 wrong source, altered output digest, interrupted pending write and older-version
 refusal. The direct Git fixture also passed dirty checkpoint, detached HEAD,
 deletion/replacement, rename, changed-configuration refusal, a 33 MiB dirty
-refusal and an oversized bundle refusal. This is only direct Git,
-source-compilation and local fixture evidence.
-The actual system-service worker/broker reply, live receipt writer-to-reader
-roundtrip, cross-run refusal, Go admission/checkpoint binding, service-path
-dirty coder checkpoint, candidate retrieval/publication and crash/reboot
-reconciliation are unverified. The aggregate worker workspace and ignored-file
-storage bound is still unqualified on the actual worker service; the
-changed-file preflight is not that bound. A
-failed checkpoint currently yields uncertainty, but no recovered worker
+refusal and an oversized bundle refusal. A follow-up disposable actual agent
+service ran a 16,848-byte credential-free coder ELF against real preparer output.
+It returned worker UID 64596, root peer, zero exit, retired tree, complete
+24-byte output and a 437-byte candidate bundle. Git verified the returned
+commit descends from the prepared source and contains the single expected edit.
+The temporary unit and exact `/run` paths were removed. This proves one
+service-path dirty coder checkpoint with dummy inputs, not broker-orchestrated
+execution or durable result custody.
+The actual broker-to-worker execution reply, live receipt writer-to-reader
+roundtrip, cross-run refusal, Go admission/checkpoint binding, candidate
+retrieval/publication and crash/reboot reconciliation are unverified. The
+aggregate worker workspace and ignored-file storage bound is still
+unqualified on the actual worker service; the changed-file preflight is not
+that bound. A failed checkpoint currently yields uncertainty, but no recovered worker
 workspace has been proved after the service exits. Close this
 part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
-worker or owner interruption. Do not treat the direct bundle fixture as D3.
+worker or owner interruption. Do not treat the disposable fixture as D3.
 
 For D3 restart reconciliation, `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls

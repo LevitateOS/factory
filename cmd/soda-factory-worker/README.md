@@ -369,6 +369,17 @@ broker did not orchestrate this preparation; neither role executed a tool or
 provider request. The temporary services, binaries, socket and staged run were
 removed. Full service admission, storage exhaustion and D3 remain open.
 
+A second disposable coder check used that preparer path and the current agent
+service profile to execute a 16,848-byte credential-free ELF. It appended one line
+to the private workspace, then exited zero. The isolated worker reported UID
+64596, root peer, retired process tree, complete 24-byte output and a captured
+437-byte candidate bundle. Git verified the bundle's new commit descends from
+the prepared source and contains the expected edit. The check did not use the
+broker's `execute_agent` orchestration, a provider credential or a real model;
+it did not exercise workspace exhaustion, cross-run denial, receipt persistence
+or Go admission. Exact temporary units and `/run` paths were removed. N3/D3
+remain open.
+
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
 deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree

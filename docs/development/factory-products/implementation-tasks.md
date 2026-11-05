@@ -24931,3 +24931,16 @@ explaining it. The broker did not orchestrate these manual staging inputs; no
 cross-run check ran. The temporary units, binaries, socket and exact staged
 run were removed; the preexisting broker runtime parents and lock remained.
 T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR isolated coder checkpoint (2026-11-05): a disposable
+dynamic-UID preparer made the exact checkout from the 373-byte dummy bundle.
+The current agent service/socket then executed a 16,848-byte credential-free coder
+ELF through its real native process owner. The ELF appended one bounded line
+in the private workspace and exited zero; the worker returned UID 64596, root
+peer, retired tree, complete 24-byte output and a captured 437-byte candidate
+bundle. Git verified that its new commit descends from the prepared source and
+contains the edit. The temporary units, binaries, socket and exact `/run`
+source/preparation paths were removed. This proves one service-path dirty coder
+checkpoint, not broker-orchestrated execution, provider custody, durable
+receipt readback, storage exhaustion, cross-run denial or Go admission. N3 and
+D3 remain open.
