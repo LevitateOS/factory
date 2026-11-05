@@ -24904,3 +24904,16 @@ slice and bind restored, the worker passed identity, bounded storage and process
 delegation, then refused at the expected missing role manifest. The temporary
 executable was removed. This advances the service-profile evidence but does not
 qualify the installed broker/worker, run admission, workspace exhaustion or D3.
+
+T09-NATIVE-EXECUTOR reviewer-attestation attempt (2026-11-05): a temporary
+root-only socket and rendered agent service with a dummy read-only Git checkout
+and role manifest reached the worker's captured Git source read, but no
+attestation readiness was sent. Git exited 128. A disposable native-process
+diagnostic could stat the dummy `.git/HEAD` but got `EACCES` opening it from
+both its parent and captured child; a direct executable in the matching
+disposable service profile read the same file. Staging the dummy checkout under
+`/run` rather than the worktree did not change the denial. The cause is
+unverified. The temporary units, binaries, socket and `/run` fixture were
+removed. Reproduce with the actual broker preparation source and establish the
+access cause before considering any N3 service-path qualification. This failed
+attempt does not complete T09-NATIVE-EXECUTOR or D3.

@@ -88,6 +88,22 @@ bind restored, the worker passed service identity, storage and process
 delegation, then refused the expected missing role manifest. The probes were
 collected and the temporary binary was removed. This is not a worker/broker
 execution or storage exhaustion check.
+An additional actual-worker reviewer attestation attempt under a temporary
+socket and service failed before readiness. The worker's captured Git command
+returned a repository-read failure on a dummy checkout. A disposable
+`soda-native-process` diagnostic showed `EACCES` opening the dummy `.git/HEAD`
+in both the native-process parent and its captured child, although stat worked
+and a direct command in the matching disposable service profile could read it.
+Copying the fixture from the protected worktree to `/run` did not change the
+denial. The cause is unverified. The temporary socket, units, binaries and
+`/run` fixture were removed. Before any N3/D3 closure, reproduce with the
+broker's actual preparation source, establish the file-access cause without
+bypassing an enforced boundary, then prove a complete exact reviewer and coder
+service response with source/candidate checks and cleanup. Relevant code:
+`cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`,
+`lib/native-process/src/`, `cmd/soda-factory-broker/src/main.rs`,
+`cmd/soda-factory-broker/src/preparation_quota.rs` and the agent service/socket
+templates. No fix is claimed here.
 The worker mount does not prove that every writable surface is bounded or that
 failed checkpoints remain recoverable. Close the storage part only after actual
 service-path checks of retained multi-run capacity/refusal, cleanup/retry,

@@ -347,6 +347,17 @@ coder, or a provider. Coder
 growth/refusal, aggregate writable surfaces and multi-run isolation have not
 been requalified under this profile. D3 remains open.
 
+An attempt to extend this into reviewer attestation with a temporary socket,
+service, dummy Git checkout and role manifest failed before the readiness byte:
+the worker's captured Git command could not read the dummy repository. A
+disposable native-process diagnostic could stat its `.git/HEAD` but got
+`EACCES` opening it, both from its parent and from a captured child; a direct
+command in the matching disposable service profile read that same file. Moving
+the dummy checkout from the worktree to `/run` did not change the denial. The
+cause is unresolved. The temporary units, binaries and `/run` fixture were
+removed. This failed attempt does not qualify worker source admission, native
+process reads, or the D3 gate.
+
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
 deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree
