@@ -72,12 +72,16 @@ func (s Workers) HandlerWithSecretVerifier(verify factory.MCPSecretVerifier) htt
 			http.NotFound(w, r)
 			return
 		}
+		if r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery {
+			http.Error(w, "invalid worker target", http.StatusBadRequest)
+			return
+		}
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if r.Header.Get("Origin") != "" {
+		if _, present := r.Header["Origin"]; present {
 			http.Error(w, "origin refused", http.StatusForbidden)
 			return
 		}
@@ -85,8 +89,14 @@ func (s Workers) HandlerWithSecretVerifier(verify factory.MCPSecretVerifier) htt
 			http.Error(w, "factory MCP unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		id := r.Header.Get("X-Soda-Factory-Capability")
-		provided, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		ids := r.Header.Values("X-Soda-Factory-Capability")
+		auth := r.Header.Values("Authorization")
+		if len(ids) != 1 || len(auth) != 1 {
+			http.Error(w, "worker authentication required", http.StatusUnauthorized)
+			return
+		}
+		id := ids[0]
+		provided, bearer := strings.CutPrefix(auth[0], "Bearer ")
 		if verify == nil || !factory.ValidID(id) || !bearer || !factory.ValidMCPSecret(provided) {
 			http.Error(w, "worker authentication required", http.StatusUnauthorized)
 			return

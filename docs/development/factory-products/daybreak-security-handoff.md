@@ -96,6 +96,12 @@ HTTP listener's active, wrong-secret, revoked and expired responses. This
 proves the callback and Go transport order with fixture capabilities. The
 canonical Store row, admitted native listener, broker delivery and actual
 isolated worker still need their production checks; no D3 gate is complete.
+The worker HTTP boundary now refuses duplicate bearer/capability headers,
+an Origin header even with an empty value, and query-bearing `/mcp` targets.
+The same disposable PostgreSQL/Go/Rust supervisor check passed these denials
+across two ordered backend incarnations. It did not exercise a production
+native MCP listener, canonical capability row or isolated worker, so current
+run/peer admission and worker delivery remain unverified.
 
 For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.

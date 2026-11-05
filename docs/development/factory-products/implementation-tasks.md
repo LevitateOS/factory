@@ -25356,3 +25356,12 @@ This exercised the real Rust callback and Go worker boundary, not a canonical
 Store row, broker-delivered secret, production native listener or isolated
 worker. Locked offline Rust checks, the current Go build, existing MCP HTTP
 integration tests and whitespace checks passed. D3 and N3 remain open.
+
+T09-NATIVE-EXECUTOR worker MCP header admission checkpoint (2026-11-05): the
+Go worker HTTP boundary now refuses duplicate Authorization and capability
+headers, any Origin header including an empty value, and a query-bearing
+`/mcp` target. The existing disposable PostgreSQL/Go/Rust supervisor check
+passed these denials on both ordered backend incarnations while retaining
+matching active, wrong-secret, revoked and expired behavior. This is still a
+synthetic listener and capability, not the native production listener, a
+canonical Store row or an isolated worker. N3 and D3 remain open.

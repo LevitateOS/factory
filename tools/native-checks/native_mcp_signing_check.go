@@ -93,13 +93,16 @@ func check(profile, instance string, unavailable bool) error {
 	}
 	server := httptest.NewServer(workers.HandlerWithSecretVerifier(verify))
 	defer server.Close()
-	post := func(bearer string) (int, error) {
+	send := func(bearer string, mutate func(*http.Request)) (int, error) {
 		request, err := http.NewRequest(http.MethodPost, server.URL+factoryhttpapi.WorkerRoute, nil)
 		if err != nil {
 			return 0, err
 		}
 		request.Header.Set("X-Soda-Factory-Capability", current.ID)
 		request.Header.Set("Authorization", "Bearer "+bearer)
+		if mutate != nil {
+			mutate(request)
+		}
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
 			return 0, err
@@ -107,11 +110,32 @@ func check(profile, instance string, unavailable bool) error {
 		defer response.Body.Close()
 		return response.StatusCode, nil
 	}
+	post := func(bearer string) (int, error) { return send(bearer, nil) }
 	if status, err := post(secret); err != nil || status != http.StatusNoContent {
 		return errors.New("native worker HTTP refused matching secret")
 	}
 	if status, err := post(wrong); err != nil || status != http.StatusUnauthorized {
 		return errors.New("native worker HTTP admitted wrong secret")
+	}
+	if status, err := send(secret, func(request *http.Request) {
+		request.Header.Add("Authorization", "Bearer "+wrong)
+	}); err != nil || status != http.StatusUnauthorized {
+		return errors.New("native worker HTTP admitted ambiguous bearer headers")
+	}
+	if status, err := send(secret, func(request *http.Request) {
+		request.Header.Add("X-Soda-Factory-Capability", current.ID)
+	}); err != nil || status != http.StatusUnauthorized {
+		return errors.New("native worker HTTP admitted ambiguous capability headers")
+	}
+	if status, err := send(secret, func(request *http.Request) {
+		request.Header.Add("Origin", "")
+	}); err != nil || status != http.StatusForbidden {
+		return errors.New("native worker HTTP admitted an Origin header")
+	}
+	if status, err := send(secret, func(request *http.Request) {
+		request.URL.RawQuery = "extra=1"
+	}); err != nil || status != http.StatusBadRequest {
+		return errors.New("native worker HTTP admitted a noncanonical target")
 	}
 	source.current.State = factory.MCPCapabilityRevoked
 	if status, err := post(secret); err != nil || status != http.StatusForbidden {
