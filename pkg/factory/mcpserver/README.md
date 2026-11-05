@@ -15,6 +15,14 @@ contracts; shared services own context, verification, consultations, result
 binding, terminal checks and task admission. Durable work uses existing store
 posts/receipts and workflow consumers.
 
+`BoundToolNames(ctx, deps, capability)` projects the canonical names before
+launch from the same defining selection as SDK discovery. Supply the handler's
+dependencies and captured capability to this producer, then pass its catalog to
+Rust's `WorkerMcp`. It does not prepare, activate or observe a worker. Task tools
+require both a host task port and the exact recorded run's captured controller;
+missing or unplaced records omit them. Current tool admission remains in the
+handler. This producer is not yet connected to the native execution consumer.
+
 Construction starts no listener, process, task, provider call or background loop.
 Host composition owns key loading, credential delivery, listeners, private socket
 permissions and process lifetime. Appliance composition currently lives in

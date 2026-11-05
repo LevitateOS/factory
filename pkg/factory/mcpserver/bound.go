@@ -61,19 +61,23 @@ func newBoundary(deps Dependencies) factoryhttpapi.Workers {
 		return prepared, control.AdmitMCPCapability(prepared, factory.MCPToolContext, now, observed)
 	}
 	boundary.Protocol = func(ctx context.Context, capability factory.MCPCapability) (http.Handler, error) {
-		bound := deps
-		bound.boundCapability = &capability
-		if bound.NativeTask != nil {
-			if bound.Runs == nil {
-				bound.NativeTask = nil
-			} else if run, err := bound.Runs.FactoryRun(ctx, capability.RunID); err != nil || !run.SupportsTaskCommands() {
-				bound.NativeTask = nil
-			}
-		}
+		bound := bindCatalog(ctx, deps, capability)
 		server := newFactoryCatalogServer(bound)
 		return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}), nil
 	}
 	return boundary
+}
+
+func bindCatalog(ctx context.Context, deps Dependencies, capability factory.MCPCapability) Dependencies {
+	deps.boundCapability = &capability
+	if deps.NativeTask != nil {
+		if deps.Runs == nil {
+			deps.NativeTask = nil
+		} else if run, err := deps.Runs.FactoryRun(ctx, capability.RunID); err != nil || run.ID != capability.RunID || !run.SupportsTaskCommands() {
+			deps.NativeTask = nil
+		}
+	}
+	return deps
 }
 
 // mcpTakesSubmission reports whether a tool needs a request key. Reads,

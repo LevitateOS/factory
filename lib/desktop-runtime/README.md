@@ -558,6 +558,9 @@ settlement and recovery decisions. This handle is not yet composed into the
 production supervisor or coordinator.
 
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.
+Go's `mcpserver.BoundToolNames` exposes that catalog using the same role and
+recorded task-controller selection as its SDK server, without activating a
+capability. The native launch consumer still needs to join these ports.
 The native model policy accepts its exact `mcp__factory` aliases alongside
 filtered builtin `muse` tools, and validates complete SSE replies against the
 qualified namespace/name plus stable item and execution call IDs. Workers

@@ -11,6 +11,27 @@ for that work. Do not infer a passed gate from a proposed design, a source build
 fixture, or an earlier component probe. Do not place credentials or private
 profile contents in this file.
 
+The latest Go producer, `pkg/factory/mcpserver/catalog.go::BoundToolNames`, shares
+role and recorded task-controller selection with the bound SDK server in
+`bound.go`. It supplies the canonical names Rust's
+`lib/desktop-runtime/src/factory_provider/mcp.rs::WorkerMcp` requires before
+launch, without preparing/activating a capability or asserting process liveness.
+The existing disposable PostgreSQL/Go/Rust native MCP check compared all eight
+role catalogs against authenticated SDK discovery across supervisor restart;
+absent task ports/sources, missing runs and unplaced native metadata omitted task
+tools. The projection did not call preparation or observation. Evidence is in
+`/home/vince/tmp/factory-native-mcp-catalog-20261105/`; a first overlong Unix socket
+path failure is retained separately. The final result SHA-256 is
+`fc28e27d413f7c65ed388dc14ccaa1f4fccc12c69cfcbcb03f8ab27b75c693a7`.
+This is synthetic catalog transport evidence
+using retained inputs. It does not prove supported native task discovery,
+canonical SQL admission or worker delivery. The exact remaining dependency is
+the native launch consumer joining this Go projection to `WorkerMcp`, current
+canonical work/process admission and the Rust signer before enabling launch.
+Close that dependency only with the actual finite isolated Muse/Go path, matching
+catalog/tool call, outcome settlement, withdrawal and restart evidence. D3 remains
+open; normal composition/check work does not require Daybreak.
+
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
 this workspace on 2026-11-04. The recorded crash and the backtrace description

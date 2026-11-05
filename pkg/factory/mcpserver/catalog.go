@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -233,14 +234,8 @@ func newFactoryCatalogServer(deps Dependencies) *mcp.Server {
 		name += "-" + string(deps.boundCapability.Profile)
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: name}, nil)
-	for _, tool := range factory.MCPTools {
+	for _, tool := range catalogTools(deps) {
 		tool := tool
-		if deps.boundCapability != nil && !factory.MCPToolAdmitted(deps.boundCapability.Profile, tool) {
-			continue
-		}
-		if deps.boundCapability != nil && mcpwire.IsNativeTask(tool) && deps.NativeTask == nil {
-			continue
-		}
 		if mcpwire.IsSystemOne(tool) {
 			catalog.addSystemOneTool(server, tool)
 			continue
@@ -251,6 +246,40 @@ func newFactoryCatalogServer(deps Dependencies) *mcp.Server {
 		})
 	}
 	return server
+}
+
+// BoundToolNames projects the canonical tool names for a captured worker before
+// launch. Native hosts supply these names to the Rust provider policy; workers
+// and model schemas never select this catalog. Use the same dependencies as the
+// HTTP handler. This projection neither prepares nor activates a capability and
+// grants no tool admission: the handler still checks current work and process
+// observations on every request. Task-controller availability is read from the
+// recorded run, using the same rule as protocol discovery.
+func BoundToolNames(ctx context.Context, deps Dependencies, capability factory.MCPCapability) ([]string, error) {
+	if err := capability.Validate(); err != nil {
+		return nil, err
+	}
+	bound := bindCatalog(ctx, deps, capability)
+	names := make([]string, 0, len(factory.MCPTools))
+	for _, tool := range catalogTools(bound) {
+		names = append(names, string(tool))
+	}
+	slices.Sort(names)
+	return names, nil
+}
+
+// catalogTools is the defining selection for both SDK registration and the
+// trusted prelaunch projection. Unbound transport fixtures retain all tools.
+func catalogTools(deps Dependencies) []factory.MCPTool {
+	tools := make([]factory.MCPTool, 0, len(factory.MCPTools))
+	for _, tool := range factory.MCPTools {
+		if deps.boundCapability != nil && (!factory.MCPToolAdmitted(deps.boundCapability.Profile, tool) ||
+			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil)) {
+			continue
+		}
+		tools = append(tools, tool)
+	}
+	return tools
 }
 
 func (s *factoryCatalogServer) serve(ctx context.Context, tool factory.MCPTool, args mcpCallArgs) (*mcp.CallToolResult, any, error) {

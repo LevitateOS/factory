@@ -25566,3 +25566,24 @@ No real provider response, canonical SQL capability admission, native signer
 join or production coordinator/worker settlement ran. The trusted Go consumer
 must supply this catalog from the same server definition before launch, then
 qualify the complete path. N3, N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR Go catalog producer (2026-11-05):
+`mcpserver.BoundToolNames` now projects canonical tool names before launch from
+the same defining role/task selection used by MCP SDK registration. It validates
+the captured capability without invoking preparation, activation or live process
+observation. Task tools still require a host port and the exact recorded run's
+captured controller; absent or unplaced run evidence omits them. The existing
+disposable native MCP check built the current Go client and compared all eight
+role projections with actual HTTP SDK discovery through the Rust secret verifier,
+with no task port, no run source, a missing run and unplaced native metadata.
+It confirmed the projection did not call preparation/observation, and the check
+passed across the real private PostgreSQL/Go/Rust supervisor restart. The first
+scratch root exceeded PostgreSQL's Unix socket path limit; its failure log was
+preserved and a shorter private root was used. This is synthetic capability and
+catalog transport evidence with retained build inputs, not a fresh baseline,
+canonical SQL capability admission, a supported native task controller or worker
+execution. The production native launch consumer must still bind this catalog
+to `WorkerMcp`, supply current canonical admission and prove the full finite
+provider/settlement/recovery path. N3, N4 and D3 remain open. Evidence is external
+under `/home/vince/tmp/factory-native-mcp-catalog-20261105/`; the final result
+SHA-256 is `fc28e27d413f7c65ed388dc14ccaa1f4fccc12c69cfcbcb03f8ab27b75c693a7`.
