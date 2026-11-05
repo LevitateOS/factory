@@ -113,6 +113,22 @@ impl Client {
                             };
                             ("threads", reader.graph_threads(&selector).await?)
                         }
+                        "pull_review_requests" => {
+                            let Read::PullReviewRequests {
+                                repository,
+                                number,
+                                target,
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            let selector = super::ReviewerRead {
+                                repository: repository.clone(),
+                                number: *number,
+                                target: target.clone(),
+                            };
+                            ("review_requests", reader.review_requests(&selector).await?)
+                        }
                         "workflow_runs" => ("workflow_runs", reader.workflow_runs(&q).await?),
                         "workflow_run_jobs" => ("jobs", reader.workflow_jobs(&q).await?),
                         "pull_workflow_jobs" => ("jobs", reader.pull_workflow_jobs(&q).await?),

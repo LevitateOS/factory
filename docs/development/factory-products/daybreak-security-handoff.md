@@ -2606,3 +2606,44 @@ effects, original thread context, D1/D2/D3/D5, custody/root absence/scoped deliv
 IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
 freshness retain their recorded blockers and closure evidence. No broad gate or
 Daybreak work closed.
+
+T11-WRITES authenticated reviewer catalogue and normal API readback (2026-11-05):
+`github_provider/request.rs`, `reads.rs` and `review_requests.rs` now share one
+semantic read; the callback independently retains native scope/custody checks.
+`native_product_review_request_reads.go` validates the bounded nonsecret snapshot
+and maps known actors/teams in one canonical observation transaction. The shared
+service/HTTP endpoint, product composition and Go/TypeScript records preserve
+reviewer kind, request/code-owner facts, nullable external/Node identity and
+separate canonical actor/team refs. Unknown numeric users stay unmapped; unknown
+other-type Node IDs and null reviewer slots stay unknown/visible. No membership,
+permission, action or spending authority follows from catalogue/registry facts.
+
+The actual custody/provider/callback/Go HTTP/PostgreSQL observer passed 27 declared
+cases and nine dummy mutations without seeded canonical targets, including
+ordinary readback after all four write directions and matching readback without
+lost-reply attribution. Unknowns, bots, provider-type and user/team namespaces,
+renames, BigInt identity, refusal/partial/count/bounds, 1,000 compact records,
+replay/cancel/races/withdrawal/replacement/other account and restart passed.
+Evidence `/home/vince/tmp/factory-reviewer-read-product-1105/attempt4/`, result
+SHA-256 `7e891aaccc8b512d5484b8ffadb0559671d255380a94f3cb492625acc014af03`.
+The existing 56-case/eight-invalid/retirement reader passed through the refactored
+port. Artifacts/hashes and failed attempts are recorded in the plan. Earlier
+attempts exposed an omitted Go expected-kind dispatch entry; an external fixed-
+marker diagnostic overlay located it. Only the final production build passed;
+no diagnostic code was added to repository source. Failed private fixture roots
+are retained. Successful owned dummy accounts/children were cleaned up. No real
+grant/write, shared browser or installed check ran.
+
+Authenticated mapping and normal API readback dependencies are resolved in source
+with declared-peer evidence. Remaining reviewer blockers: shared selection/action
+UI, actual target eligibility/permission and fresh scoped owner-authorized provider
+evidence; supported D5 policy and evidence for unseen mutable-name rename/reuse,
+concurrent requests and absent atomic conversation/repository conditions; captured
+expiration; shared WebKit/installed lifetime/custody/admission. The private channel
+still caps replies at 2 MiB; maximum metadata across all product/browser envelopes
+is not qualified. Shared writes remain unavailable. Relevant files include the
+native/read consumer above, shared reviewer records/service/HTTP and future shared
+selection UI. Other T11 effects, original thread context, D1/D2/D3/D5, custody/root
+absence/scoped delivery, IPC/window/instance, isolation/execution/retirement/
+settlement and release/upgrade/freshness retain recorded blockers and closure
+evidence. No broad gate or Daybreak work was closed.

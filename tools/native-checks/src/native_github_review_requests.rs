@@ -625,7 +625,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         supervisor::NativeSupervisor,
         ProductRequest,
     };
-    use std::{process::Command, sync::Arc};
+    use std::sync::Arc;
     prepare(profile)?;
     let root = profile.parent().ok_or("fixture parent absent")?;
     let io = root.join("io");
@@ -674,40 +674,150 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     let repository = catalogue.1["items"][0]["id"]
         .as_str()
         .ok_or("repository absent")?;
-    let host = catalogue.1["items"][0]["host"]
-        .as_str()
-        .ok_or("host absent")?;
-    // This fixture helper records declared canonical identities in the actual
-    // Go Store. It never infers live membership or enables a product capability.
-    let seeded = Command::new(
-        production
-            .parent()
-            .ok_or("fixture executable parent absent")?
-            .join("seed"),
-    )
-    .arg(profile.join("backend.dsn"))
-    .arg(host)
-    .output()?;
-    ensure(
-        seeded.status.success(),
-        "declared reviewer identity seeding failed",
-    )?;
-    let targets: serde_json::Value = serde_json::from_slice(&seeded.stdout)?;
-    let user = targets["user"]["id"]
-        .as_str()
-        .ok_or("canonical user absent")?;
-    let team = targets["team"]["id"]
-        .as_str()
-        .ok_or("canonical team absent")?;
-    ensure(
-        targets["user"]["external_id"] == "456"
-            && targets["team"]["external_id"] == "T_declared456",
-        "canonical namespaces conflated",
-    )?;
     let submit =
         format!("/api/factory/collaboration/repositories/{repository}/pulls/7/review-requests");
     let command = |id: &str| format!("{submit}/commands/{id}");
-    let mut cases = Vec::new();
+    set_mode(&io, "catalogue")?;
+    let targets = call(&runtime, &store, &connection, "GET", &submit, &[]).await?;
+    fs::write(
+        root.join("reviewer-first-catalogue.json"),
+        serde_json::to_vec(&targets.1)?,
+    )?;
+    ensure(
+        targets.0 == 200
+            && targets.1["pull"]["repository"] == repository
+            && targets.1["pull"]["external_id"] == "700"
+            && targets.1["all_targets_visible"] == true,
+        &format!(
+            "canonical reviewer catalogue scope failed: {} {}",
+            targets.0, targets.1
+        ),
+    )?;
+    let rows = targets.1["items"]
+        .as_array()
+        .ok_or("review requests absent")?;
+    let user = rows
+        .iter()
+        .find(|r| r["reviewer"]["kind"] == "user" && r["reviewer"]["external_id"] == "456")
+        .and_then(|r| r["reviewer"]["actor"]["id"].as_str())
+        .ok_or("observed canonical user absent")?;
+    let team = rows
+        .iter()
+        .find(|r| {
+            r["reviewer"]["kind"] == "team" && r["reviewer"]["external_id"] == "T_declared456"
+        })
+        .and_then(|r| r["reviewer"]["team"]["id"].as_str())
+        .ok_or("observed canonical team absent")?;
+    let mut cases = vec!["canonical-catalogue"];
+    for mode in [
+        "catalogue-hidden",
+        "catalogue-user-unknown",
+        "catalogue-team-unknown",
+        "catalogue-other-unknown",
+        "catalogue-bot",
+        "catalogue-renamed",
+        "catalogue-big-id",
+    ] {
+        set_mode(&io, mode)?;
+        let reply = call(&runtime, &store, &connection, "GET", &submit, &[]).await?;
+        ensure(
+            reply.0 == 200,
+            &format!("canonical reviewer shape {mode}: {} {}", reply.0, reply.1),
+        )?;
+        let rows = reply.1["items"].as_array().ok_or("snapshot rows absent")?;
+        let selected = rows
+            .iter()
+            .find(|r| r["external_id"] == "RR_catalogue_user")
+            .ok_or("catalogue user absent")?;
+        let selected_team = rows
+            .iter()
+            .find(|r| r["external_id"] == "RR_catalogue_team")
+            .ok_or("catalogue team absent")?;
+        ensure(
+            selected_team["reviewer"]["team"]["id"] == team,
+            "team metadata rekeyed immutable identity",
+        )?;
+        match mode {
+            "catalogue-hidden" => ensure(
+                reply.1["all_targets_visible"] == false
+                    && rows.iter().any(|r| r["reviewer"].is_null()),
+                "hidden reviewer discarded",
+            )?,
+            "catalogue-user-unknown" | "catalogue-big-id" => ensure(
+                selected["reviewer"]["external_id"].is_null()
+                    && selected["reviewer"]["actor"].is_null()
+                    && selected["reviewer"]["node_id"].is_string(),
+                "unknown numeric actor invented or node lost",
+            )?,
+            "catalogue-other-unknown" => ensure(
+                reply.1["all_targets_visible"] == false
+                    && rows.iter().any(|r| {
+                        r["reviewer"]["kind"] == "other"
+                            && r["reviewer"]["node_id"].is_null()
+                            && r["reviewer"]["provider_kind"] == "Mannequin"
+                    }),
+                "unknown other reviewer discarded or made known",
+            )?,
+            "catalogue-bot" => ensure(
+                rows.iter().any(|r| {
+                    r["reviewer"]["kind"] == "bot"
+                        && r["reviewer"]["actor"]["external_id"] == "777"
+                        && r["reviewer"]["team"].is_null()
+                }),
+                "bot kind/canonical identity lost",
+            )?,
+            "catalogue-renamed" => ensure(
+                selected["reviewer"]["actor"]["id"] == user
+                    && selected["reviewer"]["label"] == "renamed-user"
+                    && selected_team["reviewer"]["label"] == "Renamed team",
+                "rename replaced canonical identity",
+            )?,
+            _ => (),
+        }
+        if mode == "catalogue-big-id" {
+            ensure(
+                reply.1["pull"]["external_id"] == "5000000000",
+                "BigInt pull identity truncated",
+            )?;
+        }
+        cases.push(mode);
+    }
+    for (mode, status) in [
+        ("partial-errors", 502),
+        ("catalogue-denied", 403),
+        ("catalogue-count-change", 409),
+        ("catalogue-too-many", 413),
+        ("maximum-before", 200),
+    ] {
+        set_mode(&io, mode)?;
+        let reply = call(&runtime, &store, &connection, "GET", &submit, &[]).await?;
+        ensure(
+            reply.0 == status,
+            &format!("canonical read bound/refusal {mode}: {}", reply.0),
+        )?;
+        if mode == "maximum-before" {
+            ensure(
+                reply.1["items"].as_array().is_some_and(|r| r.len() == 1000),
+                "bounded full reviewer list truncated",
+            )?;
+        }
+        cases.push(mode);
+    }
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{submit}?limit=1"),
+            &[],
+        )
+        .await?
+        .0 == 400
+            && writes()? == 0,
+        "reviewer catalogue accepted unsupported query or wrote",
+    )?;
+    cases.push("catalogue-query-refusal");
     for (i, kind, target, requested, mode) in [
         (0, "user", user, true, "add-user"),
         (1, "user", user, false, "remove-user"),
@@ -720,6 +830,19 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         let before = writes()?;
         let reply = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
         completed(&reply, "committed")?;
+        let read = call(&runtime, &store, &connection, "GET", &submit, &[]).await?;
+        ensure(
+            read.0 == 200
+                && read.1["all_targets_visible"] == true
+                && read.1["items"].as_array().is_some_and(|rows| {
+                    rows.iter().any(|r| {
+                        r["reviewer"]["kind"] == kind
+                            && r["reviewer"][if kind == "team" { "team" } else { "actor" }]["id"]
+                                == target
+                    }) == requested
+                }),
+            "normal reviewer readback lost selected effect/identity",
+        )?;
         completed(
             &call(&runtime, &store, &connection, "POST", &submit, &body).await?,
             "committed",
@@ -843,6 +966,14 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     let before = writes()?;
     uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
     set_mode(&io, "observe-after-loss")?;
+    let after_loss = call(&runtime, &store, &connection, "GET", &submit, &[]).await?;
+    ensure(
+        after_loss.0 == 200
+            && after_loss.1["items"]
+                .as_array()
+                .is_some_and(|r| r.iter().any(|r| r["reviewer"]["actor"]["id"] == user)),
+        "lost reply fixture failed ordinary observed state",
+    )?;
     uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
     uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
     ensure(
@@ -1038,7 +1169,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     fs::write(
         root.join("reviewer-product-result.json"),
         serde_json::to_vec(
-            &json!({"cases":cases,"provider_mutations":writes()?,"native_go_postgresql":true,"canonical_targets_seeded":true,"ordinary_target_catalogue_qualified":false,"real_github":false,"atomic_name_binding_qualified":false,"shared_write_capabilities_enabled":false,"owned_accounts_removed":true}),
+            &json!({"cases":cases,"provider_mutations":writes()?,"native_go_postgresql":true,"canonical_targets_seeded":false,"declared_authenticated_catalogue":true,"normal_readback":true,"real_github":false,"atomic_name_binding_qualified":false,"shared_write_capabilities_enabled":false,"owned_accounts_removed":true}),
         )?,
     )?;
     println!(

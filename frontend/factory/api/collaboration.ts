@@ -2,6 +2,7 @@
  * capabilities are display facts and never an admission or spending grant. */
 export type RepositoryID = string;
 export type ActorID = string;
+export type TeamID = string;
 export type Revision = string;
 export type CommitID = string;
 export type Timestamp = string;
@@ -17,6 +18,12 @@ export interface ActorRef {
   host: string;
   external_id: string;
   login: string;
+}
+export interface TeamRef {
+  id: TeamID;
+  host: string;
+  external_id: string;
+  name: string;
 }
 export interface Observation {
   state: 'available' | 'denied' | 'not_found' | 'unavailable' | 'unknown';
@@ -270,4 +277,27 @@ export interface PullChecks {
   missing_required: readonly string[];
   invalid_required: readonly string[];
   status_gate: 'not_required' | 'pending' | 'success' | 'failure' | 'error' | 'warning' | 'unknown';
+}
+
+// Complete bounded traversal; neither an atomic membership snapshot nor a
+// permission to write. Unknown numeric identities and hidden slots stay null.
+export interface RequestedReviewer {
+  kind: 'user' | 'bot' | 'team' | 'other';
+  external_id: string | null;
+  node_id: string | null;
+  label: string;
+  provider_kind: string;
+  actor: ActorRef | null;
+  team: TeamRef | null;
+}
+export interface ReviewRequest {
+  external_id: string;
+  as_code_owner: boolean;
+  reviewer: RequestedReviewer | null;
+}
+export interface PullReviewRequests {
+  pull: PullRef;
+  observation: Observation;
+  items: readonly ReviewRequest[];
+  all_targets_visible: boolean;
 }

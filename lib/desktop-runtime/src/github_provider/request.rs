@@ -94,6 +94,11 @@ pub enum Read {
         limit: u32,
         thread_id: String,
     },
+    PullReviewRequests {
+        repository: String,
+        number: u64,
+        target: Option<super::ReviewerTarget>,
+    },
     PullCheckRuns {
         repository: String,
         number: u32,
@@ -170,6 +175,19 @@ pub(crate) fn commit(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::PullReviewRequests {
+            repository,
+            number,
+            target,
+        } = self
+        {
+            super::ReviewerRead {
+                repository: repository.clone(),
+                number: *number,
+                target: target.clone(),
+            }
+            .validate()?;
+        }
         if let Self::FindRepository { name } = self {
             if !repository_name(name) {
                 return Err(Failure::invalid());

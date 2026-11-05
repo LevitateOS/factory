@@ -28744,3 +28744,84 @@ mutable-name/concurrent target binding, original thread context, D1/D2/D3/D5,
 custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
 retirement/settlement and release/upgrade/freshness retain their open requirements.
 No broad gate or Daybreak work was closed; the full product remains unfinished.
+
+### T11-WRITES checkpoint: authenticated canonical reviewer catalogue/readback (2026-11-05)
+
+The native semantic `Read::PullReviewRequests` now uses the defining bounded
+reviewer reader. Its existing public observer delegates to that same read path,
+removing duplicate account/deadline orchestration. The admitted callback retains
+current custody and immutable repository scope. Go's native decoder selects the
+new reply field explicitly, validates the complete snapshot and maps known actors
+and teams through the atomic observation batch before projection.
+
+The shared Go read service and product route expose
+`GET /api/factory/collaboration/repositories/{repository}/pulls/{number}/review-requests`
+without query parameters. Shared Go/TypeScript records retain request identity,
+code-owner status, reviewer kind, current display label, immutable Node identity
+when known, nullable provider identity and separate canonical actor/team refs.
+Users and bots with unknown numeric IDs remain unmapped; teams map by actual
+opaque Node ID even with null database metadata. Other provider reviewer types
+can have an unknown Node ID. Null reviewers and unknown Node identities remain
+visible records with `all_targets_visible:false`, never an empty/absent target
+claim. A known Node with unknown numeric identity stays distinct from that state.
+Labels, canonical registry presence and completeness grant no action authority.
+This finite catalogue is a bounded traversal, not an atomic membership snapshot.
+
+The existing native executable's composed observer now obtains canonical targets
+through that authenticated endpoint, with **no seeded target records**. Production
+Rust custody/provider/callback, Go read/write HTTP services and native PostgreSQL
+passed 27 declared cases with nine dummy mutations under
+`/home/vince/tmp/factory-reviewer-read-product-1105/attempt4/`. In addition to the
+previous 13 write/journal cases, coverage includes canonical user/team discovery,
+same-numeric provider user/team identity, null reviewer slots, unknown user/team
+numeric metadata, another reviewer type with no Node, bots, stable canonical IDs
+across label changes, BigInt PR identity, partial errors, denial, inconsistent
+counts, 1,001 refusal, complete compact 1,000-record traversal and unsupported query
+refusal. Normal GET readback qualified all four write directions. A matching GET
+after a deliberately lost reply still left the command uncertain without resend.
+Retained restart and account replacement/refusal passed; successful owned dummy
+accounts were removed and native children stopped. The local TLS peer never
+forwards and accepts only its declared dummy credentials.
+
+Attempts 1/2 failed because the Go reply dispatcher decoded the new field but its
+expected-kind table omitted the new selector. Attempt 3 used an external Go build
+overlay with fixed diagnostic stage markers to locate that omission. Those failed
+profiles/binaries and diagnostic artifacts are retained privately; they are not
+passing qualification. Attempt 4 used the production build without that overlay.
+No source diagnostic logging was introduced. The refactored native observer also
+passed its existing 56 cases, eight invalid selectors and retirement separately.
+
+| Artifact under `/home/vince/tmp/factory-reviewer-read-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `0dc3cca8defe516c5ae0048218c996a570026ec3452f5172b764a16f106ab2a3` |
+| `provider` | `b37926146af47a20c4e0b4b100ae436f3b1315f28c1d3603073a063e62b9b18b` |
+| `server` | `795da727ea7c477bb761ae0643680011d88f781808f57941e302646f3ef95660` |
+| `check-bin` | `891f8fc50b6d164c398f7f97b90af9e4c50249413ed5583e13405a69fd9aacd3` |
+| `run.sh` | `83d6ecf514c41e561e71eb9262631e57159b06d56cee6c40df514bcc31e6ac89` |
+| `session.sh` | `c5aa0b5e692ce5fe59a58a41e2fb5473ef893ff8e30ea1d1a649d8f94e75beb1` |
+| `attempt4/result.log` | `844b0425df9ff3415fbcbf5c5a7a7b51a05abdd9d4570d3c081e93e952ed8612` |
+| `attempt4/reviewer-first-catalogue.json` | `5664119afc069046c76a563b28d78645db2ba3d3950df1fb72131ab94f6c0e30` |
+| `attempt4/reviewer-product-result.json` | `7e891aaccc8b512d5484b8ffadb0559671d255380a94f3cb492625acc014af03` |
+| `reader-regression/result.log` | `ff55a12a16d8f13bc65b8c2e2f7217fcbe0e69d6eb1307a628b7d8a73cf782a7` |
+| `reader-regression/reviewer-read-result.json` | `9d0e3b160bf0140987145f94d5ba6aa6741a7f08718d20694c8cba2acbe52482` |
+| `reader-regression-run.sh` | `45d8add59a917bb5c7db7dae1254365efde994a1207384eb1c306672bc8d87e6` |
+| `reader-regression-session.sh` | `55161d7171c06607817534af89ab3beb43155083caf5cae04519b5040f56a5f9` |
+
+The regression uses the unchanged declared read peer recorded in the prior read
+checkpoint. Go server, locked/offline native/desktop-feature builds, shared
+TypeScript checks, ownership boundaries and whitespace checks passed. No new
+dependency or unit-test hierarchy was added. The private Go observation channel
+retains its existing 2 MiB reply limit; oversized snapshots refuse rather than
+returning a falsely complete partial list. Compact 1,000-record traversal is
+qualified; maximum metadata through all product/browser envelopes is not.
+
+Authenticated observation-to-registry mapping and ordinary API readback are now
+composed and have declared-peer evidence. Shared selection/action UI, actual
+current target eligibility/permissions and supported policy/evidence for mutable
+removal selectors and concurrent membership remain pending. Original captured
+expiration, fresh scoped owner-authorized real provider/shared WebKit/installed
+checks remain open. No actual GitHub write or browser qualification ran and shared
+write capabilities remain unavailable. T11-WRITES, original thread context, other
+effects, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
+isolation/execution/retirement/settlement and release/upgrade/freshness retain open
+requirements. No broad gate or Daybreak work closed; the full product is unfinished.

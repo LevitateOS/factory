@@ -150,6 +150,33 @@ type PullRequest struct {
 	Capabilities *Capabilities `json:"capabilities"`
 }
 
+// RequestedReviewer retains a provider identity even when no canonical actor is
+// known. Kind separates users, bots, teams and other provider types. Labels and
+// observations never establish eligibility or permission to request a review.
+type RequestedReviewer struct {
+	Kind         string    `json:"kind"`
+	ExternalID   *string   `json:"external_id"`
+	NodeID       *string   `json:"node_id"`
+	Label        string    `json:"label"`
+	ProviderKind string    `json:"provider_kind"`
+	Actor        *ActorRef `json:"actor"`
+	Team         *TeamRef  `json:"team"`
+}
+type ReviewRequest struct {
+	ExternalID  string             `json:"external_id"`
+	AsCodeOwner bool               `json:"as_code_owner"`
+	Reviewer    *RequestedReviewer `json:"reviewer"`
+}
+
+// PullReviewRequests is a complete bounded traversal, not an atomic snapshot,
+// event history or action grant. Null reviewer slots remain present.
+type PullReviewRequests struct {
+	Pull              PullRef         `json:"pull"`
+	Observation       Observation     `json:"observation"`
+	Items             []ReviewRequest `json:"items"`
+	AllTargetsVisible bool            `json:"all_targets_visible"`
+}
+
 type Comment struct {
 	ExternalID  string      `json:"external_id"`
 	Observation Observation `json:"observation"`

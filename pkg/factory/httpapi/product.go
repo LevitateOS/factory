@@ -39,6 +39,7 @@ type Product struct {
 	HumanInlines        HumanInlines
 	HumanThreads        HumanThreads
 	HumanReviewRequests HumanReviewRequests
+	ReviewRequestReads  CollaborationReviewRequests
 	HumanMerges         HumanMerges
 	HumanEdits          HumanEdits
 	HumanIssueCreates   HumanIssueCreates
@@ -93,6 +94,8 @@ func (s Product) Handler() http.Handler {
 	merges.Host, merges.Actor, merges.Current = s.Host, s.Actor, current
 	reviewerRequests := s.HumanReviewRequests
 	reviewerRequests.Host, reviewerRequests.Actor, reviewerRequests.Current = s.Host, s.Actor, current
+	reviewRequestReads := s.ReviewRequestReads
+	reviewRequestReads.Host, reviewRequestReads.Actor, reviewRequestReads.Current = s.Host, s.Actor, current
 	humanThreads := s.HumanThreads
 	humanThreads.Host, humanThreads.Actor, humanThreads.Current = s.Host, s.Actor, current
 	inlines := s.HumanInlines
@@ -138,6 +141,7 @@ func (s Product) Handler() http.Handler {
 	mux.Handle("GET "+mergeBase+"/commands/{command}", guard(merges.Handler(), merges.Service.Store))
 	mux.Handle("POST "+mergeBase+"/commands/{command}/cancel", guard(merges.Handler(), merges.Service.Store))
 	reviewerBase := "/api/factory/collaboration/repositories/{repository}/pulls/{number}/review-requests"
+	mux.Handle("GET "+reviewerBase, guard(reviewRequestReads.Handler()))
 	mux.Handle("POST "+reviewerBase, guard(reviewerRequests.Handler(), reviewerRequests.Service.Store))
 	mux.Handle("GET "+reviewerBase+"/commands/{command}", guard(reviewerRequests.Handler(), reviewerRequests.Service.Store))
 	mux.Handle("POST "+reviewerBase+"/commands/{command}/cancel", guard(reviewerRequests.Handler(), reviewerRequests.Service.Store))

@@ -120,19 +120,20 @@ func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body 
 }
 func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body any) (NativeIdentity, error) {
 	var envelope struct {
-		Kind       string                      `json:"kind"`
-		Account    collaboration.ObservedActor `json:"account"`
-		Issues     json.RawMessage             `json:"issues"`
-		Pulls      json.RawMessage             `json:"pulls"`
-		Discussion json.RawMessage             `json:"discussion"`
-		Reviews    json.RawMessage             `json:"reviews"`
-		Threads    json.RawMessage             `json:"threads"`
-		Files      json.RawMessage             `json:"files"`
-		Checks     json.RawMessage             `json:"checks"`
-		Statuses   json.RawMessage             `json:"statuses"`
-		Workflows  json.RawMessage             `json:"workflow_runs"`
-		Jobs       json.RawMessage             `json:"jobs"`
-		Protection json.RawMessage             `json:"protection"`
+		Kind           string                      `json:"kind"`
+		Account        collaboration.ObservedActor `json:"account"`
+		Issues         json.RawMessage             `json:"issues"`
+		Pulls          json.RawMessage             `json:"pulls"`
+		Discussion     json.RawMessage             `json:"discussion"`
+		Reviews        json.RawMessage             `json:"reviews"`
+		Threads        json.RawMessage             `json:"threads"`
+		Files          json.RawMessage             `json:"files"`
+		Checks         json.RawMessage             `json:"checks"`
+		Statuses       json.RawMessage             `json:"statuses"`
+		Workflows      json.RawMessage             `json:"workflow_runs"`
+		Jobs           json.RawMessage             `json:"jobs"`
+		Protection     json.RawMessage             `json:"protection"`
+		ReviewRequests json.RawMessage             `json:"review_requests"`
 	}
 	scope, err := p.call(ctx, map[string]any{"kind": "read", "query": query}, &envelope)
 	if err != nil {
@@ -141,7 +142,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection}
+	fields := []json.RawMessage{envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests}
 	var selected json.RawMessage
 	count := 0
 	for _, field := range fields {
@@ -154,7 +155,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 		return NativeIdentity{}, errNativeRead
 	}
 	expected := map[string]json.RawMessage{"issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
-		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
+		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead
 	}

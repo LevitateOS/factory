@@ -9,10 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::collections::{HashMap, HashSet};
 
 const REQUESTS:&str="query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
 const TEAM:&str="query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
@@ -76,17 +73,16 @@ impl Client {
         expected: &str,
         q: &ReviewerRead,
     ) -> Result<Value> {
-        q.validate()?;
-        if !remote_id(expected) {
-            return Err(Failure::invalid());
-        }
-        self.scope(async{tokio::time::timeout(Duration::from_secs(8),async{
-            let identity=self.identity(token.as_bytes()).await?;
-            if identity.external_id!=expected{return Err(Failure::new(409,"github_account_changed"));}
-            let reader=Reader::new(self,token.as_bytes(),&q.repository).await?;
-            let observed=reader.review_requests(q).await?;self.current()?;
-            Ok(json!({"kind":"pull_review_requests","account":identity,"review_requests":observed}))
-        }).await.unwrap_or_else(|_|Err(Failure::new(504,"github_deadline")))}).await?
+        self.observe(
+            token,
+            expected,
+            &super::Read::PullReviewRequests {
+                repository: q.repository.clone(),
+                number: q.number,
+                target: q.target.clone(),
+            },
+        )
+        .await
     }
 }
 impl Reader<'_> {
