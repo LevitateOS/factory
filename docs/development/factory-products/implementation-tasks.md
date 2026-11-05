@@ -25100,3 +25100,17 @@ production Rust composition check with dummy custody, not a provider request,
 token delivery/withdrawal proof, Go admission/transaction, crash/reboot
 reconciliation, installed service qualification or real finite Muse task.
 T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR production-owner Muse egress boundary (2026-11-05): a
+follow-up local integration fixture compiled against the current `RunOwner`
+and Muse ELF with locked offline dependencies. It was prepared to use a
+private dummy token and a one-sentence prompt about the fixture README.
+Automatic approval review rejected execution before launch because the
+production owner would send that token and local prompt/context to Meta
+without explicit authorization for the outbound data. The disposable broker
+socket and units were removed; no production-owner Muse request or response
+was observed. The fixture build and prior fake-owner 401 do not prove token
+delivery, production policy filtering, withdrawal or a real finite provider
+task. Keep those D3 requirements open and obtain explicit egress authorization
+before attempting that specific request. The approval boundary is separate
+from Daybreak, which is reserved for work that looks like hacking.
