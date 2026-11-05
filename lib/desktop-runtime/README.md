@@ -136,8 +136,23 @@ including settled history; missing, ambiguous or damaged matches refuse.
 Canonical run/workspace IDs remain distinct from native selectors. The response
 includes retained native scope and optional recorded launch placement, without
 prompt/output/summary or credentials, and grants no launch/settlement authority.
-The Rust recovery consumer and post-ledger startup sequence still need to be
-composed; the current pre-Go broker fence is unchanged.
+`NativeSupervisor::native_recovery` now reads that projection through the
+bounded joined request owner. Its strict native DTO checks the captured
+profile/current instance/broker scope, while retaining the original Go instance,
+worktree and optional placement. Generic product requests cannot access this
+private route. `NativeRecovery::read_evidence` reads only the captured profile,
+compares exact receipt scope and any recorded process anchor, then checks known
+custody/acquisition facts against the local journal. Missing receipt/custody is
+unknown; missing captured connection is not filled from a local journal. Runtime
+retirement fences subsequent evidence reads. Canonical terminal advancement and
+outcome settlement stay in Go.
+
+This reader grants no broker-retirement or launch authority. The native receipt
+and custody formats do not independently bind canonical run/workspace/placement
+or the original runtime instance/worktree. A durable admitted intent binding and
+its recovery comparison still need to join those facts before native effects.
+Post-ledger startup ordering and atomic Go recovery remain unimplemented; the
+current pre-Go broker fence is unchanged.
 
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should

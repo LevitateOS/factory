@@ -10,6 +10,12 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 
+#[derive(Clone, Copy)]
+enum RequestRoute {
+    Product,
+    Recovery,
+}
+
 type Result<T> = std::result::Result<T, String>;
 const MAX_REQUESTS: usize = 16;
 const WAIT: Duration = Duration::from_secs(20);
@@ -52,6 +58,7 @@ impl Drop for Cancel {
 }
 #[derive(Clone)]
 pub(crate) struct Products {
+    recovery: crate::factory_provider::recovery::RecoveryContext,
     requests: mpsc::Sender<Job>,
     retired: watch::Sender<bool>,
     slots: Arc<Semaphore>,
@@ -82,6 +89,10 @@ impl Owner {
         let (requests, mut inbox) = mpsc::channel::<Job>(MAX_REQUESTS);
         let (retired, mut retirement) = watch::channel(false);
         let handle = Products {
+            recovery: crate::factory_provider::recovery::RecoveryContext::new(
+                &channel,
+                alive.clone(),
+            ),
             requests,
             retired,
             slots: Arc::new(Semaphore::new(MAX_REQUESTS)),
@@ -135,12 +146,31 @@ impl Products {
         target: &str,
         body: &[u8],
         operation: Option<&str>,
+        route: RequestRoute,
         reply: Reply,
     ) -> Result<Cancel> {
-        if !(matches!(method, "GET" | "POST") || operation.is_some() && method == "PUT")
+        let supported = match route {
+            RequestRoute::Product => {
+                (matches!(method, "GET" | "POST") || operation.is_some() && method == "PUT")
+                    && (target.starts_with("/api/factory/")
+                        || operation.is_some() && target.starts_with("/api/repositories/"))
+            }
+            RequestRoute::Recovery => {
+                method == "GET"
+                    && body.is_empty()
+                    && operation.is_none()
+                    && target
+                        .strip_prefix("/api/native/execution/recovery/")
+                        .is_some_and(|run| {
+                            run.len() == 32
+                                && run.bytes().all(|byte| {
+                                    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
+                                })
+                        })
+            }
+        };
+        if !supported
             || target.len() > 2048
-            || !(target.starts_with("/api/factory/")
-                || operation.is_some() && target.starts_with("/api/repositories/"))
             || target.bytes().any(|b| b.is_ascii_control())
             || body.len() > 65536
         {
@@ -174,7 +204,7 @@ impl Products {
         target: &str,
         body: &[u8],
     ) -> impl std::future::Future<Output = Result<Response>> {
-        self.request_scoped(method, target, body, None)
+        self.request_scoped(method, target, body, None, RequestRoute::Product)
     }
     pub(crate) fn admitted_request(
         &self,
@@ -183,7 +213,22 @@ impl Products {
         body: &[u8],
         operation: &str,
     ) -> impl std::future::Future<Output = Result<Response>> {
-        self.request_scoped(method, target, body, Some(operation))
+        self.request_scoped(method, target, body, Some(operation), RequestRoute::Product)
+    }
+    pub(crate) fn recovery_request(
+        &self,
+        broker_run: &str,
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(
+            "GET",
+            &format!("/api/native/execution/recovery/{broker_run}"),
+            &[],
+            None,
+            RequestRoute::Recovery,
+        )
+    }
+    pub(crate) fn recovery_context(&self) -> crate::factory_provider::recovery::RecoveryContext {
+        self.recovery.clone()
     }
     fn request_scoped(
         &self,
@@ -191,9 +236,10 @@ impl Products {
         target: &str,
         body: &[u8],
         operation: Option<&str>,
+        route: RequestRoute,
     ) -> impl std::future::Future<Output = Result<Response>> {
         let (reply, response) = oneshot::channel();
-        let admission = self.submit(method, target, body, operation, Reply::Async(reply));
+        let admission = self.submit(method, target, body, operation, route, Reply::Async(reply));
         let alive = self.alive.clone();
         async move {
             let _cancel = admission?;
@@ -209,7 +255,14 @@ impl Products {
     }
     pub fn blocking(&self, method: &str, target: &str, body: &[u8]) -> Result<Response> {
         let (reply, response) = blocking::channel();
-        let _cancel = self.submit(method, target, body, None, Reply::Blocking(reply))?;
+        let _cancel = self.submit(
+            method,
+            target,
+            body,
+            None,
+            RequestRoute::Product,
+            Reply::Blocking(reply),
+        )?;
         let completion = response
             .recv_timeout(WAIT)
             .map_err(|_| "native product request retired or timed out")?;

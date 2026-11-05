@@ -180,6 +180,32 @@ async fn managed(
                 .status()?
                 .success());
         }
+        let recovery = if go_client.is_some() {
+            let broker_run = "c7".repeat(16);
+            let recovered = supervisor.native_recovery(&broker_run).await?;
+            assert_eq!(
+                recovered.run(),
+                fs::read_to_string(profile.join("check-recovery-run.id"))?
+            );
+            assert_ne!(recovered.run(), recovered.broker_run());
+            assert_eq!(recovered.workspace(), "p123456789012345678901234");
+            assert_eq!(recovered.broker_run(), broker_run);
+            assert!(recovered.recorded_placement().is_none());
+            let evidence = recovered.read_evidence()?;
+            assert!(evidence.receipt.is_none() && evidence.custody.is_none());
+            assert!(supervisor.native_recovery("invalid").await.is_err());
+            assert!(supervisor.native_recovery(&"fa".repeat(16)).await.is_err());
+            assert!(supervisor
+                .product(
+                    "GET",
+                    &format!("/api/native/execution/recovery/{broker_run}"),
+                    &[]
+                )
+                .is_err());
+            Some(recovered)
+        } else {
+            None
+        };
         assert_eq!(response.status, 200);
         let value: serde_json::Value = serde_json::from_slice(&response.body)?;
         let secret = value["secret"].as_str().ok_or("missing scoped secret")?;
@@ -223,6 +249,9 @@ async fn managed(
             assert_eq!(first.as_deref(), Some(secret));
         }
         supervisor.stop()?;
+        if let Some(recovery) = recovery {
+            assert!(recovery.read_evidence().is_err());
+        }
         assert!(!socket.exists());
         if let Some(go_client) = go_client {
             assert!(Command::new(go_client)
@@ -234,5 +263,8 @@ async fn managed(
         }
     }
     println!("PASS: managed native MCP callback, peer channel, denial, retirement and restart");
+    if go_client.is_some() {
+        println!("PASS: Rust recovery reader retains canonical/native scope across restart, leaves missing local evidence unknown, refuses invalid/missing selectors and generic product access, and fences evidence after retirement");
+    }
     Ok(())
 }

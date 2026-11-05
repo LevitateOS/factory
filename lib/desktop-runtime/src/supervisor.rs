@@ -210,6 +210,21 @@ impl NativeSupervisor {
             .map(|products| products.request(method, target, body));
         async move { request.ok_or("native runtime is unavailable")?.await }
     }
+    /// Trusted native lifecycle read. No browser route, caller-supplied path,
+    /// current process authority or recovery effect is admitted by this view.
+    pub fn native_recovery(
+        &self,
+        broker_run: &str,
+    ) -> impl std::future::Future<Output = std::io::Result<crate::factory_provider::NativeRecovery>>
+    {
+        let products = self.products.clone();
+        let broker_run = broker_run.to_owned();
+        async move {
+            let products =
+                products.ok_or_else(|| std::io::Error::other("native runtime unavailable"))?;
+            crate::factory_provider::NativeRecovery::read(products, &broker_run).await
+        }
+    }
     /// Native host admission only; the shell must first admit its window and
     /// selection. The capability is finite and account verification still occurs
     /// in the Rust connector before Go may bind a product actor.

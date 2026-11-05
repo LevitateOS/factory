@@ -537,7 +537,67 @@ func checkNativeRecovery(config factoryruntime.NativeConfig, instance string, un
 	return nil
 }
 
+// Seed only a declared native record in the disposable integration
+// profile. Production admission and outcome transitions are not exercised here.
+func nativeReceiptFixture(profile, instance, operation, argument string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	path := filepath.Join(profile, "native-recovery-fixture.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if len(raw) > 32768 {
+		return errors.New("native receipt fixture too large")
+	}
+	var input struct {
+		Run           factory.Run
+		StartedUnixMS int64 `json:"started_unix_ms"`
+	}
+	if err = json.Unmarshal(raw, &input); err != nil {
+		return err
+	}
+	run := input.Run
+	if run.Native == nil || run.Native.Provenance.Process == nil || run.Native.Provenance.Profile != config.Profile {
+		return errors.New("native receipt fixture scope differs")
+	}
+	run.Started = time.UnixMilli(input.StartedUnixMS).UTC()
+	run.Deadline = run.Started.Add(time.Hour)
+	run.Native.Provenance.Process.StartedAt = run.Started
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	marker := filepath.Join(profile, "native-recovery-canonical.id")
+	if operation == "seed-native-run" {
+		if argument != path || run.Native.Provenance.InstanceID != instance {
+			return errors.New("native receipt fixture owner differs")
+		}
+		if _, err = os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+			return errors.New("native receipt fixture already seeded")
+		}
+		run.ID = factory.NewID()
+		if err = db.RecordFactoryRun(ctx, run); err != nil {
+			return err
+		}
+		return os.WriteFile(marker, []byte(run.ID), 0600)
+	}
+	return errors.New("unknown native receipt fixture operation")
+}
+
 func main() {
+	if len(os.Args) == 5 {
+		if err := nativeReceiptFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) != 3 && len(os.Args) != 4 {
 		fmt.Fprintln(os.Stderr, "profile and instance required")
 		os.Exit(2)

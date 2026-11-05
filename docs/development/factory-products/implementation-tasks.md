@@ -25821,3 +25821,44 @@ pre-Go broker fence still blocks launched roots; it has not been bypassed.
 Captured placement projection through a production packet, interrupted ownership,
 crash/restart/reboot, installed Quit, actual provider work and atomic settlement
 remain unverified. N3/N4/D3 remain open; the handoff records these dependencies.
+
+
+T09-NATIVE-EXECUTOR Rust retained-evidence read consumer (2026-11-05):
+`NativeSupervisor::native_recovery` uses the existing bounded joined request
+owner for the private Go projection; generic product callers cannot select that
+route. The strict native DTO binds the current channel/profile/broker selector,
+retains canonical IDs and original native instance/worktree/optional placement,
+and never invents placement or authority. Its local reader checks exact receipt
+scope, any recorded immutable process anchor, and known custody/acquisition facts
+against the captured profile. Missing local evidence or captured connection
+remains unknown; runtime retirement fences subsequent evidence reads. It grants
+no launch, root retirement or outcome/settlement authority.
+
+The existing real PostgreSQL/backend/supervisor check passed scope retention
+across restart, unknown evidence, invalid/missing selector refusal, generic-route
+refusal and retirement fencing. Result:
+`/home/vince/tmp/fnr-rust1-1105/result.log`, SHA-256
+`e8d8619319db05d0fee01b6edf3192496527dce54a0bf0643ac6bc650ab5a557`.
+The existing native fixture then matched a real finite isolated ELF's receipt,
+process and released custody to a declared Go record through the Rust consumer.
+Seven changed evidence copies refused; original receipt/journal inodes and bytes
+were restored. Normal supervisor restart after dummy credential withdrawal
+preserved the original process/acquisition/canonical mapping under a new current
+instance, and fenced the old snapshot. Services stopped, exact roots disappeared
+and temporary units were removed. Evidence/driver:
+`/home/vince/tmp/fnr-live2-1105/`; result SHA-256:
+`5629cfc41bc8bc65ed1400b21ce49391efc9384fc4bbb74910326d3da0baec3e`.
+An initial fixture process-record mutation was refused by PostgreSQL's immutable
+identity trigger; the failure remains under `/home/vince/tmp/fnr-live1-1105/`.
+No trigger was disabled. Locked offline runtime/check builds, affected Go builds,
+touched formatting and whitespace checks passed.
+
+These retained-input/dummy-only checks used declared Go metadata, with no actual
+dispatch/placement admission, provider inference, process kill or reboot. The
+local formats still lack an independent durable admitted-intent binding for the
+canonical run/workspace/placement and original native instance/worktree. Add that
+before recovery effects, then compose post-ledger startup and Go transactional
+outcome recovery. The pre-Go launched-root fence remains unchanged. Actual
+provider work, lost replies, interrupted ownership, full restart/reboot and
+installed Quit remain unverified. N3/N4/D3 stay open; the handoff records the
+intent-binding dependency explicitly. No gate is marked complete here.
