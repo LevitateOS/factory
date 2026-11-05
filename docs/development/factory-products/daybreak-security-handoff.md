@@ -2041,3 +2041,38 @@ the declared stale-base cases alone cannot close it. Repository/visibility/D5 an
 all broader custody/root absence/scoped delivery, installed IPC/window/instance,
 D1/D2/D3, isolation/execution/retirement and release/upgrade/freshness gates retain
 their earlier blockers. No shared write capability or broad security gate closes.
+
+T11-WRITES edit journal producer (2026-11-05): schema 84 now supports typed edit
+captures in the shared reservation/cancel protocol. Files:
+`pkg/store/{factory_command_dispatch,factory_human_edit_dispatch,factory_human_edit,schema,schema_command_dispatch}.go`
+and `pkg/factory/human_edit_outcomes.go`. The defining captured-content comparison
+also gates reservation after exact stored-identity validation. It cannot establish
+a current remote revision or atomic provider condition. Late known results retain
+cancellation uncertainty; original input evidence is not mutated.
+
+Fresh and actual schema-83-upgraded PostgreSQL checks passed ten exact-capture
+conflicts, missing/unprepared/unknown/unavailable refusal, already-stale dispatch
+refusal, one of 32 claims, both cancellation race orders, late causal/no-effect
+evidence, unchanged terminal/SQL records, concurrent process opens, stale migration
+replay, retained restart and owned-child WAL recovery. Evidence root
+`/home/vince/tmp/factory-edit-dispatch-1105/`; fresh log
+`bfb8769baec86f9cff21839c8d3a917899390c9997474dd28ffdadbcce261c24`, upgrade
+log `687aa7027fac62e15e1272fe76dc5f0b9aec79a1e1082fe2d7ba88f245648f63`.
+Exact writing, field presence and expected/observed facts were retained. Fixture
+source/executable identities are in the canonical plan. Declared Store receipts
+are not actual provider or installed upgrade qualification.
+
+The existing composed state regression also passed unchanged with schema 84 in
+`state-regression-a1`, result
+`5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0`.
+Its 12 cases/nine dummy effects retain their prior declared scope, with owned
+resources cleaned up. No actual provider or broader security gate is inferred.
+
+The remaining edit source blocker is its admitted native callback and Go consumer
+using these fences, followed by actual composed current scope, stale original
+content, partial fields, causal persistence, replay/cancel/withdrawal/restart
+evidence. Actual provider permission/schema/normalization/write/readback, shared
+WebKit editing and the concurrent-content/repository-transfer invariant remain
+unverified. All broader custody/root absence/scoped delivery, peer/window/instance,
+D1/D2/D3/D5, isolated worker/executor/retirement and release/upgrade/freshness gates
+retain their previously recorded blockers and evidence requirements.

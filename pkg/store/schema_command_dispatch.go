@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -48,4 +48,12 @@ var HumanStateDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.state.apply' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=82)`,
 	`UPDATE schema_version SET version=83 WHERE version=82`,
+}
+
+// Existing edit captures have no reliable history under this local protocol.
+// Preserve all content/conditions/outcomes while fencing that history unknown.
+var HumanEditDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.edit' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=83)`,
+	`UPDATE schema_version SET version=84 WHERE version=83`,
 }

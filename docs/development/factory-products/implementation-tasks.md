@@ -27682,3 +27682,69 @@ write/readback, shared WebKit editing, concurrent-content and repository/visibil
 policy, installed admission/custody/execution and all D1/D2/D3/D5/release/upgrade/
 freshness gates remain unqualified. Shared write capabilities remain unavailable;
 T11-WRITES and the full goal remain unfinished. No real GitHub edit occurred here.
+
+### T11-WRITES — one-shot edit journal producer (2026-11-05)
+
+Schema 84 extends the same shared command dispatch row-lock protocol to the
+existing typed `HumanEditCapture`. `factory_human_edit_dispatch.go` wraps exact
+capture lookup, reservation and cancellation; the normal observation path and
+cancellation share the defining save/reducer. Late known primary results retain
+prior cancellation uncertainty without changing caller-owned evidence. The
+protocol also checks the capture's existing `ExpectedCurrent` condition before
+granting a reservation, after verifying its exact stored identity. A capture
+already known stale cannot dispatch even if the application service is bypassed.
+This condition compares captured facts and adds no remote atomicity guarantee.
+
+The actual 83→84 upgrade conservatively fences pre-protocol edit history
+`legacy_unknown`, leaving original title/body, field presence, expected/observed
+content, opaque preparation, outcomes and finished bytes unchanged. Triggers stay
+active. Existing comment/issue/state dispatch states are untouched, and stale
+concurrent migration replay cannot fence newly captured schema-84 edits. A
+reserved/legacy state cannot be released or a finished command claimed.
+
+Real PostgreSQL acceptance under `/home/vince/tmp/factory-edit-dispatch-1105/`
+passed fresh `pg-fresh-a1` and actual archived schema-83 `pg-legacy-a1` (baseline
+`2412ad0`). Both preserved exact writing and original-content conditions, refused
+ten conflicting captures, absent/unprepared/unknown/unavailable dispatch and an
+already-stale capture, allowed exactly one of 32 concurrent claims, and passed
+32 reservation/cancel races (fresh 14 reserved/18 cancelled; upgraded 18/14).
+Late causal/no-effect results, terminal/SQL immutability and existing comment
+claims passed. Concurrent process upgrade, exact retained not-observed/cancelled/
+unknown/committed history and stale migration DDL replay passed. Both actual
+retained restart and abrupt owned-child WAL recovery retained original records;
+the owned PostgreSQL instances stopped cleanly. These are declared Store records,
+not provider effect or installed upgrade evidence.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `572eb47120a0e6017bc979f97d9b4ff94e48ffd9c369c42b6aac5de0c753e4bb` |
+| `legacy.go` | `aefaa05657fe3e806990b0f7e76d506dcc9f46579c90727c9ffea59f2ecdff22` |
+| `check.go` | `f5af4d5c1115a04ef9ea2db26804d73963c226ab77a4ff7ac5e96728c60c104f` |
+| historical Store executable | `385cbe9a70753e1ddc6f82358d26b1b8885878db98256ed35bbba8f9a88e17b5` |
+| current fixture executable | `6ed962b889465478ba2c997fe2a8fde1f4b47dd978425ceb61cb025d44198770` |
+| fresh log | `bfb8769baec86f9cff21839c8d3a917899390c9997474dd28ffdadbcce261c24` |
+| upgrade log | `687aa7027fac62e15e1272fe76dc5f0b9aec79a1e1082fe2d7ba88f245648f63` |
+| native backend | `f8564e280295fb708624266ca023983c4fbaa0fdf93a15625875a0d74ed75c00` |
+| state regression `state-run.sh` | `6d6c91cdc51055382c30b55458ab82004c29dbcc79fb8bc91e717130c168d5e7` |
+| state regression `state-session.sh` | `998361cd25c6b3f7e6424083da9b1798f77d4cb108738b25d9f3d792094770a5` |
+| composed state regression result | `5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0` |
+
+The existing composed state journey passed unchanged in `state-regression-a1`
+with schema 84 and the new optional capture-readiness hook: 12 cases, nine intended
+dummy POSTs, current scope, replay/uncertainty/cancel/withdrawal and retained runtime
+restart. It used the preserved no-forwarding state provider and the edit producer's
+retained `284301d1…` observer. Log
+`fa71130265be3d1e4357affbe9b02552aa69a5a03289ded4ac8c9db392f05512`.
+Owned credentials and native/Go/PostgreSQL resources cleaned up. This retains the
+previous declared scope and supplies no actual GitHub/installed qualification.
+
+Go builds, ownership boundaries and whitespace checks pass. No dependency or
+unit-test root was added. Next is the admitted native edit callback and Go writer,
+including actual composed stale-base, field-presence, causal receipt, cancellation,
+withdrawal and retained restart behavior. Shared write capabilities remain
+unavailable. Actual provider and shared WebKit editing, concurrent-content and
+repository/visibility policy, D1/D2/D3/D5 and all installed custody/admission/
+isolation/execution/release/upgrade/freshness gates remain open. T11-WRITES and the
+full product goal are unfinished; no actual GitHub mutation ran here.

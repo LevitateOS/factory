@@ -25,6 +25,7 @@ type humanDispatch struct {
 	invalid              error
 	validate             func(collaboration.OperationLookup) error
 	finished             func(collaboration.OperationLookup) bool
+	ready                func() bool
 	save                 func(context.Context, *sql.Tx, factory.Command, collaboration.OperationLookup) (collaboration.OperationLookup, error)
 }
 
@@ -60,6 +61,17 @@ func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
 			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanStateObservation(c, o) }, finished: factory.HumanStateFinished,
 			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 				return saveHumanStateObservation(ctx, tx, saved, c, o)
+			}}
+	case factory.CommandHumanEdit:
+		c, err := factory.DecodeHumanEditCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanEditObservation,
+			ready:    c.ExpectedCurrent,
+			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanEditObservation(c, o) }, finished: factory.HumanEditFinished,
+			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return saveHumanEditObservation(ctx, tx, saved, c, o)
 			}}
 	default:
 		return s, ErrCommandConflict
@@ -112,6 +124,9 @@ func (s *Store) reserveHumanDispatch(ctx context.Context, cmd factory.Command) (
 	}
 	if state != factory.DispatchUnclaimed || saved.Finished != "" {
 		return false, nil
+	}
+	if spec.ready != nil && !spec.ready() {
+		return false, ErrCommandDispatchNotReady
 	}
 	var lookup collaboration.OperationLookup
 	if json.Unmarshal([]byte(saved.Outcome), &lookup) != nil || spec.validate(lookup) != nil || lookup.State != collaboration.LookupNotObserved || lookup.Record != nil {
