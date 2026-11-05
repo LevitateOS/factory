@@ -27551,3 +27551,66 @@ dependency or unit-test root was added. These declared Store receipts prove no
 actual provider effect or installed migration. Next compose the admitted native
 state callback and Go writer, then qualify its actual provider and shared UI
 consumers. T11-WRITES and all broader security/product gates remain unfinished.
+
+### T11-WRITES — composed native human close/reopen (2026-11-05)
+
+`native_product_states.go` connects the existing typed Go state service and sole
+command journal to Rust's fixed close/reopen operation. Preparation reads the
+normal canonical subject, pins its immutable ID and the original five-minute
+deadline, then commits before dispatch. Current profile/account/repository and
+credential generation are independently admitted. Only the successful durable
+reservation caller can send once. Exact command/digest/current-scope echo and
+bounded causal state receipt are checked before retaining a committed result.
+Go retains no provider credential and Rust writes no product SQL.
+
+The native callback's shared mutation admission now includes `SetDiscussionState`,
+retaining its one-effect-per-operation fence, captured deadline, cancellation and
+final credential check. Only the two writing-heavy creations keep the 512-KiB
+envelope; state/read/MCP callbacks retain 8 KiB. Comment/issue behavior is preserved.
+Existing integration request/mode/outcome helpers are shared by the issue and state
+observers; they supply no production authority.
+
+The existing native executable gained `--github-state-product-declared BACKEND PG PROFILE`.
+`/home/vince/tmp/factory-state-product-1105/attempt1/` exited 0 with 12 cases and
+nine intended dummy POSTs through actual native custody, product/callback, Go
+canonical mapping/service/journal and PostgreSQL. All four issue/PR close/reopen
+operations had normal state readback and exact replay/lookup/cancel/conflict
+behavior. Concurrent identical commands sent once; another repository refused.
+The fixture really applied a transition then dropped its reply: visible matching
+current state did not create attribution or authorize replay. Both cancellation
+races retained the late known primary result and cancellation uncertainty.
+Withdrawal/replacement refused the old generation; retained restart preserved
+known outcomes and fenced unknown ones. Another account could neither read nor
+adopt the capture. Owned accounts/keyring/children cleaned up. No real request
+was forwarded by the dummy-only local HTTPS fixture.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `af14f2696ce433e1eafc83fcccd3d851b8c171fd7d42ad8cdab6ed08ca725110` |
+| fixture executable | `3abd076843650ec1a64c158e90c65ded363194a1e73e3ecfde437c795012bb4e` |
+| `run.sh` | `c9c906e213a6087959455e9598fb4fdbc772ffc68b7c4b0f146a3338a74ea55f` |
+| `session.sh` | `96f6d52a4aeeacb469ef9fa927fb9b93c8dd83293073209e193e5a3cdfef740e` |
+| native backend | `86541eb4975a5d189426008c4e249c92f1eb837efb8fe79c615b56b6df5dc957` |
+| native check executable | `5255f157d5356d47e91eae0832566e5ae0575bce2aef7a51a386eaf8dfb24168` |
+| composed state log | `fa71130265be3d1e4357affbe9b02552aa69a5a03289ded4ac8c9db392f05512` |
+| composed state result | `5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0` |
+| issue regression `run.sh` | `5e2407db189520935a0bbac9a503c95d4dda0141552e015eff6eb42eb21d1fcc` |
+| issue regression `session.sh` | `4c081b02fe8dade5993b632f432534638addc3a4c077f4177d014e8b657473b9` |
+| issue regression result | `c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6` |
+
+The existing composed issue-creation journey passed unchanged in
+`issue-regression-a1` against the earlier preserved no-forwarding issue provider,
+with its existing 13-case/ten-mutation scope and log
+`59c19ede2f8170a16ca868800a88cf5499982fce21955eabb843d467e008d847`.
+Desktop/native feature builds, Go builds, ownership boundaries and whitespace
+checks pass with captured inputs. No dependency or unit-test root was added.
+
+This supersedes the missing state callback/Go consumer blocker above. Shared
+write capabilities remain unavailable. Fresh actual GitHub schema/grant/permission/
+mutation/readback and shared WebKit actions, delayed captured-deadline expiry,
+repository/visibility/transfer policy and all broader installed custody/IPC/window,
+D1/D2/D3/D5, isolated execution/retirement and release/upgrade/freshness gates remain
+unqualified. T11-WRITES stays Active for its other operations and acceptance gates;
+the full product is unfinished and no real GitHub mutation ran here.

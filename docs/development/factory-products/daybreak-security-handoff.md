@@ -1971,3 +1971,35 @@ visibility/transfer policy remain unverified prerequisites to exposing the actio
 All broader custody, root absence/scoped delivery, installed IPC/window admission,
 D1/D2/D3/D5, isolation/executor/retirement and release/freshness/upgrade dependencies
 remain as recorded; this producer closes none of those gates.
+
+T11-WRITES composed native close/reopen (2026-11-05):
+`pkg/factory/runtime/native_product_states.go` supplies the Go service adapter;
+`native_product.go` binds it and `lib/desktop-runtime/src/collaboration.rs` admits
+the bounded semantic state callback. The one journal/reservation, original
+deadline, current account/repository/generation checks and one native effect per
+operation are retained. State/read/MCP envelopes remain small. No credential
+crosses Go, and the native provider has no product SQL authority.
+
+The actual native custody/callback/Go/PostgreSQL path passed 12 declared cases and
+nine intended dummy mutations in `/home/vince/tmp/factory-state-product-1105/attempt1/`:
+all four close/reopen operations, normal state readback, exact command replay/
+lookup/cancel/conflict, concurrent one-shot dispatch, wrong repository, lost reply
+without current-state attribution, both cancellation races, withdrawal/replacement,
+another account and retained restart. Owned resources cleaned up. State result
+`5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0`.
+The existing composed issue-creation regression also passed, result
+`c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6`.
+Exact fixture/source/executable/log identities are in the canonical plan. The
+local provider never forwards and uses only literal dummy grants.
+
+This resolves the source composition blocker for states. Remaining action gates:
+fresh specifically authorized actual GitHub schema/grants/permissions/mutation
+and normal readback, shared WebKit actions and delayed captured-deadline expiry.
+Shared write capability projection remains unavailable. Repository/visibility/
+transfer policy is still independent: a Node ID and checked causal reply cannot
+prevent a movable issue's effect after a transfer race. Define the supported
+invariant and qualify permitted/refused behavior before stronger claims. Installed
+credential/root absence/scoped delivery, peer/window/instance admission, D1/D2/D3/D5,
+worker isolation/execution/retirement/settlement and release/upgrade/freshness gates
+retain their earlier exact dependencies and required evidence. No broad gate or
+Daybreak work is marked complete by these ordinary declared product checks.

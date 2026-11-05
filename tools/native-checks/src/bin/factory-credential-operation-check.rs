@@ -1212,6 +1212,13 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-state-declared" {
             return runtime.block_on(native_github_states::producer(Path::new(&args[1])));
         }
+        if args.len() == 4 && args[0] == "--github-state-product-declared" {
+            return runtime.block_on(native_github_states::product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 4 && args[0] == "--github-issue-product-declared" {
             return runtime.block_on(native_github_issues::product(
                 Path::new(&args[1]),

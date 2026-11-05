@@ -3,7 +3,9 @@
 //! MCP route derives from a caller-supplied scope; Go must validate its ledger
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
-use crate::github_provider::{Client, Comment, CreateOutcome, Failure, IssueCreate, Read};
+use crate::github_provider::{
+    Client, Comment, CreateOutcome, DiscussionState, Failure, IssueCreate, Read, StateOutcome,
+};
 use crate::mcp_signing::Signer;
 use crate::product::Products;
 use crate::supervisor::NativeChannel;
@@ -358,9 +360,15 @@ enum Effect {
         not_after: u64,
         issue: IssueCreate,
     },
+    SetDiscussionState {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        state: DiscussionState,
+    },
 }
 impl Effect {
-    fn creation(&self) -> Option<(&str, &str, u64, &str)> {
+    fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
         match self {
             Self::CreateComment {
                 command_id,
@@ -374,6 +382,12 @@ impl Effect {
                 not_after,
                 issue,
             } => Some((command_id, digest, *not_after, &issue.repository)),
+            Self::SetDiscussionState {
+                command_id,
+                digest,
+                not_after,
+                state,
+            } => Some((command_id, digest, *not_after, &state.repository)),
             _ => None,
         }
     }
@@ -506,7 +520,11 @@ async fn dispatch(
         return Ok(json!({"valid":valid}));
     }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
-    if call.call.creation().is_none() && body.len() > 8192 {
+    if !matches!(
+        &call.call,
+        Effect::CreateComment { .. } | Effect::CreateIssue { .. }
+    ) && body.len() > 8192
+    {
         return Err(Failure::invalid());
     }
     if !opaque_id(&call.operation) {
@@ -535,10 +553,11 @@ async fn dispatch(
             return Err(Failure::new(403, "native_repository_scope"));
         }
     }
-    if let Some((command_id, digest, not_after, repository)) = call.call.creation() {
+    if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
         match &call.call {
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
+            Effect::SetDiscussionState { state, .. } => state.validate()?,
             _ => unreachable!(),
         }
         if !opaque_id(command_id)
@@ -566,8 +585,10 @@ async fn dispatch(
                     .read_account(token, &scope.capability.account().account, query)
                     .await
             }
-            Effect::CreateComment { .. } | Effect::CreateIssue { .. } => {
-                create(&state.provider, &scope, token, &call.call).await
+            Effect::CreateComment { .. }
+            | Effect::CreateIssue { .. }
+            | Effect::SetDiscussionState { .. } => {
+                mutate(&state.provider, &scope, token, &call.call).await
             }
         });
     let observation = tokio::select! {
@@ -586,13 +607,13 @@ async fn dispatch(
     )
 }
 
-async fn create(
+async fn mutate(
     provider: &Client,
     scope: &Scope,
     token: &[u8],
     effect: &Effect,
 ) -> std::result::Result<Value, Failure> {
-    let (command_id, digest, not_after, _) = effect.creation().ok_or_else(Failure::invalid)?;
+    let (command_id, digest, not_after, _) = effect.mutation().ok_or_else(Failure::invalid)?;
     if scope.write_claimed.swap(true, Ordering::SeqCst) {
         return Err(Failure::new(409, "native_effect_already_claimed"));
     }
@@ -605,23 +626,34 @@ async fn create(
     }
     let deadline = measured + Duration::from_secs(not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
-    let outcome = match effect {
-        Effect::CreateComment { comment, .. } => {
-            provider
-                .comment_account(token, account, comment, Some(deadline))
-                .await
+    let (state, receipt, failure) = if let Effect::SetDiscussionState { state, .. } = effect {
+        match provider
+            .state_account(token, account, state, Some(deadline))
+            .await
+        {
+            StateOutcome::Applied(r) => ("applied", Some(r), None),
+            StateOutcome::NotSent(f) => ("not_sent", None, Some(f)),
+            StateOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
         }
-        Effect::CreateIssue { issue, .. } => {
-            provider
-                .issue_create_account(token, account, issue, Some(deadline))
-                .await
+    } else {
+        let outcome = match effect {
+            Effect::CreateComment { comment, .. } => {
+                provider
+                    .comment_account(token, account, comment, Some(deadline))
+                    .await
+            }
+            Effect::CreateIssue { issue, .. } => {
+                provider
+                    .issue_create_account(token, account, issue, Some(deadline))
+                    .await
+            }
+            _ => return Err(Failure::invalid()),
+        };
+        match outcome {
+            CreateOutcome::Created(r) => ("created", Some(r), None),
+            CreateOutcome::NotSent(f) => ("not_sent", None, Some(f)),
+            CreateOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
         }
-        _ => return Err(Failure::invalid()),
-    };
-    let (state, receipt, failure) = match outcome {
-        CreateOutcome::Created(r) => ("created", Some(r), None),
-        CreateOutcome::NotSent(f) => ("not_sent", None, Some(f)),
-        CreateOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
     };
     let failure = failure.map(
         |f| json!({"status":f.status,"code":f.code,"retry_after":f.retry_after,"reset":f.reset}),

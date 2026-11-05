@@ -236,7 +236,7 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     Ok(())
 }
 
-async fn call(
+pub(super) async fn call(
     runtime: &NativeSupervisor,
     store: &Arc<Credentials>,
     connection: &str,
@@ -259,7 +259,7 @@ fn envelope(path: &str, id: &str, title: &str, body: &str) -> Result<Vec<u8>> {
     let (_, _, bytes) = request.request()?;
     Ok(bytes)
 }
-fn set_mode(io: &Path, name: &str) -> Result<()> {
+pub(super) fn set_mode(io: &Path, name: &str) -> Result<()> {
     if name.starts_with("pause-") {
         for marker in ["entered", "release", "cancelled"] {
             match fs::remove_file(io.join(marker)) {
@@ -272,19 +272,19 @@ fn set_mode(io: &Path, name: &str) -> Result<()> {
     fs::write(io.join("mode"), name)?;
     Ok(())
 }
-fn completed(reply: &(u16, serde_json::Value), effect: &str) -> Result<()> {
+pub(super) fn completed(reply: &(u16, serde_json::Value), effect: &str) -> Result<()> {
     ensure(
         reply.0 == 200 && reply.1["effect"] == effect && reply.1["finished"] == true,
-        "composed issue did not retain complete primary",
+        "composed human command did not retain complete primary",
     )
 }
-fn uncertain(reply: &(u16, serde_json::Value)) -> Result<()> {
+pub(super) fn uncertain(reply: &(u16, serde_json::Value)) -> Result<()> {
     ensure(
         matches!(reply.0, 200 | 202)
             && reply.1["effect"] == "indeterminate"
             && reply.1["finished"] == false
             && reply.1["issue"].is_null(),
-        "unknown issue became complete, attributable or safe to retry",
+        "unknown human command became complete, attributable or safe to retry",
     )
 }
 
