@@ -25016,3 +25016,22 @@ and offline with build/scratch under `/home`; changed Rust files passed
 `rustfmt --check` and `git diff --check`. This does not exercise
 `RunOwner::start` with a live credential, the Go ledger or crash/reboot
 reconciliation. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR overlapping dummy runs (2026-11-05): two credential-free
+broker clients using one profile and different run IDs were launched together
+against disposable current broker, preparer, relay and agent units. The first
+attempt omitted the required dummy owner sockets; both relay units failed
+at systemd mount setup before readiness and both exact broker retirements
+succeeded. With live owner sockets supplied, both runs returned zero child exit,
+retired process tree, complete 31-byte output and a 419-byte Git bundle. Git
+verified that both bundles require the prepared base and contain the expected
+descendant commit. The systemd journal showed the two agent service lifetimes
+overlapping; both reported worker UID 64596 and relay UID 64727. Exact
+retirement removed both run-specific broker paths, agent/relay services ended
+with `MainPID=0`, and temporary units, binaries and owner sockets were removed.
+This establishes two simultaneous dummy executions and cleanup, not separate
+UIDs, denial of access between runs, a low-free-space or storage-exhaustion
+result, credential custody, Go ledger consumption or a real provider task.
+Cross-run denial remains an explicit D3 qualification task; route a check that
+looks like hacking to the user-started Daybreak session. T09-NATIVE-EXECUTOR
+remains Pending.

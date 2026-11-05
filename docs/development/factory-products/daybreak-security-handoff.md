@@ -68,10 +68,9 @@ is D2 work. T12-PLACEMENT depends on T06-CONNECT and must keep automation inacti
 
 For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.
-`cargo check --locked --offline -p soda-factory-broker` passes. The current host
-has no installed `soda-factory-broker.socket`; no live broker/preparer activation
-qualified this change. The worker unit now gives each agent service a separate
-768 MiB tmpfs for workspace, output, Git state and its preferred temporary
+`cargo check --locked --offline -p soda-factory-broker` passes. The initial
+source check had no live broker/preparer activation. The worker unit now gives
+each agent service a separate 768 MiB tmpfs for workspace, output, Git state and its preferred temporary
 directory; the worker checks mount type, device, mode and capacity and refuses
 other common writable scratch mounts. A disposable dynamic-UID systemd service
 confirmed the mount size, mode-`0700` private directory creation and denied
@@ -79,8 +78,8 @@ writes to `/tmp`, `/var/tmp`, `/dev/shm` and `/run/lock` under the relevant unit
 properties. Its first trial showed that `PrivateTmp` overrode separately sized
 tmpfs mounts on `/tmp` and `/var/tmp`; the unit now marks those paths
 inaccessible. Locked offline worker compilation and rendered unit syntax
-verification pass. No actual installed agent/broker service, real coder growth,
-multi-run capacity or cross-run isolation check used this new storage profile.
+verification pass. At that checkpoint, no broker-orchestrated agent service, coder
+growth, multi-run capacity or cross-run isolation check used this storage profile.
 The built worker also ran in a disposable systemd unit. A first attempt omitted
 `Slice=system.slice` and stopped in systemd before worker startup because the
 cgroup bind source was absent. With that source-unit property and the cgroup
@@ -118,8 +117,24 @@ coder/output bounds, writable mounts, and denial when `/run` has low free
 space, with exact process and filesystem observations. These component checks
 do not close D3.
 The agent unit also disables swap under its existing 1 GiB memory ceiling.
-The current disposable service attested workspace creation and separately ran a
-small coder edit. A later actual broker/preparer/relay/agent run drove a
+Two later concurrent credential-free broker clients used the same profile with
+different exact run IDs. The first attempt lacked dummy owner sockets, so both
+relay units failed at mount setup before readiness; both broker retirements
+succeeded. With live owner sockets, both runs completed through broker,
+preparer, relay and agent, returned zero child exit, retired tree, complete
+31-byte output and Git-verified 419-byte candidate bundles. Their agent
+service lifetimes overlapped in the systemd journal. Both reported worker UID
+64596 and relay UID 64727, so the check does not prove per-run UID separation.
+Both exact run paths retired, the services had `MainPID=0`, and temporary units,
+binaries and owner sockets were removed. No cross-run access denial, storage
+pressure/refusal, credential use, Go transaction or real provider was tested.
+Before D3 closure, demonstrate run-specific filesystem/process/resource denial
+on the actual service path despite any shared dynamic UID; route a check that
+looks like hacking to a user-started Daybreak session. Relevant files are the
+agent/relay systemd templates, `cmd/soda-factory-broker/src/main.rs` and
+`cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`.
+An earlier disposable service attested workspace creation and separately ran a
+small coder edit. A separate broker/preparer/relay/agent run drove a
 17,256-byte credential-free ELF to write under the worker's bounded `TMPDIR`.
 It reported progress through 704 MiB, then exited by signal 9. The systemd
 journal recorded an OOM kill in the agent unit and a 773.9 MiB memory peak;
@@ -129,7 +144,7 @@ run-specific source, preparation, socket and relay paths. This proves one
 bounded growth and cleanup observation, not the tmpfs `ENOSPC` path, all
 writable surfaces, multi-run capacity or denial with low `/run` free space.
 The service reported `Result=success` even though the child was killed, so the
-future Go transaction must preserve the exit signal as a failed execution
+future Go adapter and transaction must preserve the exit signal as a failed execution
 observation. Prove that consumer behavior before D3 closure.
 
 The Go coordinator now has a source-level settlement guard for that observation:
