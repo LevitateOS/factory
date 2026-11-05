@@ -2076,3 +2076,36 @@ WebKit editing and the concurrent-content/repository-transfer invariant remain
 unverified. All broader custody/root absence/scoped delivery, peer/window/instance,
 D1/D2/D3/D5, isolated worker/executor/retirement and release/upgrade/freshness gates
 retain their previously recorded blockers and evidence requirements.
+
+T11-WRITES composed native issue/PR editing (2026-11-05):
+`pkg/factory/runtime/native_product_edits.go` now supplies the Go service adapter;
+`native_product.go` binds it and `lib/desktop-runtime/src/collaboration.rs` admits
+the typed native edit callback. Public/private edit envelopes retain maximum
+writing while other operation bounds stay unchanged. Exact original/expected/
+observed content, optional field presence, original deadline, current account/
+repository/generation and one-shot journal/native effect fences are retained.
+No credential crosses Go or product SQL moves to Rust.
+
+The actual native custody/callback/Go/PostgreSQL path passed 16 declared cases and
+11 dummy mutations in `/home/vince/tmp/factory-edit-product-1105/attempt1/`:
+full/partial/empty/maximum writing and normal readback, exact replay/cancel/conflict,
+stale client base, provider base change after preparation, concurrent claims,
+wrong repository, lost reply without matching-writing attribution, both cancellation
+races, withdrawal/replacement, another account and retained restart. Owned accounts/
+keyring/children cleaned up. Edit result
+`8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba`.
+The existing composed state regression also passed unchanged, result
+`5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0`.
+The canonical plan records source/executable/log identities. These are dummy-only,
+no-forwarding HTTPS fixtures, not actual GitHub or installed admission evidence.
+
+The source composition blocker for edits is resolved. Remaining action dependencies:
+fresh specifically authorized actual GitHub permissions/schema/content normalization/
+mutation and normal readback, shared WebKit editing, delayed captured-deadline
+expiry and explicit concurrent-content/selected-resource policy. The preflight
+does not establish atomic content or repository-transfer protection; the stronger
+invariant still needs its documented provider mechanism and authorized evidence.
+Shared write capabilities remain unavailable. Installed custody/root absence/
+scoped delivery, peer/window/instance admission, D1/D2/D3/D5, worker isolation/
+execution/retirement/settlement and release/upgrade/freshness retain all earlier
+blockers. No broad security gate or Daybreak work closes from this checkpoint.

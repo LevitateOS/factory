@@ -1,10 +1,15 @@
 //! Real producer acceptance in the existing native integration executable.
 //! Run only against an owned no-forwarding peer with literal dummy grants.
+use super::native_github_issues::{call, completed, set_mode, uncertain};
 use super::{ensure, prepare, Result};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use soda_desktop_runtime::credentials::Token;
+use soda_desktop_runtime::credentials::{Account, Credentials, Provider};
 use soda_desktop_runtime::github_provider::{DiscussionEdit, Owner, WriteOutcome};
+use soda_desktop_runtime::supervisor::NativeSupervisor;
+use soda_desktop_runtime::ProductRequest;
+use std::sync::Arc;
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
@@ -277,5 +282,515 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
         )?,
     )?;
     println!("PASS: production Rust issue/PR edits preserve field presence and exact writing with immutable targeting, stale-base preflight, bounded causal receipt, no retry, deadlines, serialization and retirement; dummy-only HTTPS, no provider CAS or actual provider/product qualification");
+    Ok(())
+}
+
+fn expected(read: &serde_json::Value) -> Result<serde_json::Value> {
+    Ok(
+        json!({"external_id":read["ref"]["external_id"].as_str().ok_or("edit base identity absent")?,"title":read["title"].as_str().ok_or("edit base title absent")?,"body_digest":sha(read["body"].as_str().ok_or("edit base body absent")?)}),
+    )
+}
+fn envelope(
+    path: &str,
+    id: &str,
+    title: Option<&str>,
+    body: Option<&str>,
+    base: Option<&serde_json::Value>,
+) -> Result<Vec<u8>> {
+    let mut input = json!({"command_id":id});
+    if let Some(title) = title {
+        input["title"] = json!(title);
+    }
+    if let Some(body) = body {
+        input["body"] = json!(body);
+    }
+    if let Some(base) = base {
+        input["expected"] = base.clone();
+    }
+    let q: ProductRequest =
+        serde_json::from_value(json!({"kind":"write","path":path,"body":input}))?;
+    Ok(q.request()?.2)
+}
+pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    set_mode(&io, "positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "edit product requires empty owned custody",
+    )?;
+    let account = || {
+        Account::new(Provider::Github, "https://github.com", "321")
+            .and_then(|a| a.with_label("declared-writer"))
+    };
+    let saved = store
+        .store(account()?, Token::new(b"factory-declared-edit".to_vec())?)
+        .await?;
+    let mut connection = saved.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "edit canonical catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+    let mut cases = Vec::new();
+    for (i, (kind, title, body)) in [
+        (
+            "issues",
+            Some("Exact issue title π".to_owned()),
+            Some("Exact human body 🍵\n[link](relative.md)".to_owned()),
+        ),
+        (
+            "pulls",
+            Some("Exact PR title".into()),
+            Some("Exact PR description".into()),
+        ),
+        ("issues", Some("Title-only edit".into()), None),
+        ("issues", None, Some("".into())),
+        ("issues", Some("t".repeat(255)), Some("🍵".repeat(16384))),
+        (
+            "pulls",
+            Some("Maximum escaped body".into()),
+            Some("\u{0001}".repeat(65536)),
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let subject = format!("{root_path}/{kind}/7");
+        let submit = format!("{subject}/edits");
+        let id = format!("{:032x}", 100 + i);
+        let command = format!("{submit}/commands/{id}");
+        let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+        ensure(read.0 == 200, "edit normal original read failed")?;
+        let base = expected(&read.1)?;
+        let bytes = envelope(&submit, &id, title.as_deref(), body.as_deref(), Some(&base))?;
+        let before = posts(&io)?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "committed",
+        )?;
+        let current = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+        ensure(
+            current.0 == 200
+                && current.1["ref"]["external_id"] == read.1["ref"]["external_id"]
+                && current.1["title"].as_str()
+                    == Some(
+                        title
+                            .as_deref()
+                            .unwrap_or(read.1["title"].as_str().ok_or("original title absent")?),
+                    )
+                && current.1["body"].as_str()
+                    == Some(
+                        body.as_deref()
+                            .unwrap_or(read.1["body"].as_str().ok_or("original body absent")?),
+                    ),
+            "edit readback changed requested or omitted fields",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command, &[]).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{command}/cancel"),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        let conflict = envelope(
+            &submit,
+            &id,
+            Some("Different retry intent"),
+            body.as_deref(),
+            Some(&base),
+        )?;
+        ensure(
+            call(&runtime, &store, &connection, "POST", &submit, &conflict)
+                .await?
+                .0
+                == 409
+                && posts(&io)? == before + 1,
+            "edit replay/conflict/cancel repeated mutation",
+        )?;
+        cases.push(format!("positive-{i}"));
+    }
+    let subject = format!("{root_path}/issues/7");
+    let submit = format!("{subject}/edits");
+    let command = |id: &str| format!("{submit}/commands/{id}");
+    let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+    let mut stale = expected(&read.1)?;
+    stale["title"] = json!("Stale client title");
+    let stale_id = "11111111111111111111111111111111";
+    let stale_bytes = envelope(
+        &submit,
+        stale_id,
+        Some("Must not replace stale content"),
+        None,
+        Some(&stale),
+    )?;
+    let before = posts(&io)?;
+    completed(
+        &call(&runtime, &store, &connection, "POST", &submit, &stale_bytes).await?,
+        "not_committed",
+    )?;
+    completed(
+        &call(&runtime, &store, &connection, "POST", &submit, &stale_bytes).await?,
+        "not_committed",
+    )?;
+    ensure(
+        posts(&io)? == before,
+        "stale expected content reached provider",
+    )?;
+    cases.push("stale-client-base".into());
+    for name in ["stale-after-prepare"] {
+        let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+        let base = expected(&read.1)?;
+        let bytes = envelope(
+            &submit,
+            "22222222222222222222222222222222",
+            None,
+            Some("Must not overwrite changed base"),
+            Some(&base),
+        )?;
+        set_mode(&io, name)?;
+        let before = posts(&io)?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "not_committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "not_committed",
+        )?;
+        ensure(
+            posts(&io)? == before,
+            "changed provider preflight reached mutation",
+        )?;
+        cases.push(name.into());
+        set_mode(&io, "positive")?;
+    }
+    let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+    let base = expected(&read.1)?;
+    let concurrent = "33333333333333333333333333333333";
+    let bytes = envelope(
+        &submit,
+        concurrent,
+        Some("Concurrent edit"),
+        Some("One mutation"),
+        Some(&base),
+    )?;
+    let before = posts(&io)?;
+    let (a, b) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &bytes),
+        call(&runtime, &store, &connection, "POST", &submit, &bytes)
+    );
+    for r in [a?, b?] {
+        if r.1["finished"] == true {
+            completed(&r, "committed")?
+        } else {
+            uncertain(&r)?
+        }
+    }
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(concurrent),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    ensure(
+        posts(&io)? == before + 1,
+        "concurrent exact edits sent twice",
+    )?;
+    cases.push("concurrent-identical-command".into());
+    let wrong = format!(
+        "/api/factory/collaboration/repositories/{}/issues/7/edits",
+        repository.parse::<i64>()? + 1
+    );
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &wrong,
+            &envelope(
+                &wrong,
+                "99999999999999999999999999999999",
+                Some("Wrong scope"),
+                None,
+                None,
+            )?,
+        )
+        .await?
+        .0 == 403
+            && posts(&io)? == before + 1,
+        "edit expanded selected repository",
+    )?;
+    cases.push("other-repository-refusal".into());
+    // Matching current writing does not attribute a lost mutation to this command.
+    let lost_id = "44444444444444444444444444444444";
+    let lost = envelope(
+        &submit,
+        lost_id,
+        Some("Owned lost-reply edit"),
+        Some("Readable writing is not attribution"),
+        None,
+    )?;
+    set_mode(&io, "drop-reply")?;
+    let before = posts(&io)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    set_mode(&io, "positive")?;
+    let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+    ensure(
+        read.0 == 200 && read.1["title"] == "Owned lost-reply edit",
+        "lost edit fixture did not retain actual readable mutation",
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        posts(&io)? == before + 1,
+        "matching writing fabricated attribution or authorized retry",
+    )?;
+    cases.push("lost-reply-readback-remains-uncertain".into());
+    for (name, effect, id) in [
+        (
+            "pause-post",
+            "committed",
+            "55555555555555555555555555555555",
+        ),
+        (
+            "pause-preflight",
+            "not_committed",
+            "66666666666666666666666666666666",
+        ),
+    ] {
+        let read = call(&runtime, &store, &connection, "GET", &subject, &[]).await?;
+        let base = expected(&read.1)?;
+        let bytes = envelope(
+            &submit,
+            id,
+            Some("Cancellation-race writing"),
+            None,
+            Some(&base),
+        )?;
+        set_mode(&io, name)?;
+        let before = posts(&io)?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &bytes);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(id)),
+            b"{}",
+        )
+        .await?;
+        uncertain(&cancelled)?;
+        ensure(
+            cancelled.1["cancellation"] == "indeterminate",
+            "racing edit cancellation invented rollback",
+        )?;
+        fs::write(io.join("release"), b"")?;
+        let reply = pending.await?;
+        let result = (reply.status, serde_json::from_slice(&reply.body)?);
+        completed(&result, effect)?;
+        ensure(
+            result.1["cancellation"] == "indeterminate"
+                && posts(&io)? == before + u64::from(name == "pause-post"),
+            "late edit result erased cancellation or repeated POST",
+        )?;
+        cases.push(name.into());
+        set_mode(&io, "positive")?;
+    }
+    set_mode(&io, "pause-post")?;
+    let withdrawn_id = "77777777777777777777777777777777";
+    let withdrawn = envelope(
+        &submit,
+        withdrawn_id,
+        Some("Withdrawn-generation writing"),
+        None,
+        None,
+    )?;
+    let before = posts(&io)?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &withdrawn);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    store.withdraw(&connection).await?;
+    connection = store
+        .store(account()?, Token::new(b"factory-declared-edit".to_vec())?)
+        .await?
+        .connection;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        pending.await.is_err(),
+        "retired generation returned edit success",
+    )?;
+    set_mode(&io, "positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(withdrawn_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &withdrawn).await?)?;
+    ensure(
+        posts(&io)? == before + 1,
+        "replacement custody replayed uncertain edit",
+    )?;
+    cases.push("withdrawal-replacement".into());
+    set_mode(&io, "pause-post")?;
+    let stopped_id = "88888888888888888888888888888888";
+    let stopped = envelope(
+        &submit,
+        stopped_id,
+        None,
+        Some("Retained uncertain edit"),
+        None,
+    )?;
+    let before = posts(&io)?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &stopped);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        pending.await.is_err(),
+        "stopped runtime returned edit result",
+    )?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    set_mode(&io, "positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(stopped_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &stopped).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    for (i, kind) in ["issues", "pulls", "issues", "issues", "issues", "pulls"]
+        .into_iter()
+        .enumerate()
+    {
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "GET",
+                &format!("{root_path}/{kind}/7/edits/commands/{:032x}", 100 + i),
+                &[],
+            )
+            .await?,
+            "committed",
+        )?;
+    }
+    ensure(posts(&io)? == before + 1, "restart replayed captured edit")?;
+    cases.push("retained-restart".into());
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?
+                .with_label("declared-other")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &other.connection,
+            "GET",
+            &command(lost_id),
+            &[],
+        )
+        .await?
+        .0 == 404,
+        "another account read edit capture",
+    )?;
+    ensure(
+        call(&runtime, &store, &other.connection, "POST", &submit, &lost)
+            .await?
+            .0
+            == 409
+            && posts(&io)? == before + 1,
+        "another account adopted edit capture",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account-refusal".into());
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "edit product fixture received unexpected request",
+    )?;
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "edit product left owned grants",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("edit-product-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"actual_provider":false,"native_product_consumer":true,"provider_posts":posts(&io)?,"capabilities_enabled":false,"retained_restart":true,"maximum_writing_bytes":65536,"atomic_content_precondition":false}),
+        )?,
+    )?;
+    println!("PASS: composed native/Rust/Go/PG edits preserve exact partial writing, original-content checks, causal identity, one-shot replay, uncertain replies, cancel races, withdrawal, other-account refusal and restart; dummy-only peer, no provider CAS or actual GitHub/installed qualification");
     Ok(())
 }

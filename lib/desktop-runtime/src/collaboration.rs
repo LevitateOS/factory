@@ -4,7 +4,8 @@
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
-    Client, Comment, CreateOutcome, DiscussionState, Failure, IssueCreate, Read, StateOutcome,
+    Client, Comment, CreateOutcome, DiscussionEdit, DiscussionState, Failure, IssueCreate, Read,
+    WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -366,6 +367,12 @@ enum Effect {
         not_after: u64,
         state: DiscussionState,
     },
+    EditDiscussion {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        edit: DiscussionEdit,
+    },
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
@@ -388,6 +395,12 @@ impl Effect {
                 not_after,
                 state,
             } => Some((command_id, digest, *not_after, &state.repository)),
+            Self::EditDiscussion {
+                command_id,
+                digest,
+                not_after,
+                edit,
+            } => Some((command_id, digest, *not_after, &edit.repository)),
             _ => None,
         }
     }
@@ -522,7 +535,7 @@ async fn dispatch(
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     if !matches!(
         &call.call,
-        Effect::CreateComment { .. } | Effect::CreateIssue { .. }
+        Effect::CreateComment { .. } | Effect::CreateIssue { .. } | Effect::EditDiscussion { .. }
     ) && body.len() > 8192
     {
         return Err(Failure::invalid());
@@ -558,6 +571,7 @@ async fn dispatch(
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
             Effect::SetDiscussionState { state, .. } => state.validate()?,
+            Effect::EditDiscussion { edit, .. } => edit.validate()?,
             _ => unreachable!(),
         }
         if !opaque_id(command_id)
@@ -587,7 +601,8 @@ async fn dispatch(
             }
             Effect::CreateComment { .. }
             | Effect::CreateIssue { .. }
-            | Effect::SetDiscussionState { .. } => {
+            | Effect::SetDiscussionState { .. }
+            | Effect::EditDiscussion { .. } => {
                 mutate(&state.provider, &scope, token, &call.call).await
             }
         });
@@ -626,14 +641,24 @@ async fn mutate(
     }
     let deadline = measured + Duration::from_secs(not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
-    let (state, receipt, failure) = if let Effect::SetDiscussionState { state, .. } = effect {
-        match provider
-            .state_account(token, account, state, Some(deadline))
-            .await
-        {
-            StateOutcome::Applied(r) => ("applied", Some(r), None),
-            StateOutcome::NotSent(f) => ("not_sent", None, Some(f)),
-            StateOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
+    let update = match effect {
+        Effect::SetDiscussionState { state, .. } => Some(
+            provider
+                .state_account(token, account, state, Some(deadline))
+                .await,
+        ),
+        Effect::EditDiscussion { edit, .. } => Some(
+            provider
+                .edit_account(token, account, edit, Some(deadline))
+                .await,
+        ),
+        _ => None,
+    };
+    let (state, receipt, failure) = if let Some(outcome) = update {
+        match outcome {
+            WriteOutcome::Applied(r) => ("applied", Some(r), None),
+            WriteOutcome::NotSent(f) => ("not_sent", None, Some(f)),
+            WriteOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
         }
     } else {
         let outcome = match effect {

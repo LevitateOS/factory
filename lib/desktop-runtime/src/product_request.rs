@@ -3,8 +3,8 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-/// Comment JSON can escape each byte of 64 KiB writing into six bytes. Only the
-/// exact submission route gets that envelope; command lookup/cancel do not.
+/// Human writing can escape each byte of 64 KiB into six bytes. Only exact
+/// creation/edit submission routes get that envelope; lookup/cancel do not.
 pub fn product_request_body_limit(method: &str, target: &str) -> usize {
     if target.len() > 2048 || !target.is_ascii() {
         return 65536;
@@ -26,7 +26,7 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
         && positive(parts[0])
         && matches!(parts[1], "issues" | "pulls")
         && positive(parts[2])
-        && parts[3] == "comments"
+        && matches!(parts[3], "comments" | "edits")
     {
         512 * 1024
     } else {

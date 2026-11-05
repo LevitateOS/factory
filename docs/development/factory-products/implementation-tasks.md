@@ -27748,3 +27748,70 @@ unavailable. Actual provider and shared WebKit editing, concurrent-content and
 repository/visibility policy, D1/D2/D3/D5 and all installed custody/admission/
 isolation/execution/release/upgrade/freshness gates remain open. T11-WRITES and the
 full product goal are unfinished; no actual GitHub mutation ran here.
+
+### T11-WRITES — composed native human issue/PR edits (2026-11-05)
+
+`native_product_edits.go` now connects the existing typed edit service/journal
+to Rust's fixed partial-update effect. Go preparation reads the normal canonical
+subject and retains its immutable identity, original title/body digest, optional
+requested fields, optional client condition and captured observed condition. Its
+original five-minute deadline and authority survive retries. A known stale client
+condition cancels without dispatch; a changed provider preflight returns a known
+no-effect result. Only the successful durable reservation caller may send once.
+Go checks exact command/digest/current-scope echo, field presence, content digests
+and bounded causal receipt before retaining a committed result. No provider
+credential crosses Go and no product SQL moves to Rust.
+
+The admitted native callback includes `EditDiscussion` under the existing single
+effect fence, account/repository/generation checks, captured deadline, withdrawal
+and final custody check. Exact edit submission routes and private edit envelopes
+allow 512 KiB for escaped maximum writing. State/read/MCP/lookup/cancel limits are
+unchanged. Update effects share `WriteOutcome`; creation behavior is preserved.
+
+The existing tool gained `--github-edit-product-declared BACKEND PG PROFILE`.
+`/home/vince/tmp/factory-edit-product-1105/attempt1/` exited 0 with 16 cases and
+11 intended dummy POSTs through actual native custody/product/callback, current
+Go canonical mapping/service/journal and PostgreSQL. Normal readback retained
+issue/PR full edits, title-only preservation, empty-body clearing and maximum
+Unicode/control writing. Exact replay/lookup/cancel/conflict sent no extra POST.
+Stale client content and a provider change after preparation both refused without
+mutation. Concurrent identical requests sent once; another repository refused.
+A mutation applied before a deliberately lost reply remained uncertain despite
+matching readable writing. Both cancellation races retained late known primary
+results and cancellation uncertainty. Withdrawal/replacement refused the old
+generation; retained restart preserved known outcomes and fenced unknown captures.
+Another account could neither read nor adopt the capture. All owned accounts,
+keyring and child resources cleaned up. The local dummy-only HTTPS fixture never
+forwards and retains its provider objects across runtime restart.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `b68f55d2235a70e8de16f4f6994d7539c657721f3313522ed940194ae7b528a2` |
+| fixture executable | `e0652d050c7642c44935ce5e187d976c6314cbf4c3cea2d5dc9041e803b382c8` |
+| `run.sh` | `8ee832781166723c2bc76bbdaae0240bc9529133e24b0891d860f8f2bbe9578b` |
+| `session.sh` | `1c44cf1e79f1001a30c483d1c4159cbee7eceabbf087b8edb3efbb75120bf692` |
+| native backend | `f17af5fadd62ba23d90086b7da01f840578362cdb9f2b909a6e24f644be13010` |
+| native check executable | `49fc75fb0107ad6826a7706516343b416eaa3d151b5e5d36761a228cffc32626` |
+| composed edit log | `71cf4aa7f8d8148bf381e5f492281c4ba2e92093732ab966d9da59c0601ea529` |
+| composed edit result | `8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba` |
+| state regression `state-run.sh` | `1482c1ddbb5451d1c421b4085f96c349f0f4b68b12c5f670317c894da9d24d4f` |
+| state regression `state-session.sh` | `1433ece747f319fe10ffdd622d34a5d54776f3eefa59a880bdcad381c354f7bc` |
+| state regression result | `5acf055a67953ae22175079ce0c363a5df1d2345ac8cbd4142f3e005b4fc2da0` |
+
+The existing composed state regression passed unchanged with its 12-case/nine-dummy-
+mutation scope in `state-regression-a1`, using the preserved no-forwarding state
+provider and log `fa71130265be3d1e4357affbe9b02552aa69a5a03289ded4ac8c9db392f05512`.
+Native/desktop feature builds, Go builds, ownership boundaries and whitespace checks
+pass with captured inputs. No dependency or unit-test root was added.
+
+This supersedes the missing edit native/Go consumer blocker above. Shared write
+capabilities remain unavailable. The original-content comparison is still a
+preflight, not an atomic provider revision or transfer condition. Concurrent-content
+and selected-resource policy, fresh specifically authorized actual provider
+permission/schema/normalization/mutation/readback, shared WebKit editing and delayed
+captured-deadline expiry remain unverified. D1/D2/D3/D5, installed custody/admission/
+isolation/execution/retirement and release/upgrade/freshness retain their own gates.
+T11-WRITES stays Active for its other operations and acceptance; the full product
+is unfinished and no actual GitHub mutation occurred here.
