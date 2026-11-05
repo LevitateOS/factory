@@ -292,6 +292,16 @@ text and offered `read_file`, and refused late `read_memory`, `write_file`,
 built-in tool events and incomplete streams. The probe used an isolated scratch
 HOME and no saved credential; its listener and files were removed.
 
+The current 396 MiB Muse 1.4.14 ELF also ran inside a disposable brokered
+reviewer service with a dummy key and local fake owner. The service-generated
+Responses body advertised 11 functions and requested 128,000 output tokens.
+The production `Policy::admit` implementation, applied to that exact body by
+the disposable owner fixture, retained only `read_file` and `search`, capped
+output at 4,096 tokens and disabled parallel calls. The fake owner then
+returned 401, and the worker returned a complete nonzero-exit observation
+with exact retirement. The production credential-bearing `Owner` did not
+serve this request, and no real model/tool response was exercised.
+
 A separate isolated GNOME Keyring check used an invalid fixture token and a
 subordinate host UID in a private mount namespace. The desktop UID was reset
 at the owner socket; the distinct UID reached it through a socket bind and

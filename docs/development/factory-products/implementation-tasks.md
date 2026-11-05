@@ -25060,3 +25060,22 @@ and control packages (neither has test files); `go vet`, `gofmt -d` and
 `git diff --check` passed. This is a source-level consumer contract, not a
 connected Rust-to-Go receipt transaction or proof of durable failure/success
 settlement. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR isolated Muse request and reviewer policy (2026-11-05):
+the current 396 MiB Muse 1.4.14 ELF (`0809aac7...17de2da`) ran under a
+disposable broker/preparer/relay/agent reviewer service with a dummy key and
+local fake owner. It reached `GET /muse-code/models`, then sent an 88,434-byte
+`POST /responses` for `muse-spark-1.3-contributor`, requesting 128,000 output
+tokens and advertising 11 functions including workflow and memory functions
+despite reviewer CLI flags. The production Rust `Policy::admit` implementation,
+invoked on that exact service-generated body by the disposable owner fixture,
+admitted 65,649 filtered bytes, only `read_file` and `search`, 4,096 output
+tokens, disabled parallel calls and bound the cache key to the run. The fake
+owner returned 401; Muse exited code 1 with complete 11,233-byte output, a
+retired process tree and no reviewer candidate. The agent journal recorded a
+485.6 MiB memory peak. Exact broker retirement, inactive agent/relay units and
+removal of temporary units, binaries, owner socket and run paths were checked.
+The production credential-bearing `Owner` was not serving this request, no
+real model response/tool call was processed and no Go admission/ledger path was
+used. One reviewer request proves neither complete role capability nor a real
+finite provider task. T09-NATIVE-EXECUTOR and D3 remain open.
