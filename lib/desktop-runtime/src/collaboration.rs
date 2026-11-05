@@ -4,8 +4,8 @@
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
-    Client, Comment, CreateOutcome, DiscussionEdit, DiscussionState, Failure, IssueCreate, Read,
-    WriteOutcome,
+    Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
+    IssueCreate, Read, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -373,6 +373,12 @@ enum Effect {
         not_after: u64,
         edit: DiscussionEdit,
     },
+    SetDiscussionLock {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        lock: DiscussionLock,
+    },
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
@@ -401,6 +407,12 @@ impl Effect {
                 not_after,
                 edit,
             } => Some((command_id, digest, *not_after, &edit.repository)),
+            Self::SetDiscussionLock {
+                command_id,
+                digest,
+                not_after,
+                lock,
+            } => Some((command_id, digest, *not_after, &lock.repository)),
             _ => None,
         }
     }
@@ -535,7 +547,10 @@ async fn dispatch(
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     if !matches!(
         &call.call,
-        Effect::CreateComment { .. } | Effect::CreateIssue { .. } | Effect::EditDiscussion { .. }
+        Effect::CreateComment { .. }
+            | Effect::CreateIssue { .. }
+            | Effect::EditDiscussion { .. }
+            | Effect::SetDiscussionLock { .. }
     ) && body.len() > 8192
     {
         return Err(Failure::invalid());
@@ -572,6 +587,7 @@ async fn dispatch(
             Effect::CreateIssue { issue, .. } => issue.validate()?,
             Effect::SetDiscussionState { state, .. } => state.validate()?,
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
+            Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
             _ => unreachable!(),
         }
         if !opaque_id(command_id)
@@ -602,7 +618,8 @@ async fn dispatch(
             Effect::CreateComment { .. }
             | Effect::CreateIssue { .. }
             | Effect::SetDiscussionState { .. }
-            | Effect::EditDiscussion { .. } => {
+            | Effect::EditDiscussion { .. }
+            | Effect::SetDiscussionLock { .. } => {
                 mutate(&state.provider, &scope, token, &call.call).await
             }
         });
@@ -650,6 +667,11 @@ async fn mutate(
         Effect::EditDiscussion { edit, .. } => Some(
             provider
                 .edit_account(token, account, edit, Some(deadline))
+                .await,
+        ),
+        Effect::SetDiscussionLock { lock, .. } => Some(
+            provider
+                .lock_account(token, account, lock, Some(deadline))
                 .await,
         ),
         _ => None,

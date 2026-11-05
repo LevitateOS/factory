@@ -106,6 +106,7 @@ export interface PullRequest {
   body: string;
   state: 'open' | 'closed' | 'merged' | 'unknown';
   draft: boolean | null;
+  locked?: boolean | null;
   author: ActorRef | null;
   base: GitRef;
   head: GitRef;

@@ -2161,7 +2161,7 @@ The composed edit regression also passed unchanged with schema 85, result
 `8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba`.
 These are declared Store/provider observations, not actual GitHub/installed proof.
 
-Remaining lock source blocker: the admitted native callback and Go writer using
+At this journal checkpoint the lock source blocker was the native callback and Go writer using
 these fences, followed by composed current admission, supported/unsupported reason
 outcomes, causal receipts, replay/cancel/withdrawal/restart. Actual fresh authorized
 provider permissions/schema/reason behavior/normal readback and shared UI remain
@@ -2169,3 +2169,42 @@ unverified. Selected-resource/visibility/transfer policy, D1/D2/D3/D5, custody/r
 absence/scoped delivery, installed peer/window/instance, isolation/execution/
 retirement and release/upgrade/freshness retain their earlier dependencies and
 required evidence. No broad security gate or Daybreak work is closed here.
+
+T11-WRITES composed native lock/unlock (2026-11-05):
+`pkg/factory/runtime/native_product_locks.go` supplies the admitted Go service
+adapter; `native_product.go` binds it, and `lib/desktop-runtime/src/collaboration.rs`
+admits the typed callback. Current account/repository/generation, exact reason,
+original deadline and one-shot journal/native fences are retained. Rust owns reason
+mapping and authenticated effects. Maximum escaped unsupported reasons reach a
+known no-send outcome without provider-policy duplication in Go.
+
+The first composed check found that normal PR readback dropped the provider's
+lock boolean. `pkg/collaboration/records.go`, the shared TypeScript shape and
+`native_product_reads.go` now retain nullable PR lock observations, with contract
+notes in `records.md`. Unknown is not unlocked or permission. Failed attempt1's
+profile/log/executables remain preserved; it applied three dummy mutations before
+the missing readback field failed and is not passing evidence.
+
+The actual native custody/callback/Go/PostgreSQL path passed 23 declared cases and
+15 dummy POSTs under `/home/vince/tmp/factory-lock-product-1105/attempt2/`: both
+issue/PR actions, all four/blank reasons, exact replay/cancel/conflict, explicit
+unknown PR lock, unsupported/maximum reasons without POST, concurrent claims,
+wrong repository, lost reply without current-state attribution, both cancellation
+races, withdrawal/replacement, another account and retained restart. Successful
+owned accounts/keyring/children cleaned up. Result
+`3421e7dc98aafc96f8aa87194740e6fafd631d92b7d6cddd9e19bc793531f695`.
+The final composed edit regression also passed, result
+`8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba`.
+Exact source/executable/log identities are in the canonical plan. These local
+dummy-only HTTPS fixtures never forward and do not qualify actual provider or
+installed admission. Other/older hosts' missing lock metadata remains unknown.
+
+The lock source composition blocker is resolved. Remaining action dependencies:
+fresh specifically authorized actual GitHub permission/schema/reason behavior/
+mutation and normal readback, shared WebKit actions, delayed captured deadlines
+and the selected-resource/visibility/transfer invariant. A Node ID and causal
+reply are not an atomic repository condition. Shared write capabilities remain
+unavailable. D1/D2/D3/D5, custody/root absence/scoped delivery, installed peer/window/
+instance admission, worker isolation/execution/retirement/settlement and release/
+upgrade/freshness retain earlier exact blockers and evidence requirements. No
+broad security gate or Daybreak work is closed by this ordinary composed check.

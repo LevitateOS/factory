@@ -1222,6 +1222,13 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-lock-declared" {
             return runtime.block_on(native_github_locks::producer(Path::new(&args[1])));
         }
+        if args.len() == 4 && args[0] == "--github-lock-product-declared" {
+            return runtime.block_on(native_github_locks::product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 4 && args[0] == "--github-edit-product-declared" {
             return runtime.block_on(native_github_edits::product(
                 Path::new(&args[1]),

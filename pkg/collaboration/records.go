@@ -138,8 +138,9 @@ type PullRequest struct {
 	Observation  Observation   `json:"observation"`
 	Title        string        `json:"title"`
 	Body         string        `json:"body"`
-	State        string        `json:"state"` // open, closed, merged, unknown
-	Draft        *bool         `json:"draft"` // null means not observed
+	State        string        `json:"state"`  // open, closed, merged, unknown
+	Locked       *bool         `json:"locked"` // null means not observed
+	Draft        *bool         `json:"draft"`  // null means not observed
 	Author       *ActorRef     `json:"author"`
 	Base         GitRef        `json:"base"`
 	Head         GitRef        `json:"head"`

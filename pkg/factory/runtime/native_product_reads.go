@@ -116,7 +116,7 @@ func (s nativeCollaborationReads) ReadPulls(ctx context.Context, actor collabora
 	obs := s.observation(raw)
 	items := make([]collaboration.PullRequest, 0, len(raw.Items))
 	for _, item := range raw.Items {
-		items = append(items, collaboration.PullRequest{Ref: nativePullRef(item.ObservedIssue, repo), Observation: s.observation(item), Title: item.Title, Body: item.Body, State: item.State, Draft: item.Draft,
+		items = append(items, collaboration.PullRequest{Ref: nativePullRef(item.ObservedIssue, repo), Observation: s.observation(item), Title: item.Title, Body: item.Body, State: item.State, Locked: item.Locked, Draft: item.Draft,
 			Author: nativeActorRef(mapping, item.Author), Base: nativeBranchRef(item.Base, mapping), Head: nativeBranchRef(item.Head, mapping), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt, MergedAt: item.MergedAt})
 	}
 	return nativePage(obs, items, cursorEncode(c, raw.NextPage)), nil

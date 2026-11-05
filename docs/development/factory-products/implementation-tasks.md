@@ -27937,3 +27937,77 @@ actual provider or installed upgrade. Shared write capabilities stay unavailable
 T11-WRITES, actual provider/shared UI acceptance, selected-resource/visibility/
 transfer policy and all broader D1/D2/D3/D5, custody/IPC/isolation/execution/
 retirement/release/upgrade/freshness gates remain unfinished.
+
+### T11-WRITES — composed native human lock/unlock (2026-11-05)
+
+`native_product_locks.go` connects the existing typed Go lock service and sole
+journal to Rust's direct effect. Current account/repository/generation admission,
+immutable subject identity, exact human reason, original deadline, durable
+reservation and native one-effect fence are retained. Rust alone maps supported
+provider reasons and returns a known no-send result for unsupported text. Go
+validates current scope/command/digest echo and bounded causal actor/state/reason
+receipt. It does not infer lock permission from repository push or receive a
+provider credential. Maximum escaped generic reasons fit the exact public/private
+lock envelopes; state/read/MCP/lookup/cancel bounds stay unchanged.
+
+The first composed attempt found a genuine read gap: normal PR readback dropped
+the lock boolean already observed by Rust. `collaboration.PullRequest`, its shared
+TypeScript shape and the native projection now retain nullable lock observations.
+True, false and unknown remain distinct; older/other adapters may leave the fact
+unobserved and gain no lock authority from it. The failed `attempt1` profile/log
+and `check-a1`/`server-a1` executables are preserved. It stopped after the third
+mutation when PR readback could not confirm the state; it is not a passing journey.
+
+The existing native executable gained `--github-lock-product-declared BACKEND PG PROFILE`.
+`/home/vince/tmp/factory-lock-product-1105/attempt2/` exited 0 with 23 cases and
+15 intended dummy POSTs through actual native custody/product/callback, Go
+canonical mapping/service/journal and PostgreSQL. Both issue/PR operations and
+all four/blank reason choices had normal lock readback. Exact replay/lookup/cancel/
+changed-reason conflict sent no extra mutation. Unknown PR lock observation stayed
+explicitly null. Four unsupported reasons, including a maximum escaped one,
+finished with known no effect and no POST; normal Go preparation reads still run.
+Concurrent identical commands sent once and another repository refused. A lost
+reply remained uncertain despite matching current lock state. Both cancellation
+races retained late known primary results and cancellation uncertainty. Withdrawal/
+replacement refused the old generation; retained restart preserved known outcomes
+and fenced unknown history. Another account could neither read nor adopt captures.
+Successful owned accounts/keyring/children cleaned up. The dummy-only local HTTPS
+fixture never forwards and retains its objects across runtime restart.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `77cef536bf793fe98efd36f559c84b92aa2b13459f4185c051d7e53d229086c3` |
+| fixture executable | `953882fdd24cefcaded0796583e268c04cfab23f10be8bff0138173dbb5941cb` |
+| `run.sh` | `d46405be32b0f33ae7ede28e8f3a2251f1fa5c53438724cafb7a6131434cb5ee` |
+| `session.sh` | `ae1d962b8e2c960c4eb94d44850b0df7613be194d4423d64a413ca7b10d9b164` |
+| native backend | `33049efffa75da79e47df3f8b610b51f47ff192a0a2695dde16d6e3897df5f13` |
+| native check executable | `26c7fccb5cf21a0110f14e087b3e416fd433a6fb1b54d160819c7e9e80cf4dcd` |
+| composed lock log | `baee4309a25ae41f2f67936b17d1d44060269560ed0b6c6137acc1dbb4db0eab` |
+| composed lock result | `3421e7dc98aafc96f8aa87194740e6fafd631d92b7d6cddd9e19bc793531f695` |
+| preserved `check-a1` | `cfdcec342dcf86b188793382e73fc2e76f1141a2bb7379796f628f7ba0adc45b` |
+| preserved `server-a1` | `647c4b9be13445173b0a2a0a0026c31511b9e6a88c76604248b0d75ab2888b64` |
+| preserved `provider-a1.go.txt` | `7722ac94e0a84d0c6fd1bba552549f17b2029c1bb67bc566a4645ecc4d1de588` |
+| failed attempt1 log | `7f8c7776e3f70c8d88e43c6c8483717631157b33af1ef7a68571eeade14c7797` |
+| edit regression `edit-run.sh` | `6cd62fe1175c06486effa6e1520b0a6ddc9313c1df7f7bd0c04c219f72ebec4c` |
+| edit regression `edit-session.sh` | `0aca6193df2e3828163fc6ca800543ed721dd37e24526e00871138a183d54450` |
+| final edit regression result | `8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba` |
+
+The existing composed edit journey passed with the final PR DTO in
+`edit-regression-a2`, retaining its 16-case/11-dummy-mutation scope and log
+`71cf4aa7f8d8148bf381e5f492281c4ba2e92093732ab966d9da59c0601ea529`.
+The earlier pre-projection regression remains separately preserved. Native/desktop
+feature builds, Go builds, shared TypeScript checks, ownership boundaries and
+whitespace checks pass with captured inputs. No dependency or unit-test root was
+added. Other/older hosts' lock observations remain unknown until their own producer
+supplies them; no Fountain or installed lock journey is implied.
+
+This supersedes the missing lock native/Go consumer blocker above. Actual freshly
+authorized GitHub permissions/schema/reason behavior/mutation/readback, shared
+WebKit actions, delayed captured deadlines and selected-resource/visibility/
+transfer policy remain unqualified. Shared write capabilities stay unavailable.
+T11-WRITES remains Active for its other operations/acceptance. All broader D1/D2/
+D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance, worker
+isolation/execution/retirement and release/upgrade/freshness gates remain open;
+the full product is unfinished and no actual GitHub lock occurred here.

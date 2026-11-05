@@ -131,8 +131,11 @@ reason. Page completeness concerns that bounded resource/page, not a complete
 history or global atomic snapshot. Null lists/facts are unobserved, distinct from
 an observed empty list or false fact. Populate observation states explicitly:
 an uninitialized Go struct is not an admitted, valid provider observation.
-PR head repository/commit, draft status, check requiredness, authors and dates
+PR head repository/commit, lock/draft status, check requiredness, authors and dates
 can remain unobserved. Commit IDs support SHA-1 and SHA-256.
+PR lock state is a nullable read observation, separate from current lock/unlock
+permission. Native reads retain the provider boolean or null; other adapters and
+older responses may leave it unobserved. Missing metadata is never unlocked.
 
 Capabilities are actor/connection/resource-scoped presentation observations.
 Missing actions and null capability sets mean unknown. `allowed`, `denied`,
