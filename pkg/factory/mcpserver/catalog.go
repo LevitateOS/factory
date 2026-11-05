@@ -118,10 +118,20 @@ func (s *factoryCatalogServer) now() time.Time {
 }
 
 func (s *factoryCatalogServer) observed(capability factory.MCPCapability) (control.MCPRunObservation, error) {
-	if s.deps.Observed != nil {
-		return s.deps.Observed(capability)
+	if s.deps.Observed == nil {
+		if s.deps.boundCapability != nil {
+			return control.MCPRunObservation{}, errors.New("factory run observation unavailable")
+		}
+		return control.MCPRunObservation{}, nil
 	}
-	return control.MCPRunObservation{}, nil
+	observed, err := s.deps.Observed(capability)
+	if err != nil {
+		return control.MCPRunObservation{}, err
+	}
+	if s.deps.boundCapability != nil && (observed.RunID != capability.RunID || observed.AssignmentID != capability.AssignmentID || observed.Authority != capability.Authority) {
+		return control.MCPRunObservation{}, errors.New("factory run observation differs from worker context")
+	}
+	return observed, nil
 }
 
 // admitCall runs the shared gate: capability load, profile/tool

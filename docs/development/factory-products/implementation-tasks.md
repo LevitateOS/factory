@@ -25402,3 +25402,17 @@ before any new challenge. This does not prove actual OAuth grant persistence,
 authenticated reads, connected product IPC or historical crash diagnosis.
 The user is unavailable for another consent step for four to six hours;
 continue independent slices. T06-CONNECT remains Active.
+
+T09-NATIVE-EXECUTOR bound MCP run-observation checkpoint (2026-11-05): the
+Go bound worker adapter now refuses a missing current-work preparer or live
+run observer, a changed prepared capability scope, and an empty or mismatched
+run/assignment/authority observation. The bound catalog repeats the exact
+observation requirement at each tool call, so a changed observer result cannot
+inherit an earlier HTTP admission. The existing disposable PostgreSQL/Go/Rust
+supervisor check exercised the real Rust HMAC verifier with synthetic active
+capability and bound MCP initialization: exact preparation and observation
+returned 200; missing preparer, missing observer and empty observation each
+returned 403 on both ordered backend incarnations. Existing Go MCP HTTP
+integration checks passed. This does not supply the production native MCP
+listener, canonical capability row, isolated worker transport or a real
+admitted run. N3 and D3 remain open.

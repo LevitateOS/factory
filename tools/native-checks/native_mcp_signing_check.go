@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
+	"github.com/levitateos/factory/pkg/factory/mcpserver"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
 )
 
@@ -136,6 +138,69 @@ func check(profile, instance string, unavailable bool) error {
 		request.URL.RawQuery = "extra=1"
 	}); err != nil || status != http.StatusBadRequest {
 		return errors.New("native worker HTTP admitted a noncanonical target")
+	}
+	prepare := func(_ context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
+		return capability, nil
+	}
+	observed := func(capability factory.MCPCapability) (control.MCPRunObservation, error) {
+		return control.MCPRunObservation{
+			RunID: capability.RunID, AssignmentID: capability.AssignmentID, Authority: capability.Authority,
+		}, nil
+	}
+	bound := func(deps mcpserver.Dependencies) (int, error) {
+		server := httptest.NewServer(mcpserver.NewHandlerWithSecretVerifier(deps, verify))
+		defer server.Close()
+		body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"native-bound-check","version":"1.0"}}}`
+		request, err := http.NewRequest(http.MethodPost, server.URL+factoryhttpapi.WorkerRoute, strings.NewReader(body))
+		if err != nil {
+			return 0, err
+		}
+		request.Header.Set("X-Soda-Factory-Capability", current.ID)
+		request.Header.Set("Authorization", "Bearer "+secret)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json, text/event-stream")
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			return 0, err
+		}
+		defer response.Body.Close()
+		return response.StatusCode, nil
+	}
+	deps := mcpserver.Dependencies{Capabilities: source, Prepare: prepare, Observed: observed}
+	if status, err := bound(deps); err != nil || status != http.StatusOK {
+		return errors.New("bound native MCP refused exact current work and run")
+	}
+	deps.Prepare = nil
+	if status, err := bound(deps); err != nil || status != http.StatusForbidden {
+		return errors.New("bound native MCP admitted missing current work")
+	}
+	deps.Prepare = prepare
+	deps.Observed = nil
+	if status, err := bound(deps); err != nil || status != http.StatusForbidden {
+		return errors.New("bound native MCP admitted missing run observation")
+	}
+	deps.Observed = func(factory.MCPCapability) (control.MCPRunObservation, error) {
+		return control.MCPRunObservation{}, nil
+	}
+	if status, err := bound(deps); err != nil || status != http.StatusForbidden {
+		return errors.New("bound native MCP admitted empty run observation")
+	}
+	deps.Observed = observed
+	deps.Prepare = func(_ context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
+		capability.Authority = strings.Repeat("e", 64)
+		return capability, nil
+	}
+	if status, err := bound(deps); err != nil || status != http.StatusForbidden {
+		return errors.New("bound native MCP admitted changed work scope")
+	}
+	deps.Prepare = prepare
+	deps.Observed = func(capability factory.MCPCapability) (control.MCPRunObservation, error) {
+		result, _ := observed(capability)
+		result.RunID = "other-run"
+		return result, nil
+	}
+	if status, err := bound(deps); err != nil || status != http.StatusForbidden {
+		return errors.New("bound native MCP admitted changed run observation")
 	}
 	source.current.State = factory.MCPCapabilityRevoked
 	if status, err := post(secret); err != nil || status != http.StatusForbidden {

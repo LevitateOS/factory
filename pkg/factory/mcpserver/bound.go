@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -42,25 +43,22 @@ func newBoundary(deps Dependencies) factoryhttpapi.Workers {
 	deps.limiter = newMCPRateLimiter()
 	boundary := factoryhttpapi.Workers{Capabilities: deps.Capabilities, Now: deps.Now}
 	boundary.Admit = func(ctx context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
-		var err error
-		if deps.Prepare != nil {
-			capability, err = deps.Prepare(ctx, capability)
-			if err != nil {
-				return factory.MCPCapability{}, err
-			}
+		if deps.Prepare == nil || deps.Observed == nil {
+			return factory.MCPCapability{}, errors.New("factory MCP current admission unavailable")
 		}
-		observed := control.MCPRunObservation{}
-		if deps.Observed != nil {
-			observed, err = deps.Observed(capability)
+		prepared, err := deps.Prepare(ctx, capability)
+		if err != nil || prepared.Validate() != nil || prepared.ScopeDigest() != capability.ScopeDigest() {
+			return factory.MCPCapability{}, errors.New("factory MCP current work unavailable")
 		}
-		if err != nil {
-			return factory.MCPCapability{}, err
+		observed, err := deps.Observed(prepared)
+		if err != nil || observed.RunID != prepared.RunID || observed.AssignmentID != prepared.AssignmentID || observed.Authority != prepared.Authority {
+			return factory.MCPCapability{}, errors.New("factory MCP current run unavailable")
 		}
 		now := time.Now()
 		if deps.Now != nil {
 			now = deps.Now()
 		}
-		return capability, control.AdmitMCPCapability(capability, factory.MCPToolContext, now, observed)
+		return prepared, control.AdmitMCPCapability(prepared, factory.MCPToolContext, now, observed)
 	}
 	boundary.Protocol = func(ctx context.Context, capability factory.MCPCapability) (http.Handler, error) {
 		bound := deps
