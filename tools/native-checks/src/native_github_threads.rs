@@ -521,3 +521,309 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     );
     Ok(())
 }
+
+pub(super) async fn resolution(profile: &Path) -> Result<()> {
+    use soda_desktop_runtime::github_provider::{
+        OriginalThreadAnchor, ThreadResolution, WriteOutcome,
+    };
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let posts = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("posts"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let token = || Token::new(b"factory-declared-thread-effect".to_vec());
+    let request = || ThreadResolution {
+        repository: "123".into(),
+        pull_id: "700".into(),
+        number: 7,
+        thread_id: "PRRT_declared1".into(),
+        resolved: true,
+        original_anchor: None,
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let mut client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "resolve",
+        "unresolve",
+        "outdated",
+        "big-id",
+        "no-request-id",
+    ] {
+        mode(name)?;
+        let mut q = request();
+        q.resolved = name != "unresolve";
+        if name == "big-id" {
+            q.pull_id = "5000000000".into();
+        }
+        let before = posts()?;
+        let WriteOutcome::Applied(r) = client.set_thread_resolution(token()?, "321", &q).await
+        else {
+            return Err(format!("thread effect positive refused {name}").into());
+        };
+        ensure(
+            r["account"]["external_id"] == "321"
+                && r["repository"] == "123"
+                && r["pull_id"] == q.pull_id
+                && r["number"] == 7
+                && r["thread_id"] == q.thread_id
+                && r["resolved"] == q.resolved
+                && r["original_anchor"].is_null()
+                && r["provider_response"]["status"] == 200
+                && r["provider_response"]["protocol"] == "github_graphql_thread_resolution"
+                && r["provider_response"]["response_sha256"]
+                    .as_str()
+                    .is_some_and(|s| s.len() == 64)
+                && serde_json::to_vec(&r)?.len() <= 4096
+                && posts()? == before + 1,
+            "thread causal receipt lost scope/state/bounds or retried",
+        )?;
+        if q.resolved {
+            ensure(
+                r["resolved_by"]["external_id"] == "321"
+                    && r["resolved_by"]["node_id"] == "U_declared321",
+                "resolver identity lost",
+            )?;
+        } else {
+            ensure(r["resolved_by"].is_null(), "unresolve invented an actor")?;
+        }
+        if name == "outdated" {
+            ensure(r["outdated"] == true, "outdated state dropped")?;
+        }
+        if name == "no-request-id" {
+            ensure(
+                r["provider_response"]["request_id"].is_null(),
+                "invented request id",
+            )?;
+        }
+        fs::write(
+            root.join(format!("{name}-receipt.json")),
+            serde_json::to_vec(&r)?,
+        )?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("identity-change", 409),
+        ("identity-denied", 401),
+        ("missing-actor-node", 502),
+        ("repository-change", 409),
+        ("missing-repository-node", 502),
+        ("subject-change", 409),
+        ("missing-pull-node", 502),
+        ("locked", 403),
+        ("lock-unknown", 502),
+        ("archived", 403),
+        ("disabled", 403),
+        ("readonly-unknown", 403),
+        ("preflight-wrong-pull", 409),
+        ("preflight-wrong-repository", 409),
+        ("preflight-type", 502),
+        ("preflight-partial-errors", 502),
+        ("permission-denied", 403),
+        ("permission-unknown", 502),
+        ("already-resolved", 409),
+        ("already-unresolved", 409),
+        ("preflight-deadline", 504),
+    ] {
+        mode(name)?;
+        let mut q = request();
+        if name == "already-unresolved" {
+            q.resolved = false;
+        }
+        let before = posts()?;
+        let WriteOutcome::NotSent(f) = client.set_thread_resolution(token()?, "321", &q).await
+        else {
+            return Err(format!("thread preflight dispatched {name}").into());
+        };
+        ensure(
+            f.status == status && posts()? == before,
+            &format!("thread preflight {name}: {} {}", f.status, f.code),
+        )?;
+        if name.starts_with("already-") {
+            ensure(
+                f.code == "github_thread_already_desired",
+                "no-op acquired a receipt",
+            )?;
+        }
+        cases.push(name);
+    }
+    mode("resolve")?;
+    for i in 0..8 {
+        let mut q = request();
+        match i {
+            0 => q.repository = "0123".into(),
+            1 => q.pull_id = "0700".into(),
+            2 => q.number = 0,
+            3 => q.number = u64::MAX,
+            4 => q.thread_id = "901".into(),
+            5 => q.thread_id.clear(),
+            6 => q.thread_id = "T".repeat(1025),
+            _ => q.thread_id = "PRRT_\n".into(),
+        }
+        let before = fs::read(io.join("gets"))?;
+        ensure(
+            matches!(client.set_thread_resolution(token()?,"321",&q).await,WriteOutcome::NotSent(f)if f.status==400)
+                && fs::read(io.join("gets"))? == before,
+            "invalid thread effect reached provider",
+        )?;
+    }
+    let mut q = request();
+    q.original_anchor = Some(OriginalThreadAnchor {
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        path: "src/fixture.rs".into(),
+        side: "new".into(),
+        scope: "lines".into(),
+        start_line: 9,
+        end_line: 9,
+    });
+    let before = fs::read(io.join("gets"))?;
+    ensure(
+        matches!(client.set_thread_resolution(token()?,"321",&q).await,WriteOutcome::NotSent(f)if f.status==409 && f.code=="github_original_anchor_unobserved")
+            && fs::read(io.join("gets"))? == before,
+        "unproved original pair silently discarded or sent",
+    )?;
+    for (name, status) in [
+        ("denied", 403),
+        ("limited", 429),
+        ("validation", 400),
+        ("server-error", 503),
+        ("redirect", 409),
+        ("malformed", 502),
+        ("wrong-thread", 502),
+        ("wrong-pull", 502),
+        ("wrong-repository", 502),
+        ("wrong-thread-repo", 502),
+        ("wrong-number", 502),
+        ("wrong-full-id", 502),
+        ("wrong-resolved", 502),
+        ("unknown-outdated", 502),
+        ("wrong-resolver", 502),
+        ("missing-resolver", 502),
+        ("wrong-url", 502),
+        ("partial-errors", 502),
+        ("graphql-errors", 502),
+        ("oversized", 413),
+        ("oversized-request-id", 502),
+        ("duplicate-request-id", 502),
+        ("receipt-oversized", 413),
+        ("drop-reply", 503),
+        ("deadline", 504),
+    ] {
+        mode(name)?;
+        let mut q = request();
+        if name == "receipt-oversized" {
+            q.thread_id = "T".repeat(1024);
+        }
+        let before = posts()?;
+        let start = Instant::now();
+        let WriteOutcome::Indeterminate(f) =
+            client.set_thread_resolution(token()?, "321", &q).await
+        else {
+            return Err(
+                format!("thread after-dispatch failure attributed success/absence {name}").into(),
+            );
+        };
+        ensure(
+            f.status == status && posts()? == before + 1,
+            &format!("thread uncertainty {name}: {} {}", f.status, f.code),
+        )?;
+        ensure(
+            start.elapsed() < Duration::from_secs(10),
+            "thread effect exceeded whole deadline",
+        )?;
+        cases.push(name);
+        if name == "drop-reply" {
+            mode("after-drop")?;
+            ensure(
+                matches!(client.set_thread_resolution(token()?,"321",&q).await,WriteOutcome::NotSent(f)if f.code=="github_thread_already_desired")
+                    && posts()? == before + 1,
+                "matching state attributed the lost reply or retried",
+            )?;
+        }
+    }
+    mode("missing-unresolve-resolver")?;
+    let mut q = request();
+    q.resolved = false;
+    ensure(
+        matches!(client.set_thread_resolution(token()?,"321",&q).await,WriteOutcome::Indeterminate(f)if f.status==502),
+        "absent resolver was treated as known null",
+    )?;
+    cases.push("missing-unresolve-resolver");
+    mode("serialize")?;
+    let a = request();
+    let b = request();
+    let clone = client.clone();
+    let (first, second) = tokio::join!(
+        client.set_thread_resolution(token()?, "321", &a),
+        clone.set_thread_resolution(token()?, "321", &b)
+    );
+    ensure(
+        matches!(first, WriteOutcome::Applied(_))
+            && matches!(second, WriteOutcome::Applied(_))
+            && !io.join("overlap").exists()
+            && !io.join("too-fast").exists(),
+        "thread mutation pacing/serialization failed",
+    )?;
+    for (name, attempted) in [("pause-preflight", false), ("pause-post", true)] {
+        for marker in ["entered", "release", "cancelled"] {
+            let _ = fs::remove_file(io.join(marker));
+        }
+        mode(name)?;
+        let q = request();
+        let t = token()?;
+        let flight_client = client.clone();
+        let pending =
+            async move { Ok::<_, &str>(flight_client.set_thread_resolution(t, "321", &q).await) };
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let start = Instant::now();
+        owner.stop()?;
+        let result = pending.await?;
+        ensure(
+            if attempted {
+                matches!(result, WriteOutcome::Indeterminate(_))
+            } else {
+                matches!(result, WriteOutcome::NotSent(_))
+            },
+            "retirement lost dispatch boundary",
+        )?;
+        ensure(
+            start.elapsed() < Duration::from_secs(2),
+            "thread owner retirement blocked",
+        )?;
+        if !attempted {
+            owner = tokio::task::spawn_blocking(Owner::start).await??;
+            client = owner.client();
+        }
+    }
+    ensure(
+        matches!(
+            client
+                .set_thread_resolution(token()?, "321", &request())
+                .await,
+            WriteOutcome::NotSent(_)
+        ),
+        "retired owner accepted a thread mutation",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "thread effect fixture saw an undeclared request",
+    )?;
+    fs::write(
+        root.join("thread-resolution-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":8,"unproved_original_anchor_refused":true,"serialization":true,"preflight_retirement":"not_sent","post_retirement":"indeterminate","real_github":false,"native_callback_connected":false}),
+        )?,
+    )?;
+    println!("native thread resolve/unresolve passed {} declared cases, 8 invalid descriptors, unproved anchor refusal, pacing and both retirement boundaries",cases.len());
+    Ok(())
+}

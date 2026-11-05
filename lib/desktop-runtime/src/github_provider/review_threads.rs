@@ -1,6 +1,5 @@
-//! Genuine GraphQL thread identity and observations. REST reply groups remain a
-//! separate historical read until their canonical consumer is cut over. No root
-//! comment ID is translated into a thread or granted mutation authority.
+//! The defining GraphQL thread reader. No historical REST root-comment ID is
+//! translated into a thread or granted mutation authority.
 use super::{
     reads::Reader,
     records as r,

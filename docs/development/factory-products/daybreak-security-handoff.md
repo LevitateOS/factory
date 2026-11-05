@@ -2317,3 +2317,49 @@ D1/D2/D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance
 worker isolation/execution/retirement/settlement and release/upgrade/freshness retain
 their earlier exact blockers and evidence requirements. No broad security gate or
 Daybreak work was completed here.
+
+T11-WRITES bounded native thread resolution (2026-11-05):
+`lib/desktop-runtime/src/github_provider/thread_resolution.rs` and its typed
+transport variant now perform a fixed resolve/unresolve against a genuine thread
+Node ID, current account and immutable repository/PR membership. Preflight checks
+reuse `review_threads.rs`; the obsolete REST-grouping header there was corrected.
+The mutation owner serializes/paces clones, bounds the entire operation to eight
+seconds, disables redirect/retry and joins retirement. Causal receipts are bounded
+and scope/state checked; resolve verifies the returned resolver, and unresolve
+requires known null rather than inventing an actor. An already desired state is
+explicitly NotSent without a receipt. It cannot attribute a lost prior write.
+
+New exact original-context blocker: current GitHub observations contain no proved
+original two-commit pair. A supplied non-null original anchor refuses before any
+provider I/O as `github_original_anchor_unobserved`; it is not silently discarded
+or reconstructed from current refs. Supporting known full anchors requires a real
+authenticated original-context producer/retained identity join plus matching
+preparation/effect evidence; `review_threads.rs`, the new effect and the future Go
+writer/selection are the relevant files. No full-anchor write support is claimed.
+GitHub's selected input also has no conversation-revision or repository condition.
+Membership/action/lock preflights and post-reply validation therefore do not prove
+atomic protection against intervening conversation, visibility, lock or transfer
+changes. Those stronger D5/selected-resource claims require an adopted supported
+policy/invariant and actual permitted/refused evidence before closure.
+
+The existing native observer passed 52 declared cases, eight invalid descriptors,
+unproved-anchor refusal, pacing/serialization and both retirement boundaries using
+an owned dummy-only, no-forwarding TLS peer. Evidence root
+`/home/vince/tmp/factory-thread-resolution-1105/attempt1/`, result SHA-256
+`96b2811d574332de71b768b5520cabc29ad63951575a59dac285b981d816bc07`.
+The canonical plan records source/executable/log hashes and exact coverage. This
+proves local decoder/transport behavior, not real provider permissions/schema,
+credential withdrawal through the product callback, installed admission or UI.
+
+The bounded provider source prerequisite is resolved for explicit unknown original
+context. Remaining consumer blocker: typed `collaboration.rs` callback, current
+Go thread writer/selection in `pkg/factory/runtime`, shared schema-86 reserve fence
+and exact captured deadline/custody/receipt binding. Closure still requires actual
+composed replay/lookup/cancel/races, lost reply without state attribution, withdrawal/
+replacement/another-account refusal and retained restart, followed by a fresh,
+specifically scoped owner-authorized real GitHub journey and normal shared UI
+readback. No real grant is retained. Delayed captured deadlines, visibility/transfer
+policy and the known-original-context dependency above remain open. D1/D2/D3/D5,
+custody/root absence/scoped delivery, installed IPC/window/instance, isolation/
+execution/retirement/settlement and release/upgrade/freshness retain earlier exact
+blockers and evidence requirements. No broad gate or Daybreak work was closed.

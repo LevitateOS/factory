@@ -72,6 +72,11 @@ enum Request {
         query: super::review_threads::ThreadQuery,
         token: Zeroizing<Vec<u8>>,
     },
+    ThreadResolution {
+        node: String,
+        resolved: bool,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -390,6 +395,19 @@ impl Client {
             .await?
             .value)
     }
+    pub(super) async fn post_thread_resolution(
+        &self,
+        node: &str,
+        resolved: bool,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::ThreadResolution {
+            node: node.to_owned(),
+            resolved,
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let read_query = matches!(&request, Request::Threads { .. });
         let wire = self.request(request).await?;
@@ -508,6 +526,24 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Threads { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::ThreadResolution {
+            node,
+            resolved,
+            token,
+        } => {
+            if !super::request::node_id(&node) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    &super::thread_resolution::mutation(resolved),
+                    serde_json::json!({"input":{"threadId":node}}),
+                )?,
+                1024 * 1024,
+            )
         }
         Request::Lock {
             node,

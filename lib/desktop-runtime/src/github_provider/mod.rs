@@ -14,6 +14,7 @@ mod records;
 mod request;
 mod review_threads;
 mod states;
+mod thread_resolution;
 mod transport;
 mod writes;
 
@@ -29,6 +30,7 @@ pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use request::Read;
 pub use review_threads::ThreadRead;
 use serde::Serialize;
+pub use thread_resolution::{OriginalThreadAnchor, ThreadResolution};
 pub use transport::{Client, Owner};
 
 pub const API_VERSION: &str = "2026-03-10";

@@ -28233,3 +28233,82 @@ unqualified, along with delayed captured deadlines and visibility/transfer polic
 T11-WRITES stays Active. D1/D2/D3/D5, custody/root absence/scoped delivery,
 installed IPC/window/instance, worker isolation/execution/retirement/settlement,
 release/upgrade/freshness and the unfinished full product remain open.
+
+### T11-WRITES checkpoint: bounded native thread resolve/unresolve (2026-11-05)
+
+`lib/desktop-runtime/src/github_provider/thread_resolution.rs` supplies one fixed
+resolve or unresolve effect through the existing native transport. The public
+semantic request binds immutable numeric repository/PR identity, PR number,
+genuine opaque review-thread Node ID, desired resolution and explicit original
+context. Decimal REST root IDs and invalid selectors refuse before provider I/O.
+Go still owns canonical identity, admission, durable capture and the one-shot
+schema-86 journal; this producer contains no SQL or product workflow.
+
+Current [GitHub schema](https://docs.github.com/en/graphql/reference/pulls#resolvereviewthreadinput)
+was checked on 2026-11-05. The two mutations accept a thread ID and return the
+thread, without an expected conversation revision or repository condition. Only
+`threadId` is sent; no Copilot resolution reason, automatic agent request or
+remote-deduplication claim is added. The returned resolver is checked against the
+authenticated account for resolve; unresolve requires an explicitly null resolver
+and does not invent a mutation actor field that the payload lacks.
+
+The effect shares the existing mutation mutex/pacing across Client clones and
+clips its entire lifetime, including waits/preflight, to eight seconds. It checks
+current account, repository readonly flags, PR identity/lock and the defining
+GraphQL thread decoder's PR/repository membership and desired viewer action fact.
+An already matching state is a distinct known no-send result with no receipt;
+it can never attribute an earlier uncertain effect. A non-null supplied original
+two-commit anchor refuses `github_original_anchor_unobserved` before provider I/O:
+the current GitHub reader reports that pair unknown and must not silently discard
+a stronger caller condition or substitute present PR refs. Supporting known pairs
+requires a real authenticated original-context producer/retained join and matching
+acceptance evidence. This limitation remains open; source does not claim full
+original-context write support.
+
+After the conservative dispatch marker, every missing/malformed/denied/lost/
+timed-out or mismatched result remains Indeterminate. Redirects/retries stay off.
+Successful causal replies bind thread, desired state, PR/repository identities,
+resolver facts and response digest in at most 4 KiB; mutation responses remain
+bounded to 1 MiB and request IDs retain the existing unique/bounded optional
+contract. Scope/action preflights and a Node ID are not atomic protection against
+conversation changes, locking, visibility or PR transfer between check and POST.
+Those stronger policy/consistency claims remain pending.
+
+The existing native executable gained
+`--github-thread-resolution-declared FRESH_PROFILE`. Its actual production Rust
+owner/HTTP/decoder passed 52 declared cases, eight invalid descriptors, a supplied
+unproved original-anchor refusal, clone serialization/pacing, preflight retirement
+as NotSent and post-dispatch retirement as Indeterminate in
+`/home/vince/tmp/factory-thread-resolution-1105/attempt1/`. Cases cover resolve,
+unresolve, outdated and BigInt PR identities, optional request ID; identity/scope/
+lock/readonly/action/partial-error preflight refusals; explicit already-resolved/
+unresolved no-send; post-dispatch provider failures, redirects, bad JSON, wrong
+thread/PR/repository/number/state/resolver/URL, missing resolver (including unresolve),
+partial/full GraphQL errors, response/receipt/request-ID bounds, duplicate request
+IDs, dropped reply and whole-operation deadlines. A subsequent matching state
+sent nothing and supplied no causal attribution for the dropped reply. The local
+TLS peer accepts only its fixed dummy token and declared semantic requests; it
+never forwards. No real grant, GitHub mutation or native product callback was used.
+
+| Artifact under `/home/vince/tmp/factory-thread-resolution-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `f1a809c7929970a3c099725d78bfbfeb403cab4eb5aa9a78452ee33e5d4a0509` |
+| `provider` | `aeb6427f3b6582be7cce41c015dcab750bbe703f2b844f1a3300c23a2e71eb50` |
+| `check-bin` | `1e289cb53558762ea951fe08b1d8678d8540a1fed7ad0fc1797b58e11e1f9b89` |
+| `run.sh` | `fb512ada27469294a2164d98e49e7693273a9115f6f4ca84cb9092fa67175479` |
+| `session.sh` | `032b0dd8b1c91fe9d30e1cd994280560f674fe48723d4adfa208ad633119c12f` |
+| `attempt1/result.log` | `c37db262a90fe4cbfff0cdda7a1db97e6f8f1162fa7334d9d5bdd3f328b36748` |
+| `attempt1/thread-resolution-result.json` | `96b2811d574332de71b768b5520cabc29ad63951575a59dac285b981d816bc07` |
+
+Locked/offline native and desktop-feature builds, ownership boundaries and
+whitespace checks passed. No dependencies, unit tests or unit-test roots were
+added. This resolves the bounded provider-effect source prerequisite, within its
+explicit unknown-original-context support; no shared write capability is enabled.
+Next source slice is the typed native callback and Go admitted thread writer/
+selection using the schema-86 fence, exact captured deadline, current custody and
+causal receipts, then composed races/replay/cancel/withdrawal/restart. Known original
+pairs, actual authorized provider permissions/schema/no-op/mutation/readback,
+shared WebKit actions and installed qualification remain unverified. T11-WRITES
+stays Active. D1/D2/D3/D5, custody/root absence/scoped delivery, installed IPC/window/
+instance, worker isolation/execution/retirement/settlement, release/upgrade/freshness
+and the full unfinished product remain open.
