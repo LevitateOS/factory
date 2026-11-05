@@ -7,7 +7,7 @@ use soda_desktop_runtime::supervisor::NativeSupervisor;
 use soda_unix_http::{request_authenticated_async, Limits, Response};
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::Write;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -33,7 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut random = [0u8; 8];
     getrandom::fill(&mut random)?;
     let name: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
-    let profile = root.join(name);
+    let profile = root.join(&name);
     DirBuilder::new().mode(0o700).create(&profile)?;
     let profile = fs::canonicalize(profile)?;
     let id = "0123456789abcdef0123456789abcdef";
@@ -70,7 +70,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .open(path)?
         .flush()?;
     assert!(Signer::open(&profile).is_err());
-    println!("PASS: native MCP private key, scoped derivation, restart and invalid-file refusal");
+    let interrupted = root.join(format!("mcp-pending-{name}"));
+    DirBuilder::new().mode(0o700).create(&interrupted)?;
+    let interrupted = fs::canonicalize(interrupted)?;
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(interrupted.join("native-mcp.key.pending"))?
+        .write_all(b"interrupted first write")?;
+    let recovered = Signer::open(&interrupted)?;
+    let scoped = recovered.derive(id, &digest)?;
+    assert!(!interrupted.join("native-mcp.key.pending").exists());
+    drop(recovered);
+    assert_eq!(Signer::open(&interrupted)?.derive(id, &digest)?, scoped);
+    println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation and invalid-file refusal");
     Ok(())
 }
 

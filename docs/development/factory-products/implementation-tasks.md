@@ -25315,3 +25315,16 @@ still does not exercise the canonical capability ledger, native MCP listener,
 worker delivery, current admission, expiry/withdrawal or key rotation. The
 separate appliance raw-key path remains present. T09-NATIVE-EXECUTOR and D3
 remain open.
+
+T09-NATIVE-EXECUTOR atomic native MCP key creation checkpoint (2026-11-05):
+the Rust signer now writes and syncs a private pending file, commits it with a
+no-replace rename and syncs the profile directory before returning a usable
+key. Under the supervisor's exclusive profile lock, an owned private pending
+file left before commit can be discarded and regenerated; a malformed or
+truncated committed key still refuses. The existing native fixture passed a
+simulated interrupted first write, successful fresh creation, standard-HMAC
+agreement, restart and invalid-final refusal. The headless PostgreSQL/Go/Rust
+supervisor check then passed the synthetic Go client and direct Rust callback
+twice across an ordered restart. This is first-use durability evidence, not a
+process-kill or power-loss test and not key rotation after admitted work. The
+canonical capability, worker and D3 gates remain open.

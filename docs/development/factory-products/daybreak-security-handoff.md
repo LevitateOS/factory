@@ -72,6 +72,16 @@ T09-NATIVE-EXECUTOR is itself D3 work; T09-EXECUTION and its publication,
 automation, packaging, installed and upgrade consumers remain pending. T10-GATEWAY
 is D2 work. T12-PLACEMENT depends on T06-CONNECT and must keep automation inactive.
 
+The native MCP signer now commits first-use key material from a synced private
+pending file with a no-replace rename and directory sync. An interrupted
+pre-commit pending file can be discarded under the supervisor's exclusive
+profile lock; an invalid committed key still refuses. The disposable native
+fixture passed simulated interrupted creation and retained-key checks, and the
+headless PostgreSQL/Go/Rust callback passed across an ordered restart. Actual
+process-kill/power-loss recovery, rotation after admitted work, canonical
+capability admission and isolated worker access remain unverified. This does
+not close the custody row above.
+
 For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.
 `cargo check --locked --offline -p soda-factory-broker` passes. The initial
