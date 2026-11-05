@@ -5,6 +5,7 @@ mod attempt;
 mod broker;
 mod custody;
 mod executions;
+mod intent;
 mod mcp;
 mod observation;
 mod owner;
@@ -20,6 +21,7 @@ pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
 pub use executions::{
     ExecutionBinding, ExecutionOutcome, ExecutionTicket, Executions, RetirementReport,
 };
+pub use intent::{read_intent, LaunchIntent};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};

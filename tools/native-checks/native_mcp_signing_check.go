@@ -27,6 +27,7 @@ import (
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
+	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -590,9 +591,114 @@ func nativeReceiptFixture(profile, instance, operation, argument string) error {
 	return errors.New("unknown native receipt fixture operation")
 }
 
+// Declare one complete effect binding before the real native fixture stages.
+// No dispatch/placement permission or coordinator intake is granted here.
+func nativeIntentFixture(profile, instance, operation, argument string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	path := filepath.Join(profile, "native-recovery-fixture.json")
+	if argument != path {
+		return errors.New("native intent fixture path differs")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if len(raw) > 32768 {
+		return errors.New("native intent fixture too large")
+	}
+	var input struct {
+		Run           factory.Run
+		Prompt        string
+		Connection    string
+		StartedUnixMS int64 `json:"started_unix_ms"`
+	}
+	if json.Unmarshal(raw, &input) != nil || input.Run.Native == nil {
+		return errors.New("native intent fixture invalid")
+	}
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	marker := filepath.Join(profile, "native-recovery-canonical.id")
+	if operation == "create-native-intent" {
+		run := input.Run
+		run.ID = factory.NewID()
+		run.Started = time.Now().UTC()
+		run.Deadline = run.Started.Add(time.Minute)
+		if run.Native.Provenance.Profile != config.Profile || run.Native.Provenance.InstanceID != instance || run.Native.Provenance.Process != nil {
+			return errors.New("native intent fixture scope differs")
+		}
+		launch := execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: run.Native.Provenance.WorktreeID}, Tool: run.Native.Tool, BundleSHA256: run.Native.BundleSHA256, PromptSHA256: run.Native.PromptSHA256, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: run.Native.Provenance.BrokerRun}
+		request := execution.LaunchRequest{Kind: collaboration.Native, Native: &launch, Input: project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: run.ProjectID, Role: run.Role, Preparation: "f" + strings.Repeat("0", 24), Harness: run.Native.Tool.Harness, HarnessVers: run.Native.Tool.Version, Model: run.Model, Assignment: run.Native.PromptSHA256, SourceCommit: run.InputSHA, Connection: input.Connection, Actor: 1, Deadline: run.Deadline, ExecutionPhase: project.ExecutionReview}, Prompt: []byte(input.Prompt), HarnessSHA256: run.Native.Tool.SHA256}}
+		encoded, err := execution.EncodeNativeIntent(request)
+		if err != nil {
+			return err
+		}
+		run.Native.Intent = encoded
+		if err = db.RecordFactoryRun(ctx, run); err != nil {
+			return err
+		}
+		if err = os.WriteFile(marker, []byte(run.ID), 0600); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(profile, "native-recovery-intent.json"), []byte(encoded), 0600)
+	}
+	if operation != "finish-native-intent" {
+		return errors.New("unknown native intent fixture operation")
+	}
+	id, err := os.ReadFile(marker)
+	if err != nil {
+		return err
+	}
+	prior, err := db.FactoryRun(ctx, string(id))
+	if err != nil {
+		return err
+	}
+	if prior.Native == nil || prior.Native.Intent == "" || input.Run.Native.Provenance.Process == nil {
+		return errors.New("native intent fixture result lacks binding")
+	}
+	observed := input.Run.Native
+	observed.Intent = prior.Native.Intent
+	observed.Provenance.Process.StartedAt = time.UnixMilli(input.StartedUnixMS).UTC()
+	prior.Native = observed
+	if err = db.SaveFactoryRun(ctx, prior); err != nil {
+		return err
+	}
+	// Both the API and the database must retain the exact encoded intent.
+	changed := prior
+	record := *prior.Native
+	changed.Native = &record
+	changed.Native.Intent += " "
+	if db.SaveFactoryRun(ctx, changed) == nil {
+		return errors.New("intent bytes changed through Store")
+	}
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	if _, err = rawDB.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{native,intent}',to_jsonb($1::text)) WHERE id=$2`, changed.Native.Intent, prior.ID); err == nil {
+		return errors.New("intent bytes changed through SQL")
+	}
+	fmt.Println("PASS: Go validates/retains the exact launch intent before effects; observation preserves it; Store and raw SQL refuse replacing its bytes")
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 5 {
-		if err := nativeReceiptFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4]); err != nil {
+		var err error
+		if os.Args[3] == "create-native-intent" || os.Args[3] == "finish-native-intent" {
+			err = nativeIntentFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+		} else {
+			err = nativeReceiptFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+		}
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

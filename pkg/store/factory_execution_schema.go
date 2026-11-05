@@ -55,6 +55,7 @@ BEGIN
   RAISE EXCEPTION 'native run has conflicting appliance provenance';
  END IF;
  IF next->'tool' IS DISTINCT FROM prior->'tool' THEN RAISE EXCEPTION 'captured executable is immutable'; END IF;
+ IF coalesce(next->>'intent','') IS DISTINCT FROM coalesce(prior->>'intent','') THEN RAISE EXCEPTION 'native launch intent is immutable'; END IF;
  FOREACH field IN ARRAY ARRAY['trust_mode','profile','instance_id','worktree_id'] LOOP
   IF next#>ARRAY['provenance',field] IS DISTINCT FROM prior#>ARRAY['provenance',field] THEN
    RAISE EXCEPTION 'native runtime identity is immutable';

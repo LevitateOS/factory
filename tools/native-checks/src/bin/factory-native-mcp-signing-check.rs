@@ -192,7 +192,11 @@ async fn managed(
             assert_eq!(recovered.broker_run(), broker_run);
             assert!(recovered.recorded_placement().is_none());
             let evidence = recovered.read_evidence()?;
-            assert!(evidence.receipt.is_none() && evidence.custody.is_none());
+            assert!(
+                evidence.intent.is_none()
+                    && evidence.receipt.is_none()
+                    && evidence.custody.is_none()
+            );
             assert!(supervisor.native_recovery("invalid").await.is_err());
             assert!(supervisor.native_recovery(&"fa".repeat(16)).await.is_err());
             assert!(supervisor

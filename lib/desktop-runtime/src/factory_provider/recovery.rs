@@ -1,7 +1,8 @@
 //! Compare private Go ledger observations with native evidence. These reads
 //! grant no launch, broker retirement or product outcome/settlement authority.
 use super::{
-    read_custody, read_retained, AgentRun, CustodyObservation, CustodyState, ReceiptScope, Role,
+    read_custody, read_intent, read_retained, AgentRun, CustodyObservation, CustodyState,
+    LaunchIntent, ReceiptScope, Role,
 };
 use crate::product::Products;
 use crate::supervisor::NativeChannel;
@@ -66,8 +67,7 @@ struct RecordedRun {
     workspace: String,
     role: String,
     source_commit: String,
-    #[serde(rename = "deadline")]
-    _deadline: String,
+    deadline: String,
     #[serde(rename = "context_pending")]
     _context_pending: bool,
     #[serde(rename = "reconciled")]
@@ -80,6 +80,8 @@ struct RecordedRun {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RecordedNative {
+    #[serde(default)]
+    intent: String,
     tool: RecordedTool,
     bundle_sha256: String,
     prompt_sha256: String,
@@ -150,6 +152,7 @@ pub struct NativeRecovery {
 /// Missing evidence remains unknown. A receipt proves its retained observation,
 /// never current liveness, root retirement, credential release or Go settlement.
 pub struct NativeRecoveryEvidence {
+    pub intent: Option<LaunchIntent>,
     pub receipt: Option<AgentRun>,
     pub custody: Option<CustodyObservation>,
 }
@@ -163,7 +166,9 @@ impl NativeRecovery {
             .await
             .map_err(|_| refused("native recovery ledger unavailable"))?;
         context.current()?;
-        if response.status != 200 || response.body.len() > 32768 {
+        // Intent JSON is itself a retained string, alongside the captured
+        // tool/process paths; bound their combined escaped representation.
+        if response.status != 200 || response.body.len() > 65536 {
             return Err(refused("native recovery ledger not observed"));
         }
         let envelope: Envelope = serde_json::from_slice(&response.body)
@@ -187,8 +192,8 @@ impl NativeRecovery {
 
     fn scope(&self) -> io::Result<ReceiptScope<'_>> {
         let role = match self.run.role.as_str() {
-            "coder" => Role::Coder,
-            "reviewer" => Role::Reviewer,
+            "soda-coder" | "coder" => Role::Coder,
+            "soda-reviewer" | "reviewer" => Role::Reviewer,
             _ => return Err(refused("native recovery worker role unsupported")),
         };
         ReceiptScope::new(
@@ -226,6 +231,24 @@ impl NativeRecovery {
     pub fn read_evidence(&self) -> io::Result<NativeRecoveryEvidence> {
         self.context.current()?;
         let scope = self.scope()?;
+        let intent = read_intent(&self.context.directory, &scope)?;
+        match (&intent, self.run.native.intent.is_empty()) {
+            (None, true) => (), // Historical absence is still unknown.
+            (Some(intent), false)
+                if intent.raw() == self.run.native.intent
+                    && intent.matches_record(
+                        &self.run.id,
+                        &self.run.workspace,
+                        &self.run.native.provenance.instance_id,
+                        &self.run.native.provenance.worktree_id,
+                        &self.run.deadline,
+                        self.run.launch.as_ref(),
+                    ) =>
+            {
+                ()
+            }
+            _ => return Err(refused("native recovery intent unconfirmed or differs")),
+        }
         let receipt = read_retained(&self.context.directory, &scope)?;
         if let Some(receipt) = &receipt {
             self.compare_process(receipt)?;
@@ -250,7 +273,11 @@ impl NativeRecovery {
             return Err(refused("native recovery released custody unconfirmed"));
         }
         self.context.current()?;
-        Ok(NativeRecoveryEvidence { receipt, custody })
+        Ok(NativeRecoveryEvidence {
+            intent,
+            receipt,
+            custody,
+        })
     }
 
     fn compare_process(&self, observed: &AgentRun) -> io::Result<()> {

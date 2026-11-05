@@ -3,7 +3,7 @@
 use super::receipt::ensure_receipts;
 use super::{
     write_retained, AgentCancellation, AgentObserver, AgentRun, AgentStarted, BoundOwner, Broker,
-    Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
+    LaunchIntent, Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
@@ -47,6 +47,7 @@ impl Drop for Staged {
 /// broker operation still requires the privileged installed system services.
 pub struct RunOwner {
     owner: Owner,
+    intent_digest: Option<String>,
     cancellation: AgentCancellation,
     observer: AgentObserver,
     custody: RunCustody,
@@ -87,6 +88,7 @@ impl RunOwner {
             prompt_sha256,
             None,
             AgentCancellation::default(),
+            None,
         )
     }
 
@@ -111,6 +113,7 @@ impl RunOwner {
             prompt_sha256,
             Some(mcp),
             AgentCancellation::default(),
+            None,
         )
     }
 
@@ -135,6 +138,7 @@ impl RunOwner {
             prompt_sha256,
             None,
             cancellation,
+            None,
         )
     }
 
@@ -159,10 +163,13 @@ impl RunOwner {
             prompt_sha256,
             Some(mcp),
             cancellation,
+            None,
         )
     }
 
-    fn start_inner(
+    /// The exact nonsecret Go binding is durably retained before custody/staging.
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_with_intent(
         policy: Policy,
         profile_dir: &Path,
         credentials: Arc<Credentials>,
@@ -172,7 +179,36 @@ impl RunOwner {
         prompt_sha256: &str,
         mcp: Option<WorkerMcp>,
         cancellation: AgentCancellation,
+        intent: &LaunchIntent,
     ) -> io::Result<Self> {
+        Self::start_inner(
+            policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            mcp,
+            cancellation,
+            Some(intent),
+        )
+    }
+    fn start_inner(
+        mut policy: Policy,
+        profile_dir: &Path,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        bundle: &[u8],
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        mcp: Option<WorkerMcp>,
+        cancellation: AgentCancellation,
+        intent: Option<&LaunchIntent>,
+    ) -> io::Result<Self> {
+        if let Some(intent) = intent {
+            intent.bind_policy(&mut policy, tool_sha256, prompt_sha256)?;
+        }
         if cancellation.cancelled() {
             return Err(refused("provider preparation cancelled"));
         }
@@ -223,6 +259,13 @@ impl RunOwner {
             tool_sha256,
             prompt_sha256,
         )?;
+        if let Some(intent) = intent {
+            intent.persist(profile_dir)?;
+        } else {
+            // A legacy entry point cannot sidestep an already retained intent,
+            // including an interrupted start before custody was acquired.
+            super::intent::require_absent(profile_dir, &scope)?;
+        }
         let custody = RunCustody::prepare(profile_dir, &scope, &connection, cancellation.clone())?;
         let preparing = Broker::preparing(cancellation.clone());
         let staged = match preparing.stage_bundle(
@@ -295,6 +338,7 @@ impl RunOwner {
         custody.activate()?;
         cleanup.active = false;
         Ok(Self {
+            intent_digest: intent.map(LaunchIntent::digest),
             owner,
             cancellation,
             observer: AgentObserver::default(),
@@ -319,6 +363,10 @@ impl RunOwner {
     /// the exact worker stream and retires its process tree.
     pub fn cancellation(&self) -> AgentCancellation {
         self.cancellation.clone()
+    }
+
+    pub(super) fn intent_digest(&self) -> Option<&str> {
+        self.intent_digest.as_deref()
     }
 
     pub(super) fn uses_cancellation(&self, cancellation: &AgentCancellation) -> bool {

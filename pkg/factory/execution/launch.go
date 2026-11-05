@@ -48,8 +48,12 @@ func (n NativeLaunch) Validate() error {
 }
 
 func (n NativeLaunch) MatchesRecord(record NativeRecord) bool {
+	return n.Validate() == nil && record.Validate() == nil && n.matchesRecord(record)
+}
+
+func (n NativeLaunch) matchesRecord(record NativeRecord) bool {
 	p := record.Provenance
-	if n.Validate() != nil || record.Validate() != nil || n.Tool != record.Tool || n.BundleSHA256 != record.BundleSHA256 || n.PromptSHA256 != record.PromptSHA256 || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
+	if n.Tool != record.Tool || n.BundleSHA256 != record.BundleSHA256 || n.PromptSHA256 != record.PromptSHA256 || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
 		return false
 	}
 	if n.TrustMode == "isolated_system_worker" {

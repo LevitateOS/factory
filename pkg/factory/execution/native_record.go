@@ -30,6 +30,9 @@ func (t NativeTool) Validate() error {
 // Sealed means this identity cannot acquire again; process retirement and
 // retirement of this run's credential material remain separate facts.
 type NativeRecord struct {
+	// Exact Go-produced JSON, retained as a string so JSONB does not reorder
+	// its bytes. Absence on history remains unknown, never synthesized.
+	Intent       string           `json:"intent,omitempty"`
 	Tool         NativeTool       `json:"tool"`
 	BundleSHA256 string           `json:"bundle_sha256,omitempty"`
 	PromptSHA256 string           `json:"prompt_sha256,omitempty"`
@@ -57,6 +60,13 @@ func (r NativeRecord) Validate() error {
 	if p != nil && (p.Executable != r.Tool.Executable || p.ExecutableSHA256 != r.Tool.SHA256) {
 		return ErrProvenance
 	}
+	if r.Intent != "" {
+		intent, err := ParseNativeIntent(r.Intent)
+		if err != nil || !intent.Native.matchesRecord(r) ||
+			r.Provenance.Custody.Connection != "" && intent.Connection != string(r.Provenance.Custody.Connection) {
+			return ErrNativeIntent
+		}
+	}
 	return nil
 }
 
@@ -69,7 +79,7 @@ func (r NativeRecord) Settled() bool {
 // identities. Unknown cleanup can resolve, but confirmed exit, release, seal and
 // retirement cannot be erased by a stale observer or a recycled PID.
 func (r NativeRecord) Advances(prior NativeRecord) bool {
-	if r.Validate() != nil || prior.Validate() != nil || r.Tool != prior.Tool || r.BundleSHA256 != prior.BundleSHA256 || r.PromptSHA256 != prior.PromptSHA256 ||
+	if r.Validate() != nil || prior.Validate() != nil || r.Intent != prior.Intent || r.Tool != prior.Tool || r.BundleSHA256 != prior.BundleSHA256 || r.PromptSHA256 != prior.PromptSHA256 ||
 		r.Provenance.Profile != prior.Provenance.Profile || r.Provenance.InstanceID != prior.Provenance.InstanceID ||
 		r.Provenance.WorktreeID != prior.Provenance.WorktreeID || r.Provenance.TrustMode != prior.Provenance.TrustMode || r.Provenance.BrokerRun != prior.Provenance.BrokerRun ||
 		(prior.Provenance.Isolation != nil && !reflect.DeepEqual(r.Provenance.Isolation, prior.Provenance.Isolation)) ||

@@ -149,8 +149,30 @@ outcome settlement stay in Go.
 
 This reader grants no broker-retirement or launch authority. The native receipt
 and custody formats do not independently bind canonical run/workspace/placement
-or the original runtime instance/worktree. A durable admitted intent binding and
-its recovery comparison still need to join those facts before native effects.
+or the original runtime instance/worktree. Go now defines the separate
+`execution.NativeIntent` wire and `EncodeNativeIntent` from a validated semantic
+launch. `NativeRecord.Intent` retains the exact nonsecret JSON string, preserving
+its bytes through JSONB. Go checks canonical run/workspace/role/source/deadline,
+native selectors and known connection; Store and PostgreSQL forbid replacing it.
+The string includes captured native runtime/placement metadata but grants no
+placement or current launch authority.
+
+`LaunchIntent::from_go` decodes that binding; `RunOwner::start_with_intent`
+compares its policy/scope and clamps the deadline before retaining its exact
+bytes under `native-run-intents/<broker-run>.json`, before custody or root
+staging. Publication uses a pending file, fsync and an exclusive committed link;
+pending/interrupted publication remains unknown. Existing native receipts or
+acquisitions cannot be retroactively adopted, and legacy starts refuse an
+existing intent even before custody exists. `ExecutionBinding::from_intent`
+adds its exact digest to registry replay/factory matching. Go's canonical
+`soda-coder`/`soda-reviewer` roles translate explicitly to native worker roles;
+historical plain role metadata remains readable without gaining launch authority.
+
+Recovery requires matching local/Go intent bytes and captured bindings when an
+intent is recorded; absence on both sides stays unknown. No intent is synthesized
+for history. This producer/read consumer passed a real registry/worker/ledger
+fixture with declared unplaced metadata, not actual dispatch admission. Wire it
+through the atomic Go dispatch packet and admitted native ports before intake.
 Post-ledger startup ordering and atomic Go recovery remain unimplemented; the
 current pre-Go broker fence is unchanged.
 
@@ -616,8 +638,9 @@ Marker writers and readers confirm file/directory synchronization. Custody can
 be released while the process outcome remains uncertain and has no result receipt.
 `read_custody` checks the captured scope/connection and supports readback without
 a keyring session. Missing/partial evidence never proves no acquisition or cleanup.
-The lifecycle registry, canonical Go projection and interrupted-write/crash/reboot
-reconciliation still need implementation and qualification before native intake.
+Production composition of the lifecycle registry/current-run/custody ports and
+interrupted-write/crash/reboot reconciliation still need implementation and
+qualification before native intake.
 
 `factory_provider::Executions` owns a bounded set of native attempts for one
 captured profile/runtime lifetime. Trusted composition supplies an

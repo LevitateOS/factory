@@ -25862,3 +25862,45 @@ outcome recovery. The pre-Go launched-root fence remains unchanged. Actual
 provider work, lost replies, interrupted ownership, full restart/reboot and
 installed Quit remain unverified. N3/N4/D3 stay open; the handoff records the
 intent-binding dependency explicitly. No gate is marked complete here.
+
+
+T09-NATIVE-EXECUTOR exact native intent producer/read binding (2026-11-05):
+Go's `execution.EncodeNativeIntent` defines the nonsecret scope wire from a
+validated semantic launch. `NativeRecord.Intent` preserves exact JSON bytes as
+a string through JSONB, validates canonical/native/deadline/connection bindings,
+and cannot change through Store or SQL updates. Shape does not grant authority;
+unplaced metadata remains unplaced. Rust's `LaunchIntent` / `start_with_intent`
+match policy/scope and clamp deadline before publishing exact bytes ahead of
+custody/root staging. Pending publication remains uncertain. Existing native
+evidence refuses adoption, and legacy starts cannot sidestep an intent-only
+interrupted start. Registry bindings include the intent digest; recovery compares
+local/Go bytes and bindings. History without an intent stays unknown.
+
+The real existing registry/worker/private-keyring/PostgreSQL/Go fixture passed:
+intent recorded before launch and observed before the live child, finite local
+ELF completion, immutable Go intent storage across native process/custody
+updates, and normal supervisor restart after dummy credential withdrawal.
+Seven changed receipt/custody copies, eight changed intent bindings, changed
+encoding and pending publication refused; originals were restored. An intent-only
+legacy start refused before custody/root staging. Services stopped, roots were
+absent and temporary units removed. Evidence/driver:
+`/home/vince/tmp/fnr-live5-1105/`; result SHA-256:
+`e532ef87bcc296d99ac4dc881fd6ecdebf320e4b07748ccab5993c4b16b7c140`.
+The producer fixture exposed the canonical Go `soda-coder`/`soda-reviewer`
+versus native worker role distinction; the native boundary now translates it
+explicitly. The failed pre-staging fixture is preserved under
+`/home/vince/tmp/fnr-live3-1105/`. The existing native supervisor check also
+passed historical no-intent reads without fabrication across restart under
+`/home/vince/tmp/fnr-legacy1-1105/`, result SHA-256
+`e8d8619319db05d0fee01b6edf3192496527dce54a0bf0643ac6bc650ab5a557`.
+Affected Go builds, locked offline native builds/checks, touched formatting and
+whitespace checks passed.
+
+These retained-input, dummy-only checks used a declared unplaced Go record and
+synthetic native runtime/placement generation. Production admitted dispatch and
+native ports still need to compose the intent before effects. Current
+run/custody/MCP/credential admission, post-ledger startup and atomic Go outcome
+recovery remain unfinished. Actual interrupted writes/launches/replies,
+worker/owner death, full restart/reboot, real finite provider work and installed
+Quit remain unverified. The pre-Go launched-root fence remains active. N3/N4/D3
+remain open; no canonical slice or security gate is closed by these checks.

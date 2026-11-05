@@ -239,6 +239,15 @@ func (r Run) validateProvenance() error {
 			r.Harness != r.Native.Tool.Harness+"-"+r.Native.Tool.Version {
 			return errors.New("native execution has conflicting provenance")
 		}
+		if r.Native.Intent != "" {
+			intent, err := execution.ParseNativeIntent(r.Native.Intent)
+			if err != nil || intent.Run != r.ID || intent.Workspace != r.ProjectID ||
+				intent.Role != r.Role || intent.SourceCommit != r.InputSHA || !intent.Deadline.Equal(r.Deadline) ||
+				r.Admission != nil && (r.Admission.Native != nil && intent.Native != *r.Admission.Native ||
+					r.Admission.Authority.SponsorshipConnection != "" && intent.Connection != r.Admission.Authority.SponsorshipConnection) {
+				return execution.ErrNativeIntent
+			}
+		}
 	} else {
 		value, pinned := strings.CutPrefix(r.Image, "sha256:")
 		if !pinned || !ValidDigest(value) {

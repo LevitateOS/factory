@@ -1,7 +1,7 @@
 //! Bounded lifecycle ownership, independent of product requests and SQL.
 use super::{
     AgentCancellation, AgentObservation, AgentRun, AttemptObservation, AttemptPhase,
-    CustodyObservation, CustodyState, ReceiptScope, RunExecution, RunOwner, RunView,
+    CustodyObservation, CustodyState, LaunchIntent, ReceiptScope, RunExecution, RunOwner, RunView,
 };
 use std::collections::BTreeMap;
 use std::io;
@@ -35,6 +35,7 @@ pub struct ExecutionBinding {
     run: String,
     scope: String,
     connection: String,
+    intent_digest: Option<String>,
 }
 
 impl ExecutionBinding {
@@ -48,9 +49,15 @@ impl ExecutionBinding {
             run: scope.run.into(),
             scope: scope.fingerprint(),
             connection: connection.into(),
+            intent_digest: None,
         })
     }
 
+    pub fn from_intent(intent: &LaunchIntent) -> io::Result<Self> {
+        let mut binding = Self::new(intent.instance(), &intent.scope()?, intent.connection())?;
+        binding.intent_digest = Some(intent.digest());
+        Ok(binding)
+    }
     pub fn run(&self) -> &str {
         &self.run
     }
@@ -266,7 +273,8 @@ impl Executions {
                     let owner = create(cancel.clone())?;
                     let custody = owner.custody();
                     let observed = custody.observe()?;
-                    if !owner.uses_cancellation(&cancel)
+                    if owner.intent_digest() != prepared_binding.intent_digest.as_deref()
+                        || !owner.uses_cancellation(&cancel)
                         || !custody.matches(
                             &prepared_binding.run,
                             &prepared_binding.profile,
