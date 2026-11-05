@@ -1,8 +1,9 @@
 package store
 
 // Keep the same immutable identity and terminal-outcome guard on fresh and
-// upgraded databases. Only an unfinished comment can acquire the one-shot fence;
-// neither observations nor restarts may release it.
+// upgraded databases. Only supported unfinished human creations can acquire a
+// reservation. Unclaimed history may be conservatively fenced legacy_unknown;
+// no transition can release a reservation or an existing legacy fence.
 const commandGuardDDL = `CREATE OR REPLACE FUNCTION soda_guard_command() RETURNS trigger AS $$
 BEGIN
   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.type IS DISTINCT FROM OLD.type
@@ -10,9 +11,11 @@ BEGIN
     OR NEW.digest IS DISTINCT FROM OLD.digest OR NEW.payload IS DISTINCT FROM OLD.payload
     OR NEW.created IS DISTINCT FROM OLD.created
     OR (OLD.finished!='' AND (NEW.finished IS DISTINCT FROM OLD.finished OR NEW.outcome IS DISTINCT FROM OLD.outcome))
-    OR (NEW.dispatch_state IS DISTINCT FROM OLD.dispatch_state AND
-      (OLD.dispatch_state!='unclaimed' OR NEW.dispatch_state!='reserved'
-        OR OLD.finished!='' OR NEW.finished!='' OR OLD.type!='discussion.comment.create'))
+    OR (NEW.dispatch_state IS DISTINCT FROM OLD.dispatch_state AND NOT (
+      OLD.dispatch_state='unclaimed' AND (
+        NEW.dispatch_state='legacy_unknown' OR (
+          NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
+          AND OLD.type IN ('discussion.comment.create','issue.create')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -26,4 +29,14 @@ var CommandDispatchUpgradeDDL = []string{
 	`ALTER TABLE factory_commands ALTER COLUMN dispatch_state SET DEFAULT 'unclaimed'`,
 	commandGuardDDL,
 	`UPDATE schema_version SET version=81`,
+}
+
+// Schema 81 issue captures predate this one-shot protocol and may already have
+// been sent by another adapter. Preserve all payload/outcome bytes while fencing
+// that history. The version predicate prevents a concurrent stale opener from
+// fencing new schema-82 rows after another opener has committed the upgrade.
+var IssueCreateDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='issue.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=81)`,
+	`UPDATE schema_version SET version=82 WHERE version=81`,
 }

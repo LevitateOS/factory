@@ -27238,3 +27238,78 @@ any stronger D5 selected-resource guarantee, remain open in the security handoff
 No full D1/D2/D3/D5, credential custody/root absence, installed peer/window/IPC
 admission, native executor/isolation/retirement/settlement, finite provider run,
 release/freshness/upgrade or whole-product gate is closed by this checkpoint.
+
+### T11-WRITES — shared issue-creation dispatch journal producer (2026-11-05)
+
+The next dependency-ready operation is plain human issue creation. Its existing
+typed capture, HTTP/service contract and sole Go command journal are retained.
+The comment reservation/cancellation row-lock protocol now has one shared Store
+implementation in `factory_command_dispatch.go`, with typed wrappers for comments
+and issue creation. Each kind still supplies its defining capture decoder,
+observation validator, reducer and terminal semantics. No second journal or Rust
+product SQL owner was introduced.
+
+Schema 82 allows only supported unfinished comment/issue creations to acquire a
+reservation. An unclaimed row may be conservatively fenced `legacy_unknown`;
+neither an existing reservation nor a legacy fence can be released. The actual
+81→82 upgrade marks pre-protocol issue captures unknown without changing any
+identity, writing, preparation or outcome bytes, including finished outcomes.
+Comment state is preserved. Triggers stay active. A version predicate prevents
+replayed stale upgrade DDL from fencing new schema-82 issue captures after another
+opener has committed the upgrade.
+
+`HumanIssueCreateDispatchState`, `ReserveHumanIssueCreateDispatch` and
+`CancelHumanIssueCreateDispatch` implement exact-capture lookup, one successful
+claim and atomic local cancellation. Only the successful commit caller may send
+once. Unknown/legacy history and cancellation after reservation cannot prove no
+effect. Typed comment/issue reducers share the existing rule that retains a late
+known primary result without erasing cancellation uncertainty or mutating the
+caller's evidence. Other human command reducers remain unchanged.
+
+Real Store acceptance used the existing native PostgreSQL driver under
+`/home/vince/tmp/factory-issue-dispatch-1105/`. `baseline/` archives `8f135c9` and
+compiled the actual schema-81 Store. Fresh `pg-fresh-a1` passed; upgraded
+`pg-legacy-a2` passed through two concurrent process opens, stale migration DDL
+replay, retained restart, abrupt owned-child WAL recovery and clean shutdown.
+Both retained exact writing and not-observed/cancelled/unknown/committed history.
+Eight exact-capture conflicts, absent/unprepared/unknown/unavailable refusal,
+exactly one of 32 concurrent claims, 32 reservation/cancel races, terminal guards
+and late committed/no-effect evidence passed. Both race outcomes ran (fresh
+14 reserved/18 cancelled; upgrade 23/9). Existing comment claims still work.
+
+The first upgrade stress attempt hit the fixture's extra SQL-inspector connection
+on top of two 16-connection Store pools. Its failure remains preserved. The
+corrected fixture closes that inspector before stress; production connection
+limits were unchanged. Fresh attempt1 used the preserved `check-a1` source/binary;
+upgrade attempt2 used the corrected current fixture.
+
+The existing complete native comment journey also passed unchanged with the
+schema-82 backend under `/home/vince/tmp/factory-comment-schema82-1105/attempt1/`:
+exact writing, causal receipt/readback, simultaneous replay, wrong repository,
+lost reply, cancel races, withdrawal/replacement, other account and retained
+restart. It made its nine intended dummy-only mutations and cleaned up its
+owned native/keyring/Go/PostgreSQL resources.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `67c58ce59682c93052ea5b71a39643a25afba0e10960550da940b93eb19f0ae6` |
+| `legacy.go` | `b3b85c87a1b3f60884871683d3ccdd7786248bf1c47067175dcbdf0cc1e2f269` |
+| corrected `check.go` | `9725a101c7b31f579b0b443a3cf8b218b32fd6a24c57a3bc726c9f99b1ea18b8` |
+| preserved `check-a1.go.txt` | `ba719d25a2e190f994a539e267b567e7a68520b3e5ce42dd4250977e105f2b78` |
+| historical Store executable | `12b2ad68d8662c79199af6642709a87663837a0e36f328d1c9e9c5345d9b85ab` |
+| current fixture executable | `2e8fd2fb80e213a0d5f879c94b26ee842505cdcd21aa2c17e8d59d2651179cbb` |
+| preserved `check-a1` | `5b04019ff4265a95d69bec8a29593b4eeaf639f79c9a7d567bbe45d90f22e8b6` |
+| fresh log | `0a634e833e7710be84abee336f61ad14b3f5d8a448a636e8d04d07156fbde5ec` |
+| upgrade log | `72acf78ddbafcd709ef6556a85726c390783d937883acc5c3378e37f55cdc207` |
+| schema-82 native backend | `87fef3c63f16783e92cba50270f8f041e5264d268395d39fa7763f0f6e13c5ee` |
+| composed comment result | `cd912b1077358cfb2fe24b360fe6497ff0e06dc1b536e182271a9328cc4d6a5b` |
+
+Go package compilation, the existing ownership boundary and whitespace checks
+pass. No new unit-test root or dependency was added. The fixture's provider
+records are declared data, not actual issue-creation evidence. Captured source
+inputs are not fresh/installed migration qualification. T11-WRITES remains
+Active for the Rust issue-creation effect and admitted Go/native consumer, live
+provider qualification, the other human operations and its open policy gates.
+No issue-creation port or UI capability is enabled by this journal producer.

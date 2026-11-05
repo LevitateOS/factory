@@ -1813,3 +1813,36 @@ D5, worker isolation, root absence/scoped delivery, installed admission, native
 execution/retirement/settlement, finite provider execution and release/freshness/
 upgrade gates remain open. No Daybreak access/session or broad completion is
 inferred from these ordinary owned product checks.
+
+T11-WRITES issue-creation journal producer (2026-11-05): schema 82 and the shared
+Store row-lock implementation now support typed human issue creation as well as
+comments. Files: `pkg/store/factory_command_dispatch.go`, the two typed dispatch
+wrappers, `factory_human_issue_create.go`, `schema{,_command_dispatch}.go` and the
+typed human creation outcome reducers. An actual schema-81 archive produced
+retained captures. The upgrade fences old issue history unknown while preserving
+all command/writing/outcome bytes and existing comment state, with triggers
+active. Replayed stale upgrade DDL does not fence newly captured schema-82 work.
+
+Owned fresh and upgraded PostgreSQL acceptance passed exact-capture conflicts,
+32 concurrent claims with one winner, 32 dispatch/cancel races per fixture, late
+committed/no-effect evidence, concurrent process opens, restart and WAL recovery.
+The first upgrade fixture exceeded its connection budget; it is preserved and
+the corrected fixture closes its SQL inspector before stress without changing
+production limits. Evidence root `/home/vince/tmp/factory-issue-dispatch-1105/`;
+fresh log `0a634e833e7710be84abee336f61ad14b3f5d8a448a636e8d04d07156fbde5ec`,
+upgrade log `72acf78ddbafcd709ef6556a85726c390783d937883acc5c3378e37f55cdc207`.
+The canonical plan records the exact fixture variants/source/executable hashes.
+The existing composed native comment journey also passed with schema 82 under
+`/home/vince/tmp/factory-comment-schema82-1105/attempt1/`, preserving its prior
+result scope; no broader security gate is newly qualified.
+
+Exact next issue-creation dependencies remain the complete Rust fixed provider
+effect and its admitted native/Go writer. Before enabling creation, prove current
+account/repository/credential/generation admission, immutable repository targeting,
+bounded unchanged title/body and causal receipt, one-shot reservation, lost reply/
+cancel/restart and readable destination behavior in that composed path, followed
+by a freshly authorized real provider fixture. Store-only declared records are
+not provider permission or successful creation evidence. Installed retained
+upgrade/freshness, the comment transfer/lock policy, D1/D2/D3/D5, root absence/
+scoped delivery, installed IPC/window admission, worker isolation/execution and
+retirement/settlement retain their recorded dependencies and required evidence.
