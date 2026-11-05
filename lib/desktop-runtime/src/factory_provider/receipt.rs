@@ -5,10 +5,10 @@ use super::broker::{AgentProcess, AgentRun};
 use super::Role;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::Path;
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
 
 const MAX_HEADER: usize = 2048;
 const MAX_OUTPUT: usize = 16 * 1024 * 1024;
@@ -77,6 +77,21 @@ fn profile(profile_dir: &Path, expected: &str) -> io::Result<()> {
         return Err(refused("native receipt profile differs"));
     }
     Ok(())
+}
+
+pub(super) fn ensure_receipts(profile_dir: &Path) -> io::Result<PathBuf> {
+    private_dir(profile_dir)?;
+    let receipts = profile_dir.join("native-run-receipts");
+    let created = match DirBuilder::new().mode(0o700).create(&receipts) {
+        Ok(()) => true,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => false,
+        Err(error) => return Err(error),
+    };
+    private_dir(&receipts)?;
+    if created {
+        File::open(profile_dir)?.sync_all()?;
+    }
+    Ok(receipts)
 }
 
 /// Exact identity retained in the Go ledger before the native attempt.
@@ -233,8 +248,6 @@ pub fn write_retained(
     run: &AgentRun,
 ) -> io::Result<()> {
     profile(profile_dir, scope.profile)?;
-    let receipts = profile_dir.join("native-run-receipts");
-    private_dir(&receipts)?;
     if run.output.len() > MAX_OUTPUT || run.candidate_bundle.len() > MAX_BUNDLE {
         return Err(refused("native receipt body bound exceeded"));
     }
@@ -283,6 +296,7 @@ pub fn write_retained(
     if bytes.is_empty() || bytes.len() > MAX_HEADER {
         return Err(refused("native receipt header bound exceeded"));
     }
+    let receipts = ensure_receipts(profile_dir)?;
     let pending = receipts.join(format!("{}.pending", scope.run));
     let committed = receipts.join(format!("{}.receipt", scope.run));
     let mut file = OpenOptions::new()

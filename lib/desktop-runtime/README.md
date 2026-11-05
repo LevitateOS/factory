@@ -238,7 +238,11 @@ is an error. Activation refuses a policy that expired during staging. Its
 cancellation token is available to the future desktop Quit owner. No Go
 admission or desktop lifecycle currently constructs this owner.
 `RunOwner::start` now also requires the existing private profile directory and
-checks its retained `profile.id` before staging. On a completed broker reply,
+checks its retained `profile.id` before staging. It creates and syncs the private
+receipt directory before staging; the receipt
+writer can also create it on first use after validating the exact observation.
+An existing directory must pass the same ownership and mode checks.
+On a completed broker reply,
 it writes a framed v2 receipt to `native-run-receipts/<run>.receipt` under that
 profile: a bounded JSON header with exact run, profile, role, admitted source,
 tool, prompt, process, output and candidate-bundle digest facts, followed by at

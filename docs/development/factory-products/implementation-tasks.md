@@ -25002,3 +25002,17 @@ files), `go vet`, `gofmt -d` and `git diff --check` passed. This is a source-lev
 consumer guard; no Go-to-Rust launch port, durable ledger transaction, real
 provider run or D3 end-to-end settlement was exercised. T09-NATIVE-EXECUTOR
 remains Pending.
+
+T09-NATIVE-EXECUTOR first-use receipt directory (2026-11-05): source inspection
+found that no production path created `native-run-receipts` for a new profile,
+so the credential-bearing `RunOwner::start` would have refused before broker
+staging. Rust now creates and fsyncs that private directory after checking the
+retained profile identity; `write_retained` can also create it after validating
+the exact observation. The existing native receipt fixture removed its empty
+directory immediately before the production writer, then passed creation with
+owner/current UID and mode 0700, complete receipt readback and its existing
+wrong-scope/altered-body/older-version checks. The fixture was built locked
+and offline with build/scratch under `/home`; changed Rust files passed
+`rustfmt --check` and `git diff --check`. This does not exercise
+`RunOwner::start` with a live credential, the Go ledger or crash/reboot
+reconciliation. T09-NATIVE-EXECUTOR and D3 remain open.

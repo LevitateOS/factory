@@ -1,5 +1,6 @@
 //! One native-only owner for an exact isolated run. Product admission is still
 //! supplied by the future Go execution port; this module cannot create it.
+use super::receipt::ensure_receipts;
 use super::{
     write_retained, AgentCancellation, AgentRun, BoundOwner, Broker, Owner, Policy, ReceiptScope,
     Role,
@@ -100,8 +101,7 @@ impl RunOwner {
         {
             return Err(refused("provider receipt profile identity invalid"));
         }
-        let receipts = profile_dir.join("native-run-receipts");
-        private_dir(&receipts).map_err(|_| refused("provider receipt directory invalid"))?;
+        ensure_receipts(profile_dir).map_err(|_| refused("provider receipt directory invalid"))?;
         let run = policy.run().to_owned();
         let profile = policy.profile().to_owned();
         let candidate = policy.candidate().to_owned();

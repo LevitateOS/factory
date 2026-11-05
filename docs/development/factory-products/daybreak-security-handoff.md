@@ -191,6 +191,14 @@ part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
 worker or owner interruption. Do not treat the disposable fixture as D3.
 
+The first-use native receipt directory is now created and synced by
+`lib/desktop-runtime/src/factory_provider/receipt.rs`, and
+`RunOwner::start` ensures it exists after checking `profile.id` and before
+broker staging. The existing receipt fixture removed its empty directory,
+then verified production writer creation with the current UID and mode 0700,
+followed by retained readback. It did not run the credential-bearing owner or
+prove the ledger/restart reconciliation above. Those remain the closure evidence.
+
 For D3 restart reconciliation, `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls
 `Broker::reconcile_profile` before starting the Go backend. That broker client
