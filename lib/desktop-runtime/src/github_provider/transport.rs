@@ -247,7 +247,16 @@ impl Client {
         let wire = self.request(Request::OAuth { endpoint, form }).await?;
         // OAuth errors may use either HTTP success or a refusal status. Decode
         // their bounded JSON in the operation owner; never forward provider prose.
-        if !(200..=499).contains(&wire.status) {
+        // Redirects and non-success bodies without an OAuth error cannot grant
+        // credentials, even if their body otherwise resembles a complete grant.
+        if wire.status != 200
+            && (!(400..=499).contains(&wire.status)
+                || !serde_json::from_slice::<Value>(&wire.bytes)
+                    .ok()
+                    .is_some_and(|body| {
+                        body["error"].as_str().is_some_and(|code| !code.is_empty())
+                    }))
+        {
             return Err(Failure::new(502, "device_authorization_failed"));
         }
         Ok(wire.bytes)

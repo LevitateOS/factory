@@ -1140,13 +1140,15 @@ fn main() {
                 Path::new(&args[3]),
             ));
         }
-        if args.len() == 5 && args[0] == "--github-refresh" {
-            return runtime.block_on(native_github_transport::run_refresh(
+        if args.len() == 4 && args[0] == "--github-refresh-declared" {
+            return runtime.block_on(native_github_transport::run_refresh_declared(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-                Path::new(&args[4]),
             ));
+        }
+        if args.first().is_some_and(|arg| arg == "--github-refresh") {
+            return Err("historical Go refresh observer retired; use --github-refresh-refusal or --github-refresh-declared with production backend, PostgreSQL payload and fresh profile".into());
         }
         if args.len() == 2 && args[0] == "--grant-rotation" {
             return runtime.block_on(run_rotation(Path::new(&args[1])));

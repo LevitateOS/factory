@@ -1333,3 +1333,45 @@ retiring the Go-observer consumers in
 `tools/native-checks/src/native_github_transport.rs` and
 `cmd/soda-desktop/src/check_credentials.rs`. No installed, D1/D2/D3/D5 or executor
 gate is closed by this connected provider check.
+
+Refresh-observer migration finding (2026-11-05, verification pending):
+`github_provider/transport.rs::Client::oauth` previously returned bodies for all
+HTTP 200–499 statuses to the grant decoder. Redirect following was disabled, but
+a complete grant-shaped redirect/error body could still enter identity
+verification. The current change permits success bodies only on 200; HTTP
+400–499 must contain a bounded JSON OAuth error, and redirects refuse. Relevant
+files are `lib/desktop-runtime/src/github_provider/{transport,oauth}.rs` and the
+existing `tools/native-checks/src/native_github_transport.rs` refresh integration.
+The declared loopback-only fixture under
+`/home/vince/tmp/factory-github-oauth-declared-1105/` now supplies full dummy grant
+bodies on redirect/403 plus a documented OAuth error on 400. Required closure
+evidence: production Rust refuses both grant-shaped non-success bodies before
+identity I/O, retains the pending fence, makes only one exchange and refuses
+replay; known structured HTTP error still classifies correctly. No real grant
+is used. This proposed fix is not yet recorded as verified; broad custody,
+installed and other product gates remain open.
+
+OAuth status finding closure evidence (2026-11-05, bounded source check passed):
+The production Rust refresh integration exited 0 under
+`/home/vince/tmp/factory-github-oauth-declared-1105/attempt3/`. Complete dummy grant
+bodies on redirect and HTTP 403 refused before identity I/O, retained pending
+custody, made one exchange and blocked replay; a structured `bad_refresh_token`
+error on HTTP 400 still produced the known refusal. The fixture observed no
+unexpected request and no followed redirect. This verifies the preceding
+proposed status-handling fix for these paths. Unknown/malformed exchange
+outcomes remain fenced. Successful JSON rotation/reload, caller cancellation,
+withdrawal/replacement and joined retirement also passed in the same real
+private keyring/runtime journey, without any real grant.
+
+Safe result SHA-256
+`602c090fa360b339ef9d4af50b8093beebb2ffeae3f0791710389a011c0c13f4`,
+log `b22340bd5e9d0068b348d5a66ccd57fdfdb085016cd3b53f1948498f5a04ec86`,
+fixture source `7024f2813079a31badd0436aa6f42a477afea21ae409a3876a7ec879a6be93b0`.
+Earlier fixture attempts/source are preserved. The historical Go refresh
+observer is retired in favor of `--github-refresh-refusal` (actual invalid
+noncredential) and `--github-refresh-declared` (owned dummy HTTPS fixture).
+These bounded current-source results do not qualify device/verifier/transport
+or declared WebKit obligations not yet migrated. T06-GITHUB stays Active for
+those exact remaining consumers in the canonical inventory. D1/D2/D3/D5 and
+installed native admission/custody/isolation/executor evidence remain open;
+the register's dependencies and required installed journeys still apply.

@@ -555,16 +555,18 @@ pub(super) async fn run_refresh_refusal(
     Ok(())
 }
 
-pub(super) async fn run_refresh(
+// Declared HTTPS only: the same production Rust owner, without a Go HTTP
+// observer or real grants. The standalone refusal mode handles actual GitHub.
+pub(super) async fn run_refresh_declared(
     production: &Path,
-    observed: &Path,
     payload: &Path,
     profile: &Path,
 ) -> Result<()> {
-    run_refresh_refusal(production, payload, profile).await?;
+    prepare(profile)?;
     let io = profile.parent().ok_or("fixture parent missing")?.join("io");
-
-    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     let store = Credentials::open(profile, &runtime.health()?.profile)?;
     let observed_account = || Account::new(Provider::Github, "https://github.com", "123").unwrap();
     let fixture_grant = || {
@@ -586,7 +588,7 @@ pub(super) async fn run_refresh(
         }
         Ok(())
     };
-    for value in ["success", "form"] {
+    for value in ["success", "success-again"] {
         mode(value)?;
         let saved = store
             .store_grant(observed_account(), fixture_grant()?)
@@ -621,16 +623,44 @@ pub(super) async fn run_refresh(
                 && io.join("verified").exists(),
             "refresh replayed or skipped identity/revision validation",
         )?;
+        let reopened = Credentials::open(profile, &runtime.health()?.profile)?;
+        let loaded = reopened.capability(&saved.connection).await?;
+        ensure(
+            reopened
+                .with_token(&loaded, |bytes| bytes == b"factory-refreshed-access")
+                .await?
+                && reopened
+                    .with_refresh_operation(&loaded, async |bytes| {
+                        bytes == b"factory-refreshed-refresh"
+                    })
+                    .await?
+                && reopened.status().await?[0]
+                    .grant
+                    .as_ref()
+                    .is_some_and(|value| {
+                        value.expires_at == info.expires_at
+                            && value.refresh_expires_at == info.refresh_expires_at
+                    }),
+            "rotated grant did not survive encrypted reload",
+        )?;
+        reopened.retire();
     }
-    println!("PASS: declared JSON and form token refresh cross real private runtime and keyring, verify replacement identity, preserve complete expiry/scope/pair, rotate revision and dispatch once without client secret/scope parameters");
+    println!("PASS: declared JSON refresh crosses production Rust HTTPS/keyring, verifies replacement identity, preserves expiry/scope/pair, rotates revision and dispatches once without client secret/scope parameters");
     for (value, status) in [
         ("bad-refresh", 401),
+        ("client-rejected", 403),
+        ("unknown-error", 502),
+        ("form", 502),
+        ("malformed", 502),
         ("missing-refresh", 502),
         ("same-refresh", 502),
         ("invalid-scope", 502),
         ("invalid-expiry", 502),
-        ("oversized", 502),
+        ("oversized", 413),
         ("redirect", 502),
+        ("redirect-grant", 502),
+        ("http-error-grant", 502),
+        ("http-error-known", 401),
         ("identity-denied", 401),
         ("wrong-account", 0),
     ] {
@@ -643,19 +673,31 @@ pub(super) async fn run_refresh(
         ensure(
             if status == 0 {
                 matches!(result, Err(Error::Credential(CredentialError::Retired)))
+            } else if value == "client-rejected" {
+                matches!(result, Err(Error::RefreshClientRejected))
             } else {
                 matches!(result,Err(Error::Provider(code)) if code==status)
             },
-            "declared refresh/identity refusal was lost",
+            &format!("declared {value} refresh/identity refusal was lost"),
         )?;
         ensure(
             matches!(
                 store.status().await?[0].state,
                 CredentialState::RefreshPending
             ) && store.with_token(&cap, |_| ()).await == Err(CredentialError::RefreshPending)
+                && matches!(
+                    runtime.github_refresh(&store, &cap).await,
+                    Err(Error::Credential(CredentialError::RefreshPending))
+                )
                 && fs::read_to_string(io.join("calls"))? == "1",
             "refused refresh exposed old credentials or replayed",
         )?;
+        if !matches!(value, "identity-denied" | "wrong-account") {
+            ensure(
+                !io.join("verified").exists(),
+                "refused exchange reached identity verification",
+            )?;
+        }
     }
     mode("pause-refresh")?;
     let saved = store
@@ -673,7 +715,7 @@ pub(super) async fn run_refresh(
         ),
         "cancelled network refresh lost uncertainty",
     )?;
-    println!("PASS: declared provider/refreshed-identity/malformed/redirect refusals retain uncertainty; actual caller cancellation reaches the Go OAuth transport");
+    println!("PASS: declared provider/identity/malformed/redirect refusals retain uncertainty; dropping the caller cancels production Rust OAuth I/O");
 
     mode("pause-identity")?;
     let saved = store
@@ -735,8 +777,30 @@ pub(super) async fn run_refresh(
     )?;
     cancelled(&io).await?;
     store.withdraw(&saved.connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "declared refresh fixture account not removed",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "declared OAuth followed a redirect or released an unexpected request",
+    )?;
     store.retire();
-    println!("PASS: withdrawal during actual identity I/O and replacement during token I/O survive late replies; native stop cancels upstream refresh and retires the captured result; real private PG/backend cleanly stop; actual successful GitHub login/refresh remains unqualified");
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("refresh-declared-result.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "declared_https_only":true,"production_rust_connector":true,"real_grant_used":false,
+            "complete_rotation_and_reload":true,"one_exchange_per_rotation":true,
+            "provider_and_identity_refusals":true,"malformed_or_incomplete_refusals":true,
+            "non_success_grant_refused_before_identity":true,"redirect_not_followed":true,
+            "caller_cancelled_upstream":true,"withdrawal_and_replacement_preserved":true,
+            "retirement_joined":true,"owned_local_account_removed":true
+        }))?,
+    )?;
+    println!("PASS: pending Rust identity/token I/O cannot publish after withdrawal/replacement; native stop joins upstream refresh, pending custody remains fenced and owned PG/backend stop; declared evidence only");
     Ok(())
 }
 /// Declared transport only; proves that full grants compose across the native
@@ -930,7 +994,7 @@ async fn cancelled(io: &Path) -> Result<()> {
     while !io.join("cancelled").exists() {
         ensure(
             Instant::now() < until,
-            "device cancellation did not reach Go network request",
+            "cancellation did not reach provider network request",
         )?;
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
@@ -971,7 +1035,7 @@ async fn entered<T, E: std::fmt::Display>(
         }
         ensure(
             Instant::now() < until,
-            "actual Go transport did not reach barrier",
+            "provider transport did not reach barrier",
         )?;
         tokio::time::sleep(Duration::from_millis(10)).await;
     }

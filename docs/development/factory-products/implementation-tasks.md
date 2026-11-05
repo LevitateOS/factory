@@ -26374,7 +26374,7 @@ Historical observer migration inventory (source audit; still unqualified):
 
 | Existing consumer | Exact missing current coverage before retirement |
 | --- | --- |
-| `tools/native-checks/src/native_github_transport.rs` `run_refresh` / CLI `--github-refresh` | The actual-provider negative phase now runs independently. Migrate declared success/rotation, malformed or incomplete pair, scope/expiry, identity refusal/change, cancellation, withdrawal, replacement and retirement to the production Rust HTTPS/OAuth owner. The old second-backend hooks observe superseded Go HTTP. |
+| `tools/native-checks/src/native_github_transport.rs` historical `run_refresh` / CLI `--github-refresh` | Migrated: actual-provider refusal is `--github-refresh-refusal`; declared production-Rust HTTPS/custody cases are `--github-refresh-declared`. The old Go-observer option now refuses with the replacement commands. Verified details below; other consumers in this table remain pending. |
 | Same file `run_grant` / `--github-grant` | Current device grant → fresh identity → full native encrypted grant reload, preserving both expiry fields and refresh. Actual positive consent/reload already ran; declared shape/refusal coverage still needs current transport. |
 | Same file `run_device` / `--github-device` | Preserve actual unapproved challenge/cancellation; migrate declared pending/slow-down, long-lived grant, denial/expiry/deadline, malformed challenge/grant, redirect/size refusal, cancellation and retired authorization. |
 | Same file `run_verify` / `--github-verify` | Preserve actual unauthenticated identity refusal and empty custody; move declared cancellation and retired unpersisted verification to Rust HTTP, without expecting Go request-header observers. |
@@ -26415,3 +26415,55 @@ retroactive pass is claimed. The actual provider-side revocation/subsequent
 refusal/local removal obligation is now satisfied. T06-GITHUB stays Active for
 the inventoried historical observer migration/retirement, with no installed or
 executor qualification implied.
+
+Refresh observer migration (2026-11-05, verified checkpoint):
+
+The existing headless native operation check now runs the complete declared
+refresh obligation against the production Rust connector and actual private
+keyring/Go/PostgreSQL, without a second Go-observer binary. Its loopback-only
+HTTPS fixture supplies only literal dummy grants and process-local trust; it has
+no forwarding or outbound connection. The retired source is preserved in Git
+and in `/home/vince/tmp/factory-github-oauth-declared-1105/historical-go-observer.rs`.
+
+`--github-refresh-declared BACKEND POSTGRES_PAYLOAD FRESH_PROFILE` passed in
+`/home/vince/tmp/factory-github-oauth-declared-1105/attempt3/`:
+
+- Two complete JSON rotations verified current identity, account/connection,
+  expiry/scope/pair and encrypted reload, invalidated the old capability and
+  made one exchange per rotation with no client-secret/scope refresh fields.
+- Sixteen refusal cases covered known token/client errors, unknown errors,
+  unexpected form/malformed bodies, absent/unchanged refresh, scope/expiry,
+  size, redirects, complete grant-shaped redirect/HTTP-error bodies, a known
+  structured OAuth error on HTTP 400, identity refusal and changed account.
+  Every refused rotation retained its pending fence and blocked the second
+  exchange before network. Token-exchange refusals did not reach identity I/O.
+- Actual caller drop cancelled Rust TLS I/O; pending identity/token operations
+  could not publish after withdrawal/replacement; native stop joined the
+  provider operation, refused the captured result and shut down owned Go/PG.
+  The fixture saw no unexpected request, redirects were not followed, and the
+  owned local account was removed.
+
+This migration found and fixed OAuth status handling in
+`github_provider/transport.rs`: a grant body can only succeed on HTTP 200;
+HTTP 400–499 must carry a bounded JSON OAuth error, and redirects refuse even
+when their body resembles a full grant. Unknown outcomes remain unconfirmed.
+The prior Go SDK's incidental form-response acceptance is retired: the current
+Rust client requests JSON explicitly, and unexpected form bodies are qualified
+as refusal. Rust's existing bounded-body outcome is 413, rather than the old
+Go observer's generic 502. These are explicit contract distinctions.
+
+Safe result SHA-256
+`602c090fa360b339ef9d4af50b8093beebb2ffeae3f0791710389a011c0c13f4`,
+log `b22340bd5e9d0068b348d5a66ccd57fdfdb085016cd3b53f1948498f5a04ec86`,
+fixture source `7024f2813079a31badd0436aa6f42a477afea21ae409a3876a7ec879a6be93b0`.
+Attempt1 exposed the expected-status difference; attempt2 passed the suite before
+the explicit final no-unexpected-request/empty-custody assertions; both remain
+preserved. Locked/offline native-check desktop and operation-binary builds,
+boundary checks and whitespace checks passed. These are bounded source
+integration results using the captured inputs, not a fresh installed baseline.
+
+T06-GITHUB remains Active for grant/device/verifier/transport/declared-WebKit
+consumer migration from the inventory. The actual remote revocation obligation
+remains satisfied by the preceding connected journey; its captured binary
+predates this OAuth status narrowing. No new owner consent was requested solely
+for that narrowing. D1/D2/D3/D5, executor and installed gates remain open.
