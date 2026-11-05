@@ -318,3 +318,29 @@ pub fn read_custody(
     }
     snapshot(&directory, &header, false).map(Some)
 }
+
+/// The new profile owner has an exact broker-retirement acknowledgement.
+/// Recover only an already sealed acquisition; never infer local cleanup from
+/// a missing owner or manufacture a seal for an interrupted journal.
+pub(super) fn release_recovered(
+    profile_dir: &Path,
+    scope: &ReceiptScope<'_>,
+    expected: &CustodyObservation,
+) -> io::Result<()> {
+    let current = read_custody(profile_dir, scope, &expected.connection)?
+        .ok_or_else(|| refused("native recovery custody missing"))?;
+    if !current.sealed
+        || current.acquisition_id != expected.acquisition_id
+        || current.generation != expected.generation
+    {
+        return Err(refused("native recovery custody is not sealed or differs"));
+    }
+    let directory = profile_dir.join("native-run-custody").join(scope.run);
+    let header: Header = serde_json::from_slice(&read_file(&directory.join("acquisition.json"))?)?;
+    let value = marker(&header)?;
+    if !marked(&directory, "released", &value)? {
+        write_file(&directory, "released", &value)?;
+    }
+    File::open(directory.join("released"))?.sync_all()?;
+    File::open(directory)?.sync_all()
+}

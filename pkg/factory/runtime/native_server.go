@@ -134,6 +134,8 @@ func nativeHandler(config NativeConfig, instance string, application *NativeAppl
 	// The outer handler still requires the native peer/key and rejects browsers.
 	mux.Handle("/api/native/execution/recovery/", nativeExecutionRecovery(config, instance, db))
 	mux.Handle("/api/native/execution/recovery/observations", nativeExecutionObservation(config, instance, db))
+	mux.Handle("/api/native/execution/recovery/retired", nativeExecutionRetirement(config, instance, db))
+	mux.Handle("/api/native/execution/recovery/pending", nativeExecutionPending(config, instance, db))
 	if connector != nil {
 		nativeConnector := application.application.Coordinator.AdmitHTTP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {

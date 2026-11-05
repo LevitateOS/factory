@@ -830,10 +830,182 @@ func checkNativeObservation(profile, instance, path string) error {
 	return nil
 }
 
+func startupRetirementFixture(profile, instance, operation, argument string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	id, err := os.ReadFile(filepath.Join(profile, "native-recovery-canonical.id"))
+	if err != nil {
+		return err
+	}
+	if operation == "hold-native-row" {
+		tx, err := rawDB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		var found string
+		if err = tx.QueryRowContext(ctx, "SELECT id FROM factory_runs WHERE id=$1 FOR UPDATE", string(id)).Scan(&found); err != nil {
+			return err
+		}
+		if err = os.WriteFile(argument, []byte("locked"), 0600); err != nil {
+			return err
+		}
+		<-ctx.Done()
+		return nil
+	}
+	if operation != "check-startup-retirement" {
+		return errors.New("unknown startup fixture operation")
+	}
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	run, err := db.FactoryRun(ctx, string(id))
+	if err != nil {
+		return err
+	}
+	if run.Native == nil || run.Native.Retirement != execution.Retired || !run.Native.Sealed || run.Native.Provenance.Custody.State != execution.Released || run.Native.Provenance.Process == nil || run.Reconciled || run.Outcome != "" || run.Admission != nil {
+		return errors.New("startup retirement promoted outcome/placement or lost native proof")
+	}
+	n := run.Native
+	intent, err := os.ReadFile(filepath.Join(profile, "native-run-intents", n.Provenance.BrokerRun+".json"))
+	if err != nil || string(intent) != n.Intent {
+		return errors.New("startup replaced original intent")
+	}
+	file, err := os.Open(filepath.Join(profile, "native-run-receipts", n.Provenance.BrokerRun+".receipt"))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	header := make([]byte, 4)
+	if _, err = io.ReadFull(file, header); err != nil {
+		return err
+	}
+	length := int(header[0]) | int(header[1])<<8 | int(header[2])<<16 | int(header[3])<<24
+	if length < 1 || length > 2048 {
+		return errors.New("receipt header fixture bound")
+	}
+	header = make([]byte, length)
+	if _, err = io.ReadFull(file, header); err != nil {
+		return err
+	}
+	var observed struct {
+		Invocation    string
+		WorkerUID     int    `json:"worker_uid"`
+		StartIdentity string `json:"start_identity"`
+	}
+	if json.Unmarshal(header, &observed) != nil || observed.Invocation != n.Provenance.Process.InvocationID || observed.WorkerUID != n.Provenance.Isolation.WorkerUID || observed.StartIdentity != n.Provenance.Process.StartIdentity {
+		return errors.New("startup process differs from original receipt")
+	}
+	var active, settled bool
+	if err = rawDB.QueryRowContext(ctx, "SELECT active,settled FROM factory_runs WHERE id=$1", run.ID).Scan(&active, &settled); err != nil || !active || settled {
+		return errors.New("startup settled the active run")
+	}
+	items, _, err := db.NativeRecoveryCandidates(ctx, config.Profile, 0)
+	if err != nil || len(items) != 0 {
+		return errors.New("root-retirement acknowledgement remains pending")
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", config.Socket)
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+	request := func(method, path, selected string, body map[string]any, mutate func(*http.Request), want int) error {
+		var payload io.Reader
+		if body != nil {
+			encoded, err := json.Marshal(body)
+			if err != nil {
+				return err
+			}
+			payload = strings.NewReader(string(encoded))
+		}
+		req, err := http.NewRequestWithContext(ctx, method, "http://soda-native"+path, payload)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
+		req.Header.Set("X-Soda-Native-Instance", selected)
+		if mutate != nil {
+			mutate(req)
+		}
+		response, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		_, _ = io.Copy(io.Discard, response.Body)
+		if response.StatusCode != want {
+			return fmt.Errorf("native retirement fixture %s: status %d want %d", path, response.StatusCode, want)
+		}
+		return nil
+	}
+	retired := "/api/native/execution/recovery/retired"
+	payload := func(intent, invocation, acquisition string) map[string]any {
+		return map[string]any{"intent": intent, "invocation": invocation, "acquisition_id": acquisition}
+	}
+	correct := payload(n.Intent, n.Provenance.Process.InvocationID, n.Provenance.Custody.AcquisitionID)
+	for _, check := range []struct {
+		selected string
+		body     map[string]any
+		want     int
+	}{
+		{instance, correct, 200},
+		{factory.NewID(), correct, 401},
+		{instance, payload(n.Intent+" ", n.Provenance.Process.InvocationID, n.Provenance.Custody.AcquisitionID), 409},
+		{instance, payload(n.Intent, "different-invocation", n.Provenance.Custody.AcquisitionID), 409},
+		{instance, payload(n.Intent, n.Provenance.Process.InvocationID, factory.NewID()), 409},
+	} {
+		if err = request("POST", retired, check.selected, check.body, nil, check.want); err != nil {
+			return err
+		}
+	}
+	for _, field := range []string{"outcome", "reconciled"} {
+		body := payload(n.Intent, n.Provenance.Process.InvocationID, n.Provenance.Custody.AcquisitionID)
+		body[field] = true
+		if err = request("POST", retired, instance, body, nil, 400); err != nil {
+			return err
+		}
+	}
+	if err = request("POST", retired, instance, correct, func(r *http.Request) { r.Header.Set("Origin", "http://fixture.invalid") }, 403); err != nil {
+		return err
+	}
+	if err = request("POST", retired, instance, correct, func(r *http.Request) { r.Header.Set("Authorization", "Bearer wrong") }, 401); err != nil {
+		return err
+	}
+	for _, cursor := range []string{"0", "01", "-1", "9223372036854775808", "0&extra=1", "0&cursor=0"} {
+		want := 400
+		if cursor == "0" {
+			want = 200
+		}
+		if err = request("GET", "/api/native/execution/recovery/pending?cursor="+cursor, instance, nil, nil, want); err != nil {
+			return err
+		}
+	}
+	after, err := db.FactoryRun(ctx, run.ID)
+	if err != nil || !reflect.DeepEqual(after, run) {
+		return errors.New("native retirement replay/refusal changed retained row")
+	}
+	fmt.Println("PASS: actual restart keeps original process/intent/acquisition, records only root resource retirement, drains pending acknowledgement and leaves outcome/active/unplaced state unchanged")
+	fmt.Println("PASS: root-retirement replay is stable; stale/browser/wrong-key, changed intent/process/acquisition, invented outcome and invalid inventory cursors refuse")
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "check-native-observation" {
+		if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
+			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+		} else if os.Args[3] == "check-native-observation" {
 			err = checkNativeObservation(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "create-native-intent" || os.Args[3] == "finish-native-intent" {
 			err = nativeIntentFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])

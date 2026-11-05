@@ -1,5 +1,6 @@
-//! Compare private Go ledger observations with native evidence. These reads
-//! grant no launch, broker retirement or product outcome/settlement authority.
+//! Compare private Go ledger observations with native evidence. Reads grant no
+//! launch or settlement authority. Startup-only recovery separately retires
+//! exact sealed resources before the profile owner publishes readiness.
 use super::{
     read_custody, read_intent, read_retained, AgentRun, CustodyObservation, CustodyState,
     LaunchIntent, ReceiptScope, Role,
@@ -70,8 +71,7 @@ struct RecordedRun {
     deadline: String,
     #[serde(rename = "context_pending")]
     _context_pending: bool,
-    #[serde(rename = "reconciled")]
-    _reconciled: bool,
+    reconciled: bool,
     #[serde(rename = "outcome")]
     _outcome: String,
     native: RecordedNative,
@@ -86,8 +86,7 @@ struct RecordedNative {
     bundle_sha256: String,
     prompt_sha256: String,
     provenance: RecordedProvenance,
-    #[serde(rename = "retirement")]
-    _retirement: String,
+    retirement: String,
     sealed: bool,
 }
 #[derive(Deserialize)]
@@ -320,6 +319,10 @@ impl NativeRecovery {
             .await
             .map_err(|_| refused("native recovery observation unavailable"))?;
         self.context.current()?;
+        self.acknowledgement(response, "native_observation_recorded")
+    }
+
+    fn acknowledgement(&self, response: soda_unix_http::Response, status: &str) -> io::Result<()> {
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Ack {
@@ -333,7 +336,7 @@ impl NativeRecovery {
         }
         let ack: Ack = serde_json::from_slice(&response.body)
             .map_err(|_| refused("native recovery acknowledgement invalid"))?;
-        if ack.status != "native_observation_recorded"
+        if ack.status != status
             || ack.instance != self.context.instance
             || ack.profile != self.context.profile
             || ack.run != self.run.id
@@ -341,6 +344,59 @@ impl NativeRecovery {
             return Err(refused("native recovery acknowledgement binding differs"));
         }
         Ok(())
+    }
+
+    /// Called only by the profile lifecycle owner before publishing startup.
+    /// Complete retained work and a prior local seal are required; no missing
+    /// evidence is repaired by assuming the old owner is gone.
+    async fn recover_root(&self) -> io::Result<()> {
+        let evidence = self.read_evidence()?;
+        let intent = evidence
+            .intent
+            .ok_or_else(|| refused("native recovery intent missing"))?;
+        let receipt = evidence
+            .receipt
+            .ok_or_else(|| refused("native recovery receipt missing"))?;
+        let custody = evidence
+            .custody
+            .ok_or_else(|| refused("native recovery acquisition missing"))?;
+        if !custody.sealed
+            || !receipt.output_complete
+            || !matches!(self.run.role.as_str(), "soda-reviewer" | "reviewer")
+                && !matches!(receipt.candidate_state.as_str(), "captured" | "unchanged")
+        {
+            return Err(refused(
+                "native recovery local seal or complete work unconfirmed",
+            ));
+        }
+        if self.run.reconciled {
+            if self.run.native.retirement != "retired" || custody.state != CustodyState::Released {
+                return Err(refused("settled native recovery facts differ"));
+            }
+        } else {
+            self.record_evidence().await?;
+        }
+        self.context.current()?;
+        super::Broker::retire_launched(
+            self.broker_run(),
+            &self.context.profile,
+            &self.run.native.bundle_sha256,
+        )?;
+        self.context.current()?;
+        super::custody::release_recovered(&self.context.directory, &self.scope()?, &custody)?;
+        if !self.run.reconciled {
+            self.record_evidence().await?;
+        }
+        let body = serde_json::to_vec(
+            &serde_json::json!({"intent":intent.raw(),"invocation":receipt.process.invocation,"acquisition_id":custody.acquisition_id}),
+        )?;
+        let response = self
+            .products
+            .retire_recovery(&body)
+            .await
+            .map_err(|_| refused("native root retirement record unavailable"))?;
+        self.context.current()?;
+        self.acknowledgement(response, "native_root_retirement_recorded")
     }
 
     fn compare_process(&self, observed: &AgentRun) -> io::Result<()> {
@@ -371,4 +427,95 @@ impl NativeRecovery {
         // transaction owner. This method compares the immutable native anchor.
         Ok(())
     }
+}
+
+/// Startup-only reconciliation. The caller retains the exclusive profile lock,
+/// Go Store is available, and product/provider startup has not been published.
+pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Result<usize> {
+    let captured = products.recovery_context();
+    captured.current()?;
+    if captured.profile != profile {
+        return Err(refused("native recovery profile differs"));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for _ in 0..64 {
+        let Some((run, source, launched, pending)) = super::Broker::next_profile_state(profile)?
+        else {
+            break;
+        };
+        if !seen.insert(run.clone()) {
+            return Err(refused("native root recovery did not advance"));
+        }
+        if !launched && !pending {
+            if !super::Broker::retire_unlaunched(&run, profile, &source)? {
+                return Err(refused("native staging recovery did not advance"));
+            }
+        } else {
+            let recovered = NativeRecovery::read(products.clone(), &run).await?;
+            if recovered.run.native.bundle_sha256 != source {
+                return Err(refused("native root recovery source differs"));
+            }
+            recovered.recover_root().await?;
+        }
+    }
+    if super::Broker::next_profile_run(profile)?.is_some() {
+        return Err(refused("native root recovery capacity exceeded"));
+    }
+    // Also finish a lost Go acknowledgement after the root already disappeared.
+    let context = products.recovery_context();
+    let mut cursor = "0".to_owned();
+    loop {
+        context.current()?;
+        let response = products
+            .pending_recovery(&cursor)
+            .await
+            .map_err(|_| refused("native pending recovery unavailable"))?;
+        if response.status != 200 || response.body.len() > 16384 {
+            return Err(refused("native pending recovery refused"));
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Candidate {
+            broker_run: String,
+            source_sha256: String,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Page {
+            kind: String,
+            version: u8,
+            profile: String,
+            instance: String,
+            items: Vec<Candidate>,
+            next: String,
+        }
+        let page: Page = serde_json::from_slice(&response.body)
+            .map_err(|_| refused("native pending recovery shape invalid"))?;
+        if page.kind != "native_recovery_pending"
+            || page.version != 1
+            || page.profile != context.profile
+            || page.instance != context.instance
+            || page.items.len() > 32
+            || !page.next.is_empty()
+                && !page.next.parse::<i64>().is_ok_and(|value| {
+                    value > cursor.parse::<i64>().unwrap_or(-1) && value.to_string() == page.next
+                })
+        {
+            return Err(refused("native pending recovery binding differs"));
+        }
+        for candidate in page.items {
+            let recovered = NativeRecovery::read(products.clone(), &candidate.broker_run).await?;
+            if recovered.run.native.bundle_sha256 != candidate.source_sha256 {
+                return Err(refused("native pending recovery source differs"));
+            }
+            recovered.recover_root().await?;
+            seen.insert(candidate.broker_run);
+        }
+        if page.next.is_empty() {
+            break;
+        }
+        cursor = page.next;
+    }
+    context.current()?;
+    Ok(seen.len())
 }

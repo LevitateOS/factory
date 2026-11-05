@@ -15,6 +15,8 @@ enum RequestRoute {
     Product,
     Recovery,
     RecoveryObservation,
+    RecoveryRetirement,
+    RecoveryPending,
 }
 
 type Result<T> = std::result::Result<T, String>;
@@ -175,6 +177,24 @@ impl Products {
                     && !body.is_empty()
                     && operation.is_none()
             }
+            RequestRoute::RecoveryRetirement => {
+                method == "POST"
+                    && target == "/api/native/execution/recovery/retired"
+                    && !body.is_empty()
+                    && operation.is_none()
+            }
+            RequestRoute::RecoveryPending => {
+                method == "GET"
+                    && body.is_empty()
+                    && operation.is_none()
+                    && target
+                        .strip_prefix("/api/native/execution/recovery/pending?cursor=")
+                        .is_some_and(|cursor| {
+                            cursor
+                                .parse::<i64>()
+                                .is_ok_and(|value| value >= 0 && value.to_string() == cursor)
+                        })
+            }
         };
         if !supported
             || target.len() > 2048
@@ -247,6 +267,30 @@ impl Products {
             body,
             None,
             RequestRoute::RecoveryObservation,
+        )
+    }
+    pub(crate) fn retire_recovery(
+        &self,
+        body: &[u8],
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(
+            "POST",
+            "/api/native/execution/recovery/retired",
+            body,
+            None,
+            RequestRoute::RecoveryRetirement,
+        )
+    }
+    pub(crate) fn pending_recovery(
+        &self,
+        cursor: &str,
+    ) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(
+            "GET",
+            &format!("/api/native/execution/recovery/pending?cursor={cursor}"),
+            &[],
+            None,
+            RequestRoute::RecoveryPending,
         )
     }
     fn request_scoped(

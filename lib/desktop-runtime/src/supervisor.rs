@@ -97,6 +97,29 @@ impl NativeSupervisor {
                             return children.stop();
                         }
                     };
+                if children.broker {
+                    let recovery = (|| {
+                        let runtime = tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .map_err(|_| "native recovery runtime could not start".to_owned())?;
+                        runtime
+                            .block_on(crate::factory_provider::recovery::recover_profile(
+                                products.handle.clone(),
+                                &children.identity,
+                            ))
+                            .map_err(|error| {
+                                format!("native broker restart recovery unconfirmed: {error}")
+                            })?;
+                        children.health().map(|_| ())
+                    })();
+                    if let Err(error) = recovery {
+                        let _ = started.send(Err(error.clone()));
+                        let _ = products.stop();
+                        let _ = children.stop();
+                        return Err(error);
+                    }
+                }
                 let mut github =
                     match crate::github_provider::Owner::start_with_alive(owner_alive.clone()) {
                         Ok(github) => github,
@@ -346,6 +369,7 @@ struct Children {
     key: String,
     instance: Option<String>,
     _lock: File,
+    broker: bool,
 }
 impl Children {
     fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -369,14 +393,10 @@ impl Children {
             .map_err(|error| error.to_string())?;
         let identity = read_private(&profile.join("profile.id"), 32)?;
         // The supervisor lock excludes another live owner of this profile.
-        // If the dedicated broker is installed, settle its exact stale run
-        // state before Go can admit a new product incarnation. An unavailable
-        // installed broker is a startup failure, not an empty reconciliation.
-        match fs::symlink_metadata("/run/soda-factory/broker.sock") {
-            Ok(_) => {
-                crate::factory_provider::Broker::reconcile_profile(&identity)
-                    .map_err(|_| "native broker restart cleanup unconfirmed")?;
-            }
+        // Inspect installation before starting Go. Exact recovery follows
+        // Store readiness, before product/provider startup is published.
+        let broker = match fs::symlink_metadata("/run/soda-factory/broker.sock") {
+            Ok(_) => true,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 for unit in [
                     "/etc/systemd/system/soda-factory-broker.socket",
@@ -391,9 +411,10 @@ impl Children {
                         }
                     }
                 }
+                false
             }
             Err(_) => return Err("native broker inspection unavailable".into()),
-        }
+        };
         let key = read_private(&profile.join("backend.key"), 64)?;
         let log = private_file(&profile.join("backend.log"), false)
             .map_err(|_| "native backend log is unavailable")?;
@@ -424,6 +445,7 @@ impl Children {
             key,
             instance: None,
             _lock: lock,
+            broker,
         };
         let deadline = Instant::now() + START_TIMEOUT;
         loop {

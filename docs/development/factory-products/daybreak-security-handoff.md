@@ -213,9 +213,9 @@ kernel/manager I/O or a full activation backlog. Those remain unverified.
 
 Remaining blockers are concrete. An uncertain factory has no usable execution
 handle after its preparation thread is joined; recovery must compare captured
-intent, root and custody evidence before claiming no effects or freeing its slot. `supervisor.rs` does not yet retain
-this registry, and its existing `Children::start` broker reconciliation still
-precedes availability of the Go ledger. Compose startup/retirement and the Go
+intent, root and custody evidence before claiming no effects or freeing its slot.
+`supervisor.rs` does not yet retain this registry. Its startup recovery now follows
+Go Store readiness, as recorded below. Compose lifecycle retirement and the Go
 `RunLauncher`/`RunObserver`/`CustodyObserver` ports without activating intake
 before dependencies are admitted. Compare canonical Go addresses and placement
 against native profile/instance/broker selectors explicitly. Prove interrupted
@@ -249,8 +249,9 @@ This used declared native records and retained local build/database inputs,
 without a broker root, actual launch/placement admission, process kill, provider
 credential or real model task. Captured placement projection is not yet exercised
 through a production dispatch packet. A Rust reader and exact native scope/process-anchor/custody comparison now
-exist as described below. Durable intent binding, post-ledger startup ordering
-and atomic Go outcome recovery remain to implement and qualify. Missing or conflicting reads must leave native
+exist as described below. Durable intent binding and post-ledger resource startup
+now have component evidence below; atomic Go outcome recovery remains to implement
+and qualify. Missing or conflicting reads must leave native
 recovery pending. No gate closes from this producer; D3 remains open.
 
 The read consumer now exists in
@@ -296,8 +297,9 @@ original Go instance/worktree and canonical address lacked an independent
 native intent binding at that checkpoint: receipt/custody scope contains broker
 selector, profile, source/base/role/tool/prompt but not that full mapping. The
 separate intent producer/read comparison now exists as described below; its
-production admission/recovery dependencies remain in the register. Native startup still refuses a launched root before Go
-is available. Compose durable intent, post-ledger recovery and Go transactional
+production admission/recovery dependencies remain in the register. At that
+checkpoint startup refused a launched root before Go; the later post-ledger
+resource recovery below supersedes that ordering. Compose Go transactional
 settlement, then qualify interruption, lost replies, actual provider execution,
 Quit and restart/reboot before enabling intake. D3 remains open.
 
@@ -350,12 +352,13 @@ an actual dispatch packet, admitted placement, provider inference, interrupted
 writes during a real owner kill, reboot, installed Quit or Go outcome settlement.
 Remaining dependencies: record this intent in the atomic admitted Go dispatch
 packet before the external call, require it on the production native launch
-ports, compose current run/custody/MCP/credential admission, order restart after
-ledger availability, and reconcile exact observations transactionally. Missing
+ports, compose current run/custody/MCP/credential admission and reconcile outcomes
+transactionally. Startup now follows ledger availability, with the resource-only
+evidence below. Missing
 history must stay fenced instead of being backfilled. Prove real interrupted
 publication/launch/replies, worker/owner death, root/process/credential retirement,
 normal restart/reboot, actual finite provider handling and installed Quit. The
-pre-Go launched-root fence remains active; N3/N4/D3 remain open.
+unproved launched roots remain fenced; N3/N4/D3 remain open.
 
 Native recovery fact recording now has a production path without starting the
 coordinator. `factory_provider/recovery.rs::NativeRecovery::record_evidence`
@@ -400,11 +403,70 @@ runtime/placement generation, not admitted dispatch or actual provider inference
 The observation transaction proves neither root retirement nor ledger outcome,
 reservation/accounting settlement, interrupted-owner recovery or installed Quit.
 Production dispatch still explicitly rejects native packets pending its owning
-placement/execution gates. Keep that fence while composing post-ledger startup,
-exact broker retirement, output/candidate handling and the existing Go settlement
+placement/execution gates. Keep that fence while composing output/candidate
+handling and the existing Go settlement
 owner. Prove actual interrupted launch/write/commit replies, worker/owner death,
 restart/reboot, admitted finite provider work and installed retirement. No N3/N4
 or D3 gate closes here; facts-only recording must not become an intake bypass.
+
+### Current post-ledger resource recovery evidence
+
+`supervisor.rs` now starts the private Go Store before native root recovery,
+retaining the exclusive profile lock and withholding product/provider readiness.
+`factory_provider/recovery.rs::recover_profile` retires confirmed unlaunched
+staging through the launch-fenced broker call. A launched or partially retired
+root requires the unique Go binding, exact local intent, complete receipt and
+already durable custody seal. Coder work additionally requires captured or
+unchanged candidate evidence. Missing proof refuses startup and preserves the
+root. `run.rs` now seals confirmed local thread/socket/placeholder cleanup before
+the broker effect. `custody.rs::release_recovered` never creates a missing seal;
+it records release only after the exact broker retirement acknowledgement.
+
+`pkg/store/factory_native_retirement.go` owns the subsequent PostgreSQL
+transaction. It locks the canonical run, compares immutable intent and retained
+process/acquisition plus sealed/released custody, and advances only native
+retirement. The fixed private routes in
+`pkg/factory/runtime/native_execution_retirement.go` retain current peer/key and
+instance admission. A bounded paged inventory finds fact-recorded pending rows
+after root removal, allowing a lost acknowledgement to be retried. Neither
+inventory nor retirement settles outcomes, spending, reservations, active/settled
+flags or placement. Unobserved intent-only history is not adopted.
+
+The existing real isolated finite-ELF/private-keyring/PostgreSQL/Go integration
+fixture passed two actual SIGKILL owner interruptions: after durable receipt and
+seal before root retirement, and after root removal/release while the next Go
+write waited behind a fixture row lock. Owned Go/PostgreSQL exits were confirmed
+with pidfds. Removing the exact seal refused startup with the root preserved;
+restoring its original inode permitted recovery. The final startup discovered
+the pending Go row with no root and retained the original process, intent,
+acquisition and instance while leaving the run active, unsettled and unplaced.
+Retirement replay was stable. Stale/browser/wrong-key requests, altered
+intent/process/acquisition, invented outcome fields and invalid inventory
+cursors refused. Agent/relay MainPIDs were zero, run/preparation roots absent,
+and disposable units removed. Evidence and exact drivers:
+`/home/vince/tmp/fnr-start3-1105/`; result SHA-256:
+`f47d4385b2779ca9af5d4ae923baf7dc888bc0263ec3e8928d35df43d34a34f2`.
+
+Earlier failed checks are retained under `fnr-start1-1105` (seal ordering) and
+`fnr-start2-1105` (fixture pidfd polling bug, then successful resumed recovery).
+The first disposable root was explicitly cleaned up from its exact receipt;
+neither a missing seal nor Go retirement was fabricated. The final fresh check
+above uses the corrected production ordering and monitor. Locked offline runtime
+and driver builds, affected Go builds, formatting and whitespace checks passed.
+
+This remains retained-input/dummy-only evidence with declared unplaced Go
+metadata and synthetic runtime/placement. Exact blockers: production atomic
+admitted dispatch/ports still depend on N3, T06-CONNECT and T12-PLACEMENT; no
+coordinator/native intake starts. Missing/torn intent, receipt, seal or release
+proof remains unresolved and must not be reconstructed from owner absence.
+Interrupted launch/write/commit boundaries beyond those checked, worker death,
+reboot/power loss, complete output/candidate adoption and Go transactional
+outcome/accounting recovery still require implementation or evidence. Real
+finite provider work and installed Quit remain unverified. Close these only
+with actual admitted effects, exact resource/custody evidence and durable
+settlement across those failures. N3/N4/D3 remain open. Routine implementation
+and checks stay in the normal queue; use user-started Daybreak if a particular
+check looks like hacking.
 
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
@@ -564,7 +626,7 @@ IPC, so the connected gate remains open.
 | GitHub credential custody and revocation: T06-GITHUB and the connected GitHub consumers | The cohesive Rust connector is implemented, but the final provider gate depends on T06-CONNECT and T06-GITHUB-EVIDENCE. The connected desktop has not proved remote revocation and full private/paged/current-head observations. | `lib/desktop-runtime/src/credentials/`, `lib/desktop-runtime/src/github_provider/`, `lib/desktop-runtime/src/github.rs`, `pkg/factory/runtime/native_product_observations.go`, `pkg/factory/runtime/native_product_reads.go` | The Go native token route was retired; Rust owns OAuth, refresh, HTTPS, decoding and native credential lifetime. Approved native reads, private access, refresh and retained identity are recorded in the plan. | Prove final connected consent/identity/storage, current-account and canonical binding, private/paged observations, refresh if issued, remote revocation and local removal without credential disclosure. Retire or migrate historical Go-observer check consumers only with equivalent current evidence. |
 | D1 standing GitHub automation policy: T11-INTAKE, T12-GITHUB-PRS and installed GitHub automation | T11-INTAKE depends on T09-EXECUTION, T11-WRITES and T12-PLACEMENT. Before automatic intake, select and enforce the explicit standing authorization policy or retain original-author creation evidence as mandatory; discovered work must wait for maintainer adoption until then. | `pkg/factory/runtime/placement.go`, `pkg/factory/control/dispatch_launch.go`, `pkg/factory/execution/`, `lib/desktop-runtime/src/github_provider/` | The plan identifies the policy choices and keeps automatic intake inactive. Existing canonical authorization and ledger owners remain Go. | Record the selected policy, eligible actor/fork/repository, limits and accepted revision; prove authenticated polling/cursors, wake reconciliation, refusal of unauthorized or self-triggered work, and the eligible issue-to-PR journey through the admitted isolated executor. |
 | D2 Fountain desktop authentication and grant revocation: T10-GATEWAY, then T10-PUBLISH/T10-INTAKE and desktop Fountain journeys | T10-GATEWAY depends on T05-CREDENTIALS, T06-FOUNTAIN, T10-WRITES and T12-PLACEMENT. Supported native enrollment/login and revocable grants have not been proved. Browser authority must not be spoofed and the raw Unix socket must not be exposed. | `lib/desktop-runtime/src/credentials.rs`, `cmd/soda-desktop/src/{main,bridge}.rs`, `pkg/factory/runtime/placement.go`, Fountain host adapters described by T10-GATEWAY | Existing OAuth PKCE code is only spike evidence; Fountain SDK/native writes and shared UI components have separate completed producer evidence. | Prove supported actual desktop enrollment, current authenticated HTTPS reads and operations, scoped IPC admission, grant withdrawal/revocation, and centrally coordinated placement using the real host. Include denial after withdrawal and retained recovery. |
-| Native recovery intent binding within N3/N4/D3 | A Go-defined immutable intent and native pre-staging copy/read comparison now exist. A facts-only Go observation transaction now records first process/acquisition evidence and replays without settling work. Production dispatch/native ports do not yet compose the admitted binding, and startup still reaches the launched-root fence before ledger availability. Receipt/custody alone and historical missing intents grant no recovery authority. | `pkg/factory/execution/{native_intent,launch,native_record}.go`, `pkg/factory/run.go`, `pkg/store/{factory_execution_schema,factory_native_recovery,factory_native_observation}.go`, `pkg/factory/runtime/native_execution_observation.go`, `pkg/factory/execution/native_observation.go`, `lib/desktop-runtime/src/factory_provider/{intent,executions,receipt,custody,recovery,run}.rs`, `lib/desktop-runtime/src/supervisor.rs` | The real registry/local-ELF/private-keyring/Go fixture retained an exact intent before the observed child, preserved it through process/custody recording and normal restart, refused byte replacement in Store/SQL and changed/partial native evidence, and fenced an intent-only legacy start. The record/runtime/placement were declared fixture metadata; no production admission was granted. | Wire exact intent bytes through the atomic admitted dispatch and native effect ports, retain uncertainty across actual interrupted writes/launches/lost replies, and compose post-ledger startup with fresh Go transaction validation. Prove root/process/credential retirement and atomic outcomes across worker/owner death, restart/reboot, actual provider handling and installed Quit. Never synthesize an intent for historical acquisition or treat an unplaced intent as admitted placement. |
+| Native recovery intent binding within N3/N4/D3 | A Go-defined immutable intent and native pre-staging copy/read comparison now exist. A facts-only Go observation transaction now records first process/acquisition evidence and replays without settling work. Production dispatch/native ports do not yet compose the admitted binding. Startup now compares exact sealed complete evidence after ledger readiness; missing proof still fences recovery. Receipt/custody alone and historical missing intents grant no recovery authority. | `pkg/factory/execution/{native_intent,launch,native_record}.go`, `pkg/factory/run.go`, `pkg/store/{factory_execution_schema,factory_native_recovery,factory_native_observation,factory_native_retirement}.go`, `pkg/factory/runtime/{native_execution_observation,native_execution_retirement}.go`, `pkg/factory/execution/native_observation.go`, `lib/desktop-runtime/src/factory_provider/{intent,executions,receipt,custody,recovery,run}.rs`, `lib/desktop-runtime/src/supervisor.rs` | The real registry/local-ELF/private-keyring/Go fixture retained an exact intent before the observed child, preserved it through process/custody recording and normal restart, refused byte replacement in Store/SQL and changed/partial native evidence, and fenced an intent-only legacy start. The later fresh fixture passed actual owner death before root retirement and after root removal/lost Go acknowledgement, plus missing-seal startup refusal and retained original facts. The record/runtime/placement were declared fixture metadata; no production admission was granted. | Wire exact intent bytes through the atomic admitted dispatch and native effect ports, retain uncertainty across remaining interrupted writes/launches/lost replies, and compose atomic output/candidate/outcome recovery with fresh Go transaction validation. Prove root/process/credential retirement and atomic outcomes across worker/owner death, restart/reboot, actual provider handling and installed Quit. Never synthesize an intent for historical acquisition or treat an unplaced intent as admitted placement. |
 | D3 isolated native worker and execution admission: T09-NATIVE-EXECUTOR and T09-EXECUTION; then T10-PUBLISH, T11-INTAKE, packaging and installed automation | The selected worker must have a distinct host identity with no access to the desktop user's files, processes, session bus or keyring. The root broker must bind the exact admitted run, role, snapshot, worktree, process, credential and retirement. T09-EXECUTION additionally requires T06-CONNECT and T12-PLACEMENT. Product execution must remain unavailable until this gate closes. | `cmd/soda-factory-broker/src/main.rs`, `lib/desktop-runtime/src/factory_provider/{broker,run}.rs`, `cmd/soda-factory-worker/`, `lib/native-process/`, `lib/desktop-runtime/src/{execution,supervisor,credentials}.rs`, `pkg/factory/execution/`, `pkg/factory/control/{dispatch_launch,mcp_key}.go`, `pkg/factory/runtime/{native_application,native_execution_recovery,native_server,placement}.go`, `pkg/store/factory_native_recovery.go` | The plan records live distinct-UID service, file/keyring denial probes, captured ELF transfer, bounded process/cgroup retirement, broker staging/preparation/relay/agent probes, exact-run attestation, owner-death teardown, and retained Go isolated-run validation. A disposable current broker/relay/agent run also proved exact setup retirement of an unlaunched stage, refusal after dummy launch, retained launch observation and explicit final retirement. The headless process primitive is outside the production desktop dependency graph. These are component probes, some using dummy credentials or a fake provider. | Complete and qualify production Go admission and semantic Rust ports to the single coordinator; role-limited tool execution and exact worktree/candidate/artifact capture; strict workspace storage bound; cross-run denial; scoped credential delivery/withdrawal and MCP signing-key custody; durable transactional receipt/outcome reconciliation across crash/reboot; production Quit; and a real finite provider run. Specifically prove the lifecycle fence across a real interrupted launch and restart with ledger outcome reconciliation; the disposable normal-path check does not cover a torn file update. On the actual launch path capture worker UID, file/process/keyring/session denials, exact mounts and role capabilities, deadline/tree cleanup, credential withdrawal and retained recovery. No same-user fallback or dummy-token result closes D3. |
 | D3 reviewer/coder tool admission within T09-NATIVE-EXECUTOR | Muse advertises workflow and memory functions despite reviewer CLI flags. The trusted role must come from the Go admission and broker attestation; the production credential owner must filter requests and validate model tool events before the worker can act. This depends on the live `RunOwner` path and a real finite provider task. | `cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`, `lib/desktop-runtime/src/factory_provider.rs`, `lib/desktop-runtime/src/factory_provider/{owner,response}.rs`, `pkg/factory/execution/` | The current Muse ELF sent an 88,434-byte reviewer request from an isolated service with 11 functions and 128,000 requested output tokens. Production `Policy::admit` applied by a disposable fake owner reduced that exact body to two read functions and 4,096 tokens. Earlier scripted SSE checks refused unoffered functions. | Prove the production `Owner` applies that policy to the actual admitted reviewer and coder, and that complete real model/tool responses enforce their role through execution and retirement. Capture positive allowed functions and denied disallowed events without promoting a scripted response or dummy 401 into a provider run. Route a check that looks like hacking to a user-started Daybreak session. |
 | Native provider credential proxy within D3 | The observed Muse CLI can accept a key on stdin and a base URL. Supplying the reusable owner key to the worker violates the selected custody rule. The relay/proxy must authorize one exact run and withdraw use on cancellation, owner death and restart. The user authorized one dummy-token/prompt request after automatic approval review stopped an earlier attempt. This approval boundary is separate from Daybreak's hacking-like-work boundary. | `cmd/soda-factory-worker/src/bin/soda-factory-provider-relay.rs`, `cmd/soda-factory-worker/systemd/`, `lib/desktop-runtime/src/factory_provider/{run,owner,response}.rs`, `lib/desktop-runtime/src/credentials/`, `pkg/factory/control/mcp_key.go` | A private-loopback fake provider, address-policy probe and invalid-token native owner/relay run are recorded. Owner pidfd teardown and subsequent local 503 after withdrawal were observed in disposable units. Production `RunOwner` completed a credential-free coder run and durable receipt. With explicit user authorization, production `RunOwner` also completed one isolated Muse reviewer attempt using a private in-memory dummy credential. Muse reported the dummy key rejected, exited 1, and the 191-byte complete output was retained; the worker/relay retired. The CLI error is consistent with remote authentication rejection, but the exact upstream HTTP status was not captured. | Prove final authenticated endpoint and network confinement, usable owner-held credential use without exposing it to the worker, run-bound authorization, withdrawal/owner-crash/restart denial, complete model/tool response admission and an actual successful finite provider task. Then prove Go transaction settlement and recovery. A dummy-key rejection does not close D3. |
@@ -851,7 +913,8 @@ then removed it. The agent logged a broken pipe as it stopped and had
 component cancellation path. It does not prove production owner credential
 withdrawal, a retained Go outcome or cancellation of a real provider request.
 
-For D3 restart reconciliation, `Children::start` in
+Historical D3 restart checkpoint (superseded by the current post-ledger resource
+recovery section above): `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls
 `Broker::reconcile_profile` before starting the Go backend. That broker client
 retires unlaunched staging but refuses a launched run; it cannot compare the
@@ -877,12 +940,13 @@ stale complete receipt was refused against a newly staged unlaunched run with
 the same selector, while a fresh separate-process launched receipt retired its
 exact root.
 Those checks had no Go ledger, actual process kill, reboot or real provider
-credential. The helper is not composed into desktop startup, so the startup
-order above still blocks a launched root. Keep launch disabled
+credential. At that checkpoint the helper was not composed into desktop startup, so the
+recorded ordering blocked launched roots. The later post-ledger resource recovery
+above supersedes that ordering. Keep launch disabled
 until a trusted Go-record read, exact receipt validation, root/process and
 credential retirement, and atomic outcome reconciliation are composed and
-proved across an interrupted owner and a full restart. The source inspection
-establishes this ordering; no crash/restart run has qualified it.
+proved across an interrupted owner and a full restart. That source inspection established the historical ordering. The later actual
+owner-kill resource checks do not prove full admitted outcome/crash/reboot recovery.
 
 If a later slice reveals another authentication, IPC admission, credential or
 isolation requirement, add a row with its exact dependency, files, positive and

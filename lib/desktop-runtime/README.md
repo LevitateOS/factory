@@ -184,9 +184,30 @@ untouched. Missing history remains unknown. Replays use fresh row validation.
 This path passed an actual local-worker/Go transaction check before any fixture
 observation write, including concurrent replay and normal supervisor restart.
 
-Production admitted dispatch/ports, post-ledger startup ordering, root retirement
-and Go outcome/accounting recovery remain unimplemented/unqualified; the current
-pre-Go broker fence is unchanged.
+Startup now waits for Go Store readiness before exact native resource recovery,
+and publishes product/provider readiness only after it succeeds. Under the
+exclusive profile lock, confirmed unlaunched staging can retire through the
+launch-fenced broker operation. Launched roots require matching Go/local intent,
+complete receipt and a durable local custody seal. Coder work additionally needs
+captured or unchanged candidate evidence. Missing proof preserves the root and
+refuses startup. Normal `RunOwner` retirement persists its local-stop seal before
+the separate broker effect; recovery never creates a missing seal.
+
+Recovery records process/acquisition facts, obtains exact broker retirement,
+persists release, then acknowledges resource retirement through Go's private
+`/api/native/execution/recovery/retired` route. The Go transaction compares the
+immutable intent and recorded process/acquisition and changes only native facts.
+The paged `/pending?cursor=` inventory finishes a lost Go acknowledgement even
+after the root is gone. Unobserved intent-only history is not fabricated into a
+recoverable process. Generic product routes cannot invoke these operations.
+
+A retained-input local-ELF/private-keyring/PostgreSQL check passed actual owner
+death before root retirement and after root removal but before the Go write.
+Missing seal refused startup; the following restart recovered the lost
+acknowledgement, preserving original identity and unsettled/unplaced state.
+Production admitted dispatch/ports, uncertain partial receipts/journals, atomic
+Go outcome/accounting recovery, reboot, real provider execution and installed
+Quit remain unimplemented or unqualified. These component checks do not close D3.
 
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should

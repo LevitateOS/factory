@@ -495,12 +495,16 @@ impl RunOwner {
 
     fn retire_after_attempt(&mut self) -> io::Result<()> {
         if !self.retired {
-            let retired = self.owner.retire();
+            let stopped = self.owner.stop();
             if !self.owner.locally_stopped() {
                 return Err(refused("provider local custody retirement unconfirmed"));
             }
+            // Persist completed local cleanup before the separate root effect.
+            // A lost broker reply can then be recovered without guessing that
+            // the former socket/token owner stopped.
             self.custody.seal()?;
-            retired?;
+            stopped?;
+            self.owner.retire()?;
             self.custody.release()?;
             self.retired = true;
         }

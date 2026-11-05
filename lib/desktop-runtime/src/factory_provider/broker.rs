@@ -555,7 +555,9 @@ impl Broker {
     /// Inspect one root-owned selector for this exact native profile. The
     /// caller must hold the profile's exclusive supervisor lock before using
     /// this to clean a prior desktop incarnation.
-    fn next_profile_state(profile: &str) -> io::Result<Option<(String, String, bool, bool)>> {
+    pub(super) fn next_profile_state(
+        profile: &str,
+    ) -> io::Result<Option<(String, String, bool, bool)>> {
         if !id(profile, 32) {
             return Err(refused("broker profile inspection declaration invalid"));
         }

@@ -25946,3 +25946,49 @@ output/candidate handling to the existing Go outcome/accounting owner. Actual
 interrupted writes/launches/lost commit replies, worker/owner death, full restart/
 reboot, finite provider work and installed Quit remain unverified. N3/N4/D3 remain
 open; no security gate or canonical slice is marked complete from these facts.
+
+
+T09-NATIVE-EXECUTOR post-ledger resource startup recovery (2026-11-05):
+Native startup now holds the exclusive profile lock, starts Go Store and the
+joined private request owner, then recovers native roots before publishing
+product/provider readiness. Confirmed unlaunched staging retains launch-fenced
+cleanup. Launched/partial roots require the unique Go binding, exact local
+intent, complete receipt and durable local custody seal; coder work also needs
+captured or unchanged candidate evidence. Missing proof preserves the root and
+refuses startup. Normal `RunOwner` retirement now persists confirmed local
+thread/socket/placeholder cleanup before asking the broker to remove the root.
+Recovery never creates a missing seal.
+
+After exact broker retirement, Rust persists release and Go's separate locked
+transaction records root retirement against the immutable intent and recorded
+process/acquisition. The paged private pending inventory can finish a lost Go
+acknowledgement after the root has disappeared. These transactions change only
+native facts; outcome, admission, active/settled flags and spending/accounting
+remain untouched. Intent-only unobserved history is not adopted. No native
+dispatch/coordinator intake is enabled.
+
+The existing real isolated local-ELF/private-keyring/PostgreSQL/backend fixture
+passed actual owner SIGKILL after durable receipt/seal but before root retirement,
+then another SIGKILL after exact root removal/release while Go's next write
+waited behind a fixture row lock. Owned Go/PostgreSQL exits were confirmed through
+pidfds. Missing seal refused startup with the root preserved; its original inode
+was restored. The next startup discovered the pending Go acknowledgement without
+a root, preserved original intent/process/acquisition/instance and left the run
+active, unsettled and unplaced. Replay was stable; stale/browser/wrong-key,
+changed identity, invented outcome and invalid inventory cursors refused.
+Agent/relay MainPIDs were zero, exact roots absent and temporary units removed.
+Final evidence and drivers: `/home/vince/tmp/fnr-start3-1105/`; result SHA-256:
+`f47d4385b2779ca9af5d4ae923baf7dc888bc0263ec3e8928d35df43d34a34f2`.
+The earlier failed seal-ordering check and fixture-monitor failure/resumed check
+remain under `fnr-start1-1105` and `fnr-start2-1105`. The final fresh run uses the
+corrected production ordering and monitor. Locked offline native/driver builds,
+affected Go builds, formatting and whitespace checks passed.
+
+This uses retained inputs, a dummy-only local credential, declared unplaced Go
+metadata and synthetic runtime/placement. Missing/torn intent, receipt or custody
+markers still fence recovery. Production admitted dispatch/ports and current
+run/custody/MCP joins remain pending their dependencies, as do complete
+output/candidate adoption and atomic Go outcome/accounting recovery. Remaining
+interrupted launch/write/commit boundaries, worker death, reboot/power loss,
+actual finite provider work and installed Quit remain unverified. N3/N4/D3 stay
+open; this resource-only recovery does not close a canonical slice or gate.
