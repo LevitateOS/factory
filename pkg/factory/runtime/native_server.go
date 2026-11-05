@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
 )
@@ -197,6 +198,8 @@ func nativeHandler(config NativeConfig, instance string, application *NativeAppl
 		limit := int64(65536)
 		if r.URL.Path == "/api/native/collaboration/observe" {
 			limit = 2 << 20
+		} else if factoryhttp.IsHumanCommentSubmission(r) {
+			limit = factoryhttp.HumanCommentRequestLimit
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		mux.ServeHTTP(w, r)

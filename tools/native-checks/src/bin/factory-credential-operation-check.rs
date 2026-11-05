@@ -1200,6 +1200,13 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 4 && args[0] == "--github-comment-envelope-declared" {
+            return runtime.block_on(native_github_transport::run_comment_envelope_declared(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 4
             && (args[0] == "--github-transport-refusal" || args[0] == "--github-transport-declared")
         {

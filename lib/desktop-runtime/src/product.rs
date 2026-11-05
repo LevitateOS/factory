@@ -196,10 +196,15 @@ impl Products {
                         })
             }
         };
+        let body_limit = if operation.is_some() && matches!(route, RequestRoute::Product) {
+            crate::product_request_body_limit(method, target)
+        } else {
+            65536
+        };
         if !supported
             || target.len() > 2048
             || target.bytes().any(|b| b.is_ascii_control())
-            || body.len() > 65536
+            || body.len() > body_limit
         {
             return Err("unsupported native product request".into());
         }

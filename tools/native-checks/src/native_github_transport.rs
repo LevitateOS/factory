@@ -15,6 +15,141 @@ use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
+// The actual desktop decoder and joined native product owner reach Go's shared
+// handler with maximum writing. The mutation consumer intentionally stays absent.
+pub(super) async fn run_comment_envelope_declared(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use serde_json::{json, Value};
+    use soda_desktop_runtime::ProductRequest;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    fs::write(io.join("mode"), "positive")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "comment envelope requires an empty fixture",
+    )?;
+    let account = Account::new(Provider::Github, "https://github.com", "321")?
+        .with_label("declared-writer")?;
+    let saved = store
+        .store(account, Token::new(b"factory-declared-comment".to_vec())?)
+        .await?;
+    let admission = || async {
+        let capability = store
+            .capability(&saved.connection)
+            .await
+            .map_err(|_| "comment envelope credential unavailable".to_owned())?;
+        runtime.admit_product(store.clone(), capability, Some("123".into()))
+    };
+    let response = admission()
+        .await?
+        .request("GET", "/api/factory/collaboration/repositories", &[])
+        .await?;
+    ensure(
+        response.status == 200,
+        "comment envelope canonical binding failed",
+    )?;
+    let catalogue: Value = serde_json::from_slice(&response.body)?;
+    let repository = catalogue["items"][0]["id"]
+        .as_str()
+        .ok_or("comment envelope repository absent")?;
+    let id = "33333333333333333333333333333333";
+    let mut cases = Vec::new();
+    for kind in ["issues", "pulls"] {
+        let path =
+            format!("/api/factory/collaboration/repositories/{repository}/{kind}/7/comments");
+        for name in ["unicode", "control"] {
+            let body = if name == "unicode" {
+                "🍵".repeat(16384)
+            } else {
+                "\u{0001}".repeat(65536)
+            };
+            let request: ProductRequest = serde_json::from_value(
+                json!({"kind":"write","path":path,"body":{"command_id":id,"body":body}}),
+            )?;
+            let (method, target, bytes) = request.request()?;
+            ensure(
+                bytes.len() > 65536 && bytes.len() <= 512 * 1024,
+                "maximum comment envelope was truncated or unbounded",
+            )?;
+            ensure(
+                serde_json::from_slice::<Value>(&bytes)?["body"] == body,
+                "desktop decoder changed writing",
+            )?;
+            let response = admission().await?.request(method, &target, &bytes).await?;
+            let outcome: Value = serde_json::from_slice(&response.body)?;
+            ensure(
+                response.status == 503
+                    && outcome["error"]["code"] == "comment_delivery_unavailable",
+                "maximum comment did not reach the unavailable Go consumer intact",
+            )?;
+            // A large envelope is available only with an admitted native scope.
+            ensure(
+                runtime.product(method, &target, &bytes).is_err(),
+                "ambient product request received the larger envelope",
+            )?;
+            for suffix in [
+                "/commands/33333333333333333333333333333333/cancel",
+                "?extra=1",
+                "/other",
+            ] {
+                let other = format!("{path}{suffix}");
+                let invalid: ProductRequest = serde_json::from_value(
+                    json!({"kind":"write","path":other,"body":{"command_id":id,"body":body}}),
+                )?;
+                ensure(
+                    invalid.request().is_err(),
+                    "large envelope escaped the exact comment submission route",
+                )?;
+            }
+            cases.push(json!({"kind":kind,"writing":name,"writing_bytes":body.len(),"envelope_bytes":bytes.len(),"handler_status":response.status}));
+        }
+        let invalid: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":path,"body":{"command_id":id,"body":"x".repeat(65537)}}),
+        )?;
+        let (method, target, bytes) = invalid.request()?;
+        let response = admission().await?.request(method, &target, &bytes).await?;
+        let outcome: Value = serde_json::from_slice(&response.body)?;
+        ensure(
+            response.status == 400 && outcome["error"]["code"] == "invalid_request",
+            "Go comment writing bound was weakened",
+        )?;
+        let excessive: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":path,"body":{"command_id":id,"body":"x".repeat(512*1024)}}),
+        )?;
+        ensure(
+            excessive.request().is_err(),
+            "comment envelope lacks its upper bound",
+        )?;
+    }
+    ensure(
+        !io.join("posts").exists() && !io.join("unexpected-request").exists(),
+        "envelope qualification sent a provider mutation or unexpected request",
+    )?;
+    store.withdraw(&saved.connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "comment envelope fixture grant remained",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("envelope-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"provider_posts":0,"consumer_connected":false,"actual_provider":false,"writes_enabled":false}),
+        )?,
+    )?;
+    println!("PASS: shared desktop decoder and admitted native product/Go handler preserve maximum comment writing; excess and unrelated/ambient envelopes refuse; no provider POST, mutation consumer or installed admission qualification; owned keyring/PG clean up");
+    Ok(())
+}
+
 // Bounded provider producer check. This uses only dummy credentials and the
 // launcher's process-local, no-forwarding HTTPS fixture. No product capability,
 // durable reconciliation or actual GitHub mutation qualification is implied.

@@ -1685,3 +1685,36 @@ Only then qualify a freshly authorized and concretely scoped actual GitHub
 write/readback. Native mutation capabilities remain unavailable. All broader
 registered security, executor, installed release/freshness and upgrade gates
 retain their dependencies and evidence requirements; none is complete here.
+
+T11-WRITES outer comment envelope checkpoint (2026-11-05): additional fixed
+64 KiB limits existed in the desktop decoder, joined native product I/O and Go
+native server. The defining decoder now lives once in the headless runtime's
+`product_request.rs`, re-exported by the desktop bridge. Exact issue/PR comment
+submission routes accept at most a 512 KiB JSON envelope while the Go handler
+retains its 64 KiB writing limit. Other routes and ambient native requests retain
+their existing smaller limits. This is request-shape admission, not provider or
+product authority.
+
+The existing native check's `--github-comment-envelope-declared` attempt1 passed
+through the shared desktop decoder, actual native supervisor/credential/product
+owner, current Go backend and PostgreSQL with a dummy-only owned HTTPS provider.
+Maximum Unicode/control writing reached the unavailable Go writer intact for
+both issue and PR routes. Excess writing, excess envelope, unrelated/cancel/query
+paths and ambient large requests refused; no provider POST occurred. The owned
+grant was withdrawn and native/Go/PG resources stopped. The actual desktop
+source build passed after the move. Evidence root
+`/home/vince/tmp/factory-github-comment-envelope-1105/`; result
+`c7375120c3ac3721ef2678f530f25aba12f3067013f8972b354de10e716aadb2`,
+log `aa652f1ca72c795d5e71517494b3fa6c0d311f0c94e9c5614e9dbf7775d6fe72`.
+Source/executable identities are in the canonical plan. No actual WebKit write,
+real GitHub mutation or installed admission gate is qualified here.
+
+The outer envelope blocker is resolved; the private Go-to-Rust callback's 8 KiB
+bound and missing semantic writer remain the exact next composition blocker
+(`collaboration.rs`, `native_collaboration.go`, `native_product.go` and the
+upcoming human-comment writer). Native mutation capabilities stay unavailable.
+Current account/caller/resource/generation/withdrawal admission, exact durable
+intent-to-effect binding, outcome/cancellation/uncertainty/restart handling and
+actual authorized provider write/readback still require the composed consumer
+evidence. All previously registered broader security and installed/executor/
+freshness/upgrade gates remain open.

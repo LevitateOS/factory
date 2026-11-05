@@ -21,4 +21,8 @@ pub mod mcp_signing;
 #[cfg(target_os = "linux")]
 mod product;
 #[cfg(target_os = "linux")]
+mod product_request;
+#[cfg(target_os = "linux")]
+pub use product_request::{product_request_body_limit, ProductRequest};
+#[cfg(target_os = "linux")]
 pub mod supervisor;

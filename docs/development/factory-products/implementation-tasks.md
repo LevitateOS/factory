@@ -27073,3 +27073,57 @@ account/repository/generation checks, one-shot reservation and cancellation/
 uncertainty behavior still need a composed native/Go/PG check. T11-WRITES and the
 overall product goal remain Active/incomplete. No fresh or installed release,
 executor/isolation/custody/admission or D1/D2/D3/D5 gate is closed.
+
+### T11-WRITES — maximum comment product envelope (2026-11-05)
+
+The desktop product request decoder now lives once in the headless native
+runtime, `lib/desktop-runtime/src/product_request.rs`; the Tauri bridge re-exports
+that same type. The shared decoder and joined native product owner admit a
+512 KiB JSON envelope only for exact issue/PR comment submission paths with
+positive canonical repository/number selectors. Other routes, lookup/cancel,
+query-suffixed paths and ambient unadmitted native product requests retain their
+64 KiB envelope. The Go native server uses the existing shared HTTP comment
+submission classifier/limit; the defining handler still enforces 64 KiB writing.
+Product authority remains Go-owned; the native decoder supplies no provider grant.
+
+The existing native check gained
+`--github-comment-envelope-declared BACKEND PG_PAYLOAD FRESH_PROFILE`. Attempt1
+under `/home/vince/tmp/factory-github-comment-envelope-1105/` exited 0 against the
+actual current Go backend, Rust native supervisor/product owner, private native
+credential fixture, PostgreSQL and an owned dummy-only local HTTPS provider.
+The exact shared desktop decoder produced 65,595-byte Unicode and 393,275-byte
+control-escaped envelopes for 65,536-byte writing, for both issue and PR routes.
+All four reached the actual shared Go handler and returned its intentional
+`comment_delivery_unavailable` response. A 65,537-byte body reached the handler
+and was refused as invalid; envelopes above 512 KiB, unrelated/cancel/query paths
+and ambient large native requests refused before dispatch. No provider POST or
+unexpected request occurred. The owned local grant was withdrawn and the native
+Go/PostgreSQL/keyring resources retired normally.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `c284b6189985f0c6c6ae2b1cdc1d920667299f8088b8642996e21d14501a0abc` |
+| provider executable | `6112f08cf1922112d65fdff1a2cd6d674af298ee9bf0ad75569f0efc54fdab0d` |
+| `run.sh` | `a6d166cd0adab7a8b53fe53741997797985e0b5a4350f2d378bfffe43ce5f2b8` |
+| `session.sh` | `1606713912ca56b29a74f93b54259bf8ddbac03e304fefb951c5efa7c9917edc` |
+| current Go backend | `2d85c972cb25831b015ea9cab5bd044c37640cedd6d4e12806908fb6ba28039b` |
+| native check executable | `6d39234852ae3d15d2eb73deb29943dadf0545cefc3edffa28249ad24ac9c48d` |
+| `attempt1/result.log` | `aa652f1ca72c795d5e71517494b3fa6c0d311f0c94e9c5614e9dbf7775d6fe72` |
+| `attempt1/envelope-result.json` | `c7375120c3ac3721ef2678f530f25aba12f3067013f8972b354de10e716aadb2` |
+
+The actual desktop `native-check` source build passed after the decoder move;
+Go/native-check compilation, the existing ownership boundary and whitespace
+checks also pass. No new unit-test root or dependency was added. Captured locked
+source checks are not fresh or installed qualification, and no actual WebKit
+comment write journey ran.
+
+The outer product envelope constraint is resolved. T11-WRITES remains Active:
+the Go human-comment writer is deliberately absent and mutation capabilities
+remain unavailable. The Go-to-Rust private effect callback still has its 8 KiB
+bound and no semantic comment consumer; evolve that path with exact capture,
+current account/repository/caller admission and one-shot journal composition.
+Then verify real native/Go/PG causal outcomes, cancellation/unknown-reply/restart
+behavior and a freshly authorized scoped actual GitHub write/readback. All other
+human operations and broader security/execution/installed gates remain unfinished.
