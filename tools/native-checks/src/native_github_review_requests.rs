@@ -617,3 +617,434 @@ pub(super) async fn effects(profile: &Path) -> Result<()> {
     println!("native reviewer request/removal passed {} declared cases, 8 invalid descriptors, serialization and retirement",cases.len());
     Ok(())
 }
+
+pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
+    use super::native_github_issues::{call, completed, set_mode, uncertain};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{process::Command, sync::Arc};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let envelope = |path: &str,
+                    id: &str,
+                    kind: &str,
+                    target: &str,
+                    requested: bool|
+     -> Result<Vec<u8>> {
+        let q: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":path,"body":{"command_id":id,"reviewer_kind":kind,"reviewer_id":target,"requested":requested}}),
+        )?;
+        Ok(q.request()?.2)
+    };
+    set_mode(&io, "positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "reviewer product requires empty owned custody",
+    )?;
+    let account = || Account::new(Provider::Github, "https://github.com", "321");
+    let mut connection = store
+        .store(
+            account()?,
+            Token::new(b"factory-declared-reviewer-write".to_vec())?,
+        )
+        .await?
+        .connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "reviewer product catalogue refused")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("repository absent")?;
+    let host = catalogue.1["items"][0]["host"]
+        .as_str()
+        .ok_or("host absent")?;
+    // This fixture helper records declared canonical identities in the actual
+    // Go Store. It never infers live membership or enables a product capability.
+    let seeded = Command::new(
+        production
+            .parent()
+            .ok_or("fixture executable parent absent")?
+            .join("seed"),
+    )
+    .arg(profile.join("backend.dsn"))
+    .arg(host)
+    .output()?;
+    ensure(
+        seeded.status.success(),
+        "declared reviewer identity seeding failed",
+    )?;
+    let targets: serde_json::Value = serde_json::from_slice(&seeded.stdout)?;
+    let user = targets["user"]["id"]
+        .as_str()
+        .ok_or("canonical user absent")?;
+    let team = targets["team"]["id"]
+        .as_str()
+        .ok_or("canonical team absent")?;
+    ensure(
+        targets["user"]["external_id"] == "456"
+            && targets["team"]["external_id"] == "T_declared456",
+        "canonical namespaces conflated",
+    )?;
+    let submit =
+        format!("/api/factory/collaboration/repositories/{repository}/pulls/7/review-requests");
+    let command = |id: &str| format!("{submit}/commands/{id}");
+    let mut cases = Vec::new();
+    for (i, kind, target, requested, mode) in [
+        (0, "user", user, true, "add-user"),
+        (1, "user", user, false, "remove-user"),
+        (2, "team", team, true, "add-team"),
+        (3, "team", team, false, "remove-team"),
+    ] {
+        set_mode(&io, mode)?;
+        let id = format!("{:032x}", 100 + i);
+        let body = envelope(&submit, &id, kind, target, requested)?;
+        let before = writes()?;
+        let reply = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
+        completed(&reply, "committed")?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &body).await?,
+            "committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(&id)),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        for (changed_kind, changed_target, changed_state) in [
+            (kind, target, !requested),
+            (
+                if kind == "user" { "team" } else { "user" },
+                if kind == "user" { team } else { user },
+                requested,
+            ),
+        ] {
+            ensure(
+                call(
+                    &runtime,
+                    &store,
+                    &connection,
+                    "POST",
+                    &submit,
+                    &envelope(&submit, &id, changed_kind, changed_target, changed_state)?,
+                )
+                .await?
+                .0 == 409,
+                "changed reviewer intent adopted command",
+            )?;
+        }
+        ensure(
+            writes()? == before + 1,
+            "replay/lookup/cancel/conflict repeated reviewer effect",
+        )?;
+        cases.push(mode);
+    }
+    set_mode(&io, "already-requested")?;
+    let noop_id = "22222222222222222222222222222222";
+    let noop = envelope(&submit, noop_id, "user", user, true)?;
+    let before = writes()?;
+    for _ in 0..2 {
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &noop).await?,
+            "not_committed",
+        )?;
+    }
+    ensure(writes()? == before, "already requested state wrote")?;
+    cases.push("no-op");
+    set_mode(&io, "concurrent")?;
+    let concurrent_id = "33333333333333333333333333333333";
+    let body = envelope(&submit, concurrent_id, "user", user, true)?;
+    let before = writes()?;
+    let (a, b) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &body),
+        call(&runtime, &store, &connection, "POST", &submit, &body)
+    );
+    for reply in [a?, b?] {
+        if reply.1["finished"] == true {
+            completed(&reply, "committed")?;
+        } else {
+            uncertain(&reply)?;
+        }
+    }
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(concurrent_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    ensure(
+        writes()? == before + 1,
+        "concurrent reviewer command dispatched twice",
+    )?;
+    cases.push("concurrent");
+    let wrong = format!(
+        "/api/factory/collaboration/repositories/{}/pulls/7/review-requests",
+        repository.parse::<i64>()? + 1
+    );
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &wrong,
+            &envelope(
+                &wrong,
+                "99999999999999999999999999999999",
+                "user",
+                user,
+                true,
+            )?,
+        )
+        .await?
+        .0 == 403
+            && writes()? == before + 1,
+        "reviewer write expanded repository scope",
+    )?;
+    cases.push("other-repository");
+    set_mode(&io, "drop-reply")?;
+    let lost_id = "44444444444444444444444444444444";
+    let lost = envelope(&submit, lost_id, "user", user, true)?;
+    let before = writes()?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    set_mode(&io, "observe-after-loss")?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "lost reviewer reply was attributed or resent",
+    )?;
+    cases.push("lost-reply");
+    for (mode, id, effect) in [
+        (
+            "pause-post",
+            "55555555555555555555555555555555",
+            "committed",
+        ),
+        (
+            "pause-preflight",
+            "66666666666666666666666666666666",
+            "not_committed",
+        ),
+    ] {
+        set_mode(&io, mode)?;
+        let body = envelope(&submit, id, "user", user, true)?;
+        let before = writes()?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &body);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(id)),
+            b"{}",
+        )
+        .await?;
+        uncertain(&cancelled)?;
+        ensure(
+            cancelled.1["cancellation"] == "indeterminate",
+            "racing cancellation claimed rollback",
+        )?;
+        fs::write(io.join("release"), b"")?;
+        let response = pending.await?;
+        let reply = (response.status, serde_json::from_slice(&response.body)?);
+        completed(&reply, effect)?;
+        ensure(
+            reply.1["cancellation"] == "indeterminate"
+                && writes()? == before + u64::from(mode == "pause-post"),
+            "late reviewer result lost cancellation uncertainty",
+        )?;
+        cases.push(mode);
+    }
+    set_mode(&io, "pause-withdrawal")?;
+    let withdrawn_id = "77777777777777777777777777777777";
+    let withdrawn = envelope(&submit, withdrawn_id, "user", user, true)?;
+    let before = writes()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &withdrawn);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    store.withdraw(&connection).await?;
+    connection = store
+        .store(
+            account()?,
+            Token::new(b"factory-declared-reviewer-write".to_vec())?,
+        )
+        .await?
+        .connection;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        pending.await.is_err(),
+        "withdrawn generation returned reviewer result",
+    )?;
+    set_mode(&io, "observe-after-withdrawal")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(withdrawn_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &withdrawn).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "replacement custody repeated uncertain reviewer effect",
+    )?;
+    cases.push("withdrawal-replacement");
+    set_mode(&io, "pause-stop")?;
+    let stopped_id = "88888888888888888888888888888888";
+    let stopped = envelope(&submit, stopped_id, "user", user, true)?;
+    let before = writes()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &stopped);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        pending.await.is_err(),
+        "stopped runtime returned reviewer result",
+    )?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    set_mode(&io, "observe-after-stop")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(stopped_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &stopped).await?)?;
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(&format!("{:032x}", 100)),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    completed(
+        &call(&runtime, &store, &connection, "GET", &command(noop_id), &[]).await?,
+        "not_committed",
+    )?;
+    ensure(
+        writes()? == before + 1,
+        "retained restart repeated reviewer effect",
+    )?;
+    cases.push("retained-restart");
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &other.connection,
+            "GET",
+            &command(lost_id),
+            &[],
+        )
+        .await?
+        .0 == 404,
+        "another account read reviewer capture",
+    )?;
+    ensure(
+        call(&runtime, &store, &other.connection, "POST", &submit, &lost)
+            .await?
+            .0
+            == 409
+            && writes()? == before + 1,
+        "another account adopted reviewer capture",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account");
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "reviewer product left owned account",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "reviewer product sent undeclared request",
+    )?;
+    fs::write(
+        root.join("reviewer-product-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"provider_mutations":writes()?,"native_go_postgresql":true,"canonical_targets_seeded":true,"ordinary_target_catalogue_qualified":false,"real_github":false,"atomic_name_binding_qualified":false,"shared_write_capabilities_enabled":false,"owned_accounts_removed":true}),
+        )?,
+    )?;
+    println!(
+        "composed native reviewer request/removal passed {} declared cases with {} dummy mutations",
+        cases.len(),
+        writes()?
+    );
+    Ok(())
+}

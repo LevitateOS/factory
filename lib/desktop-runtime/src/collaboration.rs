@@ -5,7 +5,7 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    IssueCreate, Read, ThreadResolution, WriteOutcome,
+    IssueCreate, Read, ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -385,6 +385,12 @@ enum Effect {
         not_after: u64,
         thread: ThreadResolution,
     },
+    SetReviewRequest {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        request: ReviewRequestChange,
+    },
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
@@ -425,6 +431,12 @@ impl Effect {
                 not_after,
                 thread,
             } => Some((command_id, digest, *not_after, &thread.repository)),
+            Self::SetReviewRequest {
+                command_id,
+                digest,
+                not_after,
+                request,
+            } => Some((command_id, digest, *not_after, &request.repository)),
             _ => None,
         }
     }
@@ -601,6 +613,7 @@ async fn dispatch(
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
             Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
             Effect::SetThreadResolution { thread, .. } => thread.validate()?,
+            Effect::SetReviewRequest { request, .. } => request.validate()?,
             _ => unreachable!(),
         }
         if !opaque_id(command_id)
@@ -633,7 +646,8 @@ async fn dispatch(
             | Effect::SetDiscussionState { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
-            | Effect::SetThreadResolution { .. } => {
+            | Effect::SetThreadResolution { .. }
+            | Effect::SetReviewRequest { .. } => {
                 mutate(&state.provider, &scope, token, &call.call).await
             }
         });
@@ -691,6 +705,11 @@ async fn mutate(
         Effect::SetThreadResolution { thread, .. } => Some(
             provider
                 .thread_resolution_account(token, account, thread, Some(deadline))
+                .await,
+        ),
+        Effect::SetReviewRequest { request, .. } => Some(
+            provider
+                .review_request_account(token, account, request, Some(deadline))
                 .await,
         ),
         _ => None,

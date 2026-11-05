@@ -28643,3 +28643,66 @@ resource/conversation/visibility/transfer policy, D1/D2/D3/D5, custody/root abse
 scoped delivery, IPC/window/instance, isolation/execution/retirement/settlement and
 release/upgrade/freshness retain their earlier blockers. No broad security gate
 or Daybreak work was closed. The full product remains unfinished.
+
+### T11-WRITES checkpoint: journaled native reviewer request/removal (2026-11-05)
+
+`native_product_review_requests.go` now composes the existing human-reviewer
+service and schema-87 dispatch fence with a typed Rust `set_review_request`
+callback. Preparation binds the selected PR's observed immutable ID, exactly one
+host-scoped canonical actor or team, account authority and an original five-minute
+deadline. User external IDs remain numeric; team external IDs must be opaque Node
+IDs. Numeric historical team mappings refuse rather than being guessed or rekeyed.
+Canonical registry presence establishes neither membership nor provider permission;
+the native effect freshly observes target scope and provider authorization.
+
+The saved preparation is credential-free, versioned, byte-exact and decoded again
+under current account/repository/canonical target identity. Only a committed SQL
+reservation permits one dispatch. Reserved or legacy-unknown state cannot regain
+the claim; a missing reply retains uncertainty. Native callback validation keeps
+the ordinary 8 KiB envelope, one effect per admitted operation, exact command ID/
+digest echo, current custody/generation and original deadline clipped to eight
+seconds. Go validates the bounded causal receipt against captured account/PR/
+target/state and protocol, actual addition actor or explicit removal null actor,
+selector class, hashes and optional request ID. Lookup does not search provider
+state to attribute an earlier attempt. Cancellation uses the shared Store fence;
+late primary evidence preserves uncertain cancellation.
+
+The actual Rust custody/callback, Go product HTTP service and native PostgreSQL
+passed 13 declared cases with nine dummy mutations in
+`/home/vince/tmp/factory-reviewer-product-1105/attempt1/`. Coverage: user/team
+addition/removal; exact replay/lookup/terminal cancellation; changed target/kind/
+state conflict; no-op without send; concurrent identical commands; other repository
+refusal; lost reply without resend; preflight/post-send cancellation with late
+known results; withdrawal/replacement; retained restart and another-account
+refusal. The owned dummy accounts were removed and native children stopped.
+Canonical targets were seeded through the actual Go Store to exercise namespace
+binding. **Ordinary authenticated target discovery/mapping and normal shared
+readback were not qualified.** The dummy-only TLS peer never forwards; no actual
+GitHub grant/write, browser action or installed check ran.
+
+| Artifact under `/home/vince/tmp/factory-reviewer-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `dec4611e9de3b47a4949727d644d4221c9dcd6d2e4afe38df724c6c01a83c940` |
+| `provider` | `79e3aa46b436d72990ddc9d514ff37adc3c051aee794cd6825880af08ed59a0a` |
+| `seed.go` | `e5f5bc963b57bf743fe361f87592f9c2a73308e829f0e29e60331a26e12f327c` |
+| `seed` | `0219963890522c3bb889e20b00bf749db576a35f5d525c024a67e679bbcaa40f` |
+| `server` | `94bad59a45ab4246d3d353bb1ca5f5b3f31b7105b0b47e9b3cf83075964c0071` |
+| `check-bin` | `25304c9fc807652333b11273f7c00117ed11e60d91821b8857a0430042a7ed54` |
+| `run.sh` | `3eaef0f35b5c6cf0561413682d2362f302f4cd17c064d11a98401516539ae1c5` |
+| `session.sh` | `2cbfcf80bb9421b4b148f2de89d23855c40d3088ba02c4e43af22ff723907879` |
+| `attempt1/result.log` | `157ec9f3fa8ce97fdf6b283180846774bcbdc578fc8a83e7bf5b2877a324ca35` |
+| `attempt1/reviewer-product-result.json` | `2fe41e18fb99f9fe9473e27d5d3659d285530fc50998666218e472b7773c173a` |
+
+Go runtime/server, locked/offline native and desktop-feature builds, ownership
+boundaries and whitespace checks passed. This adds no dependency or unit-test
+hierarchy. Shared write capabilities remain unavailable. Native callback/Go writer
+and existing canonical target binding are now composed; ordinary target
+observation-to-registry mapping, shared selection/readback, actual eligibility/
+permission, captured expiration and fresh scoped owner-authorized provider/shared
+WebKit/installed checks remain pending. Mutable removal/name reuse and concurrent
+membership require the supported D5 policy/invariant and actual evidence recorded
+above; no atomic binding or snapshot was proved. Original thread context, other
+T11 operations, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
+isolation/execution/retirement/settlement and release/upgrade/freshness remain open.
+T11-WRITES stays Active. No broad gate or Daybreak work closed; the full product
+remains unfinished.

@@ -100,6 +100,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	threads := application.HumanThreads(nativeHumanThreads{bound})
 	threads.Reader = nativeHumanThreads{bound}
 	product.HumanThreads = factoryhttp.HumanThreads{Service: threads}
+	product.HumanReviewRequests = factoryhttp.HumanReviewRequests{Service: application.HumanReviewRequests(nativeHumanReviewRequests{bound})}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started

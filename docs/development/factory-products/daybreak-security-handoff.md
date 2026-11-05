@@ -2539,3 +2539,42 @@ and normal shared readback. No whole-set replacement is justified. Original thre
 context, other T11 operations, D1/D2/D3/D5, custody/root absence/scoped delivery,
 installed IPC/window/instance, isolation/execution/retirement/settlement and release/
 upgrade/freshness retain earlier blockers. No broad gate or Daybreak work closed.
+
+T11-WRITES reviewer callback/Go writer composition (2026-11-05):
+`pkg/factory/runtime/native_product_review_requests.go`, `native_product.go` and
+`lib/desktop-runtime/src/collaboration.rs` now bind the saved schema-87 intent to
+one native reviewer effect. Go resolves the existing host-scoped canonical actor
+or team, pins the observed immutable PR/account/target and original five-minute
+deadline, and reserves one send only after SQL commit. Numeric historical team
+external IDs refuse without guessing/rekeying. Native current custody/generation,
+repository scope, ordinary 8 KiB envelope, exact command/digest and whole deadline
+remain enforced. Go revalidates receipt scope/target/state/protocol, actual
+addition actor or explicit null removal actor and bounded hashes/request ID.
+Lost replies remain uncertain without searching matching state or resending.
+Late primary results retain cancellation uncertainty.
+
+Production native custody/callback, Go HTTP service and PostgreSQL passed 13
+declared cases and nine dummy mutations covering both target kinds/directions,
+exact replay/changed-intent conflicts, no-op, concurrency, scope refusal, lost
+reply, both cancellation races, withdrawal/replacement, another account and
+retained restart. Evidence
+`/home/vince/tmp/factory-reviewer-product-1105/attempt1/reviewer-product-result.json`,
+SHA-256 `2fe41e18fb99f9fe9473e27d5d3659d285530fc50998666218e472b7773c173a`.
+The plan records exact source/binary/runner hashes. The local peer never forwards;
+successful owned dummy accounts and children were cleaned up. Canonical targets
+were seeded through the actual Store; no ordinary target catalogue/mapping,
+normal shared readback, real GitHub write or installed admission was proved.
+
+Callback/writer/existing canonical binding are now composed. Exact remaining
+reviewer dependencies: authenticated target observation-to-registry mapping and
+shared selection/readback; actual current eligibility/permission; supported D5
+policy and evidence for mutable-name removal, unseen rename/reuse and concurrent
+membership; original captured-deadline expiration; fresh scoped owner-authorized
+provider/shared WebKit/installed checks. Source files for those consumers include
+the writer above, `native_product_observations.go`, canonical identity registry,
+`github_provider/review_requests.rs`, `review_request_effect.rs`, shared contract/
+service/HTTP/UI selection. Shared write capabilities remain unavailable. Original
+thread context, other T11 effects, D1/D2/D3/D5, custody/root absence/scoped delivery,
+IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
+freshness retain their recorded blockers and required evidence. No broad gate or
+Daybreak work was closed.
