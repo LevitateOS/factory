@@ -25272,3 +25272,15 @@ compilation and whitespace checks. The Rust root-key owner, live callback,
 native coordinator/listener wiring, credential-lifetime and denial evidence
 remain absent. This source port alone does not close native custody or D3;
 T09-NATIVE-EXECUTOR remains Pending.
+
+T09-NATIVE-EXECUTOR native MCP signer producer checkpoint (2026-11-05):
+`lib/desktop-runtime/src/mcp_signing.rs` now owns a persistent 256-bit private
+profile key and derives the fixed capability HMAC in Rust. An existing malformed
+or truncated key refuses reopening rather than silently rotating. A disposable
+native check passed private file creation, standard-HMAC agreement, distinct
+scope, invalid selector refusal, restart stability and truncated-key refusal.
+Locked offline desktop-runtime source checking and whitespace checks passed.
+The signer is not yet bound to the supervisor or exposed through an authenticated
+native callback; the Go coordinator and worker listener remain unwired. No live
+worker delivery, expiry/withdrawal, rotation or root-key absence observation
+was performed. T09-NATIVE-EXECUTOR and D3 remain open.

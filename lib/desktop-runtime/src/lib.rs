@@ -17,6 +17,8 @@ pub mod github_device;
 #[cfg(target_os = "linux")]
 pub mod github_provider;
 #[cfg(target_os = "linux")]
+pub mod mcp_signing;
+#[cfg(target_os = "linux")]
 mod product;
 #[cfg(target_os = "linux")]
 pub mod supervisor;
