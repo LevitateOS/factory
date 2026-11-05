@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -56,4 +56,12 @@ var HumanEditDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.edit' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=83)`,
 	`UPDATE schema_version SET version=84 WHERE version=83`,
+}
+
+// Lock captures predating this protocol may already have reached a provider.
+// Retain exact intent/reason/outcomes while conservatively fencing that history.
+var HumanLockDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.lock.apply' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=84)`,
+	`UPDATE schema_version SET version=85 WHERE version=84`,
 }

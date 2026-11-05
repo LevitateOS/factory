@@ -54,6 +54,7 @@ func AdvanceHumanLockObservation(c HumanLockCapture, old, next collaboration.Ope
 	if ValidateHumanLockObservation(c, old) != nil || ValidateHumanLockObservation(c, next) != nil {
 		return collaboration.OperationLookup{}, ErrHumanLockObservation
 	}
+	next = retainHumanCancellationUncertainty(old, next)
 	result, err := advanceHumanCommandObservation(old, next)
 	if err != nil {
 		return collaboration.OperationLookup{}, ErrHumanLockObservation

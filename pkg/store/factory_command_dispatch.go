@@ -73,6 +73,16 @@ func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
 			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 				return saveHumanEditObservation(ctx, tx, saved, c, o)
 			}}
+	case factory.CommandHumanLock:
+		c, err := factory.DecodeHumanLockCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanLockObservation,
+			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanLockObservation(c, o) }, finished: factory.HumanLockFinished,
+			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return saveHumanLockObservation(ctx, tx, saved, c, o)
+			}}
 	default:
 		return s, ErrCommandConflict
 	}

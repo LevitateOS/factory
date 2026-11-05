@@ -27869,3 +27869,71 @@ captured deadlines, repository/visibility/transfer policy and all broader D1/D2/
 D5, installed custody/IPC/window, isolation/execution/retirement and release/upgrade/
 freshness gates remain unqualified. Shared write capabilities stay unavailable.
 T11-WRITES and the full product goal remain unfinished; no real GitHub lock ran.
+
+### T11-WRITES — one-shot lock journal producer (2026-11-05)
+
+Schema 85 extends the defining shared dispatch protocol to typed human lock
+captures. `factory_human_lock_dispatch.go` wraps exact-capture lookup, one durable
+claim and cancellation under the same row lock. Its normal observation path and
+cancellation share the defining save/reducer, retaining late known primary results
+and prior cancellation uncertainty without mutating caller-owned evidence. A
+reserved read never recovers lost ownership, and cancellation does not undo a
+provider lock. Other human command protocols remain unchanged.
+
+The actual 84→85 upgrade conservatively fences pre-protocol lock history unknown
+without rewriting exact reasons, scope, preparation, outcomes or finished records.
+Triggers stay active. Existing comment/issue/state/edit claims are untouched.
+Stale concurrent migration replay cannot fence new schema-85 captures; existing
+reservations/legacy fences cannot release ownership or claim finished commands.
+
+Real PostgreSQL acceptance under `/home/vince/tmp/factory-lock-dispatch-1105/`
+passed fresh `pg-fresh-a2` and actual archived schema-84 `pg-legacy-a2` (baseline
+`65d84b6`). Eight exact-capture conflicts, missing/unprepared/unknown/unavailable
+refusal, one of 32 claims, 32 reservation/cancel races, late causal/no-effect
+results, immutable terminal/SQL records and existing comment claims passed. Both
+race orders ran (fresh 15 reserved/17 cancelled; upgrade 19/13). Concurrent process
+upgrade, exact retained not-observed/cancelled/unknown/committed history, stale
+migration replay, retained restart, abrupt owned-child WAL recovery and clean
+shutdown passed. Generic human reason bytes remain intact; these Store records
+establish no provider reason support or actual remote effect.
+
+The first fresh/upgrade attempts are preserved. Their conflict fixture changed
+lock to unlock while retaining a nonempty reason, correctly triggering command
+validation before exact-capture conflict lookup. The corrected fixture clears
+the reason in that changed unlock request. Production validation was unchanged.
+The preserved `check-a1` source/executable identify those failed attempts.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `73e646aebfc6a27520428a980bd3cc6395d6ca7508d7569c4d6656bc24f98c92` |
+| `legacy.go` | `ec4fd5be7d12c9832507dbfb9bf3a54c3c5d568d1c80ad9033000816cc186eed` |
+| corrected `check.go` | `c2ce1aa1598dfa03feea406bea631d06683801803f3b8bce51dd9b042d91e51b` |
+| historical Store executable | `3982fff61d4be752d832c3182efcddf91e00062c27708c2c3fcef80826491f98` |
+| current fixture executable | `5df7d3d07d401d03e2d5f443ea2a2979bc7ab02ff5b4ce5f57b999bdd4b3f81b` |
+| preserved `check-a1.go.txt` | `773773747702f23314575136ee2938f950af8f3aa1689e0c8830b091ab0690e2` |
+| preserved `check-a1` | `89604b3f3868e221914e41d7d4b7ca41d7b0d53040032a033c105404662acc44` |
+| fresh log | `16fb5237a086357b7d4b9192dbe280d44d7ef318b78810d7b423376b87d24b52` |
+| upgrade log | `39bad270ce29d76c2b39d344e60c8e30ce2b2011eef39187b3d9522e8cc861e2` |
+| native backend | `829ac5c906a3153e2e7c860ac1268af0b70e1e5342efbbdc5af5a99ad75064f1` |
+| edit regression `edit-run.sh` | `e6232b59e8e1950d87134b514c0d6362da6c2d8fbe62356f32f20c5449002844` |
+| edit regression `edit-session.sh` | `1af5ee01413a67bffd50f75377b8ced054e16d7da4c83169b2f5d03f98b73e97` |
+| composed edit regression result | `8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba` |
+
+The existing composed edit journey passed unchanged with schema 85 in
+`edit-regression-a1`: 16 cases and 11 intended dummy mutations, including original
+content/partial fields, replay/uncertainty/cancel/withdrawal and retained runtime
+restart. It reused the preserved no-forwarding edit provider and the lock producer's
+retained `d49b885c…` observer. Log
+`71cf4aa7f8d8148bf381e5f492281c4ba2e92093732ab966d9da59c0601ea529`.
+Owned accounts/keyring/children cleaned up. Go builds, ownership boundaries and
+whitespace checks pass. No dependency or unit-test root was added.
+
+Next compose the admitted native lock callback and Go writer, with supported/
+unsupported reason outcomes, causal persistence, one-shot replay, cancellation,
+withdrawal and restart. These declared records and captured builds qualify no
+actual provider or installed upgrade. Shared write capabilities stay unavailable;
+T11-WRITES, actual provider/shared UI acceptance, selected-resource/visibility/
+transfer policy and all broader D1/D2/D3/D5, custody/IPC/isolation/execution/
+retirement/release/upgrade/freshness gates remain unfinished.

@@ -2138,3 +2138,34 @@ behavior/normal readback and shared UI remain unverified. The same selected-reso
 visibility/transfer policy and all broader D1/D2/D3/D5, custody/root absence/scoped
 delivery, installed IPC/window/instance, worker isolation/execution/retirement and
 release/upgrade/freshness dependencies remain open. No broad gate closes here.
+
+T11-WRITES lock journal producer (2026-11-05): schema 85 extends the existing
+shared reservation/cancel implementation to `HumanLockCapture`. Files:
+`pkg/store/{factory_command_dispatch,factory_human_lock_dispatch,factory_human_lock,schema,schema_command_dispatch}.go`
+and `pkg/factory/human_lock_outcomes.go`. The actual 84→85 migration retains exact
+reasons/preparations/outcomes and fences old unknown dispatch history, with triggers
+active and new captures protected from stale migration replay. Other command
+claims are preserved. Late known results retain cancellation uncertainty.
+
+Fresh and actual schema-84-upgraded PostgreSQL checks passed exact-capture/lookup
+refusals, one of 32 claims, both cancellation race orders, late known results,
+immutable SQL/terminal records, concurrent openers, stale migration replay,
+retained restart and owned-child WAL recovery. Root
+`/home/vince/tmp/factory-lock-dispatch-1105/`; fresh log
+`16fb5237a086357b7d4b9192dbe280d44d7ef318b78810d7b423376b87d24b52`, upgrade
+log `39bad270ce29d76c2b39d344e60c8e30ce2b2011eef39187b3d9522e8cc861e2`.
+The initial fixture used an invalid unlock-with-reason conflict request; failed
+profiles/source/executable/logs are preserved. Correcting that input required no
+production validation change. The canonical plan records exact artifact identities.
+The composed edit regression also passed unchanged with schema 85, result
+`8a9939e204e4d4ca3dc7f6413a2574d35f997a69d60b209d4e0cc94fefb596ba`.
+These are declared Store/provider observations, not actual GitHub/installed proof.
+
+Remaining lock source blocker: the admitted native callback and Go writer using
+these fences, followed by composed current admission, supported/unsupported reason
+outcomes, causal receipts, replay/cancel/withdrawal/restart. Actual fresh authorized
+provider permissions/schema/reason behavior/normal readback and shared UI remain
+unverified. Selected-resource/visibility/transfer policy, D1/D2/D3/D5, custody/root
+absence/scoped delivery, installed peer/window/instance, isolation/execution/
+retirement and release/upgrade/freshness retain their earlier dependencies and
+required evidence. No broad security gate or Daybreak work is closed here.
