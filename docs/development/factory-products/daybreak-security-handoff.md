@@ -287,6 +287,15 @@ crash/reboot recovery or a successful finite model task. Those remain required
 D3 evidence. The user authorization covered this one dummy request only; do
 not infer permission for a different credential or prompt.
 
+A separate process, started after that private D-Bus session ended and without
+the broker or worker units installed, reopened the production receipt through
+`read_retained`. It recomputed the source bundle, current Muse executable and
+prompt digests, matched the exact run/profile/candidate/reviewer scope, and
+recovered worker UID 64596, ordinary exit code 1, complete 191-byte output
+and no candidate. This proves readback of the failed dummy attempt across a
+credential-session boundary. It does not prove a Go ledger record, atomic
+settlement, broker recovery after a crash or a successful provider response.
+
 For D3 restart reconciliation, `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls
 `Broker::reconcile_profile` before starting the Go backend. That broker client

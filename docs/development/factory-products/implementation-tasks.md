@@ -25135,3 +25135,13 @@ provider credential, complete response/tool admission, cancellation or
 withdrawal, Go ledger settlement, crash/reboot recovery or a successful
 finite model task. T09-NATIVE-EXECUTOR and D3 remain open; the authorization
 does not extend to other credentials or prompts.
+
+T09-NATIVE-EXECUTOR separate-process Muse receipt readback (2026-11-05):
+after the private D-Bus credential session exited and the disposable systemd
+units were removed, a new process recomputed the source, current Muse ELF and
+prompt digests and passed the exact run/profile/candidate/reviewer scope to
+production `read_retained`. It recovered worker UID 64596, an ordinary exit
+code 1, complete 191-byte output and no candidate from the retained receipt.
+This proves a failed dummy-attempt receipt survives the credential-session
+boundary. No Go ledger transaction or crash/reboot recovery consumed it, and
+no successful finite model task ran. T09-NATIVE-EXECUTOR and D3 remain open.
