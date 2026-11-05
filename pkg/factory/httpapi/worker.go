@@ -39,7 +39,7 @@ func (s Workers) now() time.Time {
 }
 
 // Handler is the separate appliance key path. Native desktop hosts use
-// HandlerWithSecretDeriver so the persistent key stays with the Rust owner.
+// HandlerWithSecretVerifier so expected secret bytes stay with the Rust owner.
 func (s Workers) Handler(key []byte) http.Handler {
 	key = append([]byte(nil), key...)
 	var derive factory.MCPSecretDeriver
@@ -51,9 +51,22 @@ func (s Workers) Handler(key []byte) http.Handler {
 	return s.HandlerWithSecretDeriver(derive)
 }
 
-// HandlerWithSecretDeriver asks the native owner for one recorded capability's
-// derived secret. A failed or absent owner cannot admit a worker request.
+// HandlerWithSecretDeriver retains the older host adapter contract while
+// keeping the native verifier path's current admission sequence identical.
 func (s Workers) HandlerWithSecretDeriver(derive factory.MCPSecretDeriver) http.Handler {
+	var verify factory.MCPSecretVerifier
+	if derive != nil {
+		verify = func(ctx context.Context, capability factory.MCPCapability, provided string) (bool, error) {
+			secret, err := derive(ctx, capability)
+			return err == nil && factory.ValidMCPSecret(secret) && subtle.ConstantTimeCompare([]byte(secret), []byte(provided)) == 1, err
+		}
+	}
+	return s.HandlerWithSecretVerifier(verify)
+}
+
+// HandlerWithSecretVerifier authenticates through the native Rust owner, then
+// independently admits the current Go capability and run before serving tools.
+func (s Workers) HandlerWithSecretVerifier(verify factory.MCPSecretVerifier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != WorkerRoute {
 			http.NotFound(w, r)
@@ -74,7 +87,7 @@ func (s Workers) HandlerWithSecretDeriver(derive factory.MCPSecretDeriver) http.
 		}
 		id := r.Header.Get("X-Soda-Factory-Capability")
 		provided, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if derive == nil || !factory.ValidID(id) || !bearer {
+		if verify == nil || !factory.ValidID(id) || !bearer || !factory.ValidMCPSecret(provided) {
 			http.Error(w, "worker authentication required", http.StatusUnauthorized)
 			return
 		}
@@ -83,8 +96,8 @@ func (s Workers) HandlerWithSecretDeriver(derive factory.MCPSecretDeriver) http.
 			http.Error(w, "worker authentication refused", http.StatusUnauthorized)
 			return
 		}
-		secret, keyErr := derive(r.Context(), capability)
-		if keyErr != nil || !factory.ValidMCPSecret(secret) || len(provided) != 64 || subtle.ConstantTimeCompare([]byte(secret), []byte(provided)) != 1 {
+		valid, keyErr := verify(r.Context(), capability, provided)
+		if keyErr != nil || !valid || r.Context().Err() != nil {
 			http.Error(w, "worker authentication refused", http.StatusUnauthorized)
 			return
 		}

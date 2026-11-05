@@ -107,6 +107,33 @@ impl Signer {
         let result = mac.finalize().into_bytes();
         Ok(result.iter().map(|byte| format!("{byte:02x}")).collect())
     }
+
+    /// Verify one presented worker secret without returning the expected
+    /// secret to the Go worker HTTP transport. Product state remains Go-owned.
+    pub fn verify(&self, id: &str, scope_digest: &str, presented: &str) -> Result<bool> {
+        if !valid_id(id) || !valid_digest(scope_digest) {
+            return Err("native MCP scope invalid".into());
+        }
+        if !valid_digest(presented) {
+            return Ok(false);
+        }
+        let mut bytes = Zeroizing::new([0u8; 32]);
+        for (index, pair) in presented.as_bytes().chunks_exact(2).enumerate() {
+            let high = (pair[0] as char)
+                .to_digit(16)
+                .ok_or("native MCP secret invalid")?;
+            let low = (pair[1] as char)
+                .to_digit(16)
+                .ok_or("native MCP secret invalid")?;
+            bytes[index] = ((high << 4) | low) as u8;
+        }
+        let mut mac =
+            Hmac::<Sha256>::new_from_slice(&*self.key).map_err(|_| "native MCP key invalid")?;
+        mac.update(id.as_bytes());
+        mac.update(b"\n");
+        mac.update(scope_digest.as_bytes());
+        Ok(mac.verify_slice(&*bytes).is_ok())
+    }
 }
 
 // The identity is nonsecret evidence that this profile has used a root key.

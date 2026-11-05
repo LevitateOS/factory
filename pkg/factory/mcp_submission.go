@@ -125,6 +125,11 @@ func (c MCPCapability) ScopeDigest() string {
 // owner. A failed derivation must never fall back to another key.
 type MCPSecretDeriver func(context.Context, MCPCapability) (string, error)
 
+// MCPSecretVerifier is the native worker-authentication port. It checks a
+// presented secret under the Rust owner without returning the expected secret
+// to Go. Current capability state and run admission remain separate Go checks.
+type MCPSecretVerifier func(context.Context, MCPCapability, string) (bool, error)
+
 // ValidMCPSecret checks the fixed wire encoding of a derived 256-bit secret.
 func ValidMCPSecret(secret string) bool {
 	if len(secret) != 64 {

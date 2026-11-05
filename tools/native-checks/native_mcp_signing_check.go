@@ -6,14 +6,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
 )
+
+type syntheticCapability struct{ current factory.MCPCapability }
+
+func (s *syntheticCapability) GetMCPCapability(_ context.Context, id string) (factory.MCPCapability, error) {
+	if id != s.current.ID {
+		return factory.MCPCapability{}, errors.New("synthetic capability missing")
+	}
+	return s.current, nil
+}
 
 func check(profile, instance string, unavailable bool) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
@@ -35,6 +47,11 @@ func check(profile, instance string, unavailable bool) error {
 		if err == nil || secret != "" {
 			return errors.New("retired native signer admitted a callback")
 		}
+		verifyCtx, cancelVerify := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancelVerify()
+		if valid, err := factoryruntime.NativeMCPSecretVerifier(config, instance)(verifyCtx, capability, strings.Repeat("0", 64)); err == nil || valid {
+			return errors.New("retired native verifier admitted a callback")
+		}
 		return nil
 	}
 	if err != nil {
@@ -48,7 +65,68 @@ func check(profile, instance string, unavailable bool) error {
 	if err != nil || secret != expected {
 		return errors.New("native signer disagrees with Go capability protocol")
 	}
-	fmt.Println("PASS: Go native MCP derivation client and Rust owner agree")
+	verify := factoryruntime.NativeMCPSecretVerifier(config, instance)
+	if valid, err := verify(ctx, capability, secret); err != nil || !valid {
+		return errors.New("native verifier refused the matching capability secret")
+	}
+	wrong := "0" + secret[1:]
+	if secret[0] == '0' {
+		wrong = "1" + secret[1:]
+	}
+	if valid, err := verify(ctx, capability, wrong); err != nil || valid {
+		return errors.New("native verifier admitted a wrong capability secret")
+	}
+	if valid, err := verify(ctx, capability, "invalid"); err != nil || valid {
+		return errors.New("native verifier admitted an invalid capability secret")
+	}
+	current := capability
+	current.State = factory.MCPCapabilityActive
+	source := &syntheticCapability{current: current}
+	workers := factoryhttpapi.Workers{
+		Capabilities: source,
+		Admit: func(_ context.Context, observed factory.MCPCapability) (factory.MCPCapability, error) {
+			return observed, nil
+		},
+		Protocol: func(_ context.Context, _ factory.MCPCapability) (http.Handler, error) {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }), nil
+		},
+	}
+	server := httptest.NewServer(workers.HandlerWithSecretVerifier(verify))
+	defer server.Close()
+	post := func(bearer string) (int, error) {
+		request, err := http.NewRequest(http.MethodPost, server.URL+factoryhttpapi.WorkerRoute, nil)
+		if err != nil {
+			return 0, err
+		}
+		request.Header.Set("X-Soda-Factory-Capability", current.ID)
+		request.Header.Set("Authorization", "Bearer "+bearer)
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			return 0, err
+		}
+		defer response.Body.Close()
+		return response.StatusCode, nil
+	}
+	if status, err := post(secret); err != nil || status != http.StatusNoContent {
+		return errors.New("native worker HTTP refused matching secret")
+	}
+	if status, err := post(wrong); err != nil || status != http.StatusUnauthorized {
+		return errors.New("native worker HTTP admitted wrong secret")
+	}
+	source.current.State = factory.MCPCapabilityRevoked
+	if status, err := post(secret); err != nil || status != http.StatusForbidden {
+		return errors.New("native worker HTTP admitted revoked capability")
+	}
+	source.current.State = factory.MCPCapabilityActive
+	source.current.DeadlineUnix = time.Now().Add(-time.Second).Unix()
+	expired, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, source.current)
+	if err != nil {
+		return err
+	}
+	if status, err := post(expired); err != nil || status != http.StatusForbidden {
+		return errors.New("native worker HTTP admitted expired capability")
+	}
+	fmt.Println("PASS: Go native MCP clients, Rust verifier and synthetic worker HTTP admission agree")
 	return nil
 }
 

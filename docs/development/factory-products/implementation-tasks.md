@@ -25341,3 +25341,18 @@ refusal. The fresh headless PostgreSQL/Go/Rust supervisor callback passed
 across an ordered restart with this marker. This does not prove actual crash or
 power-loss recovery, a deliberate rotation protocol, canonical capability
 admission or worker delivery. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR Rust MCP verification port checkpoint (2026-11-05): a
+second fixed authenticated native callback now checks a presented worker HMAC
+inside Rust and returns only a boolean. Go's worker HTTP boundary can consume
+that verifier while retaining its canonical capability lookup, current-state
+and expiry admission, protocol projection and separate Forge derivation path.
+A fresh disposable PostgreSQL/Go/Rust supervisor check used a synthetic
+shape-valid capability: the Go client got true for the matching secret, false
+for a wrong or malformed secret, and refused after supervisor retirement. Its
+synthetic Go worker HTTP listener returned 204 for the matching active
+capability, 401 for the wrong secret, and 403 for revoked and expired rows.
+This exercised the real Rust callback and Go worker boundary, not a canonical
+Store row, broker-delivered secret, production native listener or isolated
+worker. Locked offline Rust checks, the current Go build, existing MCP HTTP
+integration tests and whitespace checks passed. D3 and N3 remain open.

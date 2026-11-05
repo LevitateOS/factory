@@ -27,9 +27,18 @@ func NewHandler(deps Dependencies, key []byte) http.Handler {
 	return NewHandlerWithSecretDeriver(deps, derive)
 }
 
-// NewHandlerWithSecretDeriver binds native worker admission to the Rust-held
-// signing key. The Go product owns capability lookup and current run admission.
+// NewHandlerWithSecretDeriver preserves the older host adapter contract.
 func NewHandlerWithSecretDeriver(deps Dependencies, derive factory.MCPSecretDeriver) http.Handler {
+	return newBoundary(deps).HandlerWithSecretDeriver(derive)
+}
+
+// NewHandlerWithSecretVerifier keeps expected secret bytes in the Rust native
+// owner. Go still owns capability lookup and current run/tool admission.
+func NewHandlerWithSecretVerifier(deps Dependencies, verify factory.MCPSecretVerifier) http.Handler {
+	return newBoundary(deps).HandlerWithSecretVerifier(verify)
+}
+
+func newBoundary(deps Dependencies) factoryhttpapi.Workers {
 	deps.limiter = newMCPRateLimiter()
 	boundary := factoryhttpapi.Workers{Capabilities: deps.Capabilities, Now: deps.Now}
 	boundary.Admit = func(ctx context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
@@ -66,7 +75,7 @@ func NewHandlerWithSecretDeriver(deps Dependencies, derive factory.MCPSecretDeri
 		server := newFactoryCatalogServer(bound)
 		return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}), nil
 	}
-	return boundary.HandlerWithSecretDeriver(derive)
+	return boundary
 }
 
 // mcpTakesSubmission reports whether a tool needs a request key. Reads,

@@ -331,6 +331,13 @@ struct SignCall {
     scope_digest: String,
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VerifyCall {
+    capability_id: String,
+    scope_digest: String,
+    secret: String,
+}
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
     Current,
@@ -424,10 +431,11 @@ async fn dispatch(
     }
     let target = request.uri().path_and_query().map(|target| target.as_str());
     let signing = target == Some("/api/native/mcp-sign");
+    let verifying = target == Some("/api/native/mcp-verify");
     if request.method() != "POST"
         || !matches!(
             target,
-            Some("/api/native/collaboration" | "/api/native/mcp-sign")
+            Some("/api/native/collaboration" | "/api/native/mcp-sign" | "/api/native/mcp-verify")
         )
         || request.uri().scheme().is_some()
         || request.uri().authority().is_some()
@@ -448,6 +456,14 @@ async fn dispatch(
             .derive(&call.capability_id, &call.scope_digest)
             .map_err(|_| Failure::invalid())?;
         return Ok(json!({"secret":secret}));
+    }
+    if verifying {
+        let call: VerifyCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let valid = state
+            .signer
+            .verify(&call.capability_id, &call.scope_digest, &call.secret)
+            .map_err(|_| Failure::invalid())?;
+        return Ok(json!({"valid":valid}));
     }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     if !opaque_id(&call.operation) {

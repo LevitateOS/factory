@@ -89,6 +89,14 @@ is reconstructed only from the already committed key. This covers local
 retained-state behavior, not a real interrupted process/power-loss event or an
 authorized key rotation with admitted capabilities. Those gates remain open.
 
+The native host now also verifies a presented MCP secret inside Rust and
+returns only true or false. The disposable Go/Rust supervisor check passed
+matching and wrong-secret results, retirement refusal and a synthetic worker
+HTTP listener's active, wrong-secret, revoked and expired responses. This
+proves the callback and Go transport order with fixture capabilities. The
+canonical Store row, admitted native listener, broker delivery and actual
+isolated worker still need their production checks; no D3 gate is complete.
+
 For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.
 `cargo check --locked --offline -p soda-factory-broker` passes. The initial
