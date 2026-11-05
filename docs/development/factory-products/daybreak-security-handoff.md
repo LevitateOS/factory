@@ -1581,3 +1581,37 @@ credential root absence/scoped delivery, installed admission, executor isolation
 retirement/settlement and finite provider execution retain their previously
 recorded blockers and evidence requirements. No broad gate or full product is
 complete from this producer.
+
+T11-WRITES Rust comment producer checkpoint (2026-11-05):
+`lib/desktop-runtime/src/github_provider/comments.rs` and the fixed transport
+operation now implement bounded no-retry issue/PR ordinary comment creation.
+The existing native integration command's `--github-comment-declared` attempt2
+passed 26 named cases, eight invalid descriptors, cloned-client serialization/
+pacing and blocked-POST owner retirement. Evidence is under
+`/home/vince/tmp/factory-github-comment-1105/`; result hash
+`a67ff9de782b9a626e619899c6ec482e7ca4a49c3c9000f0aee0dce753ad2ca2`,
+log `7c18b2d3058d0945f11eafd3a912fefd64b4fb0458a982d59a26ec8fb54bf63f`.
+Attempt1's observer runtime-start failure remains preserved. The canonical plan
+records the fixture/source/executable identities and exact scope.
+
+What this proves: only dummy local HTTPS was used; current identity/immutable
+subject, known unlocked and non-read-only checks refuse their declared conflicts
+before a POST. The single fixed POST preserves writing. Redirects, refusal,
+lost/malformed/misbound replies, size limits and timeouts do not become safe
+retries or invented success. The operation serializes across native owner clones
+and observes retirement with an eight-second overall bound. No repository push
+fact is promoted to comment permission. Checks before POST are not atomic remote
+revision or permission guards.
+
+Remaining exact blocker: the Rust producer and Go durable reservation are not
+yet composed through the admitted native credential/IPC operation and current
+human-comment service. No product write capability is enabled. The preceding
+table's current account/caller/repository/resource admission, withdrawal/stale
+generation, causal receipt persistence, lost-reply/restart and cancellation
+obligations remain unverified end to end. Positive fixture replies are declared
+data; they are not actual GitHub writes or permission proof. Close the bounded
+consumer only after its real native/Go/PG check and a freshly authorized, scoped
+actual GitHub write/readback. All registered D1/D2/D3/D5, installed custody/
+admission, native isolation/retirement/settlement, finite provider execution and
+fresh release/upgrade gates retain their existing dependencies and evidence
+requirements. No Daybreak invocation or broad completion is inferred here.

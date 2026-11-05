@@ -138,7 +138,11 @@ pub(super) struct Reader<'a> {
     pub prefix: String,
 }
 impl<'a> Reader<'a> {
-    async fn new(client: &'a Client, token: &'a [u8], repository: &'a str) -> Result<Self> {
+    pub(super) async fn new(
+        client: &'a Client,
+        token: &'a [u8],
+        repository: &'a str,
+    ) -> Result<Self> {
         let raw = client.repository(repository, token).await?;
         let name = r::text(&raw, "name")?;
         if !super::request::repository_name(name) {

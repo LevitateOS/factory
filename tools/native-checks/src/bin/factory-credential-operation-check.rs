@@ -1195,6 +1195,11 @@ fn main() {
         if args.first().is_some_and(|arg| arg == "--github-device") {
             return Err("historical Go device observer retired; use --github-device-pending or --github-device-declared with production backend, PostgreSQL payload and fresh profile".into());
         }
+        if args.len() == 2 && args[0] == "--github-comment-declared" {
+            return runtime.block_on(native_github_transport::run_comment_declared(Path::new(
+                &args[1],
+            )));
+        }
         if args.len() == 4
             && (args[0] == "--github-transport-refusal" || args[0] == "--github-transport-declared")
         {

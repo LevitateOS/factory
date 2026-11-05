@@ -26873,3 +26873,76 @@ unverified. Keep native mutation capabilities unavailable until their complete
 path is admitted. Other T11 human operations, T07-EDIT and T11-INTAKE remain
 unfinished; D1 automation policy is a T11-INTAKE activation prerequisite, not a
 prerequisite for human comments. No broad security or product gate is closed.
+
+### T11-WRITES — Rust comment effect producer (2026-11-05)
+
+The complete native provider owner now defines one bounded issue/PR ordinary
+comment creation operation in `github_provider/comments.rs`, using the existing
+transport owner and the shared repository/subject/record decoders. There is no
+authenticated Go HTTP implementation or browser-facing arbitrary request port.
+`Comment` pins the remote repository, immutable subject identity, kind, number
+and exact human writing; the expected native account is separate. Go canonical
+identity and durable command/outcome policy remain Go responsibilities.
+
+The operation validates its 64 KiB UTF-8 writing contract and selectors before
+network use, verifies `/user`, resolves the selected repository and subject, and
+refuses changed identity/subject, a locked or unknown-lock discussion, or an
+archived/disabled/unknown-read-only repository. These are bounded preflight
+observations, not atomic provider revision guards. Repository push permission is
+not used as comment authority. GitHub still enforces the actual comment request;
+no positive comment-permission admission proof is inferred from these reads.
+
+Comment operations serialize across clones of the same provider owner, with at
+least one second between POST starts. The existing fixed HTTPS host, no redirect,
+no retry, bounded header/body handling and joined owner are retained. The fixed
+comment POST has a 1 MiB response bound; the whole operation, including queue/
+pacing/preflight waits, has an eight-second deadline and observes owner retirement.
+Only 201 plus a successfully decoded response with the exact parent URL,
+comment URL/ID, author and unchanged body yields `Created`. Failure after the
+dispatch boundary—including provider refusal, timeout, lost reply, malformed or
+misbound success—is conservatively `Indeterminate`. A failure before that
+boundary is `NotSent`. Neither outcome authorizes an automatic retry. A dropped
+caller may receive no outcome; its durable reservation must remain fenced.
+
+The existing real native check has `--github-comment-declared FRESH_PROFILE`.
+It ran with dummy tokens only against a fresh process-local CA and an owned
+loopback-only CONNECT fixture that never forwards requests. Attempt1 exposed an
+observer launch error (synchronous owner startup inside an async runtime), is
+preserved and is not a provider pass. Startup now uses the check's blocking task.
+Attempt2 under `/home/vince/tmp/factory-github-comment-1105/` exited 0:
+
+- Positive issue and PR comments preserve full Unicode/multiline human writing,
+  identity, repository, immutable subject and causal comment response.
+- Ten identity/subject/lock/read-only conflicts refuse before any POST; eight
+  invalid descriptors make no HTTP request.
+- Fourteen post-dispatch cases—403/429/422/500, redirect, unexpected 200,
+  malformed/misbound success, oversized response, lost reply and deadline—remain
+  indeterminate and each produces exactly one POST, without redirect/retry.
+- Concurrent cloned callers serialize and honor pacing. Retirement during a
+  provider-blocked POST joins the owner promptly and retains an indeterminate
+  outcome; the retired handle cannot dispatch again.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `f716deca5ff43d7053281eb18da8588582b71a5fdb5383aa43a2d987d417db19` |
+| provider executable | `4be8f02ff155c8671d68f4bc9ee975c00d92645b4865cd83bc932c44918552ec` |
+| `run.sh` | `abb772edd8e4dabb7c2bbc2355345c80896a2fe7f2ec0d9a0e77c46af80d7c6c` |
+| `session.sh` | `8557cb78b53c2ef997dfb042d8e6d16f922bb5d57a2c71366279de14feac9c1c` |
+| `attempt2/result.log` | `7c18b2d3058d0945f11eafd3a912fefd64b4fb0458a982d59a26ec8fb54bf63f` |
+| `attempt2/comment-result.json` | `a67ff9de782b9a626e619899c6ec482e7ca4a49c3c9000f0aee0dce753ad2ca2` |
+| native check executable | `2972bbe24d5d280558e04629bc14dc2418be441f16f9ae840768fa602217dc3a` |
+
+Locked source compilation, the existing ownership boundary check and whitespace
+check pass. This producer check does not run a real GitHub mutation, Go journal
+consumer, credential/IPC write composition or installed release. No new unit-test
+root, dependency or public mutation capability was added; captured inputs do not
+constitute a fresh release baseline.
+
+T11-WRITES remains Active. Next connect the Rust semantic effect to the admitted
+native operation and Go human-comment service/one-shot journal. Verify exact
+capture-to-effect binding, current credential/caller/repository admission,
+causal response persistence, uncertain reply/restart/cancellation handling and
+actual authorized provider write/readback before enabling human comments. Other
+human operations and all broader installed/executor/security gates remain open.

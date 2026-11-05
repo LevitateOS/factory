@@ -6,7 +6,7 @@ use std::sync::{
     Arc,
 };
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 use zeroize::Zeroizing;
@@ -32,6 +32,12 @@ enum Request {
     OAuth {
         endpoint: &'static str,
         form: Zeroizing<String>,
+    },
+    Comment {
+        name: String,
+        number: u64,
+        body: String,
+        token: Zeroizing<Vec<u8>>,
     },
 }
 struct Completion {
@@ -59,6 +65,7 @@ pub struct Client {
     retired: watch::Sender<bool>,
     slots: Arc<Semaphore>,
     alive: Arc<AtomicBool>,
+    pub(super) mutations: Arc<tokio::sync::Mutex<Instant>>,
 }
 /// Headless owner. Stop/drop cancels and joins outstanding provider requests.
 pub struct Owner {
@@ -95,6 +102,7 @@ impl Owner {
             retired,
             slots: Arc::new(Semaphore::new(MAX_REQUESTS)),
             alive: alive.clone(),
+            mutations: Arc::new(tokio::sync::Mutex::new(Instant::now())),
         };
         let thread = thread::Builder::new().name("factory-github-session".into()).spawn(move || {
             runtime.block_on(async move {
@@ -261,6 +269,31 @@ impl Client {
         }
         Ok(wire.bytes)
     }
+    // Fixed semantic endpoint; callers cannot select an HTTP method or URL.
+    // Every failure after calling this is conservatively an uncertain effect.
+    pub(super) async fn post_comment(
+        &self,
+        name: &str,
+        number: u64,
+        body: &str,
+        token: &[u8],
+    ) -> Result<Value> {
+        let wire = self
+            .request(Request::Comment {
+                name: name.into(),
+                number,
+                body: body.into(),
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?;
+        if wire.status != 201 {
+            if matches!(wire.status, 400 | 422) {
+                return Err(Failure::new(400, "github_write_rejected"));
+            }
+            return Err(provider_failure(&wire));
+        }
+        serde_json::from_slice(&wire.bytes).map_err(|_| Failure::protocol())
+    }
     pub(crate) async fn delay(&self, duration: Duration) -> Result<()> {
         self.current()?;
         let mut retirement = self.retired.subscribe();
@@ -314,6 +347,34 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
                 .body(form.as_bytes().to_vec()),
             16384,
         ),
+        Request::Comment {
+            name,
+            number,
+            body,
+            token,
+        } => {
+            if !super::request::repository_name(&name) || number == 0 || !secret(&token) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            let authorization_bytes = Zeroizing::new([b"Bearer ", token.as_slice()].concat());
+            let mut authorization = header::HeaderValue::from_bytes(&authorization_bytes)
+                .map_err(|_| Failure::new(400, "invalid_native_write"))?;
+            authorization.set_sensitive(true);
+            (
+                http.post(format!(
+                    "https://api.github.com/repos/{name}/issues/{number}/comments"
+                ))
+                .header(header::AUTHORIZATION, authorization)
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .header(header::ACCEPT, "application/vnd.github+json")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(
+                    serde_json::to_vec(&serde_json::json!({"body":body}))
+                        .map_err(|_| Failure::new(400, "invalid_native_write"))?,
+                ),
+                1024 * 1024,
+            )
+        }
     };
     let mut response = request.send().await.map_err(network_failure)?;
     if response

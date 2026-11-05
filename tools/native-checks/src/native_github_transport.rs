@@ -15,6 +15,184 @@ use std::sync::Arc;
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
+// Bounded provider producer check. This uses only dummy credentials and the
+// launcher's process-local, no-forwarding HTTPS fixture. No product capability,
+// durable reconciliation or actual GitHub mutation qualification is implied.
+pub(super) async fn run_comment_declared(profile: &Path) -> Result<()> {
+    use serde_json::json;
+    use soda_desktop_runtime::github_provider::{Comment, CommentOutcome, Owner};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent missing")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let mode = |value: &str| -> Result<()> {
+        fs::write(io.join("mode"), value)?;
+        Ok(())
+    };
+    let token = || Token::new(b"factory-declared-comment".to_vec());
+    let comment = || Comment {
+        repository: "123".into(),
+        subject: "issue".into(),
+        subject_id: "700".into(),
+        number: 7,
+        body: "Human comment π 🍵\n[link](relative.md)\n".repeat(512),
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in ["positive", "pull"] {
+        mode(name)?;
+        let mut c = comment();
+        if name == "pull" {
+            c.subject = "pull".into();
+        }
+        let CommentOutcome::Created(value) = client.create_comment(token()?, "321", &c).await
+        else {
+            return Err("declared comment creation refused".into());
+        };
+        ensure(
+            value["comment"]["external_id"] == "900"
+                && value["comment"]["body"] == c.body
+                && value["comment"]["author"]["external_id"] == "321"
+                && value["repository"] == "123"
+                && value["subject_id"] == "700"
+                && value["subject"] == c.subject,
+            "declared comment lost response scope or human writing",
+        )?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("identity-change", 409),
+        ("identity-denied", 401),
+        ("subject-change", 409),
+        ("subject-kind", 409),
+        ("locked", 403),
+        ("lock-unknown", 403),
+        ("repository-change", 409),
+        ("archived", 403),
+        ("disabled", 403),
+        ("readonly-unknown", 403),
+    ] {
+        mode(name)?;
+        let before = fs::read_to_string(io.join("posts"))?;
+        let CommentOutcome::NotSent(failure) =
+            client.create_comment(token()?, "321", &comment()).await
+        else {
+            return Err("declared comment preflight did not refuse before dispatch".into());
+        };
+        ensure(
+            failure.status == status && fs::read_to_string(io.join("posts"))? == before,
+            "declared preflight failure dispatched or lost status",
+        )?;
+        cases.push(name);
+    }
+    mode("positive")?;
+    for i in 0..8 {
+        let mut c = comment();
+        match i {
+            0 => c.repository = "0123".into(),
+            1 => c.subject_id = "0700".into(),
+            2 => c.subject = "review".into(),
+            3 => c.number = 0,
+            4 => c.body = " ".into(),
+            5 => c.body = "\0".into(),
+            6 => c.body = "x".repeat(65537),
+            _ => c.number = u64::MAX,
+        }
+        let before = fs::read_to_string(io.join("gets"))?;
+        ensure(
+            matches!(client.create_comment(token()?,"321",&c).await, CommentOutcome::NotSent(f) if f.status==400),
+            "invalid semantic comment accepted",
+        )?;
+        ensure(
+            fs::read_to_string(io.join("gets"))? == before,
+            "invalid comment reached network",
+        )?;
+    }
+    for (name, status) in [
+        ("denied", 403),
+        ("limited", 429),
+        ("validation", 400),
+        ("server-error", 503),
+        ("redirect", 409),
+        ("http-200", 503),
+        ("malformed", 502),
+        ("wrong-url", 502),
+        ("wrong-parent", 502),
+        ("wrong-author", 502),
+        ("wrong-body", 502),
+        ("oversized", 413),
+        ("drop-reply", 503),
+        ("deadline", 504),
+    ] {
+        mode(name)?;
+        let before = fs::read_to_string(io.join("posts"))?.parse::<u64>()?;
+        let CommentOutcome::Indeterminate(failure) =
+            client.create_comment(token()?, "321", &comment()).await
+        else {
+            return Err("post-dispatch failure became a safe retry or success".into());
+        };
+        ensure(
+            failure.status == status,
+            "declared uncertain comment lost failure class",
+        )?;
+        ensure(
+            fs::read_to_string(io.join("posts"))?.parse::<u64>()? == before + 1,
+            "comment POST retried or redirected",
+        )?;
+        cases.push(name);
+    }
+    mode("serialize")?;
+    let a = comment();
+    let b = comment();
+    let clone = client.clone();
+    let (first, second) = tokio::join!(
+        client.create_comment(token()?, "321", &a),
+        clone.create_comment(token()?, "321", &b)
+    );
+    ensure(
+        matches!(first, CommentOutcome::Created(_)) && matches!(second, CommentOutcome::Created(_)),
+        "serialized comment calls failed",
+    )?;
+    ensure(
+        !io.join("overlap").exists() && !io.join("too-fast").exists(),
+        "comment writes overlap or ignore pacing",
+    )?;
+    mode("pause-post")?;
+    let c = comment();
+    let pending_token = token()?;
+    let pending = async { Ok::<_, &str>(client.create_comment(pending_token, "321", &c).await) };
+    tokio::pin!(pending);
+    entered(pending.as_mut(), &io).await?;
+    let start = Instant::now();
+    owner.stop()?;
+    ensure(
+        matches!(pending.await?, CommentOutcome::Indeterminate(_))
+            && start.elapsed() < Duration::from_secs(2),
+        "owner retirement lost uncertain in-flight effect or blocked",
+    )?;
+    ensure(
+        matches!(
+            client.create_comment(token()?, "321", &comment()).await,
+            CommentOutcome::NotSent(_)
+        ),
+        "retired owner admitted a comment",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "comment fixture observed an unexpected request",
+    )?;
+    fs::write(
+        root.join("comment-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"invalid_descriptors":8,"serialization":true,"in_flight_retirement":"indeterminate","actual_provider":false,"product_capability_enabled":false}),
+        )?,
+    )?;
+    println!("PASS: production Rust comment producer preserves writing/scope, rejects preflight conflicts, serializes/paces one-shot POSTs, fences post-dispatch failures and retires its in-flight transport; dummy-only HTTPS, no actual GitHub write or product admission qualification");
+    Ok(())
+}
+
 // Runs the existing native/keyring/Go/PG integration against an explicitly
 // declared HTTPS provider fixture. The launcher supplies process-local trust
 // and a loopback-only proxy. Never use a retained account or real grant here.
