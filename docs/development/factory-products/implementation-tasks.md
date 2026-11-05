@@ -29596,3 +29596,52 @@ concurrent-submission limit. Provider-specific limits are T11 behavior, not a ne
 D5 decision or general stop. Real schema/grant/permission/publication, shared UI,
 installed and all actual broad gates remain open. Shared writes remain unavailable;
 T11-WRITES and the full product are unfinished. No Daybreak work was completed.
+
+### T11-WRITES checkpoint: cancellation retains committed unfinished primary (2026-11-05)
+
+Inspection before existing-pending review submission found a shared outcome gap:
+`retainHumanCancellationUncertainty` preserved a late terminal primary only when
+its completion was already complete and the old effect was indeterminate. A
+causal committed primary with unfinished completion could therefore be discarded
+after local cancellation; later completion could also be blocked by a cancellation
+bit omitted from the incoming reply.
+
+The existing helper now copies cancellation uncertainty onto a proved committed/
+not-committed primary whenever the incoming observation has no cancellation
+acknowledgement. It preserves a committed primary separately from its unfinished
+completion and lets later completion advance without inventing cancellation
+success. Existing typed validation, effect monotonicity, exact primary receipt
+immutability, terminal SQL guard and caller-record immutability remain enforced.
+No schema, provider effect, authority, callback or test root was added.
+
+The existing native PostgreSQL driver ran the review fence integration program
+with explicit late committed/unfinished and later-completion cases under
+`/home/vince/tmp/factory-review-completion-1105/`. Fresh and actual old-88→89 upgrade
+profiles passed cancellation before an unfinished causal receipt, repeated
+cancellation retaining that primary, later completion with retained cancellation
+uncertainty, no mutation of caller records and rollback of a contradictory
+completion receipt. Exact durable records survived restart and real PostgreSQL
+child crash/WAL recovery. The earlier 11 capture conflicts, invalid/unbound rows,
+one-of-32 reservation, 32 claim/cancel races, old capture byte preservation,
+concurrent upgrade/stale DDL, unknown-version refusal and other fence regressions
+also passed. Both runs had 31 reservation winners and one cancel winner in the
+32 independent races. The schema-88 fixture is the same retained binary/source
+baseline recorded in the preceding review-dispatch checkpoint.
+
+| Artifact under `/home/vince/tmp/factory-review-completion-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `133dd1bfb2c21df185f27966f607dfb7455eb2c359d12846d47476bfce7459a1` |
+| `shared.go` | `0c29944b8ae0b803a833499d48ad07ce17d489d201a2d5528793ddc57770613c` |
+| `check` | `ac44c2dd3148341bbe51e4d9dd91b33a9fe408aef01cccb2c4e4ca58d50c2cf1` |
+| `legacy` | `c6873708c02a6f0ff4151b6409e61058d24a90e4b365ec6a0135de4d17c8b45b` |
+| `fresh.log` | `492b6112f00f8abc9ac459a41b9734edb3a2502fab0dfebf24c302c7cdd00c09` |
+| `upgraded.log` | `509b881c8f6ade32a4fb25b161e7671624f776374267d72f057d7a29f5bf3821` |
+
+Go domain/store/runtime builds, ownership boundaries and whitespace checks passed.
+This resolves the local outcome dependency for retaining a known submitted-review
+primary while separate verification/completion is unfinished. It is not an actual
+provider receipt or mutation/permission/notification/custody check. Dedicated native
+pending submission, canonical consumer, current publication verification and fresh
+scoped provider/shared UI/installed evidence remain pending. T11-WRITES, all actual
+canonical decisions and broader gates remain open; shared writes remain unavailable.
+No Daybreak work or full product completion was inferred.

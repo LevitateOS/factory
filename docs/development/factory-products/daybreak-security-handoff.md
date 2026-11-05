@@ -3074,3 +3074,30 @@ atomic preservation or a passed security gate. These are concrete T11 constraint
 not D5's Fountain issue-only admission decision. Independent work continues;
 shared writes and all actual broad gate claims remain unavailable/open. No
 Daybreak work ran or was marked complete.
+
+T11-WRITES known primary versus unfinished completion (2026-11-05):
+`human_command_outcomes.go::retainHumanCancellationUncertainty` now retains a
+proved terminal primary after local cancellation even when separate completion is
+unfinished, and carries that uncertainty into a later completion reply without
+mutating the caller. Exact receipt/effect/terminal guards still reject conflicting
+claims. This resolves a local reducer dependency found before pending submission;
+no provider authority or publication condition is added.
+
+Actual fresh and old-88→89 native PostgreSQL checks proved late committed/unfinished
+primary retention, repeat cancellation, later completion, caller immutability,
+contradictory receipt rollback, restart and real child crash/WAL recovery, with the
+existing dispatch/upgrade/conflict/race regressions. Evidence:
+`/home/vince/tmp/factory-review-completion-1105/fresh.log`, SHA-256
+`492b6112f00f8abc9ac459a41b9734edb3a2502fab0dfebf24c302c7cdd00c09`, and
+`upgraded.log`, SHA-256
+`509b881c8f6ade32a4fb25b161e7671624f776374267d72f057d7a29f5bf3821`.
+The plan records the exact driver/helper/baseline hashes. These are typed declared
+observations in real SQL, not actual GitHub receipts or a provider/security gate.
+
+Remaining dependencies stay the dedicated pending-review effect and Go consumer,
+separate current publication/comment preservation verification when needed,
+loss/replay/cancel/custody/restart/expiry and actual provider/shared UI/installed
+behavior. A known causal primary must survive later verification failure; do not
+replace it with no-effect, discard it, mutate its receipt or resend to finish
+completion. Concrete provider-condition limits and all actual canonical/broad
+gates remain open. No Daybreak work ran or was marked complete.

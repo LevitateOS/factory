@@ -69,14 +69,13 @@ func advanceHumanCommandObservation(old, next collaboration.OperationLookup) (co
 
 func retainHumanCancellationUncertainty(old, next collaboration.OperationLookup) collaboration.OperationLookup {
 	// A local cancellation can race the causal provider reply. Preserve the
-	// cancellation uncertainty without discarding a newly proved complete primary
-	// effect just because that reply predates the cancellation request. Copy the
-	// record so the caller's observation is never mutated.
+	// cancellation uncertainty without discarding a proved terminal primary
+	// effect, including one whose separate completion is unfinished. A later
+	// completion reply must retain that uncertainty too. Copy the record so the
+	// caller's observation is never mutated.
 	if old.Record != nil && next.Record != nil &&
-		old.Record.Effect == collaboration.EffectIndeterminate &&
 		old.Record.Cancellation == collaboration.CancellationIndeterminate &&
 		(next.Record.Effect == collaboration.EffectCommitted || next.Record.Effect == collaboration.EffectNotCommitted) &&
-		next.Record.Completion == collaboration.CompletionComplete &&
 		next.Record.Cancellation == collaboration.CancellationNone {
 		record := *next.Record
 		record.Cancellation = old.Record.Cancellation
