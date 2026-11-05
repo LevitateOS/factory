@@ -25483,3 +25483,23 @@ checking and touched-file formatting passed. No provider request, Go ledger
 settlement, production Quit, current-liveness observer or crash/reboot recovery
 ran. The new handle is not composed into the supervisor/coordinator yet. N3,
 N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR current Muse MCP transport contract (2026-11-05): anonymous
+official stable-channel metadata selected `1.4.14-R7309.1`, matching the
+installed ELF (SHA-256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`).
+The local CLI accepted per-run `mcpServers.factory` with
+`transport:"streamable_http"`, URL and headers; literal header leaves refused,
+while whole environment references were accepted. An echo-only run refused
+when its required local MCP endpoint was absent. With a synthetic Go SDK MCP
+server, it sent the exact fixture headers, `initialize`,
+`notifications/initialized` and `tools/list`, and completed with exit 0. No
+provider credential or real model request was used. The external server and
+logs are under `/home/vince/tmp/factory-native-mcp-config-20261105/`; the server
+log SHA-256 is
+`e83357f1927d9fe907da182499b9f2a6c8f03d537ae117c1d92b6840c7805fde`,
+and echo transcript SHA-256 is
+`50bfacfd4ec8f2182031febb92b5f0f07878eea05c4cf4ec4585ef0e913c6d1f`.
+The temporary local server was stopped. This establishes the installed CLI
+contract for the missing isolated MCP transport; it does not implement that
+transport, a native listener, Go current-run admission or D3 qualification.

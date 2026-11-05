@@ -120,6 +120,15 @@ still needs supervisor ownership and Go consumer composition; its `Executing`
 state is not a fresh process-liveness observation. No actual owner crash,
 reboot, provider task or atomic ledger settlement was proved. Those remain
 required to close D3 and the N4 recovery gate.
+For the missing MCP delivery path, a current official-stable Muse
+`1.4.14-R7309.1` echo-only check completed a local synthetic streamable-HTTP
+MCP handshake and tool discovery with exact fixture headers. Literal CLI
+header values refused; whole environment references were accepted. Evidence
+is retained under `/home/vince/tmp/factory-native-mcp-config-20261105/`.
+The worker still needs an exact-run native-owned secret/configuration delivery
+and a bounded private transport to the Go MCP handler, whose production native
+listener and current-run observer are also missing. The local CLI check proves
+none of those joins, root-key isolation or real worker tool admission.
 A production-bundle Chromium check with a local Tauri command fixture now proves
 that a failed `credential_status` read removes stale saved-account UI rows and
 repository options. It uses no real keyring, provider, consent or authenticated

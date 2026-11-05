@@ -238,6 +238,18 @@ check received it before a three-second local child exited and stopped a
 second run when the observer refused. This supplies start evidence for the
 execution consumer; current liveness, Go admission and MCP activation remain
 separate requirements.
+For the next MCP transport consumer, the official stable channel was checked
+on 2026-11-05 and selected Muse `1.4.14-R7309.1`, matching the installed ELF.
+Its per-run config accepts `mcpServers.factory` with
+`transport:"streamable_http"`, an HTTP URL and headers. CLI header values must
+be whole environment references such as `${SODA_FACTORY_MCP_AUTH}`; literal
+values refuse startup. A local echo-only check reached a synthetic MCP
+server with the exact fixture headers, initialized it and listed its tools;
+an absent endpoint refused required-server startup. This is a local CLI
+contract check. The isolated worker still has no MCP binding or transport,
+and the production Go native backend still has no MCP listener. Deliver only
+an exact-run capability secret through the native owner; the IPC/root key and
+provider account credential must not be supplied to the worker.
 The execution receipt now carries the process owner's invocation ID, boot ID,
 start tick, start time, namespace PID and exit code/signal for later native
 provenance binding. These added fields have source/build validation; the prior
