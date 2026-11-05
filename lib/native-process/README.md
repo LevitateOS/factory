@@ -56,6 +56,13 @@ facts. Owner retirement joins monitors; uncertain cleanup fences further work.
 An exclusive private lock and its file identity bind the scope namespace to its
 profile/storage owner. Reopen retires only retained scopes of that owner.
 
+Launch also captures a Linux pidfd before readiness or reaping. `Process::is_live`
+polls that exact kernel identity; missing or failed observation returns an error.
+It does not derive liveness from cached monitor state or a current numeric PID,
+and does not prove descendant retirement, output completeness or custody. The
+isolated agent uses this query both for bound current-process requests and to
+confirm the direct child is non-live before returning its terminal result.
+
 The exact-run agent service now opens this process owner before it attests.
 Its systemd unit delegates CPU, memory and process controllers with the main
 process in an `init` subgroup; the worker validates the exact cgroup path and

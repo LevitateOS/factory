@@ -32,26 +32,47 @@ Close that dependency only with the actual finite isolated Muse/Go path, matchin
 catalog/tool call, outcome settlement, withdrawal and restart evidence. D3 remains
 open; normal composition/check work does not require Daybreak.
 
-Current-process observation remains a separate N3 producer dependency. Source
-inspection after the catalog checkpoint found that
-`cmd/soda-factory-broker/src/main.rs::execute_agent` stops the exact agent
-admission socket before executable transfer, and `client_closed` treats any
-additional client byte as cancellation. The worker's `serve` handles one accepted
-request; its execution loop owns the native `Process`. The current
-`lib/native-process/src/lib.rs::Process::observe` returns cached monitor state,
-and `factory_provider/attempt.rs::RunExecution::observe` returns cached attempt
-phase/start identity. None is a fresh caller-requested process observation.
-The broker unit also has `ProtectProc=invisible` and an empty capability set;
-host `/proc` access to another UID has not been proved under that profile.
-These are source facts and an unverified access constraint, not a failed or
-passed live check. Extend the owned execution protocol with an explicit bounded
-observation operation before supplying Go's current-run port. Preserve exact
-run/profile/process identity, the existing cancellation semantics, distinct exit
-and retirement facts, and refusal on lost observation. Closing evidence must show
-fresh matching live observations during an actual finite isolated process,
-non-live observations after direct exit, cancellation/withdrawal retirement and
-no admission from stale start/phase state. This ordinary implementation/check
-work is eligible for the normal queue; no new security gate is closed.
+The current-process producer now exists in version 3 of the execution protocol.
+`lib/native-process/src/{lib,process}.rs` captures a pidfd before launch readiness;
+`Process::is_live` queries that exact kernel identity. The worker's
+`agent_observation.rs` answers bounded sequential queries on the existing broker
+connection, and requires the direct child non-live before its terminal result.
+The broker's matching module validates the pending sequence before forwarding a
+reply. The admission socket stays consumed. `factory_provider/observation.rs`
+binds the native observer to the validated start identity; `RunOwner::observer`
+and `RunExecution::inspect` expose it with a five-second maximum wait. A timed-out
+query does not cancel execution or let its late reply satisfy a later query.
+Confirmed terminal process exit reports non-live; uncertain loss refuses. Cached
+`Process::observe` and `RunExecution::observe` remain separate facts.
+
+A disposable real-unit/private-keyring check passed fresh live queries with the
+exact distinct-UID process, timeout/requery, finite completion with the worker's
+kernel non-live check, explicit cancellation and handle drop. Uncertain cases
+kept launched root evidence, had no invented receipt and refused further process
+observation. Agent/relay services had `MainPID=0`; explicit fixture disposal
+removed the remaining roots and temporary units. Final evidence and the driver
+are under `/home/vince/tmp/factory-native-observe-v2-20261105/`; result SHA-256 is
+`69103512f66986cc56746633978b6b7a99cb2630b2abf55472470955579fe45a`.
+This is a tiny local ELF with dummy-only credentials and retained build inputs.
+It does not prove actual Muse liveness, canonical Go capability activation,
+current work/placement joins, crash/reboot recovery or D3. The exact remaining
+dependency is a lifecycle-owned native registry/Go current-run adapter joining
+these process facts to the captured run and custody, then complete admitted
+worker/tool/settlement qualification. Current positive process facts alone grant
+no product authority.
+
+Idle-worker credential withdrawal still needs explicit qualification and any
+required lifetime implementation. `factory_provider/owner.rs` guards provider
+and MCP requests with the current credential lifetime; `run.rs` has an explicit
+execution cancellation handle. The current query check withdraws its dummy
+credential only after the cases, and the earlier MCP-lifetime check proved an
+in-flight future was dropped. Neither proves that withdrawal alone promptly
+stops a model process which is idle and makes no provider/MCP request. Inspect
+`owner.rs::serve`, `RunOwner::execute_observed`, `attempt.rs` and the Credentials
+revocation ports; bind retirement to the native lifetime owner and prove an
+actual idle isolated process stops, observation cannot admit withdrawn work,
+custody is retired and uncertain root evidence is preserved. This remains
+ordinary implementation/check work; no security gate is closed.
 
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in

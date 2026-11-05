@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 #[path = "../agent_candidate.rs"]
 mod agent_candidate;
+#[path = "../agent_observation.rs"]
+mod agent_observation;
 use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
 
 const SOURCE: &str = "/run/factory-source";
@@ -806,12 +808,22 @@ fn execute_agent(
     stream.write_all(&(announcement.len() as u32).to_le_bytes())?;
     stream.write_all(&announcement)?;
     let deadline = Instant::now() + Duration::from_millis(duration_ms) + Duration::from_secs(3);
+    let mut queries = agent_observation::Queries::default();
     let observed = loop {
         let observed = process.wait(Duration::from_millis(100));
+        if queries.poll(stream, &process)? {
+            process.cancel();
+        }
         if observed.finished {
+            if process
+                .is_live()
+                .map_err(|_| refused("agent final process observation unavailable"))?
+            {
+                return Err(refused("agent final process remains live"));
+            }
             break observed;
         }
-        if peer_disconnected(stream)? || Instant::now() >= deadline {
+        if Instant::now() >= deadline {
             process.cancel();
         }
     };
@@ -864,7 +876,7 @@ fn execute_agent(
         .map_err(|_| refused("agent process start time invalid"))?;
     let reply = serde_json::to_vec(&Execution {
         kind: "agent_executed",
-        version: 2,
+        version: 3,
         run,
         profile,
         candidate,
@@ -1000,7 +1012,7 @@ fn serve() -> io::Result<()> {
             placeholder,
             duration_ms,
         } => {
-            if version != 2
+            if version != 3
                 || run != args[1]
                 || requested_profile != profile
                 || requested_candidate != candidate

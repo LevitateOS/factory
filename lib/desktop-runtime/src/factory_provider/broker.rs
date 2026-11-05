@@ -1,6 +1,6 @@
 //! Fixed, desktop-owned client for the privileged run staging broker.
 //! A relay identity is usable only after an exact authenticated broker reply.
-use super::Role;
+use super::{AgentObserver, Role};
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -307,6 +307,15 @@ pub struct AgentProcess {
 pub struct AgentStarted {
     pub worker_uid: u32,
     pub process: AgentProcess,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentObserved {
+    kind: String,
+    version: u8,
+    sequence: u64,
+    live: bool,
 }
 
 pub struct AgentRun {
@@ -790,6 +799,41 @@ impl Broker {
         cancellation: AgentCancellation,
         on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
     ) -> io::Result<AgentRun> {
+        Self::execute_agent_controlled(
+            run,
+            profile,
+            sha256,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            prompt,
+            executable,
+            placeholder,
+            duration,
+            cancellation,
+            AgentObserver::default(),
+            on_started,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn execute_agent_controlled(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        role: Role,
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        prompt: &[u8],
+        executable: &Path,
+        placeholder: &str,
+        duration: Duration,
+        cancellation: AgentCancellation,
+        observer: AgentObserver,
+        on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
+    ) -> io::Result<AgentRun> {
         if cancellation.cancelled() {
             return Err(refused("agent execution cancelled"));
         }
@@ -830,7 +874,7 @@ impl Broker {
         stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
         let _watch = AgentWatch::start(&stream, cancellation.clone())?;
         let request = serde_json::to_vec(&json!({
-            "kind":"execute_agent","version":2,"run":run,"profile":profile,
+            "kind":"execute_agent","version":3,"run":run,"profile":profile,
             "sha256":sha256,"candidate":candidate,"role":role.as_str(),
             "tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,
             "executable_length":metadata.len(),"prompt_length":prompt.len(),
@@ -887,22 +931,34 @@ impl Broker {
                 started_unix_ms: started.started_unix_ms,
             },
         };
+        let observation = observer.attach(&stream, &started)?;
         on_started(&started)?;
         if cancellation.cancelled() {
             return Err(refused("agent execution cancelled"));
         }
-        stream.read_exact(&mut header)?;
-        let length = u32::from_le_bytes(header) as usize;
-        if length == 0 || length > MAX_EXEC_REPLY {
-            return Err(refused("agent execution reply bound invalid"));
-        }
-        let mut bytes = vec![0u8; length];
-        stream.read_exact(&mut bytes)?;
+        let bytes = loop {
+            stream.read_exact(&mut header)?;
+            let length = u32::from_le_bytes(header) as usize;
+            if length == 0 || length > MAX_EXEC_REPLY {
+                return Err(refused("agent execution reply bound invalid"));
+            }
+            let mut bytes = vec![0u8; length];
+            stream.read_exact(&mut bytes)?;
+            let value: Value = serde_json::from_slice(&bytes)?;
+            if value["kind"] != "agent_observed" {
+                break bytes;
+            }
+            let reply: AgentObserved = serde_json::from_slice(&bytes)?;
+            if reply.kind != "agent_observed" || reply.version != 1 || cancellation.cancelled() {
+                return Err(refused("agent observation reply invalid"));
+            }
+            observation.deliver(reply.sequence, reply.live)?;
+        };
         let reply: AgentExecuted = serde_json::from_slice(&bytes)
             .map_err(|_| refused("agent execution reply shape invalid"))?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "agent_executed"
-            || reply.version != 2
+            || reply.version != 3
             || reply.run != run
             || reply.profile != profile
             || reply.candidate != candidate
@@ -991,6 +1047,7 @@ impl Broker {
         if cancellation.cancelled() {
             Err(refused("agent execution cancelled"))
         } else {
+            observation.complete();
             Ok(run)
         }
     }

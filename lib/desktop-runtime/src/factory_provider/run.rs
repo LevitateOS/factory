@@ -2,8 +2,8 @@
 //! supplied by the future Go execution port; this module cannot create it.
 use super::receipt::ensure_receipts;
 use super::{
-    write_retained, AgentCancellation, AgentRun, AgentStarted, BoundOwner, Broker, Owner, Policy,
-    ReceiptScope, Role, WorkerMcp,
+    write_retained, AgentCancellation, AgentObserver, AgentRun, AgentStarted, BoundOwner, Broker,
+    Owner, Policy, ReceiptScope, Role, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
@@ -48,6 +48,7 @@ impl Drop for Staged {
 pub struct RunOwner {
     owner: Owner,
     cancellation: AgentCancellation,
+    observer: AgentObserver,
     run: String,
     profile: String,
     sha256: String,
@@ -221,6 +222,7 @@ impl RunOwner {
         Ok(Self {
             owner,
             cancellation: AgentCancellation::default(),
+            observer: AgentObserver::default(),
             run,
             profile,
             sha256: staged,
@@ -241,6 +243,12 @@ impl RunOwner {
     /// the exact worker stream and retires its process tree.
     pub fn cancellation(&self) -> AgentCancellation {
         self.cancellation.clone()
+    }
+
+    /// Retain with the lifecycle owner; only an executing bound process can
+    /// answer. A confirmed terminal result subsequently reports non-live.
+    pub fn observer(&self) -> AgentObserver {
+        self.observer.clone()
     }
 
     fn quiesce_uncertain(&mut self) -> io::Result<()> {
@@ -280,7 +288,7 @@ impl RunOwner {
             return Err(refused("provider run deadline or owner unavailable"));
         }
         self.attempted = true;
-        let result = Broker::execute_agent_observed(
+        let result = Broker::execute_agent_controlled(
             &self.run,
             &self.profile,
             &self.sha256,
@@ -293,6 +301,7 @@ impl RunOwner {
             self.owner.placeholder(),
             duration,
             self.cancellation.clone(),
+            self.observer.clone(),
             on_started,
         );
         let run = match result {

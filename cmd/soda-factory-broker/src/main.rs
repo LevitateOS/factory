@@ -11,6 +11,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+mod agent_observation;
 mod preparation_quota;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
@@ -1268,32 +1269,17 @@ fn copy_exact<R: Read, W: Write>(
     Ok(())
 }
 
-fn client_closed() -> io::Result<bool> {
-    let mut byte = [0u8; 1];
-    let received = unsafe {
-        libc::recv(
-            0,
-            byte.as_mut_ptr().cast(),
-            1,
-            libc::MSG_PEEK | libc::MSG_DONTWAIT,
-        )
-    };
-    if received >= 0 {
-        return Ok(true);
-    }
-    let error = io::Error::last_os_error();
-    if error.kind() == io::ErrorKind::WouldBlock {
-        Ok(false)
-    } else {
-        Err(error)
-    }
-}
-
-fn read_worker(stream: &mut UnixStream, bytes: &mut [u8], deadline: Instant) -> io::Result<()> {
+fn read_worker(
+    stream: &mut UnixStream,
+    bytes: &mut [u8],
+    deadline: Instant,
+    queries: &mut agent_observation::Queries,
+) -> io::Result<()> {
     let mut offset = 0;
     stream.set_read_timeout(Some(Duration::from_millis(100)))?;
     while offset < bytes.len() {
-        if client_closed()? || Instant::now() >= deadline {
+        queries.pump(stream)?;
+        if Instant::now() >= deadline {
             return Err(denied("agent caller left before process retirement"));
         }
         match stream.read(&mut bytes[offset..]) {
@@ -1384,14 +1370,16 @@ fn execute_agent<R: Read, W: Write>(
         )?;
         let deadline =
             Instant::now() + Duration::from_millis(request.duration_ms) + Duration::from_secs(180);
+        worker.set_write_timeout(Some(Duration::from_millis(100)))?;
+        let mut queries = agent_observation::Queries::default();
         let mut header = [0u8; 4];
-        read_worker(&mut worker, &mut header, deadline)?;
+        read_worker(&mut worker, &mut header, deadline, &mut queries)?;
         let length = u32::from_le_bytes(header) as usize;
         if length == 0 || length > 1024 {
             return Err(denied("agent start announcement bound invalid"));
         }
         let mut bytes = vec![0u8; length];
-        read_worker(&mut worker, &mut bytes, deadline)?;
+        read_worker(&mut worker, &mut bytes, deadline, &mut queries)?;
         let started: AgentStartedReply = serde_json::from_slice(&bytes)
             .map_err(|_| denied("agent start announcement shape invalid"))?;
         if started.kind != "agent_started"
@@ -1416,17 +1404,25 @@ fn execute_agent<R: Read, W: Write>(
         output.write_all(&(bytes.len() as u32).to_le_bytes())?;
         output.write_all(&bytes)?;
         output.flush()?;
-        read_worker(&mut worker, &mut header, deadline)?;
-        let length = u32::from_le_bytes(header) as usize;
-        if length == 0 || length > MAX_AGENT_REPLY {
-            return Err(denied("agent execution reply bound invalid"));
-        }
-        let mut bytes = vec![0u8; length];
-        read_worker(&mut worker, &mut bytes, deadline)?;
+        let bytes = loop {
+            read_worker(&mut worker, &mut header, deadline, &mut queries)?;
+            let length = u32::from_le_bytes(header) as usize;
+            if length == 0 || length > MAX_AGENT_REPLY {
+                return Err(denied("agent execution reply bound invalid"));
+            }
+            let mut bytes = vec![0u8; length];
+            read_worker(&mut worker, &mut bytes, deadline, &mut queries)?;
+            if !queries.accept(&bytes)? {
+                break bytes;
+            }
+            output.write_all(&(bytes.len() as u32).to_le_bytes())?;
+            output.write_all(&bytes)?;
+            output.flush()?;
+        };
         let reply: AgentExecutionReply = serde_json::from_slice(&bytes)
             .map_err(|_| denied("agent execution reply shape invalid"))?;
         if reply.kind != "agent_executed"
-            || reply.version != 2
+            || reply.version != 3
             || reply.run != run
             || reply.profile != profile
             || reply.candidate != candidate
@@ -1474,15 +1470,14 @@ fn execute_agent<R: Read, W: Write>(
             return Err(denied("agent execution identity invalid"));
         }
         let mut body = vec![0u8; reply.output_length];
-        read_worker(&mut worker, &mut body, deadline)?;
+        read_worker(&mut worker, &mut body, deadline, &mut queries)?;
         let mut bundle = vec![0u8; reply.bundle_length];
-        read_worker(&mut worker, &mut bundle, deadline)?;
+        read_worker(&mut worker, &mut bundle, deadline, &mut queries)?;
         if hash(&body) != reply.output_sha256
             || reply
                 .bundle_sha256
                 .as_deref()
                 .is_some_and(|digest| hash(&bundle) != digest)
-            || client_closed()?
         {
             return Err(denied("agent execution output invalid"));
         }
@@ -2368,7 +2363,7 @@ fn serve() -> io::Result<()> {
             placeholder,
             duration_ms,
         } => {
-            if version != 2
+            if version != 3
                 || !id(&run, 32)
                 || !id(&profile, 32)
                 || !id(&sha256, 64)
@@ -2385,7 +2380,7 @@ fn serve() -> io::Result<()> {
             }
             let worker_request = AgentExecutionRequest {
                 kind: "execute_agent",
-                version: 2,
+                version: 3,
                 run: &run,
                 profile: &profile,
                 candidate: &candidate,

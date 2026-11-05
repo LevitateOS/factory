@@ -5,6 +5,7 @@ mod attempt;
 mod broker;
 mod mcp;
 mod owner;
+mod observation;
 mod receipt;
 mod response;
 mod run;
@@ -14,6 +15,7 @@ pub use broker::{
 };
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub use owner::{BoundOwner, Owner};
+pub use observation::{AgentObservation, AgentObserver};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use run::RunOwner;
 use serde_json::Value;

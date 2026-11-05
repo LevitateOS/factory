@@ -557,6 +557,15 @@ even when the credential owner is dropped. Go still owns admission, ledger
 settlement and recovery decisions. This handle is not yet composed into the
 production supervisor or coordinator.
 
+`RunOwner::observer` and `RunExecution::inspect` now provide an exact-process
+query over the version-3 execution stream. The worker samples its captured
+Linux pidfd for each sequenced request. Observation is single-flight and bounded
+to five seconds; timing out leaves the attempt owned and running, and an old
+reply cannot satisfy a later query. A validated complete terminal result reports
+non-live thereafter; uncertain connection loss refuses. This supplies native
+facts only: `Executing` stays cached phase, current Go admission remains a
+consumer, and process exit does not imply owner/custody retirement.
+
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.
 Go's `mcpserver.BoundToolNames` exposes that catalog using the same role and
 recorded task-controller selection as its SDK server, without activating a

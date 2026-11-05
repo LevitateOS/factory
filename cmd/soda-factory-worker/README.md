@@ -537,3 +537,14 @@ worker source checking passes. This has not run through an installed isolated
 agent service or the Go coordinator. Qualification of the aggregate workspace
 storage bound, artifact custody, failed-checkpoint recovery and canonical result
 transaction remain N3/N4 work.
+
+The current execution wire protocol is version 3; retained candidate receipts
+remain version 2. During execution the same root-broker connection accepts
+bounded sequenced process queries. The worker answers from the child's captured
+pidfd and requires it non-live before constructing a terminal result. Its cached
+`Process::observe` snapshot remains distinct from this kernel query. Queries do
+not select another process or change deadlines, and the admission socket remains
+consumed. A disposable real-unit run exercised fresh positive queries, query
+timeout/recovery, kernel non-live at finite completion, cancellation and handle
+drop with exact root cleanup. This used a tiny local ELF and dummy-only keyring;
+actual Muse execution, current Go admission and full D3 remain unqualified.

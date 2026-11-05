@@ -1,5 +1,5 @@
 //! Native ownership of one admitted attempt, independent of a request's lifetime.
-use super::{AgentCancellation, AgentRun, AgentStarted, RunOwner};
+use super::{AgentCancellation, AgentObservation, AgentObserver, AgentRun, AgentStarted, RunOwner};
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
@@ -35,10 +35,17 @@ struct Shared {
 pub struct RunExecution {
     shared: Arc<Shared>,
     cancellation: AgentCancellation,
+    observer: AgentObserver,
     thread: Option<JoinHandle<io::Result<AgentRun>>>,
 }
 
 impl RunExecution {
+    /// Query the exact isolated process now. This does not change attempt
+    /// lifetime or turn an observation timeout into cancellation.
+    pub fn inspect(&self, timeout: Duration) -> io::Result<AgentObservation> {
+        self.observer.inspect(timeout)
+    }
+
     pub fn observe(&self) -> AttemptObservation {
         self.shared
             .observation
@@ -101,6 +108,7 @@ impl RunOwner {
         duration: Duration,
     ) -> io::Result<RunExecution> {
         let cancellation = self.cancellation();
+        let observer = self.observer();
         let shared = Arc::new(Shared {
             observation: Mutex::new(AttemptObservation {
                 phase: AttemptPhase::Starting,
@@ -143,6 +151,7 @@ impl RunOwner {
         Ok(RunExecution {
             shared,
             cancellation,
+            observer,
             thread: Some(thread),
         })
     }

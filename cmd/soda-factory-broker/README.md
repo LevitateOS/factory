@@ -378,7 +378,7 @@ client for this protocol. The worker receipt also carries the native process
 invocation, boot ID, start tick, PID inside its private PID namespace, start
 time and exit signal/code. The broker and desktop client validate those fields;
 the namespace PID must not be treated as a host PID. No product path invokes it.
-Execution requests now require protocol version 2. Before the terminal receipt,
+Execution requests now require protocol version 3. Before the terminal receipt,
 the worker sends one bounded `agent_started` version-1 frame containing the same
 run/profile/candidate/role/tool/prompt binding and actual process identity. The
 broker validates and forwards that frame immediately; the terminal receipt must
@@ -388,6 +388,19 @@ to a bounded trusted observer. Observer refusal closes the connection and
 requires exact retirement. The event proves a process started; it does not
 prove continuing liveness, activate an MCP capability or admit Go work. Older
 single-receipt execution clients and services fail closed on version mismatch.
+
+Version 3 adds current-process queries on that same exact execution connection.
+After upload/start, the only admitted control frame is nine bytes: `O` followed
+by a little-endian u64 sequence starting at one. One query may be pending; at
+most 65,536 are accepted, and incomplete frames expire after one second. The
+broker forwards the frame to the worker and validates its bounded
+`agent_observed` version-1 JSON reply against the pending sequence before
+forwarding it. The reply contains only the sequence and a boolean `live`; its
+identity is the already bound start/terminal stream. The worker polls a pidfd
+captured for that child at launch. No new socket, worker-selected process address
+or cross-UID host `/proc` access is introduced. EOF still cancels the worker;
+malformed or lost observations refuse. A complete terminal frame remains a
+separate proof, and does not settle the Go ledger or confirm credential release.
 A disposable actual-service check on 2026-11-05 received the event before a
 three-second credential-free child exited, matched the terminal identity, and
 stopped a second run after observer refusal. Both agent and relay units were

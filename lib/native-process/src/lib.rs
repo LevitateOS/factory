@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::File;
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +31,7 @@ pub enum Error {
     Capacity,
     Retired,
     Spawn,
+    Observation,
     Retirement,
 }
 impl std::fmt::Display for Error {
@@ -45,6 +47,7 @@ impl std::fmt::Display for Error {
             Self::Capacity => "native process capacity reached",
             Self::Retired => "native process owner retired",
             Self::Spawn => "native process launch unavailable",
+            Self::Observation => "native process observation unavailable",
             Self::Retirement => "native process retirement unconfirmed",
         })
     }
@@ -126,6 +129,7 @@ pub struct Observation {
 }
 struct Shared {
     observation: Mutex<Observation>,
+    pidfd: Mutex<Option<File>>,
     cancelled: AtomicBool,
     done: Condvar,
 }
@@ -136,6 +140,34 @@ pub struct Process {
     shared: Arc<Shared>,
 }
 impl Process {
+    /// Query the kernel handle captured at launch. PID reuse cannot turn an
+    /// exited child into a live observation. This says nothing about remaining
+    /// descendants, sealed output, custody or product admission.
+    pub fn is_live(&self) -> Result<bool> {
+        let descriptor = self.shared.pidfd.lock().map_err(|_| Error::Observation)?;
+        let descriptor = descriptor.as_ref().ok_or(Error::Observation)?;
+        let mut poll = libc::pollfd {
+            fd: descriptor.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        for _ in 0..8 {
+            let ready = unsafe { libc::poll(&mut poll, 1, 0) };
+            if ready == 0 {
+                return Ok(true);
+            }
+            if ready > 0 && poll.revents & libc::POLLNVAL == 0 && poll.revents & libc::POLLIN != 0 {
+                return Ok(false);
+            }
+            if ready >= 0
+                || std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted
+            {
+                return Err(Error::Observation);
+            }
+        }
+        Err(Error::Observation)
+    }
+
     pub fn observe(&self) -> Observation {
         self.shared
             .observation
@@ -276,6 +308,7 @@ impl Processes {
         let output = private_file(&output_path, true).map_err(|_| Error::Storage)?;
         let scope = self.scopes.create(&invocation, &input.limits)?;
         let shared = Arc::new(Shared {
+            pidfd: Mutex::new(None),
             observation: Mutex::new(Observation {
                 invocation,
                 system_instance: process::system_instance()?,

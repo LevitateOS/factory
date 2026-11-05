@@ -155,6 +155,17 @@ pub(super) fn run(
         }
     };
     let identity = start_identity(child.id());
+    // Capture before exposing readiness or reaping the child. Even a child
+    // which has already exited remains this exact kernel process identity.
+    let descriptor = unsafe { libc::syscall(libc::SYS_pidfd_open, child.id(), 0u32) };
+    let pidfd_ok = descriptor >= 0;
+    if pidfd_ok {
+        let descriptor = unsafe { File::from_raw_fd(descriptor as i32) };
+        *shared
+            .pidfd
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(descriptor);
+    }
     let input_ok = if let Some(bytes) = input.stdin.take() {
         child
             .stdin
@@ -173,14 +184,14 @@ pub(super) fn run(
             state.start_identity = identity.clone();
         }
     }
-    if identity.is_err() {
+    if identity.is_err() || !pidfd_ok {
         shared.cancelled.store(true, Ordering::SeqCst);
     }
-    let _ = ready.send(
-        identity
-            .map(|_| ())
-            .and(if input_ok { Ok(()) } else { Err(Error::Spawn) }),
-    );
+    let _ = ready.send(identity.map(|_| ()).and(if input_ok && pidfd_ok {
+        Ok(())
+    } else {
+        Err(Error::Spawn)
+    }));
     let mut bytes = Vec::new();
     let mut buffer = [0u8; 16384];
     let mut eof = false;

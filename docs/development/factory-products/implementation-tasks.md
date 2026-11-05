@@ -25601,3 +25601,30 @@ dependency finding, not execution qualification. The exact files, remaining
 operation and required live/exit/cancellation evidence are recorded in the
 security handoff. T09-NATIVE-EXECUTOR remains Pending; independent producer
 work can continue while connected consent and placement consumers are pending.
+
+T09-NATIVE-EXECUTOR current-process producer (2026-11-05): execution protocol
+version 3 now admits one bounded sequential process query at a time on the
+existing exact-run broker/worker stream. Rust captures a Linux pidfd before
+launch readiness and the isolated worker samples it on request; kernel non-live
+is also required before a terminal result. The broker validates replies against
+the pending sequence. `RunOwner::observer` / `RunExecution::inspect` preserve the
+validated start identity, reject missing/busy/lost observations and bound waits
+to five seconds. A query timeout leaves execution running and its late reply
+cannot satisfy a later query. Cached attempt phase is still not current liveness;
+terminal non-live is distinct from custody/owner retirement and Go settlement.
+Locked offline checks/builds passed for the process primitive, worker, broker
+and runtime. The existing native handle integration mode, using fresh private
+dummy-only keyring state and disposable distinct-UID services, passed exact live
+queries, timeout/requery, finite completion, explicit cancellation and handle
+drop. Uncertain cancellation retained launched root evidence without a receipt
+and refused further observation; all agent/relay services stopped with
+`MainPID=0`, and explicit fixture disposal removed retained roots and units.
+Evidence is external under
+`/home/vince/tmp/factory-native-observe-v2-20261105/`; result SHA-256 is
+`69103512f66986cc56746633978b6b7a99cb2630b2abf55472470955579fe45a`.
+This is a tiny local ELF using retained inputs, not a fresh baseline, real model
+or full current Go capability path. The lifecycle registry/Go observer, current
+placement/admission/custody join, actual finite Muse result and crash/restart
+settlement remain open. Withdrawal of an idle model which makes no provider/MCP
+request is separately unverified; the handoff records its exact lifetime ports
+and required evidence. N3, N4 and D3 remain open.
