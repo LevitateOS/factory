@@ -26377,8 +26377,8 @@ Historical observer migration inventory (source audit; still unqualified):
 | `tools/native-checks/src/native_github_transport.rs` historical `run_refresh` / CLI `--github-refresh` | Migrated: actual-provider refusal is `--github-refresh-refusal`; declared production-Rust HTTPS/custody cases are `--github-refresh-declared`. The old Go-observer option now refuses with the replacement commands. Verified details below; other consumers in this table remain pending. |
 | Same file `run_grant` / historical `--github-grant` | Migrated to `--github-grant-declared`: production Rust device grant → fresh identity → complete encrypted reload and withdrawal passed. See evidence below. |
 | Same file historical `run_device` / `--github-device` | Migrated to independent `--github-device-pending` (actual unapproved GitHub challenge) and `--github-device-declared` (owned dummy-only HTTPS cases). Both passed; evidence below. |
-| Same file `run_verify` / `--github-verify` | Preserve actual unauthenticated identity refusal and empty custody; move declared cancellation and retired unpersisted verification to Rust HTTP, without expecting Go request-header observers. |
-| Same file `run` / `--github-transport` | Replace historical Go SDK/header counts with current fixed-origin Rust observations, including binding/refusal, concurrent replacement, withdrawal, dropped-call cancellation and joined retirement. Current declared evidence withdrawal and connected product cancellation cover only part of this obligation. |
+| Same file `run_verify` / historical `--github-verify` | Migrated to `--github-verify-refusal` (actual generated-invalid-token refusal) and `--github-verify-declared` (Rust HTTPS refusal/restart/cancellation/retirement with empty custody). Both passed; evidence below. |
+| Same file `run` / historical `--github-transport` | Migrated to `--github-transport-refusal` (actual generated-invalid-token refusal/cleanup) and `--github-transport-declared` (current Rust scope/restart/replacement/withdrawal/cancellation/joined retirement). Both passed; evidence below. |
 | `cmd/soda-desktop/src/check_credentials.rs` declared `start_signin`, `binding_checks`, `issue_checks` / `--check-signin` | Migrate old `io/mode` Go observer expectations: UI denial/cancel/expiry, stable canonical mappings across restart/rename, decimal provider IDs above JS integer precision, duplicate/foreign bindings, nullable records and filtered pagination, withdrawal and backend retirement. Actual connected consent/UI and the 62-case evidence suite do not replace all these cases. |
 
 Production `pkg/github` has only its historical README; no Go authenticated
@@ -26506,3 +26506,44 @@ operation binary, boundary check and whitespace check passed. Existing actual
 consent/revocation proof remains separate; no new installed/fresh baseline or
 D1/D2/D3/D5 gate is inferred. T06-GITHUB stays Active for verifier, transport and
 declared WebKit consumer migration.
+
+Verifier/transport observer migration (2026-11-05, verified checkpoint):
+
+All headless Go-observer consumers in the inventory now use the production Rust
+connector with independent actual-provider negative and declared HTTPS modes.
+The remaining historical consumer is the declared WebKit journey. Old
+`--github-verify` and `--github-transport` options refuse with replacement guidance.
+Current modes each take `BACKEND POSTGRES_PAYLOAD FRESH_PROFILE`; no second Go
+observer binary or credential forwarding through Go remains.
+
+The verifier declared mode proved refusal before any native account exists,
+unbound Factory, profile retention/instance rotation after restart, prompt
+caller-drop cancellation of Rust TLS, joined retirement and empty custody.
+The transport declared mode proved native stored-fixture refusal, restart,
+invalid and foreign-provider selectors refusing without network, independent
+real-keyring replacement/withdrawal suppressing pending results, withdrawn
+capability refusing before another request, prompt cancellation and joined
+retirement, then both owned accounts removed. Fixture HTTP admissions checked
+fixed origin/path/API version/Accept and only the generated invalid fixture
+prefix; they made no outbound connection and saw no unexpected request. These
+are pending-operation refusal observations, not assertions that a late provider
+reply was delivered. Historical Go header/SDK assertions are retired.
+
+All four independent runs exited 0:
+
+| Private evidence root | Safe result SHA-256 | Log SHA-256 |
+| --- | --- | --- |
+| `/home/vince/tmp/factory-github-oauth-declared-1105/verify-attempt1/` | `265c9c0d2fe09a01904c5410d87feaa597bd67fbde554e0ecd5414eef78b8248` | `6558ea6d3bcac6edf52c9537eccd871ae58728817be081cd6c41211a4994cabb` |
+| `/home/vince/tmp/factory-github-oauth-declared-1105/transport-attempt1/` | `7240139376c8f3ed6969436496c94fbccee6ac2d62d35953a06c7da721b6838e` | `642b697de7c294af1aea0104ebb194cd735856187be0a9b1963a9d661b193ef7` |
+| `/home/vince/tmp/factory-github-verify-refusal-1105/` | `4587282f65dd69f35da9fe1c4fe1292bf67aad67fc2803e9d32390ab4ae40fc3` | `a87b305be81e86a6b661e9f40edc5cf35474b4e57926b773fd9a9a3da6768330` |
+| `/home/vince/tmp/factory-github-transport-refusal-1105/` | `23c99b790fd1b8d25fa3b54af5d5a8cfc4e43ad099881e445821ceba945e2b6d` | `9d40571d25dfd2e1f9f95173ae4c15a7751b48f38692bb80d71d2ea29972781f` |
+
+The actual GitHub modes used generated invalid noncredentials, returned real
+401 refusal, preserved unbound Factory and retired-channel refusal, then stopped
+owned Go/PG. Bootstrap custody stayed empty; the stored transport fixture was
+withdrawn. No successful login/private access or grant revocation is inferred
+from these negative modes. The actual connected consent/revocation journey
+remains its separate proof above. Locked/offline operation build, boundary and
+whitespace checks passed; no broad installed or fresh baseline is claimed.
+T06-GITHUB stays Active for declared WebKit migration; D1/D2/D3/D5, executor and
+installed gates remain open.

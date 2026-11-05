@@ -1,5 +1,5 @@
-//! Real native supervisor/keyring/Go/GitHub transport. Generated invalid tokens
-//! qualify credential forwarding/refusal, never a successful OAuth grant.
+//! Real native supervisor/keyring/Go with the production Rust GitHub connector.
+//! Actual-provider negatives and dummy-only declared HTTPS stay separate.
 use super::{ensure, fixture, prepare, Result};
 use soda_desktop_runtime::credentials::{
     Account, CredentialState, Credentials, Error as CredentialError, Provider, Token,
@@ -1721,14 +1721,17 @@ pub(super) async fn run_records(
 /// Bootstrap-only observation. Never creates a guessed account or saved token.
 pub(super) async fn run_verify(
     production: &Path,
-    observed: &Path,
     payload: &Path,
     profile: &Path,
+    declared: bool,
 ) -> Result<()> {
     prepare(profile)?;
     let io = profile.parent().ok_or("fixture parent missing")?.join("io");
     fs::create_dir(&io)?;
     fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    if declared {
+        fs::write(io.join("mode"), "verify")?;
+    }
     let runtime = NativeSupervisor::start(payload, production, profile)?;
     let original = runtime.health()?;
     let store = Credentials::open(profile, &original.profile)?;
@@ -1758,9 +1761,22 @@ pub(super) async fn run_verify(
         "retired bootstrap channel remained usable",
     )?;
     store.retire();
-    println!("PASS: production native bootstrap receives actual GitHub 401 before any account exists; OS custody stays empty and Factory remains unbound");
+    if !declared {
+        println!("PASS: actual GitHub refuses the generated invalid bootstrap fixture; native custody stays empty, Factory remains unbound and retired verification refuses");
+        fs::write(
+            profile
+                .parent()
+                .ok_or("fixture parent missing")?
+                .join("verify-refusal-result.json"),
+            serde_json::to_vec(
+                &serde_json::json!({"actual_github_401":true,"generated_invalid_fixture":true,"custody_empty":true,"factory_unbound":true,"retired_verification_refused":true}),
+            )?,
+        )?;
+        return Ok(());
+    }
 
-    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    fs::write(io.join("calls"), "0")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     let current = runtime.health()?;
     ensure(
         current.profile == original.profile && current.instance != original.instance,
@@ -1773,7 +1789,7 @@ pub(super) async fn run_verify(
             Err(Error::Provider(401))
         ) && calls(&io)? == 1
             && fs::read_to_string(io.join("status"))? == "401",
-        "unpersisted token did not traverse actual Go SDK/GitHub path",
+        "declared unpersisted token did not traverse production Rust HTTPS",
     )?;
     ensure(
         store.status().await?.is_empty(),
@@ -1787,7 +1803,7 @@ pub(super) async fn run_verify(
     while !io.join("cancelled").exists() {
         ensure(
             Instant::now() < until,
-            "bootstrap cancellation did not close real Go request",
+            "bootstrap cancellation did not close Rust HTTPS request",
         )?;
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
@@ -1795,7 +1811,7 @@ pub(super) async fn run_verify(
         store.status().await?.is_empty(),
         "cancelled verification saved an account",
     )?;
-    println!("PASS: cancelling unpersisted token verification cancels actual Go request promptly, with no OS account written");
+    println!("PASS: dropping unpersisted verification cancels production Rust HTTPS promptly, with no OS account written");
     pause(&io)?;
     let mut request = Box::pin(runtime.github_verify(Token::new(invalid()?)?));
     entered(request.as_mut(), &io).await?;
@@ -1808,20 +1824,37 @@ pub(super) async fn run_verify(
         store.status().await?.is_empty(),
         "retired verification saved an account",
     )?;
+    cancelled(&io).await?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "verification released an unexpected request",
+    )?;
     store.retire();
-    println!("PASS: unpersisted token/native PG/backend retirement; successful OAuth verification/storage remains unqualified");
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("verify-declared-result.json"),
+        serde_json::to_vec(
+            &serde_json::json!({"declared_https_only":true,"production_rust_connector":true,"refusal_before_custody":true,"native_restart_rotated_instance":true,"caller_cancelled_upstream":true,"retirement_joined":true,"custody_empty":true,"real_grant_used":false}),
+        )?,
+    )?;
+    println!("PASS: declared Rust HTTPS bootstrap refusal, restart, cancellation and joined retirement preserve empty real custody and unbound Factory");
     Ok(())
 }
 pub(super) async fn run(
     production: &Path,
-    observed: &Path,
     payload: &Path,
     profile: &Path,
+    declared: bool,
 ) -> Result<()> {
     prepare(profile)?;
     let io = profile.parent().ok_or("fixture parent missing")?.join("io");
     fs::create_dir(&io)?;
     fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    if declared {
+        fs::write(io.join("mode"), "transport")?;
+    }
     let runtime = NativeSupervisor::start(payload, production, profile)?;
     let original = runtime.health()?;
     let store = Credentials::open(profile, &original.profile)?;
@@ -1843,12 +1876,29 @@ pub(super) async fn run(
         matches!(stale.await, Err(Error::Unavailable)),
         "retired runtime channel remained available",
     )?;
+    if !declared {
+        store.withdraw(&saved.connection).await?;
+        ensure(
+            store.status().await?.is_empty(),
+            "actual transport fixture account not removed",
+        )?;
+        store.retire();
+        fs::write(
+            profile
+                .parent()
+                .ok_or("fixture parent missing")?
+                .join("transport-refusal-result.json"),
+            serde_json::to_vec(
+                &serde_json::json!({"actual_github_401":true,"generated_invalid_fixture":true,"factory_unbound":true,"retired_read_refused":true,"owned_local_account_removed":true}),
+            )?,
+        )?;
+        println!("PASS: actual GitHub refuses the native invalid fixture, Factory remains unbound, retired read refuses and owned account is removed");
+        return Ok(());
+    }
     store.retire();
-    println!("PASS: production native executable uses real OS credential/Go SDK/GitHub path; invalid credential refused, Factory remains unbound and old channel retires");
 
-    // The observed executable uses the same production RunNative/handler/SDK;
-    // its transport observes headers and pauses before forwarding real HTTPS.
-    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    fs::write(io.join("calls"), "0")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     let current = runtime.health()?;
     ensure(
         current.profile == original.profile && current.instance != original.instance,
@@ -1863,7 +1913,7 @@ pub(super) async fn run(
         response.status == 401
             && response.body["error"] == "github_sign_in_required"
             && calls(&io)? == 1,
-        "native catalogue fell back to public data or lost forwarded credential",
+        "native catalogue fell back to public data or lost declared credential scope",
     )?;
     let before = calls(&io)?;
     ensure(
@@ -1905,13 +1955,9 @@ pub(super) async fn run(
             request.await,
             Err(Error::Credential(CredentialError::Retired))
         ),
-        "Go reply survived actual OS credential replacement",
+        "pending Rust reply survived OS credential replacement",
     )?;
-    ensure(
-        fs::read_to_string(io.join("status"))? == "401",
-        "rotation did not forward to actual GitHub",
-    )?;
-    println!("PASS: actual Go HTTP request carries the native credential; independent keyring rotation refuses its eventual real GitHub reply");
+    println!("PASS: pending production Rust HTTPS result refuses after independent real-keyring credential replacement");
 
     let cap = store.capability(&saved.connection).await?;
     pause(&io)?;
@@ -1924,11 +1970,7 @@ pub(super) async fn run(
             request.await,
             Err(Error::Credential(CredentialError::Withdrawn))
         ),
-        "Go reply survived actual OS credential withdrawal",
-    )?;
-    ensure(
-        fs::read_to_string(io.join("status"))? == "401",
-        "withdrawal did not observe actual GitHub reply",
+        "pending Rust reply survived OS credential withdrawal",
     )?;
     let before = calls(&io)?;
     ensure(
@@ -1949,11 +1991,11 @@ pub(super) async fn run(
     while !io.join("cancelled").exists() {
         ensure(
             Instant::now() < until,
-            "Rust cancellation did not close IPC/cancel actual Go request promptly",
+            "caller cancellation did not close Rust HTTPS promptly",
         )?;
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    println!("PASS: dropping native request closes Unix HTTP and cancels the actual Go SDK transport before its server deadline");
+    println!("PASS: dropping native read cancels the production Rust HTTPS request promptly");
 
     pause(&io)?;
     let mut request = Box::pin(runtime.github_read(&store, &cap, Read::Identity));
@@ -1963,12 +2005,28 @@ pub(super) async fn run(
         matches!(request.await, Err(Error::Unavailable)),
         "retiring native runtime released a provider result",
     )?;
+    cancelled(&io).await?;
     store.withdraw(&saved.connection).await?;
     store.withdraw(&fountain.connection).await?;
     ensure(
         store.status().await?.is_empty(),
         "native transport fixture credential cleanup failed",
     )?;
-    println!("PASS: real native keyring/Rust IPC/Go/GitHub transport, scope/refusal/rotation/withdrawal/cancellation and native PG/backend retirement; no OAuth/private-read qualification");
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "transport released an unexpected request",
+    )?;
+    store.retire();
+    other.retire();
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("transport-declared-result.json"),
+        serde_json::to_vec(
+            &serde_json::json!({"declared_https_only":true,"production_rust_connector":true,"real_grant_used":false,"native_restart_rotated_instance":true,"invalid_and_foreign_selectors_refused_before_network":true,"replacement_and_withdrawal_preserved":true,"caller_cancelled_upstream":true,"retirement_joined":true,"owned_local_accounts_removed":true}),
+        )?,
+    )?;
+    println!("PASS: declared production Rust HTTPS scopes/refusals, real-keyring replacement/withdrawal, cancellation and joined native retirement; owned accounts and Go/PG cleaned up");
     Ok(())
 }

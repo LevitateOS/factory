@@ -1399,3 +1399,30 @@ Exact remaining T06-GITHUB blocker: migrate verifier/transport and declared
 WebKit obligations from the canonical inventory before closing that provider
 gate. The broader installed admission/custody/isolation, D1/D2/D3/D5 and executor
 gates retain their separate required journeys and dependencies.
+
+Verifier/transport migration follow-up (2026-11-05): all headless historical
+Go-observer consumers are now retired with current Rust replacements and real
+private keyring/Go/PG evidence. The actual generated-invalid-token verifier and
+transport modes each received actual GitHub 401, kept Factory unbound, refused
+retired work, and left custody empty/withdrew the owned fixture respectively.
+The independent dummy-only HTTPS modes proved refusal before custody, restart
+profile/instance behavior, invalid/foreign-provider scope refusal before network,
+independent keyring replacement/withdrawal suppressing pending results, caller
+cancellation and joined retirement/cleanup. They do not prove a late response
+was delivered or an installed hostile-context boundary. Source stays in the
+existing `native_github_transport.rs` and CLI; no new test root or Go connector.
+
+Private safe-result hashes:
+- `factory-github-oauth-declared-1105/verify-attempt1/`: `265c9c0d2fe09a01904c5410d87feaa597bd67fbde554e0ecd5414eef78b8248`
+- `factory-github-oauth-declared-1105/transport-attempt1/`: `7240139376c8f3ed6969436496c94fbccee6ac2d62d35953a06c7da721b6838e`
+- `factory-github-verify-refusal-1105/`: `4587282f65dd69f35da9fe1c4fe1292bf67aad67fc2803e9d32390ab4ae40fc3`
+- `factory-github-transport-refusal-1105/`: `23c99b790fd1b8d25fa3b54af5d5a8cfc4e43ad099881e445821ceba945e2b6d`
+
+All roots are beneath `/home/vince/tmp/`; exact log hashes are in the canonical
+plan. All four exited 0. Exact remaining T06-GITHUB blocker is now the declared
+WebKit migration in `cmd/soda-desktop/src/check_credentials.rs`: preserve UI
+refusal/cancellation plus canonical mapping, large IDs, nullable records/paging,
+restart and withdrawal obligations with the current Rust HTTPS producer before
+retiring its old `io/mode` Go observer assumptions. D1/D2/D3/D5 and installed
+isolation/admission/custody/executor gates retain their distinct dependencies
+and closure evidence; these bounded probes do not close them.

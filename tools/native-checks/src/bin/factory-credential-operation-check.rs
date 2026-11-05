@@ -1195,21 +1195,31 @@ fn main() {
         if args.first().is_some_and(|arg| arg == "--github-device") {
             return Err("historical Go device observer retired; use --github-device-pending or --github-device-declared with production backend, PostgreSQL payload and fresh profile".into());
         }
-        if args.len() == 5 && args[0] == "--github-transport" {
+        if args.len() == 4
+            && (args[0] == "--github-transport-refusal" || args[0] == "--github-transport-declared")
+        {
             return runtime.block_on(native_github_transport::run(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-                Path::new(&args[4]),
+                args[0] == "--github-transport-declared",
             ));
         }
-        if args.len() == 5 && args[0] == "--github-verify" {
+        if args.len() == 4
+            && (args[0] == "--github-verify-refusal" || args[0] == "--github-verify-declared")
+        {
             return runtime.block_on(native_github_transport::run_verify(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-                Path::new(&args[4]),
+                args[0] == "--github-verify-declared",
             ));
+        }
+        if args
+            .first()
+            .is_some_and(|arg| arg == "--github-verify" || arg == "--github-transport")
+        {
+            return Err("historical Go verifier/transport observers retired; use their -refusal or -declared replacement with production backend, PostgreSQL payload and fresh profile".into());
         }
         if args.len() == 4 && args[0] == "--github-issues" {
             return runtime.block_on(native_github_transport::run_records(
