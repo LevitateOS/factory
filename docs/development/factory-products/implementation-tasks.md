@@ -24944,3 +24944,18 @@ source/preparation paths were removed. This proves one service-path dirty coder
 checkpoint, not broker-orchestrated execution, provider custody, durable
 receipt readback, storage exhaustion, cross-run denial or Go admission. N3 and
 D3 remain open.
+
+T09-NATIVE-EXECUTOR broker-mediated coder result (2026-11-05): a disposable
+installation of the current broker, preparer, relay and agent units used a
+362-byte dummy Git bundle and credential-free owner socket. The broker
+prepared the exact source, attested relay UID 64727 and worker UID 64596,
+then forwarded a 16,840-byte coder ELF and prompt. Its execution reply
+reported zero exit, retired process tree, complete 31-byte output and a
+419-byte candidate bundle. Git verified the returned commit descends from the
+prepared source and contains the expected one-line edit. Exact broker
+retirement removed the run source, preparation, agent socket and relay
+runtime; the temporary units, binaries and owner socket were removed. This
+proves one broker-to-worker coder result with dummy inputs. The production
+native receipt writer/readback, Go transaction/admission, credential custody,
+storage exhaustion, cross-run denial, real finite provider task and D3 remain
+open. T09-NATIVE-EXECUTOR remains Pending.

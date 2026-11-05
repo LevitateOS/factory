@@ -147,15 +147,22 @@ It returned worker UID 64596, root peer, zero exit, retired tree, complete
 24-byte output and a 437-byte candidate bundle. Git verified the returned
 commit descends from the prepared source and contains the single expected edit.
 The temporary unit and exact `/run` paths were removed. This proves one
-service-path dirty coder checkpoint with dummy inputs, not broker-orchestrated
-execution or durable result custody.
-The actual broker-to-worker execution reply, live receipt writer-to-reader
+service-path dirty coder checkpoint with dummy inputs, not durable result
+custody. A subsequent disposable installation used the current broker,
+preparer, relay and agent units for the entire credential-free coder path.
+The broker staged a 362-byte dummy bundle, attested relay UID 64727 and worker
+UID 64596, forwarded a 16,840-byte ELF and prompt, and returned zero exit,
+retired tree, complete output and a 419-byte candidate bundle. Git verified
+the returned commit's parent and expected edit. Exact retirement removed the
+run source, preparation, agent socket and relay runtime; temporary units,
+binaries and owner socket were removed. This proves the broker-to-worker
+result path for one dummy run. The live native receipt writer-to-reader
 roundtrip, cross-run refusal, Go admission/checkpoint binding, candidate
 retrieval/publication and crash/reboot reconciliation are unverified. The
 aggregate worker workspace and ignored-file storage bound is still
 unqualified on the actual worker service; the changed-file preflight is not
-that bound. A failed checkpoint currently yields uncertainty, but no recovered worker
-workspace has been proved after the service exits. Close this
+that bound. A failed checkpoint currently yields uncertainty, but no recovered
+worker workspace has been proved after the service exits. Close this
 part only with an admitted real coder run that produces an exact retained
 candidate, denied altered/stale bundle replies, and successful recovery after
 worker or owner interruption. Do not treat the disposable fixture as D3.

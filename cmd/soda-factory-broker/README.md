@@ -409,6 +409,19 @@ real provider was used. Disposable units, binaries and runtime state were
 removed. Go admission, scoped credential custody and withdrawal, coder result
 capture, role enforcement evidence and a finite real provider task remain open.
 
+On 2026-11-05, a disposable installation of the current broker, preparer,
+relay and agent units completed the coder path with a credential-free fixture.
+The broker staged a 362-byte Git bundle, prepared its exact candidate, attested
+relay UID 64727 and worker UID 64596, streamed a 16,840-byte ELF and prompt,
+then returned a zero-exit, retired-tree, complete-output result with a 419-byte
+captured candidate bundle. Git verified that bundle's new commit descends from
+the source and contains the expected one-line edit. Exact broker retirement
+removed the source, preparation, agent socket and relay runtime; the temporary
+units, binaries and owner socket were removed. This proves one real
+broker-to-worker coder result path. The native receipt writer/reader, Go
+admission, credentials, resource exhaustion, cross-run denial and real model
+remain unverified.
+
 The fixed preparer Git calls now run through a 20-second `timeout` with a
 one-second kill grace, inside the unit's 30-second start deadline and
 control-group kill. Its HEAD check reads at most 42 stdout bytes and refuses

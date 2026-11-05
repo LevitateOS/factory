@@ -380,6 +380,15 @@ it did not exercise workspace exhaustion, cross-run denial, receipt persistence
 or Go admission. Exact temporary units and `/run` paths were removed. N3/D3
 remain open.
 
+A follow-up temporary installation exercised the broker's full coder route
+with a separate 362-byte dummy source and 16,840-byte credential-free ELF.
+The broker attested distinct relay and worker UIDs, forwarded a zero-exit
+retired-tree result with complete output and a 419-byte candidate bundle, and
+retired the exact run. Git verified the returned commit and one-line edit. The
+temporary owner socket and all run-specific services and state were removed.
+The native desktop receipt, Go coordinator, real provider and storage/cross-run
+qualification remain open; D3 is not complete.
+
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
 deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree
