@@ -1239,6 +1239,9 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 2 && args[0] == "--github-review-create-declared" {
+            return runtime.block_on(native_github_review_requests::creation(Path::new(&args[1])));
+        }
         if args.len() == 2 && args[0] == "--github-pull-branches-declared" {
             return runtime.block_on(native_github_pull_branches::producer(Path::new(&args[1])));
         }

@@ -29290,3 +29290,80 @@ No supported D5 policy, provider condition or race fix was inferred from this
 research. Exact remaining dependency and closure evidence are in the security
 handoff. T11-WRITES and all previously recorded broad/provider/execution/
 distribution gates remain open; no Daybreak work or full product was completed.
+
+### T11-WRITES checkpoint: bounded native new-review creation (2026-11-05)
+
+`github_provider/review_create.rs` implements one fixed new-review attempt over a
+saved numeric repository/PR, immutable repository/PR Node IDs, number, reviewed
+head, exact event and full writing. Rust authenticates the current account/Node,
+uses the defining pending-review producer, requires the saved PR/head/Node facts
+and known open/unmerged/unlocked/non-read-only state, and refuses an already
+observed current-account pending review. It never substitutes a new review for
+that pending record. Existing-review submission and draft-body updates remain
+separate unfinished operations. Empty new comment feedback and invalid changes-
+requested prose refuse before sending; empty draft/approval bodies are retained.
+
+The private transport issues only `FactoryCreateReview` with `pullRequestId`,
+`commitOID`, exact body and the selected event. Draft creation omits the event;
+no line comments, threads, client-mutation retry marker, dismissal, deletion,
+compensation or additional notification operation is sent. Causal response
+validation binds actual review ID/Node, current author Node, repository/PR IDs,
+number/current head, reviewed commit, exact body/event state, no supplied inline
+comments, URL and dates. Draft must have null submitted time; submitted outcomes
+must have a valid non-null one. A bounded receipt hashes exact body and records
+preflight/causal head binding and provider response evidence. It does not assert
+an atomic current-head condition or global absence/deduplication.
+
+The shared client mutation mutex remains held across pacing, full preflight and
+reply validation. The whole maximum eight-second operation includes mutex wait,
+clips an optional caller deadline and returns `NotSent` only before attempting a
+mutation. Errors/refusals/redirects/invalid or lost replies after attempting stay
+`Indeterminate`; no retries, searches, undo or current-state attribution follow.
+This producer still requires the Go schema-89 reservation consumer before any
+product call. It does not activate shared capabilities or a Go writer.
+
+The existing native executable gained
+`--github-review-create-declared FRESH_PROFILE`. Production provider/transport
+passed 55 declared cases, nine invalid descriptors, cloned-client serialization/
+pacing and in-flight/stopped-owner retirement under
+`/home/vince/tmp/factory-review-create-1105/attempt1/`, with 42 dummy mutation
+attempts. Coverage includes all four events, empty permitted bodies, full 64-KiB
+Unicode/control writing, 64-bit IDs, optional request ID, existing-pending refusal,
+account/repository/PR/head/permission/state refusal before send, provider refusal/
+validation/limits/error/redirect, body/header/deadline bounds, each causal identity/
+scope/body/state/head/commit/comment-count/URL/date/submission mismatch, lost reply,
+and a clone held beyond the pacing interval while its predecessor's response was
+paused. Retired owners cannot send again. The owned peer accepts only declared
+requests with a fixed dummy credential and never forwards. No real GitHub review
+or notification was created or inspected.
+
+| Artifact under `/home/vince/tmp/factory-review-create-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `6d102a58ce80c9a3295bed35668961317c4dc496f474363c0aa8a49d02cf1fab` |
+| `provider` | `a3908f6667471d81a79c59baffe2a7979e75ae19bc3f706caa7e958ae4499149` |
+| `check-bin` | `72c1a5a0a66aa7c488d2422fd1dc701e7d8efbc32c356f01c6c37e3cd5504e18` |
+| `run.sh` | `b08d8710d09b85d040110f9d32a6b7babe12fa2077e5db7af603e5760d591fbf` |
+| `session.sh` | `8e2cb7b77fddc29cd42fa72a11b798f775710465752c901136c8b329123534ab` |
+| `attempt1/result.log` | `4d504489b59c32acd63376e52cef5d7825b7187ea265eec128192358570dd8c4` |
+| `attempt1/review-create-result.json` | `2ac1d407ade5f24c0512f87c193369a391db648e2f535e72766edc8ec647ae79` |
+
+Locked/offline native and desktop-feature source builds, ownership boundaries and
+whitespace checks passed. No dependency, unit-test root, second provider owner or
+Go transaction rewrite was added. This is bounded source/component evidence;
+longest combined identity receipt sizes, fresh live schema/grant/permission,
+actual notification and installed/shared UI behavior remain unqualified.
+
+Next: typed new-review callback/exact-route writing envelopes, canonical Go
+preparation/writer/receipt and normal readback using schema 89, with journal
+replay/lost reply/cancel/withdrawal/replacement/restart/maximum-writing evidence.
+Original unclaimed expiration remains a separate check. Existing pending-review
+submission needs exact pending identity, writing/commit and comment preservation;
+the current preparation records comment count, not complete comment identities.
+A count alone cannot prove those identities unchanged. Existing draft-body updates
+retain the documented concurrent-submission constraint. Supported D5 head/body/
+visibility policy and fresh specifically scoped owner-authorized provider/shared
+UI/installed evidence remain pending. T11-WRITES stays Active; other review/branch/
+merge operations, reviewer/thread constraints, D1/D2/D3/D5, custody/root absence/
+scoped delivery, IPC/window/instance, isolation/execution/retirement/settlement and
+release/upgrade/freshness retain recorded requirements. Shared writes remain
+unavailable. No broad gate, Daybreak work or whole product was completed.

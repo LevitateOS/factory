@@ -30,6 +30,13 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    ReviewCreate {
+        pull: String,
+        head: String,
+        event: Option<&'static str>,
+        body: String,
+        token: Zeroizing<Vec<u8>>,
+    },
     ReviewPreparation {
         query: super::review_preparation::PreparationQuery,
         token: Zeroizing<Vec<u8>>,
@@ -446,6 +453,20 @@ impl Client {
             .await?
             .value)
     }
+    pub(super) async fn post_review(
+        &self,
+        q: &super::ReviewCreate,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::ReviewCreate {
+            pull: q.pull_node_id.clone(),
+            head: q.head.clone(),
+            event: q.wire_event(),
+            body: q.body.clone(),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     pub(super) async fn review_preparation_query(
         &self,
         query: super::review_preparation::PreparationQuery,
@@ -727,6 +748,30 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Threads { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::ReviewCreate {
+            pull,
+            head,
+            event,
+            body,
+            token,
+        } => {
+            let mut input = serde_json::Map::new();
+            input.insert("pullRequestId".into(), serde_json::json!(pull));
+            input.insert("commitOID".into(), serde_json::json!(head));
+            input.insert("body".into(), serde_json::json!(body));
+            if let Some(event) = event {
+                input.insert("event".into(), serde_json::json!(event));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::review_create::CREATE,
+                    serde_json::json!({"input":input}),
+                )?,
+                1024 * 1024,
+            )
         }
         Request::ReviewPreparation { query, token } => {
             let (query, variables) = query.wire();

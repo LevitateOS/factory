@@ -1385,3 +1385,264 @@ pub(super) async fn preparation(profile: &Path) -> Result<()> {
     println!("native review preparation passed {} declared cases, two invalid selectors and retirement; no mutations or live-provider qualification",cases.len());
     Ok(())
 }
+
+pub(super) async fn creation(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::{CreateOutcome, ReviewCreate};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        for key in ["entered", "release", "cancelled"] {
+            match fs::remove_file(io.join(key)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let token = || Token::new(b"factory-declared-review-create".to_vec());
+    let request = || ReviewCreate {
+        repository: "123".into(),
+        repository_node_id: "R_123".into(),
+        pull_id: "700".into(),
+        pull_node_id: "P_700".into(),
+        number: 7,
+        head: "b".repeat(40),
+        event: "comment".into(),
+        body: "Exact human review 🍵\n[link](relative.md)".into(),
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "draft",
+        "comment",
+        "approve",
+        "request_changes",
+        "empty-draft",
+        "empty-approval",
+        "max-unicode",
+        "max-control",
+        "big-ids",
+        "no-request-id",
+    ] {
+        mode(name)?;
+        let mut q = request();
+        if matches!(name, "draft" | "approve" | "request_changes") {
+            q.event = name.into()
+        }
+        if name == "empty-draft" {
+            q.event = "draft".into();
+            q.body.clear()
+        }
+        if name == "empty-approval" {
+            q.event = "approve".into();
+            q.body.clear()
+        }
+        if name == "max-unicode" {
+            q.body = "🍵".repeat(16384)
+        }
+        if name == "max-control" {
+            q.body = "\u{0001}".repeat(65536)
+        }
+        if name == "big-ids" {
+            q.pull_id = "5000000000".into()
+        }
+        let before = writes()?;
+        let r = match client.create_review(token()?, "321", &q).await {
+            CreateOutcome::Created(r) => r,
+            CreateOutcome::NotSent(f) | CreateOutcome::Indeterminate(f) => {
+                return Err(format!("review positive {name}: {} {}", f.status, f.code).into())
+            }
+        };
+        ensure(
+            r["event"] == q.event
+                && r["pull_id"] == q.pull_id
+                && r["head"] == q.head
+                && r["review"]["body_sha256"]
+                    == Sha256::digest(q.body.as_bytes())
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>()
+                && r["review"]["comments_count"] == 0
+                && writes()? == before + 1,
+            "review lost intent/causal receipt",
+        )?;
+        ensure(
+            (q.event == "draft") == r["review"]["submitted_at"].is_null(),
+            "draft/submitted review confused",
+        )?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("existing-pending", 409),
+        ("identity-denied", 401),
+        ("identity-change", 409),
+        ("missing-actor-node", 502),
+        ("read-only", 403),
+        ("unknown-read-only", 403),
+        ("locked", 403),
+        ("merged", 403),
+        ("closed", 403),
+        ("unknown-merged", 403),
+        ("saved-head-changed", 409),
+        ("saved-pull-changed", 409),
+        ("saved-node-changed", 409),
+        ("saved-repo-node-changed", 409),
+        ("empty-comment", 409),
+        ("preflight-deadline", 504),
+    ] {
+        mode(name)?;
+        let mut q = request();
+        match name {
+            "saved-head-changed" => q.head = "c".repeat(40),
+            "saved-pull-changed" => q.pull_id = "701".into(),
+            "saved-node-changed" => q.pull_node_id = "P_other".into(),
+            "saved-repo-node-changed" => q.repository_node_id = "R_other".into(),
+            "empty-comment" => q.body.clear(),
+            _ => (),
+        }
+        let before = writes()?;
+        let f = match client.create_review(token()?, "321", &q).await {
+            CreateOutcome::NotSent(f) => f,
+            _ => return Err(format!("review pre-send {name} not retained").into()),
+        };
+        ensure(
+            f.status == status && writes()? == before,
+            &format!("review pre-send {name}: {} {}", f.status, f.code),
+        )?;
+        cases.push(name);
+    }
+    for name in [
+        "denied",
+        "validation",
+        "limited",
+        "server-error",
+        "redirect",
+        "malformed",
+        "oversized",
+        "partial-errors",
+        "drop-reply",
+        "deadline",
+        "wrong-id",
+        "wrong-node",
+        "wrong-state",
+        "wrong-body",
+        "wrong-author",
+        "wrong-repo",
+        "wrong-pull",
+        "wrong-pull-id",
+        "wrong-number",
+        "wrong-head",
+        "wrong-parent-repo",
+        "wrong-commit",
+        "wrong-commit-repo",
+        "wrong-comments",
+        "wrong-url",
+        "wrong-date",
+        "wrong-submitted",
+        "oversized-request-id",
+        "duplicate-request-id",
+    ] {
+        mode(name)?;
+        let before = writes()?;
+        ensure(
+            matches!(
+                client.create_review(token()?, "321", &request()).await,
+                CreateOutcome::Indeterminate(_)
+            ) && writes()? == before + 1,
+            &format!("review post-send {name} lost uncertainty or retried"),
+        )?;
+        cases.push(name);
+    }
+    let before = writes()?;
+    for i in 0..9 {
+        let mut q = request();
+        match i {
+            0 => q.repository = "0".into(),
+            1 => q.pull_id = "0".into(),
+            2 => q.pull_node_id.clear(),
+            3 => q.repository_node_id.clear(),
+            4 => q.number = 0,
+            5 => q.head = "invalid".into(),
+            6 => q.event = "unsupported".into(),
+            7 => q.body = "x".repeat(65537),
+            _ => q.body = "\0".into(),
+        };
+        ensure(
+            matches!(
+                client.create_review(token()?, "321", &q).await,
+                CreateOutcome::NotSent(_)
+            ),
+            "invalid review descriptor sent",
+        )?;
+    }
+    ensure(
+        writes()? == before,
+        "invalid review descriptors mutated provider",
+    )?;
+    mode("serialize")?;
+    let q = request();
+    let first_token = token()?;
+    let first = async { Ok::<_, String>(client.create_review(first_token, "321", &q).await) };
+    tokio::pin!(first);
+    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    let before = writes()?;
+    let clone = client.clone();
+    let second = clone.create_review(token()?, "321", &q);
+    tokio::pin!(second);
+    tokio::select! {result=&mut second=>return Err(format!("review clone completed while prior response paused: {}",matches!(result,CreateOutcome::Created(_))).into()),_=tokio::time::sleep(Duration::from_millis(1200))=>()}
+    ensure(
+        writes()? == before,
+        "review clone sent while predecessor pending",
+    )?;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        matches!(first.await?, CreateOutcome::Created(_))
+            && matches!(second.await, CreateOutcome::Created(_)),
+        "serialized reviews failed",
+    )?;
+    mode("pause-post")?;
+    let pending_token = token()?;
+    let pending = async { Ok::<_, String>(client.create_review(pending_token, "321", &q).await) };
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        matches!(pending.await?, CreateOutcome::Indeterminate(_))
+            && started.elapsed() < Duration::from_secs(2),
+        "review retirement lost uncertainty or blocked",
+    )?;
+    let before = writes()?;
+    ensure(
+        matches!(
+            client.create_review(token()?, "321", &q).await,
+            CreateOutcome::NotSent(_)
+        ) && writes()? == before,
+        "retired review owner mutated",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists()
+            && !io.join("overlap").exists()
+            && !io.join("too-fast").exists(),
+        "review fixture saw undeclared request/overlap/pacing failure",
+    )?;
+    fs::write(
+        root.join("review-create-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":9,"serialized_clones":true,"pacing":true,"retirement":true,"provider_mutations":writes()?,"real_github":false,"existing_pending_submission":false,"draft_body_update":false,"atomic_head_qualified":false,"product_consumer_connected":false}),
+        )?,
+    )?;
+    println!("native new-review creation passed {} declared cases, nine invalid descriptors, clone serialization/pacing and retirement",cases.len());
+    Ok(())
+}

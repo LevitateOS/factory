@@ -2917,3 +2917,44 @@ verified fix. This routine product work remains in the normal queue; use Daybrea
 only for a user-started check that looks like hacking. D5 and the previous review,
 PR delegation, thread/reviewer, custody/admission/isolation/execution/distribution
 gates remain open.
+
+T11-WRITES bounded new-review effect (2026-11-05):
+`github_provider/review_create.rs`, `mod.rs` and `transport.rs` now provide one
+fixed creation over saved repository/PR Node/numeric identity and reviewed head,
+exact event and writing. Current account/pending/head/state preflight, causal
+identity/body/commit/submission validation, bounded receipt/transport/deadline,
+serialized/paced attempts and retirement have source implementation. Existing
+pending reviews refuse before a new attempt and retain their separate owner;
+this does not implement existing-review submission or draft-body editing.
+
+Production native provider/transport passed 55 declared cases, nine invalid
+descriptors, clone serialization/pacing and retirement with 42 dummy mutation
+attempts. Evidence:
+`/home/vince/tmp/factory-review-create-1105/attempt1/review-create-result.json`,
+SHA-256 `2ac1d407ade5f24c0512f87c193369a391db648e2f535e72766edc8ec647ae79`.
+The plan records exact peer/binary/runner identities. This is dummy-only,
+no-forwarding TLS; no actual GitHub review, grant, notification, current permission,
+atomic condition, shared UI or installed admission was qualified. Longest combined
+identity receipt bounds also lack direct case evidence. No broad gate closed.
+
+Exact new-review consumer dependencies: schema-89 committed reservation before
+every native attempt; typed callback/current custody/original deadline and exact-
+route writing envelope; canonical Go capture/receipt/normal readback; then actual
+replay/loss/cancel/withdrawal/replacement/restart/maximum writing and genuinely
+unclaimed original-expiry evidence. Go registry/transactions stay in Go. Existing
+pending submission additionally needs actual pending identity/commit/full writing
+and comment preservation. The producer currently records pending comment count,
+not their complete identities; unchanged count cannot prove unchanged comments.
+Add the bounded defining observation/condition needed by that consumer before
+claiming full preservation. Existing-draft body edits retain the separately
+recorded race with another client's submission; this new-review refusal is not a
+verified fix for that operation.
+
+D5 current-head/body/visibility policy, actual owner-authorized provider
+permission/event/notification behavior and shared UI/installed checks remain
+required. Preflight plus a matching causal reply is not an expected-head
+condition or remote deduplication. Shared write capabilities remain unavailable.
+Remaining review/branch/merge effects, thread/reviewer/PR-delegation constraints
+and earlier D1/D2/D3/D5, custody/admission/isolation/execution/distribution gates
+retain their recorded blockers and closure evidence. No Daybreak work ran or was
+marked complete.
