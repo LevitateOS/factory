@@ -577,7 +577,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
 | 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Complete |
 | 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Complete |
-| 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Active |
+| 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Complete |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
 | 186 | T07-ISSUE-DETAIL | T07-ISSUE-LIST | Build the shared read-only issue detail/conversation over canonical reads, with sanitized Markdown, host-owned links, bounded comment paging and scoped retirement/access handling; verify emitted assets, stories and browser behavior before connected navigation. | Complete |
 | 187 | T07-ISSUE-COMPOSITION | T07-ISSUE-DETAIL | Compose shared issue list/detail and admitted Factory journey in the production app with distinct typed issue/work-detail destinations, exact account/resource binding and coordinated read retirement; verify actual browser navigation and unavailable facts before host route cutover. | Complete |
@@ -26379,7 +26379,7 @@ Historical observer migration inventory (source audit; still unqualified):
 | Same file historical `run_device` / `--github-device` | Migrated to independent `--github-device-pending` (actual unapproved GitHub challenge) and `--github-device-declared` (owned dummy-only HTTPS cases). Both passed; evidence below. |
 | Same file `run_verify` / historical `--github-verify` | Migrated to `--github-verify-refusal` (actual generated-invalid-token refusal) and `--github-verify-declared` (Rust HTTPS refusal/restart/cancellation/retirement with empty custody). Both passed; evidence below. |
 | Same file `run` / historical `--github-transport` | Migrated to `--github-transport-refusal` (actual generated-invalid-token refusal/cleanup) and `--github-transport-declared` (current Rust scope/restart/replacement/withdrawal/cancellation/joined retirement). Both passed; evidence below. |
-| `cmd/soda-desktop/src/check_credentials.rs` declared `start_signin`, `binding_checks`, `issue_checks` / `--check-signin` | Migrate old `io/mode` Go observer expectations: UI denial/cancel/expiry, stable canonical mappings across restart/rename, decimal provider IDs above JS integer precision, duplicate/foreign bindings, nullable records and filtered pagination, withdrawal and backend retirement. Actual connected consent/UI and the 62-case evidence suite do not replace all these cases. |
+| `cmd/soda-desktop/src/check_credentials.rs` declared `start_signin`, `binding_checks`, `issue_checks` / `--check-signin` | Migrated to the production Rust connector with the dummy-only HTTPS producer. Actual Tauri/WebKit denial/cancel/expiry, stable mappings across restart/rename, large decimal IDs, foreign binding/repository refusal, malformed inventory, nullable records/filtered pagination, withdrawal and backend retirement passed; evidence below. |
 
 Production `pkg/github` has only its historical README; no Go authenticated
 connector or Go SDK fallback remains. The other current actual-invalid-token
@@ -26547,3 +26547,69 @@ remains its separate proof above. Locked/offline operation build, boundary and
 whitespace checks passed; no broad installed or fresh baseline is claimed.
 T06-GITHUB stays Active for declared WebKit migration; D1/D2/D3/D5, executor and
 installed gates remain open.
+
+## T06-GITHUB — connected provider slice complete (2026-11-05)
+
+The remaining declared WebKit observer now runs the production Rust connector,
+current Go/PG and real isolated Secret Service, with an owned loopback-only
+dummy HTTPS producer. Its mode files control that external provider fixture;
+no Go HTTP observer, SDK fallback, real grant or forwarding is involved. The
+existing native opener handed the fixed verification URI to an explicitly
+declared xdg-open receiver inside the owned check environment; this is not a
+claim of a real browser consent in this declared run. A Go Store fixture seeded
+one foreign-provider repository solely in this owned private database through
+the existing defining transaction APIs; Rust still owns no product SQL.
+
+`--check-signin` exited 0 under `/home/vince/tmp/factory-gh-ui-1105/a2/`, proving
+the retained UI/canonical obligations: native prompt shape, duplicate/generic
+opener refusal, secondary-window ownership, cancellation and stale-attempt
+refusal, denial/expiry/fresh-identity refusal, complete encrypted metadata,
+foreign credential-profile refusal, canonical account/catalogue pages and
+large decimal IDs, stable rename/reconnect identities, current provider refusal
+without cached inventory, upstream cancellation, full Markdown/participants,
+filtered empty issue continuation, unknown metadata/capabilities, state/detail
+semantics, PR-wrapper/missing/foreign-repository refusal, backend crash/restart
+with stable mappings, actual local withdrawal and retired sign-in suppression.
+The wrapper also verified no unexpected provider request. Owned PG shut down.
+
+The source check now labels both refusal groups as declared provider outcomes,
+with `actual_github_refusals:false`; actual GitHub refusal/revocation is supplied
+by the independent actual checks recorded above. A malformed catalogue now
+expects the production Rust decoder's 502 instead of the old Go observer's 503.
+Attempt1 is preserved: its fixture seeder opened Store during initial native
+schema creation and caused a startup race. The corrected seeder waits for the
+native-ready sign-in mode before opening the existing schema; no product schema
+or runtime workaround was added.
+
+Safe evidence hashes in `a2/`:
+- `result.log`: `225df68c6ccf81f892c037d0464b336af9d1e1ad68b7e8b1f30cbf5daf9fafd7`
+- `canonical-binding.json`: `d70d6b94cca156ed648ea0be619687d1c1a600f93f07b9a40b881e31103b177e`
+- `canonical-issues.json`: `52e00b207fe354667e83b873ebb52d25d7279906738f5d494e34d33aeceda088`
+- `canonical-binding-retained.json`: `0449b4bd9b17bdb41864c4f2a2b5c425799927cb5e6d436f98e60beafd9491ee`
+- `canonical-issues-retained.json`: `d9d36d9ce86a9472d20aa366b20ac02ad511572803b215a7d27c887cd65cd0fc`
+- fixture `provider.go`: `a55eb57c5f806851d8ac745194cd0695daf597746735b54f6a6b3d8e5143a9ab`
+- fixture `seed.go`: `3dec8990b1e9fd05b278fa26878a92b1e02a3e020ab6e10e9b76c4fe2b987a1c`
+
+Finish-condition audit:
+
+| Requirement | Evidence and limit |
+| --- | --- |
+| Successful public-client consent, verified identity and encrypted grant | Actual owner-approved connected revocation-v2 journey, with safe consent result above; declared runs do not substitute for consent. |
+| Canonical mapping, paging, private access and connected shared UI | Same actual journey: canonical account/resource/actor, two repository pages/private detail, shared issue navigation/drafts/switch/reconnect, workflow jobs/continuation and protection; declared WebKit adds large IDs/nullable/rename/restart/refusal cases. |
+| Normalized collaboration producer coverage | Consumes completed Rust/read/file/review/check/status/inline-comment producers and their recorded source/actual-provider evidence, plus completed workflow-job/protection producer. Unknown requirements, approval, workflow-definition commit, actor/bypass authority and merge gate stay unknown. |
+| Refresh and provider-side revocation/subsequent refusal | Actual successful refresh and post-refresh identity before owner grant revocation; actual identity 401, canonical/WebKit refusal, typed client-credentials rejection on subsequent refresh, pending fence then withdrawal. No `bad_refresh_token` response is invented. |
+| Historical Go-observer consumer migration | All five headless consumers and the declared WebKit consumer now have the current passing replacements inventoried above. Historical source/results and failed attempts remain preserved. |
+
+Row T06-GITHUB is Complete for this connected source slice. Its evidence spans
+the captured producer/current integration inputs; it is not a freshly qualified
+installed release or a complete atomic provider snapshot. Locked/offline native
+desktop build passed; boundary and whitespace checks passed. No new unit-test
+root, parallel authenticated connector, external repository mutation or real
+provider write was introduced.
+
+No row remains Active. The next unfinished row in dependency order is T07-READ,
+which must audit its shared issue/host composition finish condition separately.
+N3/N4 native execution work and installed D1/D2/D3/D5/security/resource gates
+remain open. The full product goal remains active and incomplete. This provider
+slice does not close those gates or require Daybreak merely because it includes
+ordinary authentication/custody engineering.

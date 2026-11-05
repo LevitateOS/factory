@@ -1426,3 +1426,35 @@ restart and withdrawal obligations with the current Rust HTTPS producer before
 retiring its old `io/mode` Go observer assumptions. D1/D2/D3/D5 and installed
 isolation/admission/custody/executor gates retain their distinct dependencies
 and closure evidence; these bounded probes do not close them.
+
+Declared WebKit migration and provider-slice closure (2026-11-05): the remaining
+historical observer now uses the current production Rust HTTPS producer and
+actual isolated Tauri/WebKit/keyring/Go/PG. It exited 0 under
+`/home/vince/tmp/factory-gh-ui-1105/a2/`, including UI refusal/cancellation,
+foreign profile/repository refusal, large canonical IDs, nullable/filtered issue
+pages, stable rename/restart mappings, withdrawal and retired sign-in. A
+declared xdg-open receiver observed only the fixed native verification URL;
+this run claims no real browser consent. Both provider-refusal groups now
+explicitly record `actual_github_refusals:false`. Actual consent and remote
+revocation remain the distinct owner-approved connected proof above.
+
+Safe log `225df68c6ccf81f892c037d0464b336af9d1e1ad68b7e8b1f30cbf5daf9fafd7`,
+binding result `d70d6b94cca156ed648ea0be619687d1c1a600f93f07b9a40b881e31103b177e`,
+issue result `52e00b207fe354667e83b873ebb52d25d7279906738f5d494e34d33aeceda088`.
+Retained-mapping and fixture source hashes are in the canonical plan. Attempt1's
+fixture schema-opening race is preserved; waiting for native readiness fixed
+the harness without a production schema change. Fixture foreign-repository
+input uses existing Go Store transactions only in the owned private database.
+
+T06-GITHUB is Complete for its connected source finish condition; all historical
+Go-observer consumer migrations and actual remote-revocation obligations are
+satisfied. This supersedes the preceding T06-GITHUB blockers, not any broader
+gate. Exact remaining security/resource gates are the installed native
+peer/window/instance/account/resource admission and the registered D1/D2/D3/D5
+and executor/custody/isolation journeys. Their dependency rows and evidence
+requirements earlier in this handoff still apply. This is not installed or
+fresh-release qualification, worker isolation, secret-delivery qualification,
+credential-root absence, finite paid-provider work or durable execution
+settlement. These tasks remain normal engineering; only particular work that
+looks like hacking needs the owner-started Daybreak session. Next product row
+is T07-READ; the overall product goal remains active and incomplete.

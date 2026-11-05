@@ -255,7 +255,7 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
         ("identity-denied", 401),
         ("binding-wrong-account", 409),
         ("binding-catalog-denied", 403),
-        ("binding-bad-page", 503),
+        ("binding-bad-page", 502),
         ("binding-live-refusal", 401),
     ] {
         std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed")?;
@@ -275,7 +275,7 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
             let reply = native_github_read(app, connection, GitHubRead::Binding).await?;
             ensure(
                 reply.status == 401 && reply.body.get("binding").is_none(),
-                "real GitHub refusal admitted canonical account",
+                "declared provider refusal admitted canonical account",
             )?;
         }
     }
@@ -336,7 +336,7 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
         "canonical-binding.json",
         &serde_json::json!({
             "binding":binding,"repository":page["items"][0],"declared_positive_provider":true,
-            "actual_github_refusals":2,"paging":true,"rename_reconnect":true,"cancellation":true
+            "actual_github_refusals":false,"declared_provider_refusals":2,"paging":true,"rename_reconnect":true,"cancellation":true
         }),
     )
 }
@@ -553,7 +553,7 @@ async fn issue_checks(
             .await?;
             ensure(
                 reply.status == 401 && reply.body.get("issues").is_none(),
-                "actual GitHub refusal admitted canonical issue detail",
+                "declared provider refusal admitted canonical issue detail",
             )?;
         }
     }
@@ -615,7 +615,7 @@ async fn issue_checks(
         "canonical-issues.json",
         &serde_json::json!({
             "issue":item["ref"],"author":item["author"],"full_markdown_bytes":expected.len(),
-            "declared_positive_provider":true,"actual_github_refusals":2,"filtered_empty_continuation":true,
+            "declared_positive_provider":true,"actual_github_refusals":false,"declared_provider_refusals":2,"filtered_empty_continuation":true,
             "nullable_facts":true,"unknown_mutation_capabilities":true,"rename_stable":true,"cancellation":true
         }),
     )
