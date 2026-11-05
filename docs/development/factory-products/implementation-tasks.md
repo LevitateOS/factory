@@ -28476,3 +28476,88 @@ visibility/transfer limitations above remain open. T11-WRITES stays Active. D1/D
 D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance,
 worker isolation/execution/retirement/settlement and release/upgrade/freshness
 retain earlier blockers. The full product remains unfinished.
+
+### T11-WRITES checkpoint: bounded reviewer observations and target lookup (2026-11-05)
+
+The native connector lacked complete reviewer-request observations and stable
+user/team target lookup, prerequisites for the pending request/removal effects.
+`lib/desktop-runtime/src/github_provider/review_requests.rs` now supplies one
+account-bound producer for these facts. Go still owns canonical identities and
+durable intent; no canonical binding, SQL, mutation callback or UI action was added.
+
+The producer pins immutable repository/PR identities, traverses fixed GraphQL
+review-request pages of 50 and bounds traversal to 1,000 records, 8 MiB projected
+items and a whole eight-second operation. It refuses changing counts, duplicate
+request/target/user identities, missing/non-progressing cursors, wrong parent or
+repository, malformed required facts and partial GraphQL errors. PR/repository/
+owner identities are rechecked before return. This is a bounded traversal, not
+an atomic point-in-time membership snapshot or conditional mutation proof.
+
+User target lookup uses the current
+[durable-ID user endpoint](https://docs.github.com/en/rest/users/users#get-a-user-using-their-id).
+User external identity remains numeric. Teams use their opaque GraphQL Node ID as
+external identity and a fixed typed Node lookup; no deprecated numeric-team REST
+lookup or numeric-ID-to-Node heuristic was introduced. A selected team must belong
+to the observed repository-owner organization. User/team kind and immutable Node
+facts cannot be conflated, even when numeric database IDs coincide. Team database
+IDs and user IDs supplied by GraphQL can remain null; an independently selected
+user's durable REST ID stays separate from that null observation. Canonical team
+consumer/mapping work remains pending; no existing host mapping is rekeyed here.
+
+Review-request IDs, code-owner flags, users, teams, bots and other typed reviewers
+are retained. A null reviewer slot remains present. If the selected target is not
+seen but a slot is hidden/unidentified, requested state is null rather than false;
+a positively identified target remains known present despite another hidden slot.
+Names/slugs are labels, not identity or permission. Observed code-owner status,
+visibility and requested state grant no action, spend or executor capability.
+The unchanged GraphQL continuation decoder moved from the thread reader to
+`records.rs` and is shared by both producers. Transport accepts only the new fixed
+read query variants, retaining bounded responses, no retries/redirects and joined
+native retirement.
+
+The existing executable gained `--github-reviewer-read-declared FRESH_PROFILE`.
+The actual production Rust reader passed 56 declared cases, eight invalid
+selectors and owner retirement in `/home/vince/tmp/factory-reviewer-read-1105/attempt1/`.
+Coverage includes complete paged user/team/bot lists, same-numeric-ID separation,
+no target, requested/absent/hidden states, empty lists, nullable IDs, BigInt PR/user
+IDs, renamed labels, another reviewer kind, identity/scope/type mismatches,
+duplicate IDs/targets, wrong parent/code-owner/nullable-field shapes, foreign teams,
+changing/mismatched counts, cursor failures, bounds, partial errors, provider refusal,
+malformed data, redirects, missing/changed target lookup and whole-operation timeout.
+The local TLS peer accepts only its dummy credential and fixed declared reads and
+never forwards; every GraphQL POST was a query, with zero mutations. Existing
+thread-reader regression passed its 36 declared cases, eight invalid descriptors
+and retirement after the shared decoder move.
+
+| Artifact under `/home/vince/tmp/factory-reviewer-read-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `d501b23afd718df4e752dd0f9c9f27a0a97f68dbf54c46be087f3e915e5796d6` |
+| `provider` | `16b20a9134018fb052bb1abb91a821bc8a5d24f0dffcbab55bcca80c21fc523f` |
+| `check-bin` | `b28162071ade01d62cdfee5d0fb51c63d25eb45f7c6d99e470d9b2d1ab54ee79` |
+| `run.sh` | `b10c863a58171e0389828bea2e5888562e0f4a1f94f3d5b7670c001491503248` |
+| `session.sh` | `456aa4581339cdedfe6051e21ece30d3078b2d4f376ef2c4bb15add93974caf5` |
+| `attempt1/result.log` | `ff55a12a16d8f13bc65b8c2e2f7217fcbe0e69d6eb1307a628b7d8a73cf782a7` |
+| `attempt1/reviewer-read-result.json` | `9d0e3b160bf0140987145f94d5ba6aa6741a7f08718d20694c8cba2acbe52482` |
+
+Thread regression root
+`/home/vince/tmp/factory-review-threads-1105/reviewer-helper-regression/`, log
+`47a73f77532c41691f8359c9d9271d869621760412c1a61902d5d7545b35dbf5`, result
+`5947fca7163a6f76457678a1f8c378caae5394346a3b7c49b3805a0a2b1cfed5`.
+Locked/offline native/desktop-feature builds, ownership boundaries and whitespace
+checks passed. No dependency, unit test or unit-test root was added.
+
+The provider read prerequisite is resolved in source. Next: fixed native reviewer
+addition/removal effects, preserving unrelated targets, then typed callback,
+canonical target mapping/Go writer and normal readback through the schema-87 fence.
+Current [GraphQL request input](https://docs.github.com/en/graphql/reference/pulls#requestreviewsinput)
+supports selected user/team Node IDs and union addition. The documented REST removal
+input uses mutable names; immutable target/name binding, concurrent changes and
+preserving unrelated requests remain unverified and require supported policy and
+real evidence. No replacement of the whole reviewer set is authorized by a
+single-target intent. Actual schema/permissions/member visibility, user/team mapping,
+causal/no-op/uncertain results, replay/cancel/withdrawal/restart, captured expiry,
+shared WebKit/installed and fresh owner-authorized provider checks remain pending.
+T11-WRITES remains Active. Original thread context and selected-resource policy,
+D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/
+execution/retirement/settlement and release/upgrade/freshness remain open. The
+full product is unfinished; no broad gate was closed by this read-only fixture.

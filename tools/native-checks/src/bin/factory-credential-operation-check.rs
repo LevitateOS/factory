@@ -24,6 +24,8 @@ mod native_github_edits;
 mod native_github_issues;
 #[path = "../native_github_locks.rs"]
 mod native_github_locks;
+#[path = "../native_github_review_requests.rs"]
+mod native_github_review_requests;
 #[path = "../native_github_states.rs"]
 mod native_github_states;
 #[path = "../native_github_threads.rs"]
@@ -1226,6 +1228,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-threads-declared" {
             return runtime.block_on(native_github_threads::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-reviewer-read-declared" {
+            return runtime.block_on(native_github_review_requests::producer(Path::new(&args[1])));
         }
         if args.len() == 2 && args[0] == "--github-thread-resolution-declared" {
             return runtime.block_on(native_github_threads::resolution(Path::new(&args[1])));

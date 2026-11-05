@@ -2452,3 +2452,49 @@ delayed captured expiration, D1/D2/D3/D5, custody/root absence/scoped delivery,
 installed IPC/window/instance, worker isolation/execution/retirement/settlement and
 release/upgrade/freshness retain their earlier dependencies and evidence. No broad
 security gate or Daybreak work was closed; independent routine work continues.
+
+T11-WRITES reviewer-observation prerequisite (2026-11-05):
+`github_provider/review_requests.rs` now supplies fixed account-bound, bounded
+review-request traversal and current user/team target lookup. `records.rs` owns
+the shared GraphQL continuation decoder; `review_threads.rs` uses that same decoder.
+`transport.rs` admits fixed read query variants only. User targets use durable
+numeric IDs; team targets use opaque GraphQL Node identity, without a deprecated
+numeric-team endpoint or inferred Node mapping. Repository/PR/owner and target
+kind/identity mismatches refuse, including a team outside the repository owner.
+This is not member eligibility, product permission or a mutation grant.
+
+The reader retains code-owner flags, bots/other reviewer types and null reviewer
+slots. An unseen target with hidden slots stays unknown; unknown numeric metadata
+is not replaced with zero, labels or a guessed ID. Canonical Go user/team consumers
+and retained mappings still need to preserve these distinctions. Complete bounded
+page traversal and final identity rechecks do not prove an atomic membership
+snapshot during concurrent changes.
+
+Actual native reader/transport passed 56 declared cases, eight invalid descriptors
+and retirement using dummy-only, no-forwarding TLS. Evidence
+`/home/vince/tmp/factory-reviewer-read-1105/attempt1/reviewer-read-result.json`,
+SHA-256 `9d0e3b160bf0140987145f94d5ba6aa6741a7f08718d20694c8cba2acbe52482`.
+The existing thread-reader regression passed 36 cases, eight invalid descriptors
+and retirement after the shared decoder move; result
+`5947fca7163a6f76457678a1f8c378caae5394346a3b7c49b3805a0a2b1cfed5` under
+`/home/vince/tmp/factory-review-threads-1105/reviewer-helper-regression/`.
+Exact artifacts are in the plan. There were no mutations, real grants, canonical
+consumer, shared UI or installed admission checks.
+
+The bounded target/request reader source blocker is resolved. Exact remaining
+reviewer dependency: native fixed effects preserving all unrelated reviewer
+requests, then `collaboration.rs` callback and Go canonical mapping/writer/readback
+using schema-87 one-shot intent. GraphQL permits immutable user/team union addition;
+REST removal uses mutable login/slug selectors. Immutable selected-target binding
+across renames/reuse, preservation during concurrent requests and the supported
+policy for those API limits remain unverified. Relevant files are the new reader,
+`transport.rs`, the future native effect, `collaboration.rs`, canonical registry
+and runtime consumers. Close only with actual permitted/refused scope/name-change
+and unrelated-target evidence, causal/no-op/lost-reply distinctions, replay/cancel/
+races/withdrawal/replacement/restart, captured expiry and fresh scoped owner-
+authorized provider/normal shared readback. No proposed preflight is verified
+atomic protection. A partial/hidden list must never become permission to replace
+a complete reviewer set. D1/D2/D3/D5, original thread context, selected-resource/
+visibility/transfer policy, custody/root absence/scoped delivery, installed IPC/
+window/instance, isolation/execution/retirement/settlement and release/upgrade/
+freshness retain earlier blockers. No broad security gate or Daybreak work closed.

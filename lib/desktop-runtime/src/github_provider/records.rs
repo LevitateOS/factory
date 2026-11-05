@@ -314,3 +314,23 @@ fn patch(
     }
     Ok(super::patch::classify(raw, additions, deletions))
 }
+
+pub(super) fn graphql_continuation(connection: &Value) -> Result<Option<String>> {
+    let info = &connection["pageInfo"];
+    let more = info["hasNextPage"]
+        .as_bool()
+        .ok_or_else(Failure::protocol)?;
+    let cursor = match info.get("endCursor") {
+        Some(Value::Null) => None,
+        Some(Value::String(s))
+            if !s.is_empty() && s.len() <= 4096 && !s.chars().any(char::is_control) =>
+        {
+            Some(s.clone())
+        }
+        _ => return Err(Failure::protocol()),
+    };
+    if more && cursor.is_none() {
+        return Err(Failure::protocol());
+    }
+    Ok(if more { cursor } else { None })
+}

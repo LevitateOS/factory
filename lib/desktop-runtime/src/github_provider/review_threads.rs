@@ -221,7 +221,7 @@ impl Reader<'_> {
                     }
                     all.push(item);
                 }
-                let following = continuation(connection)?;
+                let following = r::graphql_continuation(connection)?;
                 if following.is_none() {
                     if all.len() as u64 != count {
                         return Err(Failure::new(409, "github_threads_changed"));
@@ -256,25 +256,7 @@ impl Reader<'_> {
         )
     }
 }
-fn continuation(connection: &Value) -> Result<Option<String>> {
-    let info = &connection["pageInfo"];
-    let more = info["hasNextPage"]
-        .as_bool()
-        .ok_or_else(Failure::protocol)?;
-    let cursor = match info.get("endCursor") {
-        Some(Value::Null) => None,
-        Some(Value::String(s))
-            if !s.is_empty() && s.len() <= 4096 && !s.chars().any(char::is_control) =>
-        {
-            Some(s.clone())
-        }
-        _ => return Err(Failure::protocol()),
-    };
-    if more && cursor.is_none() {
-        return Err(Failure::protocol());
-    }
-    Ok(if more { cursor } else { None })
-}
+
 fn project(
     thread: &Value,
     pull: &str,
@@ -321,7 +303,7 @@ fn project(
     {
         return Err(Failure::protocol());
     }
-    let more = continuation(connection)?.is_some();
+    let more = r::graphql_continuation(connection)?.is_some();
     if more != (start + (nodes.len() as u64) < total) || more && nodes.is_empty() {
         return Err(Failure::protocol());
     }

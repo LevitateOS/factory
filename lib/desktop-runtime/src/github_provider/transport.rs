@@ -77,6 +77,10 @@ enum Request {
         resolved: bool,
         token: Zeroizing<Vec<u8>>,
     },
+    Reviewers {
+        query: super::review_requests::ReviewerQuery,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -395,6 +399,19 @@ impl Client {
             .await?
             .value)
     }
+    pub(super) async fn reviewer_query(
+        &self,
+        query: super::review_requests::ReviewerQuery,
+        token: &[u8],
+    ) -> Result<Value> {
+        Ok(self
+            .mutation(Request::Reviewers {
+                query,
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?
+            .value)
+    }
     pub(super) async fn post_thread_resolution(
         &self,
         node: &str,
@@ -409,7 +426,10 @@ impl Client {
         .await
     }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
-        let read_query = matches!(&request, Request::Threads { .. });
+        let read_query = matches!(
+            &request,
+            Request::Threads { .. } | Request::Reviewers { .. }
+        );
         let wire = self.request(request).await?;
         if wire.status != 200 {
             if matches!(wire.status, 400 | 422) {
@@ -526,6 +546,10 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Threads { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::Reviewers { query, token } => {
+            let (query, variables) = query.wire();
+            (graphql(http, &token, query, variables)?, 8 * 1024 * 1024)
         }
         Request::ThreadResolution {
             node,
