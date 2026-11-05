@@ -25234,3 +25234,15 @@ sockets and run paths were removed. The operation requires a trusted exact
 scope and an exclusive profile owner; it is not yet called by the desktop
 startup or Go ledger. The fixtures did not include a real credential, a
 process kill/reboot or product transaction settlement. N3 and D3 remain open.
+
+T09-NATIVE-EXECUTOR native MCP custody source audit (2026-11-05): the current
+Go `LoadFactoryMCPKey` creates and returns raw persistent root-key bytes, while
+`Coordinator.MCPKey`, `DeriveMCPCapabilitySecret` and `Workers.Handler(key)`
+are Go-side derivation and verification paths. Source search found no native
+desktop runtime call to the loader; the current desktop product backend starts
+no coordinator or native MCP listener. The selected allocation still requires
+one Rust-held native signing-key lifetime and a bounded derivation/verification
+port before N4 activation. The Go capability ledger and authorization owner
+must remain canonical, and Forge's separate appliance path must be preserved.
+No Rust native signer, key migration, live worker delivery or denial evidence
+was produced by this audit. D3 custody and T09-NATIVE-EXECUTOR remain open.
