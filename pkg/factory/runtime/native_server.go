@@ -71,12 +71,14 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 		return errors.New("native Factory retained recovery failed")
 	}
 	cancelStartup()
+	instance := collaboration.NewID()
+	application.application.Coordinator.MCPSecret = NativeMCPSecretDeriver(config, instance)
 	var nativeProvider http.Handler
 	if connector != nil {
 		nativeProvider = connector(collaboration.Profile{ID: config.Profile, Name: "This computer"}, db)
 	}
 	var closing atomic.Bool
-	server := &http.Server{Handler: nativeHandler(config, application, nativeProvider, &closing),
+	server := &http.Server{Handler: nativeHandler(config, instance, application, nativeProvider, &closing),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384,
 		BaseContext: func(net.Listener) context.Context { return ctx }, ConnContext: nativePeerContext,
@@ -109,9 +111,8 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	return errors.Join(serveErr, err)
 }
 
-func nativeHandler(config NativeConfig, application *NativeApplication, connector http.Handler, closing *atomic.Bool) http.Handler {
+func nativeHandler(config NativeConfig, instance string, application *NativeApplication, connector http.Handler, closing *atomic.Bool) http.Handler {
 	key := []byte(hex.EncodeToString(config.IPCKey()))
-	instance := collaboration.NewID()
 	mux := http.NewServeMux()
 	db := application.application.Store
 	product := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

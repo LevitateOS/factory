@@ -3,13 +3,33 @@
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use soda_desktop_runtime::mcp_signing::Signer;
+use soda_desktop_runtime::supervisor::NativeSupervisor;
+use soda_unix_http::{request_authenticated_async, Limits, Response};
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = PathBuf::from(std::env::args().nth(1).ok_or("scratch root required")?);
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 3 || args.len() == 4 {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        runtime.block_on(managed(
+            &root,
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            args.get(3).map(Path::new),
+        ))?;
+    } else if args.len() != 1 {
+        return Err(
+            "expected scratch root, optional PostgreSQL payload, Go backend and client".into(),
+        );
+    }
     let mut random = [0u8; 8];
     getrandom::fill(&mut random)?;
     let name: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
@@ -51,5 +71,114 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .flush()?;
     assert!(Signer::open(&profile).is_err());
     println!("PASS: native MCP private key, scoped derivation, restart and invalid-file refusal");
+    Ok(())
+}
+
+async fn sign(
+    socket: &Path,
+    bearer: &str,
+    instance: &str,
+    id: &str,
+    digest: &str,
+) -> Result<Response, Box<dyn std::error::Error>> {
+    let body = serde_json::to_vec(&serde_json::json!({"capability_id":id,"scope_digest":digest}))?;
+    Ok(request_authenticated_async(
+        socket,
+        "POST",
+        "/api/native/mcp-sign",
+        "soda-native",
+        &body,
+        bearer,
+        &[("x-soda-native-instance", instance)],
+        Duration::from_secs(5),
+        Limits {
+            header_bytes: 4096,
+            body_bytes: 256,
+        },
+    )
+    .await
+    .map_err(|error| format!("native signing transport: {error:?}"))?)
+}
+
+async fn managed(
+    root: &Path,
+    payload: &Path,
+    backend: &Path,
+    go_client: Option<&Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut random = [0u8; 8];
+    getrandom::fill(&mut random)?;
+    let name: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+    let profile = root.join(format!("managed-mcp-{name}"));
+    let id = "0123456789abcdef0123456789abcdef";
+    let digest = "a".repeat(64);
+    let mut first = None;
+    for restart in 0..2 {
+        let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
+        let ready = supervisor.health()?;
+        let bearer = fs::read_to_string(profile.join("backend.key"))?;
+        let socket = profile.join("host.sock");
+        let response = sign(&socket, &bearer, &ready.instance, id, &digest).await?;
+        if let Some(go_client) = go_client {
+            assert!(Command::new(go_client)
+                .arg(&profile)
+                .arg(&ready.instance)
+                .status()?
+                .success());
+        }
+        assert_eq!(response.status, 200);
+        let value: serde_json::Value = serde_json::from_slice(&response.body)?;
+        let secret = value["secret"].as_str().ok_or("missing scoped secret")?;
+        let mut reference =
+            Hmac::<Sha256>::new_from_slice(&fs::read(profile.join("native-mcp.key"))?)?;
+        reference.update(format!("{id}\n{digest}").as_bytes());
+        let expected: String = reference
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(secret, expected);
+        if restart == 0 {
+            first = Some(secret.to_owned());
+            assert_eq!(
+                sign(&socket, "0", &ready.instance, id, &digest)
+                    .await?
+                    .status,
+                401
+            );
+            assert_eq!(
+                sign(
+                    &socket,
+                    &bearer,
+                    "00000000000000000000000000000000",
+                    id,
+                    &digest
+                )
+                .await?
+                .status,
+                401
+            );
+            assert_eq!(
+                sign(&socket, &bearer, &ready.instance, "invalid", &digest)
+                    .await?
+                    .status,
+                400
+            );
+        } else {
+            assert_eq!(first.as_deref(), Some(secret));
+        }
+        supervisor.stop()?;
+        assert!(!socket.exists());
+        if let Some(go_client) = go_client {
+            assert!(Command::new(go_client)
+                .arg(&profile)
+                .arg(&ready.instance)
+                .arg("retired")
+                .status()?
+                .success());
+        }
+    }
+    println!("PASS: managed native MCP callback, peer channel, denial, retirement and restart");
     Ok(())
 }

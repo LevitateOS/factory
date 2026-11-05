@@ -82,6 +82,15 @@ independent of product request selectors and remains fixed throughout the port
 lifetime. Repository facts include nullable provider `push` permission; missing
 permission is unknown, not an inferred write grant.
 
+The separate fixed `/api/native/mcp-sign` host-socket route accepts only a
+capability ID and its immutable scope digest. Rust keeps the persistent native
+MCP root key in the private profile and returns one derived secret after the
+same peer, channel-key and instance checks. The Go client validates the
+capability shape and bounded response; the Go ledger must still establish
+current run admission before delivering or accepting a worker secret. The
+native coordinator and MCP worker listener are not active yet. Forge retains
+its separate appliance key path.
+
 `BindNativeProduct` composes the shared product router with the same Store and
 coordinator. It supplies feed/subscription, owner-private request, retained
 assignment/priority and library reads. Resource callbacks resolve the exact

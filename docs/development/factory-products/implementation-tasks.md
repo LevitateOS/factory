@@ -25284,3 +25284,34 @@ The signer is not yet bound to the supervisor or exposed through an authenticate
 native callback; the Go coordinator and worker listener remain unwired. No live
 worker delivery, expiry/withdrawal, rotation or root-key absence observation
 was performed. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR native MCP callback checkpoint (2026-11-05): the
+supervisor-owned Rust host socket now offers a fixed bounded signing route
+using its existing private peer, channel-key and instance checks. It returns
+only a per-capability HMAC for a well-formed ID and scope digest; Go keeps the
+capability ledger and current-run decision. The native Go server binds a
+signing client to its current instance and rejects malformed responses; the
+appliance raw-key path remains separate. A fresh headless native supervisor
+with the current Go backend and retained PostgreSQL payload passed direct
+host-socket derivation, wrong-key and wrong-instance refusal, invalid-scope
+refusal, socket retirement and stable key reopening across restart. The
+disposable profile is under `/home/vince/tmp`; no real credential or provider
+was used. Locked offline Rust checking, the current Go build and existing MCP
+HTTP integration check passed. The fixture called Rust directly, so the Go
+signing client, canonical capability row, native MCP listener, worker delivery,
+expiry/revocation and root-key absence on the admitted path remained unverified
+at this direct-socket checkpoint.
+T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR cross-language signing callback check (2026-11-05): the
+same fresh managed PostgreSQL/Go/Rust supervisor fixture then invoked the
+production Go native signing client with a synthetic, shape-valid capability.
+The client received the Rust-derived per-capability secret, matched the Go
+protocol HMAC in the disposable check, repeated successfully after a complete
+supervisor restart, and refused after each ordered retirement. The check
+printed no root key or derived secret. Its synthetic fixture read its own
+private key for comparison; the production native Go client does not. This
+still does not exercise the canonical capability ledger, native MCP listener,
+worker delivery, current admission, expiry/withdrawal or key rotation. The
+separate appliance raw-key path remains present. T09-NATIVE-EXECUTOR and D3
+remain open.

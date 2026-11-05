@@ -1,8 +1,10 @@
-//! Finite native collaboration effects for the Go product owner. This is not an
-//! HTTP signer: selectors are semantic, credentials never cross the channel, and
-//! the Go caller can use only an operation admitted by the native host.
+//! Authenticated native host effects for the Go product owner. Collaboration
+//! selectors are semantic and require a native operation. The separate fixed
+//! MCP route derives from a caller-supplied scope; Go must validate its ledger
+//! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{Client, Failure, Read};
+use crate::mcp_signing::Signer;
 use crate::product::Products;
 use crate::supervisor::NativeChannel;
 use http_body_util::{BodyExt, Full, Limited};
@@ -46,6 +48,7 @@ impl Scope {
 }
 struct State {
     channel: NativeChannel,
+    signer: Signer,
     provider: Client,
     alive: Arc<AtomicBool>,
     retired: watch::Sender<bool>,
@@ -197,10 +200,17 @@ pub(crate) struct Owner {
 impl Owner {
     /// The supervisor holds its exclusive profile lock until this owner joins.
     pub fn start(channel: NativeChannel, provider: Client, alive: Arc<AtomicBool>) -> Result<Self> {
+        let signer = Signer::open(
+            channel
+                .socket
+                .parent()
+                .ok_or("native MCP profile unavailable")?,
+        )?;
         let (retired, mut retirement) = watch::channel(false);
         let (finalizations, mut finalization_jobs) = jobs::channel::<Finalize>(MAX_OPERATIONS);
         let port = Port(Arc::new(State {
             channel,
+            signer,
             provider,
             alive,
             retired,
@@ -315,6 +325,12 @@ struct Call {
     call: Effect,
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SignCall {
+    capability_id: String,
+    scope_digest: String,
+}
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
     Current,
@@ -406,11 +422,13 @@ async fn dispatch(
     {
         return Err(Failure::new(401, "native_channel_required"));
     }
+    let target = request.uri().path_and_query().map(|target| target.as_str());
+    let signing = target == Some("/api/native/mcp-sign");
     if request.method() != "POST"
-        || request
-            .uri()
-            .path_and_query()
-            .is_none_or(|target| target.as_str() != "/api/native/collaboration")
+        || !matches!(
+            target,
+            Some("/api/native/collaboration" | "/api/native/mcp-sign")
+        )
         || request.uri().scheme().is_some()
         || request.uri().authority().is_some()
         || one(&request, "host") != Some("soda-native")
@@ -423,6 +441,14 @@ async fn dispatch(
         .await
         .map_err(|_| Failure::invalid())?
         .to_bytes();
+    if signing {
+        let call: SignCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let secret = state
+            .signer
+            .derive(&call.capability_id, &call.scope_digest)
+            .map_err(|_| Failure::invalid())?;
+        return Ok(json!({"secret":secret}));
+    }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
     if !opaque_id(&call.operation) {
         return Err(Failure::invalid());

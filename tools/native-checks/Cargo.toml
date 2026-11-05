@@ -9,6 +9,7 @@ publish = false
 getrandom = "=0.4.3"
 hmac = "=0.13.0"
 sha2 = "=0.11.1"
+soda-unix-http = { path = "../../lib/unix-http" }
 base64 = "=0.22.1"
 libc = "=0.2.191"
 url = "=2.5.8"
