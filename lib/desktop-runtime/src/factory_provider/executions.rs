@@ -1,15 +1,16 @@
 //! Bounded lifecycle ownership, independent of product requests and SQL.
 use super::{
-    AgentObservation, AgentRun, AttemptObservation, AttemptPhase, CustodyObservation, CustodyState,
-    ReceiptScope, RunExecution, RunOwner, RunView,
+    AgentCancellation, AgentObservation, AgentRun, AttemptObservation, AttemptPhase,
+    CustodyObservation, CustodyState, ReceiptScope, RunExecution, RunOwner, RunView,
 };
 use std::collections::BTreeMap;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 const MAX_EXECUTIONS: usize = 8;
@@ -58,12 +59,18 @@ impl ExecutionBinding {
     }
 }
 
+enum TicketState {
+    Preparing,
+    Ready(RunView),
+    Uncertain,
+}
+
 /// Requests retain only a view. Kernel queries never hold the registry while
 /// the lifecycle owner cancels and joins its attempts.
 #[derive(Clone)]
 pub struct ExecutionTicket {
     binding: ExecutionBinding,
-    view: Option<RunView>,
+    state: Arc<Mutex<TicketState>>,
     active: Arc<AtomicBool>,
 }
 
@@ -71,21 +78,34 @@ impl ExecutionTicket {
     pub fn binding(&self) -> &ExecutionBinding {
         &self.binding
     }
+    fn view(&self) -> io::Result<RunView> {
+        match &*self
+            .state
+            .lock()
+            .map_err(|_| refused("native preparation state unavailable"))?
+        {
+            TicketState::Ready(view) => Ok(view.clone()),
+            _ => Err(refused("native execution not observed")),
+        }
+    }
     pub fn observe(&self) -> AttemptObservation {
-        match &self.view {
-            Some(view) => view.observe(),
-            None => AttemptObservation {
+        match &*self.state.lock().unwrap_or_else(|error| error.into_inner()) {
+            TicketState::Preparing => AttemptObservation {
+                phase: AttemptPhase::Starting,
+                started: None,
+            },
+            TicketState::Ready(view) => view.observe(),
+            TicketState::Uncertain => AttemptObservation {
                 phase: AttemptPhase::Uncertain,
                 started: None,
             },
         }
     }
     pub fn custody(&self) -> io::Result<CustodyObservation> {
-        self.view
-            .as_ref()
-            .ok_or_else(|| refused("native custody not observed"))?
-            .custody()
-            .observe()
+        self.view()?.custody().observe()
+    }
+    fn uncertain(&self) {
+        *self.state.lock().unwrap_or_else(|error| error.into_inner()) = TicketState::Uncertain;
     }
 
     /// Check the captured owner's lifetime before and after process I/O.
@@ -95,11 +115,7 @@ impl ExecutionTicket {
         if !self.active.load(Ordering::SeqCst) {
             return Err(refused("native execution owner retired"));
         }
-        let result = self
-            .view
-            .as_ref()
-            .ok_or_else(|| refused("native process not observed"))?
-            .inspect(timeout);
+        let result = self.view()?.inspect(timeout);
         if !self.active.load(Ordering::SeqCst) {
             return Err(refused("native execution owner retired"));
         }
@@ -116,12 +132,27 @@ pub enum ExecutionOutcome {
 
 struct Entry {
     ticket: ExecutionTicket,
+    preparation: Option<JoinHandle<io::Result<RunExecution>>>,
+    cancellation: AgentCancellation,
     execution: Option<RunExecution>,
     outcome: ExecutionOutcome,
 }
 
 impl Entry {
     fn reap(&mut self, join: bool) {
+        if self
+            .preparation
+            .as_ref()
+            .is_some_and(|preparation| join || preparation.is_finished())
+        {
+            match self.preparation.take().unwrap().join() {
+                Ok(Ok(execution)) => self.execution = Some(execution),
+                _ => {
+                    self.ticket.uncertain();
+                    self.outcome = ExecutionOutcome::Uncertain;
+                }
+            }
+        }
         let terminal = matches!(
             self.ticket.observe().phase,
             AttemptPhase::Retired | AttemptPhase::Uncertain
@@ -184,15 +215,19 @@ impl Executions {
         Ok(entry)
     }
 
-    /// Retain one already admitted native operation. The lazy factory runs only
-    /// after scope/capacity checks and must supply the matching staged owner.
+    /// Retain one already admitted native operation. After scope/capacity
+    /// checks, return a pending ticket and retain the preparation thread.
+    /// The trusted factory must use the supplied signal with
+    /// `RunOwner::start_cancellable` (or its MCP counterpart), and capture its
+    /// policy/deadline at admission rather than extending it inside the thread.
+    /// Its own work before that constructor must also observe cancellation.
     /// An exact binding replay returns its existing view without another launch
     /// or extending its original deadline. Product admission stays in Go.
     #[allow(clippy::too_many_arguments)]
     pub fn ensure(
         &mut self,
         binding: ExecutionBinding,
-        create: impl FnOnce() -> io::Result<RunOwner>,
+        create: impl FnOnce(AgentCancellation) -> io::Result<RunOwner> + Send + 'static,
         prompt: Vec<u8>,
         executable: PathBuf,
         duration: Duration,
@@ -212,57 +247,72 @@ impl Executions {
                 "native execution capacity retained",
             ));
         }
-        let prepared = (|| {
-            let owner = create()?;
-            let custody = owner.custody();
-            let observed = custody.observe()?;
-            if !custody.matches(
-                &binding.run,
-                &binding.profile,
-                &binding.scope,
-                &binding.connection,
-            ) || observed.state != CustodyState::Held
-                || observed.sealed
-            {
-                return Err(refused("native execution owner differs from binding"));
-            }
-            owner.spawn(prompt, executable, duration)
-        })();
-        let execution = match prepared {
-            Ok(execution) => execution,
-            Err(error) => {
-                // A failed native factory may have effects without a usable
-                // handle. Keep its slot and identity until reconciliation;
-                // never rerun it or invent NotAcquired from the error.
-                let ticket = ExecutionTicket {
-                    binding: binding.clone(),
-                    view: None,
-                    active: self.active.clone(),
-                };
-                self.entries.insert(
-                    binding.run,
-                    Entry {
-                        ticket,
-                        execution: None,
-                        outcome: ExecutionOutcome::Uncertain,
-                    },
-                );
-                return Err(error);
-            }
-        };
+        let cancellation = AgentCancellation::default();
         let ticket = ExecutionTicket {
             binding: binding.clone(),
-            view: Some(execution.view()),
+            state: Arc::new(Mutex::new(TicketState::Preparing)),
             active: self.active.clone(),
+        };
+        let prepared_ticket = ticket.clone();
+        let prepared_binding = binding.clone();
+        let cancel = cancellation.clone();
+        let preparation = thread::Builder::new()
+            .name("factory-native-preparation".into())
+            .spawn(move || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    if cancel.cancelled() {
+                        return Err(refused("native preparation cancelled"));
+                    }
+                    let owner = create(cancel.clone())?;
+                    let custody = owner.custody();
+                    let observed = custody.observe()?;
+                    if !owner.uses_cancellation(&cancel)
+                        || !custody.matches(
+                            &prepared_binding.run,
+                            &prepared_binding.profile,
+                            &prepared_binding.scope,
+                            &prepared_binding.connection,
+                        )
+                        || observed.state != CustodyState::Held
+                        || observed.sealed
+                        || cancel.cancelled()
+                    {
+                        return Err(refused("native prepared owner differs or retired"));
+                    }
+                    let execution = owner.spawn(prompt, executable, duration)?;
+                    *prepared_ticket
+                        .state
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner()) =
+                        TicketState::Ready(execution.view());
+                    Ok(execution)
+                }))
+                .unwrap_or_else(|_| Err(io::Error::other("native preparation failed")));
+                if result.is_err() {
+                    prepared_ticket.uncertain();
+                }
+                result
+            });
+        let (preparation, outcome, failure) = match preparation {
+            Ok(preparation) => (Some(preparation), ExecutionOutcome::Pending, None),
+            Err(error) => {
+                ticket.uncertain();
+                (None, ExecutionOutcome::Uncertain, Some(error))
+            }
         };
         self.entries.insert(
             binding.run,
             Entry {
                 ticket: ticket.clone(),
-                execution: Some(execution),
-                outcome: ExecutionOutcome::Pending,
+                preparation,
+                cancellation,
+                execution: None,
+                outcome,
             },
         );
+        if let Some(error) = failure {
+            return Err(error);
+        }
         Ok(ticket)
     }
 
@@ -280,8 +330,8 @@ impl Executions {
 
     pub fn cancel(&mut self, binding: &ExecutionBinding) -> io::Result<()> {
         let entry = self.entry(binding)?;
-        if let Some(execution) = &entry.execution {
-            execution.cancel();
+        if entry.preparation.is_some() || entry.execution.is_some() {
+            entry.cancellation.cancel();
         } else if matches!(entry.outcome, ExecutionOutcome::Uncertain) {
             return Err(refused(
                 "native execution cancellation requires reconciliation",
@@ -314,9 +364,7 @@ impl Executions {
     pub fn retire(&mut self) -> Vec<RetirementReport> {
         self.active.store(false, Ordering::SeqCst);
         for entry in self.entries.values() {
-            if let Some(execution) = &entry.execution {
-                execution.cancel();
-            }
+            entry.cancellation.cancel();
         }
         self.entries
             .values_mut()

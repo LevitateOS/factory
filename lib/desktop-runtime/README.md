@@ -612,9 +612,20 @@ factories, cancels all owned handles before joining any and reports every run's
 independent outcome/custody. Drop also retires. Cached facts remain scoped
 evidence; Go still performs current product admission and durable settlement.
 This producer is not yet wired into `NativeSupervisor` or the Go execution
-ports. Preparation factories are synchronous: owner-managed cancellable staging,
-failed-start reconciliation, full restart/reboot recovery and production Quit
-still need implementation/qualification before intake. Native broker selectors
+ports. Preparation runs on a retained thread and returns a pending ticket;
+its trusted factory receives the lifecycle cancellation signal and must use
+`RunOwner::start_cancellable` (or the MCP counterpart). Capture the admitted
+policy/deadline before scheduling; other factory work must also observe that
+signal. Replay retains the same pending preparation, and retirement cancels all
+preparations/executions before joining any. Failed preparation retains unknown
+custody rather than claiming no effects. Startup broker RPCs observe cancellation,
+and service startup/attestation waits observe caller loss. Cleanup still runs
+after cancellation. The agent unit bounds its stop grace period to two seconds,
+including startup before the worker can handle signals. One real delayed
+preparation and one delayed attestation passed joined retirement; this does not
+qualify arbitrary blocked I/O or the complete host shutdown. Failed-start
+reconciliation, full restart/reboot recovery and production Quit still need
+implementation/qualification before intake. Native broker selectors
 must not be substituted for canonical Go run/workspace identities by an adapter.
 
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.

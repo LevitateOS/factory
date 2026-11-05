@@ -707,6 +707,99 @@ fn manager(action: &str, unit: &str, run: &str) -> io::Result<()> {
     manager_unit(action, &format!("soda-factory-{unit}@{run}.service"))
 }
 
+// Startup requests keep their read half open so EOF means the native owner
+// cancelled. Extra client bytes are not another operation on this connection.
+fn preparation_client() -> io::Result<()> {
+    let mut byte = 0u8;
+    let received = unsafe {
+        libc::recv(
+            0,
+            (&mut byte as *mut u8).cast(),
+            1,
+            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+        )
+    };
+    if received >= 0 {
+        return Err(denied("preparation caller left or sent extra bytes"));
+    }
+    let error = io::Error::last_os_error();
+    if matches!(
+        error.kind(),
+        io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
+    ) {
+        Ok(())
+    } else {
+        Err(error)
+    }
+}
+
+fn start_preparation(unit: &str) -> io::Result<()> {
+    preparation_client()?;
+    let mut child = Command::new("/usr/bin/systemctl")
+        .env_clear()
+        .args(["--system", "--no-ask-password", "start", unit])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let deadline = Instant::now() + Duration::from_secs(90);
+    let result = (|| loop {
+        preparation_client()?;
+        if Instant::now() >= deadline {
+            return Err(denied("preparation startup timed out"));
+        }
+        if let Some(status) = child.try_wait()? {
+            return if status.success() {
+                Ok(())
+            } else {
+                Err(denied("preparation startup failed"))
+            };
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    })();
+    if result.is_err() {
+        // Stop the exact service job and join our manager child even when
+        // polling fails. Cleanup continues after caller cancellation.
+        let stopped = manager_unit("stop", unit);
+        let _ = child.kill();
+        let joined = child.wait();
+        stopped?;
+        joined?;
+    }
+    result
+}
+
+fn read_preparation(
+    stream: &mut UnixStream,
+    bytes: &mut [u8],
+    deadline: Instant,
+) -> io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+    let mut offset = 0;
+    while offset < bytes.len() {
+        preparation_client()?;
+        if Instant::now() >= deadline {
+            return Err(denied("preparation attestation timed out"));
+        }
+        match stream.read(&mut bytes[offset..]) {
+            Ok(0) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            Ok(length) => offset += length,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                        | io::ErrorKind::Interrupted
+                ) =>
+            {
+                ()
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
 fn stop_reviewer(run: &str) -> io::Result<()> {
     manager_unit("stop", &format!("soda-factory-reviewer@{run}.service"))?;
     manager_unit("stop", &format!("soda-factory-reviewer@{run}.socket"))
@@ -877,7 +970,7 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     File::open(&directory)?.sync_all()?;
     let result = (|| {
-        manager("start", "preparer", run)?;
+        start_preparation(&format!("soda-factory-preparer@{run}.service"))?;
         prepared_checkout(&directory)?;
         private_dir(&output, 0o777)?;
         runtime_capacity(0)?;
@@ -918,7 +1011,7 @@ fn attest_reviewer(
     }
     prepared_checkout(&directory)?;
     let socket_unit = format!("soda-factory-reviewer@{run}.socket");
-    manager_unit("start", &socket_unit)?;
+    start_preparation(&socket_unit)?;
     let socket_path = directory.join("reviewer.sock");
     let metadata = socket_path.symlink_metadata()?;
     if !metadata.file_type().is_socket() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o600
@@ -926,6 +1019,7 @@ fn attest_reviewer(
         return Err(denied("reviewer run socket invalid"));
     }
     let mut stream = UnixStream::connect(socket_path)?;
+    let deadline = Instant::now() + Duration::from_secs(5);
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     stream.set_write_timeout(Some(Duration::from_secs(3)))?;
     let request = serde_json::to_vec(&ReviewerRequest {
@@ -937,13 +1031,13 @@ fn attest_reviewer(
     stream.write_all(&(request.len() as u32).to_le_bytes())?;
     stream.write_all(&request)?;
     let mut header = [0u8; 4];
-    stream.read_exact(&mut header)?;
+    read_preparation(&mut stream, &mut header, deadline)?;
     let length = u32::from_le_bytes(header) as usize;
     if length == 0 || length > 512 {
         return Err(denied("reviewer attestation bound"));
     }
     let mut bytes = vec![0; length];
-    stream.read_exact(&mut bytes)?;
+    read_preparation(&mut stream, &mut bytes, deadline)?;
     let reply: ReviewerReply =
         serde_json::from_slice(&bytes).map_err(|_| denied("reviewer attestation shape invalid"))?;
     if reply.kind != "run_attested"
@@ -987,7 +1081,7 @@ fn attest_provider_relay(
         return Err(denied("provider relay preparation identity invalid"));
     }
     prepared_checkout(&directory)?;
-    if let Err(error) = manager("start", "provider-relay", run) {
+    if let Err(error) = start_preparation(&format!("soda-factory-provider-relay@{run}.service")) {
         manager("stop", "provider-relay", run)?;
         return Err(error);
     }
@@ -1031,6 +1125,7 @@ fn arm_agent(
     role: &str,
     expected_tool: &str,
     expected_prompt: &str,
+    cancellable: bool,
 ) -> io::Result<(String, String)> {
     if !matches!(role, "reviewer" | "coder") {
         return Err(denied("agent role invalid"));
@@ -1114,7 +1209,12 @@ fn arm_agent(
             return Err(denied("agent role already differs"));
         }
         socket_attempted = true;
-        manager_unit("start", &format!("soda-factory-agent@{run}.socket"))?;
+        let unit = format!("soda-factory-agent@{run}.socket");
+        if cancellable {
+            start_preparation(&unit)?;
+        } else {
+            manager_unit("start", &unit)?;
+        }
         let socket = Path::new("/run/soda-factory/agents").join(format!("{run}.sock"));
         let parent = socket.parent().expect("fixed agent socket parent");
         private_dir(parent, 0o755)?;
@@ -1156,6 +1256,7 @@ fn attest_agent(
         role,
         tool_sha256,
         prompt_sha256,
+        true,
     )?;
     let socket = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
     let metadata = socket.symlink_metadata()?;
@@ -1164,10 +1265,11 @@ fn attest_agent(
         return Err(denied("agent socket identity invalid"));
     }
     let mut stream = UnixStream::connect(&socket)?;
+    let deadline = Instant::now() + Duration::from_secs(60);
     stream.set_read_timeout(Some(Duration::from_secs(60)))?;
     stream.set_write_timeout(Some(Duration::from_secs(60)))?;
     let mut ready = [0u8; 1];
-    stream.read_exact(&mut ready)?;
+    read_preparation(&mut stream, &mut ready, deadline)?;
     if ready != *b"R" {
         return Err(denied("agent readiness invalid"));
     }
@@ -1180,13 +1282,13 @@ fn attest_agent(
     stream.write_all(&(request.len() as u32).to_le_bytes())?;
     stream.write_all(&request)?;
     let mut header = [0u8; 4];
-    stream.read_exact(&mut header)?;
+    read_preparation(&mut stream, &mut header, deadline)?;
     let length = u32::from_le_bytes(header) as usize;
     if length == 0 || length > MAX_REQUEST {
         return Err(denied("agent attestation reply bound invalid"));
     }
     let mut bytes = vec![0; length];
-    stream.read_exact(&mut bytes)?;
+    read_preparation(&mut stream, &mut bytes, deadline)?;
     let reply: AgentReply = serde_json::from_slice(&bytes)
         .map_err(|_| denied("agent attestation reply shape invalid"))?;
     if reply.kind != "agent_attested"
@@ -1320,6 +1422,7 @@ fn execute_agent<R: Read, W: Write>(
         role,
         tool_sha256,
         prompt_sha256,
+        false,
     )?;
     let directory = PathBuf::from(STATE).join("preparations").join(run);
     let result = (|| {
@@ -2190,7 +2293,6 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker reviewer preparation declaration invalid"));
             }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
             prepare(&run, &profile, &sha256, &candidate)?;
             serde_json::to_vec(&Prepared {
                 kind: "prepared",
@@ -2216,7 +2318,6 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker reviewer attestation declaration invalid"));
             }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let worker_uid = attest_reviewer(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&ReviewerAttested {
                 kind: "reviewer_attested",
@@ -2244,7 +2345,6 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker provider relay declaration invalid"));
             }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let (relay_uid, role) =
                 attest_provider_relay(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&ProviderRelayAttested {
@@ -2279,7 +2379,6 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker agent declaration invalid"));
             }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let (tool_sha256, prompt_sha256) = arm_agent(
                 &run,
                 &profile,
@@ -2288,6 +2387,7 @@ fn serve() -> io::Result<()> {
                 &role,
                 &tool_sha256,
                 &prompt_sha256,
+                true,
             )?;
             serde_json::to_vec(&AgentArmed {
                 kind: "agent_armed",
@@ -2322,7 +2422,6 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker agent attestation declaration invalid"));
             }
-            unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let worker_uid = attest_agent(
                 &run,
                 &profile,

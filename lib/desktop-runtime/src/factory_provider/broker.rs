@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -16,7 +16,7 @@ use std::sync::{
     Arc,
 };
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const MAX_FRAME: usize = 768;
@@ -71,7 +71,7 @@ fn peer_is_root(stream: &UnixStream) -> bool {
     valid && length as usize == std::mem::size_of_val(&peer) && peer.uid == 0 && peer.pid > 0
 }
 
-fn connect(timeout: Duration) -> io::Result<UnixStream> {
+fn connect(timeout: Duration, cancellation: Option<&AgentCancellation>) -> io::Result<UnixStream> {
     let uid = unsafe { libc::geteuid() };
     if uid == 0 || unsafe { libc::getuid() } != uid {
         return Err(refused("broker desktop identity invalid"));
@@ -87,7 +87,80 @@ fn connect(timeout: Duration) -> io::Result<UnixStream> {
     if !socket.file_type().is_socket() || socket.uid() != uid || socket.mode() & 0o7777 != 0o600 {
         return Err(refused("broker socket identity invalid"));
     }
-    let stream = UnixStream::connect(SOCKET)?;
+    // A full activation backlog must not hide a blocking connect from the
+    // lifecycle cancellation signal. Each AF_UNIX attempt is nonblocking.
+    let deadline = Instant::now() + timeout;
+    let stream = loop {
+        if cancellation.is_some_and(AgentCancellation::cancelled) {
+            return Err(refused("broker connection cancelled"));
+        }
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "broker connection timed out",
+            ));
+        }
+        let fd = unsafe {
+            libc::socket(
+                libc::AF_UNIX,
+                libc::SOCK_STREAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK,
+                0,
+            )
+        };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let stream = unsafe { UnixStream::from_raw_fd(fd) };
+        let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+        for (target, byte) in address.sun_path.iter_mut().zip(SOCKET.bytes()) {
+            *target = byte as libc::c_char;
+        }
+        let length = (std::mem::offset_of!(libc::sockaddr_un, sun_path) + SOCKET.len() + 1)
+            as libc::socklen_t;
+        let result =
+            unsafe { libc::connect(fd, (&address as *const libc::sockaddr_un).cast(), length) };
+        if result == 0 {
+            stream.set_nonblocking(false)?;
+            break stream;
+        }
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::EINPROGRESS) {
+            let mut poll = libc::pollfd {
+                fd,
+                events: libc::POLLOUT,
+                revents: 0,
+            };
+            loop {
+                if cancellation.is_some_and(AgentCancellation::cancelled) {
+                    return Err(refused("broker connection cancelled"));
+                }
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "broker connection timed out",
+                    ));
+                }
+                let ready = unsafe { libc::poll(&mut poll, 1, 20) };
+                if ready < 0 && io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
+                    return Err(io::Error::last_os_error());
+                }
+                if ready > 0 {
+                    break;
+                }
+            }
+            // peer_addr also rejects an unconnected/error descriptor. No
+            // readiness event alone is accepted as a connected broker.
+            stream.peer_addr()?;
+            stream.set_nonblocking(false)?;
+            break stream;
+        }
+        if error.kind() != io::ErrorKind::WouldBlock && error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+        drop(stream);
+        thread::sleep(Duration::from_millis(20));
+    };
     stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
     if !peer_is_root(&stream) {
@@ -109,11 +182,24 @@ fn exchange<T: DeserializeOwned>(
     bundle: Option<&[u8]>,
     timeout: Duration,
 ) -> io::Result<T> {
+    exchange_controlled(request, bundle, timeout, None)
+}
+
+fn exchange_controlled<T: DeserializeOwned>(
+    request: Value,
+    bundle: Option<&[u8]>,
+    timeout: Duration,
+    cancellation: Option<AgentCancellation>,
+) -> io::Result<T> {
     let bytes = serde_json::to_vec(&request).map_err(|_| refused("broker request invalid"))?;
     if bytes.is_empty() || bytes.len() > MAX_FRAME {
         return Err(refused("broker request bound exceeded"));
     }
-    let mut stream = connect(timeout)?;
+    let mut stream = connect(timeout, cancellation.as_ref())?;
+    let _watch = cancellation
+        .clone()
+        .map(|cancel| AgentWatch::start(&stream, cancel))
+        .transpose()?;
     stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
     stream.write_all(&bytes)?;
     if let Some(bundle) = bundle {
@@ -127,6 +213,12 @@ fn exchange<T: DeserializeOwned>(
     }
     let mut reply = vec![0u8; length];
     stream.read_exact(&mut reply)?;
+    if cancellation
+        .as_ref()
+        .is_some_and(AgentCancellation::cancelled)
+    {
+        return Err(refused("broker preparation cancelled"));
+    }
     serde_json::from_slice(&reply).map_err(|_| refused("broker reply shape invalid"))
 }
 
@@ -343,8 +435,12 @@ impl AgentCancellation {
         self.0.store(true, Ordering::SeqCst);
     }
 
-    pub(super) fn cancelled(&self) -> bool {
+    pub fn cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
+    }
+
+    pub(super) fn same(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
 
@@ -521,7 +617,72 @@ impl Broker {
         }
     }
 
+    pub(super) fn preparing(cancellation: AgentCancellation) -> BrokerPreparation {
+        BrokerPreparation {
+            cancellation: Some(cancellation),
+        }
+    }
     pub fn stage_bundle(
+        run: &str,
+        profile: &str,
+        role: Role,
+        tool: &str,
+        prompt: &str,
+        bundle: &[u8],
+    ) -> io::Result<String> {
+        BrokerPreparation { cancellation: None }
+            .stage_bundle(run, profile, role, tool, prompt, bundle)
+    }
+    pub fn prepare_reviewer(
+        run: &str,
+        profile: &str,
+        digest: &str,
+        candidate: &str,
+    ) -> io::Result<()> {
+        BrokerPreparation { cancellation: None }.prepare_reviewer(run, profile, digest, candidate)
+    }
+    pub fn attest_provider_relay(
+        run: &str,
+        profile: &str,
+        digest: &str,
+        candidate: &str,
+        role: Role,
+    ) -> io::Result<RelayAttestation> {
+        BrokerPreparation { cancellation: None }
+            .attest_provider_relay(run, profile, digest, candidate, role)
+    }
+    pub fn arm_agent(
+        run: &str,
+        profile: &str,
+        digest: &str,
+        candidate: &str,
+        role: Role,
+        tool: &str,
+        prompt: &str,
+    ) -> io::Result<()> {
+        BrokerPreparation { cancellation: None }
+            .arm_agent(run, profile, digest, candidate, role, tool, prompt)
+    }
+    pub fn attest_agent(
+        run: &str,
+        profile: &str,
+        digest: &str,
+        candidate: &str,
+        role: Role,
+        tool: &str,
+        prompt: &str,
+    ) -> io::Result<u32> {
+        BrokerPreparation { cancellation: None }
+            .attest_agent(run, profile, digest, candidate, role, tool, prompt)
+    }
+}
+
+pub(super) struct BrokerPreparation {
+    cancellation: Option<AgentCancellation>,
+}
+impl BrokerPreparation {
+    pub fn stage_bundle(
+        &self,
         run: &str,
         profile: &str,
         role: Role,
@@ -542,10 +703,11 @@ impl Broker {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
-        let reply: Staged = exchange(
+        let reply: Staged = exchange_controlled(
             json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,"length":bundle.len(),"sha256":sha256}),
             Some(bundle),
             PREPARE_TIME,
+            self.cancellation.clone(),
         )?;
         if reply.kind != "staged"
             || reply.version != 1
@@ -562,6 +724,7 @@ impl Broker {
     }
 
     pub fn prepare_reviewer(
+        &self,
         run: &str,
         profile: &str,
         sha256: &str,
@@ -570,10 +733,11 @@ impl Broker {
         if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker preparation declaration invalid"));
         }
-        let reply: Prepared = exchange(
+        let reply: Prepared = exchange_controlled(
             json!({"kind":"prepare_reviewer","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
             None,
             PREPARE_TIME,
+            self.cancellation.clone(),
         )?;
         if reply.kind != "prepared"
             || reply.version != 1
@@ -588,6 +752,7 @@ impl Broker {
     }
 
     pub fn attest_provider_relay(
+        &self,
         run: &str,
         profile: &str,
         sha256: &str,
@@ -597,10 +762,11 @@ impl Broker {
         if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
             return Err(refused("broker relay declaration invalid"));
         }
-        let reply: Attested = exchange(
+        let reply: Attested = exchange_controlled(
             json!({"kind":"attest_provider_relay","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
             None,
             ATTEST_TIME,
+            self.cancellation.clone(),
         )?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "provider_relay_attested"
@@ -628,6 +794,7 @@ impl Broker {
     /// Arm only the exact root-owned run socket and immutable role declaration.
     /// The broker remains the sole peer admitted to the worker.
     pub fn arm_agent(
+        &self,
         run: &str,
         profile: &str,
         sha256: &str,
@@ -646,10 +813,11 @@ impl Broker {
             return Err(refused("broker agent declaration invalid"));
         }
         let role = role.as_str();
-        let reply: AgentArmed = exchange(
+        let reply: AgentArmed = exchange_controlled(
             json!({"kind":"arm_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role,"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256}),
             None,
             ATTEST_TIME,
+            self.cancellation.clone(),
         )?;
         if reply.kind != "agent_armed"
             || reply.version != 1
@@ -669,6 +837,7 @@ impl Broker {
     /// Ask the root broker to attest the isolated worker over its private
     /// socket. The desktop cannot connect to that socket directly.
     pub fn attest_agent(
+        &self,
         run: &str,
         profile: &str,
         sha256: &str,
@@ -686,10 +855,11 @@ impl Broker {
         {
             return Err(refused("agent attestation declaration invalid"));
         }
-        let reply: AgentAttested = exchange(
+        let reply: AgentAttested = exchange_controlled(
             json!({"kind":"attest_agent","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256}),
             None,
             AGENT_TIME,
+            self.cancellation.clone(),
         )?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "agent_attested"
@@ -711,7 +881,9 @@ impl Broker {
         }
         Ok(reply.worker_uid)
     }
+}
 
+impl Broker {
     /// One broker-consumed launch. The caller supplies bytes and identities
     /// from an admitted native run; the worker rehashes the prompt and ELF
     /// under its isolated UID. A failed attempt cannot be replayed for this run.
@@ -870,7 +1042,7 @@ impl Broker {
         {
             return Err(refused("agent executable source invalid"));
         }
-        let mut stream = connect(Duration::from_secs(120))?;
+        let mut stream = connect(Duration::from_secs(120), Some(&cancellation))?;
         stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
         let _watch = AgentWatch::start(&stream, cancellation.clone())?;
         let request = serde_json::to_vec(&json!({

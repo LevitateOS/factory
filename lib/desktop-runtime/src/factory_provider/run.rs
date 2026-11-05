@@ -86,6 +86,7 @@ impl RunOwner {
             tool_sha256,
             prompt_sha256,
             None,
+            AgentCancellation::default(),
         )
     }
 
@@ -109,6 +110,55 @@ impl RunOwner {
             tool_sha256,
             prompt_sha256,
             Some(mcp),
+            AgentCancellation::default(),
+        )
+    }
+
+    /// The lifecycle owns this signal before any preparation RPC starts.
+    pub fn start_cancellable(
+        policy: Policy,
+        profile_dir: &Path,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        bundle: &[u8],
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        cancellation: AgentCancellation,
+    ) -> io::Result<Self> {
+        Self::start_inner(
+            policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            None,
+            cancellation,
+        )
+    }
+
+    pub fn start_with_mcp_cancellable(
+        policy: Policy,
+        profile_dir: &Path,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+        bundle: &[u8],
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        mcp: WorkerMcp,
+        cancellation: AgentCancellation,
+    ) -> io::Result<Self> {
+        Self::start_inner(
+            policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            Some(mcp),
+            cancellation,
         )
     }
 
@@ -121,7 +171,11 @@ impl RunOwner {
         tool_sha256: &str,
         prompt_sha256: &str,
         mcp: Option<WorkerMcp>,
+        cancellation: AgentCancellation,
     ) -> io::Result<Self> {
+        if cancellation.cancelled() {
+            return Err(refused("provider preparation cancelled"));
+        }
         policy
             .remaining()
             .map_err(|_| refused("provider run deadline expired"))?;
@@ -160,7 +214,6 @@ impl RunOwner {
             Some(mcp) => bound.with_mcp(mcp)?,
             None => bound,
         };
-        let cancellation = AgentCancellation::default();
         let scope = ReceiptScope::new(
             &run,
             &profile,
@@ -171,20 +224,27 @@ impl RunOwner {
             prompt_sha256,
         )?;
         let custody = RunCustody::prepare(profile_dir, &scope, &connection, cancellation.clone())?;
-        let staged =
-            match Broker::stage_bundle(&run, &profile, role, tool_sha256, prompt_sha256, bundle) {
-                Ok(staged) => staged,
-                Err(error) => {
-                    // The broker may have committed staging before its reply was
-                    // lost. The exact admitted digest is the only safe cleanup
-                    // selector; unavailable cleanup remains uncertain.
-                    return if Broker::retire_unlaunched(&run, &profile, &expected).is_ok() {
-                        Err(error)
-                    } else {
-                        Err(refused("broker staging cleanup unconfirmed"))
-                    };
-                }
-            };
+        let preparing = Broker::preparing(cancellation.clone());
+        let staged = match preparing.stage_bundle(
+            &run,
+            &profile,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            bundle,
+        ) {
+            Ok(staged) => staged,
+            Err(error) => {
+                // The broker may have committed staging before its reply was
+                // lost. The exact admitted digest is the only safe cleanup
+                // selector; unavailable cleanup remains uncertain.
+                return if Broker::retire_unlaunched(&run, &profile, &expected).is_ok() {
+                    Err(error)
+                } else {
+                    Err(refused("broker staging cleanup unconfirmed"))
+                };
+            }
+        };
         let mut cleanup = Staged {
             run: run.clone(),
             profile: profile.clone(),
@@ -199,9 +259,10 @@ impl RunOwner {
             };
         }
         let result = (|| {
-            Broker::prepare_reviewer(&run, &profile, &staged, &candidate)?;
-            let relay = Broker::attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
-            Broker::arm_agent(
+            preparing.prepare_reviewer(&run, &profile, &staged, &candidate)?;
+            let relay =
+                preparing.attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
+            preparing.arm_agent(
                 &run,
                 &profile,
                 &staged,
@@ -210,7 +271,7 @@ impl RunOwner {
                 tool_sha256,
                 prompt_sha256,
             )?;
-            Broker::attest_agent(
+            preparing.attest_agent(
                 &run,
                 &profile,
                 &staged,
@@ -258,6 +319,10 @@ impl RunOwner {
     /// the exact worker stream and retires its process tree.
     pub fn cancellation(&self) -> AgentCancellation {
         self.cancellation.clone()
+    }
+
+    pub(super) fn uses_cancellation(&self, cancellation: &AgentCancellation) -> bool {
+        self.cancellation.same(cancellation)
     }
 
     /// Retain with the lifecycle owner; only an executing bound process can

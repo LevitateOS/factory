@@ -58,5 +58,8 @@ MemoryMax=1G
 MemorySwapMax=0
 TasksMax=128
 TimeoutStartSec=10s
+# A stalled namespace init may not handle SIGTERM during startup. Bound the
+# grace period before systemd kills the entire service control group.
+TimeoutStopSec=2s
 RuntimeMaxSec=4h5m
 KillMode=control-group

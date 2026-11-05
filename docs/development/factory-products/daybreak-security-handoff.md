@@ -178,12 +178,42 @@ temporary service removal completed. Final result/driver are under
 This used local ELFs, dummy keyring credentials, retained inputs and declared
 profile/instance metadata; no actual Muse/Go admission or installed Quit ran.
 
-Remaining blockers are concrete. `Executions::ensure` currently calls its
-preparation factory synchronously; cancellable lifecycle-owned staging must
-handle Quit/failure while that operation is pending, with bounded all-run
-retirement and no detached work. An uncertain factory has no usable owned
-handle; recovery must compare captured intent, root and custody evidence before
-claiming no effects or freeing its slot. `supervisor.rs` does not yet retain
+Preparation is now lifecycle-owned in `executions.rs`: `ensure` returns a
+pending ticket while retaining its preparation thread. The factory receives the
+same cancellation signal checked before model spawn and supplied to
+`run.rs::RunOwner::start_cancellable` (or its MCP counterpart). Capture the
+policy/deadline at admission and make any additional factory work cancellable.
+`broker.rs` watches startup RPCs and checks cancellation during nonblocking
+connection attempts. The root broker keeps preparation request reads open,
+observes caller loss during fixed service startup and attestation reads, stops
+the exact startup job and joins its systemctl child on failure. Cleanup RPCs
+continue after cancellation. No source check alone proves a bounded shutdown.
+
+The existing real-unit fixture passed again with delayed checkout preparation
+and a second active worker: pending ensure returned immediately, replay did not
+restage, and the active process remained queryable. Retirement joined both in
+250 ms. A separate delayed agent-attestation case initially failed its five-second
+retirement check: its namespace-init startup process did not handle SIGTERM and
+systemd waited for its twenty-second fixture delay. That failure and service log
+are retained under
+`/home/vince/tmp/factory-native-registry-v4-20261105/`.
+`cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in` now explicitly
+sets `TimeoutStopSec=2s`; the rerun joined interrupted attestation in 2,361 ms.
+Neither interrupted case activated its agent executable or produced a run
+receipt. Cold acquisition journals stayed unsealed/Uncertain despite exact
+unlaunched root cleanup. Finite success, retained/replayed observations,
+capacity/acknowledgement, pending-query cancellation and owner drop also passed.
+All fixture agent/relay MainPIDs were zero, roots absent and temporary units
+removed. Final driver/result are under
+`/home/vince/tmp/factory-native-registry-v5-20261105/`; result SHA-256 is
+`b8888352c7df4a6a39a49c21e5858acf2852494fd1940c0b822c8de18b7aebf2`.
+These are retained-input, dummy-only local-ELF component checks. They do not prove
+installed Quit, canonical admission, full runtime retirement, arbitrary stalled
+kernel/manager I/O or a full activation backlog. Those remain unverified.
+
+Remaining blockers are concrete. An uncertain factory has no usable execution
+handle after its preparation thread is joined; recovery must compare captured
+intent, root and custody evidence before claiming no effects or freeing its slot. `supervisor.rs` does not yet retain
 this registry, and its existing `Children::start` broker reconciliation still
 precedes availability of the Go ledger. Compose startup/retirement and the Go
 `RunLauncher`/`RunObserver`/`CustodyObserver` ports without activating intake

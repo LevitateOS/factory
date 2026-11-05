@@ -25750,3 +25750,44 @@ ledger, full restart/reboot and actual provider/settlement remain open. The Go
 adapter must compare the captured canonical run/workspace/placement with native
 profile/instance/broker selectors; matching hex strings do not establish that
 mapping. N3, N4 and D3 remain open; the handoff records these dependencies.
+
+
+T09-NATIVE-EXECUTOR cancellable preparation producer (2026-11-05):
+`Executions::ensure` now returns a pending ticket and retains the preparation
+thread. Trusted factories receive the same cancellation signal used by the
+staged owner/execution; the registry validates that identity before model spawn.
+Capture the policy/deadline at admission, and make additional factory work
+cancellable. Exact replay does not restage, pending work consumes capacity, and
+retirement signals every preparation/execution before joining any. Preparation
+failure remains uncertain and cannot fabricate process/custody or free a slot.
+The native broker client observes cancellation during startup RPCs and connection
+attempts; root startup and attestation waits observe caller loss and retain
+joined cleanup. Cleanup RPCs remain independent of the cancellation signal.
+
+The existing real-unit/private-keyring registry check passed finite output,
+request-drop/replay ownership, scope fencing, capacity/acknowledgement,
+pending-query cancellation, failure retention and drop again. Delayed checkout
+preparation returned a pending ticket immediately, did not restage on replay,
+and left another process queryable; retirement joined both in 250 ms. The separate
+agent-attestation delay first failed the five-second retirement check because
+its namespace-init startup process did not handle SIGTERM. That failure is
+retained under `/home/vince/tmp/factory-native-registry-v4-20261105/`.
+The agent unit now sets an explicit two-second stop grace period. The final
+rerun joined delayed attestation in 2,361 ms. Neither interrupted case activated
+its agent executable, fabricated a receipt or claimed custody release; cold
+acquisition journals remained unsealed/Uncertain. Exact unlaunched staging was
+removed. All fixture agent/relay MainPIDs were zero and temporary units removed.
+Evidence/driver: `/home/vince/tmp/factory-native-registry-v5-20261105/`;
+result SHA-256:
+`b8888352c7df4a6a39a49c21e5858acf2852494fd1940c0b822c8de18b7aebf2`.
+Touched-file formatting, locked offline runtime/broker checking and affected
+native builds passed. These checks use retained inputs and dummy-only local
+ELFs; they are not a fresh release or installed/connected qualification.
+
+This resolves the synchronous-preparation producer gap recorded above. It does
+not compose the registry into NativeSupervisor or Go ports, reconcile failed
+acquisitions, prove arbitrary stalled I/O/full activation backlog retirement,
+fix startup's ledger ordering, or qualify crash/restart/reboot, actual provider
+work, installed Quit or atomic settlement. The handoff records exact remaining
+files/dependencies and evidence needs. N3, N4 and D3 remain open; no canonical
+slice or security gate is marked complete from these component checks.
