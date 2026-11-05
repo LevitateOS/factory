@@ -39,7 +39,7 @@ func (q HumanPullCreateCommand) ValidateScope() error {
 	return nil
 }
 
-func validHumanPullCreateBranch(branch string) bool {
+func validHumanBranch(branch string) bool {
 	if branch == "" || len("refs/heads/")+len(branch) > 512 || !utf8.ValidString(branch) || strings.TrimSpace(branch) != branch || strings.HasSuffix(branch, ".") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.ContainsAny(branch, " ~^:?*[\\") {
 		return false
 	}
@@ -57,7 +57,7 @@ func validHumanPullCreateBranch(branch string) bool {
 }
 
 func (q HumanPullCreateCommand) Validate() error {
-	if q.ValidateScope() != nil || !validHumanPullCreateBranch(q.BaseBranch) || !validHumanPullCreateBranch(q.HeadBranch) || q.Repository == q.HeadRepository && q.BaseBranch == q.HeadBranch ||
+	if q.ValidateScope() != nil || !validHumanBranch(q.BaseBranch) || !validHumanBranch(q.HeadBranch) || q.Repository == q.HeadRepository && q.BaseBranch == q.HeadBranch ||
 		q.Title == "" || strings.TrimSpace(q.Title) != q.Title || len(q.Title) > MaxHumanPullCreateTitleBytes || !utf8.ValidString(q.Title) || strings.ContainsRune(q.Title, 0) ||
 		len(q.Body) > MaxHumanPullCreateBodyBytes || !utf8.ValidString(q.Body) || strings.ContainsRune(q.Body, 0) {
 		return errors.New("invalid human pull creation command")

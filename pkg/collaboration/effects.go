@@ -13,6 +13,7 @@ type OperationKind string
 const (
 	MutateGraph          OperationKind = "issue.graph.mutate"
 	PublishRef           OperationKind = "git.ref.publish"
+	CreateBranch         OperationKind = "git.branch.create"
 	OpenPull             OperationKind = "pull_request.create"
 	SubmitReview         OperationKind = "pull_request.review.submit"
 	CreateReviewComment  OperationKind = "pull_request.review.comment.create"

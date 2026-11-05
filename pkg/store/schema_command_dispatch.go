@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -100,4 +100,14 @@ var HumanReviewDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.submit' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=88)`,
 	`UPDATE schema_version SET version=89 WHERE version=88`,
+}
+
+// Preserve any earlier branch-shaped command history without inferring local
+// dispatch ownership. A stale opener cannot fence new schema-90 captures.
+var HumanBranchCreateDispatchUpgradeDDL = []string{
+	`ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check`,
+	`ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create') AND octet_length(payload)<=2097152) OR (type IN ('pull_request.review.thread.resolve','pull_request.review.request') AND octet_length(payload)<=131072) OR (type='git.branch.create' AND octet_length(payload)<=32768) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create','pull_request.review.thread.resolve','pull_request.review.request','git.branch.create') AND char_length(payload)<=8192))`,
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='git.branch.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=89)`,
+	`UPDATE schema_version SET version=90 WHERE version=89`,
 }

@@ -3266,3 +3266,37 @@ authorization from historical consent or dummy approvals. No source check,
 fixture, documentation selection or proposed fix closes these actual gates.
 Inline/draft/merge and all canonical/broad gates remain open, shared writes remain
 unavailable, and no Daybreak work ran or was marked complete.
+
+T11-WRITES canonical branch journal/fence (2026-11-06):
+`collaboration/effects.go`, `factory/human_branch_create{,_outcomes}.go`,
+`factory/types.go`, shared branch validation in `human_pull_create.go`, and
+`store/{factory_human_branch_create,factory_human_branch_create_dispatch,factory_command_dispatch,schema,schema_command_dispatch}.go`
+now retain exact canonical new-branch/commit intent and bounded trusted native
+preparation in the existing journal. Schema 90 requires the shared committed
+one-shot reservation and conservatively fences earlier branch-shaped history.
+No captured preparation/deadline is refreshed, and no provider/API was activated.
+
+Real native PostgreSQL fresh and genuine committed 89→90 upgrade checks passed,
+including concurrent openers, stale DDL, legacy uncertainty without send ownership,
+one-of-32 claims, 32 reserve/cancel races per run, unbound/invalid intent,
+immutable receipt/identity, late primary/completion with retained cancellation,
+byte limits and future-schema refusal. After actual restart and child crash/WAL
+recovery, each final observer compared 40 complete saved command/outcome records
+byte-for-byte and rechecked captures/fences. Evidence:
+`/home/vince/tmp/factory-branch-dispatch-1106/fresh3.log`, SHA-256
+`d2817e3255a3db28acedcca0dc22b1a500f6603fac2e7cc6cdb6ba7683e09cd5`,
+and `upgraded3.log`, SHA-256
+`4cbe7500db2792d566cd7129e84622356ec8975886a2a475b7b406e7e56fea77`.
+The plan records the exact baseline, observer/helper/driver artifacts, original
+proof retention and earlier observer setup/recovery-evidence gap. These are
+declared local receipts, not live provider evidence or a passed security gate.
+
+Exact remaining dependency is admitted service/API/native callback composition
+over the schema-90 fence and the Rust branch producer. Close with the actual
+native custody/Go HTTP/PG journey, normal exact ref/commit readback, replay/loss/
+cancellation/original expiry/withdrawal/replacement/restart and combined receipt
+bounds; then fresh specifically authorized actual provider grant/permission/rule/
+collision and shared UI/installed evidence. No source check or SQL fixture
+qualifies real GitHub permission, a fresh/installed upgrade, candidate execution,
+D1/D2/D3/D4/D5 or the complete product. All other concrete tasks and gates remain
+open. No Daybreak work ran or was marked complete.

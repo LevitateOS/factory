@@ -30013,3 +30013,94 @@ historical sign-in or dummy approval authorizes a real branch write. Inline/
 draft/merge work and all canonical/broad gates remain open; shared write
 capabilities stay unavailable and T11-WRITES/the full product remain unfinished.
 No Daybreak work ran or was marked complete.
+
+### T11-WRITES checkpoint: canonical human branch intent and dispatch fence (2026-11-06)
+
+`collaboration.CreateBranch`/`git.branch.create` and
+`factory/human_branch_create{,_outcomes}.go` now express creating a new literal
+branch at an exact immutable commit in a canonical host/repository/actor scope.
+This is separate from candidate ref publication and grants no update/force
+authority. PR creation and branch creation share one Go literal-branch validator;
+Rust retains independent native boundary validation. Provider IDs, current
+absence/permission, native preparation and deadline remain the trusted adapter's
+opaque capture, not caller-supplied authority. Provider preparation is limited to
+8 KiB and the whole command capture to 32 KiB, preserving exact JSON bytes through
+the existing envelope. The public shared write capability remains unavailable.
+
+`factory_human_branch_create{,_dispatch}.go`, `factory_command_dispatch.go`,
+`schema.go` and `schema_command_dispatch.go` bind the typed command to the existing
+Go/PostgreSQL journal and one defining reservation/reducer protocol. Capture
+commits before dispatch; identical concurrent intent returns the original winning
+preparation/operation identity. Only a caller receiving a committed reservation
+may send once. Neither reserved nor legacy history recovers ownership. Unclaimed
+local cancellation is known no-effect; reserved/legacy cancellation retains
+uncertainty. Valid late primary and later completion retain cancellation without
+mutating caller objects or original causal receipt bytes. Contradictory receipts
+and unbound observations fail without changing the row.
+
+Schema **90** adds the bounded branch payload case and dispatch guard. The genuine
+89→90 migration preserves original command/intent/outcome bytes and fences earlier
+unclaimed branch-shaped history as legacy unknown. A version predicate prevents
+stale upgrade statements from fencing newly captured schema-90 commands. Existing
+review reservations and other command bounds remain distinct. No remote provider
+effect, authenticated connector or product service/API was added in this slice.
+
+The existing `soda-native-pg-check` driver ran the affected Go Store against real
+native PostgreSQL, fresh and upgraded, with retained restart, actual child crash/
+WAL recovery and clean stop. Evidence is under
+`/home/vince/tmp/factory-branch-dispatch-1106/{fresh3,upgraded3}.log`.
+The old-89 executable was built from the committed source archive
+`39353d8640d4684f36b91639bb3ccc6bd0d3816c`; it records three explicitly declared
+opaque branch-shaped SQL captures (including observed/finished rows) and an
+actual existing reserved review. It does not claim an old human branch API existed.
+Original-89 proof bytes are retained separately. Two new processes exercised the
+real upgrade concurrently; stale migration statements left their new captures
+unclaimed. Old identities/preparations/outcomes stayed exact through migration;
+an explicitly subsequent legacy cancellation remained indeterminate without
+changing original intent or admitting a send.
+
+Both final runs proved a single winner among 32 identical reservations, 32
+reservation/cancellation races (fresh: 3 reservation/29 cancellation winners;
+upgraded: 2/30), capture winner/replay/conflicting intent, invalid/unbound scope,
+maximum preparation and escaped name, SQL byte bounds, immutable identity/fence,
+late committed unfinished primary after cancellation, later completion and
+conflicting receipt rollback, invalid observation binding and future-schema
+refusal. Each retained/recovered phase compared **40 complete command records,
+including their original outcome/receipt bytes**, with a snapshot made after the
+write phase; captures and reservations were also decoded/rechecked. This is
+typed declared receipt evidence in real SQL, not an actual GitHub receipt.
+
+Earlier `fresh.log`/`upgraded.log` checked typed capture/fence recovery but did not
+compare all retained outcome bytes. That gap was identified and closed in the
+final observers. `fresh2/` retains an observer failure which tried taking its
+snapshot before the case records existed; final snapshots are taken after all
+cases. The archive's first build found no generated scratch directory and was
+rebuilt using the existing explicit `/home` build cache. Production validation
+was not weakened for these observer/setup corrections.
+
+| Artifact under `/home/vince/tmp/factory-branch-dispatch-1106/` | SHA-256 |
+| --- | --- |
+| `wire.go` | `eaf875f6ee84a18ea58857f5b52625090f7bdd9b4d2767ec60d2ac296e8e5c44` |
+| `fresh-check3.go` | `5cc001c03f3fa86ec073fbb38b290cff8be2328e2f9e61574d25eeff596e0137` |
+| `fresh-check3` | `b5f422e274c7772f458ee658d3bdc57313a7be364e6d7ca147358a91ecebb857` |
+| `check-upgrade3.go` | `3561852ecbfce5bf6fa8bedd2cc5b35d2283b67595cb952034e8444a5addf27c` |
+| `check-upgrade3` | `c7d0da108be4543f7aef6df8c687ccbf79a11e0f819e9468b9aac78a24a36d1e` |
+| `legacy.go` | `4287cf9d4ead5e1b0626e371ce1ea90e17b66dd286905705ca5a7c22f4ffa2fe` |
+| `legacy` | `7f563d681a46ddd2208a344e42fd764930aa0902ff9552324c32adf673df6dbb` |
+| `fresh3.log` | `d2817e3255a3db28acedcca0dc22b1a500f6603fac2e7cc6cdb6ba7683e09cd5` |
+| `upgraded3.log` | `4cbe7500db2792d566cd7129e84622356ec8975886a2a475b7b406e7e56fea77` |
+
+Driver `.artifacts/cargo-target/debug/soda-native-pg-check` SHA-256 is
+`53fdbf91994d560a0a23fda5e641e6ac10b12c04c8f3e65edb3c7c3388dc65ef`.
+Affected Go factory/store source builds, ownership boundaries and whitespace
+checks passed. No dependency, unit-test root or Rust test module was added.
+Historical cached inputs do not qualify a fresh release or installed upgrade.
+
+Next dependency: the admitted human branch service/API and typed native callback
+composing this fence with the committed Rust branch producer. Qualify the actual
+native custody/Go HTTP/PG product path, exact normal readback, replay/loss/cancel/
+original expiry/replacement/restart and combined receipt bounds before shared UI
+and fresh owner-authorized real provider/rule/permission evidence. Native commit
+availability is not candidate execution or permission to publish another input.
+All other T11 work and canonical/broad gates remain open; T11-WRITES and the full
+product are unfinished. No Daybreak work ran or was marked complete.
