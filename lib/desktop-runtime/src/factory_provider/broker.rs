@@ -152,6 +152,7 @@ struct ProfileRun {
     run: Option<String>,
     sha256: Option<String>,
     launched: bool,
+    retiring: bool,
 }
 
 #[derive(Deserialize)]
@@ -420,25 +421,34 @@ impl Broker {
     /// Inspect one root-owned selector for this exact native profile. The
     /// caller must hold the profile's exclusive supervisor lock before using
     /// this to clean a prior desktop incarnation.
-    pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
+    fn next_profile_state(profile: &str) -> io::Result<Option<(String, String, bool, bool)>> {
         if !id(profile, 32) {
             return Err(refused("broker profile inspection declaration invalid"));
         }
         let reply: ProfileRun = exchange(
-            json!({"kind":"next_profile_run","version":1,"profile":profile}),
+            json!({"kind":"next_profile_run","version":2,"profile":profile}),
             None,
             PREPARE_TIME,
         )?;
-        if reply.kind != "profile_run" || reply.version != 1 || reply.profile != profile {
+        if reply.kind != "profile_run" || reply.version != 2 || reply.profile != profile {
             return Err(refused("broker profile inspection identity invalid"));
         }
-        match (reply.run, reply.sha256, reply.launched) {
-            (None, None, false) => Ok(None),
-            (Some(run), Some(sha256), launched) if id(&run, 32) && id(&sha256, 64) => {
-                Ok(Some((run, sha256, launched)))
+        match (reply.run, reply.sha256, reply.launched, reply.retiring) {
+            (None, None, false, false) => Ok(None),
+            (Some(run), Some(sha256), launched, retiring)
+                if id(&run, 32) && id(&sha256, 64) && !(launched && retiring) =>
+            {
+                Ok(Some((run, sha256, launched, retiring)))
             }
             _ => Err(refused("broker profile inspection selector invalid")),
         }
+    }
+
+    /// A true final flag also covers an interrupted retirement, whose original
+    /// launch outcome is unknown to callers outside startup reconciliation.
+    pub fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
+        Ok(Self::next_profile_state(profile)?
+            .map(|(run, sha256, launched, retiring)| (run, sha256, launched || retiring)))
     }
 
     /// Recover stale root staging before a new Go product incarnation starts.
@@ -448,7 +458,7 @@ impl Broker {
     pub fn reconcile_profile(profile: &str) -> io::Result<usize> {
         let mut retired = BTreeSet::new();
         for _ in 0..64 {
-            let Some((run, sha256, launched)) = Self::next_profile_run(profile)? else {
+            let Some((run, sha256, launched, pending)) = Self::next_profile_state(profile)? else {
                 return Ok(retired.len());
             };
             if launched {
@@ -456,7 +466,13 @@ impl Broker {
                     "broker launched run outcome requires reconciliation",
                 ));
             }
-            if !retired.insert(run.clone()) || !Self::retire_unlaunched(&run, profile, &sha256)? {
+            if !retired.insert(run.clone())
+                || !(if pending {
+                    Self::finish_retiring(&run, profile, &sha256)?
+                } else {
+                    Self::retire_unlaunched(&run, profile, &sha256)?
+                })
+            {
                 return Err(refused("broker profile cleanup did not advance"));
             }
         }
@@ -890,6 +906,10 @@ impl Broker {
     /// The broker checks this under its root run lock before removing state.
     pub fn retire_unlaunched(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
         Self::retire_request("retire_unlaunched", run, profile, sha256)
+    }
+
+    fn finish_retiring(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+        Self::retire_request("finish_retiring", run, profile, sha256)
     }
 
     /// After a durable receipt and credential withdrawal, retire the exact

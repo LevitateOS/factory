@@ -316,9 +316,14 @@ new native receipt to the Go ledger because the ledger is not yet available.
 Its unlaunched cleanup now uses the broker's atomic launch-fenced request,
 rather than trusting a prior inspection before unrestricted retirement. A
 disposable broker/relay/agent fixture retired exactly one unlaunched startup
-stage after the earlier launched dummy run had been explicitly retired. A
-partially renamed `.retiring` run is deliberately left pending by this startup
-request; exact completion of that interrupted retirement remains unverified.
+stage after the earlier launched dummy run had been explicitly retired. The
+broker now distinguishes an exact `.retiring` selector in a versioned inspection
+reply and exposes its original launch state conservatively to general callers.
+A separate disposable fixture staged one unlaunched run, simulated the broker's
+post-rename partial state, observed that unlaunched cleanup refused it, and
+recovered it through an exact `finish_retiring` request; no selector remained.
+This proves handling of one simulated partial state, not an actual crash,
+reboot, launched-run receipt or Go ledger reconciliation.
 The new read-only receipt API does not change this startup order. A crash with
 launched root state therefore remains a startup blocker. Keep launch disabled
 until a trusted Go-record read, exact receipt validation, root/process and

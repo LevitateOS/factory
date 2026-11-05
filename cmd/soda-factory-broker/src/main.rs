@@ -52,6 +52,12 @@ enum Request {
         profile: String,
         sha256: String,
     },
+    FinishRetiring {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+    },
     QuiesceRun {
         version: u8,
         run: String,
@@ -157,6 +163,7 @@ struct ProfileRun<'a> {
     run: Option<&'a str>,
     sha256: Option<&'a str>,
     launched: bool,
+    retiring: bool,
 }
 
 #[derive(Serialize)]
@@ -1518,7 +1525,14 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::Result<bool> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RetirementMode {
+    Any,
+    Unlaunched,
+    Pending,
+}
+
+fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::Result<bool> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let preparations = preparations()?;
@@ -1530,7 +1544,7 @@ fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::
         if retiring_run(&name) == Some(run) {
             // A partial prior retirement no longer has a preparation marker.
             // Setup cleanup cannot prove that this run was never launched.
-            if only_unlaunched {
+            if mode == RetirementMode::Unlaunched {
                 return Err(denied("unlaunched retirement state unconfirmed"));
             }
             if entry.path() != retiring {
@@ -1551,6 +1565,9 @@ fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::
             return Ok(true);
         }
     }
+    if mode == RetirementMode::Pending {
+        return Ok(false);
+    }
     let directory = runs.join(run);
     let metadata = match directory.symlink_metadata() {
         Ok(metadata) => metadata,
@@ -1558,7 +1575,7 @@ fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::
             if preparation_run(&preparations, run)?.is_some() {
                 return Err(denied("orphan preparation cannot retire"));
             }
-            if only_unlaunched {
+            if mode == RetirementMode::Unlaunched {
                 return Ok(false);
             }
             stop_relay(run)?;
@@ -1576,7 +1593,7 @@ fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
-    if only_unlaunched {
+    if mode == RetirementMode::Unlaunched {
         if run_lifecycle(&directory)? != Some(false) || launched_run(run)? {
             return Err(denied(
                 "launched or legacy run requires outcome reconciliation",
@@ -1711,7 +1728,7 @@ fn launched_run(run: &str) -> io::Result<bool> {
     }
 }
 
-fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>> {
+fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, bool)>> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     for entry in fs::read_dir(&runs)? {
@@ -1756,7 +1773,7 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>>
             if staged_digest(&path)?.is_some_and(|actual| actual != digest) {
                 return Err(denied("retiring bundle digest mismatch"));
             }
-            return Ok(Some((run.to_owned(), digest.to_owned(), false)));
+            return Ok(Some((run.to_owned(), digest.to_owned(), false, true)));
         }
         if id(&name, 32) {
             private_dir(&path, 0o555)?;
@@ -1769,7 +1786,7 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool)>>
             let digest =
                 staged_digest(&path)?.ok_or_else(|| denied("staged run bundle missing"))?;
             let launched = launched_run(&name)?;
-            return Ok(Some((name, digest, launched)));
+            return Ok(Some((name, digest, launched, false)));
         }
         return Err(denied("broker run entry invalid"));
     }
@@ -1996,7 +2013,7 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, false)?;
+            let removed = retire(&run, &profile, &sha256, RetirementMode::Any)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
@@ -2015,7 +2032,26 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker unlaunched retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256, true)?;
+            let removed = retire(&run, &profile, &sha256, RetirementMode::Unlaunched)?;
+            serde_json::to_vec(&Retired {
+                kind: "retired",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                removed,
+            })?
+        }
+        Request::FinishRetiring {
+            version,
+            run,
+            profile,
+            sha256,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
+                return Err(denied("broker pending retirement declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let removed = retire(&run, &profile, &sha256, RetirementMode::Pending)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,
@@ -2044,18 +2080,19 @@ fn serve() -> io::Result<()> {
             })?
         }
         Request::NextProfileRun { version, profile } => {
-            if version != 1 || !id(&profile, 32) {
+            if version != 2 || !id(&profile, 32) {
                 return Err(denied("broker profile inspection declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let next = next_profile_run(&profile)?;
             serde_json::to_vec(&ProfileRun {
                 kind: "profile_run",
-                version: 1,
+                version: 2,
                 profile: &profile,
-                run: next.as_ref().map(|(run, _, _)| run.as_str()),
-                sha256: next.as_ref().map(|(_, sha256, _)| sha256.as_str()),
-                launched: next.as_ref().is_some_and(|(_, _, launched)| *launched),
+                run: next.as_ref().map(|(run, _, _, _)| run.as_str()),
+                sha256: next.as_ref().map(|(_, sha256, _, _)| sha256.as_str()),
+                launched: next.as_ref().is_some_and(|(_, _, launched, _)| *launched),
+                retiring: next.as_ref().is_some_and(|(_, _, _, retiring)| *retiring),
             })?
         }
         Request::PrepareReviewer {

@@ -25201,3 +25201,19 @@ socket and run-specific paths were removed. This is a component cancellation
 and retained-state check, not credential withdrawal, Go ledger settlement,
 crash/reboot recovery, an installed journey or a real finite provider run.
 N3 and D3 remain open.
+
+T09-NATIVE-EXECUTOR interrupted-retirement recovery checkpoint
+(2026-11-05): the broker's versioned profile inspection now distinguishes
+staged, launched and exact `.retiring` selectors. Startup uses atomic
+unlaunched retirement only for staged runs and an exact `finish_retiring`
+request only for a partially renamed run. The public selector conservatively
+reports a partial retirement as possibly launched. A disposable live broker
+staged one run; a controlled root rename simulated the broker's durable
+post-rename checkpoint. The unlaunched request refused that state, the public
+selector reported it uncertain, and startup finished the exact partial
+retirement with no selector left. The ordinary launched and unlaunched service
+fixture also passed with the versioned inspection reply. Locked offline
+broker/runtime and fixture builds passed; temporary units, binaries and
+run-specific paths were removed. This is a simulated partial-state recovery,
+not a process crash/reboot, a launched receipt, Go transaction reconciliation
+or D3 qualification. N3 remains Pending and D3 remains open.
