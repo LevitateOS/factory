@@ -8,7 +8,7 @@ use super::{
 };
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::time::{Duration, Instant};
 
 const CLOSE_ISSUE: &str = "mutation FactoryCloseIssue($subject:ID!){closeIssue(input:{issueId:$subject}){issue{id fullDatabaseId number state url updatedAt repository{id nameWithOwner}}}}";
@@ -38,11 +38,7 @@ impl DiscussionState {
         Ok(())
     }
 }
-pub enum StateOutcome {
-    NotSent(Failure),
-    Indeterminate(Failure),
-    Applied(Value),
-}
+pub use super::writes::WriteOutcome as StateOutcome;
 
 // Private finite selector; the transport still accepts no arbitrary mutation.
 #[derive(Clone, Copy)]

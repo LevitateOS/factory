@@ -2003,3 +2003,41 @@ credential/root absence/scoped delivery, peer/window/instance admission, D1/D2/D
 worker isolation/execution/retirement/settlement and release/upgrade/freshness gates
 retain their earlier exact dependencies and required evidence. No broad gate or
 Daybreak work is marked complete by these ordinary declared product checks.
+
+T11-WRITES issue/PR edit producer (2026-11-05):
+`lib/desktop-runtime/src/github_provider/edits.rs` adds fixed partial title/body
+updates. `transport.rs` constructs only the requested fields and immutable Node
+selector; `writes.rs` shares the update outcome with states. It verifies account,
+immutable subject/repository scope and original title/body digest in preflight,
+then requires an exact bounded causal reply including unchanged unselected content.
+Failures after dispatch remain uncertain and cannot authorize a second send.
+
+The existing `--github-edit-declared` native observer passed 50 named cases and
+13 invalid descriptors in `/home/vince/tmp/factory-edit-provider-1105/attempt2/`.
+These include both partial field shapes, empty/maximum writing, changed original
+content refusal, changed unselected reply fields, deadlines, uncertainty,
+serialization and retirement. Attempt1's passing 48-case source/executable is
+preserved. The defining state regression also passed. Final edit result
+`2565abb72384fd3263e3590b11d99cc908a52f24f5de9fd07b53fb789f51973a`;
+source/executable/log hashes are in the canonical plan. All traffic used a literal
+dummy token and no-forwarding local peer, not actual GitHub or installed admission.
+
+Exact remaining source dependency: compose typed Go edit reservation/cancellation,
+captured expected/observed original content and the admitted native callback; prove
+current profile/account/repository/generation, one-shot replay, stale-base refusal,
+causal persistence, cancellation, withdrawal and retained restart through actual
+native/Go/PostgreSQL. Fresh specifically authorized provider permission/schema/
+normalization/mutation/readback and shared WebKit editing remain unverified.
+
+New explicit policy/evidence obligation: the selected GitHub update mutation inputs
+carry no original-content revision condition. The current original-content check
+is a preflight; it cannot prevent a different edit or issue transfer racing POST.
+Relevant files: `github_provider/edits.rs`, the future `native_product_edits.go`,
+`pkg/factory/{human_edit,human_edit_outcomes}.go`, the shared editor and capability
+projection. Establish the supported concurrent-edit and selected-resource invariant
+before exposing stronger guarantees. Closing an atomic-protection requirement
+would need a documented provider mechanism and authorized real race evidence;
+the declared stale-base cases alone cannot close it. Repository/visibility/D5 and
+all broader custody/root absence/scoped delivery, installed IPC/window/instance,
+D1/D2/D3, isolation/execution/retirement and release/upgrade/freshness gates retain
+their earlier blockers. No shared write capability or broad security gate closes.

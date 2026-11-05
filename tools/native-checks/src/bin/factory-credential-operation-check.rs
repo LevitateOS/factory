@@ -18,6 +18,8 @@ use tokio::sync::oneshot;
 type Result<T> = std::result::Result<T, Box<dyn StdError>>;
 #[path = "../native_github_comments.rs"]
 mod native_github_comments;
+#[path = "../native_github_edits.rs"]
+mod native_github_edits;
 #[path = "../native_github_issues.rs"]
 mod native_github_issues;
 #[path = "../native_github_states.rs"]
@@ -1211,6 +1213,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-state-declared" {
             return runtime.block_on(native_github_states::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-edit-declared" {
+            return runtime.block_on(native_github_edits::producer(Path::new(&args[1])));
         }
         if args.len() == 4 && args[0] == "--github-state-product-declared" {
             return runtime.block_on(native_github_states::product(

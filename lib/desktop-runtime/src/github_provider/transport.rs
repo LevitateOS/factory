@@ -55,6 +55,13 @@ enum Request {
         mutation: super::states::StateMutation,
         token: Zeroizing<Vec<u8>>,
     },
+    Edit {
+        node: String,
+        pull: bool,
+        title: Option<String>,
+        body: Option<String>,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -328,6 +335,23 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn post_edit(
+        &self,
+        node: &str,
+        pull: bool,
+        title: Option<&str>,
+        body: Option<&str>,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::Edit {
+            node: node.into(),
+            pull,
+            title: title.map(str::to_owned),
+            body: body.map(str::to_owned),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let wire = self.request(request).await?;
         if wire.status != 200 {
@@ -431,6 +455,41 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
                     &token,
                     super::comments::CREATE_COMMENT,
                     serde_json::json!({"subject":node,"body":body}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::Edit {
+            node,
+            pull,
+            title,
+            body,
+            token,
+        } => {
+            if !super::request::node_id(&node) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            let mut input = serde_json::Map::new();
+            input.insert(
+                if pull { "pullRequestId" } else { "id" }.into(),
+                serde_json::json!(node),
+            );
+            if let Some(title) = title {
+                input.insert("title".into(), serde_json::json!(title));
+            }
+            if let Some(body) = body {
+                input.insert("body".into(), serde_json::json!(body));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    if pull {
+                        super::edits::EDIT_PULL
+                    } else {
+                        super::edits::EDIT_ISSUE
+                    },
+                    serde_json::json!({"input":input}),
                 )?,
                 1024 * 1024,
             )

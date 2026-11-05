@@ -27614,3 +27614,71 @@ repository/visibility/transfer policy and all broader installed custody/IPC/wind
 D1/D2/D3/D5, isolated execution/retirement and release/upgrade/freshness gates remain
 unqualified. T11-WRITES stays Active for its other operations and acceptance gates;
 the full product is unfinished and no real GitHub mutation ran here.
+
+### T11-WRITES — Rust partial issue/PR edit producer (2026-11-05)
+
+`github_provider/edits.rs` adds exact partial title/body updates through two fixed
+documented mutations ([issue input](https://docs.github.com/en/graphql/reference/issues#updateissueinput),
+[PR input](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestinput)).
+The semantic descriptor pins immutable repository/subject IDs, original title and
+body digest, and optional requested fields. A missing field stays absent from
+the provider input; an explicitly empty body clears it. No labels, assignments,
+state, head/base branch or other update arguments are sent. Requested title/body
+bounds match the existing human command, preserving bytes without normalization.
+
+Rust verifies current account, subject kind/ID/number, repository ID/Node and known
+non-read-only state. It compares the exact original title/body digest immediately
+before dispatch. A changed base refuses without POST. Provider null body is
+interpreted as the existing empty-description read contract; missing/non-string
+body evidence refuses. This is a preflight. The selected mutation inputs have no
+original-content revision condition: another edit or transfer can race the POST.
+No atomic compare-and-swap, remote deduplication or retry guarantee is claimed.
+
+Only an exact causal reply with matching subject/repository identities, number,
+requested content and unchanged unselected content yields `Applied`. Changed
+unselected fields also retain uncertainty. The receipt preserves field presence,
+writing digests, provider metadata/request ID and original response digest within
+4 KiB; full writing belongs to the Go capture. The effect shares whole-operation
+eight-second deadlines, serialized mutation pacing and joined retirement.
+Every error after its dispatch boundary remains `Indeterminate` and sends once.
+`writes.rs` now defines the common update `WriteOutcome`; `StateOutcome` remains
+a public alias with unchanged variants. No arbitrary mutation/HTTP port was added.
+
+The existing native executable gained `--github-edit-declared FRESH_PROFILE`.
+`/home/vince/tmp/factory-edit-provider-1105/attempt2/` exited 0 with 50 named cases
+and 13 invalid descriptors: issue/PR full writes, both partial shapes, empty and
+maximum Unicode/control writing, exact padded title, large IDs, name-slot reuse,
+nullable original body, account/subject/repository/read-only/stale-base refusal,
+both deadline phases, partial/errors/misbound/changed/oversized/lost replies,
+held-response clone serialization/pacing and in-flight retirement. The fixture
+checks the exact closed input keys and omitted-field presence. It is loopback-only
+HTTPS with a process-local CA and literal dummy token, and never forwards.
+Attempt1 passed its original 48 cases; its observer/provider/executable remain
+preserved. Attempt2 adds the two unselected-field concurrency cases. The existing
+43-case state producer regression passed after sharing the outcome/transport.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `327b21d935ad7d22bdcaee2ed9e1ee53a9d23aad7b94cbdbf0f6f0a5d768320f` |
+| fixture executable | `1d25aa25f1feb4df13310febfd1ecc5d7b78de6b88db09df79974d66c61332a3` |
+| `run.sh` | `bc3403b8cc0554f21177b89ae055e52abb9f374760d6387a8525bc40afecddcb` |
+| `session.sh` | `48cae398eac1c722051f899aa495f13873637c72e577984171375ef289834ff7` |
+| current native check executable | `284301d13d105847a4c38ab93cf5aef9c7bc86a6f5dcbb72f035ba5c3ccf4d90` |
+| attempt2 log | `a3b886c27650259aef9ac5e0f5f569453a6c9b33745bf6e325ea9e8cb2c43716` |
+| attempt2 result | `2565abb72384fd3263e3590b11d99cc908a52f24f5de9fd07b53fb789f51973a` |
+| preserved `check-a1` | `d80e4a43f5041c8d95a3cb6f64ce135c040e8e50849a99e23c79649d9d148ce8` |
+| preserved `observer-a1.rs.txt` | `0ada1986bf251264631e92544bd5c913e9588867f810d3f5a9d83f5b7ead6538` |
+| preserved `provider-a1.go.txt` | `11df5fda5f784171fd977eddd4638b4f501a551479de1a8d8d2493ff27b08eb3` |
+| state regression result | `c0db2e4c1e3dc58b849dbc1c30a45e5b560a2dd97ee545d67ea680bc6887ae0a` |
+
+Native/desktop locked builds, ownership boundaries and whitespace checks pass.
+No dependency or unit-test root was added. Next extend the existing typed Go edit
+journal reservation/cancel protocol and compose the admitted native/Go consumer,
+including captured original content, exact replay and stale-base/cancel/restart
+behavior. Actual provider permission/schema/content normalization, fresh authorized
+write/readback, shared WebKit editing, concurrent-content and repository/visibility
+policy, installed admission/custody/execution and all D1/D2/D3/D5/release/upgrade/
+freshness gates remain unqualified. Shared write capabilities remain unavailable;
+T11-WRITES and the full goal remain unfinished. No real GitHub edit occurred here.

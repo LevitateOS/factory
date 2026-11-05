@@ -2,6 +2,7 @@
 //! The transport owner is joined on retirement, including its TLS/HTTP drivers.
 mod comments;
 mod diff;
+mod edits;
 mod evidence;
 mod issue_create;
 mod oauth;
@@ -17,9 +18,10 @@ mod writes;
 
 use crate::credentials::{Account, Provider, Token};
 pub use comments::Comment;
+pub use edits::DiscussionEdit;
 pub use issue_create::IssueCreate;
 pub use states::{DiscussionState, StateOutcome};
-pub use writes::CreateOutcome;
+pub use writes::{CreateOutcome, WriteOutcome};
 pub type CommentOutcome = CreateOutcome;
 pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use request::Read;

@@ -8,3 +8,11 @@ pub enum CreateOutcome {
     Indeterminate(Failure),
     Created(Value),
 }
+
+/// Causal result of a one-shot update, without claiming a timeline event or
+/// remote retry/deduplication guarantee. The Go journal retains its uncertainty.
+pub enum WriteOutcome {
+    NotSent(Failure),
+    Indeterminate(Failure),
+    Applied(Value),
+}
