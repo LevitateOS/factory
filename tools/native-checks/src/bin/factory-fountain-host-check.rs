@@ -12,6 +12,8 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[path = "../fountain_issue_browser.rs"]
+mod fountain_issue_browser;
 #[path = "../fountain_read_edges.rs"]
 mod fountain_read_edges;
 #[path = "../fountain_read_issues.rs"]
@@ -172,14 +174,15 @@ fn form(fields: &[(&str, &str)]) -> String {
 
 fn run() -> Result<()> {
     let mut args: Vec<_> = std::env::args_os().skip(1).collect();
-    let issues = args.first().is_some_and(|s| s == "--issues");
+    let issue_browser = args.first().is_some_and(|s| s == "--issues-browser");
+    let issues = issue_browser || args.first().is_some_and(|s| s == "--issues");
     let pull_code = args.first().is_some_and(|s| s == "--pull-code");
     let pull_checks = args.first().is_some_and(|s| s == "--pull-checks");
     let read_edges = args.first().is_some_and(|s| s == "--read-edges");
     if issues || pull_code || pull_checks || read_edges {
         args.remove(0);
     }
-    require(args.len()==3,"usage: factory-fountain-host-check [--issues | --pull-code | --pull-checks | --read-edges] STAGE FOUNTAIN_SOURCE NEW_PROFILE (inside soda-native-pg-check --once)")?;
+    require(args.len()==3,"usage: factory-fountain-host-check [--issues | --issues-browser | --pull-code | --pull-checks | --read-edges] STAGE FOUNTAIN_SOURCE NEW_PROFILE (inside soda-native-pg-check --once)")?;
     let stage = fs::canonicalize(PathBuf::from(&args[0]))?;
     let source = fs::canonicalize(PathBuf::from(&args[1]))?;
     let root = PathBuf::from(&args[2]);
@@ -420,6 +423,11 @@ fn run() -> Result<()> {
     } else {
         None
     };
+    let issue_browser_evidence = if issue_browser {
+        Some(fountain_issue_browser::run(&mut browser, &generation, api)?)
+    } else {
+        None
+    };
     let pull_code_evidence = if pull_code {
         Some(fountain_read_pull_code::run(
             &mut browser,
@@ -477,7 +485,7 @@ fn run() -> Result<()> {
     private_file(
         &root.join("result.json"),
         &serde_json::to_vec_pretty(
-            &json!({"result":"pass","origin":origin,"native_login":true,"separate_factory":true,"catalogue":"observed_empty_before_fixture","issues":issue_evidence,"pull_code":pull_code_evidence,"pull_checks":pull_check_evidence,"read_edges":read_edge_evidence,"generation_refusal":true,"logout_refusal":true,"clean_shutdown":true}),
+            &json!({"result":"pass","origin":origin,"native_login":true,"separate_factory":true,"catalogue":"observed_empty_before_fixture","issues":issue_evidence,"issue_browser":issue_browser_evidence,"pull_code":pull_code_evidence,"pull_checks":pull_check_evidence,"read_edges":read_edge_evidence,"generation_refusal":true,"logout_refusal":true,"clean_shutdown":true}),
         )?,
     )?;
     println!("PASS: real native Fountain + installed Soda package + separate Factory, TLS human login, admitted identity/catalogue, stale generation/logout refusal and clean shutdown");

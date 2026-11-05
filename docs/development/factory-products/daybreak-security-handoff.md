@@ -1485,3 +1485,31 @@ require the exact evidence registered above; this navigation check closes none
 of those broader gates. Attempt1's missing issue-10 fixture detail is preserved;
 the provider fixture was corrected without a product fallback. No new authority
 or security bypass was introduced.
+
+T07-READ actual Fountain browser checkpoint (2026-11-05): opt-in
+`factory-fountain-host-check --issues-browser` now joins the real native host,
+installed local package, appliance-composed Factory and private PostgreSQL to
+an actual Chromium reader session. Native login and real provider reads render
+the shared list/detail/conversation/Markdown/Factory section; actual owner REST
+collaborator deletion makes refresh remove issue content and optional Factory
+facts/controls. No synthetic API or admission header, retained account or remote
+repository is used. Files: existing native host CLI plus
+`tools/native-checks/src/fountain_issue_browser.{rs,mjs}` in that same integration
+root. This is routine owned product checking, not Daybreak work.
+
+Passed host root `/home/vince/tmp/ff-read-host-1105-a3/`; host result hash
+`c97aab8a43ed678ef9420b22dc17cc57f2870a5a494743f1241d8c864666ce0e`,
+browser result `b1eb0c75989a2571e08c2944bee1e7bb0280012fd6dcf7799cc81892efe2aff7`.
+The existing native HTTP read/private-reader/rename/revocation checks and native
+generation/logout refusal also passed; service children and owned PG stopped.
+Full source/binary/log/image evidence is recorded in the canonical plan.
+Attempts1/2 preserve a fixture expectation error about repository-relative
+Markdown links; product behavior was not relaxed for the passing assertion.
+
+This does not close D5 issue-only collaborator admission: this reader held the
+ordinary full repository read grant. Installed peer/window/instance/account/
+resource admission, credential delivery/root absence, D1/D2/D3/D5 and executor/
+isolation/settlement journeys retain their registered blockers and evidence
+requirements. T07-READ still needs normal Feed → Issues navigation through the
+shipped native presentation/header, beyond the passed stock-host extension
+rendering. No fresh or installed release qualification is claimed.

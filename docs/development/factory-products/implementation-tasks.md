@@ -26679,3 +26679,66 @@ consumer must qualify actual Fountain page/extension/shared-issue composition
 and its supported read journey. Recorded Fountain producer checks alone do not
 prove that joined shell. Full installed D1/D2/D3/D5, native executor/custody/
 isolation, desktop Fountain and later mutation/PR journeys stay open.
+
+T07-READ actual Fountain extension/browser checkpoint (2026-11-05, verified):
+
+Extended the existing `factory-fountain-host-check` with opt-in
+`--issues-browser`, using its real native host/package/Factory/private-PG
+composition and ordinary local REST fixture writes. Its browser helper logs in
+a fresh native reader through the actual UI, renders the production shared
+components from real provider reads, then synchronizes with a real owner REST
+collaborator deletion. No API interception, invented admission headers,
+retained account, model provider, new unit-test root or parallel renderer.
+`FACTORY_CHECK_BROWSER_MODULE` selects the explicit owned Playwright module.
+
+Stage `/home/vince/tmp/factory-fountain-read-1105/` uses clean Soda source
+`1b46b0a48b0cd4ad43d8177f0987356a650389e2`, Fountain source
+`e5f7a3010080c7ef1d4731280dcc8fdd63cbaaf7` and Factory
+`e92f62e6d3dc528ccb47795802c85da0ce8ca10d` plus this opt-in check. An owned
+Soda source archive resolves browser imports to this Factory tree. External Go
+modfiles bind the current Factory/paired native SDK; no original repository
+was edited. Existing production asset builders verified the locked terminal
+bytes. This is a captured source integration stage, not a fresh distribution.
+Fountain/appliance provider authority stays outside the standalone dependency
+closure; Rust owns only the existing native check's process/PG lifetimes.
+
+Attempt3 exited 0 with native host `/home/vince/tmp/ff-read-host-1105-a3/` and
+PG `/home/vince/tmp/ff-read-pg-1105-a3/`:
+
+- The existing actual HTTP suite passed private catalogue/issue/comment/
+  capability/full-body/paging, reader login, stable rename and access revocation.
+- Chromium drove native login and the actual extension page to the shared
+  list/detail/ordinary conversation; safe Markdown DOM, explicit attachments,
+  repository-relative and explicit branch links, heading/comment scroll,
+  Back/Forward, Factory-section navigation/Back, fragment reload and explicit
+  native original were verified. Actual collaboration revocation removed the
+  rendered issue and optional Factory facts/controls on refresh.
+- The existing stale-generation/logout refusal and both service-child shutdowns
+  passed; the managed PG driver verified clean PostgreSQL stop. A viewport
+  screenshot was inspected: actual ordinary comment, empty recorded Factory
+  facts and native controls were visible. No recorded workflow was invented.
+
+Safe result hashes: host `result.json`
+`c97aab8a43ed678ef9420b22dc17cc57f2870a5a494743f1241d8c864666ce0e`,
+browser `b1eb0c75989a2571e08c2944bee1e7bb0280012fd6dcf7799cc81892efe2aff7`,
+attempt log `06058beb41eeea02edaa8deddeea1063c37d706398db0153b705ad8d929e72f2`,
+image `2dd462e0157d2b37e1fc172179f3b681f0184f288338d6d25910e9d59d8324d5`.
+Stage binary hashes: Fountain
+`b5914e844c2f5e6b498ba8736ac741c56342f9fab483b86bf9287954371bbd1d`,
+extension `e9b4e001beb2564d093a3e739fb4033f36d2787eadbbddd7df94960560ab1376`,
+appliance Factory `a6c4bd6a244b0fcecbd578aaa4b998f57d1fec15d215d4f5c2c7dc6781f3b2df`.
+
+Attempts1/2 are preserved: the browser assertion incorrectly assumed plain
+`README.md` expands to a branch path. Fountain's actual Markdown source and its
+existing shared-host contract use repository-relative paths; explicit
+`src/branch/...` retains that branch. Corrected the assertion and separately
+checked an explicit branch link, without changing product navigation semantics.
+Locked/offline native-check/PG-driver builds, boundary, TS unit-ban and whitespace
+checks passed. All accounts/repositories are owned local fixture state.
+
+T07-READ remains Active for the normal Feed → Issues header route using the
+shipped Soda native presentation. This successful joined extension path used
+stock Fountain presentation and direct list entry; it does not qualify the
+paired branded header cutover. Use the existing production presentation stage
+producer and actual native template path for that remaining check. Installed,
+D1/D2/D3/D5, credential/executor/isolation and desktop-Fountain gates stay open.
