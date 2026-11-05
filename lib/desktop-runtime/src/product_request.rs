@@ -18,6 +18,9 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
             .parse::<i64>()
             .is_ok_and(|n| n > 0 && n.to_string() == value)
     };
+    if method == "POST" && parts.len() == 2 && positive(parts[0]) && parts[1] == "issues" {
+        return 512 * 1024;
+    }
     if method == "POST"
         && parts.len() == 4
         && positive(parts[0])

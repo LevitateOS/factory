@@ -186,7 +186,8 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	}
 	body, err := json.Marshal(map[string]any{"operation": p.operation.operation, "call": effect})
 	limit := 8192
-	if _, comment := effect.(nativeCommentEffect); comment {
+	switch effect.(type) {
+	case nativeCommentEffect, nativeIssueCreateEffect:
 		limit = 512 << 10
 	}
 	if err != nil || len(body) > limit {

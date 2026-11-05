@@ -4,8 +4,12 @@ use super::{ensure, prepare, Result};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use soda_desktop_runtime::credentials::Token;
+use soda_desktop_runtime::credentials::{Account, Credentials, Provider};
 use soda_desktop_runtime::github_provider::{CreateOutcome, IssueCreate, Owner};
+use soda_desktop_runtime::supervisor::NativeSupervisor;
+use soda_desktop_runtime::ProductRequest;
 use std::os::unix::fs::PermissionsExt;
+use std::sync::Arc;
 use std::{
     fs,
     path::Path,
@@ -229,5 +233,524 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
         )?,
     )?;
     println!("PASS: production Rust issue creation binds the immutable repository, unchanged title/body and causal bounded receipt; preflight/no-retry uncertainty/serialization/retirement pass; dummy-only HTTPS, no actual provider or product admission qualification");
+    Ok(())
+}
+
+async fn call(
+    runtime: &NativeSupervisor,
+    store: &Arc<Credentials>,
+    connection: &str,
+    method: &str,
+    target: &str,
+    body: &[u8],
+) -> Result<(u16, serde_json::Value)> {
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(connection).await?,
+        Some("123".into()),
+    )?;
+    let reply = request.request(method, target, body).await?;
+    Ok((reply.status, serde_json::from_slice(&reply.body)?))
+}
+fn envelope(path: &str, id: &str, title: &str, body: &str) -> Result<Vec<u8>> {
+    let request: ProductRequest = serde_json::from_value(
+        json!({"kind":"write","path":path,"body":{"command_id":id,"title":title,"body":body}}),
+    )?;
+    let (_, _, bytes) = request.request()?;
+    Ok(bytes)
+}
+fn set_mode(io: &Path, name: &str) -> Result<()> {
+    if name.starts_with("pause-") {
+        for marker in ["entered", "release", "cancelled"] {
+            match fs::remove_file(io.join(marker)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+    }
+    fs::write(io.join("mode"), name)?;
+    Ok(())
+}
+fn completed(reply: &(u16, serde_json::Value), effect: &str) -> Result<()> {
+    ensure(
+        reply.0 == 200 && reply.1["effect"] == effect && reply.1["finished"] == true,
+        "composed issue did not retain complete primary",
+    )
+}
+fn uncertain(reply: &(u16, serde_json::Value)) -> Result<()> {
+    ensure(
+        matches!(reply.0, 200 | 202)
+            && reply.1["effect"] == "indeterminate"
+            && reply.1["finished"] == false
+            && reply.1["issue"].is_null(),
+        "unknown issue became complete, attributable or safe to retry",
+    )
+}
+
+pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    set_mode(&io, "positive")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "issue product requires empty owned custody",
+    )?;
+    let account = || {
+        Account::new(Provider::Github, "https://github.com", "321")
+            .and_then(|a| a.with_label("declared-writer"))
+    };
+    let saved = store
+        .store(account()?, Token::new(b"factory-declared-issue".to_vec())?)
+        .await?;
+    let mut connection = saved.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(
+        catalogue.0 == 200,
+        "issue product canonical catalogue failed",
+    )?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let base = format!("/api/factory/collaboration/repositories/{repository}");
+    let submit = format!("{base}/issues");
+    let command = |id: &str| format!("{base}/issue-creation/commands/{id}");
+    let mut cases = Vec::new();
+    for (i, (title, body)) in [
+        ("Original human issue π".to_owned(), "".to_owned()),
+        (
+            "Ordinary description".into(),
+            "Exact writing 🍵\n[link](relative.md)".into(),
+        ),
+        ("t".repeat(255), "🍵".repeat(16384)),
+        ("Control-escaped writing".into(), "\u{0001}".repeat(65536)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("{:032x}", 100 + i);
+        let bytes = envelope(&submit, &id, &title, &body)?;
+        let before = posts(&io)?;
+        let result = call(&runtime, &store, &connection, "POST", &submit, &bytes).await?;
+        completed(&result, "committed")?;
+        ensure(
+            result.1["issue"]["repository"] == repository && result.1["issue"]["kind"] == "issue",
+            "creation lost its currently readable canonical destination",
+        )?;
+        let number = result.1["issue"]["number"]
+            .as_str()
+            .ok_or("created issue number absent")?
+            .parse::<i64>()?;
+        let external = result.1["issue"]["external_id"].clone();
+        let read = call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{base}/issues/{number}"),
+            &[],
+        )
+        .await?;
+        ensure(
+            read.0 == 200
+                && read.1["ref"]["external_id"] == external
+                && read.1["title"] == title
+                && read.1["body"] == body,
+            "created normal issue readback changed original title/body",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "committed",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(&id)),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        let conflict = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &envelope(&submit, &id, "changed title", &body)?,
+        )
+        .await?;
+        ensure(
+            conflict.0 == 409 && posts(&io)? == before + 1,
+            "replay/lookup/cancel/title conflict duplicated issue creation",
+        )?;
+        cases.push(format!("positive-{i}"));
+    }
+    let before = posts(&io)?;
+    let concurrent_id = "33333333333333333333333333333333";
+    let bytes = envelope(
+        &submit,
+        concurrent_id,
+        "Concurrent exact intent",
+        "One issue",
+    )?;
+    let (first, second) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &bytes),
+        call(&runtime, &store, &connection, "POST", &submit, &bytes)
+    );
+    for r in [first?, second?] {
+        if r.1["finished"] == true {
+            completed(&r, "committed")?
+        } else {
+            uncertain(&r)?
+        }
+    }
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(concurrent_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    ensure(
+        posts(&io)? == before + 1,
+        "simultaneous issue submissions repeated the POST",
+    )?;
+    cases.push("concurrent-identical-command".into());
+    let other = repository.parse::<i64>()? + 1;
+    let other_path = format!("/api/factory/collaboration/repositories/{other}/issues");
+    let refused = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &other_path,
+        &envelope(
+            &other_path,
+            "99999999999999999999999999999999",
+            "Wrong scope",
+            "",
+        )?,
+    )
+    .await?;
+    ensure(
+        refused.0 == 403 && posts(&io)? == before + 1,
+        "issue request expanded native repository scope",
+    )?;
+    cases.push("other-repository-refusal".into());
+    for (title, body) in [
+        (" padded ".to_owned(), "".to_owned()),
+        ("x".repeat(256), "".into()),
+        ("valid".into(), "x".repeat(65537)),
+    ] {
+        let r = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &envelope(&submit, "22222222222222222222222222222222", &title, &body)?,
+        )
+        .await?;
+        ensure(r.0 == 400, "Go writing bounds were weakened")?;
+    }
+    // A committed primary survives failed or changed normal destination reads.
+    set_mode(&io, "hide-created")?;
+    let hidden_id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let hidden = envelope(
+        &submit,
+        hidden_id,
+        "Owned hidden destination",
+        "Original body",
+    )?;
+    let before = posts(&io)?;
+    let r = call(&runtime, &store, &connection, "POST", &submit, &hidden).await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["issue"].is_null(),
+        "hidden created issue became readable",
+    )?;
+    set_mode(&io, "destination-change")?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &command(hidden_id),
+        &[],
+    )
+    .await?;
+    completed(&r, "committed")?;
+    ensure(
+        r.1["issue"].is_null(),
+        "unrelated destination identity was adopted",
+    )?;
+    set_mode(&io, "positive")?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &command(hidden_id),
+        &[],
+    )
+    .await?;
+    completed(&r, "committed")?;
+    ensure(
+        !r.1["issue"].is_null() && posts(&io)? == before + 1,
+        "destination restoration erased effect or repeated creation",
+    )?;
+    cases.push("committed-primary-destination-retirement".into());
+    let lost_id = "44444444444444444444444444444444";
+    let lost = envelope(
+        &submit,
+        lost_id,
+        "Owned lost creation reply",
+        "Observed matching writing is not attribution",
+    )?;
+    set_mode(&io, "drop-reply")?;
+    let before = posts(&io)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    set_mode(&io, "positive")?;
+    let read = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{submit}?limit=50"),
+        &[],
+    )
+    .await?;
+    ensure(
+        read.0 == 200
+            && read.1["items"]
+                .as_array()
+                .is_some_and(|v| v.iter().any(|x| x["title"] == "Owned lost creation reply")),
+        "lost-reply fixture did not really create a readable issue",
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        posts(&io)? == before + 1,
+        "matching issue search/replay manufactured creation attribution",
+    )?;
+    cases.push("lost-reply-readback-remains-uncertain".into());
+    for (name, effect, id) in [
+        (
+            "pause-post",
+            "committed",
+            "55555555555555555555555555555555",
+        ),
+        (
+            "pause-preflight",
+            "not_committed",
+            "66666666666666666666666666666666",
+        ),
+    ] {
+        set_mode(&io, name)?;
+        let before = posts(&io)?;
+        let bytes = envelope(
+            &submit,
+            id,
+            "Owned cancellation race",
+            "Exact original body",
+        )?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &bytes);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(id)),
+            b"{}",
+        )
+        .await?;
+        uncertain(&cancelled)?;
+        ensure(
+            cancelled.1["cancellation"] == "indeterminate",
+            "cancel invented a no-effect acknowledgment",
+        )?;
+        fs::write(io.join("release"), b"")?;
+        let reply = pending.await?;
+        let r = (
+            reply.status,
+            serde_json::from_slice::<serde_json::Value>(&reply.body)?,
+        );
+        completed(&r, effect)?;
+        ensure(
+            r.1["cancellation"] == "indeterminate"
+                && posts(&io)? == before + u64::from(effect == "committed"),
+            "late primary evidence/cancellation lost or duplicate dispatched",
+        )?;
+        cases.push(name.into());
+    }
+    set_mode(&io, "pause-post")?;
+    let withdrawn_id = "77777777777777777777777777777777";
+    let withdrawn = envelope(&submit, withdrawn_id, "Owned withdrawal race", "")?;
+    let before = posts(&io)?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &withdrawn);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    store.withdraw(&connection).await?;
+    connection = store
+        .store(account()?, Token::new(b"factory-declared-issue".to_vec())?)
+        .await?
+        .connection;
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        pending.await.is_err(),
+        "withdrawn/replaced generation delivered an old creation result",
+    )?;
+    set_mode(&io, "positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(withdrawn_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &withdrawn).await?)?;
+    ensure(
+        posts(&io)? == before + 1,
+        "reconsent replayed an unknown issue",
+    )?;
+    cases.push("withdrawal-replacement".into());
+    set_mode(&io, "pause-post")?;
+    let stopped_id = "88888888888888888888888888888888";
+    let stopped = envelope(&submit, stopped_id, "Owned restart after dispatch", "")?;
+    let before = posts(&io)?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &stopped);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    runtime.stop()?;
+    ensure(
+        pending.await.is_err(),
+        "stopped runtime delivered an in-flight issue",
+    )?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    set_mode(&io, "positive")?;
+    uncertain(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(stopped_id),
+            &[],
+        )
+        .await?,
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &stopped).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    for i in 0..4 {
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "GET",
+                &command(&format!("{:032x}", 100 + i)),
+                &[],
+            )
+            .await?,
+            "committed",
+        )?;
+    }
+    ensure(
+        posts(&io)? == before + 1,
+        "retained restart repeated issue creation",
+    )?;
+    cases.push("retained-restart".into());
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?
+                .with_label("declared-other")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    let hidden = call(
+        &runtime,
+        &store,
+        &other.connection,
+        "GET",
+        &command(lost_id),
+        &[],
+    )
+    .await?;
+    ensure(hidden.0 == 404, "other account read the captured issue")?;
+    let conflict = call(&runtime, &store, &other.connection, "POST", &submit, &lost).await?;
+    ensure(
+        conflict.0 == 409 && posts(&io)? == before + 1,
+        "other account adopted or dispatched a captured issue",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account-refusal".into());
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "issue product fixture saw an unexpected request",
+    )?;
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "issue product left owned grants",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("issue-product-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"actual_provider":false,"native_product_consumer":true,"capabilities_enabled":false,"provider_posts":posts(&io)?,"retained_restart":true,"maximum_writing_bytes":65536}),
+        )?,
+    )?;
+    println!("PASS: composed native/Rust/Go/PG issue creation retains exact writing, causal identity, readable destination, one-shot replay, ambiguous replies, cancel races, withdrawal, other-account refusal and restart; dummy-only provider, no actual GitHub or installed gate qualification");
     Ok(())
 }

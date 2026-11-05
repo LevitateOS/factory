@@ -200,6 +200,8 @@ func nativeHandler(config NativeConfig, instance string, application *NativeAppl
 			limit = 2 << 20
 		} else if factoryhttp.IsHumanCommentSubmission(r) {
 			limit = factoryhttp.HumanCommentRequestLimit
+		} else if factoryhttp.IsHumanIssueCreateSubmission(r) {
+			limit = factoryhttp.HumanIssueCreateRequestLimit
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		mux.ServeHTTP(w, r)

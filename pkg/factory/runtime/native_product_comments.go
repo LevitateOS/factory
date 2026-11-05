@@ -2,8 +2,6 @@ package runtime
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"time"
@@ -35,12 +33,6 @@ type nativeCommentEffect struct {
 	NotAfter  int64              `json:"not_after"`
 	Comment   nativeCommentWrite `json:"comment"`
 }
-type nativeCommentFailure struct {
-	Status     int     `json:"status"`
-	Code       string  `json:"code"`
-	RetryAfter *uint64 `json:"retry_after"`
-	Reset      *uint64 `json:"reset"`
-}
 type nativeCommentReceipt struct {
 	Account       collaboration.ObservedActor `json:"account"`
 	Repository    string                      `json:"repository"`
@@ -71,12 +63,6 @@ type nativeHumanComments struct{ *nativeProductAccount }
 
 var _ factoryservice.HumanCommentWriter = nativeHumanComments{}
 
-func (s nativeHumanComments) authority() string {
-	// Account identity survives refresh/restart/reconsent; a different profile
-	// or provider account cannot adopt its commands. Current credential generation
-	// and repository selection are independently admitted on every native request.
-	return "native-github:" + string(s.port.operation.config.Profile) + ":" + s.identity.Account.ExternalID
-}
 func (s nativeHumanComments) admit(ctx context.Context, q factory.HumanCommentCommand) error {
 	if q.Validate() != nil || !nativeIndex(q.Number) {
 		return factoryservice.ErrHumanCommentQuery
@@ -120,7 +106,7 @@ func (s nativeHumanComments) PrepareHumanComment(ctx context.Context, q factory.
 	if err != nil {
 		return empty, err
 	}
-	c := factory.HumanCommentCapture{Request: q, Authority: s.authority(), OperationID: q.ID, ProviderIntent: raw}
+	c := factory.HumanCommentCapture{Request: q, Authority: s.humanAuthority(), OperationID: q.ID, ProviderIntent: raw}
 	_, err = c.Command()
 	return c, err
 }
@@ -132,7 +118,7 @@ func (s nativeHumanComments) decode(ctx context.Context, c factory.HumanCommentC
 	if err := s.admit(ctx, c.Request); err != nil {
 		return p, err
 	}
-	if c.Authority != s.authority() {
+	if c.Authority != s.humanAuthority() {
 		return p, factoryservice.ErrHumanCommentNamespace
 	}
 	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || p.Version != 1 || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Comment.Repository != s.repository.ExternalID || p.Comment.Subject != c.Request.Subject || p.Comment.Number != uint64(c.Request.Number) || p.Comment.Body != c.Request.Body || !nativeRemoteID(p.Comment.SubjectID) {
@@ -206,13 +192,7 @@ func (s nativeHumanComments) SubmitHumanComment(ctx context.Context, c factory.H
 	if err != nil {
 		return empty, err
 	}
-	var outcome struct {
-		CommandID string                `json:"command_id"`
-		Digest    string                `json:"digest"`
-		State     string                `json:"state"`
-		Receipt   json.RawMessage       `json:"receipt"`
-		Failure   *nativeCommentFailure `json:"failure"`
-	}
+	var outcome nativeCreationReply
 	scope, err := s.port.call(ctx, nativeCommentEffect{Kind: "create_comment", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Comment: p.Comment}, &outcome)
 	if err != nil {
 		return empty, err
@@ -227,14 +207,14 @@ func (s nativeHumanComments) SubmitHumanComment(ctx context.Context, c factory.H
 			return empty, factoryservice.ErrHumanCommentUnavailable
 		}
 		var receipt nativeCommentReceipt
-		if nativeDecode(outcome.Receipt, &receipt) != nil || !nativeActor(receipt.Account) || receipt.Account.ExternalID != p.Account || receipt.Repository != p.Comment.Repository || receipt.Subject != p.Comment.Subject || receipt.SubjectID != p.Comment.SubjectID || receipt.Number != p.Comment.Number || !nativeRemoteID(receipt.Comment.ExternalID) || receipt.Comment.Author == nil || !nativeActor(*receipt.Comment.Author) || receipt.Comment.Author.ExternalID != p.Account || receipt.Comment.BodySHA256 != nativeCommentSHA([]byte(c.Request.Body)) || receipt.ProviderResponse.Status != 200 || receipt.ProviderResponse.Protocol != "github_graphql_add_comment" || !nativeObservedText(receipt.SubjectNodeID, 1024, false) || !nativeObservedText(receipt.Comment.NodeID, 1024, false) || !nativeObservedText(receipt.Comment.AuthorNodeID, 1024, false) || !nativeCommentDigest(receipt.ProviderResponse.ResponseSHA256) {
+		if nativeDecode(outcome.Receipt, &receipt) != nil || !nativeActor(receipt.Account) || receipt.Account.ExternalID != p.Account || receipt.Repository != p.Comment.Repository || receipt.Subject != p.Comment.Subject || receipt.SubjectID != p.Comment.SubjectID || receipt.Number != p.Comment.Number || !nativeRemoteID(receipt.Comment.ExternalID) || receipt.Comment.Author == nil || !nativeActor(*receipt.Comment.Author) || receipt.Comment.Author.ExternalID != p.Account || receipt.Comment.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || receipt.ProviderResponse.Status != 200 || receipt.ProviderResponse.Protocol != "github_graphql_add_comment" || !nativeObservedText(receipt.SubjectNodeID, 1024, false) || !nativeObservedText(receipt.Comment.NodeID, 1024, false) || !nativeObservedText(receipt.Comment.AuthorNodeID, 1024, false) || !nativeCreationDigest(receipt.ProviderResponse.ResponseSHA256) {
 			return empty, factoryservice.ErrHumanCommentConflict
 		}
 		if receipt.ProviderResponse.RequestID != nil && !nativeObservedText(*receipt.ProviderResponse.RequestID, 256, false) {
 			return empty, factoryservice.ErrHumanCommentConflict
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_comment_created"
-		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCommentSHA(c.ProviderIntent), Payload: outcome.Receipt}
+		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
 	case "not_sent", "indeterminate":
 		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
 			return empty, factoryservice.ErrHumanCommentUnavailable
@@ -260,12 +240,4 @@ func (s nativeHumanComments) CancelHumanComment(ctx context.Context, c factory.H
 		return collaboration.OperationRecord{}, errors.New("native comment cancellation unavailable")
 	}
 	return *o.Record, nil
-}
-func nativeCommentSHA(raw []byte) string {
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
-}
-func nativeCommentDigest(raw string) bool {
-	b, err := hex.DecodeString(raw)
-	return err == nil && len(b) == 32 && hex.EncodeToString(b) == raw
 }

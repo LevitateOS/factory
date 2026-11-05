@@ -1207,6 +1207,13 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-issue-declared" {
             return runtime.block_on(native_github_issues::producer(Path::new(&args[1])));
         }
+        if args.len() == 4 && args[0] == "--github-issue-product-declared" {
+            return runtime.block_on(native_github_issues::product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 4 && args[0] == "--github-comment-envelope-declared" {
             return Err("the comment envelope producer observer is retired; use --github-comment-product-declared for the composed writer in an owned no-forwarding fixture".into());
         }

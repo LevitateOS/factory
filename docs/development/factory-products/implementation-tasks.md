@@ -27372,3 +27372,62 @@ prove reservation/receipt/readback/cancel/lost-reply/restart through the compose
 native/Go/PostgreSQL path. T11-WRITES and all broader gates remain incomplete;
 no issue-create UI capability or new source/installed release qualification is
 implied by these captured-input checks.
+
+### T11-WRITES — composed native human issue creation (2026-11-05)
+
+`native_product_issue_creates.go` now binds the existing human issue-creation
+service to the Rust semantic effect through the admitted native callback. Go
+retains canonical admission, the exact title/body capture, its original five-minute
+deadline, one-shot Store reservation, reconciliation and the sole command journal.
+Rust retains current credential/generation/repository checks and the complete
+authenticated fixed provider operation. No credential crosses Go. Comment and
+issue writers share only creation metadata, hashing and account authority helpers.
+Both creation envelopes allow 512 KiB for escaped maximum writing; reads/MCP retain
+their existing bounds.
+
+Only the successful reservation caller may send once. Replay of a reserved,
+unknown or ambiguous operation cannot post again. The reply must echo command
+identity/digest and bind current scope, exact writing digests and a bounded causal
+receipt. A fresh normal issue read supplies the created destination only when its
+immutable identity matches. An unreadable or replaced destination does not erase
+the known primary effect. Cancellation retains late known results and its own
+uncertainty. Profile/account command authority survives same-account reconsent;
+current native custody is independently admitted for every operation.
+
+The existing native tool gained `--github-issue-product-declared BACKEND PG PROFILE`.
+Under `/home/vince/tmp/factory-issue-product-1105/attempt1/`, its actual native
+credential/product/callback, Go registry/service/journal and PostgreSQL path passed
+13 cases with ten intended dummy provider POSTs: four positive writing bounds,
+concurrent identical commands, wrong repository, hidden/changed created destination,
+lost reply with matching visible writing but no fabricated attribution, cancellation
+racing success and preflight refusal, withdrawal/replacement, retained runtime
+restart and another account's refusal. Invalid title/body bounds were refused.
+Known outcomes survive restart; uncertain commands remain fenced. The owned
+accounts, keyring and child resources cleaned up. The fixture never forwards.
+The composed comment regression passed unchanged in `comment-regression-a1`
+(12 cases, nine dummy mutations), covering the shared callback/helper changes.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `c59b712c729f427e80c372d4c75bbe2f6c4db2a67bf86b0b83d239dfce54b8e6` |
+| fixture executable | `52ded9cc7dd6a5ce794816baeeb9ccc6c79385e634f4f3fb43282d4d7f19a03d` |
+| `run.sh` | `da133632039028d3eeadea198f389c273d48debbea8a2103cb87e1c19c57c259` |
+| `session.sh` | `4c6eb6872f0f5f65bd595589006964cbaa973448fbadedbf546df942f760335f` |
+| native Go backend | `b94719d1aa91baa8fc01fe56d79b0de81bb84c279e7bf6e16b22a098128c9e33` |
+| native check executable | `f6a55ad04e6db934dba4c23aacda0d7b4fd0f3f732fce03ec0a4a1a1a2c4cd6e` |
+| issue product log | `59c19ede2f8170a16ca868800a88cf5499982fce21955eabb843d467e008d847` |
+| issue product result | `c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6` |
+| comment regression log | `d06c6ff46a4034ed40e29bc446eec4c673ca096c2ef4eeebe8e4b00efcf83611` |
+| comment regression result | `cd912b1077358cfb2fe24b360fe6497ff0e06dc1b536e182271a9328cc4d6a5b` |
+
+The desktop feature build, Go build, existing ownership boundary and whitespace
+checks pass with captured locked inputs. No dependency or unit-test root was
+added. This supersedes the missing issue-create consumer blocker above; the shared
+write capability projection remains unavailable. Fresh authorized actual provider
+schema/grant/permission/mutation/readback, shared WebKit writing, delayed captured
+deadline expiry and installed qualification remain unverified. No real GitHub
+grant was used or retained here. T11-WRITES remains Active for its other operations
+and acceptance gates. All wider custody/admission/isolation/execution, D1/D2/D3/D5,
+release/upgrade/freshness and repository/visibility policy obligations remain open.

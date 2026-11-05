@@ -1867,13 +1867,44 @@ comment result `47a8f8009cd6f66cfe282ba6d1c2c9415944018f26cec256118b6bc8c7ba5ef6
 Source/executable/log identities are in the canonical plan. The fixture never
 forwards and no actual provider account/grant was used.
 
-The exact remaining issue-create blocker is the admitted native callback and Go
-writer composition with the new journal reservation/cancellation protocol.
-Prove current caller/account/repository/generation/withdrawal admission, unchanged
-writing, causal receipt persistence, one-shot replay, ambiguous reply/cancel/
-restart and readable created destination before exposing the action. A fresh,
+At this producer checkpoint the issue-create blocker was the admitted native
+callback and Go writer composition with the new journal protocol. The composed
+checkpoint below supersedes that source blocker. A fresh,
 specifically authorized real provider fixture must qualify actual schema/grants/
 permission/write/readback afterward. The effect's source checks do not close
 D1/D2/D3/D5, repository/visibility policy, installed IPC/window/custody, worker
 isolation/execution/retirement, root absence/scoped delivery or release/upgrade/
 freshness gates. Those retain their previously recorded evidence requirements.
+
+T11-WRITES composed native issue creation (2026-11-05):
+`pkg/factory/runtime/native_product_issue_creates.go` now owns the Go service
+adapter; `native_product_creations.go` shares receipt metadata/account authority
+with comments. `lib/desktop-runtime/src/collaboration.rs` admits the semantic
+issue callback, retaining native credential/generation/repository checks. The
+exact public issue-create route and private creation callback allow bounded
+maximum writing. No product SQL or authenticated provider owner moved languages.
+
+The actual native credential/Go/PostgreSQL composition passed 13 declared cases
+and ten dummy mutations under `/home/vince/tmp/factory-issue-product-1105/attempt1/`:
+exact/maximum writing, causal receipt and normal immutable destination readback,
+hidden/changed destination without losing the committed primary effect, concurrent
+one-shot commands, wrong repository, ambiguous reply without search attribution,
+both cancellation races, withdrawal/replacement, same-account retained restart and
+other-account refusal. The composed comment regression also passed. The fixture
+is local, dummy-only and does not forward; all owned accounts/resources cleaned
+up. Result `c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6`;
+comment result `cd912b1077358cfb2fe24b360fe6497ff0e06dc1b536e182271a9328cc4d6a5b`.
+The canonical plan records source, executable and log identities. These checks
+prove the described source composition with captured inputs, not a real provider
+grant/permission, installed caller/window boundary or broad custody gate.
+
+Remaining blockers/evidence: the shared write capability remains unavailable;
+before exposing it, qualify actual GitHub schema, fresh granted permissions, an
+explicitly scoped owned mutation and normal readback, shared WebKit writing and
+captured-deadline expiry. No retained live grant remains, so this needs fresh
+owner-authorized consent and a concrete owned repository/subject. Repository/
+visibility and comment transfer/lock policy remain independent provider/policy
+dependencies. Installed IPC/window/instance/custody, D1/D2/D3/D5, worker isolation/
+execution/retirement/settlement, root absence/scoped delivery and release/upgrade/
+freshness gates retain their exact earlier blockers and evidence requirements.
+No broad gate or Daybreak work is marked complete by this checkpoint.
