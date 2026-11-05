@@ -1232,6 +1232,9 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-reviewer-read-declared" {
             return runtime.block_on(native_github_review_requests::producer(Path::new(&args[1])));
         }
+        if args.len() == 2 && args[0] == "--github-reviewer-write-declared" {
+            return runtime.block_on(native_github_review_requests::effects(Path::new(&args[1])));
+        }
         if args.len() == 2 && args[0] == "--github-thread-resolution-declared" {
             return runtime.block_on(native_github_threads::resolution(Path::new(&args[1])));
         }

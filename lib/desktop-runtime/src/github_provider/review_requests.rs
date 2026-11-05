@@ -17,14 +17,14 @@ use std::{
 const REQUESTS:&str="query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
 const TEAM:&str="query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReviewerTarget {
     User { external_id: String },
     Team { external_id: String },
 }
 impl ReviewerTarget {
-    fn validate(&self) -> Result<()> {
+    pub(super) fn validate(&self) -> Result<()> {
         let valid = match self {
             Self::User { external_id } => remote_id(external_id),
             Self::Team { external_id } => {

@@ -2498,3 +2498,44 @@ a complete reviewer set. D1/D2/D3/D5, original thread context, selected-resource
 visibility/transfer policy, custody/root absence/scoped delivery, installed IPC/
 window/instance, isolation/execution/retirement/settlement and release/upgrade/
 freshness retain earlier blockers. No broad security gate or Daybreak work closed.
+
+T11-WRITES bounded reviewer effect (2026-11-05):
+`github_provider/review_request_effect.rs` and `transport.rs` now implement fixed
+single-target GraphQL union addition by user/team Node ID and REST removal by
+current user login/team slug. Account/repository/PR/target identity, lock/read-only
+facts and known requested state precede dispatch. A matching state has no causal
+receipt. Only a valid causal reply followed by complete bounded readback can
+return applied; unrelated request IDs, known target identities and code-owner
+flags must remain present. REST supplies no mutation actor. Failed readback,
+observable selector rename, missing reply or post-send deadline remains uncertain;
+matching later state cannot attribute a missing reply or authorize another send.
+Native global serialization, pacing, eight-second whole deadline and joined
+retirement cover this operation. No product callback/canonical writer/capability
+was enabled.
+
+The production native effect passed 61 declared cases, eight invalid descriptors,
+clone serialization/pacing and pre/post-send retirement against an owned dummy-only
+TLS peer that never forwards. Evidence root
+`/home/vince/tmp/factory-reviewer-write-1105/attempt1/`, result SHA-256
+`9f2b09bb6e3a4845361ca0635849576a558f75eaaa3dd0ce1e3f6de8c574dcaf`.
+The plan records exact peer/binary/runner/result identities and public provider
+contract capture. This proves bounded local component behavior, not actual GitHub
+permissions, live compatibility, shared UI or installed custody/admission.
+
+Exact remaining dependency: admitted `collaboration.rs` callback, canonical Go
+user/team mapping and writer/readback using the schema-87 reservation, then fresh
+scoped owner-authorized actual provider and shared/installed evidence. Removal's
+name selector lacks an atomic immutable-target precondition. Preflight/readback
+detect observable changes but do not exclude unseen rename/reuse; no stronger
+binding is proved. Likewise bounded traversal and preservation checks do not
+establish an atomic snapshot or concurrent conversation/repository condition.
+The supported product policy/invariant for these API limits remains unresolved
+under D5 before claiming its stronger guarantees. Relevant files are the effect,
+`review_requests.rs`, `transport.rs`, `collaboration.rs`, canonical registry and
+future runtime writer. Closure still needs actual permitted/refused user/team
+scope, mutable-name/concurrent/unrelated-target behavior, causal/no-op/lost-reply
+distinctions, replay/cancel/races/withdrawal/replacement/restart, captured expiry
+and normal shared readback. No whole-set replacement is justified. Original thread
+context, other T11 operations, D1/D2/D3/D5, custody/root absence/scoped delivery,
+installed IPC/window/instance, isolation/execution/retirement/settlement and release/
+upgrade/freshness retain earlier blockers. No broad gate or Daybreak work closed.

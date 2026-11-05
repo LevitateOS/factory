@@ -28561,3 +28561,85 @@ T11-WRITES remains Active. Original thread context and selected-resource policy,
 D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/
 execution/retirement/settlement and release/upgrade/freshness remain open. The
 full product is unfinished; no broad gate was closed by this read-only fixture.
+
+### T11-WRITES checkpoint: bounded native reviewer request/removal (2026-11-05)
+
+`github_provider/review_request_effect.rs` adds a fixed single-target native
+effect behind the existing authenticated provider owner. This is component
+implementation and evidence; no product callback, canonical consumer or shared
+write capability was activated. Go remains the owner of durable intent and policy.
+
+Addition uses GraphQL `requestReviews` with exactly one user or team Node ID and
+`union:true`; it never replaces the reviewer set or requests a bot/Copilot.
+Removal uses the documented REST DELETE with exactly one current user login or
+team slug. Team requests include the required empty `reviewers` array. Both
+operations pin current authenticated account, immutable repository/PR identity,
+unlocked discussion, writable repository, selected target kind and known current
+requested state. A matching state returns not-sent without a causal receipt;
+hidden absence refuses. An addition at the traversal limit refuses before send.
+
+The global native mutation lock, one-second pacing, joined retirement and whole
+eight-second deadline also cover preflight and readback. A valid causal response
+must match PR/repository identities and protocol-specific fields. GraphQL's actual
+actor must match the current account; REST has no mutation actor and records null.
+Only after that reply does complete bounded readback qualify selected state and
+preservation of unrelated request IDs, known reviewer identities and code-owner
+flags. Failed readback, observed name change, refusal, malformed/oversized reply,
+lost reply or timeout after attempted dispatch stays indeterminate. No readback
+or matching state recovers attribution for a lost reply; there is no automatic
+retry. Receipts are bounded to 4 KiB and retain identities, selector-binding class,
+response/snapshot hashes and bounded optional provider request ID.
+
+REST's mutable removal selector has **no atomic immutable-target precondition**.
+Preflight and post-reply login/slug checks detect observable changes; they cannot
+exclude an unseen rename/reuse between those observations. The traversal likewise
+is not an atomic point-in-time snapshot or conversation/repository CAS. These
+limits are explicit in source/receipt and remain D5/product-policy blockers; this
+component does not qualify stronger binding or concurrent preservation guarantees.
+
+Provider contracts were checked against the official
+[GraphQL input](https://docs.github.com/en/graphql/reference/pulls#requestreviewsinput),
+[REST removal endpoint](https://docs.github.com/en/rest/pulls/review-requests#remove-requested-reviewers-from-a-pull-request)
+and [GitHub OpenAPI description](https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json).
+The downloaded description declares removal HTTP 200 with `pull-request-simple`;
+the implementation validates returned PR ID/Node/number, base repository ID/Node
+and API URL, followed by the defining native reader. A public schema observation
+is not actual provider compatibility or release freshness evidence.
+
+The existing native executable gained `--github-reviewer-write-declared
+FRESH_PROFILE`. Its production provider/transport passed 61 declared cases,
+eight invalid descriptors, clone serialization, mutation pacing and pre/post-send
+owner retirement under `/home/vince/tmp/factory-reviewer-write-1105/attempt1/`.
+Coverage includes user/team addition/removal, current renamed labels, nullable
+BigInt metadata, same-numeric user/team separation, no-op/hidden state, account/
+repository/subject/target/refusal/lock/read-only checks, unrelated target and
+code-owner changes, observable rename races, causal response identity, partial
+errors, redirects, request-ID/receipt/list/response bounds, lost reply without
+state attribution and whole-operation deadlines. Exactly one send is allowed per
+attempt. The owned local TLS peer accepts only its fixed dummy credential and
+declared semantic requests and never forwards; no real grant or GitHub write ran.
+
+| Artifact under `/home/vince/tmp/factory-reviewer-write-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `6f7a4157ed131a441b2ed924581787f33d1390004cd2ba5facc42d55c7489d76` |
+| `provider` | `712d7f1398680bff7c731dc1d48d9ecbfd4942a27be01fa9c90ab03b23e07d14` |
+| `check-bin` | `784d1a66bd81141085e3880c14d9b43bcf73684141eb9dfebd43c46debc159d6` |
+| `run.sh` | `97d2abd926754af48744240d193dc1d82ac0058d1d97895ea9597fa7c3e197e9` |
+| `session.sh` | `3b7c7f1bf3608e941dc10dc7a544795779d0d4279bec19b5e89b4ad4305f64d0` |
+| `attempt1/result.log` | `7bb1368e74563798277c2af4dcc4f9479cb219a23221b102e61424945c6f4ecd` |
+| `attempt1/reviewer-write-result.json` | `9f2b09bb6e3a4845361ca0635849576a558f75eaaa3dd0ce1e3f6de8c574dcaf` |
+| `github-openapi.json` | `f70a03cccf022f8aa2b2eb3619727a7e043ff3cece0b4413e839d2435a8a1f51` |
+
+Locked/offline native and desktop-feature builds, ownership boundaries and
+whitespace checks passed. No dependency or unit-test hierarchy was added.
+
+Next dependency: typed native callback, canonical user/team mapping, Go writer
+using the schema-87 one-shot fence and normal readback. Actual target eligibility/
+permission, supported policy for mutable removal and concurrent membership,
+fresh scoped owner-authorized provider evidence, replay/cancel/races/withdrawal/
+replacement/restart, original captured expiry and shared WebKit/installed checks
+remain pending. T11-WRITES stays Active. Original thread context and selected-
+resource/conversation/visibility/transfer policy, D1/D2/D3/D5, custody/root absence/
+scoped delivery, IPC/window/instance, isolation/execution/retirement/settlement and
+release/upgrade/freshness retain their earlier blockers. No broad security gate
+or Daybreak work was closed. The full product remains unfinished.

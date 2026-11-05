@@ -81,6 +81,19 @@ enum Request {
         query: super::review_requests::ReviewerQuery,
         token: Zeroizing<Vec<u8>>,
     },
+    RequestReview {
+        pull: String,
+        target: String,
+        team: bool,
+        token: Zeroizing<Vec<u8>>,
+    },
+    RemoveReview {
+        repository: String,
+        number: u64,
+        selector: String,
+        team: bool,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -425,6 +438,38 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn post_review_request(
+        &self,
+        pull: &str,
+        target: &str,
+        team: bool,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::RequestReview {
+            pull: pull.into(),
+            target: target.into(),
+            team,
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
+    pub(super) async fn remove_review_request(
+        &self,
+        repository: &str,
+        number: u64,
+        selector: &str,
+        team: bool,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::RemoveReview {
+            repository: repository.into(),
+            number,
+            selector: selector.into(),
+            team,
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let read_query = matches!(
             &request,
@@ -550,6 +595,73 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Reviewers { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::RequestReview {
+            pull,
+            target,
+            team,
+            token,
+        } => {
+            if !super::request::node_id(&pull) || !super::request::node_id(&target) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            let mut input = serde_json::Map::new();
+            input.insert("pullRequestId".into(), serde_json::json!(pull));
+            input.insert("union".into(), serde_json::json!(true));
+            input.insert(
+                if team { "teamIds" } else { "userIds" }.into(),
+                serde_json::json!([target]),
+            );
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::review_request_effect::REQUEST,
+                    serde_json::json!({"input":input}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::RemoveReview {
+            repository,
+            number,
+            selector,
+            team,
+            token,
+        } => {
+            if !super::request::repository_name(&repository)
+                || number == 0
+                || number > i64::MAX as u64
+                || selector.is_empty()
+                || selector.len() > 512
+                || selector.chars().any(char::is_control)
+                || !secret(&token)
+            {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            let bytes = Zeroizing::new([b"Bearer ", token.as_slice()].concat());
+            let mut authorization = header::HeaderValue::from_bytes(&bytes)
+                .map_err(|_| Failure::new(400, "invalid_native_write"))?;
+            authorization.set_sensitive(true);
+            let body = if team {
+                serde_json::json!({"reviewers":[],"team_reviewers":[selector]})
+            } else {
+                serde_json::json!({"reviewers":[selector]})
+            };
+            (
+                http.delete(format!(
+                    "https://api.github.com/repos/{repository}/pulls/{number}/requested_reviewers"
+                ))
+                .header(header::AUTHORIZATION, authorization)
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .header(header::ACCEPT, "application/vnd.github+json")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(
+                    serde_json::to_vec(&body)
+                        .map_err(|_| Failure::new(400, "invalid_native_write"))?,
+                ),
+                1024 * 1024,
+            )
         }
         Request::ThreadResolution {
             node,
