@@ -38,10 +38,22 @@ func (s Workers) now() time.Time {
 	return time.Now()
 }
 
-// Handler retains a private copy of the persistent HMAC key. Rotation and run
-// retirement belong to the host/store; request bodies never supply identity.
+// Handler is the separate appliance key path. Native desktop hosts use
+// HandlerWithSecretDeriver so the persistent key stays with the Rust owner.
 func (s Workers) Handler(key []byte) http.Handler {
 	key = append([]byte(nil), key...)
+	var derive factory.MCPSecretDeriver
+	if len(key) >= 32 {
+		derive = func(_ context.Context, capability factory.MCPCapability) (string, error) {
+			return factory.DeriveMCPCapabilitySecret(key, capability)
+		}
+	}
+	return s.HandlerWithSecretDeriver(derive)
+}
+
+// HandlerWithSecretDeriver asks the native owner for one recorded capability's
+// derived secret. A failed or absent owner cannot admit a worker request.
+func (s Workers) HandlerWithSecretDeriver(derive factory.MCPSecretDeriver) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != WorkerRoute {
 			http.NotFound(w, r)
@@ -62,13 +74,17 @@ func (s Workers) Handler(key []byte) http.Handler {
 		}
 		id := r.Header.Get("X-Soda-Factory-Capability")
 		provided, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if len(key) < 32 || !factory.ValidID(id) || !bearer {
+		if derive == nil || !factory.ValidID(id) || !bearer {
 			http.Error(w, "worker authentication required", http.StatusUnauthorized)
 			return
 		}
 		capability, err := s.Capabilities.GetMCPCapability(r.Context(), id)
-		secret, keyErr := factory.DeriveMCPCapabilitySecret(key, capability)
-		if err != nil || keyErr != nil || capability.ID != id || capability.Validate() != nil || subtle.ConstantTimeCompare([]byte(secret), []byte(provided)) != 1 {
+		if err != nil || capability.ID != id || capability.Validate() != nil {
+			http.Error(w, "worker authentication refused", http.StatusUnauthorized)
+			return
+		}
+		secret, keyErr := derive(r.Context(), capability)
+		if keyErr != nil || !factory.ValidMCPSecret(secret) || len(provided) != 64 || subtle.ConstantTimeCompare([]byte(secret), []byte(provided)) != 1 {
 			http.Error(w, "worker authentication refused", http.StatusUnauthorized)
 			return
 		}

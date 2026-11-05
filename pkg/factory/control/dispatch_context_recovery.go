@@ -14,7 +14,7 @@ import (
 // Startup retains a recorded pre-launch hold when both native custody owners
 // confirm that no execution exists. Stop/Pause still retire it explicitly.
 func (c *Coordinator) preservePendingContext(ctx context.Context, run factory.Run) bool {
-	if !run.ContextPending || run.Reconciled || run.Outcome != "" || run.HasExecutionIdentity() || run.Admission == nil || !time.Now().Before(run.Deadline) || len(c.MCPKey) == 0 {
+	if !run.ContextPending || run.Reconciled || run.Outcome != "" || run.HasExecutionIdentity() || run.Admission == nil || !time.Now().Before(run.Deadline) || !c.mcpConfigured() {
 		return false
 	}
 	a, err := c.Store.AssignmentByRun(ctx, run.ID)
@@ -40,7 +40,7 @@ func (c *Coordinator) preservePendingContext(ctx context.Context, run factory.Ru
 // Recovery retains its run, capability and paid choice. The marker is cleared
 // before any host call, so lost native replies retain ordinary fenced recovery.
 func recoverPendingContext(ctx context.Context, deps DispatchDeps, a factory.Assignment, reservation factory.Reservation, run factory.Run, report *DispatchReport) bool {
-	if run.Reconciled || run.Outcome != "" || !time.Now().Before(run.Deadline) || len(deps.MCPKey) == 0 {
+	if run.Reconciled || run.Outcome != "" || !time.Now().Before(run.Deadline) || !deps.mcpConfigured() {
 		return false
 	}
 	launch, wait, terminal := pendingContextLaunch(ctx, deps, a, run)

@@ -11,6 +11,7 @@ package factory
 // the ID and scope.
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -117,6 +118,20 @@ func (c MCPCapability) ScopeDigest() string {
 			c.SourceDigest + "\n" + c.AcceptedRevision + "\n" + c.Authority + "\n" +
 			strconv.FormatInt(c.DeadlineUnix, 10) + "\n"))
 	return hex.EncodeToString(sum[:])
+}
+
+// MCPSecretDeriver is the bounded native custody port. The product supplies
+// only a recorded capability; its persistent root key stays with the native
+// owner. A failed derivation must never fall back to another key.
+type MCPSecretDeriver func(context.Context, MCPCapability) (string, error)
+
+// ValidMCPSecret checks the fixed wire encoding of a derived 256-bit secret.
+func ValidMCPSecret(secret string) bool {
+	if len(secret) != 64 {
+		return false
+	}
+	decoded, err := hex.DecodeString(secret)
+	return err == nil && len(decoded) == 32 && hex.EncodeToString(decoded) == secret
 }
 
 // DeriveMCPCapabilitySecret derives the per-capability secret with

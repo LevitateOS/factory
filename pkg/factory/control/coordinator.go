@@ -64,6 +64,7 @@ type BrokerExecution interface {
 // no assessor is wired, checks report unavailable instead of guessing.
 type Coordinator struct {
 	MCPKey          []byte
+	MCPSecret       factory.MCPSecretDeriver
 	Store           *store.Store
 	Host            HostFactory
 	Broker          BrokerExecution

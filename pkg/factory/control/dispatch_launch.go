@@ -225,7 +225,7 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 	}
 	run := factory.Run{
 		ID: runID, ProjectID: plan.projectID, Role: project.RoleCoder, InputSHA: parent.SourceCommit,
-		ContextPending: len(deps.MCPKey) > 0, ExecutionManifest: manifest,
+		ContextPending: deps.mcpConfigured(), ExecutionManifest: manifest,
 		Started: now, Deadline: plan.deadline,
 		Image: plan.pin.Image, Harness: assignment.Harness, Model: assignment.Model,
 	}
@@ -672,7 +672,7 @@ func launchTail(ctx context.Context, deps DispatchDeps, a factory.Assignment, ru
 		return
 	}
 	run = captured
-	if len(deps.MCPKey) > 0 {
+	if deps.mcpConfigured() {
 		recorded := run
 		recorded.ContextPending = true
 		if err := deps.Store.SaveFactoryRun(ctx, recorded); err != nil {
@@ -704,17 +704,17 @@ func launchTail(ctx context.Context, deps DispatchDeps, a factory.Assignment, ru
 			}
 		}
 		if err := ProduceMCPCapabilityForLaunch(ctx, deps.Store, a, run); err != nil {
-			if len(deps.MCPKey) > 0 {
+			if deps.mcpConfigured() {
 				recordLaunchFailure(ctx, deps, a, run, errors.New("worker MCP could not be prepared"), report)
 				return
 			}
-		} else if len(deps.MCPKey) > 0 {
+		} else if deps.mcpConfigured() {
 			capability, err := deps.Store.GetMCPCapability(ctx, run.ID)
 			if err != nil {
 				report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "worker MCP binding unavailable"})
 				return
 			}
-			secret, err := factory.DeriveMCPCapabilitySecret(deps.MCPKey, capability)
+			secret, err := deps.deriveMCPSecret(ctx, capability)
 			if err != nil {
 				report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "worker MCP configuration unavailable"})
 				return

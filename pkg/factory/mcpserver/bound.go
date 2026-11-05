@@ -17,6 +17,19 @@ import (
 // The same shared service exposes a separately filtered interface for each run.
 // Stateless requests reuse one rate limiter, not a new allowance per connection.
 func NewHandler(deps Dependencies, key []byte) http.Handler {
+	key = append([]byte(nil), key...)
+	var derive factory.MCPSecretDeriver
+	if len(key) >= 32 {
+		derive = func(_ context.Context, capability factory.MCPCapability) (string, error) {
+			return factory.DeriveMCPCapabilitySecret(key, capability)
+		}
+	}
+	return NewHandlerWithSecretDeriver(deps, derive)
+}
+
+// NewHandlerWithSecretDeriver binds native worker admission to the Rust-held
+// signing key. The Go product owns capability lookup and current run admission.
+func NewHandlerWithSecretDeriver(deps Dependencies, derive factory.MCPSecretDeriver) http.Handler {
 	deps.limiter = newMCPRateLimiter()
 	boundary := factoryhttpapi.Workers{Capabilities: deps.Capabilities, Now: deps.Now}
 	boundary.Admit = func(ctx context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
@@ -53,7 +66,7 @@ func NewHandler(deps Dependencies, key []byte) http.Handler {
 		server := newFactoryCatalogServer(bound)
 		return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}), nil
 	}
-	return boundary.Handler(key)
+	return boundary.HandlerWithSecretDeriver(derive)
 }
 
 // mcpTakesSubmission reports whether a tool needs a request key. Reads,

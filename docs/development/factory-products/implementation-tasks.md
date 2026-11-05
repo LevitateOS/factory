@@ -25260,3 +25260,15 @@ offline broker/runtime and fixture builds passed; disposable units, binaries,
 owner sockets and run paths were removed. These checks do not prove Go ledger
 admission, a real provider task, actual crash/reboot recovery or D3 closure.
 T09-NATIVE-EXECUTOR remains Pending.
+
+T09-NATIVE-EXECUTOR native MCP custody port checkpoint (2026-11-05): Go
+dispatch, pending-context recovery and the worker MCP HTTP boundary now accept
+one per-capability secret derivation function. The native path can therefore
+request a scoped secret without taking a persistent root key into Go. Derivation
+failure refuses launch binding or worker authentication; it does not fall back
+to the separate appliance key. The existing appliance handler and loader remain
+available. Existing local MCP HTTP integration tests passed, as did Go package
+compilation and whitespace checks. The Rust root-key owner, live callback,
+native coordinator/listener wiring, credential-lifetime and denial evidence
+remain absent. This source port alone does not close native custody or D3;
+T09-NATIVE-EXECUTOR remains Pending.

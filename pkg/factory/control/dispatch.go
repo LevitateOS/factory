@@ -325,6 +325,7 @@ const (
 // the beginning without advancing.
 type DispatchDeps struct {
 	MCPKey               []byte
+	MCPSecret            factory.MCPSecretDeriver
 	ContextVerification  currentVerificationSource
 	VerificationManifest func(context.Context, factory.Assignment, factory.Run) ([]byte, error)
 	Store                *store.Store
@@ -355,6 +356,28 @@ type DispatchDeps struct {
 	ReadCompletionFence func(ctx context.Context, repository int64) ([]int64, error)
 	collectPlan         func(*attemptPlan)
 	checkPlan           func(*attemptPlan) bool
+}
+
+func (d DispatchDeps) mcpConfigured() bool {
+	return d.MCPSecret != nil || len(d.MCPKey) >= 32
+}
+
+func (d DispatchDeps) deriveMCPSecret(ctx context.Context, capability factory.MCPCapability) (string, error) {
+	var secret string
+	var err error
+	if d.MCPSecret != nil {
+		secret, err = d.MCPSecret(ctx, capability)
+	} else {
+		secret, err = factory.DeriveMCPCapabilitySecret(d.MCPKey, capability)
+	}
+	if err != nil || !factory.ValidMCPSecret(secret) {
+		return "", errors.New("worker MCP derivation unavailable")
+	}
+	return secret, nil
+}
+
+func (c *Coordinator) mcpConfigured() bool {
+	return c.MCPSecret != nil || len(c.MCPKey) >= 32
 }
 
 // dispatchReady reports whether one pass has its required dependencies.
@@ -432,7 +455,7 @@ func DispatchPass(ctx context.Context, deps DispatchDeps) DispatchReport {
 // dispatchDeps binds one pass to this coordinator's dependencies.
 func (c *Coordinator) dispatchDeps() DispatchDeps {
 	return DispatchDeps{
-		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,
+		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, MCPSecret: c.MCPSecret, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,
 		Reads: c.DispatchReads, Authority: c.EffectiveAuthority,
 		Refresh: c.refreshReadiness, PrepareRetry: c.prepareRetryCoder, PrepareSource: c.prepareSourceCoder, RetireRetry: c.retireRetryCoder,
 		Queue:           &c.queue,
