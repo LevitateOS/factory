@@ -3353,3 +3353,38 @@ production server. This closes original-expiry evidence for this branch consumer
 only. Actual GitHub permission/rules, combined bounds, shared UI, installed/
 freshness and all other concrete gates/dependencies above remain open. No
 Daybreak work was completed.
+
+T11-WRITES inline one-shot journal prerequisite (2026-11-06):
+`store/{factory_human_inline_dispatch,factory_command_dispatch,factory_human_inline,schema,schema_command_dispatch}.go`
+and `factory/human_inline_outcomes.go` now bind the existing exact inline capture
+to the shared committed reservation. Schema 91 preserves old writing/selection/
+preparation/outcomes while fencing unknown earlier local dispatch history. The
+inline reducer now retains cancellation uncertainty with late known primary and
+later completion, without changing caller objects or immutable receipts. No
+native inline effect or product writer was activated.
+
+Actual Go Store/native PostgreSQL fresh and genuine committed 90→91 checks
+passed concurrent upgrades/stale DDL, legacy uncertainty without send ownership,
+one-of-32 claims, 32 reserve/cancel races per run, conflicting full selection and
+writing, invalid/unbound scope/observations, maximum writing/preparation, retained
+branch/review reservations, late primary/completion and receipt conflict rollback,
+byte limits and future-schema refusal. Forty complete command/outcome records
+were compared after actual restart and child crash/WAL recovery. Evidence:
+`/home/vince/tmp/factory-inline-dispatch-1106/fresh.log`, SHA-256
+`005a45c04267eceb1b8df1ff27350f6caf1e7a5dbe3de699299f082c78eb1f55`,
+and `upgraded.log`, SHA-256
+`937d3a2a1deb1b2504b64da1c108caca5bb5c95903058ccee08dc77213eddff6`.
+The plan records exact baseline/observer/driver artifacts and original-90 proof
+retention. These declared local receipts do not prove any GitHub inline effect.
+
+Remaining dependency: defining authenticated Rust inline preparation/effect,
+then current-account Go/native product composition over this fence. Qualify
+supported exact selections, full writing, causal identity and pending-review
+ownership/draft privacy, loss/replay/cancel/original expiry/custody/restart and
+current readback. Do not fabricate a complete original base/head anchor from
+today's branches or substitute another pending review. Unknown original provider
+anchors must remain unknown. Fresh specifically authorized actual provider
+permission/privacy/publication/notification, shared UI and installed behavior
+remain unverified. No SQL fixture or source fix closes those actual gates. All
+other canonical/broad gates remain open, shared writes remain unavailable, and
+no Daybreak work ran or was marked complete.

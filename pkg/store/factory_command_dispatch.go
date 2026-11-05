@@ -135,6 +135,16 @@ func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
 			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 				return saveHumanBranchCreateObservation(ctx, tx, saved, c, o)
 			}}
+	case factory.CommandHumanInline:
+		c, err := factory.DecodeHumanInlineCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanInlineObservation,
+			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanInlineObservation(c, o) }, finished: factory.HumanInlineFinished,
+			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return saveHumanInlineObservation(ctx, tx, saved, c, o)
+			}}
 	default:
 		return s, ErrCommandConflict
 	}

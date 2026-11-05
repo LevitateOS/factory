@@ -30223,3 +30223,78 @@ These are dummy-only native/Go/PG observations with historical cached inputs,
 not actual GitHub, freshness, shared UI, installed or broad gate qualification.
 Combined identity bounds, other writers' expiry and all other dependencies in the
 preceding checkpoint remain independent and unfinished. No Daybreak work ran.
+
+### T11-WRITES checkpoint: one-shot native inline dispatch prerequisite (2026-11-06)
+
+`factory_human_inline_dispatch.go`, `factory_command_dispatch.go`,
+`factory_human_inline.go`, `human_inline_outcomes.go`, `schema.go` and
+`schema_command_dispatch.go` now bind the existing canonical inline capture to
+the shared committed one-shot journal protocol. The retained request includes
+exact base/head commits, normalized path, side, file/line scope, range,
+draft/publication choice and full writing. No new provider preparation or current
+branch can replace that saved selection. Only the caller receiving a committed
+reservation may send once; reserved or legacy history cannot recover ownership.
+This slice adds no native inline effect or product writer binding.
+
+Schema **91** fences earlier unclaimed inline captures as legacy unknown while
+preserving their complete writing/selection/preparation/outcomes. A version
+predicate protects new captures against stale 90→91 upgrade statements. Existing
+branch/review reservations and payload limits remain intact. The inline
+observation saver is now shared by the row-locked observation/cancellation paths.
+The typed reducer also uses the existing cancellation-retention helper: a late
+valid known primary with unfinished completion, then later completion, preserves
+cancellation uncertainty and immutable receipt bytes without mutating its caller.
+This fixes the missing inline retention path found before native composition.
+
+The existing native PostgreSQL driver exercised the actual Go Store on fresh
+schema 91 and a genuine source-built 90→91 upgrade under
+`/home/vince/tmp/factory-inline-dispatch-1106/`. The old executable was built from
+committed source archive `55172b1a1a1116679f35eb166ce64cfc45678560` and created four
+typed inline captures, including observed/finished and maximum writing/preparation,
+plus actual branch/review reservations. Original-90 proof bytes remain retained.
+Concurrent upgrade openers and stale upgrade statements did not fence their new
+captures. An explicitly subsequent cancellation of legacy history stayed
+indeterminate with unchanged original intent and no recovered send ownership.
+
+Both runs proved one winner among 32 identical claims, 32 reservation/cancellation
+races (9 reservation/23 cancellation winners each), original capture winner,
+13 conflicting writing/selection/draft/parent/scope cases, invalid/unbound
+requests/observations, maximum 64 KiB escaped writing plus 512 KiB preparation,
+file/line and old/new selection variants, SQL byte bounds, immutable row/fence,
+late primary/completion after cancellation and conflicting receipt rollback,
+and future-schema refusal. Forty complete command records, including original
+outcome/receipt bytes, were compared after both retained restart and actual child
+crash/WAL recovery. Existing branch and review reservations were rechecked in
+every phase. Clean native shutdown passed. Declared local receipts are not
+provider attribution or evidence of actual published/draft inline behavior.
+
+| Artifact under `/home/vince/tmp/factory-inline-dispatch-1106/` | SHA-256 |
+| --- | --- |
+| `wire.go` | `33a2ecefb4e168967803286a4255c82372e37ca3da7584f743a7b0d10db5c0de` |
+| `fresh-check.go` | `3ef9cf5f2fced812f9b4a096f7910cddcf55ead534bacbb7318dfd3237bf5886` |
+| `fresh-check` | `3059f5d5d5fc3506d3fd8bc74504304a6a7f89ffb2c8e9f57dee8a939b5e30ac` |
+| `check-upgrade.go` | `8df9a555d332a43dff010673a54fc9e757f76d9ddbea94cd21cd63c69b2fee84` |
+| `check-upgrade` | `55989c3c0c6ac7836aa6f840e22d6b399d02a1765eb982d742206e85172c1153` |
+| `legacy.go` | `74388e9032247bc431da3306efb6b38ebc149d5ec56907e9b48ffb61c650aaba` |
+| `legacy` | `3e2c8a665e507431454a25d01dd71c63b86f7f374834c870233520a38692ae15` |
+| `fresh.log` | `005a45c04267eceb1b8df1ff27350f6caf1e7a5dbe3de699299f082c78eb1f55` |
+| `upgraded.log` | `937d3a2a1deb1b2504b64da1c108caca5bb5c95903058ccee08dc77213eddff6` |
+
+Driver `.artifacts/cargo-target/debug/soda-native-pg-check` remains SHA-256
+`53fdbf91994d560a0a23fda5e641e6ac10b12c04c8f3e65edb3c7c3388dc65ef`.
+Affected Go source builds, ownership boundaries and whitespace checks passed.
+No dependency, authored Python, unit-test root or Rust test module was added.
+Historical cached-input checks are not fresh release/installed upgrade proof.
+
+Next dependency: the fixed authenticated Rust inline producer and current
+selection/preparation observations, then admitted Go consumer/callback composition
+using this fence. Prove the supported exact selection and draft/publication
+semantics, full writing, causal identity, loss/replay/cancel/original expiry/
+custody/restart and actual readback through the native product path. Existing
+pending review identity and privacy must be explicit; do not substitute another
+review or infer a complete historical two-commit anchor from current branches.
+Unknown provider original anchors remain unknown. Real provider permissions/
+privacy/notifications, fresh shared UI/installed evidence and all other concrete
+T11/canonical/broad gates remain open. Shared writes remain unavailable;
+T11-WRITES and the full product are unfinished. No Daybreak work ran or was
+marked complete.
