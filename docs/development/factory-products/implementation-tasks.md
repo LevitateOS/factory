@@ -28152,3 +28152,84 @@ attribution for a lost reply. Fresh specifically authorized GitHub writes/readba
 shared UI, delayed deadlines and selected-resource/visibility/transfer policy
 remain pending. T11-WRITES remains Active; all broader security and installed/
 release/freshness gates remain open, and the product is unfinished.
+
+### T11-WRITES checkpoint: one-shot human thread dispatch (2026-11-05)
+
+The existing `pull_request.review.thread.resolve` capture now uses the shared
+Store reservation/cancellation protocol through typed methods in
+`pkg/store/factory_human_thread_dispatch.go`. The defining row-lock implementation
+remains `factory_command_dispatch.go`. It binds the exact command, including
+opaque thread ID, desired resolution, full/unknown original anchor and provider
+preparation. Only an unfinished saved valid NotObserved lookup may claim once;
+only the caller receiving true after commit may send. Reading reserved state or
+losing the commit reply cannot recover ownership. Unclaimed cancellation commits
+a final no-effect tombstone under the same lock; reserved/legacy cancellation
+retains uncertainty. The thread observation save helper is shared by normal
+observation and transactional cancellation rather than duplicating the reducer.
+
+Schema 86 permits thread reservations through the immutable command guard and
+upgrades actual schema-85 thread captures to `legacy_unknown`. Exact payload,
+digest, identity, created/finished and outcome bytes remain unchanged. Other
+command claims are preserved. Version-qualified DDL prevents stale concurrent
+upgrade replay from fencing new captures. Fresh tables and upgraded databases use
+the same guard. No provider request or credential is handled by Store.
+
+The first real checks found two production issues: the schema upgrade allow-list
+had omitted 85, and the existing thread reducer discarded late known primary
+results after cancellation became indeterminate. Schema 85 is now admitted to
+its explicit upgrade. `AdvanceHumanThreadObservation` uses the established
+`retainHumanCancellationUncertainty` helper before the shared reducer, preserving
+the proved primary result and uncertain cancellation without mutating the caller's
+record. The initial failed profiles, executable, tracked-source patch and unchanged
+new dispatch-wrapper source remain preserved. They are not passing evidence.
+
+The existing owned PostgreSQL dispatch acceptance driver was extended for thread
+captures under `/home/vince/tmp/factory-thread-dispatch-1105/`. Both fresh schema 86
+and actual schema-85 upgrade exited 0. The older seeder was compiled from the
+unmodified `d17a910` source archive, retaining not-observed, cancelled, unknown and
+committed outcomes with alternating full and unknown original anchors.
+
+The final checks proved 19 exact-capture conflicts (scope, PR/thread, resolution,
+every original-anchor coordinate, null/full distinction, authority, operation and
+exact preparation bytes); absent/unsuitable lookup refusal; one of 32 concurrent
+claims across Store connections; 32 reservation/cancellation races in each run;
+late causal and no-effect results with cancellation uncertainty and no caller
+mutation; immutable SQL identity/reservation/terminal guards; and preserved
+comment/lock claims. Fresh races observed 24 reservation winners and eight
+cancellation winners; upgrade races observed 22 and ten. Concurrent upgrading
+processes and stale DDL preserved new captures as unclaimed. Retained restart and
+actual owned-child crash/WAL recovery preserved fences, terminal facts and unknown
+history. The native driver proved clean shutdown. This is local journal evidence,
+not a provider or installed admission check.
+
+| Artifact under `/home/vince/tmp/factory-thread-dispatch-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `7644183e090f7869e3288704580156b1a659273083afe5b23d586e003ecab15e` |
+| `shared.go` | `061b3e25cf3b566b2c52dc89ac92bcba7e6cf99a482e27e26691fa66686c3fe7` |
+| `legacy.go` | `a54131cc20e3d4364827c870d5caba81f90fbc86e78f62081a005ba967f8f3f9` |
+| `check` | `313efc76742e27fa02a3352937c0833f511b5a766c7b138a68f9d4dc1cb554fc` |
+| `legacy` | `03d14f45b36b1013182323a961e7af9f44f2f6ee5e3f22bee7c4d3eb07558693` |
+| `check-a1` (failed) | `35112848254fb83d5e3ee4bf36df50587ef779e5841d057d1824140a697cb7bd` |
+| `production-a1.patch` (tracked diff) | `2c3d1aff291c1ed38db85e0ed26c4b95540a2211df4a48e184a04029ed2fa7bd` |
+| `dispatch-wrapper.go.txt` (unchanged across attempts) | `b2a963e17915ca86cbdf8553f65707913727612f6950cdd26d70829836dfb814` |
+| `soda-factory-server` | `48e322d243c7a2f4f150f4aedf86941580c28a5314e28d36f2bd6598473d7e83` |
+| `fresh-a1.log` (failed) | `7cbaa767747c19d4257a104f4db0ac52fbc586d4dd66fbf8d12033fe212c8548` |
+| `legacy-a1.log` (failed) | `f5d29666845a28bc794063124009884934742d3ae2009eb879a0a646b88f7631` |
+| `fresh-a2.log` | `5dddc12eb1815a3037f6d4d5926516456a2fa1cece43f08b7bcd5e54e48d7435` |
+| `legacy-a2.log` | `43046cf1b80025f5482221e9bbfb13ed01ca3e41ddac3e45b29937380598a878` |
+
+Production Go Store/runtime and backend builds, ownership boundaries and
+whitespace checks passed with captured inputs. No dependencies, unit tests or new
+unit-test roots were added. This resolves the thread one-shot Store prerequisite;
+no GitHub mutation, native write callback or human selection was activated.
+
+Next source dependency: fixed Rust resolve/unresolve operations against the
+genuine review-thread Node ID with current account/repository/PR membership,
+provider action facts, original full/unknown context and causal bounded receipts;
+then native callback, Go admitted writer and shared selection using this fence.
+No matching current resolution can attribute an uncertain prior dispatch. Actual
+fresh authorized provider permissions/schema/mutation/readback and shared UI remain
+unqualified, along with delayed captured deadlines and visibility/transfer policy.
+T11-WRITES stays Active. D1/D2/D3/D5, custody/root absence/scoped delivery,
+installed IPC/window/instance, worker isolation/execution/retirement/settlement,
+release/upgrade/freshness and the unfinished full product remain open.

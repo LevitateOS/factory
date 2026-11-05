@@ -54,6 +54,7 @@ func AdvanceHumanThreadObservation(c HumanThreadCapture, old, next collaboration
 	if ValidateHumanThreadObservation(c, old) != nil || ValidateHumanThreadObservation(c, next) != nil {
 		return collaboration.OperationLookup{}, ErrHumanThreadObservation
 	}
+	next = retainHumanCancellationUncertainty(old, next)
 	result, err := advanceHumanCommandObservation(old, next)
 	if err != nil {
 		return collaboration.OperationLookup{}, ErrHumanThreadObservation

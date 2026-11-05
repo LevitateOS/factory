@@ -2278,3 +2278,42 @@ visibility/transfer policy, D1/D2/D3/D5, custody/root absence/scoped delivery,
 installed IPC/window/instance admission, worker isolation/execution/retirement/
 settlement and release/upgrade/freshness retain their earlier exact dependencies
 and evidence requirements. No broad gate or Daybreak work is closed here.
+
+T11-WRITES thread one-shot Store prerequisite (2026-11-05):
+`pkg/store/factory_human_thread_dispatch.go` now delegates exact capture state,
+reservation and cancellation to the existing shared row-lock protocol in
+`factory_command_dispatch.go`. `factory_human_thread.go` shares observation saving
+inside cancellation transactions. Schema 86 (`schema.go`, `schema_command_dispatch.go`)
+fences prior schema-85 thread captures as legacy-unknown without rewriting their
+intent, full/unknown anchors or outcomes; older comment/lock claims are preserved.
+`pkg/factory/human_thread_outcomes.go` now retains late known primary results and
+uncertain cancellation using the existing non-mutating helper. A reserved row is
+never permission to recover lost dispatch ownership.
+
+The first actual PostgreSQL runs exposed the missing schema-85 allow-list entry
+and thread reducer's loss of late known results. Both were corrected; failed
+profiles/logs/executable/source remain preserved. Final fresh and actual-85-upgrade
+checks passed 19 capture conflicts, full/unknown anchor binding, unsuitable lookup
+refusal, one of 32 concurrent claims, 32 cancellation races in each run, late
+causal/no-effect results, immutable SQL guards, concurrent upgrade/stale DDL,
+retained restart and owned-child WAL recovery/clean shutdown. Evidence root
+`/home/vince/tmp/factory-thread-dispatch-1105/`, fresh log SHA-256
+`5dddc12eb1815a3037f6d4d5926516456a2fa1cece43f08b7bcd5e54e48d7435`, upgrade
+log `43046cf1b80025f5482221e9bbfb13ed01ca3e41ddac3e45b29937380598a878`.
+The canonical plan records driver/baseline/executable identities. These are local
+journal observations; no actual provider or installed gate is closed.
+
+The Store source blocker from the preceding entry is resolved. Exact remaining
+thread dependency: fixed Rust authenticated resolve/unresolve effects and causal
+receipts in `github_provider`, admitted native callbacks in `collaboration.rs`,
+then the Go writer/selection in `pkg/factory/runtime` using the one-shot fence.
+Required closure evidence remains exact current account/repository/PR/genuine
+thread scope and full/unknown original context, current custody, provider permission
+and refusal, causal reply versus lost reply without current-state attribution,
+replay/cancel/races/restart/withdrawal, and shared UI normal readback. A fresh
+specifically scoped owner-authorized actual GitHub check is still required; no
+real grant is retained. Delayed captured deadlines and visibility/transfer policy,
+D1/D2/D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance,
+worker isolation/execution/retirement/settlement and release/upgrade/freshness retain
+their earlier exact blockers and evidence requirements. No broad security gate or
+Daybreak work was completed here.

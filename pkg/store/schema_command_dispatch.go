@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -64,4 +64,13 @@ var HumanLockDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.lock.apply' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=84)`,
 	`UPDATE schema_version SET version=85 WHERE version=84`,
+}
+
+// Earlier thread captures may already have reached an idempotent remote host.
+// Retain their exact scope, full/unknown anchor and outcomes; no local retry
+// permission can be inferred from an old unclaimed default.
+var HumanThreadDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.thread.resolve' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=85)`,
+	`UPDATE schema_version SET version=86 WHERE version=85`,
 }
