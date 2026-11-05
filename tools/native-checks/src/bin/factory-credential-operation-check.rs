@@ -18,6 +18,8 @@ use tokio::sync::oneshot;
 type Result<T> = std::result::Result<T, Box<dyn StdError>>;
 #[path = "../native_github_comments.rs"]
 mod native_github_comments;
+#[path = "../native_github_issues.rs"]
+mod native_github_issues;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
 fn ensure(ok: bool, message: &str) -> Result<()> {
@@ -1201,6 +1203,9 @@ fn main() {
             return runtime.block_on(native_github_transport::run_comment_declared(Path::new(
                 &args[1],
             )));
+        }
+        if args.len() == 2 && args[0] == "--github-issue-declared" {
+            return runtime.block_on(native_github_issues::producer(Path::new(&args[1])));
         }
         if args.len() == 4 && args[0] == "--github-comment-envelope-declared" {
             return Err("the comment envelope producer observer is retired; use --github-comment-product-declared for the composed writer in an owned no-forwarding fixture".into());

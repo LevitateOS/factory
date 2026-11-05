@@ -1846,3 +1846,34 @@ not provider permission or successful creation evidence. Installed retained
 upgrade/freshness, the comment transfer/lock policy, D1/D2/D3/D5, root absence/
 scoped delivery, installed IPC/window admission, worker isolation/execution and
 retirement/settlement retain their recorded dependencies and required evidence.
+
+T11-WRITES Rust issue-creation producer (2026-11-05):
+`github_provider/issue_create.rs` adds a fixed repository-Node-ID mutation,
+serialized with other native creations. `writes.rs` supplies one common outcome;
+`transport.rs` keeps only private fixed mutation builders and shared bounded
+authentication/response decoding. The effect checks current account, selected
+immutable repository, known issues-enabled/non-read-only state and exact title/
+body, and validates causal reply Node identities. Errors after dispatch retain
+uncertainty; no remote deduplication, marker/search attribution, provider grant
+or product SQL authority is inferred. Bounded receipts preserve writing digests
+while the immutable Go capture retains the complete title/body.
+
+The existing native integration tool's `--github-issue-declared` passed 37 named
+cases, eight invalid descriptors, serialization/pacing and in-flight retirement
+against dummy-only local HTTPS under `/home/vince/tmp/factory-issue-provider-1105/`.
+The existing 39-case comment producer also passed after transport sharing. Issue
+result `bf9f2cf6c8eb5cf7a2e3787b9ddd9e10c5263eb12f31bb6c51f9811d2ad5e0dd`;
+comment result `47a8f8009cd6f66cfe282ba6d1c2c9415944018f26cec256118b6bc8c7ba5ef6`.
+Source/executable/log identities are in the canonical plan. The fixture never
+forwards and no actual provider account/grant was used.
+
+The exact remaining issue-create blocker is the admitted native callback and Go
+writer composition with the new journal reservation/cancellation protocol.
+Prove current caller/account/repository/generation/withdrawal admission, unchanged
+writing, causal receipt persistence, one-shot replay, ambiguous reply/cancel/
+restart and readable created destination before exposing the action. A fresh,
+specifically authorized real provider fixture must qualify actual schema/grants/
+permission/write/readback afterward. The effect's source checks do not close
+D1/D2/D3/D5, repository/visibility policy, installed IPC/window/custody, worker
+isolation/execution/retirement, root absence/scoped delivery or release/upgrade/
+freshness gates. Those retain their previously recorded evidence requirements.

@@ -19,7 +19,7 @@ pub(crate) struct Response {
     pub next: u32,
     pub last: u32,
 }
-pub(super) struct CommentResponse {
+pub(super) struct MutationResponse {
     pub value: Value,
     pub request_id: Option<String>,
     pub response_sha256: String,
@@ -41,6 +41,12 @@ enum Request {
     },
     Comment {
         node: String,
+        body: String,
+        token: Zeroizing<Vec<u8>>,
+    },
+    IssueCreate {
+        node: String,
+        title: String,
         body: String,
         token: Zeroizing<Vec<u8>>,
     },
@@ -281,14 +287,31 @@ impl Client {
         node: &str,
         body: &str,
         token: &[u8],
-    ) -> Result<CommentResponse> {
-        let wire = self
-            .request(Request::Comment {
-                node: node.into(),
-                body: body.into(),
-                token: Zeroizing::new(token.to_vec()),
-            })
-            .await?;
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::Comment {
+            node: node.into(),
+            body: body.into(),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
+    pub(super) async fn post_issue(
+        &self,
+        node: &str,
+        title: &str,
+        body: &str,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::IssueCreate {
+            node: node.into(),
+            title: title.into(),
+            body: body.into(),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
+    async fn mutation(&self, request: Request) -> Result<MutationResponse> {
+        let wire = self.request(request).await?;
         if wire.status != 200 {
             if matches!(wire.status, 400 | 422) {
                 return Err(Failure::new(400, "github_write_rejected"));
@@ -321,7 +344,7 @@ impl Client {
         }) {
             return Err(Failure::protocol());
         }
-        Ok(CommentResponse {
+        Ok(MutationResponse {
             value,
             request_id,
             response_sha256: sha256(wire.bytes.as_slice()),
@@ -381,23 +404,35 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
             16384,
         ),
         Request::Comment { node, body, token } => {
-            if !super::request::node_id(&node) || !secret(&token) {
+            if !super::request::node_id(&node) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            let authorization_bytes = Zeroizing::new([b"Bearer ", token.as_slice()].concat());
-            let mut authorization = header::HeaderValue::from_bytes(&authorization_bytes)
-                .map_err(|_| Failure::new(400, "invalid_native_write"))?;
-            authorization.set_sensitive(true);
             (
-                http.post("https://api.github.com/graphql")
-                .header(header::AUTHORIZATION, authorization)
-                .header("X-GitHub-Api-Version", API_VERSION)
-                .header(header::ACCEPT, "application/vnd.github+json")
-                .header(header::CONTENT_TYPE, "application/json")
-                .body(
-                    serde_json::to_vec(&serde_json::json!({"query":super::comments::CREATE_COMMENT,"variables":{"subject":node,"body":body}}))
-                        .map_err(|_| Failure::new(400, "invalid_native_write"))?,
-                ),
+                graphql(
+                    http,
+                    &token,
+                    super::comments::CREATE_COMMENT,
+                    serde_json::json!({"subject":node,"body":body}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::IssueCreate {
+            node,
+            title,
+            body,
+            token,
+        } => {
+            if !super::request::node_id(&node) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::issue_create::CREATE_ISSUE,
+                    serde_json::json!({"repository":node,"title":title,"body":body}),
+                )?,
                 1024 * 1024,
             )
         }
@@ -433,6 +468,30 @@ fn network_failure(error: reqwest::Error) -> Failure {
     } else {
         Failure::unavailable()
     }
+}
+fn graphql(
+    http: &Http,
+    token: &[u8],
+    query: &'static str,
+    variables: Value,
+) -> Result<reqwest::RequestBuilder> {
+    if !secret(token) {
+        return Err(Failure::new(400, "invalid_native_write"));
+    }
+    let bytes = Zeroizing::new([b"Bearer ", token].concat());
+    let mut authorization = header::HeaderValue::from_bytes(&bytes)
+        .map_err(|_| Failure::new(400, "invalid_native_write"))?;
+    authorization.set_sensitive(true);
+    Ok(http
+        .post("https://api.github.com/graphql")
+        .header(header::AUTHORIZATION, authorization)
+        .header("X-GitHub-Api-Version", API_VERSION)
+        .header(header::ACCEPT, "application/vnd.github+json")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(
+            serde_json::to_vec(&serde_json::json!({"query":query,"variables":variables}))
+                .map_err(|_| Failure::new(400, "invalid_native_write"))?,
+        ))
 }
 pub(super) fn sha256(bytes: &[u8]) -> String {
     Sha256::digest(bytes)

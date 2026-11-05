@@ -11,6 +11,13 @@ pub(super) fn id(v: &Value) -> Result<String> {
         .map(|id| id.to_string())
         .ok_or_else(Failure::protocol)
 }
+pub(super) fn big_id(v: &Value) -> Result<String> {
+    v.as_str()
+        .filter(|id| super::request::remote_id(id))
+        .map(str::to_owned)
+        .or_else(|| id(v).ok())
+        .ok_or_else(Failure::protocol)
+}
 pub(super) fn text<'a>(v: &'a Value, key: &str) -> Result<&'a str> {
     v[key].as_str().ok_or_else(Failure::protocol)
 }

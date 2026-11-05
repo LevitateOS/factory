@@ -3,6 +3,7 @@
 mod comments;
 mod diff;
 mod evidence;
+mod issue_create;
 mod oauth;
 mod patch;
 mod protection;
@@ -11,9 +12,13 @@ mod records;
 mod request;
 mod threads;
 mod transport;
+mod writes;
 
 use crate::credentials::{Account, Provider, Token};
-pub use comments::{Comment, CommentOutcome};
+pub use comments::Comment;
+pub use issue_create::IssueCreate;
+pub use writes::CreateOutcome;
+pub type CommentOutcome = CreateOutcome;
 pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use request::Read;
 use serde::Serialize;

@@ -27313,3 +27313,62 @@ inputs are not fresh/installed migration qualification. T11-WRITES remains
 Active for the Rust issue-creation effect and admitted Go/native consumer, live
 provider qualification, the other human operations and its open policy gates.
 No issue-creation port or UI capability is enabled by this journal producer.
+
+### T11-WRITES — Rust issue-creation effect producer (2026-11-05)
+
+`github_provider/issue_create.rs` now owns plain human issue creation through one
+fixed documented [createIssue input](https://docs.github.com/en/graphql/reference/issues#createissue).
+The native effect validates exact unpadded title bytes (at most 255), the optional
+empty/64 KiB body, current account, immutable repository/Node binding and known
+enabled/non-read-only repository state. It sends only repository Node ID, title
+and body; it requests no agent assignment, templates or other side effects.
+Permissions are enforced by the provider, never inferred from repository push.
+
+The mutation retains the existing one-second serialization/pacing and eight-second
+overall deadline, including preflight/queue waits. Errors before dispatch are
+`NotSent`; errors after its boundary are `Indeterminate`. Only an exact causal
+success with matching repository/actor Node IDs and unchanged title/body yields
+`Created`. Full/partial GraphQL errors, malformed/changed/oversized evidence and
+lost replies cannot yield success or safe retry. The at-most-4-KiB receipt retains
+provider identity/number/URL, status/protocol/request ID and original response/
+writing digests; full writing stays in the Go capture. Large database IDs are
+decoded once without 32-bit narrowing.
+
+`writes.rs` defines the common native creation outcome (`CommentOutcome` remains
+an alias). The two private fixed mutation builders share transport response/header/
+error decoding and authentication; no arbitrary query/URL/method port was added.
+Rust owns the entire authenticated provider effect and no product SQL.
+
+The existing native check gained `--github-issue-declared FRESH_PROFILE` in
+`tools/native-checks/src/native_github_issues.rs`. Against the owned process-local
+CA/loopback-only fixture under `/home/vince/tmp/factory-issue-provider-1105/`,
+`attempt1` exited 0 with 37 named cases plus eight invalid descriptors:
+positive/empty/maximum Unicode/control writing, 255-byte title, large ID, name-slot
+reuse, optional request ID, account/repository/read-only/issues-disabled refusal,
+misbound/partial/error/lost/oversized replies, clone serialization/pacing and
+blocked-POST retirement. Each uncertain effect issued exactly one POST. No real
+GitHub request was forwarded. The existing 39-case defining comment check passed
+unchanged in `comment-regression-a1`, exercising the shared transport refactor.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `3c9a3d825c8b34e6c6b4dab44d349f855c4ecb3f1aa07f84b4aa610aee114894` |
+| fixture executable | `bd65aa9172cfb39afc977fad5a496b3160e4c1af76a20a55bc6bd7da6e126cfa` |
+| `run.sh` | `532086dab65cf803efc9ae346b444db547e348fb0ebfe4212d50379ba37801e4` |
+| `session.sh` | `b2cdcd6fe30f8b6231bd044232d9d7500554c359a1d5a7321b630b462a106cde` |
+| native check executable | `9a8b66adab789fec8eea74b9ba205f3af7eb3b863515d444914fbdeea17358b0` |
+| issue producer log | `1c8ace5a83922664ab0ebc952e441191c58c2eb69aa60d2019afbc540a903fbe` |
+| issue producer result | `bf9f2cf6c8eb5cf7a2e3787b9ddd9e10c5263eb12f31bb6c51f9811d2ad5e0dd` |
+| comment regression result | `47a8f8009cd6f66cfe282ba6d1c2c9415944018f26cec256118b6bc8c7ba5ef6` |
+
+Locked-source compilation, ownership boundaries and whitespace checks pass. No
+new unit-test root or dependency was added. This is the defining producer, not
+its authenticated native/Go service/journal composition, actual provider
+permission/schema qualification, readable created destination or installed UI.
+Next connect those existing typed Go issue-creation contracts to this effect and
+prove reservation/receipt/readback/cancel/lost-reply/restart through the composed
+native/Go/PostgreSQL path. T11-WRITES and all broader gates remain incomplete;
+no issue-create UI capability or new source/installed release qualification is
+implied by these captured-input checks.

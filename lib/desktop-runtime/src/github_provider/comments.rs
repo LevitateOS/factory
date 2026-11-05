@@ -1,10 +1,10 @@
 //! One bounded provider effect. Go must commit its exact intent and win the
 //! durable one-shot reservation before invoking this operation. Nothing here
 //! provides retry authorization, a remote idempotency key or conditional writes.
-use super::{reads::Reader, records as r, request::remote_id, Client, Failure};
+use super::{reads::Reader, records as r, request::remote_id, Client, CreateOutcome, Failure};
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::time::{Duration, Instant};
 
 // A fixed mutation addresses the exact node learned from the same REST subject
@@ -38,14 +38,6 @@ impl Comment {
     }
 }
 
-/// Errors after dispatch starts remain uncertain, including malformed success
-/// bodies and retirement. A provider refusal is not promoted to a cancellation
-/// receipt. The owning Go journal must preserve the distinction durably.
-pub enum CommentOutcome {
-    NotSent(Failure),
-    Indeterminate(Failure),
-    Created(Value),
-}
 impl Client {
     /// Native integration surface, matching semantic reads: no URL, method,
     /// canonical mapping, browser capability or SQL authority enters this port.
@@ -54,7 +46,7 @@ impl Client {
         token: Token,
         expected: &str,
         comment: &Comment,
-    ) -> CommentOutcome {
+    ) -> CreateOutcome {
         self.comment_account(token.as_bytes(), expected, comment, None)
             .await
     }
@@ -64,7 +56,7 @@ impl Client {
         expected: &str,
         comment: &Comment,
         deadline: Option<Instant>,
-    ) -> CommentOutcome {
+    ) -> CreateOutcome {
         let mut attempted = false;
         let until = deadline
             .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
@@ -125,12 +117,7 @@ impl Client {
                 .await?;
             let payload = &response.value["data"]["addComment"];
             let raw = &payload["commentEdge"]["node"];
-            let id = raw["fullDatabaseId"]
-                .as_str()
-                .filter(|id| remote_id(id))
-                .map(str::to_owned)
-                .or_else(|| r::id(&raw["fullDatabaseId"]).ok())
-                .ok_or_else(Failure::protocol)?;
+            let id = r::big_id(&raw["fullDatabaseId"])?;
             if payload["subject"]["id"] != subject_node
                 || payload["subject"]["__typename"] != if pull { "PullRequest" } else { "Issue" }
                 || !r::text(raw, "id").is_ok_and(super::request::node_id)
@@ -190,9 +177,9 @@ impl Client {
             .await
             .and_then(|result| result);
         match result {
-            Ok(value) => CommentOutcome::Created(value),
-            Err(failure) if attempted => CommentOutcome::Indeterminate(failure),
-            Err(failure) => CommentOutcome::NotSent(failure),
+            Ok(value) => CreateOutcome::Created(value),
+            Err(failure) if attempted => CreateOutcome::Indeterminate(failure),
+            Err(failure) => CreateOutcome::NotSent(failure),
         }
     }
 }
