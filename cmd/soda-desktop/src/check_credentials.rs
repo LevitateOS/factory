@@ -743,18 +743,21 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
         .capability(&account.connection)
         .await
         .map_err(|e| e.to_string())?;
-    store
-        .withdraw(&account.connection)
-        .await
-        .map_err(|e| e.to_string())?;
-    ensure(
-        store.status().await.map_err(|e| e.to_string())?.is_empty(),
-        "owned test account not removed",
-    )?;
-    ensure(
-        store.with_token(&cap, |_| ()).await.is_err(),
-        "withdrawn local capability survived",
-    )?;
+    let retain = std::env::args_os().any(|arg| arg == "--check-retain-account");
+    if !retain {
+        store
+            .withdraw(&account.connection)
+            .await
+            .map_err(|e| e.to_string())?;
+        ensure(
+            store.status().await.map_err(|e| e.to_string())?.is_empty(),
+            "owned test account not removed",
+        )?;
+        ensure(
+            store.with_token(&cap, |_| ()).await.is_err(),
+            "withdrawn local capability survived",
+        )?;
+    }
     write_consent_evidence(
         app,
         "consent-result.json",
@@ -762,9 +765,9 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "approved_native_signin":true, "verified_identity":true, "encrypted_grant_reload":true,
             "repository_pages":pages, "private_repository_read":private_read,
             "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
-            "owned_local_account_removed":true, "remote_revocation_exercised":false,
+            "owned_local_account_removed":!retain, "owned_account_retained_for_followup":retain, "remote_revocation_exercised":false,
             "canonical_factory_binding":true, "native_product_bridge":true,
-            "connected_shared_ui":true
+            "connected_shared_ui":true,"canonical_job_read":true
         }),
     )
 }
@@ -940,6 +943,32 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         const first=await invoke('factory_repositories',{session:account.session,page:1});
         assert(first.status===200&&Array.isArray(first.body.items),'native repository discovery unavailable');
         if(first.body.next_page) assert((await invoke('factory_repositories',{session:account.session,page:first.body.next_page})).status===200,'next discovery page unavailable');
+        const located=await invoke('factory_find_repository',{session:account.session,name:'cli/cli'});
+        assert(located.status===200&&located.body.repository.external_id,'job repository lookup unavailable');
+        const jobScope=await connect(__CONNECTION__,located.body.repository.external_id);
+        let jobObserved=false;
+        for(const number of [14927,14926,14942]){
+          const target='/api/factory/collaboration/repositories/'+jobScope.repository.id+'/pulls/'+number+'/checks/jobs';
+          const reply=await request(jobScope.session,target+'?limit=1');
+          if(reply.status===409)continue;
+          assert(reply.status===200,'canonical jobs unavailable: '+reply.status);
+          const body=reply.body;assert(body.kind==='job'&&body.pull.repository===jobScope.repository.id&&body.pull.number===String(number)&&body.commit&&body.status_gate==='unknown','canonical job scope/gate differs');
+          assert(body.checks.items.length<=1&&body.checks.complete===(body.checks.next===''),'canonical job page differs');
+          for(const job of body.checks.items){assert(job.kind==='job'&&job.commit===body.commit&&job.repository===jobScope.repository.id&&job.required===null&&job.job.run_id&&job.job.attempt&&job.job.job_id&&job.job.workflow_commit===''&&job.job.need_approval===null,'canonical job invented authority or lost identity');}
+          assert((await request(jobScope.session,target+'?limit=1&head='+'1'.repeat(40))).status===409,'changed canonical job head admitted');
+          assert((await request(jobScope.session,target+'?limit=1&head='+body.commit+'&cursor=invalid')).status===400,'invalid job cursor admitted');
+          if(body.checks.items.length){
+            jobObserved=true;
+            if(body.checks.next){
+              const next=await request(jobScope.session,target+'?limit=1&head='+body.commit+'&cursor='+encodeURIComponent(body.checks.next));
+              assert(next.status===200&&next.body.kind==='job'&&next.body.commit===body.commit,'job continuation unavailable or changed head');
+              assert(next.body.checks.next!==body.checks.next,'job continuation did not advance');
+              if(next.body.checks.items.length)assert(next.body.checks.items[0].external_id!==body.checks.items[0].external_id,'job continuation repeated the same job');
+            }
+            break;
+          }
+        }
+        assert(jobObserved,'no actual canonical workflow job observed');
         const selected=await connect(__CONNECTION__,'724712');
         assert(selected.session!==account.session&&selected.identity.actor===account.identity.actor&&selected.identity.host===account.identity.host,'connection switch changed account identity');
         assert(selected.repository.external_id==='724712'&&selected.repository.host===selected.identity.host,'canonical selected repository missing');
@@ -950,7 +979,8 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         assert((await request(selected.session,'/api/factory/feed?scope=project&repositories='+selected.repository.id+'&limit=1')).status===200,'bound feed unavailable');
         assert((await request(selected.session,root+'/issues?state=all&limit=1')).status===200,'bound issue reads unavailable');
         assert((await request(selected.session,root+'/pulls/165146')).status===200,'bound PR reads unavailable');
-        assert((await request(selected.session,root+'/pulls/165146/checks/jobs?limit=1')).status===503,'missing native execution evidence invented');
+        const jobs=await request(selected.session,root+'/pulls/165146/checks/jobs?limit=1');
+        assert(jobs.status===200&&jobs.body.kind==='job'&&jobs.body.status_gate==='unknown','job read invented a CI gate');
         let completions=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
         const pending=await invoke('factory_product_request',{session:selected.session,request:{kind:'read',path:root+'/pulls/165146/threads?limit=1'},channel});
         await invoke('factory_product_cancel',{session:selected.session,request:pending});
@@ -1242,7 +1272,7 @@ async fn barrier(app: &tauri::AppHandle, ready: &str, done: &str) -> Result<(), 
     println!("Credential check barrier: {ready}");
     let done = profile.join(done);
     let seconds = if ready == "product-bridge-ready" {
-        120
+        180
     } else {
         15
     };

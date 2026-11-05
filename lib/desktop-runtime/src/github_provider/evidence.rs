@@ -54,6 +54,11 @@ impl Reader<'_> {
         }
         let mut response = self.get("/actions/runs", &params).await?;
         let count = total(&response.value)?;
+        // GitHub caps search-filtered workflow runs at 1,000. Refuse a larger
+        // observed total rather than presenting the truncated search as all runs.
+        if !head.is_empty() && count > 1000 {
+            return Err(Failure::new(413, "github_workflows_too_large"));
+        }
         response.value = response.value["workflow_runs"].take();
         let mut items = Vec::new();
         let mut seen = HashSet::new();

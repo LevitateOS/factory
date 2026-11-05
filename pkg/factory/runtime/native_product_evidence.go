@@ -147,7 +147,7 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 		return result, err
 	}
 	if q.Kind == "job" {
-		return result, factoryservice.ErrChecksUnavailable
+		return s.readJobs(ctx, actor, repo, number, q)
 	}
 	kind := "pull_check_runs"
 	if q.Cursor != "" {

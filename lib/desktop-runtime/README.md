@@ -476,8 +476,13 @@ classic protection and active repository/organization rules remain separate.
 Forbidden/hidden protection stays unknown, including app-qualified requirements.
 Ruleset pages exceeding the bounded first 100 rules refuse rather than becoming
 a complete empty rule set. These typed native facts passed actual authenticated
-job/ruleset reads; the canonical Go job/protection projection remains required
-by T06-GITHUB-EVIDENCE before enabling those product reads. One Rust
+job/ruleset reads. Go now consumes jobs through the current canonical PR/head/
+repository scope, retaining exact run/attempt/job identity and opaque bounded
+continuations. Empty job pages can retain a continuation; they are not passing
+CI. Workflow-definition commit, approval, job requiredness and merge gate remain
+unknown when not established. The branch-protection product projection and
+remaining pagination/partial-rule qualification stay in T06-GITHUB-EVIDENCE.
+One Rust
 selector defines request bounds. Stable repository/parent/current-head checks
 bracket the relevant operations. Unknown/null facts remain unknown; read access
 and CI observations never create product mutation or execution authority.

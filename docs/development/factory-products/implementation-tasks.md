@@ -26075,3 +26075,45 @@ scope/withdrawal refusal. Do not guess workflow-definition commits, approval
 state, requiredness or a passing merge gate. The Go job path remains explicitly
 unavailable until its consumer is ready. T06-GITHUB remote revocation and the
 installed/D1/D2/D3/D5 gates remain open.
+
+
+T06-GITHUB-EVIDENCE canonical workflow-job consumer (2026-11-05):
+The Go native read now consumes the defining Rust workflow/run-attempt facts
+through its scoped callback. `native_product_jobs.go` joins them to the canonical
+repository and freshly observed PR/head/base, checks that binding again after
+I/O, and projects exact run/attempt/job identity into the common records. Its
+opaque cursor captures repository/PR/head/page size, run and job pages, known
+run/attempt and observed run count. Changed counts or captured identities refuse.
+Empty job pages can preserve a continuation; they do not end a multi-run read or
+establish a CI verdict. Filtered workflow totals beyond GitHub's 1,000-result cap
+refuse rather than becoming complete. Native facts retain provider decoding in
+Rust; canonical identity, projection and product policy remain in Go.
+
+Workflow-definition commit, separate trigger attribution, approval state, job
+requiredness and passing merge status are not inferred. The product reports job
+read capability as requiring a fresh observation and keeps the status gate
+unknown. Safe backend diagnostics contain only fixed stages, bounded port codes,
+status and elapsed time, never resources, provider bodies, credentials or SQL
+errors. Two failed checks are retained: an assertion initially compared the
+string-encoded canonical PR number with a JS number; a later run returned 503.
+The instrumented retry passed the real canonical HTTP read, changed-head 409 and
+malformed-cursor 400 checks, and then the connected shared UI journey.
+
+The actual Tauri/WebKit/private-keyring/PostgreSQL/Go/Rust/GitHub check exited zero
+and records `canonical_job_read=true`, private reads and actual refresh. The
+opt-in `--check-retain-account` mode kept the approved encrypted account for
+remaining qualification; its safe result explicitly records local removal false.
+Previous default-mode withdrawal evidence is unchanged. Source/scripts/results:
+`/home/vince/tmp/factory-github-jobs-1105/`; result log SHA-256:
+`b1b2522cf7dca2421bd043b10129359de7d9f3d96e963387b477ec0aa9ca29a9`;
+safe result SHA-256:
+`4c9f1ca021734b362884f4ed7f5cabf37094a1c124b5d777b50e06fd5cabb4b0`.
+Affected Go builds/vet, locked offline native-check build and whitespace checks
+passed. Retained runtime inputs do not qualify a fresh installed baseline.
+
+The parent stays Active. The check follows a continuation when present, but the
+retained result does not independently record whether that conditional branch
+ran; do not claim complete job-pagination qualification from this result alone.
+Record that explicit evidence while completing the Go branch-protection
+projection, unavailable/partial/rule-change and app-qualified requirement cases.
+Native execution, remote revocation, installed and D1/D2/D3/D5 gates remain open.

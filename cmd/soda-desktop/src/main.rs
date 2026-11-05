@@ -532,9 +532,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "native-check")]
     let mut signin_check = None;
     #[cfg(feature = "native-check")]
+    let mut retain_check_account = false;
+    #[cfg(feature = "native-check")]
     let mut control_check = false;
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        #[cfg(feature = "native-check")]
+        if arg == "--check-retain-account" {
+            retain_check_account = true;
+            continue;
+        }
         #[cfg(feature = "native-check")]
         if arg == "--check-control" {
             checking = true;
@@ -601,6 +608,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             Some("--backend") => paths.backend = value,
             _ => return Err("unsupported native application option".into()),
         }
+    }
+    #[cfg(feature = "native-check")]
+    if retain_check_account && signin_check != Some(check::SignInMode::Consent) {
+        return Err("retained check account requires the consent check".into());
     }
     prepare_profile(&paths.profile)?;
     let bus = format!(

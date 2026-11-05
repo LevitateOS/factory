@@ -153,7 +153,9 @@ The consent check additionally exercises actual WebKit IPC for native connection
 repository paging/selection, canonical Go identity, feed/issue/PR reads, explicit
 request cancellation, disconnect and reconnect, then drives the actual shared
 feed/issues/detail and scoped draft views through the account/repository controls.
-It keeps missing job evidence unavailable. Failed
+It now also reads actual canonical workflow jobs and refuses changed heads or
+malformed continuations; unproved CI gates and local execution stay unavailable.
+Failed
 attempts can reuse the same saved approved account while the external driver
 retains its isolated keyring; no successful result is inferred from that reuse.
 The 2026-11-05 connected run passed after a repository-navigation fix: a newly
@@ -161,6 +163,11 @@ selected repository opens its feed, while reconnecting the same repository can
 keep the current route. The same approved encrypted grant was reused for that
 assertion retry. Actual refresh, private reads and local account removal also
 passed; remote revocation and installed-product qualification remain open.
+For follow-up qualification only, a `native-check` build accepts
+`--check-retain-account` with `--check-signin-consent`. It retains the owned
+encrypted account on success and records local removal as false in the safe
+result. Reopen that same private Secret Service/profile for subsequent checks;
+retention is not withdrawal evidence. The flag is absent from normal builds.
 Historically, `--check-signin` extended the same native acceptance hook for declared authorization
 responses through actual Linux WebKit, native Go/PostgreSQL and an isolated Secret
 Service. It checks production controls, fixed browser handoff, prompt/metadata

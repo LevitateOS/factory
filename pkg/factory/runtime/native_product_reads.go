@@ -158,10 +158,9 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	for _, action := range actions {
 		result.Actions[action] = collaboration.Capability{State: collaboration.Unavailable, Reason: "native_mutation_ports_unavailable"}
 	}
-	for _, action := range []collaboration.Action{collaboration.ReadIssues, collaboration.ReadPulls, collaboration.ReadChecks} {
+	for _, action := range []collaboration.Action{collaboration.ReadIssues, collaboration.ReadPulls, collaboration.ReadChecks, collaboration.ReadCheckJobs} {
 		result.Actions[action] = collaboration.Capability{State: collaboration.Unknown, Reason: "read_requires_current_observation"}
 	}
-	result.Actions[collaboration.ReadCheckJobs] = collaboration.Capability{State: collaboration.Unavailable, Reason: "native_job_reader_unavailable"}
 	switch q.Subject {
 	case "issue":
 		page, err := s.ReadIssues(ctx, actor, repo, factoryservice.CollaborationIssueQuery{Number: q.Number, Limit: 1})

@@ -59,7 +59,7 @@ func (s CollaborationChecks) Read(ctx context.Context, actor collaboration.Actor
 	if r.Kind != kind {
 		return empty, ErrChecksUnavailable
 	}
-	if r.Pull.Kind != collaboration.SubjectPull || r.Pull.Repository != repo || r.Pull.Number != number || r.Pull.ExternalID == "" || !collaboration.ValidCommitID(r.Commit) || q.Head != "" && r.Commit != q.Head || r.Observation.State != collaboration.ReadAvailable || r.Observation.Revision == "" || p.Items == nil || len(p.Items) > q.Limit || p.Complete != (p.Next == "") || p.Next != "" && (len(p.Items) == 0 || !collaboration.ValidText(p.Next, 4096)) || p.Observation.State != collaboration.ReadAvailable || p.Observation.Revision == "" || r.MissingRequired == nil || r.InvalidRequired == nil {
+	if r.Pull.Kind != collaboration.SubjectPull || r.Pull.Repository != repo || r.Pull.Number != number || r.Pull.ExternalID == "" || !collaboration.ValidCommitID(r.Commit) || q.Head != "" && r.Commit != q.Head || r.Observation.State != collaboration.ReadAvailable || r.Observation.Revision == "" || p.Items == nil || len(p.Items) > q.Limit || p.Complete != (p.Next == "") || p.Next != "" && (kind != "job" && len(p.Items) == 0 || !collaboration.ValidText(p.Next, 4096)) || p.Observation.State != collaboration.ReadAvailable || p.Observation.Revision == "" || r.MissingRequired == nil || r.InvalidRequired == nil {
 		return empty, ErrChecksUnavailable
 	}
 	switch r.StatusGate {

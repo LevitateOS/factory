@@ -123,8 +123,16 @@ rate facts survive both HTTP and the native JSON transport.
 
 REST review reply groups use actual root comment IDs, with unknown resolution,
 review staleness and unproved diff anchors. Check runs and statuses have distinct
-identities; they do not establish workflow jobs, requiredness or branch rules.
-Jobs remain unavailable and CI gates unknown pending T06-GITHUB-EVIDENCE.
+identities; they do not establish requiredness or branch rules.
+The separate native job reader consumes typed Rust workflow/run-attempt facts,
+checks the canonical PR/head/base around I/O and preserves run/attempt/job
+identity in the common records. Opaque cursors bind scope, head, page sizes and
+observed run count. Empty job pages can keep a continuation. Approval,
+workflow-definition commit and job requiredness remain unknown, and a successful
+read never becomes a passing merge gate. The branch-protection projection and
+remaining continuation/partial-rule qualification stay in T06-GITHUB-EVIDENCE.
+CI gates remain unknown pending the remaining T06-GITHUB-EVIDENCE work and
+admitted product policy.
 Human mutations remain unavailable until their admitted ports exist.
 
 Native executable composition supplies a credential-free observation handler at
