@@ -267,6 +267,15 @@ scope. Git verified the recovered bundle's descendant commit and one-line edit.
 Exact broker retirement and removal of the temporary units and owner socket
 passed. This did not exercise `RunOwner` with an actual provider credential,
 Go ledger settlement, a crash/reboot or an installed desktop.
+A later disposable current-unit check did compose production `RunOwner` with a
+fixture Muse token in a separate private Secret Service profile. It completed
+owner bind/activation, broker staging/attestation, isolated coder execution,
+production receipt write and exact retirement. A separate process reopened
+the retained 31-byte output and 419-byte candidate bundle after the private
+D-Bus session exited; Git verified the expected descendant commit and edit.
+The fixture ELF never called the provider, so token use, real Muse behavior,
+Go ledger settlement, crash/reboot recovery and installed qualification remain
+open.
 After the broker returns, `RunOwner` retains the external cancellation signal
 through owner and broker retirement and refuses a result if it was set during
 that cleanup. The native caller still must join execution and

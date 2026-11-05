@@ -234,8 +234,26 @@ The first-use native receipt directory is now created and synced by
 `RunOwner::start` ensures it exists after checking `profile.id` and before
 broker staging. The existing receipt fixture removed its empty directory,
 then verified production writer creation with the current UID and mode 0700,
-followed by retained readback. It did not run the credential-bearing owner or
-prove the ledger/restart reconciliation above. Those remain the closure evidence.
+followed by retained readback. That first-use fixture did not run the
+credential-bearing owner or prove ledger/restart reconciliation.
+
+A later disposable check did run production `RunOwner::start` and `execute`
+with a fixture Muse token held in a separate private XDG/Secret Service profile
+under `/home`. It exercised finite Rust capability lookup, owner socket bind,
+broker source staging, preparer/relay/worker attestation, local owner activation,
+one isolated coder execution, production receipt write and exact owner/broker
+retirement. The result reported worker UID 64596, zero exit, complete 31-byte
+output and a 419-byte candidate bundle. A separate process reopened the receipt
+after the private D-Bus session ended; Git verified the bundle's commit parent
+and expected one-line edit. The owner socket and run-specific broker paths were
+gone, and the worker/relay units had `MainPID=0`; temporary units, binaries and
+`/run` paths were removed. The dummy keyring/profile remains private under
+`/home`. The fixture executable made no provider request, so it did not prove
+credential delivery or withdrawal, actual Muse behavior, current Go admission,
+transactional settlement or crash/reboot recovery. Those remain required D3
+evidence. Relevant files are `lib/desktop-runtime/src/factory_provider/{run,owner,receipt}.rs`,
+`lib/desktop-runtime/src/credentials.rs`, `cmd/soda-factory-broker/src/main.rs`,
+the agent/relay worker units and `pkg/factory/control/settle.go`.
 
 For D3 restart reconciliation, `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls

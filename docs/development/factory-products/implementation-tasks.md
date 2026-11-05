@@ -25079,3 +25079,24 @@ The production credential-bearing `Owner` was not serving this request, no
 real model response/tool call was processed and no Go admission/ledger path was
 used. One reviewer request proves neither complete role capability nor a real
 finite provider task. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR production owner composition with dummy custody
+(2026-11-05): a new private `/home` XDG/Secret Service profile stored only a
+fixture Muse token. Production `RunOwner::start` consumed its finite Rust
+capability, checked the retained profile identity, created the private receipt
+directory, bound the desktop owner socket, staged the dummy Git source through
+the root broker, prepared/attested the reviewer checkout and relay, armed the
+isolated coder, then activated the credential owner. `RunOwner::execute` ran
+the existing 16,840-byte credential-free coder ELF, returned worker UID 64596,
+zero child exit, complete 31-byte output and a captured 419-byte candidate
+bundle. It wrote the production receipt and retired the exact owner and broker
+run before returning. A separate process reopened that receipt after the
+private D-Bus session exited; Git verified the bundle's commit has the
+prepared source as parent and adds the one expected README line. The owner
+socket was gone, worker and relay had `MainPID=0`, and run-specific broker
+paths were absent. Temporary units, binaries and `/run` paths were removed;
+the dummy profile/keyring evidence remains private under `/home`. This is a
+production Rust composition check with dummy custody, not a provider request,
+token delivery/withdrawal proof, Go admission/transaction, crash/reboot
+reconciliation, installed service qualification or real finite Muse task.
+T09-NATIVE-EXECUTOR and D3 remain open.
