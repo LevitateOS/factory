@@ -1,7 +1,7 @@
 package store
 
 // Keep the same immutable identity and terminal-outcome guard on fresh and
-// upgraded databases. Only supported unfinished human creations can acquire a
+// upgraded databases. Only supported unfinished human effects can acquire a
 // reservation. Unclaimed history may be conservatively fenced legacy_unknown;
 // no transition can release a reservation or an existing legacy fence.
 const commandGuardDDL = `CREATE OR REPLACE FUNCTION soda_guard_command() RETURNS trigger AS $$
@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -39,4 +39,13 @@ var IssueCreateDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='issue.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=81)`,
 	`UPDATE schema_version SET version=82 WHERE version=81`,
+}
+
+// Earlier state captures may have been dispatched without this local fence.
+// Retain their exact records and conservatively fence unknown dispatch history.
+// A stale concurrent opener must not fence captures created after the upgrade.
+var HumanStateDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='discussion.state.apply' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=82)`,
+	`UPDATE schema_version SET version=83 WHERE version=82`,
 }

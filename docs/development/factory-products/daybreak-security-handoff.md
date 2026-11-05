@@ -1937,3 +1937,37 @@ and permitted/refused evidence as comments; reply validation cannot retroactivel
 prevent an effect after a transfer race. Installed caller/window/custody, D1/D2/
 D3/D5, worker isolation/execution/retirement, root absence/scoped delivery and
 release/upgrade/freshness gates retain all earlier blockers. No broad gate closes.
+
+T11-WRITES state journal producer (2026-11-05): schema 83 extends the same shared
+Store reservation/cancel protocol to `HumanStateCapture`. Relevant files:
+`pkg/store/{factory_command_dispatch,factory_human_state_dispatch,factory_human_state,schema,schema_command_dispatch}.go`
+and `pkg/factory/human_state_outcomes.go`. The actual 82→83 migration fences old
+unknown state dispatch without rewriting captures/outcomes or releasing existing
+comment/issue claims. It keeps triggers active and protects new captures against
+stale concurrent migration replay.
+
+Fresh and actual schema-82 upgraded PostgreSQL fixtures passed exact capture and
+lookup refusals, one of 32 claims, both cancellation race orders, late known
+primary results, immutable SQL/terminal outcomes, concurrent openers, retained
+restart and owned-child WAL recovery. Evidence root
+`/home/vince/tmp/factory-state-dispatch-1105/`; fresh log
+`9fa320111f394d7d362fb4da188cc73f1cfd579dd3866e6520d6ecd10de05f39`, upgrade
+log `5e67e217e3be4adf6c9b61029763f3019393862d4cfde0f2eb0c56776d69daae`.
+Exact source/executable hashes and the historical console-label discrepancy are
+in the canonical plan. These are declared Store observations, not actual GitHub
+state changes or installed retained-upgrade qualification.
+
+The composed issue-creation regression also passed with schema 83 in
+`issue-product-regression-a1`, result
+`c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6`.
+It retained its existing 13-case/ten-dummy-mutation scope and cleaned up its owned
+accounts/resources; no actual GitHub or broader admission gate was qualified.
+
+Remaining state blocker: admit the native callback and Go writer against these
+typed fences, then prove current scope, exact causal persistence, replay/cancel/
+uncertainty/withdrawal/restart through the composed native/Go/PostgreSQL path.
+Fresh actual provider permission/mutation/readback, shared UI and the repository/
+visibility/transfer policy remain unverified prerequisites to exposing the action.
+All broader custody, root absence/scoped delivery, installed IPC/window admission,
+D1/D2/D3/D5, isolation/executor/retirement and release/freshness/upgrade dependencies
+remain as recorded; this producer closes none of those gates.

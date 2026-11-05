@@ -15,7 +15,7 @@ var ErrCommandDispatchNotReady = errors.New("command dispatch requires a saved n
 const humanDispatchQuery = `SELECT id,type,target,principal,digest,payload,outcome,created,finished,dispatch_state FROM factory_commands WHERE id=$1`
 
 // Typed captures retain their own validation and reducers. This is the single
-// row-lock/reservation protocol for native non-idempotent human creations, not
+// row-lock/reservation protocol for one-shot native human effects, not
 // a second command journal or authority inferred from retained SQL.
 type humanDispatch struct {
 	host                 collaboration.HostID
@@ -50,6 +50,16 @@ func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
 			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanIssueCreateObservation(c, o) }, finished: factory.HumanIssueCreateFinished,
 			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 				return saveHumanIssueCreateObservation(ctx, tx, saved, c, o)
+			}}
+	case factory.CommandHumanState:
+		c, err := factory.DecodeHumanStateCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanStateObservation,
+			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanStateObservation(c, o) }, finished: factory.HumanStateFinished,
+			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return saveHumanStateObservation(ctx, tx, saved, c, o)
 			}}
 	default:
 		return s, ErrCommandConflict
@@ -108,7 +118,7 @@ func (s *Store) reserveHumanDispatch(ctx context.Context, cmd factory.Command) (
 		return false, ErrCommandDispatchNotReady
 	}
 	result, err := tx.ExecContext(ctx, `UPDATE factory_commands SET dispatch_state='reserved' WHERE id=$1 AND dispatch_state='unclaimed' AND finished=''`, cmd.ID)
-	if err := checkGrantRowsAffected(result, err, "human creation dispatch reservation failed"); err != nil {
+	if err := checkGrantRowsAffected(result, err, "human command dispatch reservation failed"); err != nil {
 		return false, err
 	}
 	if err := tx.Commit(); err != nil {

@@ -27491,3 +27491,63 @@ Current write capabilities remain unavailable. Actual provider grants, mutation/
 readback, shared UI, current repository/visibility policy and all broader installed,
 credential, caller/window, D1/D2/D3/D5, isolation/executor and release gates remain
 unverified. T11-WRITES remains Active; no real GitHub write occurred here.
+
+### T11-WRITES — one-shot state-command journal producer (2026-11-05)
+
+Schema 83 extends the existing shared `factory_command_dispatch.go` protocol to
+typed `HumanStateCapture`, with exact-capture lookup, one successful reservation
+and cancellation under the same row lock. `factory_human_state_dispatch.go` is a
+typed wrapper, not another journal. The original state observation save function
+is shared with cancellation. Its reducer retains a late known primary result
+and prior cancellation uncertainty without mutating the caller's evidence.
+
+The actual 82→83 migration conservatively fences pre-protocol state captures
+`legacy_unknown`, preserving exact command identity/preparation/outcome bytes and
+finished outcomes with triggers active. Existing comment/issue dispatch states
+are untouched. A version predicate prevents stale concurrent migration DDL from
+fencing captures created after the upgrade. Reserved/legacy states cannot release
+ownership; finished commands cannot acquire a claim. No native send is authorized
+by a state read or lost commit acknowledgement.
+
+Real PostgreSQL acceptance under `/home/vince/tmp/factory-state-dispatch-1105/`
+passed fresh `pg-fresh-a1` and actual archived schema-82 `pg-legacy-a1` (baseline
+`ecfae35`). Both passed eight exact-capture conflicts, absent/unprepared/unknown/
+unavailable refusal, one of 32 concurrent claims, 32 reservation/cancel races,
+late causal/no-effect receipts, unchanged terminal outcomes, SQL immutability,
+retained restart, abrupt owned-child WAL recovery and clean shutdown. Both race
+orders ran (fresh 27 reserved/5 cancelled; upgraded 25/7). The upgraded fixture
+also passed concurrent process opens, exact retained not-observed/cancelled/
+unknown/committed history and stale migration DDL replay. Existing comment claims
+still work. The historical fixture's console label says “issue captures”; its
+actual typed captures are state commands, as the retained source/records show.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `1b548214ec5e882dd98f56f978cb0c0d3fbbaac16b277d964010fcb8dd7c9208` |
+| `legacy.go` | `acd9e14f90d51113ce5f3914da2cd41cfa1a3bec08f6e1f872df8e40f35d1ea3` |
+| `check.go` | `83247ef7730cf4c9528e65e290ecb2b1b5c96dfa733b67e8ccd41c3b34b56d98` |
+| historical Store executable | `c9b447368f36e6f2b8c5f697c0ae8708cde53250d9fddf769a217745075b93e2` |
+| current fixture executable | `efd0bbb329daf3313433ac9cb980b616f3a94cc25427067b209d93a16f5141af` |
+| fresh log | `9fa320111f394d7d362fb4da188cc73f1cfd579dd3866e6520d6ecd10de05f39` |
+| upgrade log | `5e67e217e3be4adf6c9b61029763f3019393862d4cfde0f2eb0c56776d69daae` |
+| native backend | `588d02189efd86fc8c2837a8c20edd8931cf874df4f9edf72340674f619904d6` |
+| composed regression `product-run.sh` | `66c1201cc079a50a0c034705d8f46a76cbe6d56ee081e336e24b2cb257e943d7` |
+| composed regression `product-session.sh` | `b8bb783707e734fe254dc4d08ac7981bc32094465eef5526fdd8e8752790bb5e` |
+| issue product regression result | `c1a48784d4a2f87e9a6caa25f5feabcf6972c4cd274b73b32b1cbe8b87d0f4f6` |
+
+The existing composed issue-creation check passed unchanged with the schema-83
+backend in `issue-product-regression-a1`: 13 cases and ten intended dummy mutations,
+including exact writing, current admission, one-shot replay, causal/readable
+destination, uncertainty, cancellation, withdrawal and retained runtime restart.
+It reused the no-forwarding provider recorded in the composed issue checkpoint;
+the check executable is the state producer's retained `e11f9286…` build. Its result
+and log (`59c19ede2f8170a16ca868800a88cf5499982fce21955eabb843d467e008d847`)
+retain the same declared scope. Owned accounts/keyring/child resources cleaned up.
+
+Go builds, existing ownership boundaries and whitespace checks pass. No
+dependency or unit-test root was added. These declared Store receipts prove no
+actual provider effect or installed migration. Next compose the admitted native
+state callback and Go writer, then qualify its actual provider and shared UI
+consumers. T11-WRITES and all broader security/product gates remain unfinished.
