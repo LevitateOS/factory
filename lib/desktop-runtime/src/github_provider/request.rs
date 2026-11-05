@@ -103,6 +103,10 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    PullPendingReviewSnapshot {
+        repository: String,
+        number: u32,
+    },
     PullBranches {
         repository: String,
         head_repository: String,

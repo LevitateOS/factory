@@ -2319,3 +2319,225 @@ pub(super) async fn expiry(
     println!("PASS: real product review capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
     Ok(())
 }
+
+pub(super) async fn pending_snapshot(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::Read;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let request = || Read::PullPendingReviewSnapshot {
+        repository: "123".into(),
+        number: 7,
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    let mut base_digest = None;
+    for name in [
+        "absent",
+        "empty",
+        "three",
+        "reordered",
+        "maximum",
+        "max-unicode",
+        "max-control",
+        "empty-body",
+        "unknown-id",
+        "null-author",
+        "null-author-node",
+        "null-commits",
+        "old-original",
+        "big-ids",
+    ] {
+        mode(&format!("comments-{name}"))?;
+        let v = client
+            .observe(token()?, "321", &request())
+            .await
+            .map_err(|f| format!("pending comment snapshot {name}: {} {}", f.status, f.code))?;
+        let p = &v["preparation"];
+        let digest = &p["comments_snapshot"];
+        ensure(
+            v["kind"] == "pull_pending_review_snapshot"
+                && p["repository"] == "123"
+                && p["actor_node_id"] == "U_321",
+            "snapshot lost current account/resource",
+        )?;
+        if name == "absent" {
+            ensure(
+                p["pending"].is_null() && digest.is_null(),
+                "absent pending review acquired comment facts",
+            )?;
+            cases.push(name);
+            continue;
+        }
+        let count = if name == "maximum" {
+            1000
+        } else if name == "empty" {
+            0
+        } else {
+            3
+        };
+        let mut expected = Vec::new();
+        for i in 0..count {
+            let body = match name {
+                "max-unicode" => "🍵".repeat(16384),
+                "max-control" => "\u{0001}".repeat(65536),
+                "empty-body" => String::new(),
+                "maximum" => "x".into(),
+                _ => format!("Exact pending comment {i} 🍵\n[link](relative.md)"),
+            };
+            let external = if name == "unknown-id" {
+                serde_json::Value::Null
+            } else if name == "big-ids" {
+                json!((5000000000u64 + i).to_string())
+            } else {
+                json!((900 + i).to_string())
+            };
+            let author = match name {
+                "null-author" => serde_json::Value::Null,
+                "null-author-node" => {
+                    json!({"kind":"Mannequin","node_id":null,"login":"unknown-author"})
+                }
+                _ => json!({"kind":"User","node_id":"U_321","login":"declared-owner"}),
+            };
+            let commit = if name == "null-commits" {
+                serde_json::Value::Null
+            } else {
+                json!("b".repeat(40))
+            };
+            let original = if name == "null-commits" {
+                serde_json::Value::Null
+            } else if name == "old-original" {
+                json!("c".repeat(40))
+            } else {
+                json!("b".repeat(40))
+            };
+            expected.push(json!({"node_id":format!("PC_{i}"),"external_id":external,"body":body,"author":author,"commit":commit,"original_commit":original,"created_at":"2026-11-05T12:00:00Z","updated_at":"2026-11-05T12:01:00Z"}));
+        }
+        expected.sort_by(|a, b| a["node_id"].as_str().cmp(&b["node_id"].as_str()));
+        let hash = Sha256::digest(serde_json::to_vec(&expected)?)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        ensure(
+            digest["count"] == count
+                && digest["complete"] == true
+                && digest["condition"] == "bounded_observation"
+                && digest["sha256"] == hash
+                && p["pending"]["node_id"] == "REV_owned",
+            &format!("pending full identity/writing digest differs: {name}"),
+        )?;
+        if name == "three" {
+            base_digest = Some(hash.clone())
+        }
+        if name == "reordered" {
+            ensure(
+                base_digest.as_deref() == Some(&hash),
+                "page order changed the observed set digest",
+            )?
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&v)?)?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("root-gone", 409),
+        ("wrong-root", 409),
+        ("wrong-owner", 409),
+        ("submitted", 409),
+        ("wrong-pull", 409),
+        ("wrong-repo", 409),
+        ("wrong-head", 409),
+        ("count-change", 409),
+        ("count-mismatch", 409),
+        ("too-many", 413),
+        ("too-many-page", 502),
+        ("duplicate-node", 502),
+        ("duplicate-id", 502),
+        ("cursor-cycle", 502),
+        ("empty-continuation", 502),
+        ("wrong-comment-review", 502),
+        ("wrong-comment-pull", 502),
+        ("wrong-comment-repo", 502),
+        ("published-comment", 502),
+        ("missing-node", 502),
+        ("invalid-id", 502),
+        ("null-body", 502),
+        ("large-body", 413),
+        ("nul-body", 413),
+        ("invalid-author", 502),
+        ("invalid-author-node", 502),
+        ("invalid-commit", 502),
+        ("invalid-date", 502),
+        ("aggregate-bytes", 413),
+        ("pending-changed", 409),
+        ("partial-errors", 502),
+        ("denied", 403),
+        ("oversized", 413),
+        ("deadline", 504),
+    ] {
+        mode(&format!("comments-{name}"))?;
+        let f = client
+            .observe(token()?, "321", &request())
+            .await
+            .err()
+            .ok_or("invalid pending comments passed")?;
+        ensure(
+            f.status == status,
+            &format!(
+                "pending snapshot {name}: {} {}, expected {status}",
+                f.status, f.code
+            ),
+        )?;
+        cases.push(name);
+    }
+    let before = fs::read(io.join("gets"))?;
+    for q in [
+        Read::PullPendingReviewSnapshot {
+            repository: "0".into(),
+            number: 7,
+        },
+        Read::PullPendingReviewSnapshot {
+            repository: "123".into(),
+            number: 0,
+        },
+    ] {
+        ensure(
+            client.observe(token()?, "321", &q).await.is_err(),
+            "invalid snapshot selector accepted",
+        )?
+    }
+    ensure(
+        fs::read(io.join("gets"))? == before,
+        "invalid snapshot reached provider",
+    )?;
+    mode("comments-pause")?;
+    let q = request();
+    let pending = client.observe(token()?, "321", &q);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        pending.await.is_err() && started.elapsed() < Duration::from_secs(2),
+        "pending comments retirement blocked or delivered",
+    )?;
+    ensure(
+        !io.join("writes").exists() && !io.join("unexpected-request").exists(),
+        "pending snapshot sent mutation/undeclared request",
+    )?;
+    fs::write(
+        root.join("pending-review-snapshot-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":2,"full_writing_identity_digest":true,"reordering_stable":true,"nullable_metadata_preserved":true,"maximum_comments":1000,"aggregate_bytes":8*1024*1024,"retirement":true,"provider_mutations":0,"real_github":false,"atomic_publication_condition":false,"product_consumer_connected":false}),
+        )?,
+    )?;
+    println!("pending review comment snapshot passed {} declared cases, two invalid selectors and retirement; no mutations or atomic-publication claim",cases.len());
+    Ok(())
+}

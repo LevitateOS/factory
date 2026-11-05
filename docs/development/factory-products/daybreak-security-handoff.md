@@ -3039,3 +3039,38 @@ Fountain issue-only admission; it is not a generic GitHub mutation gate. Normal
 routine engineering and independent product work continue. Shared writes remain
 unavailable, all actual D1/D2/D3/D5 and custody/admission/isolation/execution/
 distribution gates remain open, and no Daybreak work was marked complete.
+
+T11-WRITES complete bounded pending comment observation (2026-11-05):
+The count-only observation dependency is now resolved in source by
+`github_provider/review_preparation.rs`, `request.rs` and `reads.rs` through
+`PullPendingReviewSnapshot`. It hashes complete bounded comment identities/full
+writing/nullable author and commit metadata with deterministic Node ordering,
+checks exact review/PR/repository/account/head and rechecks pending preparation.
+Two comments per response, 1,000 total, 8-MiB aggregate and existing whole deadlines
+bound the work. Unknown IDs/authors/commits remain unknown. No full comment array
+crosses Go's private callback and no mutation or consumer was enabled.
+
+Production reader/transport passed 48 declared cases, two invalid selectors,
+complete independently checked writing/identity digests, 1,000 comments, maximum
+escaped bodies, order stability, nullable/historical metadata, scope/count/page/
+body/aggregate/change refusals and joined owner retirement, with zero mutations.
+Evidence:
+`/home/vince/tmp/factory-pending-review-snapshot-1105/attempt3/pending-review-snapshot-result.json`,
+SHA-256 `a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2`.
+The plan records exact peer/binary/runners and both retained pre-check setup
+failures. Required isolated-keyring setup was restored; its guard was unchanged.
+This is a dummy-only/no-forwarding native reader component, not custody, current
+real GitHub schema/pending privacy, write permission or publication qualification.
+
+Exact remaining dependencies: dedicated exact pending-review submission and Go
+capture/writer/readback; preservation of selected pending identity, original body/
+comments/commit and explicit event through actual provider operation/receipt;
+loss/replay/cancel/custody replacement/restart/expiry; actual permission/publication
+and shared UI/installed checks. This observed-set digest is not an expected-state,
+head or comment-set revision token; provider races still require truthful supported
+semantics and actual evidence. Existing-draft body editing retains the recorded
+race with concurrent submission. Complete observed facts alone do not prove
+atomic preservation or a passed security gate. These are concrete T11 constraints,
+not D5's Fountain issue-only admission decision. Independent work continues;
+shared writes and all actual broad gate claims remain unavailable/open. No
+Daybreak work ran or was marked complete.

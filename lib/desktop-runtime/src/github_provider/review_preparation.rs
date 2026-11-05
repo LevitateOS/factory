@@ -12,14 +12,24 @@ use std::collections::HashSet;
 const LIST:&str="query FactoryPendingReviews($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} headRefOid reviews(first:50,after:$after,states:[PENDING]){totalCount pageInfo{hasNextPage endCursor} nodes{id state author{__typename ... on User{id}} pullRequest{id} repository{id}}}}}}";
 const DETAIL:&str="query FactoryPendingReview($review:ID!){node(id:$review){__typename ... on PullRequestReview{id fullDatabaseId state body author{__typename ... on User{id login}} pullRequest{id headRefOid repository{id}} repository{id} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
 pub(super) enum PreparationQuery {
-    List { pull: String, after: Option<String> },
-    Detail { review: String },
+    List {
+        pull: String,
+        after: Option<String>,
+    },
+    Detail {
+        review: String,
+    },
+    Comments {
+        review: String,
+        after: Option<String>,
+    },
 }
 impl PreparationQuery {
     pub(super) fn wire(&self) -> (&'static str, Value) {
         match self {
             Self::List { pull, after } => (LIST, json!({"pull":pull,"after":after})),
             Self::Detail { review } => (DETAIL, json!({"review":review})),
+            Self::Comments { review, after } => (COMMENTS, json!({"review":review,"after":after})),
         }
     }
 }
@@ -30,7 +40,179 @@ fn opaque<'a>(raw: &'a Value, key: &str) -> Result<&'a str> {
     }
     Ok(v)
 }
+
+// Two full bodies per page fit the fixed 1-MiB response bound even when 64 KiB
+// of control characters need JSON escaping. Aggregate bytes/count and the
+// caller's existing whole deadline also bound the complete traversal.
+const COMMENTS:&str="query FactoryPendingReviewComments($review:ID!,$after:String){node(id:$review){__typename ... on PullRequestReview{id state author{__typename ... on User{id}} pullRequest{id repository{id} headRefOid} repository{id} comments(first:2,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId state body author{__typename login ... on Node{id}} pullRequestReview{id} pullRequest{id} repository{id} commit{oid} originalCommit{oid} createdAt updatedAt}}}}}";
+
 impl Reader<'_> {
+    pub(super) async fn pending_review_snapshot(
+        &self,
+        number: u64,
+        actor: &str,
+        account: &str,
+    ) -> Result<Value> {
+        let mut before = self.review_preparation(number, actor, account).await?;
+        if before["pending"].is_null() {
+            before["comments_snapshot"] = Value::Null;
+            return Ok(before);
+        }
+        let review = r::text(&before["pending"], "node_id")?;
+        let pull = r::text(&before["pull"], "node_id")?;
+        let repo = r::text(&before, "repository_node_id")?;
+        let mut after = None;
+        let mut cursors = HashSet::new();
+        let mut ids = HashSet::new();
+        let mut numeric = HashSet::new();
+        let mut items = Vec::new();
+        let mut total = None;
+        let mut bytes = 0usize;
+        loop {
+            let value = self
+                .client
+                .review_preparation_query(
+                    PreparationQuery::Comments {
+                        review: review.into(),
+                        after: after.clone(),
+                    },
+                    self.token,
+                )
+                .await?;
+            let raw = &value["data"]["node"];
+            if raw.is_null() {
+                return Err(Failure::new(409, "github_pending_review_changed"));
+            }
+            if raw["__typename"] != "PullRequestReview"
+                || raw["id"] != review
+                || raw["state"] != "PENDING"
+                || raw["author"]["__typename"] != "User"
+                || raw["author"]["id"] != actor
+                || raw["pullRequest"]["id"] != pull
+                || raw["pullRequest"]["repository"]["id"] != repo
+                || raw["repository"]["id"] != repo
+                || raw["pullRequest"]["headRefOid"] != before["pull"]["head"]
+            {
+                return Err(Failure::new(409, "github_pending_review_changed"));
+            }
+            let connection = &raw["comments"];
+            let count = connection["totalCount"]
+                .as_u64()
+                .ok_or_else(Failure::protocol)?;
+            if count > 1000 {
+                return Err(Failure::new(413, "github_pending_comments_too_large"));
+            }
+            if total.replace(count).is_some_and(|old| old != count)
+                || before["pending"]["comments_count"].as_u64() != Some(count)
+            {
+                return Err(Failure::new(409, "github_pending_comments_changed"));
+            }
+            let nodes = connection["nodes"]
+                .as_array()
+                .ok_or_else(Failure::protocol)?;
+            if nodes.len() > 2 {
+                return Err(Failure::protocol());
+            }
+            for comment in nodes {
+                let node = opaque(comment, "id")?;
+                if !ids.insert(node.to_owned())
+                    || comment["state"] != "PENDING"
+                    || comment["pullRequestReview"]["id"] != review
+                    || comment["pullRequest"]["id"] != pull
+                    || comment["repository"]["id"] != repo
+                {
+                    return Err(Failure::protocol());
+                }
+                let id = if comment["fullDatabaseId"].is_null() {
+                    Value::Null
+                } else {
+                    let id = r::big_id(&comment["fullDatabaseId"])?;
+                    if !numeric.insert(id.clone()) {
+                        return Err(Failure::protocol());
+                    }
+                    json!(id)
+                };
+                let body = r::text(comment, "body")?;
+                if body.len() > 65536 || body.contains('\0') {
+                    return Err(Failure::new(413, "github_pending_comment_body_too_large"));
+                }
+                let author = if comment["author"].is_null() {
+                    Value::Null
+                } else {
+                    let raw = &comment["author"];
+                    let kind = r::nonempty(raw, "__typename")?;
+                    let login = r::nonempty(raw, "login")?;
+                    if kind.len() > 128 || login.len() > 256 || login.chars().any(char::is_control)
+                    {
+                        return Err(Failure::protocol());
+                    }
+                    let node = if raw["id"].is_null() {
+                        Value::Null
+                    } else {
+                        json!(opaque(raw, "id")?)
+                    };
+                    json!({"kind":kind,"node_id":node,"login":login})
+                };
+                let oid = |key: &str| -> Result<Value> {
+                    if comment[key].is_null() {
+                        return Ok(Value::Null);
+                    }
+                    let oid = r::text(&comment[key], "oid")?;
+                    if !commit(oid) {
+                        return Err(Failure::protocol());
+                    }
+                    Ok(json!(oid))
+                };
+                let dates =
+                    json!({"created_at":comment["createdAt"],"updated_at":comment["updatedAt"]});
+                let item = json!({"node_id":node,"external_id":id,"body":body,"author":author,"commit":oid("commit")?,"original_commit":oid("originalCommit")?,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?});
+                bytes = bytes
+                    .checked_add(
+                        serde_json::to_vec(&item)
+                            .map_err(|_| Failure::protocol())?
+                            .len(),
+                    )
+                    .ok_or_else(Failure::protocol)?;
+                if bytes > 8 * 1024 * 1024 {
+                    return Err(Failure::new(413, "github_pending_comments_too_large"));
+                }
+                items.push(item);
+            }
+            let next = r::graphql_continuation(connection)?;
+            if next.is_none() {
+                if items.len() as u64 != count {
+                    return Err(Failure::new(409, "github_pending_comments_changed"));
+                }
+                break;
+            }
+            if nodes.is_empty()
+                || ids.len() >= 1000
+                || !cursors.insert(next.clone().ok_or_else(Failure::protocol)?)
+            {
+                return Err(Failure::protocol());
+            }
+            after = next;
+        }
+        let current = self.review_preparation(number, actor, account).await?;
+        for key in [
+            "repository",
+            "repository_node_id",
+            "actor_node_id",
+            "archived",
+            "disabled",
+            "pull",
+            "pending",
+        ] {
+            if current[key] != before[key] {
+                return Err(Failure::new(409, "github_pending_review_changed"));
+            }
+        }
+        // Complete observed set, not an atomic publication revision. Page
+        // ordering alone does not change its deterministic digest.
+        items.sort_by(|a, b| a["node_id"].as_str().cmp(&b["node_id"].as_str()));
+        before["comments_snapshot"] = json!({"count":items.len(),"sha256":super::transport::sha256(&serde_json::to_vec(&items).map_err(|_|Failure::protocol())?),"complete":true,"condition":"bounded_observation"});
+        Ok(before)
+    }
     pub(super) async fn review_preparation(
         &self,
         number: u64,

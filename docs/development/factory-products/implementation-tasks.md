@@ -29527,3 +29527,72 @@ D1/D2/D3/D5 retain their actual canonical scopes. Other custody/isolation/execut
 retirement/settlement and release/upgrade/freshness requirements remain unfinished.
 Shared write capabilities remain unavailable. No Daybreak work ran and the whole
 product is not complete.
+
+### T11-WRITES checkpoint: complete bounded pending-review comment snapshot (2026-11-05)
+
+`Read::PullPendingReviewSnapshot` and the defining `review_preparation.rs` owner
+now add a compact comment-set digest to the current-account pending preparation.
+The reader selects the authenticated account's exact pending review using the
+existing immutable account/PR/head checks. No pending review returns a null
+snapshot. Otherwise a fixed GraphQL selector traverses that review's full comment
+identities and writing, two records per response, with at most 1,000 comments,
+8 MiB of aggregate encoded facts and the existing whole-operation deadline.
+Two maximum control-escaped bodies fit the fixed 1-MiB response envelope.
+
+Each observed comment must bind its immutable Node ID to the selected pending
+review, PR and repository and retain pending state. Duplicate Node/numeric IDs,
+invalid scope, totals, pages/cursors, writing or metadata refuse. Nullable numeric
+IDs, authors/author Nodes and current/original commits remain null; original
+commits are not replaced with the current head. Native facts retain complete body,
+author, identity, commit and timestamps while hashing. Sorting by Node ID makes
+mere page reordering stable. Final pending preparation/account/PR/head rechecks
+reject observed changes. The returned digest/count is compact and explicitly a
+`bounded_observation`, not an atomic publication revision, permission, original
+two-commit inline anchor or attribution of a previous effect. The full comment
+array is not sent through Go's private callback. Go remains the canonical registry/
+transaction owner; no mutation, product consumer or shared capability was enabled.
+
+The existing native executable gained
+`--github-pending-review-snapshot-declared FRESH_PROFILE` in
+`native_github_review_requests.rs`. Production reader/transport passed 48 declared
+cases, two invalid selectors before I/O and joined owner retirement under
+`/home/vince/tmp/factory-pending-review-snapshot-1105/attempt3/`, with zero
+mutations. Independently constructed full-fact digests matched empty/three-comment
+and 1,000-comment traversals, page reordering, maximum Unicode/control writing,
+empty bodies, nullable IDs/authors/author Nodes/commits, historical original
+commits and 64-bit IDs. Refusals cover wrong review/owner/state/PR/repository/head,
+count drift/mismatch, excessive count/page/aggregate bytes, duplicate IDs, cursor
+cycles/empty continuations, wrong comment parents, already-published comments,
+invalid/missing identity/body/author/commit/date, changed pending preparation,
+partial errors, provider refusal/body bounds/deadline and owner retirement.
+
+Attempts 1–2 are retained setup failures before the production check/provider
+work: the copied runner's dummy keyring initialization failed, then a minimal
+runner correctly failed the executable's existing isolated-keyring guard. The
+required isolated runner was restored and its dummy initialization given a
+bounded retry. The guard was not changed or bypassed. Attempt 3 passed with that
+runner. This component does not exercise credential custody or real GitHub
+pending visibility; its peer is owned, dummy-only and never forwards.
+
+| Artifact under `/home/vince/tmp/factory-pending-review-snapshot-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `b5a835ea9e646a20eaa87099776a55ce5a1823a669808091f92de475fc5d4d0b` |
+| `provider` | `f82f9f137ef25360bd3be86f5c670d67dcfb5c0e233e5412e92471cdab514c09` |
+| `check-bin` | `3eb2ad9a266d92f5d89dfdee4ef3e215f1b41b6c1c70c6e807c5ec0506372e5e` |
+| `run.sh` | `e4d56580dbceb5db971f4ff23bb2f035c3b5b4752c7bae72254732cf65999360` |
+| `session.sh` | `8048e5e5effa8574d7c2d8d4d72ac5e051d51a064c83fa60a8c92475af32bb18` |
+| `attempt3/result.log` | `3f3d94d1ae3029a93428ad65b0adce6d51b67655f49e9c951da63b1cfa997d6f` |
+| `attempt3/pending-review-snapshot-result.json` | `a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2` |
+
+Locked/offline native executable and desktop-feature source builds, ownership
+boundaries and whitespace checks passed. No unit-test root or dependency was
+added. This resolves the source observation prerequisite beyond a mere comment
+count. Next: the dedicated exact pending-review submission owner and typed Go
+capture/writer/readback consumer, including original writing/event/commit,
+replay/lost reply/cancel/custody/restart and actual provider comment preservation.
+The digest detects observed differences; it does not add an expected-comment-set
+condition to the provider input. Existing-draft body editing retains its separate
+concurrent-submission limit. Provider-specific limits are T11 behavior, not a new
+D5 decision or general stop. Real schema/grant/permission/publication, shared UI,
+installed and all actual broad gates remain open. Shared writes remain unavailable;
+T11-WRITES and the full product are unfinished. No Daybreak work was completed.
