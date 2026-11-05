@@ -16,6 +16,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::oneshot;
 
 type Result<T> = std::result::Result<T, Box<dyn StdError>>;
+#[path = "../native_github_comments.rs"]
+mod native_github_comments;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
 fn ensure(ok: bool, message: &str) -> Result<()> {
@@ -1201,7 +1203,10 @@ fn main() {
             )));
         }
         if args.len() == 4 && args[0] == "--github-comment-envelope-declared" {
-            return runtime.block_on(native_github_transport::run_comment_envelope_declared(
+            return Err("the comment envelope producer observer is retired; use --github-comment-product-declared for the composed writer in an owned no-forwarding fixture".into());
+        }
+        if args.len() == 4 && args[0] == "--github-comment-product-declared" {
+            return runtime.block_on(native_github_comments::run(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),

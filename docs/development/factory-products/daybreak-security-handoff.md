@@ -1718,3 +1718,98 @@ intent-to-effect binding, outcome/cancellation/uncertainty/restart handling and
 actual authorized provider write/readback still require the composed consumer
 evidence. All previously registered broader security and installed/executor/
 freshness/upgrade gates remain open.
+
+T11-WRITES composition in progress (2026-11-05, not yet a qualified checkpoint):
+the Go journal/service writer and scoped native callback are being connected in
+`pkg/factory/runtime/native_product_comments.go`, `native_collaboration.go`,
+`native_product.go`, `lib/desktop-runtime/src/collaboration.rs` and the Rust
+comment producer. A first owned dummy-only composed REST attempt passed exact
+writing/receipt, duplicate/lost-reply, concurrent cancellation, withdrawal/
+replacement, another-account refusal and retained restart. It is preserved in
+`/home/vince/tmp/factory-github-comment-product-1105/attempt1/`, result hash
+`02209d00e1d826f36e9dd2c5c7cff9268c39d97960598b4dc0b13dc1cfafe136`.
+This attempt does not qualify immutable mutation target admission or real GitHub.
+
+An additional target-binding issue was found before committing the composition:
+the REST POST addresses an owner/name after preflight, allowing a name change/
+reuse to alter the addressed resource between the read and write. The producer
+is being changed to GitHub's documented `addComment` mutation using the opaque
+Node ID from the same checked immutable REST subject. That proposed cutover is
+not yet verified. The native mutation capability projection remains unavailable.
+Relevant files include `github_provider/{mod,request,comments,transport}.rs` and
+the composed real native check `tools/native-checks/src/native_github_comments.rs`.
+
+Before closing this bounded target obligation, prove the exact subject/actor node
+bindings, no owner/name-addressed write, name-slot reuse, errors/partial GraphQL
+replies, large database IDs, causal receipt persistence and the composed native/
+Go/PG cancellation/lost-reply/restart path. Then obtain actual authorized provider
+schema/write/readback evidence. Reference: GitHub's current
+[addComment and AddCommentInput documentation](https://docs.github.com/en/graphql/reference/issues#addcomment).
+Client mutation correlation is not a documented deduplication guarantee.
+
+Separate remaining D5/policy question: neither the inspected REST comment API nor
+`AddCommentInput` exposes an expected repository/lock revision precondition. A
+Node ID pins the logical subject; it must not be described as an atomic guarantee
+that a transferable subject remains in its original repository or unlocked.
+The exact blocker is the required selected-resource invariant versus provider
+mutation semantics, including issue transfer during dispatch. Define the supported
+policy and prove its permitted/refused transfer/lock behavior in an authorized
+fixture before advertising any stronger atomic repository/lock guarantee. Do not
+infer such a guarantee from preflight reads or a proposed Node-ID fix. No real
+transfer/name-reuse experiment or broader D5 gate qualification has run here.
+
+T11-WRITES current composed Node-ID checkpoint (2026-11-05): the preceding
+composition and proposed cutover now pass their bounded declared source checks.
+This supersedes the unverified cutover status above, not its open D5 policy
+question or actual-provider/installed qualification requirements.
+
+The Go native human-comment writer now uses the existing service and sole
+PostgreSQL command journal, exact capture/digest and durable reservation. Rust's
+private typed callback checks current native custody/repository/operation scope,
+admits only one write per operation and retains bounded deadlines/retirement.
+Only the comment semantic request gets a 512 KiB envelope; reads/MCP remain
+8 KiB. Profile/account command authority survives same-account reconsent while
+current credential generations are checked independently. Captured deadlines
+are retained rather than refreshed on replay. No provider credential crosses Go.
+
+The fixed GraphQL mutation receives the opaque Node ID from the same checked
+REST subject. Its actual reply must bind that subject and the current actor's
+Node IDs, unchanged writing and provider-returned comment identity. Full/partial
+GraphQL errors or uncertain/misbound evidence never become success or safe retry.
+The bounded receipt retains protocol/status, original provider metadata/Node IDs,
+request ID and actual response/writing digests; no search/marker/readback proves
+an attributable write. Other provider operations and the shared write capability
+projection remain unfinished/unavailable.
+
+Evidence under `/home/vince/tmp/factory-github-comment-graphql-1105/`:
+`producer-a1` passed 39 named cases, eight invalid descriptors, serialization/
+pacing and retirement, including large IDs, name-slot reuse and partial GraphQL
+errors. `product-a1` passed the actual native credential/product/callback, current
+Go service/registry/journal and PostgreSQL path: maximum writing, normal readback,
+simultaneous replay, wrong repository, lost reply without fabricated attribution,
+cancel racing both success and a no-POST refusal, withdrawal/replacement, retained
+restart and another account's refusal. Nine intended dummy fixture mutations ran;
+the owned accounts and child resources cleaned up. Neither fixture forwards.
+Producer result `47a8f8009cd6f66cfe282ba6d1c2c9415944018f26cec256118b6bc8c7ba5ef6`;
+composed result `cd912b1077358cfb2fe24b360fe6497ff0e06dc1b536e182271a9328cc4d6a5b`.
+Source/executable/log hashes are in the canonical plan. The earlier REST attempt
+is preserved as historical evidence. The envelope-only observer explicitly
+refuses with replacement guidance; it does not silently start posting comments.
+
+Still unverified: real provider schema/grant/mutation/readback, actual shared
+WebKit writing, delayed captured-deadline expiry boundaries and all broader
+installed credential/caller/window/instance/resource admission. The first live
+write check needs fresh owner authorization and a specifically scoped owned
+repository/subject; the earlier revoked account is absent. No app secret or old
+refresh pair should be requested/replayed to work around this dependency.
+
+The D5 issue-transfer/lock invariant remains a policy/provider dependency:
+preflight checks plus a logical Node ID are not an atomic guarantee that a
+movable subject stays in its original repository or unlocked during mutation.
+Define the supported invariant and qualify its permitted/refused behavior in an
+authorized fixture before advertising a stronger guarantee. Node-addressed
+name-slot refusal proof does not close that obligation. All registered D1/D2/D3/
+D5, worker isolation, root absence/scoped delivery, installed admission, native
+execution/retirement/settlement, finite provider execution and release/freshness/
+upgrade gates remain open. No Daybreak access/session or broad completion is
+inferred from these ordinary owned product checks.

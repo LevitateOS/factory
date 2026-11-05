@@ -27127,3 +27127,114 @@ current account/repository/caller admission and one-shot journal composition.
 Then verify real native/Go/PG causal outcomes, cancellation/unknown-reply/restart
 behavior and a freshly authorized scoped actual GitHub write/readback. All other
 human operations and broader security/execution/installed gates remain unfinished.
+
+### T11-WRITES — composed native human comments and Node-ID mutation (2026-11-05)
+
+The admitted native product now composes the existing Go human-comment HTTP/
+service/journal with a complete Rust provider effect. Go retains canonical
+caller/repository admission, exact preparation, the single command journal,
+reservation, outcome persistence and reconciliation decisions. Rust retains
+current native credentials, account/repository/generation scope, transport,
+provider decoding and joined retirement. No provider token or authenticated
+GitHub HTTP implementation was added to Go.
+
+Files: `pkg/factory/runtime/native_product_comments.go`, `native_product.go`,
+`native_collaboration.go`, `pkg/factory/human_comment_outcomes.go`,
+`lib/desktop-runtime/src/collaboration.rs` and `github_provider/{mod,request,
+comments,transport}.rs`. The private callback admits a 512 KiB envelope only for
+the typed comment effect; other semantic reads and MCP calls retain their 8 KiB
+bound. Every effect echoes the exact command identity/digest, checks the selected
+native repository and current credential capability, and can claim only one
+write per admitted operation. The Go journal commits its durable reservation
+before calling that port. Its profile/account namespace survives same-account
+refresh/restart/reconsent; another account cannot adopt the command.
+
+Preparations retain the exact writing, immutable subject identity and original
+five-minute deadline. Native execution clamps that deadline to its eight-second
+operation bound, including serialization/preflight waits, and checks it before
+dispatch. Lookup never searches body text or turns a matching observed comment
+into a receipt. Reserved/legacy history yields a bound indeterminate record;
+neither replay nor reauthentication can authorize a duplicate POST. Local cancel
+shares reservation's row lock. Late complete primary evidence, including a
+proved pre-dispatch refusal, is retained while cancellation uncertainty remains
+explicit. Terminal receipts are immutable.
+
+Before committing this composition, an owner/name-addressing race was found in
+the initial REST mutation. That first composed source attempt remains preserved
+under `/home/vince/tmp/factory-github-comment-product-1105/attempt1/`; it is not
+current target-admission proof. The current producer uses the documented
+[addComment mutation and Node-ID input](https://docs.github.com/en/graphql/reference/issues#addcomment).
+It reads the opaque subject Node ID from the same REST object whose immutable
+database identity/kind was checked, then sends one fixed GraphQL mutation. No
+repository owner/name chooses the write endpoint. The returned subject and
+author Node IDs must match the checked subject/current account before success.
+Large `fullDatabaseId` values are retained without narrowing to a 32-bit integer.
+Client mutation correlation is not treated as remote deduplication.
+
+The bounded causal receipt now identifies `github_graphql_add_comment`, actual
+HTTP 200, exact Node bindings, provider-returned comment metadata/URLs, optional
+bounded request ID, original response-byte digest and writing digest. The full
+writing remains only in its immutable capture. GraphQL errors, partial replies,
+misbound/malformed/oversized evidence and transport uncertainty after dispatch
+remain indeterminate. No body marker, search result or readback is a causal
+write receipt. Existing completed historical REST observations are not rewritten.
+
+The existing native tool's composed mode is now
+`--github-comment-product-declared BACKEND PG_PAYLOAD FRESH_PROFILE`, implemented
+in `tools/native-checks/src/native_github_comments.rs`. The old envelope-only mode
+explicitly refuses with replacement guidance instead of silently becoming a
+mutation check. Direct defining-provider checks remain `--github-comment-declared`.
+Both current modes exited 0 under
+`/home/vince/tmp/factory-github-comment-graphql-1105/` with dummy tokens only,
+private process-local trust and a loopback CONNECT fixture that never forwards:
+
+- `producer-a1`: 39 named cases plus eight invalid descriptors, cloned-client
+  serialization/pacing and in-flight retirement. Exact issue/PR writing,
+  65,536-byte Unicode/control bodies, large IDs, name-slot reuse, missing/wrong
+  Node identities, full/partial GraphQL errors and all earlier transport/size/
+  refusal cases passed. Every uncertain mutation issued exactly one POST.
+- `product-a1`: actual native credential/product/callback owners, current Go
+  HTTP/service/registry/journal and PostgreSQL. Four positive writing cases with
+  normal discussion readback; sequential and simultaneous command replay;
+  body conflict and other-repository refusal; actual fixture creation followed
+  by a lost reply without invented reconciliation; cancel racing success and
+  pre-dispatch refusal; native withdrawal/replacement; retained runtime/PG
+  restart; and another account's command lookup/adoption refusal all passed.
+  There were exactly nine intended fixture mutations. Owned grants were removed
+  and native/Go/PostgreSQL resources shut down cleanly.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `9f66a4c6106ca0759a3b7452b2baa5fdc41c412b4ea218c9755544e95fb452d3` |
+| fixture executable | `6f5627e79473dedd6a438b34eeb227744b2c0b592d7e8f260d85239d0e6c5836` |
+| `run.sh` | `d8dd83fb6c16c7e17fdf6132bf607c954db6650a2e5489a6ca35a859f1e1dd29` |
+| `session.sh` | `cf2dbbaa4f5d000e9705b4bc737914b0eef2a1b27a9fcaf35cd1662681d45259` |
+| current Go backend | `c784b6ffbc9fdca736ea66db84b3c3f366f594b9a6e6727eaee2b23efe4c6653` |
+| native check executable | `b4383dad9e10262d84fadf84df6daa00b004a4a7767765851794e472f5662178` |
+| producer log | `7c18b2d3058d0945f11eafd3a912fefd64b4fb0458a982d59a26ec8fb54bf63f` |
+| producer result | `47a8f8009cd6f66cfe282ba6d1c2c9415944018f26cec256118b6bc8c7ba5ef6` |
+| composed log | `d06c6ff46a4034ed40e29bc446eec4c673ca096c2ef4eeebe8e4b00efcf83611` |
+| composed result | `cd912b1077358cfb2fe24b360fe6497ff0e06dc1b536e182271a9328cc4d6a5b` |
+
+Go/native compilation, the ownership boundary check and whitespace check pass.
+The actual desktop source build passed with the same current native library.
+No new unit-test root or dependency was added. Captured locked inputs remain
+source evidence rather than a fresh or installed distribution qualification.
+
+T11-WRITES remains Active. Its human-comment HTTP writer is composed for admitted
+native requests; the shared capability projection remains unavailable pending
+actual provider qualification and the shared editor consumer. No actual GitHub
+mutation, current live GraphQL schema/grant check or WebKit comment journey ran.
+Those require a fresh authorized native grant and a concretely scoped owned
+fixture. The earlier owner-revoked grant remains removed and must not be replayed.
+Other issue/branch/PR/review/thread/merge operations remain unfinished.
+
+Node addressing pins the logical subject; it does not create an atomic
+repository/lock revision precondition that `AddCommentInput` does not expose.
+The permitted/refused issue-transfer and lock-change policy, and evidence for
+any stronger D5 selected-resource guarantee, remain open in the security handoff.
+No full D1/D2/D3/D5, credential custody/root absence, installed peer/window/IPC
+admission, native executor/isolation/retirement/settlement, finite provider run,
+release/freshness/upgrade or whole-product gate is closed by this checkpoint.

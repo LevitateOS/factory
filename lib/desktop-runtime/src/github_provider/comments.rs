@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
+// A fixed mutation addresses the exact node learned from the same REST subject
+// whose immutable database identity was checked. No owner/name selects a write.
+// clientMutationId is not a documented deduplication key and is not used as one.
+pub(super) const CREATE_COMMENT: &str = "mutation FactoryCreateComment($subject:ID!,$body:String!){addComment(input:{subjectId:$subject,body:$body}){subject{__typename id ... on Issue{url} ... on PullRequest{url}} commentEdge{node{id fullDatabaseId body createdAt updatedAt url minimizedReason author{login ... on User{id} ... on Bot{id}}}}}}";
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Comment {
@@ -50,7 +55,7 @@ impl Client {
         expected: &str,
         comment: &Comment,
     ) -> CommentOutcome {
-        self.comment_account(token.as_bytes(), expected, comment)
+        self.comment_account(token.as_bytes(), expected, comment, None)
             .await
     }
     pub(crate) async fn comment_account(
@@ -58,10 +63,17 @@ impl Client {
         token: &[u8],
         expected: &str,
         comment: &Comment,
+        deadline: Option<Instant>,
     ) -> CommentOutcome {
         let mut attempted = false;
+        let until = deadline
+            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
+            .min(Instant::now() + Duration::from_secs(8));
         let work = async {
             comment.validate()?;
+            if Instant::now() >= until {
+                return Err(Failure::new(409, "github_comment_expired"));
+            }
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
@@ -75,6 +87,7 @@ impl Client {
             if identity.external_id != expected {
                 return Err(Failure::new(409, "github_account_changed"));
             }
+            let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &comment.repository).await?;
             let pull = comment.subject == "pull";
             let subject = reader.raw_subject(pull, comment.number).await?;
@@ -82,6 +95,10 @@ impl Client {
                 || !pull && !subject["pull_request"].is_null()
             {
                 return Err(Failure::new(409, "github_subject_changed"));
+            }
+            let subject_node = r::text(&subject, "node_id")?;
+            if !super::request::node_id(subject_node) {
+                return Err(Failure::protocol());
             }
             // A lock can still change at the provider before POST. This is a
             // conservative preflight, never an atomic provider revision guard.
@@ -98,35 +115,63 @@ impl Client {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
             self.current()?;
+            if Instant::now() >= until {
+                return Err(Failure::new(409, "github_comment_expired"));
+            }
             *next = Instant::now() + Duration::from_secs(1);
             attempted = true;
             let response = self
-                .post_comment(&reader.name, comment.number, &comment.body, token)
+                .post_comment(subject_node, &comment.body, token)
                 .await?;
-            let raw = &response.value;
-            let id = r::id(&raw["id"])?;
-            if raw["url"] != reader.url(&format!("/issues/comments/{id}"))
-                || raw["issue_url"] != reader.url(&format!("/issues/{}", comment.number))
+            let payload = &response.value["data"]["addComment"];
+            let raw = &payload["commentEdge"]["node"];
+            let id = raw["fullDatabaseId"]
+                .as_str()
+                .filter(|id| remote_id(id))
+                .map(str::to_owned)
+                .or_else(|| r::id(&raw["fullDatabaseId"]).ok())
+                .ok_or_else(Failure::protocol)?;
+            if payload["subject"]["id"] != subject_node
+                || payload["subject"]["__typename"] != if pull { "PullRequest" } else { "Issue" }
+                || !r::text(raw, "id").is_ok_and(super::request::node_id)
                 || raw["body"].as_str() != Some(comment.body.as_str())
-                || r::id(&raw["user"]["id"])? != expected
+                || raw["author"]["id"] != actor_node
             {
                 return Err(Failure::protocol());
             }
-            let mut projected = r::comment(raw)?;
+            let parent = r::text(&payload["subject"], "url")?;
+            let url = url::Url::parse(parent).map_err(|_| Failure::protocol())?;
+            let parts: Vec<_> = url.path().trim_start_matches('/').split('/').collect();
+            if url.scheme() != "https"
+                || url.host_str() != Some("github.com")
+                || url.port().is_some()
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.query().is_some()
+                || url.fragment().is_some()
+                || parts.len() != 4
+                || !super::request::repository_name(&format!("{}/{}", parts[0], parts[1]))
+                || parts[2] != if pull { "pull" } else { "issues" }
+                || parts[3] != comment.number.to_string()
+            {
+                return Err(Failure::protocol());
+            }
+            if raw["url"] != format!("{parent}#issuecomment-{id}") {
+                return Err(Failure::protocol());
+            }
             // The immutable Go capture already retains the exact human writing.
             // Keep provider-returned metadata and causal POST evidence bounded,
             // rather than duplicating up to 64 KiB into its 64 KiB outcome.
-            projected
-                .as_object_mut()
-                .ok_or_else(Failure::protocol)?
-                .remove("body");
-            projected["body_sha256"] = json!(super::transport::sha256(comment.body.as_bytes()));
-            projected["url"] = raw["url"].clone();
-            projected["issue_url"] = raw["issue_url"].clone();
+            let dates = json!({"created_at":raw["createdAt"],"updated_at":raw["updatedAt"]});
+            let projected = json!({"external_id":id,"node_id":raw["id"],
+                "author":{"external_id":identity.external_id,"login":r::nonempty(&raw["author"],"login")?},"author_node_id":actor_node,
+                "created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,
+                "minimized_reason":r::string(raw,"minimizedReason")?,"body_sha256":super::transport::sha256(comment.body.as_bytes()),
+                "url":raw["url"],"issue_url":parent});
             self.current()?;
             let receipt = json!({"account":identity,"repository":comment.repository,"subject":comment.subject,
-                "subject_id":comment.subject_id,"number":comment.number,"comment":projected,
-                "provider_response":{"status":201,"request_id":response.request_id,"response_sha256":response.response_sha256}});
+                "subject_id":comment.subject_id,"subject_node_id":subject_node,"number":comment.number,"comment":projected,
+                "provider_response":{"protocol":"github_graphql_add_comment","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
             if serde_json::to_vec(&receipt)
                 .map_err(|_| Failure::protocol())?
                 .len()
@@ -138,7 +183,7 @@ impl Client {
         };
         let result = self
             .scope(async {
-                tokio::time::timeout(Duration::from_secs(8), work)
+                tokio::time::timeout_at(until.into(), work)
                     .await
                     .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
             })

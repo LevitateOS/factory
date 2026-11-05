@@ -62,6 +62,8 @@ pub(crate) type Result<T> = std::result::Result<T, Failure>;
 pub struct Identity {
     pub external_id: String,
     pub login: String,
+    #[serde(skip_serializing)]
+    pub(crate) node_id: Option<String>,
 }
 impl Identity {
     pub(crate) fn account(&self) -> Result<Account> {
@@ -84,6 +86,10 @@ impl Client {
         let identity = Identity {
             external_id: id.to_string(),
             login: login.into(),
+            node_id: raw["node_id"]
+                .as_str()
+                .filter(|id| request::node_id(id))
+                .map(str::to_owned),
         };
         identity.account()?;
         self.current()?;

@@ -61,7 +61,7 @@ func AdvanceHumanCommentObservation(c HumanCommentCapture, old, next collaborati
 	if old.Record != nil && next.Record != nil &&
 		old.Record.Effect == collaboration.EffectIndeterminate &&
 		old.Record.Cancellation == collaboration.CancellationIndeterminate &&
-		next.Record.Effect == collaboration.EffectCommitted &&
+		(next.Record.Effect == collaboration.EffectCommitted || next.Record.Effect == collaboration.EffectNotCommitted) &&
 		next.Record.Completion == collaboration.CompletionComplete &&
 		next.Record.Cancellation == collaboration.CancellationNone {
 		record := *next.Record

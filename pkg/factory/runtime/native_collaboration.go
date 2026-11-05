@@ -185,7 +185,11 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		return zero, errors.New("native operation cancelled")
 	}
 	body, err := json.Marshal(map[string]any{"operation": p.operation.operation, "call": effect})
-	if err != nil || len(body) > 8192 {
+	limit := 8192
+	if _, comment := effect.(nativeCommentEffect); comment {
+		limit = 512 << 10
+	}
+	if err != nil || len(body) > limit {
 		return zero, errors.New("invalid native operation")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)

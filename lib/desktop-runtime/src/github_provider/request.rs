@@ -158,6 +158,9 @@ pub(crate) fn remote_id(value: &str) -> bool {
         .parse::<i64>()
         .is_ok_and(|id| id > 0 && id.to_string() == value)
 }
+pub(super) fn node_id(value: &str) -> bool {
+    !value.is_empty() && value.len() <= 1024 && value.bytes().all(|byte| (33..=126).contains(&byte))
+}
 pub(crate) fn commit(value: &str) -> bool {
     matches!(value.len(), 40 | 64)
         && value

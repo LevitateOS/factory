@@ -3,7 +3,7 @@
 //! MCP route derives from a caller-supplied scope; Go must validate its ledger
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
-use crate::github_provider::{Client, Failure, Read};
+use crate::github_provider::{Client, Comment, CommentOutcome, Failure, Read};
 use crate::mcp_signing::Signer;
 use crate::product::Products;
 use crate::supervisor::NativeChannel;
@@ -39,6 +39,7 @@ struct Scope {
     repository: Option<String>,
     deadline: Instant,
     cancelled: watch::Sender<bool>,
+    write_claimed: AtomicBool,
     _permit: OwnedSemaphorePermit,
 }
 impl Scope {
@@ -172,6 +173,7 @@ impl Port {
             repository,
             deadline: Instant::now() + LIFETIME,
             cancelled,
+            write_claimed: AtomicBool::new(false),
             _permit: permit,
         });
         let mut scopes = self
@@ -341,7 +343,15 @@ struct VerifyCall {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
     Current,
-    Read { query: Read },
+    Read {
+        query: Read,
+    },
+    CreateComment {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        comment: Comment,
+    },
 }
 fn remote_id(value: &str) -> bool {
     value
@@ -444,7 +454,12 @@ async fn dispatch(
     {
         return Err(Failure::invalid());
     }
-    let body = Limited::new(request.into_body(), 8192)
+    let body_limit = if signing || verifying {
+        8192
+    } else {
+        512 * 1024
+    };
+    let body = Limited::new(request.into_body(), body_limit)
         .collect()
         .await
         .map_err(|_| Failure::invalid())?
@@ -466,6 +481,9 @@ async fn dispatch(
         return Ok(json!({"valid":valid}));
     }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+    if !matches!(&call.call, Effect::CreateComment { .. }) && body.len() > 8192 {
+        return Err(Failure::invalid());
+    }
     if !opaque_id(&call.operation) {
         return Err(Failure::invalid());
     }
@@ -492,6 +510,27 @@ async fn dispatch(
             return Err(Failure::new(403, "native_repository_scope"));
         }
     }
+    if let Effect::CreateComment {
+        command_id,
+        digest,
+        not_after,
+        comment,
+    } = &call.call
+    {
+        comment.validate()?;
+        if !opaque_id(command_id)
+            || digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            || *not_after == 0
+        {
+            return Err(Failure::new(400, "invalid_native_write"));
+        }
+        if scope.repository.as_deref() != Some(comment.repository.as_str()) {
+            return Err(Failure::new(403, "native_repository_scope"));
+        }
+    }
     let mut cancelled = scope.cancelled.subscribe();
     let mut retired = state.retired.subscribe();
     let work = scope
@@ -503,6 +542,22 @@ async fn dispatch(
                     .provider
                     .read_account(token, &scope.capability.account().account, query)
                     .await
+            }
+            Effect::CreateComment { command_id, digest, not_after, comment } => {
+                if scope.write_claimed.swap(true, Ordering::SeqCst) {
+                    return Err(Failure::new(409,"native_effect_already_claimed"));
+                }
+                let measured = Instant::now();
+                let wall = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_|Failure::unavailable())?;
+                if *not_after > wall.as_secs().saturating_add(300) { return Err(Failure::new(400,"invalid_native_write")); }
+                let deadline = measured + Duration::from_secs(*not_after).saturating_sub(wall);
+                let (status, receipt, failure) = match state.provider.comment_account(token, &scope.capability.account().account, comment, Some(deadline)).await {
+                    CommentOutcome::Created(receipt) => ("created", Some(receipt), None),
+                    CommentOutcome::NotSent(failure) => ("not_sent", None, Some(failure)),
+                    CommentOutcome::Indeterminate(failure) => ("indeterminate", None, Some(failure)),
+                };
+                let failure = failure.map(|f|json!({"status":f.status,"code":f.code,"retry_after":f.retry_after,"reset":f.reset}));
+                Ok(json!({"command_id":command_id,"digest":digest,"state":status,"receipt":receipt,"failure":failure}))
             }
         });
     let observation = tokio::select! {
