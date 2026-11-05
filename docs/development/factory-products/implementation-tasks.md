@@ -25217,3 +25217,20 @@ broker/runtime and fixture builds passed; temporary units, binaries and
 run-specific paths were removed. This is a simulated partial-state recovery,
 not a process crash/reboot, a launched receipt, Go transaction reconciliation
 or D3 qualification. N3 remains Pending and D3 remains open.
+
+T09-NATIVE-EXECUTOR retained-receipt root retirement checkpoint
+(2026-11-05): the Rust provider now exposes
+`retire_recovered_receipt(profile_dir, scope)`. It validates an exact complete
+native receipt before asking the broker to retire that run; absence or an
+interrupted pending write cannot grant root retirement. A disposable isolated
+coder produced a complete output and candidate bundle, wrote a production
+receipt and exited its desktop fixture process while leaving the launched
+broker root staged. A separate process reopened the exact receipt, retired
+the root, observed no remaining selector and reopened the same receipt again.
+A separate cancelled launched dummy run with no receipt returned `None` from
+the new API and kept its launched selector until explicit cleanup. Locked
+offline runtime and fixture builds passed; disposable units, binaries, owner
+sockets and run paths were removed. The operation requires a trusted exact
+scope and an exclusive profile owner; it is not yet called by the desktop
+startup or Go ledger. The fixtures did not include a real credential, a
+process kill/reboot or product transaction settlement. N3 and D3 remain open.

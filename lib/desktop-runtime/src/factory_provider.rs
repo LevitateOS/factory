@@ -8,7 +8,7 @@ mod response;
 mod run;
 pub use broker::{AgentCancellation, AgentProcess, AgentRun, Broker, RelayAttestation};
 pub use owner::{BoundOwner, Owner};
-pub use receipt::{read_retained, write_retained, ReceiptScope};
+pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use run::RunOwner;
 use serde_json::Value;
 use std::collections::BTreeSet;

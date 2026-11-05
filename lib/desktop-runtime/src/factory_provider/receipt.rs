@@ -1,7 +1,7 @@
 //! Persist and read a retained native run observation without relaunching its worker.
 //! The receipt is evidence for the Go ledger, never execution admission or
 //! proof that the broker, credential and worker lifetimes are retired.
-use super::broker::{AgentProcess, AgentRun};
+use super::broker::{AgentProcess, AgentRun, Broker};
 use super::Role;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -400,4 +400,19 @@ pub fn read_retained(profile_dir: &Path, scope: &ReceiptScope<'_>) -> io::Result
         candidate_bundle: bundle,
         bundle_sha256: header.bundle_sha256,
     }))
+}
+
+/// After a new desktop owner holds the profile lock, retire only the broker
+/// run named by a complete, exact retained receipt. The caller must still
+/// compare the observation with the Go ledger and settle it there. Missing or
+/// partial receipts never grant retirement of a possibly launched run.
+pub fn retire_recovered_receipt(
+    profile_dir: &Path,
+    scope: &ReceiptScope<'_>,
+) -> io::Result<Option<AgentRun>> {
+    let Some(observed) = read_retained(profile_dir, scope)? else {
+        return Ok(None);
+    };
+    Broker::retire_bundle(scope.run, scope.profile, scope.source_sha256)?;
+    Ok(Some(observed))
 }

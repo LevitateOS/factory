@@ -324,8 +324,14 @@ post-rename partial state, observed that unlaunched cleanup refused it, and
 recovered it through an exact `finish_retiring` request; no selector remained.
 This proves handling of one simulated partial state, not an actual crash,
 reboot, launched-run receipt or Go ledger reconciliation.
-The new read-only receipt API does not change this startup order. A crash with
-launched root state therefore remains a startup blocker. Keep launch disabled
+The Rust provider now also has `retire_recovered_receipt`, which validates an
+exact complete receipt before retiring its broker root. A disposable isolated
+coder left a durable receipt and launched root across a fixture process exit;
+a separate process retired that root from the receipt and reopened the same
+receipt. A cancelled launched run with no receipt was not retired by this API.
+Those checks had no Go ledger, actual process kill, reboot or real provider
+credential. The helper is not composed into desktop startup, so the startup
+order above still blocks a launched root. Keep launch disabled
 until a trusted Go-record read, exact receipt validation, root/process and
 credential retirement, and atomic outcome reconciliation are composed and
 proved across an interrupted owner and a full restart. The source inspection
