@@ -300,6 +300,14 @@ and no candidate. This proves readback of the failed dummy attempt across a
 credential-session boundary. It does not prove a Go ledger record, atomic
 settlement, broker recovery after a crash or a successful provider response.
 
+A subsequent disposable credential-free live agent slept until the desktop
+client cancelled its broker call. The client returned no result;
+`Broker::quiesce_run` preserved the launched selector, and explicit retirement
+then removed it. The agent logged a broken pipe as it stopped and had
+`MainPID=0`; the relay was inactive with `MainPID=0`. This checks one ordinary
+component cancellation path. It does not prove production owner credential
+withdrawal, a retained Go outcome or cancellation of a real provider request.
+
 For D3 restart reconciliation, `Children::start` in
 `lib/desktop-runtime/src/supervisor.rs` calls
 `Broker::reconcile_profile` before starting the Go backend. That broker client

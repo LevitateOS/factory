@@ -25187,3 +25187,17 @@ run paths were removed. An interrupted `.retiring` state now remains pending
 for explicit recovery rather than being inferred unlaunched. No concurrent
 launch race or full crash/restart ledger recovery was qualified. N3 and D3
 remain open.
+
+T09-NATIVE-EXECUTOR live cancellation component checkpoint (2026-11-05):
+the current disposable broker, preparer, relay and isolated agent launched a
+credential-free ELF that slept indefinitely, with a local owner listener and
+no provider request. After the broker reported the root run as launched, the
+desktop client's `AgentCancellation` closed the live broker call. No execution
+result was returned. `Broker::quiesce_run` succeeded and the exact selector
+remained launched until explicit final retirement. The agent journal recorded
+a broken pipe during cancellation; its service had `MainPID=0` after stopping,
+and the relay was inactive with `MainPID=0`. Temporary units, binaries, owner
+socket and run-specific paths were removed. This is a component cancellation
+and retained-state check, not credential withdrawal, Go ledger settlement,
+crash/reboot recovery, an installed journey or a real finite provider run.
+N3 and D3 remain open.
