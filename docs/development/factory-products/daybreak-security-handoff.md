@@ -2725,3 +2725,67 @@ Shared writes remain unavailable. Reviewer/thread constraints, other T11 effects
 D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/
 execution/retirement/settlement and release/upgrade/freshness retain recorded
 blockers and closure evidence. No broad gate or Daybreak work was closed.
+
+PR maintainer-edit delegation dependency found during creation work (2026-11-05):
+The [official fork guidance](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/allowing-changes-to-a-pull-request-branch-created-from-a-fork)
+describes this option for personal-account forks; permitting edits can also permit
+workflow changes and access to secrets. The captured `AllowMaintainerEdit` boolean
+is intent, not proof of eligible ownership or an informed grant. No live delegation
+or secret-access check has run, and no such access is needed to prove the option's
+ordinary product behavior. The native creation effect and shared PR action UI are
+not yet implemented.
+
+Exact blockers: current selected head/fork identity, personal-fork ownership and
+permission; explicit truthful shared UI scope for the option; exact propagation
+and provider observation of true/false without silently dropping the choice; and
+fresh specifically owner-authorized live fixture evidence of accepted/refused
+grant scope. Relevant files are `pkg/factory/human_pull_create.go`, the future
+native creation effect, `pull_branches.rs`, native callback/runtime preparation
+and shared PR form. Closure needs bounded actual provider permission/flag evidence
+and account/scope withdrawal/race behavior, with the workflow-access implication
+represented in the user decision. Do not infer permission from a username, registry
+row, dummy response or a proposed restriction, and do not promote this research
+to verified protection. D5 and the existing creation/custody/admission gates remain
+open.
+
+T11-WRITES bounded native PR-creation effect (2026-11-05):
+`github_provider/pull_create.rs`, `mod.rs` and `transport.rs` now implement a fixed
+single attempt over saved repository/owner/ref/tip pins and exact prose/options.
+Fresh branch observations must match; known head write access and a known matching
+cross-repository network are required. Unknown/moved inputs refuse. True maintainer
+delegation refuses unless the selected head is the current account's personal
+fork; no choice is silently discarded. This restriction has declared-peer evidence
+only. It does not close the informed UI/workflow-access or actual permission gate
+above. Literal ref qualification that cannot be interpreted safely refuses.
+
+The causal reply must match current author, scope, refs/tips, writing, state and
+maintainer choice. Bounded receipts explicitly describe preflight/causal-reply
+checks, not CAS. Every failure after attempted send remains uncertain without
+resend or matching-state attribution. Native serialization/pacing and joined
+retirement enforce local lifetime only: a missing reply, timeout or local stop
+does not prove a remote effect stopped or rolled back. The Go owner must win the
+durable reservation before invoking this component.
+
+Actual native provider/transport passed 77 declared cases, 18 invalid descriptors,
+clone serialization/pacing and pre/post-send retirement; the stopped owner sent
+no further requests. Evidence
+`/home/vince/tmp/factory-pull-create-1105/attempt2/pull-create-result.json`, SHA-256
+`3371e4ab15854dbc72abf6134eac4fbbda6ed025e232982d1eab72ec0bc49cd7`.
+There were 55 dummy mutation attempts against an owned peer that never forwards.
+The plan records exact artifacts and the preserved initial fixture-accounting
+failure; scenario-local accounting does not infer remote cancellation. No real
+PR/grant, Go consumer, shared UI or installed gate was exercised.
+
+The fixed native effect source dependency is resolved. Exact next blockers:
+`collaboration.rs` typed creation callback and selected secondary-head admission,
+Go canonical preparation/writer/destination/readback using schema 88, precise
+large-writing route/envelope bounds and actual captured-expiry/replay/cancel/
+races/withdrawal/replacement/restart evidence. Relevant files include the effect,
+branch reader, native collaboration/product envelopes, runtime PR adapters and
+shared PR services/UI. Actual provider permission/fork/maintainer behavior, UI
+grant scope, supported non-atomic tip/repository/visibility policy and fresh owner-
+authorized provider/WebKit/installed evidence remain unverified. Shared writes
+remain unavailable. Reviewer/thread limits, other T11 effects, D1/D2/D3/D5, custody/
+root absence/scoped delivery, IPC/window/instance, isolation/execution/retirement/
+settlement and release/upgrade/freshness retain recorded blockers. No broad gate
+or Daybreak work was closed.

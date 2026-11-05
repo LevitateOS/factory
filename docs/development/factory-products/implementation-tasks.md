@@ -28976,3 +28976,81 @@ unavailable. T11-WRITES, reviewer/thread limitations, other effects, D1/D2/D3/D5
 custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
 retirement/settlement and release/upgrade/freshness retain open requirements. No
 broad gate or Daybreak work closed; the full product remains unfinished.
+
+### T11-WRITES checkpoint: bounded native human PR creation (2026-11-05)
+
+`github_provider/pull_create.rs` now implements one fixed creation attempt over
+saved base/head repository, owner, ref-Node and commit pins. The defining branch
+reader supplies fresh observations; changed pins, read-only/unknown repository
+facts, absent known head write access, unknown/unrelated cross-repository network
+or no commit difference refuse before dispatch. Labels are current selectors,
+never identity. Literal `refs/` branch names refuse rather than being silently
+reinterpreted by provider qualification rules. The caller must first win the Go
+durable one-shot reservation; this component adds no independent intent ledger.
+
+The fixed GraphQL input pins both repository Nodes, selected branch names, exact
+title/body, non-draft creation and maintainer-edit choice. It requests no issue
+conversion, review, bot/Copilot action or remote retry/deduplication feature. A true
+maintainer-edit choice is restricted before send to the current account's selected
+personal fork; organization/other-owner/same-repository delegation refuses. This
+is a bounded supported subset with declared-peer evidence, not live proof of
+permission or an informed UI grant. The workflow/secret-access dependency is in
+the handoff and remains open.
+
+Global native serialization and one-second mutation pacing cover preflight and
+the attempt inside the whole eight-second/captured-deadline bound. The causal
+reply must bind current author, PR identity/state/draft/maintainer choice, exact
+prose, both repositories/owners/refs/names/tips and destination URL. Receipts are
+at most 4 KiB, retain scoped pins, hashes and bounded provider-response facts,
+and label the condition `preflight_and_causal_reply`. Refusal, malformed/partial/
+oversized reply, lost reply, mismatch or post-send timeout stays indeterminate.
+There is no automatic resend, matching-branch attribution or PR search recovery.
+Local retirement is joined; it does not prove remote processing stopped or rolled
+back, and native serialization is not a cross-machine/provider transaction lease.
+
+The existing executable gained `--github-pull-create-declared FRESH_PROFILE`.
+Production provider/transport passed 77 declared cases, 18 invalid descriptors
+before I/O, clone serialization/pacing and pre/post-send retirement under
+`/home/vince/tmp/factory-pull-create-1105/attempt2/`, with 55 dummy mutation attempts.
+Coverage includes same/separate repositories and same-named branches, selected
+personal-fork delegation, current labels/Unicode, maximum 255-byte title and 64 KiB
+Unicode/control body, large IDs/hash shapes, empty body, optional request ID,
+stale pins/ownership/ref and live-pair changes, permission/network/maintainer/no-
+difference refusals, all causal scope/content/option mismatches, provider errors,
+redirects, body/header/receipt bounds and whole deadlines. A branch read after a
+lost reply returned facts without attributing creation. A paused clone could not
+send while its predecessor awaited a reply beyond the pacing interval. A retired
+owner returned not-sent with no further GET or mutation request.
+
+The owned TLS peer accepts only declared requests and its fixed dummy credential
+and never forwards. No real PR or permission grant was created. Attempt 1 reached
+the serialization assertion but its fixture conflated an earlier timed-out server
+handler with the later clone scenario. The peer now tracks active requests by
+scenario; the earlier profile/log/peer/binary are retained. This correction does
+not claim remote cancellation. Attempt 2 passed the complete production observer.
+
+| Artifact under `/home/vince/tmp/factory-pull-create-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `382d5dbc38530cef852cc1bfb182791059dbc8129590473785509bfbf796bfa0` |
+| `provider` | `ca05653c3079293234449a61ec2365dbe8fbb088852aa8853c611a6b9ed28189` |
+| `check-bin` | `32c8d5a44e54387e325d60976c2acda31a155cfbd605b15d6ac25653d271fcc9` |
+| `run.sh` | `1d4237226b5fb671aae9afd34a81f4a1e4aac63cbae749b9cec71960039f2e11` |
+| `session.sh` | `139859854b306d2fa46b6f4b9d997291be1faa6cb3ed659a340ae9220416d308` |
+| `attempt2/result.log` | `951d89c336d0cda888f9241aea5415d2a747c66b69f3019d24066d21c496579a` |
+| `attempt2/pull-create-result.json` | `3371e4ab15854dbc72abf6134eac4fbbda6ed025e232982d1eab72ec0bc49cd7` |
+
+Locked/offline native and desktop-feature builds, ownership boundaries and
+whitespace checks passed. No dependency or unit-test hierarchy was added.
+
+Next: admitted typed creation callback, explicit secondary head scope, canonical
+Go preparation/writer and destination/normal readback using schema 88. Exact-route
+native/product writing envelopes, original captured expiration, journal replay/
+cancel/races/withdrawal/replacement/restart and maximum-envelope composition still
+need evidence. Actual provider scope/permission/maintainer behavior and informed
+shared UI, supported D5 policy for non-atomic tip/repository/visibility conditions,
+and fresh scoped owner-authorized provider/shared WebKit/installed checks remain
+pending. No Go consumer or shared capability was activated; shared writes remain
+unavailable. T11-WRITES, reviewer/thread constraints, other effects, D1/D2/D3/D5,
+custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
+retirement/settlement and release/upgrade/freshness retain open requirements. No
+broad gate or Daybreak work closed; the full product remains unfinished.

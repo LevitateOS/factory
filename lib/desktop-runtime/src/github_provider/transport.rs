@@ -30,6 +30,16 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    PullCreate {
+        base: String,
+        head: String,
+        base_ref: String,
+        head_ref: String,
+        title: String,
+        body: String,
+        maintainer_edit: bool,
+        token: Zeroizing<Vec<u8>>,
+    },
     PullBranches {
         base: String,
         head: String,
@@ -547,6 +557,24 @@ impl Client {
             response_sha256: sha256(wire.bytes.as_slice()),
         })
     }
+    pub(super) async fn post_pull(
+        &self,
+        q: &super::PullCreate,
+        head_ref: &str,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::PullCreate {
+            base: q.base_pin.repository_node_id.clone(),
+            head: q.head_pin.repository_node_id.clone(),
+            base_ref: q.base_branch.clone(),
+            head_ref: head_ref.into(),
+            title: q.title.clone(),
+            body: q.body.clone(),
+            maintainer_edit: q.allow_maintainer_edit,
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     pub(crate) async fn delay(&self, duration: Duration) -> Result<()> {
         self.current()?;
         let mut retirement = self.retired.subscribe();
@@ -575,6 +603,40 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>) {
 }
 async fn wire(http: &Http, request: Request) -> Result<Wire> {
     let (request, limit) = match request {
+        Request::PullCreate {
+            base,
+            head,
+            base_ref,
+            head_ref,
+            title,
+            body,
+            maintainer_edit,
+            token,
+        } => {
+            let valid_head = head_ref.split_once(':').map_or_else(
+                || super::request::branch_name(&head_ref),
+                |(owner, branch)| {
+                    super::request::repository_name(&format!("{owner}/x"))
+                        && super::request::branch_name(branch)
+                },
+            );
+            if !super::request::node_id(&base)
+                || !super::request::node_id(&head)
+                || !super::request::branch_name(&base_ref)
+                || !valid_head
+            {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::pull_create::CREATE,
+                    serde_json::json!({"input":{"repositoryId":base,"headRepositoryId":head,"baseRefName":base_ref,"headRefName":head_ref,"title":title,"body":body,"maintainerCanModify":maintainer_edit,"draft":false}}),
+                )?,
+                1024 * 1024,
+            )
+        }
         Request::PullBranches {
             base,
             head,
