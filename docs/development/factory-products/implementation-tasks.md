@@ -25587,3 +25587,17 @@ to `WorkerMcp`, supply current canonical admission and prove the full finite
 provider/settlement/recovery path. N3, N4 and D3 remain open. Evidence is external
 under `/home/vince/tmp/factory-native-mcp-catalog-20261105/`; the final result
 SHA-256 is `fc28e27d413f7c65ed388dc14ccaa1f4fccc12c69cfcbcb03f8ab27b75c693a7`.
+
+T09-NATIVE-EXECUTOR current-observation dependency inspection (2026-11-05):
+the broker consumes/removes the worker admission socket before execution, the
+worker serves one accepted request, and extra bytes on the executing desktop
+connection currently request cancellation. Native `Process::observe` and
+`RunExecution::observe` return cached monitor/attempt state. A current-process
+port therefore needs an explicit bounded operation in the owned execution
+protocol before Go can activate/admit MCP from fresh native observations.
+The constrained broker profile has not been shown to permit cross-UID host
+`/proc` inspection; do not infer that access from UID zero. This is a source
+dependency finding, not execution qualification. The exact files, remaining
+operation and required live/exit/cancellation evidence are recorded in the
+security handoff. T09-NATIVE-EXECUTOR remains Pending; independent producer
+work can continue while connected consent and placement consumers are pending.

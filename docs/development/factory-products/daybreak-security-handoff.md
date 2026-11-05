@@ -32,6 +32,27 @@ Close that dependency only with the actual finite isolated Muse/Go path, matchin
 catalog/tool call, outcome settlement, withdrawal and restart evidence. D3 remains
 open; normal composition/check work does not require Daybreak.
 
+Current-process observation remains a separate N3 producer dependency. Source
+inspection after the catalog checkpoint found that
+`cmd/soda-factory-broker/src/main.rs::execute_agent` stops the exact agent
+admission socket before executable transfer, and `client_closed` treats any
+additional client byte as cancellation. The worker's `serve` handles one accepted
+request; its execution loop owns the native `Process`. The current
+`lib/native-process/src/lib.rs::Process::observe` returns cached monitor state,
+and `factory_provider/attempt.rs::RunExecution::observe` returns cached attempt
+phase/start identity. None is a fresh caller-requested process observation.
+The broker unit also has `ProtectProc=invisible` and an empty capability set;
+host `/proc` access to another UID has not been proved under that profile.
+These are source facts and an unverified access constraint, not a failed or
+passed live check. Extend the owned execution protocol with an explicit bounded
+observation operation before supplying Go's current-run port. Preserve exact
+run/profile/process identity, the existing cancellation semantics, distinct exit
+and retirement facts, and refusal on lost observation. Closing evidence must show
+fresh matching live observations during an actual finite isolated process,
+non-live observations after direct exit, cancellation/withdrawal retirement and
+no admission from stale start/phase state. This ordinary implementation/check
+work is eligible for the normal queue; no new security gate is closed.
+
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
 this workspace on 2026-11-04. The recorded crash and the backtrace description
