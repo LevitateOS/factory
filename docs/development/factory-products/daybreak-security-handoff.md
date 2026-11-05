@@ -132,6 +132,14 @@ The service reported `Result=success` even though the child was killed, so the
 future Go transaction must preserve the exit signal as a failed execution
 observation. Prove that consumer behavior before D3 closure.
 
+The Go coordinator now has a source-level settlement guard for that observation:
+`pkg/factory/control/settle.go` maps a retained native child signal or nonzero
+exit code to a failed outcome and failure summary even if the adapter reports
+`completed`. An isolated `completed` run without an observed zero child exit
+stays unsettled. The control package compiled but has no test files. No actual
+Go/Rust port or retained Go transaction consumed the signal-9 service receipt;
+prove that exact result path and its durable failure outcome before closing D3.
+
 For D3 result custody, the worker now has a direct Git check of clean committed
 candidate bundling and bounded dirty-edit checkpointing. After the agent tree
 retires, the worker checks the captured repository identity, bounds the dirty

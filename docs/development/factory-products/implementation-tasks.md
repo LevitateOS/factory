@@ -24991,3 +24991,14 @@ result, aggregate writable-surface or multi-run qualification. The future Go
 consumer must treat signal 9 as a failed execution even though systemd
 reported service `Result=success`. Workspace/output growth, low-free-space
 denial, cross-run separation, credential custody and D3 remain open.
+
+T09-NATIVE-EXECUTOR Go settlement guard (2026-11-05): the existing coordinator
+now treats a retained native child exit signal or nonzero exit code as failed
+execution even if a native adapter reports the service phase as completed.
+It records the child failure as the summary instead of using completed output.
+An isolated native run with a completed phase but no observed zero child exit
+remains unsettled. The control package compiled with `go test` (it has no test
+files), `go vet`, `gofmt -d` and `git diff --check` passed. This is a source-level
+consumer guard; no Go-to-Rust launch port, durable ledger transaction, real
+provider run or D3 end-to-end settlement was exercised. T09-NATIVE-EXECUTOR
+remains Pending.

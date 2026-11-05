@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -240,6 +241,19 @@ func settleOutcome(state execution.RunObservation) (factory.Outcome, bool) {
 	if state.Retirement != execution.Retired {
 		return "", false
 	}
+	// A native service can retire cleanly after its child was killed. Preserve
+	// the child's observed failure even if an adapter reports a completed phase.
+	if nativeExitFailure(state) != "" {
+		return factory.Failed, true
+	}
+	// The isolated adapter must retain an actual zero child exit before the
+	// coordinator can settle a completed native run as successful.
+	if state.Phase == project.FactoryCompleted && state.Kind == collaboration.Native && state.Native != nil {
+		if state.Native.TrustMode == "isolated_system_worker" &&
+			(state.Native.Process == nil || state.Native.Process.ExitCode == nil) {
+			return "", false
+		}
+	}
 	switch state.Phase {
 	case project.FactoryCompleted:
 		return factory.Succeeded, true
@@ -253,6 +267,9 @@ func settleOutcome(state execution.RunObservation) (factory.Outcome, bool) {
 }
 
 func settleReason(state execution.RunObservation) string {
+	if reason := nativeExitFailure(state); reason != "" {
+		return reason
+	}
 	if state.Phase == project.FactoryCompleted && state.Output != "" {
 		if len(state.Output) > 4096 {
 			return state.Output[:4096]
@@ -263,6 +280,20 @@ func settleReason(state execution.RunObservation) string {
 		return state.Reason
 	}
 	return "run " + state.Phase
+}
+
+func nativeExitFailure(state execution.RunObservation) string {
+	if state.Kind != collaboration.Native || state.Native == nil || state.Native.Process == nil {
+		return ""
+	}
+	process := state.Native.Process
+	if process.ExitSignal != nil {
+		return "native worker exited on signal " + *process.ExitSignal
+	}
+	if process.ExitCode != nil && *process.ExitCode != 0 {
+		return "native worker exited with code " + strconv.Itoa(*process.ExitCode)
+	}
+	return ""
 }
 
 // adoptExecutionFacts fills recorded lease/binding/credential facts from host
