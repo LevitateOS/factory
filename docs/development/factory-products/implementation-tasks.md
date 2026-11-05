@@ -25172,3 +25172,18 @@ Before another connected challenge, capture fresh current-runtime pre-consent
 diagnostics and retain the exact source/runtime identity and logs. The
 authenticated connected journey and IPC admission still need direct evidence;
 T06-CONNECT remains Active.
+
+T09-NATIVE-EXECUTOR startup cleanup race follow-up (2026-11-05): source
+inspection found that `Broker::reconcile_profile` inspected an unlaunched
+root selector, then called unrestricted retirement in a separate broker
+request. A concurrent worker launch between those calls could erase a run
+whose outcome had not been reconciled. Startup cleanup now calls the broker's
+atomic unlaunched retirement request, which rechecks the lifecycle state under
+the root run lock. The disposable current broker/relay/agent fixture still
+refused cleanup after a dummy launch and, after explicit final retirement,
+retired exactly one newly staged unlaunched run through `reconcile_profile`.
+Locked offline broker/runtime and fixture builds passed; temporary units and
+run paths were removed. An interrupted `.retiring` state now remains pending
+for explicit recovery rather than being inferred unlaunched. No concurrent
+launch race or full crash/restart ledger recovery was qualified. N3 and D3
+remain open.

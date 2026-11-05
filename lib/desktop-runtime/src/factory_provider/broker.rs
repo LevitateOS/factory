@@ -456,7 +456,7 @@ impl Broker {
                     "broker launched run outcome requires reconciliation",
                 ));
             }
-            if !retired.insert(run.clone()) || !Self::retire_bundle(&run, profile, &sha256)? {
+            if !retired.insert(run.clone()) || !Self::retire_unlaunched(&run, profile, &sha256)? {
                 return Err(refused("broker profile cleanup did not advance"));
             }
         }

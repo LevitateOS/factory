@@ -305,6 +305,12 @@ For D3 restart reconciliation, `Children::start` in
 `Broker::reconcile_profile` before starting the Go backend. That broker client
 retires unlaunched staging but refuses a launched run; it cannot compare the
 new native receipt to the Go ledger because the ledger is not yet available.
+Its unlaunched cleanup now uses the broker's atomic launch-fenced request,
+rather than trusting a prior inspection before unrestricted retirement. A
+disposable broker/relay/agent fixture retired exactly one unlaunched startup
+stage after the earlier launched dummy run had been explicitly retired. A
+partially renamed `.retiring` run is deliberately left pending by this startup
+request; exact completion of that interrupted retirement remains unverified.
 The new read-only receipt API does not change this startup order. A crash with
 launched root state therefore remains a startup blocker. Keep launch disabled
 until a trusted Go-record read, exact receipt validation, root/process and
