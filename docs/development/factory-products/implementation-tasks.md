@@ -25704,3 +25704,49 @@ owner crash/reboot recovery, Go outcome settlement, production Quit and actual
 provider handling remain unqualified. Keep historical missing custody unknown;
 the new journal does not reconstruct old acquisitions or authorize replay.
 The handoff records these exact dependencies. N3, N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR lifecycle registry producer (2026-11-05):
+`factory_provider::Executions` now retains native attempts under one captured
+profile/instance and exact receipt-scope/provider-connection binding. It starts
+only the lazy admitted owner factory after lifetime, replay and capacity checks;
+an exact binding replay returns its existing ticket without another factory or
+extended deadline. A conflicting scope/lifetime refuses. Its native resource
+limit is at most eight retained entries, including completed but unacknowledged
+buffers and unconfirmed preparation. A matching acquisition with a complete
+result and sealed/released custody may acknowledge only its memory slot; all
+retained evidence stays intact. Factory failure retains an uncertain slot and
+cannot claim no acquisition, retry blindly or acknowledge cleanup. This map
+owns resources and does not schedule product work or write SQL.
+
+Read-only `RunView` / `ExecutionTicket` objects separate request observation
+from lifecycle ownership. Kernel queries hold no registry lock; ticket lifetime
+is checked before and after I/O. Retirement fences factories/queries, requests
+cancellation on every owned handle before joining one, then reports independent
+outcome and custody for every entry. Drop follows the same joined path.
+The existing native integration root gained a registry mode and passed real
+distinct-UID runs: dropping a request retained work, replay retained the exact
+process, changed/stale binding refused, finite output stayed available, and
+capacity included an unacknowledged completed entry. Wrong-acquisition
+acknowledgement refused; correct acknowledgement freed only memory. Two active
+workers were cancelled/joined, remained outcome-uncertain with separately
+released custody, and could not acknowledge away uncertainty. A query stayed
+pending against one paused disposable agent; lifecycle retirement still joined
+both and the query released no retired observation. Registry drop also joined
+its worker with tickets retained. A declared factory failure retained uncertain
+capacity without retry or fabricated process/custody. Temporary units and exact
+fixture roots were disposed. Evidence and driver are external under
+`/home/vince/tmp/factory-native-registry-v2-20261105/`; result SHA-256 is
+`447524942d2c870e6c4aca51e7ef8ea1c50e8243e04a088763475109ee4a7d48`.
+Locked offline runtime checking/building and touched-file formatting passed.
+
+This is a retained-input, local-ELF/dummy-keyring producer check with declared
+profile/instance metadata, not current canonical Go admission, real Muse work,
+an installed app or D3 qualification. The registry is not yet composed into
+NativeSupervisor or Go execution/custody ports. Synchronous preparation must
+become lifecycle-owned/cancellable before production Quit can be qualified;
+failed-start effects need explicit reconciliation rather than freeing unknown
+slots. Interrupted owner/journal/reply paths, startup ordering against the Go
+ledger, full restart/reboot and actual provider/settlement remain open. The Go
+adapter must compare the captured canonical run/workspace/placement with native
+profile/instance/broker selectors; matching hex strings do not establish that
+mapping. N3, N4 and D3 remain open; the handoff records these dependencies.

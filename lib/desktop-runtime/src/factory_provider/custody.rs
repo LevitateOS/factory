@@ -161,6 +161,13 @@ fn snapshot(directory: &Path, expected: &Header, active: bool) -> io::Result<Cus
 }
 
 impl RunCustody {
+    pub(super) fn matches(&self, run: &str, profile: &str, scope: &str, connection: &str) -> bool {
+        self.0.header.run == run
+            && self.0.header.profile == profile
+            && self.0.header.scope_sha256 == scope
+            && self.0.header.connection == connection
+    }
+
     pub(super) fn prepare(
         profile_dir: &Path,
         scope: &ReceiptScope<'_>,

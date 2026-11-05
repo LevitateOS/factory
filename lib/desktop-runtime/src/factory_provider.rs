@@ -4,17 +4,21 @@
 mod attempt;
 mod broker;
 mod custody;
+mod executions;
 mod mcp;
 mod observation;
 mod owner;
 mod receipt;
 mod response;
 mod run;
-pub use attempt::{AttemptObservation, AttemptPhase, RunExecution};
+pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
     AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
 };
 pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
+pub use executions::{
+    ExecutionBinding, ExecutionOutcome, ExecutionTicket, Executions, RetirementReport,
+};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};

@@ -594,6 +594,29 @@ a keyring session. Missing/partial evidence never proves no acquisition or clean
 The lifecycle registry, canonical Go projection and interrupted-write/crash/reboot
 reconciliation still need implementation and qualification before native intake.
 
+`factory_provider::Executions` owns a bounded set of native attempts for one
+captured profile/runtime lifetime. Trusted composition supplies an
+`ExecutionBinding` from the exact receipt scope and provider connection, then a
+lazy admitted owner factory. Exact replay returns the existing ticket without
+another factory/launch or a new deadline; conflicting scope/lifetime refuses.
+Capacity (at most eight retained entries) includes unacknowledged results and
+unconfirmed preparation. Only a matching acquisition with a complete retained
+result and sealed/released custody may acknowledge its memory slot; native
+receipts and custody journals stay intact. Failed preparation remains uncertain
+and is not retried or treated as no acquisition.
+
+Requests retain read-only `RunView` / `ExecutionTicket` observations, so dropping
+a request does not cancel work and kernel queries do not hold the registry.
+Retirement checks the ticket lifetime before and after process I/O, fences new
+factories, cancels all owned handles before joining any and reports every run's
+independent outcome/custody. Drop also retires. Cached facts remain scoped
+evidence; Go still performs current product admission and durable settlement.
+This producer is not yet wired into `NativeSupervisor` or the Go execution
+ports. Preparation factories are synchronous: owner-managed cancellable staging,
+failed-start reconciliation, full restart/reboot recovery and production Quit
+still need implementation/qualification before intake. Native broker selectors
+must not be substituted for canonical Go run/workspace identities by an adapter.
+
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.
 Go's `mcpserver.BoundToolNames` exposes that catalog using the same role and
 recorded task-controller selection as its SDK server, without activating a

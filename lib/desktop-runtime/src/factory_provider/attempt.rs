@@ -36,14 +36,21 @@ struct Shared {
 /// joins its attempt; a request can inspect or wait without taking ownership.
 /// These native observations never decide product work or activate authority.
 pub struct RunExecution {
-    shared: Arc<Shared>,
+    view: RunView,
     cancellation: AgentCancellation,
-    observer: AgentObserver,
-    custody: RunCustody,
     thread: Option<JoinHandle<io::Result<AgentRun>>>,
 }
 
-impl RunExecution {
+/// Read-only native observations. Keeping a view never keeps execution alive
+/// after its lifecycle owner retires; dropping one never cancels that work.
+#[derive(Clone)]
+pub struct RunView {
+    shared: Arc<Shared>,
+    observer: AgentObserver,
+    custody: RunCustody,
+}
+
+impl RunView {
     pub fn custody(&self) -> RunCustody {
         self.custody.clone()
     }
@@ -81,6 +88,28 @@ impl RunExecution {
             .unwrap_or_else(|error| error.into_inner());
         observation.clone()
     }
+}
+
+impl RunExecution {
+    pub fn view(&self) -> RunView {
+        self.view.clone()
+    }
+
+    pub fn custody(&self) -> RunCustody {
+        self.view.custody()
+    }
+
+    pub fn inspect(&self, timeout: Duration) -> io::Result<AgentObservation> {
+        self.view.inspect(timeout)
+    }
+
+    pub fn observe(&self) -> AttemptObservation {
+        self.view.observe()
+    }
+
+    pub fn wait(&self, timeout: Duration) -> AttemptObservation {
+        self.view.wait(timeout)
+    }
 
     /// Cancellation requests retirement; it does not confirm the result.
     pub fn cancel(&self) {
@@ -89,19 +118,34 @@ impl RunExecution {
 
     /// Join the native owner and consume the one complete terminal result.
     pub fn finish(mut self) -> io::Result<AgentRun> {
-        self.thread
+        self.join()
+    }
+
+    fn join(&mut self) -> io::Result<AgentRun> {
+        let result = self
+            .thread
             .take()
             .expect("owned native attempt thread")
             .join()
-            .unwrap_or_else(|_| Err(io::Error::other("native attempt thread failed")))
+            .unwrap_or_else(|_| Err(io::Error::other("native attempt thread failed")));
+        if result.is_err() {
+            self.view
+                .shared
+                .observation
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .phase = AttemptPhase::Uncertain;
+            self.view.shared.changed.notify_all();
+        }
+        result
     }
 }
 
 impl Drop for RunExecution {
     fn drop(&mut self) {
-        if let Some(thread) = self.thread.take() {
+        if self.thread.is_some() {
             self.cancellation.cancel();
-            let _ = thread.join();
+            let _ = self.join();
         }
     }
 }
@@ -158,10 +202,12 @@ impl RunOwner {
                 result
             })?;
         Ok(RunExecution {
-            shared,
+            view: RunView {
+                shared,
+                observer,
+                custody,
+            },
             cancellation,
-            observer,
-            custody,
             thread: Some(thread),
         })
     }

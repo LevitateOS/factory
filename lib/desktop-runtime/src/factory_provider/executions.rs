@@ -1,0 +1,340 @@
+//! Bounded lifecycle ownership, independent of product requests and SQL.
+use super::{
+    AgentObservation, AgentRun, AttemptObservation, AttemptPhase, CustodyObservation, CustodyState,
+    ReceiptScope, RunExecution, RunOwner, RunView,
+};
+use std::collections::BTreeMap;
+use std::io;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::time::Duration;
+
+const MAX_EXECUTIONS: usize = 8;
+
+fn hex(value: &str) -> bool {
+    value.len() == 32
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn refused(message: &'static str) -> io::Error {
+    io::Error::new(io::ErrorKind::PermissionDenied, message)
+}
+
+/// Captured by trusted native composition from the admitted operation. These
+/// IDs are not product admission and do not synthesize a canonical Go address.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExecutionBinding {
+    profile: String,
+    instance: String,
+    run: String,
+    scope: String,
+    connection: String,
+}
+
+impl ExecutionBinding {
+    pub fn new(instance: &str, scope: &ReceiptScope<'_>, connection: &str) -> io::Result<Self> {
+        if !hex(instance) || !hex(connection) {
+            return Err(refused("native execution binding invalid"));
+        }
+        Ok(Self {
+            profile: scope.profile.into(),
+            instance: instance.into(),
+            run: scope.run.into(),
+            scope: scope.fingerprint(),
+            connection: connection.into(),
+        })
+    }
+
+    pub fn run(&self) -> &str {
+        &self.run
+    }
+    pub fn instance(&self) -> &str {
+        &self.instance
+    }
+}
+
+/// Requests retain only a view. Kernel queries never hold the registry while
+/// the lifecycle owner cancels and joins its attempts.
+#[derive(Clone)]
+pub struct ExecutionTicket {
+    binding: ExecutionBinding,
+    view: Option<RunView>,
+    active: Arc<AtomicBool>,
+}
+
+impl ExecutionTicket {
+    pub fn binding(&self) -> &ExecutionBinding {
+        &self.binding
+    }
+    pub fn observe(&self) -> AttemptObservation {
+        match &self.view {
+            Some(view) => view.observe(),
+            None => AttemptObservation {
+                phase: AttemptPhase::Uncertain,
+                started: None,
+            },
+        }
+    }
+    pub fn custody(&self) -> io::Result<CustodyObservation> {
+        self.view
+            .as_ref()
+            .ok_or_else(|| refused("native custody not observed"))?
+            .custody()
+            .observe()
+    }
+
+    /// Check the captured owner's lifetime before and after process I/O.
+    /// Cached phase and retained custody remain available as scoped evidence;
+    /// consumers still apply their current product/context admission.
+    pub fn inspect(&self, timeout: Duration) -> io::Result<AgentObservation> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        let result = self
+            .view
+            .as_ref()
+            .ok_or_else(|| refused("native process not observed"))?
+            .inspect(timeout);
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        result
+    }
+}
+
+#[derive(Clone)]
+pub enum ExecutionOutcome {
+    Pending,
+    Complete(Arc<AgentRun>),
+    Uncertain,
+}
+
+struct Entry {
+    ticket: ExecutionTicket,
+    execution: Option<RunExecution>,
+    outcome: ExecutionOutcome,
+}
+
+impl Entry {
+    fn reap(&mut self, join: bool) {
+        let terminal = matches!(
+            self.ticket.observe().phase,
+            AttemptPhase::Retired | AttemptPhase::Uncertain
+        );
+        if (join || terminal) && self.execution.is_some() {
+            self.outcome = match self.execution.take().unwrap().finish() {
+                Ok(result) => ExecutionOutcome::Complete(Arc::new(result)),
+                Err(_) => ExecutionOutcome::Uncertain,
+            };
+        }
+    }
+}
+
+pub struct RetirementReport {
+    pub binding: ExecutionBinding,
+    pub attempt: AttemptObservation,
+    pub custody: io::Result<CustodyObservation>,
+    pub outcome: ExecutionOutcome,
+}
+
+/// One native profile/runtime lifetime. Capacity counts retained unacknowledged
+/// entries too, bounding native result memory and fencing uncertain cleanup.
+/// The host, rather than a request or browser, must retain this object.
+pub struct Executions {
+    profile: String,
+    instance: String,
+    capacity: usize,
+    active: Arc<AtomicBool>,
+    entries: BTreeMap<String, Entry>,
+}
+
+impl Executions {
+    /// Native composition holds the profile's exclusive lifecycle lock and
+    /// supplies its actual current instance. Constructing this owner grants no
+    /// product authority; callers must admit each operation before its factory.
+    pub fn new(profile: &str, instance: &str, capacity: usize) -> io::Result<Self> {
+        if !hex(profile) || !hex(instance) || !(1..=MAX_EXECUTIONS).contains(&capacity) {
+            return Err(refused("native execution owner configuration invalid"));
+        }
+        Ok(Self {
+            profile: profile.into(),
+            instance: instance.into(),
+            capacity,
+            active: Arc::new(AtomicBool::new(true)),
+            entries: BTreeMap::new(),
+        })
+    }
+
+    fn entry(&mut self, binding: &ExecutionBinding) -> io::Result<&mut Entry> {
+        if binding.profile != self.profile || binding.instance != self.instance {
+            return Err(refused("native execution lifetime differs"));
+        }
+        let entry = self
+            .entries
+            .get_mut(&binding.run)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "native execution not owned"))?;
+        if &entry.ticket.binding != binding {
+            return Err(refused("native execution scope differs"));
+        }
+        Ok(entry)
+    }
+
+    /// Retain one already admitted native operation. The lazy factory runs only
+    /// after scope/capacity checks and must supply the matching staged owner.
+    /// An exact binding replay returns its existing view without another launch
+    /// or extending its original deadline. Product admission stays in Go.
+    #[allow(clippy::too_many_arguments)]
+    pub fn ensure(
+        &mut self,
+        binding: ExecutionBinding,
+        create: impl FnOnce() -> io::Result<RunOwner>,
+        prompt: Vec<u8>,
+        executable: PathBuf,
+        duration: Duration,
+    ) -> io::Result<ExecutionTicket> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        if binding.profile != self.profile || binding.instance != self.instance {
+            return Err(refused("native execution lifetime differs"));
+        }
+        if self.entries.contains_key(&binding.run) {
+            return self.ticket(&binding);
+        }
+        if self.entries.len() >= self.capacity {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "native execution capacity retained",
+            ));
+        }
+        let prepared = (|| {
+            let owner = create()?;
+            let custody = owner.custody();
+            let observed = custody.observe()?;
+            if !custody.matches(
+                &binding.run,
+                &binding.profile,
+                &binding.scope,
+                &binding.connection,
+            ) || observed.state != CustodyState::Held
+                || observed.sealed
+            {
+                return Err(refused("native execution owner differs from binding"));
+            }
+            owner.spawn(prompt, executable, duration)
+        })();
+        let execution = match prepared {
+            Ok(execution) => execution,
+            Err(error) => {
+                // A failed native factory may have effects without a usable
+                // handle. Keep its slot and identity until reconciliation;
+                // never rerun it or invent NotAcquired from the error.
+                let ticket = ExecutionTicket {
+                    binding: binding.clone(),
+                    view: None,
+                    active: self.active.clone(),
+                };
+                self.entries.insert(
+                    binding.run,
+                    Entry {
+                        ticket,
+                        execution: None,
+                        outcome: ExecutionOutcome::Uncertain,
+                    },
+                );
+                return Err(error);
+            }
+        };
+        let ticket = ExecutionTicket {
+            binding: binding.clone(),
+            view: Some(execution.view()),
+            active: self.active.clone(),
+        };
+        self.entries.insert(
+            binding.run,
+            Entry {
+                ticket: ticket.clone(),
+                execution: Some(execution),
+                outcome: ExecutionOutcome::Pending,
+            },
+        );
+        Ok(ticket)
+    }
+
+    pub fn ticket(&mut self, binding: &ExecutionBinding) -> io::Result<ExecutionTicket> {
+        let entry = self.entry(binding)?;
+        entry.reap(false);
+        Ok(entry.ticket.clone())
+    }
+
+    pub fn outcome(&mut self, binding: &ExecutionBinding) -> io::Result<ExecutionOutcome> {
+        let entry = self.entry(binding)?;
+        entry.reap(false);
+        Ok(entry.outcome.clone())
+    }
+
+    pub fn cancel(&mut self, binding: &ExecutionBinding) -> io::Result<()> {
+        let entry = self.entry(binding)?;
+        if let Some(execution) = &entry.execution {
+            execution.cancel();
+        } else if matches!(entry.outcome, ExecutionOutcome::Uncertain) {
+            return Err(refused(
+                "native execution cancellation requires reconciliation",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Drop only the in-memory completed entry after its product owner records
+    /// the result. Retained native evidence stays intact; uncertain entries
+    /// require reconciliation and cannot silently free native capacity.
+    pub fn acknowledge(&mut self, binding: &ExecutionBinding, acquisition: &str) -> io::Result<()> {
+        let entry = self.entry(binding)?;
+        entry.reap(false);
+        let custody = entry.ticket.custody()?;
+        if !matches!(entry.outcome, ExecutionOutcome::Complete(_))
+            || !custody.sealed
+            || custody.state != CustodyState::Released
+            || custody.acquisition_id != acquisition
+        {
+            return Err(refused("native execution acknowledgement unconfirmed"));
+        }
+        self.entries.remove(&binding.run);
+        Ok(())
+    }
+
+    /// Fence launches and queries, cancel every owned handle before joining one,
+    /// then report all independent outcomes and custody facts. Failure of one
+    /// run never skips retirement of the others.
+    pub fn retire(&mut self) -> Vec<RetirementReport> {
+        self.active.store(false, Ordering::SeqCst);
+        for entry in self.entries.values() {
+            if let Some(execution) = &entry.execution {
+                execution.cancel();
+            }
+        }
+        self.entries
+            .values_mut()
+            .map(|entry| {
+                entry.reap(true);
+                RetirementReport {
+                    binding: entry.ticket.binding.clone(),
+                    attempt: entry.ticket.observe(),
+                    custody: entry.ticket.custody(),
+                    outcome: entry.outcome.clone(),
+                }
+            })
+            .collect()
+    }
+}
+
+impl Drop for Executions {
+    fn drop(&mut self) {
+        let _ = self.retire();
+    }
+}

@@ -56,7 +56,7 @@ are under `/home/vince/tmp/factory-native-observe-v2-20261105/`; result SHA-256 
 This is a tiny local ELF with dummy-only credentials and retained build inputs.
 It does not prove actual Muse liveness, canonical Go capability activation,
 current work/placement joins, crash/reboot recovery or D3. The exact remaining
-dependency is a lifecycle-owned native registry/Go current-run adapter joining
+dependency is composition of the native registry/Go current-run adapter joining
 these process facts to the captured run and custody, then complete admitted
 worker/tool/settlement qualification. Current positive process facts alone grant
 no product authority.
@@ -98,8 +98,8 @@ prove actual Muse/Meta cancellation, an installed connected account, canonical
 Go custody/admission facts, interrupted owner/revision updates, crash/reboot or
 ledger settlement. The guard retains the existing conservative profile-wide
 local-change notification behavior; multi-account product behavior was not
-qualified here. The remaining dependency is a lifecycle-owned execution/custody
-registry and the current Go observer, followed by complete finite-provider,
+qualified here. The remaining dependency is the native registry's production
+composition and the current Go observer, followed by complete finite-provider,
 withdrawal, Quit and restart reconciliation evidence. D3 remains open.
 
 Native custody now has a separate producer in
@@ -134,7 +134,7 @@ session ended. Evidence is under
 post-session read SHA-256 is
 `6b397387fe929dd8e1546c397ff379903178d71abd1775668172ad58eeea1c6c`.
 
-The exact remaining dependency is the lifecycle-owned native registry and the
+The exact remaining dependency is composition of the native registry and the
 Go `execution.CustodyObserver` / current-run adapter, comparing these facts to the
 captured canonical run/placement/acquisition before any capability activation or
 settlement. Relevant Go files are `pkg/factory/execution/{provenance,observation,
@@ -148,6 +148,52 @@ power loss. Historical missing custody must stay unknown; do not synthesize an
 acquisition or authorize replay from an old receipt. These are ordinary
 implementation/qualification tasks; route hacking-like checks to user-started
 Daybreak. D3 remains open.
+
+The native lifecycle registry producer now exists in
+`factory_provider/executions.rs`, using the same `RunExecution` owner and new
+read-only `RunView` in `attempt.rs`. `ExecutionBinding` captures a native
+profile/instance, exact receipt-scope digest and provider connection. Exact
+replay does not invoke its factory or extend a deadline; changed scope/lifetime
+refuses. Capacity counts all retained entries, including unacknowledged results
+and failed/unconfirmed preparation. Only a complete result with matching
+acquisition and sealed/released custody can acknowledge its memory slot.
+Evidence is never deleted by acknowledgement. Unobserved factory errors remain
+uncertain, retain capacity and cannot fabricate process/custody or rerun work.
+Tickets check lifetime before/after kernel I/O without holding the registry;
+retirement fences launches/queries, cancels all owned handles before joining
+any, and reports independent run and custody results. These facts do not grant
+product admission or establish a canonical Go/native identity mapping.
+
+The existing disposable native fixture passed request-drop ownership, exact
+process replay, changed/stale scope refusal, retained finite output, capacity
+including completed entries, wrong/correct acquisition acknowledgement, two-run
+joined cancellation and registry drop. A query remained pending against a
+paused disposable agent; retirement still joined all workers and released no
+retired observation. Cancelled outcomes stayed uncertain despite proven custody
+release, and could not acknowledge away their slots. A declared factory error
+remained unobserved/uncertain without retry. Exact fixture root disposal and
+temporary service removal completed. Final result/driver are under
+`/home/vince/tmp/factory-native-registry-v2-20261105/`; result SHA-256 is
+`447524942d2c870e6c4aca51e7ef8ea1c50e8243e04a088763475109ee4a7d48`.
+This used local ELFs, dummy keyring credentials, retained inputs and declared
+profile/instance metadata; no actual Muse/Go admission or installed Quit ran.
+
+Remaining blockers are concrete. `Executions::ensure` currently calls its
+preparation factory synchronously; cancellable lifecycle-owned staging must
+handle Quit/failure while that operation is pending, with bounded all-run
+retirement and no detached work. An uncertain factory has no usable owned
+handle; recovery must compare captured intent, root and custody evidence before
+claiming no effects or freeing its slot. `supervisor.rs` does not yet retain
+this registry, and its existing `Children::start` broker reconciliation still
+precedes availability of the Go ledger. Compose startup/retirement and the Go
+`RunLauncher`/`RunObserver`/`CustodyObserver` ports without activating intake
+before dependencies are admitted. Compare canonical Go addresses and placement
+against native profile/instance/broker selectors explicitly. Prove interrupted
+staging, lost replies, supervisor/worker death, actual finite provider handling,
+Quit, full restart/reboot and atomic ledger settlement. The normal registry
+check and one paused-agent query do not close those gates. D3 remains open;
+these ordinary implementation/check tasks do not require Daybreak unless a
+particular check looks like hacking.
 
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
