@@ -268,9 +268,22 @@ capability. A missing-port run returned 503 with no callback. Separate pending
 operations were dropped on credential withdrawal and owner cancellation;
 uncertain cancellation retained its root launch evidence. All exact services
 retired. These checks used a private dummy keyring and no model request. The
-actual Muse model request/response policy still admits only its builtin
-`muse` namespace; Factory tool negotiation and execution need the next cutover
-before a real finite provider task can qualify D3.
+native model policy now also accepts the exact `mcp__factory` catalog captured
+in the trusted `WorkerMcp` binding. That binding requires canonical Go names
+such as `factory.context`; Rust adapts them to CLI aliases such as
+`factory_context`. It does not choose role authority from the worker's offered
+schemas. A missing, changed or duplicate catalog refuses, while builtin `muse`
+tools retain their native reviewer/coder filter. Complete provider responses
+must select the offered qualified ID, such as
+`mcp__factory.factory_context`, and retain the same SSE item/execution call ID.
+A local scripted Responses/MCP check with the current CLI executed the qualified
+tool and returned its result under the worker's existing headless approval mode.
+The native component check accepted those captured requests/replies and the
+24-tool catalog returned by Go's bound handler, and refused mismatched catalogs,
+namespaces and call identities. The scripted provider used retained nonsecret
+catalog metadata and no real inference. Production native listener/current-run
+admission, canonical capability/signing-key composition and a real finite
+provider task still need qualification before D3 can close.
 The execution receipt now carries the process owner's invocation ID, boot ID,
 start tick, start time, namespace PID and exit code/signal for later native
 provenance binding. These added fields have source/build validation; the prior

@@ -9,7 +9,9 @@ mod receipt;
 mod response;
 mod run;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution};
-pub use broker::{AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation};
+pub use broker::{
+    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
+};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
@@ -50,7 +52,13 @@ pub struct Admitted {
     pub route: Route,
     pub body: Vec<u8>,
     pub output_tokens: u64,
-    pub offered_tools: BTreeSet<String>,
+    pub offered_tools: BTreeSet<OfferedTool>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OfferedTool {
+    pub namespace: String,
+    pub name: String,
 }
 
 pub struct Budget {
@@ -104,6 +112,7 @@ pub struct Policy {
     output_left: u64,
     model_reads_left: u8,
     retired: bool,
+    mcp_tools: BTreeSet<String>,
 }
 impl Policy {
     /// Values come from a trusted run admission, never an IPC request body.
@@ -140,7 +149,18 @@ impl Policy {
             output_left: budget.output_tokens,
             model_reads_left: 2,
             retired: false,
+            mcp_tools: BTreeSet::new(),
         })
+    }
+
+    /// Capture the defining Go catalog carried by the trusted exact-run port.
+    /// This does not infer role authority from a worker's advertised schemas.
+    pub fn bind_mcp(&mut self, mcp: &WorkerMcp) -> Result<(), Error> {
+        if self.run != mcp.run || !self.mcp_tools.is_empty() {
+            return Err(Error::Invalid);
+        }
+        self.mcp_tools = mcp.tools.clone();
+        Ok(())
     }
 
     pub fn run(&self) -> &str {
@@ -256,55 +276,79 @@ impl Policy {
             .get_mut("tools")
             .and_then(Value::as_array_mut)
             .ok_or(Error::Invalid)?;
-        if tools.len() != 1
-            || tools[0].get("type").and_then(Value::as_str) != Some("namespace")
-            || tools[0].get("name").and_then(Value::as_str) != Some("muse")
-        {
+        if tools.is_empty() || tools.len() > 2 {
             return Err(Error::Invalid);
         }
-        let namespace = tools[0].as_object().ok_or(Error::Invalid)?;
-        if namespace
-            .keys()
-            .any(|key| !["type", "name", "description", "tools"].contains(&key.as_str()))
-            || !namespace.get("description").is_some_and(Value::is_string)
-        {
-            return Err(Error::Invalid);
-        }
-        let nested = tools[0]
-            .get_mut("tools")
-            .and_then(Value::as_array_mut)
-            .ok_or(Error::Invalid)?;
-        let mut names = BTreeSet::new();
-        if nested.len() > 32
-            || nested.iter().any(|tool| {
-                let Some(function) = tool.as_object() else {
-                    return true;
-                };
-                function.keys().any(|key| {
-                    !["type", "name", "description", "parameters", "strict"].contains(&key.as_str())
-                }) || function.get("type").and_then(Value::as_str) != Some("function")
-                    || !function.get("description").is_some_and(Value::is_string)
-                    || !function.get("parameters").is_some_and(Value::is_object)
-                    || function
-                        .get("strict")
-                        .is_some_and(|value| !value.is_boolean())
-                    || !function
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .is_some_and(|name| names.insert(name.to_owned()))
-            })
-        {
-            return Err(Error::Invalid);
-        }
-        nested.retain(|tool| {
-            tool.get("name")
+        let mut namespaces = BTreeSet::new();
+        let mut offered_tools = BTreeSet::new();
+        for namespace in tools {
+            let fields = namespace.as_object().ok_or(Error::Invalid)?;
+            let name = fields
+                .get("name")
                 .and_then(Value::as_str)
-                .is_some_and(|name| allowed(self.role, name))
-        });
-        let offered_tools = nested
-            .iter()
-            .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_owned))
-            .collect();
+                .ok_or(Error::Invalid)?
+                .to_owned();
+            if fields.get("type").and_then(Value::as_str) != Some("namespace")
+                || !matches!(name.as_str(), "muse" | "mcp__factory")
+                || !namespaces.insert(name.clone())
+                || fields
+                    .keys()
+                    .any(|key| !["type", "name", "description", "tools"].contains(&key.as_str()))
+                || !fields.get("description").is_some_and(Value::is_string)
+            {
+                return Err(Error::Invalid);
+            }
+            let nested = namespace
+                .get_mut("tools")
+                .and_then(Value::as_array_mut)
+                .ok_or(Error::Invalid)?;
+            let mut names = BTreeSet::new();
+            if nested.len() > if name == "muse" { 32 } else { 128 }
+                || nested.iter().any(|tool| {
+                    let Some(function) = tool.as_object() else {
+                        return true;
+                    };
+                    function.keys().any(|key| {
+                        !["type", "name", "description", "parameters", "strict"]
+                            .contains(&key.as_str())
+                    }) || function.get("type").and_then(Value::as_str) != Some("function")
+                        || !function.get("description").is_some_and(Value::is_string)
+                        || !function.get("parameters").is_some_and(Value::is_object)
+                        || function
+                            .get("strict")
+                            .is_some_and(|value| !value.is_boolean())
+                        || !function
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .is_some_and(|name| names.insert(name.to_owned()))
+                })
+            {
+                return Err(Error::Invalid);
+            }
+            if name == "muse" {
+                nested.retain(|tool| {
+                    tool.get("name")
+                        .and_then(Value::as_str)
+                        .is_some_and(|name| allowed(self.role, name))
+                });
+            } else if self.mcp_tools.is_empty() || names != self.mcp_tools {
+                return Err(Error::Invalid);
+            }
+            offered_tools.extend(
+                nested
+                    .iter()
+                    .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+                    .map(|tool| OfferedTool {
+                        namespace: name.clone(),
+                        name: tool.to_owned(),
+                    }),
+            );
+        }
+        if !namespaces.contains("muse")
+            || namespaces.contains("mcp__factory") != !self.mcp_tools.is_empty()
+        {
+            return Err(Error::Invalid);
+        }
         // Keep provider cache affinity inside this admitted run. The isolated
         // worker may ask for a key, but it cannot link another run's context.
         object.insert("prompt_cache_key".into(), Value::from(self.run.clone()));

@@ -160,6 +160,11 @@ impl BoundOwner {
         {
             return Err(refused("worker MCP differs from admitted run"));
         }
+        self.policy
+            .as_mut()
+            .ok_or_else(|| refused("provider run unavailable"))?
+            .bind_mcp(&mcp)
+            .map_err(|_| refused("worker MCP catalog differs from admitted run"))?;
         self.mcp = Some(mcp);
         Ok(self)
     }

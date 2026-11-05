@@ -25533,3 +25533,36 @@ join, production Go native MCP listener/current-run observer, full Muse
 Factory-tool policy or real model task ran. The provider policy still accepts
 only builtin `muse` tools and must be cut over to the actual Factory namespace
 with response validation before a real finite task. N3, N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR Factory model-tool contract (2026-11-05): the current
+official-stable Muse `1.4.14-R7309.1` sent a 126,704-byte local fixture request
+containing builtin `muse` and role-filtered `mcp__factory` namespaces. Its
+Factory aliases use underscores (`factory_context`), while response dispatch
+requires the qualified ID (`mcp__factory.factory_context`). A scripted reply
+with only an unqualified name returned an unknown-tool result despite CLI exit
+zero; a later fixture used the exact qualified ID and the worker's existing
+headless approval mode, observed a real local `tools/call`, returned `local
+fixture` and completed. Earlier malformed SSE and default-approval fixtures
+were retained as failed checks. The empty fake model catalog required a copy
+of retained nonsecret catalog metadata; this is fixture data, not a fresh
+provider catalog or real inference. All provider/MCP traffic stayed local.
+Rust's trusted `WorkerMcp` port now requires the canonical Go tool-name catalog
+before launch and binds its aliases into the model policy. Requests must
+advertise that exact catalog; builtin reviewer/coder filtering stays separate.
+Offered response identities now include namespace/name, and repeated SSE
+records must retain both item ID and execution `call_id`. Unqualified,
+conflicting or unoffered functions refuse before response bytes reach the CLI.
+The existing native component fixture accepted the actual CLI requests,
+Go's defining 24-tool Inspector catalog and the successfully executed scripted
+replies, and refused absent/changed/duplicate catalogs, namespace changes,
+unoffered writers and changed call identities. Locked offline runtime checking
+and touched-file formatting passed. Evidence is external under
+`/home/vince/tmp/factory-native-mcp-model-20261105/` and
+`/home/vince/tmp/factory-native-mcp-scripted-v4-20261105/`; the positive CLI result
+SHA-256 is `a2c1f9dd0a3b49b3ba34aae18f313552d3dec36c079e11a1d38b7397e37e7cb1`,
+and native policy result SHA-256 is
+`fcd10d8884e80100d03374c9f15628d1f7246bdc8d9b017aa098df909965643d`.
+No real provider response, canonical SQL capability admission, native signer
+join or production coordinator/worker settlement ran. The trusted Go consumer
+must supply this catalog from the same server definition before launch, then
+qualify the complete path. N3, N4 and D3 remain open.

@@ -1,61 +1,107 @@
 //! Validate a complete provider SSE response before any of its bytes reach an
 //! isolated CLI. A model reply cannot add tools that the run did not offer.
+use super::OfferedTool;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_EVENTS: usize = 65_536;
 
-fn bind(calls: &mut BTreeMap<String, String>, id: &str, name: &str) -> bool {
-    if id.is_empty() || id.len() > 256 {
+struct Call {
+    tool: OfferedTool,
+    call_id: String,
+}
+
+fn bind(calls: &mut BTreeMap<String, Call>, id: &str, call_id: &str, tool: &OfferedTool) -> bool {
+    if id.is_empty() || id.len() > 256 || call_id.is_empty() || call_id.len() > 256 {
         return false;
     }
     match calls.get(id) {
-        Some(prior) => prior == name,
+        Some(prior) => prior.tool == *tool && prior.call_id == call_id,
         None => {
-            calls.insert(id.to_owned(), name.to_owned());
+            calls.insert(
+                id.to_owned(),
+                Call {
+                    tool: tool.clone(),
+                    call_id: call_id.to_owned(),
+                },
+            );
             true
         }
     }
 }
 
+fn tool<'a>(value: &Value, offered: &'a BTreeSet<OfferedTool>) -> Option<&'a OfferedTool> {
+    // The CLI dispatches the qualified name. A separate namespace field alone
+    // does not select its registered MCP tool; contradictory fields refuse.
+    let (namespace, name) = value.get("name")?.as_str()?.split_once('.')?;
+    if value
+        .get("namespace")
+        .is_some_and(|value| value.as_str() != Some(namespace))
+    {
+        return None;
+    }
+    offered
+        .iter()
+        .find(|tool| tool.namespace == namespace && tool.name == name)
+}
+
 fn permitted(
     value: &Value,
-    offered: &BTreeSet<String>,
-    calls: &mut BTreeMap<String, String>,
+    offered: &BTreeSet<OfferedTool>,
+    calls: &mut BTreeMap<String, Call>,
 ) -> bool {
     match value {
         Value::Array(items) => items.iter().all(|item| permitted(item, offered, calls)),
         Value::Object(fields) => {
             if let Some(kind) = fields.get("type").and_then(Value::as_str) {
                 if kind == "function_call" {
-                    let Some(name) = fields.get("name").and_then(Value::as_str) else {
+                    let Some(tool) = tool(value, offered) else {
                         return false;
                     };
-                    if !offered.contains(name)
-                        || fields
-                            .get("namespace")
-                            .is_some_and(|value| value.as_str() != Some("muse"))
-                    {
-                        return false;
-                    }
                     let Some(id) = fields.get("id").and_then(Value::as_str) else {
                         return false;
                     };
-                    if !bind(calls, id, name) {
+                    let Some(call_id) = fields.get("call_id").and_then(Value::as_str) else {
+                        return false;
+                    };
+                    if !bind(calls, id, call_id, tool) {
                         return false;
                     }
-                } else if kind.starts_with("response.function_call_arguments.")
-                    && fields.get("name").is_some_and(|value| {
-                        value.as_str().is_none_or(|name| {
-                            !offered.contains(name)
-                                || fields
-                                    .get("item_id")
-                                    .and_then(Value::as_str)
-                                    .is_none_or(|id| !bind(calls, id, name))
-                        })
-                    })
-                {
-                    return false;
+                } else if kind.starts_with("response.function_call_arguments.") {
+                    if fields.contains_key("name") {
+                        let Some(tool) = tool(value, offered) else {
+                            return false;
+                        };
+                        if fields
+                            .get("item_id")
+                            .and_then(Value::as_str)
+                            .and_then(|id| calls.get(id))
+                            .is_none_or(|call| call.tool != *tool)
+                        {
+                            return false;
+                        }
+                    } else if let Some(namespace) = fields.get("namespace") {
+                        if namespace.as_str().is_none_or(|namespace| {
+                            fields
+                                .get("item_id")
+                                .and_then(Value::as_str)
+                                .and_then(|id| calls.get(id))
+                                .is_none_or(|call| call.tool.namespace != namespace)
+                        }) {
+                            return false;
+                        }
+                    }
+                    if let Some(call_id) = fields.get("call_id") {
+                        if call_id.as_str().is_none_or(|call_id| {
+                            fields
+                                .get("item_id")
+                                .and_then(Value::as_str)
+                                .and_then(|id| calls.get(id))
+                                .is_none_or(|call| call.call_id != call_id)
+                        }) {
+                            return false;
+                        }
+                    }
                 } else if kind.contains("tool")
                     || kind.contains("mcp")
                     || kind.contains("web_search")
@@ -76,7 +122,7 @@ fn permitted(
     }
 }
 
-pub(super) fn admitted_sse(bytes: &[u8], offered: &BTreeSet<String>) -> bool {
+pub(super) fn admitted_sse(bytes: &[u8], offered: &BTreeSet<OfferedTool>) -> bool {
     let Ok(text) = std::str::from_utf8(bytes) else {
         return false;
     };

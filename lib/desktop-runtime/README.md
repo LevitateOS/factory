@@ -556,3 +556,12 @@ unconfirmed result remains `Uncertain`, with root launch evidence preserved
 even when the credential owner is dropped. Go still owns admission, ledger
 settlement and recovery decisions. This handle is not yet composed into the
 production supervisor or coordinator.
+
+`WorkerMcp` also captures the defining Go tool-name catalog before launch.
+The native model policy accepts its exact `mcp__factory` aliases alongside
+filtered builtin `muse` tools, and validates complete SSE replies against the
+qualified namespace/name plus stable item and execution call IDs. Workers
+cannot replace that catalog through model schemas. This boundary adaptation
+keeps Go's role/tool decisions in Go. The installed CLI's qualified Factory
+call was exercised with a local scripted provider; actual Meta output and the
+fully admitted native/Go execution path remain unqualified.
