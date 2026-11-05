@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 86
+const schemaFormatVersion = 87
 
 // schemaStatements creates the current PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -19,7 +19,7 @@ var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
 	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY)`,
-	`INSERT INTO schema_version(version) VALUES(86)`,
+	`INSERT INTO schema_version(version) VALUES(87)`,
 	`CREATE TABLE applications(id TEXT PRIMARY KEY, administrator_id BIGINT NOT NULL CHECK(administrator_id>0), name TEXT NOT NULL, data_id TEXT NOT NULL UNIQUE, owner_team TEXT NOT NULL, origin TEXT NOT NULL UNIQUE, hostname TEXT NOT NULL UNIQUE, port INTEGER NOT NULL UNIQUE CHECK(port>=20000 AND port<30000), revision BIGINT NOT NULL CHECK(revision>0), observation JSONB CHECK(observation IS NULL OR octet_length(observation::text)<=2048))`,
 	`CREATE TABLE application_revisions(application_id TEXT NOT NULL REFERENCES applications(id), revision BIGINT NOT NULL CHECK(revision>0), spec JSONB NOT NULL CHECK(octet_length(spec::text)<=4096), PRIMARY KEY(application_id,revision))`,
 	`CREATE TABLE application_projects(application_id TEXT PRIMARY KEY REFERENCES applications(id), repository BIGINT NOT NULL CHECK(repository>0))`,
@@ -475,7 +475,7 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 		}
 		version = 69
 	} else if version != SchemaVersion() {
-		if version != 69 && version != 70 && version != 71 && version != 72 && version != 73 && version != 74 && version != 75 && version != 76 && version != 77 && version != 78 && version != 79 && version != 80 && version != 81 && version != 82 && version != 83 && version != 84 && version != 85 {
+		if version != 69 && version != 70 && version != 71 && version != 72 && version != 73 && version != 74 && version != 75 && version != 76 && version != 77 && version != 78 && version != 79 && version != 80 && version != 81 && version != 82 && version != 83 && version != 84 && version != 85 && version != 86 {
 			return errors.New("database schema differs from this application")
 		}
 	}
@@ -631,6 +631,15 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 			}
 		}
 		version = 86
+	}
+	if version == 86 {
+		for _, statement := range HumanReviewRequestDispatchUpgradeDDL {
+			if _, err = t.ExecContext(ctx, statement); err != nil {
+				rollback()
+				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate human reviewer-request dispatch: %w", err))
+			}
+		}
+		version = 87
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err

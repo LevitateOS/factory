@@ -28394,3 +28394,85 @@ remain pending. T11-WRITES stays Active. D1/D2/D3/D5, custody/root absence/scope
 delivery, installed IPC/window/instance admission, worker isolation/execution/
 retirement/settlement and release/upgrade/freshness remain open. The full product
 is unfinished; no broad security gate was closed by these declared checks.
+
+### T11-WRITES checkpoint: one-shot canonical reviewer-request dispatch (2026-11-05)
+
+The existing `pull_request.review.request` capture now uses the defining Store
+row-lock reservation/cancellation protocol through typed methods in
+`pkg/store/factory_human_review_request_dispatch.go`. No second journal or
+provider state machine was added. Exact binding includes canonical user versus
+team target, desired requested state, host/repository/actor/PR, authority,
+operation and byte-exact opaque preparation. A valid saved unfinished NotObserved
+lookup can claim once. Only receiving true after commit permits one send;
+reserved state and a lost commit reply cannot recover ownership. Cancellation
+shares the row lock, retaining a final no-effect tombstone before reservation and
+uncertainty afterward. Remote idempotent hosts keep their own cancellation owner.
+
+`factory_human_review_request.go` now shares observation persistence between
+ordinary replies and transactional cancellation. The typed outcome reducer uses
+the existing cancellation-uncertainty retention helper, preserving late known
+primary effects/no-effects without mutating the caller's observation or asserting
+that cancellation succeeded. Canonical target registry existence still conveys
+neither membership, provider permission nor mutation authority.
+
+Schema 87 adds reviewer requests to the immutable command guard and fences actual
+schema-86 captures as `legacy_unknown` without rewriting any command identity,
+user/team intent, preparation or outcome. Version-qualified migration prevents
+stale concurrent replay from fencing captures created after upgrade. Other command
+protocols remain supported by the same guard. Fresh and upgraded stores retain
+all existing terminal/reservation immutability rules.
+
+The existing owned PostgreSQL dispatch acceptance was extended under
+`/home/vince/tmp/factory-reviewer-dispatch-1105/`. The historical seeder was built
+from the unmodified `dfaf9ed` schema-86 source archive. It retained not-observed,
+cancelled, unknown and committed reviewer outcomes across both user and team
+intent. Current fresh schema 87 and actual-86-upgrade runs both exited 0, including
+concurrent upgrading processes and stale migration DDL replay.
+
+Coverage: 12 exact-capture/lookup conflicts; user and team targets with the same
+numeric canonical ID remaining distinct; both requesting and removing intent;
+four invalid target unions; four missing/foreign-host target capture refusals
+without creating a command; absent/unsuitable lookup refusal; one winner among
+32 concurrent claims; 32 reservation/cancellation races in each run; late known
+causal/no-effect results retaining cancellation uncertainty without caller mutation;
+immutable SQL capture/reservation/terminal guards; and comment/lock/thread protocol
+regressions. Fresh races observed 25 reservation winners and seven cancellation
+winners; upgraded races observed 27 and five. Retained restart and actual owned
+PostgreSQL child crash/WAL recovery preserved known outcomes and unresolved fences,
+with clean native shutdown. These are persistence observations, not provider
+permission or installed qualification.
+
+| Artifact under `/home/vince/tmp/factory-reviewer-dispatch-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `9b32cf8477de082231302f6555c729603d3079598fcde1964e1c5812cdf06db8` |
+| `shared.go` | `633cd3c996c26a17c300c6643dcbe00746125fa6aebc845c7171ac0b38f9f2a6` |
+| `legacy.go` | `98d5f8582307f75e8e689131c28491c8a9c20e59075e1886cc7c7552c6fd200d` |
+| `check` | `76ccf6403b6c77ed474b49f7ad728aef5a20c82c91a181bd73d1a6fd7f80b22d` |
+| `legacy` | `ba7d363d210d438b4f109a82fc16c8f9923bb8ff0408469c421a16874450eeed` |
+| `soda-factory-server` | `4edfdefba5a6ec1293108e89688bd99bd27da05f327a5bacba8723dcdf1a0d4d` |
+| `fresh-a1.log` | `1a9d1ea746aa360e11ca143a0870a38c33d954a0f68fc42b51fa259c1bf0d093` |
+| `legacy-a1.log` | `4bf798545126c91b3a64681fdb2053ccdb24b2d7bf4af5abf0ed2c9cf95220f1` |
+
+Production Go Store/runtime/backend builds, ownership boundaries and whitespace
+checks passed with captured inputs. No dependency, unit test or unit-test root
+was added. The Store prerequisite is resolved; no native reviewer effect/callback,
+Go product writer, shared capability or real provider write was activated.
+
+Next dependency: bounded Rust authenticated user/team target observations and
+request/removal effects, then their admitted native callback and canonical Go
+writer using the saved fence. The
+[documented REST removal contract](https://docs.github.com/en/rest/pulls/review-requests#remove-requested-reviewers-from-a-pull-request),
+checked 2026-11-05, accepts user logins and team slugs. Immutable selected target
+binding across name changes and preserving unrelated reviewer requests need a
+supported provider policy/implementation and actual evidence; SQL target identity
+alone cannot prove them. Do not replace a whole reviewer set to implement a
+single-target intent without the required semantics and evidence.
+
+Current account/repository/PR/target membership and permission, no-op versus causal
+outcome, ambiguous reply/replay/cancel/races/withdrawal/restart, original captured
+deadlines and fresh specifically owner-authorized actual provider/readback/shared
+UI checks remain pending. The thread full-original-context and conversation/
+visibility/transfer limitations above remain open. T11-WRITES stays Active. D1/D2/
+D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance,
+worker isolation/execution/retirement/settlement and release/upgrade/freshness
+retain earlier blockers. The full product remains unfinished.

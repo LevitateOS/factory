@@ -2406,3 +2406,49 @@ actual evidence. D1/D2/D3/D5, credential root absence/scoped delivery, installed
 IPC/window/instance, worker isolation/execution/retirement/settlement and release/
 upgrade/freshness retain their earlier dependencies and closure evidence. No broad
 security gate or Daybreak work was completed; routine independent work continues.
+
+T11-WRITES reviewer-request one-shot Store prerequisite (2026-11-05):
+`pkg/store/factory_human_review_request_dispatch.go` now shares exact capture
+state/reservation/cancellation with `factory_command_dispatch.go`.
+`factory_human_review_request.go` shares observation persistence, and
+`pkg/factory/human_review_request_outcomes.go` retains late known primary results
+and uncertain cancellation without mutating the caller. Schema 87
+(`schema.go`, `schema_command_dispatch.go`) fences actual schema-86 reviewer
+captures as legacy-unknown while preserving intent, preparation and outcomes.
+No claim can be recovered from reserved state; current authority must still be
+admitted by the future native/Go product consumer.
+
+Fresh and actual-86-upgraded PostgreSQL checks passed 12 capture conflicts,
+separate user/team identity despite equal numeric IDs, request/removal intent,
+four invalid unions, four missing/foreign target refusals without a command,
+one of 32 claims, 32 cancellation races per run, late known/no-effect results,
+immutable SQL guards and comment/lock/thread regressions. Concurrent upgrade,
+stale DDL, retained restart, owned-child WAL recovery and clean shutdown passed.
+Evidence `/home/vince/tmp/factory-reviewer-dispatch-1105/`, fresh log SHA-256
+`1a9d1ea746aa360e11ca143a0870a38c33d954a0f68fc42b51fa259c1bf0d093`, upgraded
+log `4bf798545126c91b3a64681fdb2053ccdb24b2d7bf4af5abf0ed2c9cf95220f1`.
+The canonical plan records source/baseline/executable identities. This proves local
+journal and namespace behavior, not remote target membership/permission or any
+provider/installed gate.
+
+Exact remaining reviewer blocker: complete Rust authenticated target reads and
+request/removal effects under `github_provider`, then typed `collaboration.rs`
+callback and Go canonical writer using this fence and current custody/deadline.
+Canonical registry existence or a name must not stand in for current provider
+permission or selected immutable user/team identity. The documented REST removal
+body uses user logins and team slugs; binding an immutable selected target across
+name changes remains unverified. Preserving all unrelated review requests while
+changing one selected target is also unproved. Relevant defining files include
+`pkg/factory/human_review_request.go`, the Store files above, native provider
+`reads.rs`/`records.rs`/`transport.rs`, `collaboration.rs` and the future admitted
+runtime writer. Required closure evidence is exact current account/repository/PR/
+user-or-team scope, permitted/refused target and name-change behavior, preservation
+of unrelated requests, no-op versus causal reply, replay/cancel/races/withdrawal/
+replacement/restart and fresh scoped owner-authorized actual provider/normal shared
+readback. A proposed preflight or SQL capture does not close these requirements.
+
+Original thread context, selected-resource/conversation/visibility/transfer policy,
+delayed captured expiration, D1/D2/D3/D5, custody/root absence/scoped delivery,
+installed IPC/window/instance, worker isolation/execution/retirement/settlement and
+release/upgrade/freshness retain their earlier dependencies and evidence. No broad
+security gate or Daybreak work was closed; independent routine work continues.

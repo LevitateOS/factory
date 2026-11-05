@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -73,4 +73,13 @@ var HumanThreadDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.thread.resolve' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=85)`,
 	`UPDATE schema_version SET version=86 WHERE version=85`,
+}
+
+// Reviewer-request captures from earlier adapters have unknown local dispatch
+// history. Preserve exact user/team intent and outcomes while fencing that
+// history; a stale opener cannot fence captures made after this upgrade.
+var HumanReviewRequestDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.request' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=86)`,
+	`UPDATE schema_version SET version=87 WHERE version=86`,
 }
