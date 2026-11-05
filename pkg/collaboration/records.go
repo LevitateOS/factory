@@ -260,6 +260,7 @@ type Check struct {
 	State         string       `json:"state"`      // pending, running, completed, unknown
 	Conclusion    string       `json:"conclusion"` // success, failure, neutral, skipped, cancelled, timed_out, action_required, stale, unknown
 	Required      *bool        `json:"required"`
+	SourceApp     *string      `json:"source_app,omitempty"`
 	DetailsURL    string       `json:"details_url"`
 }
 
@@ -281,24 +282,44 @@ type CheckJob struct {
 	StoppedAt      *time.Time `json:"stopped_at"`
 }
 
-// Requirements describe the selected base branch rule, not an actor's rights.
+// CheckRequirement preserves a provider app binding. Source is any, app or
+// unknown; App is present only for app. These facts grant no merge authority.
+type CheckRequirement struct {
+	Context string `json:"context"`
+	Source  string `json:"source"`
+	App     string `json:"app,omitempty"`
+}
+
+// Requirements describe observed base branch constraints, not an actor's rights.
+// RequirementsComplete is conservative source/representation completeness;
+// it never means that the actor can merge or that the requirements are met.
+// RequiredContexts stays nil when an unqualified list would lose app bindings.
 type BranchProtection struct {
-	Repository          RepositoryID `json:"repository,string"`
-	Observation         Observation  `json:"observation"`
-	Branch              string       `json:"branch"`
-	Protected           *bool        `json:"protected"`
-	StatusChecks        *bool        `json:"status_checks"`
-	RequiredContexts    []string     `json:"required_contexts"`
-	RequiredApprovals   *int64       `json:"required_approvals"`
-	BlockRejected       *bool        `json:"block_rejected"`
-	BlockReviewRequests *bool        `json:"block_review_requests"`
-	RequireUpToDate     *bool        `json:"require_up_to_date"`
-	RequireSigned       *bool        `json:"require_signed"`
-	DismissStale        *bool        `json:"dismiss_stale"`
-	IgnoreStale         *bool        `json:"ignore_stale"`
-	ApplyToAdmins       *bool        `json:"apply_to_admins"`
-	ProtectedFiles      string       `json:"protected_files"`
-	UnprotectedFiles    string       `json:"unprotected_files"`
+	Repository              RepositoryID       `json:"repository,string"`
+	Observation             Observation        `json:"observation"`
+	Branch                  string             `json:"branch"`
+	Protected               *bool              `json:"protected"`
+	StatusChecks            *bool              `json:"status_checks"`
+	RequiredContexts        []string           `json:"required_contexts"`
+	RequiredChecks          []CheckRequirement `json:"required_checks,omitempty"`
+	RequirementsComplete    *bool              `json:"requirements_complete,omitempty"`
+	ClassicVisible          *bool              `json:"classic_visible,omitempty"`
+	RulesVisible            *bool              `json:"rules_visible,omitempty"`
+	UnknownRuleKinds        []string           `json:"unknown_rule_kinds,omitempty"`
+	RequireCodeOwnerReviews *bool              `json:"require_code_owner_reviews,omitempty"`
+	RequireLastPushApproval *bool              `json:"require_last_push_approval,omitempty"`
+	RequireLinearHistory    *bool              `json:"require_linear_history,omitempty"`
+	RequireResolvedThreads  *bool              `json:"require_resolved_threads,omitempty"`
+	RequiredApprovals       *int64             `json:"required_approvals"`
+	BlockRejected           *bool              `json:"block_rejected"`
+	BlockReviewRequests     *bool              `json:"block_review_requests"`
+	RequireUpToDate         *bool              `json:"require_up_to_date"`
+	RequireSigned           *bool              `json:"require_signed"`
+	DismissStale            *bool              `json:"dismiss_stale"`
+	IgnoreStale             *bool              `json:"ignore_stale"`
+	ApplyToAdmins           *bool              `json:"apply_to_admins"`
+	ProtectedFiles          string             `json:"protected_files"`
+	UnprotectedFiles        string             `json:"unprotected_files"`
 }
 type PullChecks struct {
 	Kind            string            `json:"kind"` // status, job

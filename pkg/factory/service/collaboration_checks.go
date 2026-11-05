@@ -68,8 +68,28 @@ func (s CollaborationChecks) Read(ctx context.Context, actor collaboration.Actor
 		return empty, ErrChecksUnavailable
 	}
 	if b := r.Protection; b != nil {
-		if b.Repository != repo || b.Branch == "" || b.Observation.State != collaboration.ReadAvailable || b.Observation.Revision == "" || b.RequiredContexts == nil || b.RequiredApprovals != nil && (*b.RequiredApprovals < 0 || *b.RequiredApprovals > 9007199254740991) {
+		if b.Repository != repo || !collaboration.ValidText(b.Branch, 4096) || b.Observation.State != collaboration.ReadAvailable || b.Observation.Revision == "" || b.RequiredApprovals != nil && (*b.RequiredApprovals < 0 || *b.RequiredApprovals > 9007199254740991) || len(b.RequiredChecks) > 1000 || len(b.RequiredContexts) > 1000 || len(b.UnknownRuleKinds) > 100 {
 			return empty, ErrChecksUnavailable
+		}
+		if b.RequirementsComplete != nil && *b.RequirementsComplete && (b.ClassicVisible == nil || !*b.ClassicVisible || b.RulesVisible == nil || !*b.RulesVisible || len(b.UnknownRuleKinds) > 0) {
+			return empty, ErrChecksUnavailable
+		}
+		for _, context := range b.RequiredContexts {
+			if !collaboration.ValidText(context, 1024) {
+				return empty, ErrChecksUnavailable
+			}
+		}
+		for _, kind := range b.UnknownRuleKinds {
+			if !collaboration.ValidText(kind, 1024) {
+				return empty, ErrChecksUnavailable
+			}
+		}
+		requirements := map[collaboration.CheckRequirement]bool{}
+		for _, required := range b.RequiredChecks {
+			if requirements[required] || !collaboration.ValidText(required.Context, 1024) || !(required.Source == "app" && checkPositiveNumber(required.App) || (required.Source == "any" || required.Source == "unknown") && required.App == "") || required.Source == "unknown" && b.RequirementsComplete != nil && *b.RequirementsComplete || required.Source != "any" && b.RequiredContexts != nil {
+				return empty, ErrChecksUnavailable
+			}
+			requirements[required] = true
 		}
 	}
 	seen := map[string]bool{}
@@ -85,7 +105,7 @@ func (s CollaborationChecks) Read(ctx context.Context, actor collaboration.Actor
 		} else if c.Job != nil {
 			return empty, ErrChecksUnavailable
 		}
-		if c.ExternalID == "" || seen[c.ExternalID] || c.Repository != repo || c.Commit != r.Commit || c.Name == "" || c.Kind != "status" && c.Kind != "job" || c.Observation.State != collaboration.ReadAvailable || c.Observation.Revision == "" {
+		if c.ExternalID == "" || seen[c.ExternalID] || c.Repository != repo || c.Commit != r.Commit || c.Name == "" || c.Kind != "status" && c.Kind != "job" || c.Observation.State != collaboration.ReadAvailable || c.Observation.Revision == "" || c.SourceApp != nil && !checkPositiveNumber(*c.SourceApp) {
 			return empty, ErrChecksUnavailable
 		}
 		seen[c.ExternalID] = true

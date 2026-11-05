@@ -203,6 +203,12 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 			item.State = check.State
 			item.Conclusion = check.Conclusion
 			item.DetailsURL = deref(check.DetailsURL)
+			if check.App != nil {
+				if !nativeRemoteID(check.App.ExternalID) {
+					return result, errNativeRead
+				}
+				item.SourceApp = &check.App.ExternalID
+			}
 			if check.Output != nil {
 				item.Description = deref(check.Output.Summary)
 			}
@@ -236,8 +242,12 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 		next = 1
 	}
 	obs := s.observation(raw)
+	protection, err := s.readProtection(ctx, repo, raw.Pull, raw.Head)
+	if err != nil {
+		return result, err
+	}
 	result = collaboration.PullChecks{Kind: "status", Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Commit: raw.Head, Observation: obs,
-		Checks: nativePage(obs, items, cursorEncode(c, next)), MissingRequired: []string{}, InvalidRequired: []string{}, StatusGate: "unknown"}
+		Checks: nativePage(obs, items, cursorEncode(c, next)), Protection: protection, MissingRequired: []string{}, InvalidRequired: []string{}, StatusGate: "unknown"}
 	// A complete observation page is not evidence about unobserved branch rules,
 	// workflow jobs, requiredness, merge eligibility or a successful CI gate.
 	return result, nil

@@ -767,7 +767,8 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "refresh_issued":refresh_available, "real_refresh_exercised":refresh_available,
             "owned_local_account_removed":!retain, "owned_account_retained_for_followup":retain, "remote_revocation_exercised":false,
             "canonical_factory_binding":true, "native_product_bridge":true,
-            "connected_shared_ui":true,"canonical_job_read":true
+            "connected_shared_ui":true,"canonical_job_read":true,
+            "canonical_job_continuation":true,"canonical_protection_read":true
         }),
     )
 }
@@ -946,7 +947,7 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         const located=await invoke('factory_find_repository',{session:account.session,name:'cli/cli'});
         assert(located.status===200&&located.body.repository.external_id,'job repository lookup unavailable');
         const jobScope=await connect(__CONNECTION__,located.body.repository.external_id);
-        let jobObserved=false;
+        let jobObserved=false,jobPaged=false;
         for(const number of [14927,14926,14942]){
           const target='/api/factory/collaboration/repositories/'+jobScope.repository.id+'/pulls/'+number+'/checks/jobs';
           const reply=await request(jobScope.session,target+'?limit=1');
@@ -964,11 +965,13 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
               assert(next.status===200&&next.body.kind==='job'&&next.body.commit===body.commit,'job continuation unavailable or changed head');
               assert(next.body.checks.next!==body.checks.next,'job continuation did not advance');
               if(next.body.checks.items.length)assert(next.body.checks.items[0].external_id!==body.checks.items[0].external_id,'job continuation repeated the same job');
+              jobPaged=true;
             }
-            break;
+            if(jobPaged)break;
           }
         }
         assert(jobObserved,'no actual canonical workflow job observed');
+        assert(jobPaged,'no actual canonical job continuation observed');
         const selected=await connect(__CONNECTION__,'724712');
         assert(selected.session!==account.session&&selected.identity.actor===account.identity.actor&&selected.identity.host===account.identity.host,'connection switch changed account identity');
         assert(selected.repository.external_id==='724712'&&selected.repository.host===selected.identity.host,'canonical selected repository missing');
@@ -979,6 +982,16 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         assert((await request(selected.session,'/api/factory/feed?scope=project&repositories='+selected.repository.id+'&limit=1')).status===200,'bound feed unavailable');
         assert((await request(selected.session,root+'/issues?state=all&limit=1')).status===200,'bound issue reads unavailable');
         assert((await request(selected.session,root+'/pulls/165146')).status===200,'bound PR reads unavailable');
+        const statuses=await request(selected.session,root+'/pulls/165146/checks?limit=1');
+        assert(statuses.status===200,'canonical protection unavailable: '+statuses.status);
+        const policy=statuses.body.protection;
+        assert(statuses.body.kind==='status'&&statuses.body.status_gate==='unknown'&&policy&&policy.repository===selected.repository.id&&policy.branch&&policy.observation.state==='available','canonical protection scope differs');
+        assert(typeof policy.classic_visible==='boolean'&&typeof policy.rules_visible==='boolean'&&typeof policy.requirements_complete==='boolean','protection visibility lost');
+        if(!policy.classic_visible||!policy.rules_visible)assert(policy.requirements_complete===false&&policy.required_contexts===null&&policy.required_approvals===null,'unavailable protection invented complete requirements');
+        for(const required of policy.required_checks??[])assert(required.context&&['any','app','unknown'].includes(required.source)&&(required.source==='app'?/^[1-9][0-9]*$/.test(required.app):!required.app),'required check lost app binding');
+        for(const status of statuses.body.checks.items)assert(status.required===null,'status read invented requiredness');
+        assert((await request(selected.session,root+'/pulls/165146/checks?limit=1&head='+'1'.repeat(40))).status===409,'changed canonical protection head admitted');
+        await invoke('report',{stage:'signin-evidence-observed',error:null});
         const jobs=await request(selected.session,root+'/pulls/165146/checks/jobs?limit=1');
         assert(jobs.status===200&&jobs.body.kind==='job'&&jobs.body.status_gate==='unknown','job read invented a CI gate');
         let completions=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
@@ -1066,6 +1079,16 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
     }
     match stage {
+        "signin-evidence-observed" => write_consent_evidence(
+            app,
+            "canonical-workflow-evidence.json",
+            &serde_json::json!({
+                "actual_canonical_job_read":true,"actual_canonical_job_continuation":true,
+                "changed_job_head_refused":true,"invalid_job_cursor_refused":true,
+                "actual_canonical_protection_read":true,"unavailable_sources_stay_unknown":true,
+                "changed_protection_head_refused":true,"merge_gate_qualified":false
+            }),
+        ),
         "signin-binding-start" | "signin-binding-retained-start" => {
             start_binding_checks(app.clone(), stage == "signin-binding-retained-start");
             Ok(())

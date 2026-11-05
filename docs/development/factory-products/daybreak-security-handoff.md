@@ -672,7 +672,7 @@ IPC, so the connected gate remains open.
 
 | Gate and dependent slices | Exact blocker and dependency | Relevant files | Proven so far | Still unverified; evidence needed to close |
 | --- | --- | --- | --- | --- |
-| Workflow-job and branch-protection evidence: T06-GITHUB-EVIDENCE, then T06-GITHUB | The native producer and Go canonical job consumer now exist. The branch-protection product projection is not composed. Classic protection was unavailable in the live public read and must stay unknown. Full requiredness, app-scoped contexts and merge gates cannot be inferred from active rulesets or successful jobs alone. | `lib/desktop-runtime/src/github_provider/{request,reads,records,evidence}.rs`, `cmd/soda-desktop/src/check_credentials.rs`, `pkg/factory/runtime/{native_product_observations,native_product_evidence,native_product_reads}.go`, `pkg/factory/service/collaboration_checks.go` | The actual approved native journey observed a job with exact run/attempt/head, refused changed workflow and PR heads, read active rules and retained unavailable classic protection as null. The later Go canonical HTTP job read and head/cursor refusals passed; its safe result does not record whether the conditional continuation check ran. Connected UI/private reads/refresh passed, with the latest account explicitly retained for follow-up. Exact evidence is recorded below. | Finish the scoped branch-protection projection and prove canonical job continuation explicitly; preserve empty or unknown observations without inventing requirements, workflow-definition commits, approval state, app authority or passing gates. Qualify actual job pagination and canonical HTTP, classic and ruleset requirement handling, stale/revoked/scope-changed refusal, rule changes and unavailable/partial data. Complete final remote revocation and installed qualification in their owning slices. |
+| Workflow-job and branch-protection evidence: T06-GITHUB-EVIDENCE, then T06-GITHUB | Native job/protection observations and both Go canonical projections exist. The latest connected check explicitly proves a progressing job continuation and canonical protection read. Positive classic-protection/app-binding cases, rule mutation and the completed consumers' stale/revoked/scope-change cases remain unqualified. Classic protection was unavailable and stays unknown. | `lib/desktop-runtime/src/github_provider/{request,reads,records,evidence,protection}.rs`, `cmd/soda-desktop/src/check_credentials.rs`, `pkg/collaboration/records.go`, `pkg/factory/runtime/{native_product_observations,native_product_evidence,native_product_jobs,native_product_protection}.go`, `pkg/factory/service/collaboration_checks.go` | Actual connected Rust/Go HTTP reads bind jobs to run/attempt/head and protection to PR/head/base branch. Pagination advances; changed heads and malformed cursors refuse. Active rules are visible, hidden classic protection remains unknown, and no merge gate is qualified. Connected UI/private reads/refresh passed with the approved encrypted account retained. Exact evidence is recorded below. | Qualify positive classic and app-qualified requirements, partial/empty and changing policy, run/attempt/cursor/scope changes and withdrawal on these consumers. Preserve unknown workflow-definition commits, approval, requiredness and actor/bypass authority. Complete remote revocation in T06-GITHUB and installed admission in packaging; this checkpoint closes neither gate. |
 | Worker MCP transport and Factory tool policy within D3/N4 | The private native producer and namespaced model policy exist, but the production Go native listener/current-run observer and its exact backend/instance/capability binding are missing. Go must supply the captured canonical tool catalog from the same server definition before launch. N4 also depends on T06-CONNECT and T12-PLACEMENT. | `lib/desktop-runtime/src/factory_provider/{mcp,owner,run,response}.rs`, `lib/desktop-runtime/src/factory_provider.rs`, `cmd/soda-factory-worker/src/bin/{soda-factory-agent,soda-factory-provider-relay}.rs`, `pkg/factory/{runtime/native_server,mcpserver/bound}.go` | Current local Muse echo completed MCP startup/discovery; a tiny isolated ELF separately verified fixed configuration and run-placeholder delivery through the real relay/native owner/Go bound handler with a synthetic active capability. Missing binding made no callback. Credential withdrawal and owner cancellation each dropped a pending native MCP future; uncertain cancellation retained root evidence. A local scripted provider then made the actual CLI execute a qualified Factory call and return its fixture result. The native component check accepted those captured requests/replies and Go's 24-tool catalog, and refused catalog, namespace and execution-call identity changes. | Compose the trusted catalog/port with the current Go backend and Rust signer under the admitted canonical capability. Prove actual provider Factory tool handling through the isolated native owner, current Go work/run/role checks, expiry/revocation, exact backend/instance binding and no root/IPC/provider secret in the worker. Then qualify a real finite task, transaction settlement and crash/reboot recovery. The checks used synthetic capabilities and locally scripted replies, with no canonical Store row or real inference, and do not close this gate. |
 | Desktop authentication and IPC admission: connected source evidence complete; final provider and installed consumers open | T06-CONNECT passed the real connected source journey. T06-GITHUB-EVIDENCE/T06-GITHUB and packaging/installed parity retain their separate requirements. No installed authentication/IPC or full remote-revocation result is inferred. | `cmd/soda-desktop/src/{main,signin,bridge,product,check_credentials}.rs`, `frontend/desktop/{connections,product,transport}.ts`, `lib/desktop-runtime/src/{github_provider,credentials,supervisor}.rs`, `pkg/factory/runtime/{native_application,native_product}.go` | The current connected section records user-approved OAuth, verified encrypted grant reload, actual canonical account/repository/product IPC, shared feed/issues/drafts, switches/reconnects, local withdrawal, real refresh and Quit. The first route failure and passing retry are retained. Historical missing crash artifacts remain undiagnosed. | Complete workflow/protection observations and provider revocation on the actual connector, then demonstrate authenticated peer/window and exact instance/account/resource admission, stale/foreign refusal and retirement in the installed package. Keep missing execution unavailable. The source connected result does not qualify an installer or Fountain desktop. |
 | GitHub credential custody and revocation: T06-GITHUB and the connected GitHub consumers | The cohesive Rust connector is implemented, but the final provider gate depends on T06-CONNECT and T06-GITHUB-EVIDENCE. The connected desktop now proves private/paged reads and refresh; remote revocation and full current-head/evidence observations remain open. | `lib/desktop-runtime/src/credentials/`, `lib/desktop-runtime/src/github_provider/`, `lib/desktop-runtime/src/github.rs`, `pkg/factory/runtime/native_product_observations.go`, `pkg/factory/runtime/native_product_reads.go` | The Go native token route was retired; Rust owns OAuth, refresh, HTTPS, decoding and native credential lifetime. Approved native reads, private access, refresh and retained identity are recorded in the plan. | Connected consent/identity/storage, canonical binding, private/paged reads, actual refresh and local removal now have evidence above. Complete remaining normalized/current-head observations and remote revocation without credential disclosure. Retire or migrate historical Go-observer check consumers only with equivalent current evidence. |
@@ -1080,3 +1080,54 @@ cursor or scope changes and withdrawal on the completed consumer. Keep hidden
 classic protection unknown. Complete remote revocation and installed admission
 in their owning slices. T06-GITHUB-EVIDENCE remains Active; no full provider or
 D1/D2/D3/D5 gate is closed.
+
+T06-GITHUB-EVIDENCE protection/continuation checkpoint (2026-11-05):
+
+The canonical Go protection consumer is composed with the defining Rust provider
+constraint decoder. Relevant additions are
+`lib/desktop-runtime/src/github_provider/protection.rs`,
+`pkg/factory/runtime/native_product_protection.go`, typed requirements in
+`pkg/collaboration/records.go`, and the existing connected acceptance driver in
+`cmd/soda-desktop/src/check_credentials.rs`. Source visibility, app-bound check
+requirements and unmapped rule kinds survive projection; hidden classic input
+stays unknown. Go retains canonical identity and product policy. Rust rechecks
+PR/branch and projected policy sources before returning. No per-check
+requiredness, bypass actor authority or passing merge gate is asserted.
+
+The first check reached the unchanged 8,000 ms job deadline at PR revalidation.
+The provider now composes workflow/job/PR observations in one scoped native
+operation, avoiding repeated identity/repository reads while retaining the
+before/after checks. The failed attempt remains in
+`/home/vince/tmp/factory-github-jobs-1105/protection-attempt1/`.
+The previous successful job-only evidence is preserved in
+`/home/vince/tmp/factory-github-jobs-1105/job-consumer-checkpoint/`.
+
+The rebuilt actual connected check exited zero and explicitly proved a
+progressing canonical job continuation, canonical protection read, changed-head
+409s and malformed job-cursor 400. Classic protection was unavailable and active
+rules visible; missing classic input did not become complete requirements or
+zero approvals. Private access, actual refresh and the shared UI journey passed.
+The approved encrypted fixture account is retained for follow-up; this result
+records local removal false and remote revocation false. Evidence root:
+`/home/vince/tmp/factory-github-jobs-1105/`; result log SHA-256
+`23577ad70263196dadf4d1acf4810ec9af693e37656794771d68e13076207cdd`,
+safe result `bf7d3f18307d75fb9ef8969519cdd6204056651ed7ec79d81b4b6096c49f8007`,
+explicit canonical evidence
+`295e7dba0e461997c28d0ea784a3fd1cfe657be7f3387c267ddf5fa407477f85`.
+Go build/vet, locked offline native-check build, shared TypeScript checks and the
+engine/provider dependency-boundary check passed. Retained runtime inputs are
+not an installed or fresh distribution qualification.
+
+Exact remaining blocker/dependency: T06-GITHUB-EVIDENCE needs positive classic
+and app-qualified requirements and partial/empty/mutating rule observations,
+plus run/attempt/cursor/scope changes and withdrawal on the completed consumers.
+The new change detection and positive classic decoder are source implementation,
+not verified mutation/positive-classic evidence. Use actual permitted provider
+reads or the existing real integration harness with explicitly declared provider
+responses; label declared evidence separately. Never mutate an unrelated remote
+repository to manufacture evidence. T06-GITHUB remote revocation still requires
+provider-side proof and subsequent refusal; retained local capability rejection
+cannot replace it. Installed peer/window/instance/account/resource admission and
+D1/D2/D3/D5/native executor gates remain pending in their owning slices. These
+ordinary implementation/qualification tasks do not require Daybreak unless a
+particular action looks like hacking; no gate is closed by this checkpoint.

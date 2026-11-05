@@ -65,16 +65,6 @@ type nativeJobCursor struct {
 	Total      int64                  `json:"total"`
 }
 
-func (s nativeCollaborationReads) jobPull(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64) (collaboration.PullRequest, error) {
-	page, err := s.ReadPulls(ctx, actor, repo, factoryservice.CollaborationPullQuery{Number: number, Limit: 1})
-	if err != nil {
-		return collaboration.PullRequest{}, nativeMissing(err, factoryservice.ErrChecksMissing)
-	}
-	if len(page.Items) != 1 {
-		return collaboration.PullRequest{}, errNativeRead
-	}
-	return page.Items[0], nil
-}
 func jobReadError(err error) error {
 	var failure *NativePortError
 	if errors.As(err, &failure) {
@@ -96,7 +86,7 @@ func sameNativeWorkflow(a, b nativeWorkflow) bool {
 }
 
 func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64, q factoryservice.ChecksQuery) (_ collaboration.PullChecks, runErr error) {
-	stage, started := "pull_before", time.Now()
+	stage, started := "cursor", time.Now()
 	defer func() {
 		if runErr != nil {
 			code, status := "invalid_observation", 0
@@ -116,14 +106,7 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 		}
 	}()
 	var empty collaboration.PullChecks
-	before, err := s.jobPull(ctx, actor, repo, number)
-	if err != nil {
-		return empty, err
-	}
-	if before.Head.Commit == nil || !collaboration.ValidCommitID(*before.Head.Commit) || q.Head != "" && q.Head != *before.Head.Commit {
-		return empty, factoryservice.ErrChecksChanged
-	}
-	c := nativeJobCursor{Kind: "workflow_jobs", Repository: s.identity.SelectedRepository, Number: number, Head: *before.Head.Commit, Limit: q.Limit, RunPage: 1, JobPage: 1}
+	c := nativeJobCursor{Kind: "workflow_jobs", Repository: s.identity.SelectedRepository, Number: number, Head: q.Head, Limit: q.Limit, RunPage: 1, JobPage: 1}
 	if q.Cursor != "" {
 		encoded, err := base64.RawURLEncoding.DecodeString(q.Cursor)
 		var supplied nativeJobCursor
@@ -135,7 +118,7 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 	}
 	head := string(c.Head)
 	stage = "workflow_runs"
-	var runs struct {
+	type workflowPage struct {
 		Repository string                 `json:"repository"`
 		Name       string                 `json:"name"`
 		Head       collaboration.CommitID `json:"head"`
@@ -143,9 +126,32 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 		NextPage   int                    `json:"next_page"`
 		Total      int64                  `json:"total"`
 	}
-	if err = s.read(ctx, nativeRead{Kind: "workflow_runs", Repository: c.Repository, Page: uint32(c.RunPage), Limit: 1, Head: &head}, &runs); err != nil {
+	type jobPage struct {
+		Repository string         `json:"repository"`
+		Name       string         `json:"name"`
+		Run        nativeWorkflow `json:"run"`
+		Items      []nativeJob    `json:"items"`
+		NextPage   int            `json:"next_page"`
+		Total      int64          `json:"total"`
+	}
+	var raw struct {
+		Repository string                 `json:"repository"`
+		Name       string                 `json:"name"`
+		Pull       nativeSubjectRef       `json:"pull"`
+		Head       collaboration.CommitID `json:"head"`
+		Base       collaboration.CommitID `json:"base"`
+		Branch     string                 `json:"branch"`
+		Runs       workflowPage           `json:"runs"`
+		Jobs       *jobPage               `json:"jobs"`
+	}
+	if err := s.read(ctx, nativeRead{Kind: "pull_workflow_jobs", Repository: c.Repository, Number: uint32(number), Page: uint32(c.JobPage), RunPage: uint32(c.RunPage), Limit: uint32(c.Limit), RunID: c.Run, Attempt: c.Attempt, Head: &head}, &raw); err != nil {
 		return empty, jobReadError(err)
 	}
+	if raw.Repository != c.Repository || raw.Pull.Kind != "pull" || raw.Pull.Number != number || !nativeRemoteID(raw.Pull.ExternalID) || !collaboration.ValidCommitID(raw.Head) || !collaboration.ValidCommitID(raw.Base) || !collaboration.ValidText(raw.Branch, 4096) || c.Head != "" && raw.Head != c.Head {
+		return empty, errNativeRead
+	}
+	c.Head = raw.Head
+	runs := raw.Runs
 	stage = "workflow_binding"
 	if runs.Repository != c.Repository || runs.Head != c.Head || runs.Items == nil || !validNativePage(runs.NextPage, c.RunPage, 1, len(runs.Items), false) || runs.Total < int64(len(runs.Items)) || q.Cursor != "" && runs.Total != c.Total || len(runs.Items) == 0 && (c.RunPage != 1 || runs.Total != 0) {
 		return empty, factoryservice.ErrChecksChanged
@@ -159,20 +165,9 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 		if !nativeRemoteID(run.ExternalID) || !nativeRemoteID(run.RunNumber) || !nativeRemoteID(run.Attempt) || !nativeRemoteID(run.WorkflowID) || run.Head != c.Head || run.Path == "" || run.Event == "" || c.Run != "" && (c.Run != run.ExternalID || c.Attempt != run.Attempt) {
 			return empty, factoryservice.ErrChecksChanged
 		}
-		var jobs struct {
-			Repository string         `json:"repository"`
-			Name       string         `json:"name"`
-			Run        nativeWorkflow `json:"run"`
-			Items      []nativeJob    `json:"items"`
-			NextPage   int            `json:"next_page"`
-			Total      int64          `json:"total"`
-		}
-		stage = "workflow_jobs"
-		if err = s.read(ctx, nativeRead{Kind: "workflow_run_jobs", Repository: c.Repository, RunID: run.ExternalID, Attempt: run.Attempt, Page: uint32(c.JobPage), Limit: uint32(c.Limit), Head: &head}, &jobs); err != nil {
-			return empty, jobReadError(err)
-		}
+		jobs := raw.Jobs
 		stage = "job_binding"
-		if jobs.Repository != c.Repository || jobs.Name != runs.Name || !sameNativeWorkflow(jobs.Run, run) || jobs.Items == nil || !validNativePage(jobs.NextPage, c.JobPage, c.Limit, len(jobs.Items), false) || jobs.Total < int64(len(jobs.Items)) {
+		if jobs == nil || jobs.Repository != c.Repository || jobs.Name != runs.Name || !sameNativeWorkflow(jobs.Run, run) || jobs.Items == nil || !validNativePage(jobs.NextPage, c.JobPage, c.Limit, len(jobs.Items), false) || jobs.Total < int64(len(jobs.Items)) {
 			return empty, factoryservice.ErrChecksChanged
 		}
 		run = jobs.Run
@@ -197,19 +192,13 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 			next = base64.RawURLEncoding.EncodeToString(encoded)
 		}
 		jobFacts = jobs
-	}
-	stage = "pull_after"
-	after, err := s.jobPull(ctx, actor, repo, number)
-	if err != nil {
-		return empty, err
-	}
-	if after.Ref != before.Ref || !reflect.DeepEqual(after.Head, before.Head) || !reflect.DeepEqual(after.Base, before.Base) {
-		return empty, factoryservice.ErrChecksChanged
+	} else if raw.Jobs != nil {
+		return empty, errNativeRead
 	}
 	stage = "mapping"
-	if _, err = s.mapRead(ctx, runs.Repository, runs.Name, nil, nil); err != nil {
+	if _, err := s.mapRead(ctx, runs.Repository, runs.Name, nil, nil); err != nil {
 		return empty, err
 	}
 	obs := s.observation(struct{ Runs, Jobs any }{runs, jobFacts})
-	return collaboration.PullChecks{Kind: "job", Pull: before.Ref, Commit: c.Head, Observation: obs, Checks: nativePage(obs, items, next), MissingRequired: []string{}, InvalidRequired: []string{}, StatusGate: "unknown"}, nil
+	return collaboration.PullChecks{Kind: "job", Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Commit: c.Head, Observation: obs, Checks: nativePage(obs, items, next), MissingRequired: []string{}, InvalidRequired: []string{}, StatusGate: "unknown"}, nil
 }

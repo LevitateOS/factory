@@ -4,11 +4,12 @@ mod diff;
 mod evidence;
 mod oauth;
 mod patch;
+mod protection;
 mod reads;
 mod records;
 mod request;
-mod transport;
 mod threads;
+mod transport;
 
 use crate::credentials::{Account, Provider, Token};
 pub use oauth::{DeviceAuthorization, DevicePrompt};

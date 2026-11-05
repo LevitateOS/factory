@@ -46,6 +46,9 @@ impl Reader<'_> {
     }
 
     pub(super) async fn workflow_runs(&self, q: &Value) -> Result<Value> {
+        self.workflow_runs_page(q, true).await
+    }
+    async fn workflow_runs_page(&self, q: &Value, recheck: bool) -> Result<Value> {
         let (page, limit) = paging(q);
         let head = r::text(q, "head")?;
         let mut params = vec![("page", page.to_string()), ("per_page", limit.to_string())];
@@ -70,13 +73,18 @@ impl Reader<'_> {
             }
             items.push(run);
         }
-        self.recheck().await?;
+        if recheck {
+            self.recheck().await?;
+        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"head":head,"items":items,"next_page":response.next,"total":count}),
         )
     }
 
     pub(super) async fn workflow_jobs(&self, q: &Value) -> Result<Value> {
+        self.workflow_jobs_page(q, true).await
+    }
+    async fn workflow_jobs_page(&self, q: &Value, recheck: bool) -> Result<Value> {
         let run = r::text(q, "run_id")?;
         let attempt = r::text(q, "attempt")?;
         let head = r::text(q, "head")?;
@@ -128,9 +136,43 @@ impl Reader<'_> {
         if self.workflow(&self.get(&target, &[]).await?.value)? != before {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        self.recheck().await?;
+        if recheck {
+            self.recheck().await?;
+        }
         Ok(
             json!({"repository":self.repository,"name":self.name,"run":before,"items":items,"next_page":response.next,"total":count}),
+        )
+    }
+
+    pub(super) async fn pull_workflow_jobs(&self, q: &Value) -> Result<Value> {
+        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
+        let before = self.protection_binding(&self.raw_subject(true, number).await?)?;
+        if q["head"] != "" && q["head"] != before["head"] {
+            return Err(Failure::new(409, "github_checks_changed"));
+        }
+        let runs = self
+            .workflow_runs_page(
+                &json!({"page":q["run_page"],"limit":1,"head":before["head"]}),
+                false,
+            )
+            .await?;
+        let items = runs["items"].as_array().ok_or_else(Failure::protocol)?;
+        let jobs = if let Some(run) = items.first() {
+            if q["run_id"] != ""
+                && (q["run_id"] != run["external_id"] || q["attempt"] != run["attempt"])
+            {
+                return Err(Failure::new(409, "github_checks_changed"));
+            }
+            Some(self.workflow_jobs_page(&json!({"run_id":run["external_id"],"attempt":run["attempt"],"head":before["head"],"page":q["page"],"limit":q["limit"]}),false).await?)
+        } else {
+            None
+        };
+        if self.protection_binding(&self.raw_subject(true, number).await?)? != before {
+            return Err(Failure::new(409, "github_checks_changed"));
+        }
+        self.recheck().await?;
+        Ok(
+            json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":before["head"],"base":before["base"],"branch":before["branch"],"runs":runs,"jobs":jobs}),
         )
     }
 
@@ -170,22 +212,11 @@ impl Reader<'_> {
         )
     }
 
-    pub(super) async fn protection(&self, q: &Value) -> Result<Value> {
-        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
-        let before = self.protection_binding(&self.raw_subject(true, number).await?)?;
-        if q["head"] != "" && q["head"] != before["head"] {
-            return Err(Failure::new(409, "github_checks_changed"));
-        }
-        // Encode this as one path segment; branch slashes must not select a
-        // different endpoint or introduce query parameters.
-        let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
-        url.path_segments_mut()
-            .map_err(|_| Failure::invalid())?
-            .push(r::text(&before, "branch")?);
-        let encoded = url.path().trim_start_matches('/');
-        let branch_target = format!("/branches/{encoded}");
-        let branch = self.get(&branch_target, &[]).await?.value;
-        let captured_branch = branch_identity(&branch, r::text(&before, "branch")?)?;
+    async fn protection_sources(
+        &self,
+        branch_target: &str,
+        encoded: &str,
+    ) -> Result<(Option<Value>, Option<Vec<Value>>)> {
         let classic = self
             .optional_protection(&format!("{branch_target}/protection"), &[])
             .await?;
@@ -208,6 +239,31 @@ impl Reader<'_> {
                     "parameters":value["parameters"]}))
             }).collect::<Result<Vec<_>>>()
         }).transpose()?;
+        Ok((classic, rules))
+    }
+
+    pub(super) async fn protection(&self, q: &Value) -> Result<Value> {
+        let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
+        let before = self.protection_binding(&self.raw_subject(true, number).await?)?;
+        if q["head"] != "" && q["head"] != before["head"] {
+            return Err(Failure::new(409, "github_checks_changed"));
+        }
+        // Encode this as one path segment; branch slashes must not select a
+        // different endpoint or introduce query parameters.
+        let mut url = url::Url::parse("https://api.github.com/").map_err(|_| Failure::invalid())?;
+        url.path_segments_mut()
+            .map_err(|_| Failure::invalid())?
+            .push(r::text(&before, "branch")?);
+        let encoded = url.path().trim_start_matches('/');
+        let branch_target = format!("/branches/{encoded}");
+        let branch = self.get(&branch_target, &[]).await?.value;
+        let captured_branch = branch_identity(&branch, r::text(&before, "branch")?)?;
+        let (classic, rules) = self.protection_sources(&branch_target, encoded).await?;
+        if self.protection_sources(&branch_target, encoded).await?
+            != (classic.clone(), rules.clone())
+        {
+            return Err(Failure::new(409, "github_checks_changed"));
+        }
         if self.protection_binding(&self.raw_subject(true, number).await?)? != before
             || captured_branch
                 != branch_identity(
@@ -218,9 +274,14 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_checks_changed"));
         }
         self.recheck().await?;
+        let summary = super::protection::summarize(
+            &captured_branch["protected"],
+            classic.as_ref(),
+            rules.as_deref(),
+        )?;
         Ok(
             json!({"repository":self.repository,"name":self.name,"pull":before["pull"],"head":before["head"],"base":before["base"],"branch":before["branch"],
-            "branch_commit":captured_branch["commit"],"protected":captured_branch["protected"],"classic":classic,"rules":rules}),
+            "branch_commit":captured_branch["commit"],"protected":captured_branch["protected"],"classic":classic,"rules":rules,"summary":summary}),
         )
     }
 }
@@ -267,8 +328,22 @@ fn classic_protection(value: &Value) -> Result<Value> {
         json!({"required_approving_review_count":r::integer(reviews,"required_approving_review_count",0)?,
             "dismiss_stale_reviews":r::boolean(reviews,"dismiss_stale_reviews")?,"require_code_owner_reviews":r::boolean(reviews,"require_code_owner_reviews")?,"require_last_push_approval":r::boolean(reviews,"require_last_push_approval")?})
     };
-    let mut result =
-        json!({"required_status_checks":status,"required_pull_request_reviews":reviews});
+    let mut unrepresented = Vec::new();
+    if !value["restrictions"].is_null() {
+        unrepresented.push("classic_restrictions");
+    }
+    if !value["required_pull_request_reviews"]["dismissal_restrictions"].is_null() {
+        unrepresented.push("classic_dismissal_restrictions");
+    }
+    if !value["required_pull_request_reviews"]["bypass_pull_request_allowances"].is_null() {
+        unrepresented.push("classic_review_bypass");
+    }
+    for key in ["lock_branch", "block_creations"] {
+        if value[key]["enabled"] == true {
+            unrepresented.push(key);
+        }
+    }
+    let mut result = json!({"required_status_checks":status,"required_pull_request_reviews":reviews,"unrepresented":unrepresented});
     for key in [
         "enforce_admins",
         "required_signatures",

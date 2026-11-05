@@ -26117,3 +26117,58 @@ ran; do not claim complete job-pagination qualification from this result alone.
 Record that explicit evidence while completing the Go branch-protection
 projection, unavailable/partial/rule-change and app-qualified requirement cases.
 Native execution, remote revocation, installed and D1/D2/D3/D5 gates remain open.
+
+T06-GITHUB-EVIDENCE protection projection and bounded job composition
+checkpoint (2026-11-05):
+
+The defining Rust provider now projects observed classic protection and active
+rules into credential-free constraint facts. Common records preserve typed
+`any` / `app` / `unknown` check sources, source app IDs on check runs, source
+visibility, conservative representation completeness and unrepresented rule
+kinds. App-qualified or incomplete requirements never become an unqualified
+context list. Hidden classic protection remains unknown; unavailable input does
+not establish zero approvals or absent checks. Actor/bypass authority, per-check
+requiredness and the merge status gate remain unknown. Go binds these native
+facts to canonical repository/PR/head/branch identities, checks common record
+bounds and owns product policy. Shared UI types remain compatible with Fountain.
+Rust re-reads projected classic/rules sources as well as PR and branch identity
+and refuses observed changes. This source behavior is not mutation qualification.
+
+The first connected attempt failed at `pull_after` at the existing 8,000 ms Go
+job deadline. Serial semantic reads repeated identity/repository/PR work. The
+new `pull_workflow_jobs` provider operation captures PR/head/base before and
+after the workflow/run-attempt/job reads under one native lifetime and deadline,
+with repository revalidation. Go retains canonical projection and the scoped
+run/job cursor; no timeout was enlarged. The earlier attempt is preserved under
+`/home/vince/tmp/factory-github-jobs-1105/protection-attempt1/`.
+
+The rebuilt real Tauri/WebKit/private-keyring/PostgreSQL/Go/Rust/GitHub journey
+exited zero. The acceptance driver now requires an actual progressing canonical
+job continuation, rejects changed job head and malformed cursor, reads canonical
+protection on the real PR, preserves unavailable-source unknowns, and rejects a
+changed protection head. The private read, two repository pages, actual refresh
+and shared UI journey passed. The encrypted account remains retained for
+follow-up; local removal and remote revocation are explicitly false here.
+
+Evidence root: `/home/vince/tmp/factory-github-jobs-1105/`. The previous successful
+job-consumer evidence is retained in its `job-consumer-checkpoint/` subdirectory.
+Current result log SHA-256:
+`23577ad70263196dadf4d1acf4810ec9af693e37656794771d68e13076207cdd`;
+safe consent result:
+`bf7d3f18307d75fb9ef8969519cdd6204056651ed7ec79d81b4b6096c49f8007`;
+explicit canonical workflow evidence:
+`295e7dba0e461997c28d0ea784a3fd1cfe657be7f3387c267ddf5fa407477f85`.
+Native producer evidence records classic visible false and active rules visible
+true. Source diff, new projection source files, driver and input binary hashes
+are retained privately. Go build/vet, locked offline native-check build, shared
+TypeScript checks and dependency-boundary check passed. The boundary check first
+used a read-only default cache; its retry with the workspace cache passed.
+
+Bounded checkpoint finish: connected canonical protection projection and explicit
+job continuation are proved. Parent T06-GITHUB-EVIDENCE remains Active: positive
+classic/app-qualified requirement cases, empty/partial policy, observed policy
+mutation, and stale/revoked/scope-changing consumers still need evidence. No
+native executor, full provider, installed or D1/D2/D3/D5 gate is closed. Continue
+this parent qualification next; do not treat successful builds or this source
+journey as installed qualification. Routine security engineering remains in the
+normal queue under the corrected Daybreak boundary.

@@ -70,10 +70,12 @@ impl Client {
                 Read::Repository { repository } => {
                     result["repository"] = self.repository(repository, token).await?;
                 }
-                Read::FindRepository {name} => {
+                Read::FindRepository { name } => {
                     let response = self.get(&format!("/repos/{name}"), &[], token).await?;
                     let observed = r::repository(&response.value)?;
-                    if !r::text(&observed,"name")?.eq_ignore_ascii_case(name) {return Err(Failure::protocol());}
+                    if !r::text(&observed, "name")?.eq_ignore_ascii_case(name) {
+                        return Err(Failure::protocol());
+                    }
                     result["repository"] = observed;
                 }
                 _ => {
@@ -94,6 +96,7 @@ impl Client {
                         "pull_threads" => ("threads", reader.threads(&q).await?),
                         "workflow_runs" => ("workflow_runs", reader.workflow_runs(&q).await?),
                         "workflow_run_jobs" => ("jobs", reader.workflow_jobs(&q).await?),
+                        "pull_workflow_jobs" => ("jobs", reader.pull_workflow_jobs(&q).await?),
                         "pull_protection" => ("protection", reader.protection(&q).await?),
                         "pull_check_runs" | "pull_commit_statuses" => (
                             if kind == "pull_check_runs" {

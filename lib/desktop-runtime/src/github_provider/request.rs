@@ -28,7 +28,9 @@ pub enum Read {
     Repository {
         repository: String,
     },
-    FindRepository { name: String },
+    FindRepository {
+        name: String,
+    },
     Issues {
         repository: String,
         page: u32,
@@ -125,6 +127,18 @@ pub enum Read {
         number: u32,
         head: String,
     },
+    PullWorkflowJobs {
+        repository: String,
+        number: u32,
+        head: String,
+        run_page: u32,
+        page: u32,
+        limit: u32,
+        #[serde(default)]
+        run_id: String,
+        #[serde(default)]
+        attempt: String,
+    },
     IssueComments {
         repository: String,
         number: u32,
@@ -153,8 +167,10 @@ pub(crate) fn commit(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
-        if let Self::FindRepository {name} = self {
-            if !repository_name(name) {return Err(Failure::invalid());}
+        if let Self::FindRepository { name } = self {
+            if !repository_name(name) {
+                return Err(Failure::invalid());
+            }
         }
         let value = serde_json::to_value(self).map_err(|_| Failure::invalid())?;
         if let Some(repo) = value.get("repository") {
@@ -169,10 +185,11 @@ impl Read {
             return Err(Failure::invalid());
         }
         for key in ["review_id", "comment_id", "run_id", "attempt"] {
-            if value
-                .get(key)
-                .is_some_and(|id| !id.as_str().is_some_and(remote_id))
-            {
+            if value.get(key).is_some_and(|id| {
+                !id.as_str().is_some_and(|s| {
+                    remote_id(s) || matches!(self, Self::PullWorkflowJobs { .. }) && s.is_empty()
+                })
+            }) {
                 return Err(Failure::invalid());
             }
         }
@@ -204,6 +221,23 @@ impl Read {
         }
         let base = value["base"].as_str().unwrap_or("");
         let head = value["head"].as_str().unwrap_or("");
+        if let Self::PullWorkflowJobs {
+            run_page,
+            page,
+            run_id,
+            attempt,
+            ..
+        } = self
+        {
+            if *run_page == 0
+                || *run_page > 1_000_000
+                || !(head.is_empty() && *run_page == 1 && *page == 1 || commit(head))
+                || !(run_id.is_empty() && attempt.is_empty() && *page == 1
+                    || remote_id(run_id) && remote_id(attempt))
+            {
+                return Err(Failure::invalid());
+            }
+        }
         if matches!(self, Self::PullDiff { .. } | Self::PullFiles { .. })
             && (!(base.is_empty() && head.is_empty() || commit(base) && commit(head))
                 || files && value["page"] != 1 && base.is_empty())
@@ -217,8 +251,11 @@ impl Read {
         {
             return Err(Failure::invalid());
         }
-        if matches!(self, Self::WorkflowRuns { .. } | Self::PullProtection { .. })
-            && !head.is_empty() && !commit(head)
+        if matches!(
+            self,
+            Self::WorkflowRuns { .. } | Self::PullProtection { .. }
+        ) && !head.is_empty()
+            && !commit(head)
             || matches!(self, Self::WorkflowRunJobs { .. }) && !commit(head)
         {
             return Err(Failure::invalid());
@@ -230,5 +267,14 @@ impl Read {
     }
 }
 pub(super) fn repository_name(name: &str) -> bool {
-    name.split_once('/').is_some_and(|(owner, repo)| [owner,repo].iter().all(|part| !part.is_empty() && part.len() <= 100 && !matches!(*part,"."|"..") && part.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b,b'-'|b'_'|b'.'))))
+    name.split_once('/').is_some_and(|(owner, repo)| {
+        [owner, repo].iter().all(|part| {
+            !part.is_empty()
+                && part.len() <= 100
+                && !matches!(*part, "." | "..")
+                && part
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
+        })
+    })
 }

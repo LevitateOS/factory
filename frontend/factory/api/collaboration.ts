@@ -214,6 +214,7 @@ export interface Check {
     | 'stale'
     | 'unknown';
   required: boolean | null;
+  source_app?: string | null;
   details_url: string;
 }
 export interface CheckJob {
@@ -238,6 +239,15 @@ export interface BranchProtection {
   protected: boolean | null;
   status_checks: boolean | null;
   required_contexts: readonly string[] | null;
+  required_checks?: readonly {context: string; source: 'any' | 'app' | 'unknown'; app?: string}[];
+  requirements_complete?: boolean;
+  classic_visible?: boolean;
+  rules_visible?: boolean;
+  unknown_rule_kinds?: readonly string[];
+  require_code_owner_reviews?: boolean | null;
+  require_last_push_approval?: boolean | null;
+  require_linear_history?: boolean | null;
+  require_resolved_threads?: boolean | null;
   required_approvals: number | null;
   block_rejected: boolean | null;
   block_review_requests: boolean | null;
