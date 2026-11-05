@@ -12,6 +12,7 @@ mod protection;
 mod reads;
 mod records;
 mod request;
+mod review_threads;
 mod states;
 mod threads;
 mod transport;
@@ -27,6 +28,7 @@ pub use writes::{CreateOutcome, WriteOutcome};
 pub type CommentOutcome = CreateOutcome;
 pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use request::Read;
+pub use review_threads::ThreadRead;
 use serde::Serialize;
 pub use transport::{Client, Owner};
 

@@ -26,6 +26,8 @@ mod native_github_issues;
 mod native_github_locks;
 #[path = "../native_github_states.rs"]
 mod native_github_states;
+#[path = "../native_github_threads.rs"]
+mod native_github_threads;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
 fn ensure(ok: bool, message: &str) -> Result<()> {
@@ -1221,6 +1223,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-lock-declared" {
             return runtime.block_on(native_github_locks::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-threads-declared" {
+            return runtime.block_on(native_github_threads::producer(Path::new(&args[1])));
         }
         if args.len() == 4 && args[0] == "--github-lock-product-declared" {
             return runtime.block_on(native_github_locks::product(

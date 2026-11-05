@@ -2208,3 +2208,37 @@ unavailable. D1/D2/D3/D5, custody/root absence/scoped delivery, installed peer/w
 instance admission, worker isolation/execution/retirement/settlement and release/
 upgrade/freshness retain earlier exact blockers and evidence requirements. No
 broad security gate or Daybreak work is closed by this ordinary composed check.
+
+T11-WRITES thread-identity dependency (2026-11-05):
+`lib/desktop-runtime/src/github_provider/review_threads.rs` now produces genuine
+GraphQL thread IDs and bounded scope-checked catalogue/detail observations. The
+historical `github_provider/threads.rs` still supplies REST root-comment groups to
+`Read::PullThreads`; a numeric root-comment ID is not a review-thread Node ID.
+The exact source blocker is canonical read cutover in `request.rs`, `reads.rs`,
+`pkg/factory/runtime/native_product_discussions.go` and cursor identity in
+`native_product_observations.go`, followed by retiring the old grouping owner.
+Old numeric selectors/cursors must refuse without heuristic remapping. Preserve
+null author/review links and original coordinates separately from proven anchors.
+Only after that dependency can journaled resolve/unresolve native effects and
+canonical human selection be composed. Viewer capability booleans are provider
+observations, not product authority.
+
+The native reader passed 36 declared cases, eight invalid descriptors and owner
+retirement through the actual native transport using isolated dummy-only HTTPS;
+result `/home/vince/tmp/factory-review-threads-1105/attempt2/thread-producer-result.json`,
+SHA-256 `5947fca7163a6f76457678a1f8c378caae5394346a3b7c49b3805a0a2b1cfed5`.
+The initial oversized-response fixture expectation failed (expected 502, observed
+correct 413) and is retained. Existing lock mutation transport regression passed.
+Exact artifacts and limitations are recorded in the canonical plan. These prove
+local decoding/bounds/refusal behavior, not actual GitHub schema, permission,
+pagination consistency, canonical admission or installed UI qualification.
+
+Closing this dependency requires actual canonical read mapping and retained
+cursor refusal evidence, then exact account/repository/PR/thread selection,
+original full/unknown anchors, one-shot reserve/replay/cancel/restart, current
+custody and causal resolve/unresolve evidence. Fresh specifically authorized
+GitHub and normal shared readback remain required; no real grant is retained.
+Transfer/visibility policy, delayed deadlines, D1/D2/D3/D5, credential root absence/
+scoped delivery, installed IPC/window/instance, isolation/execution/retirement/
+settlement and release/upgrade/freshness retain their earlier blockers. No broad
+gate was closed, and no hacking-like work or Daybreak session was performed.

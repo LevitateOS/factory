@@ -28011,3 +28011,67 @@ T11-WRITES remains Active for its other operations/acceptance. All broader D1/D2
 D3/D5, custody/root absence/scoped delivery, installed IPC/window/instance, worker
 isolation/execution/retirement and release/upgrade/freshness gates remain open;
 the full product is unfinished and no actual GitHub lock occurred here.
+
+### T11-WRITES checkpoint: genuine GitHub thread observation producer (2026-11-05)
+
+Resolution must address a genuine GraphQL review-thread Node ID. The existing
+`github_provider/threads.rs` groups REST review comments by numeric root-comment
+ID; those identities are not resolution targets and must never be translated or
+silently adopted as thread IDs. This checkpoint supplies the producer prerequisite
+in `lib/desktop-runtime/src/github_provider/review_threads.rs`; the canonical
+consumer still uses the historical REST groups until its verified cutover.
+
+Rust exposes only a fixed catalogue/detail selector. It verifies current account,
+immutable repository/PR identities and GraphQL parent membership, bounds the whole
+operation to eight seconds, and joins the native transport owner on retirement.
+The complete catalogue is bounded to 1,000 threads, 1,000 preview comments and
+8 MiB projected data; fixed provider continuation cursors must progress, counts
+must remain consistent, and duplicates or partial GraphQL errors refuse the read.
+Public numeric windows use at most 20 threads/comments, previews ten comments.
+Detail reads retain genuine opaque thread IDs, exact comment Markdown, BigInt
+comment/review identities, resolution/outdated and viewer resolve/unresolve facts.
+Missing author/review linkage stays null. Recorded root coordinates remain
+separate from an immutable two-commit anchor; no present head is substituted.
+Numeric legacy root IDs refuse before provider I/O. There is no mutation here.
+
+The existing native executable gained `--github-threads-declared FRESH_PROFILE`.
+Its production Rust reader passed 36 declared cases, eight invalid descriptors
+and in-flight owner retirement in
+`/home/vince/tmp/factory-review-threads-1105/attempt2/`. Cases include catalogue and
+comment paging, exact scope/state/action facts, null links and coordinates,
+BigInt IDs, empty catalogues, changed identities/counts, duplicate threads/comments,
+cursor loops/missing cursors, malformed state/dates/nodes, wrong parent/comment
+membership, absent/wrong-kind details, partial errors, provider refusal, redirect,
+oversized responses, recheck changes and a whole-operation deadline. Dummy-only
+local HTTPS accepts no real grant and never forwards. The first run expected 502
+for an oversized response; production correctly returned 413. Its executable,
+profile and failed log remain preserved; only that fixture expectation changed.
+
+| Artifact under `/home/vince/tmp/factory-review-threads-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `43a977e6bbbe738e32a2c087f3bb58b6fa78b5afd94d1d5f48a8518f4c158a4d` |
+| `provider` | `cfd55dbed696661a639b82e7c6ba6c1d0553e18b03b24d209aebf3bff054c29b` |
+| `check-bin` | `0d1d08d4d9e7c5df5a7599ee507bedba0ecbc622955e118e1ace79044d415173` |
+| `check-a1` | `76c0b8b142736baa6583269dcdd6ad05fa15c3467f743a70e567596f92ccffba` |
+| `run.sh` | `4ba41bc5ddc6fbb28606d693c3acdced50ab876d4a5884840094197dc2137546` |
+| `session.sh` | `d6f90f2258094e5088e438e98558b6dbb6db84736651e30085ef0f66c5299867` |
+| `attempt1/result.log` (failed) | `626fcaf0c1ecc1a0fd6d48a8cf73f14fa6a3929b5e5a3150305079e53c7cd548` |
+| `attempt2/result.log` | `47a73f77532c41691f8359c9d9271d869621760412c1a61902d5d7545b35dbf5` |
+| `attempt2/thread-producer-result.json` | `5947fca7163a6f76457678a1f8c378caae5394346a3b7c49b3805a0a2b1cfed5` |
+
+The existing lock producer also passed after the shared GraphQL transport change,
+including its mutation serialization/retirement cases, in
+`/home/vince/tmp/factory-lock-provider-1105/thread-transport-regression/`; result
+`78c75b5c2756c8376831164c00784404ba003cd07962ed5fc11e1d3a184c41bd`, log
+`b7fd74d8d65ac1f33816ed320042cda3ae947b729bce70962bada3b998f32e4a`.
+Locked offline native and desktop-feature builds, ownership boundaries and
+whitespace checks passed. No dependency or unit-test root was added.
+
+Next source dependency: cut the native `Read::PullThreads`/Go consumer over to
+this producer, retire REST grouping, version cursor identity so old cursors refuse,
+and preserve nullable review linkage rather than inventing IDs. Then implement
+one-shot thread resolve/unresolve journal/native effects and shared selection.
+Actual GitHub schema/permission/paging behavior, admitted canonical reads, shared
+WebKit/installed checks, current policy and original-anchor evidence are still
+unverified. Viewer action facts alone grant no product permission. T11-WRITES
+remains Active; all broader gates and the unfinished product remain open.

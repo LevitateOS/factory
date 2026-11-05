@@ -68,6 +68,10 @@ enum Request {
         reason: Option<String>,
         token: Zeroizing<Vec<u8>>,
     },
+    Threads {
+        query: super::review_threads::ThreadQuery,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -373,11 +377,32 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn thread_query(
+        &self,
+        query: super::review_threads::ThreadQuery,
+        token: &[u8],
+    ) -> Result<Value> {
+        Ok(self
+            .mutation(Request::Threads {
+                query,
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?
+            .value)
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
+        let read_query = matches!(&request, Request::Threads { .. });
         let wire = self.request(request).await?;
         if wire.status != 200 {
             if matches!(wire.status, 400 | 422) {
-                return Err(Failure::new(400, "github_write_rejected"));
+                return Err(Failure::new(
+                    400,
+                    if read_query {
+                        "github_query_rejected"
+                    } else {
+                        "github_write_rejected"
+                    },
+                ));
             }
             return Err(provider_failure(&wire));
         }
@@ -479,6 +504,10 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
                 )?,
                 1024 * 1024,
             )
+        }
+        Request::Threads { query, token } => {
+            let (query, variables) = query.wire();
+            (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
         }
         Request::Lock {
             node,
@@ -616,7 +645,7 @@ fn network_failure(error: reqwest::Error) -> Failure {
 fn graphql(
     http: &Http,
     token: &[u8],
-    query: &'static str,
+    query: &str,
     variables: Value,
 ) -> Result<reqwest::RequestBuilder> {
     if !secret(token) {
