@@ -29937,3 +29937,79 @@ Locked/offline compilation is historical-input component evidence, not a fresh
 baseline or installed qualification. No real grant, provider write, notification,
 Daybreak work or broad security/product gate was qualified. The explicit remaining
 dependencies and open gates from the preceding checkpoint remain unchanged.
+
+### T11-WRITES checkpoint: bounded native exact-commit branch creation (2026-11-06)
+
+`github_provider/branch_create.rs`, `request.rs`, `reads.rs`, `transport.rs` and
+`mod.rs` now define the authenticated native branch preparation/creation owner.
+`Read::BranchCreation` observes an exact numeric repository, literal branch and
+immutable commit. Numeric/current-name repository identity, Node identity,
+commit object type/OID/repository and branch presence are checked twice, with
+current metadata and account rechecks. Missing fields do not become absence;
+nullable metadata does not become permission. The observation is explicitly
+bounded, not an atomic revision or a receipt attributing earlier work.
+
+`BranchCreate` requires the saved repository Node identity, literal name and
+exact commit. Current known non-archived/non-disabled/push metadata, matching
+repository identity and an absent branch precede one fixed `createRef` attempt.
+The only mutation inputs are repository Node ID, fully qualified `refs/heads/`
+name and exact commit OID. A literal input beginning with `refs/` remains a
+literal nested branch under `refs/heads/`; it cannot select a tag or arbitrary
+namespace. No force/update, deletion, replacement or compensation is sent.
+An existing branch is refused even at the same commit. The causal reply must
+bind the new ref Node ID, exact literal name/prefix, repository and commit target.
+A bounded receipt retains current account and provider response evidence.
+Any failed/invalid/lost reply after attempting stays indeterminate; matching
+current branch facts cannot attribute that earlier attempt. Shared mutation
+serialization/pacing, the whole eight-second maximum and joined retirement apply.
+
+The fixed API selection follows the current official
+[createRef/CreateRefInput and Ref reference](https://docs.github.com/en/graphql/reference/git)
+and [repository object lookup](https://docs.github.com/en/graphql/reference/repos),
+consulted 2026-11-06. Documentation is not live grant/schema qualification.
+
+The existing native executable gained
+`--github-branch-create-declared FRESH_PROFILE`. The actual production provider/
+transport passed 44 declared cases, 16 invalid descriptors before I/O and
+in-flight/stopped-owner retirement, with 24 dummy mutation attempts, under
+`/home/vince/tmp/factory-branch-create-1106/attempt2/`. Coverage includes normal,
+Unicode, maximum 512-byte qualified names, nested literal refs, SHA-256 commit,
+64-bit repository IDs and current renamed repository; independent normal
+readback followed by existing-branch refusal; account/visibility/repository slot/
+Node pin/query object/commit/absence/state/permission/change/deadline preflight
+refusals; all causal ref/name/prefix/repository/target identity mismatches;
+malformed/partial/denied/deadline/header and lost replies; readable matching
+branch after loss without attribution; a paused serialized clone held beyond
+the pacing interval whose successor refused the now-existing branch; and joined
+retirement with no stopped-owner I/O. No Go journal or shared UI was activated.
+`attempt1` is retained: its fixture omitted owner metadata required by the
+existing repository decoder and refused before any mutation. The fixture was
+corrected; production validation was preserved.
+
+| Artifact under `/home/vince/tmp/factory-branch-create-1106/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `e7206ef8683321f095f38433994da19494e45fb3ca1c1e095c5ac94a9fe6f2b8` |
+| `provider` | `6e80754071b20bcf9fe98a75aa9a5234df64224df7c0c4874784c13fd73b9679` |
+| `check-bin` | `c83afc39bc4c490a40df380c1bc0d5acfb730886d3e15f0413607d444f68af93` |
+| `run.sh` | `8a0bc680c6a7cda91dba1b3b9616c4c80217432c07b985bbe8c451f417b7d80c` |
+| `session.sh` | `2b75cb9f9daa11338cd84d4d07dd4d2be8f6b54431edd510deaaa392876e4ffd` |
+| `attempt2/result.log` | `51a68e346ac4fe477cf8c799bb0336a34c6a8d78b3db4edbacb954ce0eeb91c6` |
+| `attempt2/branch-create-result.json` | `4c7704ad4cd1ba24906d1fb53d7381cd7fb0401b5751cf6fb4bf5ebb6f4e988f` |
+
+Locked/offline native executable and desktop-feature builds, ownership boundaries
+and whitespace checks passed. No dependency or test root/module was added. The
+owned fixed-dummy TLS peer cannot forward. These are component observations,
+not fresh dependency, live provider identity/grant/rules/permission, longest
+combined receipt bounds, durable command recovery or shared UI/installed proof.
+
+Next dependency: a canonical human branch intent/capture and committed one-shot
+Go journal fence, then admitted typed callback and product composition over these
+native facts. Reserve before every product effect; original preparation/deadline
+and immutable receipts must survive replay/cancel/loss/custody replacement and
+restart, without adopting a matching current ref. Qualify original expiration
+and longest combined identity bounds, then fresh owner-authorized actual-provider
+permission/rule enforcement/collision and shared UI/installed readback. No
+historical sign-in or dummy approval authorizes a real branch write. Inline/
+draft/merge work and all canonical/broad gates remain open; shared write
+capabilities stay unavailable and T11-WRITES/the full product remain unfinished.
+No Daybreak work ran or was marked complete.

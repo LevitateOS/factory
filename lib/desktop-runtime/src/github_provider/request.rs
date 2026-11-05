@@ -28,6 +28,11 @@ pub enum Read {
     Repository {
         repository: String,
     },
+    BranchCreation {
+        repository: String,
+        name: String,
+        commit: String,
+    },
     FindRepository {
         name: String,
     },
@@ -208,6 +213,14 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::BranchCreation {
+            name, commit: oid, ..
+        } = self
+        {
+            if !branch_name(name) || !commit(oid) {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::PullReviewPublication { review_node_id, .. } = self {
             if !node_id(review_node_id) {
                 return Err(Failure::invalid());

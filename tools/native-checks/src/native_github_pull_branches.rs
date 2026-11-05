@@ -11,6 +11,302 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(super) async fn branch_creation(profile: &Path) -> Result<()> {
+    use soda_desktop_runtime::github_provider::{BranchCreate, CreateOutcome, Read};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        for marker in ["entered", "release", "cancelled"] {
+            match fs::remove_file(io.join(marker)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let calls = || -> Result<Vec<u8>> { Ok(fs::read(io.join("calls")).unwrap_or_default()) };
+    let token = || Token::new(b"factory-declared-branch-create".to_vec());
+    let request = || BranchCreate {
+        repository: "123".into(),
+        repository_node_id: "R_123".into(),
+        name: "topic/new".into(),
+        commit: "b".repeat(40),
+    };
+    let read = |q: &BranchCreate| Read::BranchCreation {
+        repository: q.repository.clone(),
+        name: q.name.clone(),
+        commit: q.commit.clone(),
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "positive",
+        "unicode",
+        "maximum-name",
+        "literal-refs",
+        "sha256",
+        "big-repository",
+        "current-name",
+    ] {
+        mode(name)?;
+        let mut q = request();
+        match name {
+            "unicode" => q.name = "topic/π/茶".into(),
+            "maximum-name" => q.name = "n".repeat(501),
+            "literal-refs" => q.name = "refs/tags/literal-branch".into(),
+            "sha256" => q.commit = "a".repeat(64),
+            "big-repository" => q.repository = "5000000000".into(),
+            _ => (),
+        }
+        let p = client
+            .observe(token()?, "321", &read(&q))
+            .await
+            .map_err(|f| format!("branch prepare {name}: {} {}", f.status, f.code))?;
+        ensure(
+            p["preparation"]["repository_node_id"] == q.repository_node_id
+                && p["preparation"]["requested_branch"] == q.name
+                && p["preparation"]["requested_commit"] == q.commit
+                && p["preparation"]["branch"].is_null(),
+            "branch preparation lost exact selector or invented an existing branch",
+        )?;
+        let before = writes()?;
+        let CreateOutcome::Created(r) = client.create_branch(token()?, "321", &q).await else {
+            return Err(format!("branch creation {name} refused").into());
+        };
+        ensure(
+            r["repository"] == q.repository
+                && r["repository_node_id"] == q.repository_node_id
+                && r["account"]["external_id"] == "321"
+                && r["branch"]["name"] == q.name
+                && r["branch"]["node_id"] == "REF_new"
+                && r["branch"]["commit"] == q.commit
+                && r["creation_condition"] == "new_ref_at_exact_commit"
+                && r["provider_response"]["protocol"] == "github_graphql_create_ref"
+                && serde_json::to_vec(&r)?.len() <= 4096
+                && writes()? == before + 1,
+            "branch causal receipt lost exact identity/commit",
+        )?;
+        let p = client
+            .observe(token()?, "321", &read(&q))
+            .await
+            .map_err(|f| format!("branch readback {name}: {} {}", f.status, f.code))?;
+        ensure(
+            p["preparation"]["branch"] == r["branch"],
+            "created branch is not normally observable",
+        )?;
+        match client.create_branch(token()?, "321", &q).await {
+            CreateOutcome::NotSent(f) if f.status == 409 => (),
+            _ => return Err("existing branch was adopted or rewritten".into()),
+        }
+        ensure(writes()? == before + 1, "existing branch repeated mutation")?;
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&r)?)?;
+        cases.push(name.to_owned());
+    }
+    for (name, status) in [
+        ("identity-change", 409),
+        ("identity-denied", 401),
+        ("repository-hidden", 404),
+        ("repository-slot-changed", 409),
+        ("pin-changed", 409),
+        ("query-hidden", 404),
+        ("query-wrong-type", 409),
+        ("query-wrong-repository", 409),
+        ("query-wrong-name", 409),
+        ("commit-hidden", 404),
+        ("commit-omitted", 502),
+        ("commit-wrong-type", 502),
+        ("commit-wrong-oid", 502),
+        ("commit-wrong-repository", 502),
+        ("branch-omitted", 502),
+        ("branch-exists", 409),
+        ("changed-branch", 409),
+        ("read-only", 403),
+        ("unknown-push", 403),
+        ("changed-repository", 409),
+        ("preflight-deadline", 504),
+    ] {
+        mode(name)?;
+        let mut q = request();
+        if name == "pin-changed" {
+            q.repository_node_id = "R_other".into()
+        };
+        let before = writes()?;
+        match client.create_branch(token()?, "321", &q).await {
+            CreateOutcome::NotSent(f) if f.status == status => (),
+            CreateOutcome::NotSent(f) => {
+                return Err(format!(
+                    "branch {name} expected {status}, got {} {}",
+                    f.status, f.code
+                )
+                .into())
+            }
+            _ => {
+                return Err(
+                    format!("branch preflight {name} reached or attributed a mutation").into(),
+                )
+            }
+        }
+        ensure(
+            writes()? == before,
+            "branch preflight rejection sent a write",
+        )?;
+        cases.push(name.into());
+    }
+    let mut invalid = Vec::new();
+    for branch in [
+        "",
+        "/topic",
+        "topic/",
+        "bad..branch",
+        "bad@{branch",
+        "bad branch",
+        "bad:branch",
+        ".hidden",
+        "part/.hidden",
+        "topic.lock",
+        "topic.",
+        "bad\nbranch",
+    ] {
+        let mut q = request();
+        q.name = branch.into();
+        invalid.push(q)
+    }
+    for i in 0..4 {
+        let mut q = request();
+        match i {
+            0 => q.repository = "0123".into(),
+            1 => q.repository_node_id = "".into(),
+            2 => q.commit = "b".repeat(39),
+            _ => q.name = "n".repeat(502),
+        };
+        invalid.push(q)
+    }
+    for q in &invalid {
+        let before = calls()?;
+        match client.create_branch(token()?, "321", q).await {
+            CreateOutcome::NotSent(f) if f.status == 400 => (),
+            _ => return Err("invalid branch descriptor performed I/O".into()),
+        };
+        ensure(calls()? == before, "invalid branch effect performed I/O")?;
+        // The repository Node pin belongs only to the write descriptor.
+        if !q.repository_node_id.is_empty() {
+            ensure(
+                client.observe(token()?, "321", &read(q)).await.is_err() && calls()? == before,
+                "invalid branch selector accepted or performed I/O",
+            )?;
+        }
+    }
+    for name in [
+        "wrong-node",
+        "wrong-name",
+        "wrong-prefix",
+        "wrong-repository",
+        "null-target",
+        "wrong-target-type",
+        "wrong-target-oid",
+        "wrong-target-repository",
+        "null-ref",
+        "malformed",
+        "partial-errors",
+        "denied",
+        "drop-reply",
+        "deadline",
+        "duplicate-request-id",
+    ] {
+        mode(name)?;
+        let q = request();
+        let before = writes()?;
+        match client.create_branch(token()?, "321", &q).await {
+            CreateOutcome::Indeterminate(_) => (),
+            _ => {
+                return Err(
+                    format!("branch post-send {name} was attributed or called no-effect").into(),
+                )
+            }
+        }
+        ensure(writes()? == before + 1, "post-send branch failure retried")?;
+        if name == "drop-reply" {
+            let p = client
+                .observe(token()?, "321", &read(&q))
+                .await
+                .map_err(|_| "lost branch readback failed")?;
+            ensure(
+                p["preparation"]["branch"]["node_id"] == "REF_new",
+                "lost branch not normally readable",
+            )?;
+        }
+        cases.push(name.into());
+    }
+    mode("serialize")?;
+    let q = request();
+    let before = writes()?;
+    let first_token = token()?;
+    let first = async {
+        Ok::<_, std::convert::Infallible>(client.create_branch(first_token, "321", &q).await)
+    };
+    tokio::pin!(first);
+    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    let clone = client.clone();
+    let second = clone.create_branch(token()?, "321", &q);
+    tokio::pin!(second);
+    tokio::select! {_=&mut second=>return Err("branch clone escaped mutation serialization".into()),_=tokio::time::sleep(Duration::from_millis(1100))=>()};
+    fs::write(io.join("release"), b"")?;
+    ensure(
+        matches!(first.await?, CreateOutcome::Created(_))
+            && matches!(second.await, CreateOutcome::NotSent(_))
+            && writes()? == before + 1,
+        "serialized branch clone repeated/adopted created ref",
+    )?;
+    cases.push("serialized-clones".into());
+    mode("retire")?;
+    let q = request();
+    let pending_token = token()?;
+    let pending = async {
+        Ok::<_, std::convert::Infallible>(client.create_branch(pending_token, "321", &q).await)
+    };
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    owner.stop()?;
+    ensure(
+        matches!(pending.await?, CreateOutcome::Indeterminate(_))
+            && started.elapsed() < Duration::from_secs(2),
+        "retired branch effect delivered stale reply or failed to join",
+    )?;
+    let before = calls()?;
+    ensure(
+        matches!(
+            client.create_branch(token()?, "321", &q).await,
+            CreateOutcome::NotSent(_)
+        ) && calls()? == before,
+        "stopped branch owner made provider I/O",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists()
+            && !io.join("overlap").exists()
+            && !io.join("too-fast").exists(),
+        "unexpected/unserialized/unpaced branch request",
+    )?;
+    fs::write(
+        root.join("branch-create-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"invalid_descriptors":invalid.len(),"provider_mutations":writes()?,"retirement":true,"actual_provider":false,"product_consumer_connected":false,"force_update_or_delete":false}),
+        )?,
+    )?;
+    println!("PASS: bounded native branch preparation/create/readback, exact commit/ref identity, preflight refusal, causal uncertainty, serialized clones and retirement; dummy-only provider");
+    Ok(())
+}
+
 pub(super) async fn producer(profile: &Path) -> Result<()> {
     prepare(profile)?;
     let root = profile.parent().ok_or("fixture parent absent")?;

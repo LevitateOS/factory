@@ -1,5 +1,6 @@
 //! Complete native GitHub session. No Tauri, product SQL, or browser HTTP bridge.
 //! The transport owner is joined on retirement, including its TLS/HTTP drivers.
+mod branch_create;
 mod comments;
 mod diff;
 mod edits;
@@ -26,6 +27,7 @@ mod transport;
 mod writes;
 
 use crate::credentials::{Account, Provider, Token};
+pub use branch_create::BranchCreate;
 pub use comments::Comment;
 pub use edits::DiscussionEdit;
 pub use issue_create::IssueCreate;

@@ -82,6 +82,17 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "branch_creation" => (
+                            "preparation",
+                            reader
+                                .branch_creation(
+                                    r::text(&q, "name")?,
+                                    r::text(&q, "commit")?,
+                                    &identity.external_id,
+                                    identity.node_id.as_deref().ok_or_else(Failure::protocol)?,
+                                )
+                                .await?,
+                        ),
                         "pull_review_publication" => (
                             "publication",
                             reader

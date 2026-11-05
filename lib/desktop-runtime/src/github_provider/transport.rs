@@ -30,6 +30,18 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    BranchCreation {
+        repository: String,
+        name: String,
+        oid: String,
+        token: Zeroizing<Vec<u8>>,
+    },
+    BranchCreate {
+        repository: String,
+        name: String,
+        oid: String,
+        token: Zeroizing<Vec<u8>>,
+    },
     ReviewSubmit {
         review: String,
         event: &'static str,
@@ -566,7 +578,8 @@ impl Client {
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let read_query = matches!(
             &request,
-            Request::Threads { .. }
+            Request::BranchCreation { .. }
+                | Request::Threads { .. }
                 | Request::Reviewers { .. }
                 | Request::PullBranches { .. }
                 | Request::ReviewPreparation { .. }
@@ -635,6 +648,36 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn branch_creation_query(
+        &self,
+        repository: &str,
+        name: &str,
+        oid: &str,
+        token: &[u8],
+    ) -> Result<Value> {
+        Ok(self
+            .mutation(Request::BranchCreation {
+                repository: repository.into(),
+                name: name.into(),
+                oid: oid.into(),
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?
+            .value)
+    }
+    pub(super) async fn post_branch(
+        &self,
+        q: &super::BranchCreate,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::BranchCreate {
+            repository: q.repository_node_id.clone(),
+            name: q.name.clone(),
+            oid: q.commit.clone(),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     pub(crate) async fn delay(&self, duration: Duration) -> Result<()> {
         self.current()?;
         let mut retirement = self.retired.subscribe();
@@ -663,6 +706,50 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>) {
 }
 async fn wire(http: &Http, request: Request) -> Result<Wire> {
     let (request, limit) = match request {
+        Request::BranchCreation {
+            repository,
+            name,
+            oid,
+            token,
+        } => {
+            if !super::request::node_id(&repository)
+                || !super::request::branch_name(&name)
+                || !super::request::commit(&oid)
+            {
+                return Err(Failure::invalid());
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::branch_create::QUERY,
+                    serde_json::json!({"repository":repository,"name":format!("refs/heads/{name}"),"oid":oid}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::BranchCreate {
+            repository,
+            name,
+            oid,
+            token,
+        } => {
+            if !super::request::node_id(&repository)
+                || !super::request::branch_name(&name)
+                || !super::request::commit(&oid)
+            {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::branch_create::CREATE,
+                    serde_json::json!({"input":{"repositoryId":repository,"name":format!("refs/heads/{name}"),"oid":oid}}),
+                )?,
+                1024 * 1024,
+            )
+        }
         Request::PullCreate {
             base,
             head,

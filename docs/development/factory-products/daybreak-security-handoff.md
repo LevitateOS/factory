@@ -1,6 +1,6 @@
 # Open security gates and Daybreak handoff
 
-Updated 2026-11-05. This is an evidence register, not a completion ledger. The
+Updated 2026-11-06. This is an evidence register, not a completion ledger. The
 canonical order and statuses remain in
 [implementation-tasks.md](implementation-tasks.md); the selected ownership remains
 in [language-allocation.md](language-allocation.md). All gates below are open.
@@ -3233,3 +3233,36 @@ closes original-expiry evidence for this consumer only. It is a dummy-only
 declared check, not actual provider, installed, freshness or security-gate
 qualification. All other concrete tasks, dependencies and evidence requirements
 in the preceding checkpoint remain open; no Daybreak work was completed.
+
+T11-WRITES bounded native branch preparation/creation (2026-11-06):
+`github_provider/{branch_create,request,reads,transport,mod}.rs` now define one
+current-account numeric/Node repository, literal branch and exact commit owner.
+Preparation rechecks repository/commit/branch facts; creation refuses an existing
+branch and requires known writable metadata before one fixed `createRef` with
+repository Node ID, fully qualified heads name and commit OID. The causal reply
+binds exact new ref/repository/commit identity. Force/update/delete, arbitrary
+namespaces, replacement and compensation are absent. A lost reply stays
+indeterminate despite a matching current branch; no Go consumer is enabled.
+
+Production provider/transport passed 44 declared cases, 16 invalid descriptors,
+serialized/paced clones and joined retirement with 24 dummy mutations. Evidence:
+`/home/vince/tmp/factory-branch-create-1106/attempt2/branch-create-result.json`,
+SHA-256 `4c7704ad4cd1ba24906d1fb53d7381cd7fb0401b5751cf6fb4bf5ebb6f4e988f`;
+log SHA-256 `51a68e346ac4fe477cf8c799bb0336a34c6a8d78b3db4edbacb954ce0eeb91c6`.
+The plan records exact artifacts, official API references, maximum/literal-name/
+commit/identity/refusal/loss cases and the initial missing-metadata fixture
+failure. This is dummy-only/no-forwarding component evidence, not a security gate.
+
+Exact dependency before product use: canonical Go intent/capture, committed
+one-shot reservation, typed current-account callback and durable immutable causal
+receipt/recovery. Then prove replay/cancel/loss/original expiry/custody replacement/
+restart with the actual native/Go/PostgreSQL path. Longest combined receipt bounds
+remain unqualified. Actual provider object/repository association, current grant,
+push permission, protected/restricted branch rule enforcement and name collision
+behavior remain unverified; close them with a fresh specifically authorized
+owned-repository provider journey and exact branch/commit readback, followed by
+shared UI/installed evidence. Do not attempt rules bypass or infer real-write
+authorization from historical consent or dummy approvals. No source check,
+fixture, documentation selection or proposed fix closes these actual gates.
+Inline/draft/merge and all canonical/broad gates remain open, shared writes remain
+unavailable, and no Daybreak work ran or was marked complete.
