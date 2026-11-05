@@ -1375,3 +1375,27 @@ or declared WebKit obligations not yet migrated. T06-GITHUB stays Active for
 those exact remaining consumers in the canonical inventory. D1/D2/D3/D5 and
 installed native admission/custody/isolation/executor evidence remain open;
 the register's dependencies and required installed journeys still apply.
+
+Device/grant migration evidence (2026-11-05): current production Rust declared
+device → fresh identity → complete encrypted grant reload/withdrawal passed in
+`/home/vince/tmp/factory-github-oauth-declared-1105/grant-attempt1/` (result
+`5dd2f8b9fa3474adb018b84c4bd01eba373844f9f748d1369f659797b1061911`).
+The dummy-only HTTPS device suite passed under `device-attempt2/` in that root
+(result `486b753623c1b846006ace99b33011f787bb77b807c31595472e42813a6ee2fd`):
+expiring/long-lived grants, pending/slow-down, refusal/expiry/deadline, malformed
+token/URI/size/redirect, upstream start/wait cancellation and retired
+authorization with no network or stored account. Three polls took 14012 ms.
+The earlier failed fixture interval expectation is preserved and explained in
+the canonical plan; no production polling change was needed.
+
+Independent actual GitHub unapproved-device pending/cancellation/retired-start
+check passed with empty custody under
+`/home/vince/tmp/factory-github-device-pending-1105/` (result
+`4863f547ff528bea0c56b669d6117904f4745187703da26a63d1d399062be5f4`).
+These replace the old Go grant/device observers; they do not constitute fresh
+owner consent or installed qualification. Relevant existing check files remain
+`tools/native-checks/src/{native_github_transport.rs,bin/factory-credential-operation-check.rs}`.
+Exact remaining T06-GITHUB blocker: migrate verifier/transport and declared
+WebKit obligations from the canonical inventory before closing that provider
+gate. The broader installed admission/custody/isolation, D1/D2/D3/D5 and executor
+gates retain their separate required journeys and dependencies.

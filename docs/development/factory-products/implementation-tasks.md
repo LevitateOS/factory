@@ -26375,8 +26375,8 @@ Historical observer migration inventory (source audit; still unqualified):
 | Existing consumer | Exact missing current coverage before retirement |
 | --- | --- |
 | `tools/native-checks/src/native_github_transport.rs` historical `run_refresh` / CLI `--github-refresh` | Migrated: actual-provider refusal is `--github-refresh-refusal`; declared production-Rust HTTPS/custody cases are `--github-refresh-declared`. The old Go-observer option now refuses with the replacement commands. Verified details below; other consumers in this table remain pending. |
-| Same file `run_grant` / `--github-grant` | Current device grant → fresh identity → full native encrypted grant reload, preserving both expiry fields and refresh. Actual positive consent/reload already ran; declared shape/refusal coverage still needs current transport. |
-| Same file `run_device` / `--github-device` | Preserve actual unapproved challenge/cancellation; migrate declared pending/slow-down, long-lived grant, denial/expiry/deadline, malformed challenge/grant, redirect/size refusal, cancellation and retired authorization. |
+| Same file `run_grant` / historical `--github-grant` | Migrated to `--github-grant-declared`: production Rust device grant → fresh identity → complete encrypted reload and withdrawal passed. See evidence below. |
+| Same file historical `run_device` / `--github-device` | Migrated to independent `--github-device-pending` (actual unapproved GitHub challenge) and `--github-device-declared` (owned dummy-only HTTPS cases). Both passed; evidence below. |
 | Same file `run_verify` / `--github-verify` | Preserve actual unauthenticated identity refusal and empty custody; move declared cancellation and retired unpersisted verification to Rust HTTP, without expecting Go request-header observers. |
 | Same file `run` / `--github-transport` | Replace historical Go SDK/header counts with current fixed-origin Rust observations, including binding/refusal, concurrent replacement, withdrawal, dropped-call cancellation and joined retirement. Current declared evidence withdrawal and connected product cancellation cover only part of this obligation. |
 | `cmd/soda-desktop/src/check_credentials.rs` declared `start_signin`, `binding_checks`, `issue_checks` / `--check-signin` | Migrate old `io/mode` Go observer expectations: UI denial/cancel/expiry, stable canonical mappings across restart/rename, decimal provider IDs above JS integer precision, duplicate/foreign bindings, nullable records and filtered pagination, withdrawal and backend retirement. Actual connected consent/UI and the 62-case evidence suite do not replace all these cases. |
@@ -26467,3 +26467,42 @@ consumer migration from the inventory. The actual remote revocation obligation
 remains satisfied by the preceding connected journey; its captured binary
 predates this OAuth status narrowing. No new owner consent was requested solely
 for that narrowing. D1/D2/D3/D5, executor and installed gates remain open.
+
+Device/grant observer migration (2026-11-05, verified checkpoint):
+
+- `--github-grant-declared BACKEND POSTGRES_PAYLOAD FRESH_PROFILE` passed through
+  the production Rust device transport, fresh identity verification, complete
+  encrypted native storage/reopen and owned withdrawal, preserving refresh and
+  both expiry fields. Private evidence:
+  `/home/vince/tmp/factory-github-oauth-declared-1105/grant-attempt1/`;
+  result `5dd2f8b9fa3474adb018b84c4bd01eba373844f9f748d1369f659797b1061911`,
+  log `970eb61679eed1d9314a8d49715fca3b20fba025feb33f40c618ca02ebf13f3d`.
+- `--github-device-declared` passed the same owned loopback-only HTTPS fixture
+  with production Rust, current Go/PG and isolated real keyring: expiring and
+  long-lived grants, fresh identity, pending/slow-down, denial, provider expiry,
+  local deadline, invalid token/URI/oversized body/redirect, upstream cancellation
+  during start and wait, and retired authorization refusing before network.
+  Custody remained empty. The backoff fixture used a three-second initial
+  interval; three polls took 14012 ms, including the five-second slow-down
+  increment. Evidence:
+  `/home/vince/tmp/factory-github-oauth-declared-1105/device-attempt2/`;
+  result `486b753623c1b846006ace99b33011f787bb77b807c31595472e42813a6ee2fd`,
+  log `28d7c9b5fe6a60396a50ef2ffaca44a7a9d209aecc28caf37cfecc22c771451b`.
+  Attempt1 remains preserved: a fixture interval of one second produced the
+  correct eight-second sequence, failing the retained >12-second expectation;
+  the fixture was corrected without changing production polling.
+- Independent `--github-device-pending` passed against actual GitHub: the owned
+  public client's unapproved challenge stayed pending for the seven-second
+  observation, cancellation left custody empty, and retired start refused.
+  No owner approval, token or successful login is claimed. Evidence:
+  `/home/vince/tmp/factory-github-device-pending-1105/`;
+  result `4863f547ff528bea0c56b669d6117904f4745187703da26a63d1d399062be5f4`,
+  log `06369ef0f8b5e3212b13b318c6683286d7b489af59eb27bbbdb9745047943f58`.
+
+The historical Go grant/device options now refuse with the replacement commands.
+Their source remains in Git and the previously archived observer file. No
+second Go HTTP observer is used by these replacements. The locked/offline
+operation binary, boundary check and whitespace check passed. Existing actual
+consent/revocation proof remains separate; no new installed/fresh baseline or
+D1/D2/D3/D5 gate is inferred. T06-GITHUB stays Active for verifier, transport and
+declared WebKit consumer migration.

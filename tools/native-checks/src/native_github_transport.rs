@@ -805,13 +805,13 @@ pub(super) async fn run_refresh_declared(
 }
 /// Declared transport only; proves that full grants compose across the native
 /// device/verifier/custody boundaries without dropping refresh or expiration.
-pub(super) async fn run_grant(observed: &Path, payload: &Path, profile: &Path) -> Result<()> {
+pub(super) async fn run_grant(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
     prepare(profile)?;
     let io = profile.parent().ok_or("fixture parent missing")?.join("io");
     fs::create_dir(&io)?;
     fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
     fs::write(io.join("mode"), b"grant")?;
-    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
     let ready = runtime.health()?;
     let store = Credentials::open(profile, &ready.profile)?;
     let grant = runtime.github_device_start().await?.wait().await?;
@@ -849,15 +849,25 @@ pub(super) async fn run_grant(observed: &Path, payload: &Path, profile: &Path) -
     store.retire();
     reopened.retire();
     runtime.stop()?;
-    println!("PASS: declared upstream device grant crosses private Go/Rust transport, identity verification, full encrypted storage and native reopen without losing refresh/expiry; real private PG/backend stop; actual GitHub consent/login remains unqualified");
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("grant-declared-result.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "declared_https_only":true,"production_rust_connector":true,"real_grant_used":false,
+            "device_grant_identity_verified":true,"encrypted_complete_grant_reloaded":true,
+            "owned_local_account_removed":true
+        }))?,
+    )?;
+    println!("PASS: declared device grant crosses production Rust HTTPS, identity verification, complete encrypted storage and native reopen without losing refresh/expiry; owned PG/backend stop; no real GitHub consent claimed");
     Ok(())
 }
 
 /// Device authorization producer only. Controlled transport grants are labelled
 /// explicitly; no human consent, real token or successful login is asserted.
-pub(super) async fn run_device(
+pub(super) async fn run_device_pending(
     production: &Path,
-    observed: &Path,
     payload: &Path,
     profile: &Path,
 ) -> Result<()> {
@@ -891,8 +901,39 @@ pub(super) async fn run_device(
         "retired device start survived",
     )?;
     println!("PASS: actual GitHub device challenge with owned public client ID; unapproved polling stays pending and cancels; retired start refuses; no consent/token/login claimed");
+    ensure(
+        store.status().await?.is_empty(),
+        "unapproved device flow saved an account",
+    )?;
+    store.retire();
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("device-pending-result.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "actual_github_challenge":true,"unapproved_wait_cancelled":true,
+            "retired_start_refused":true,"custody_empty":true,"consent_or_grant_claimed":false
+        }))?,
+    )?;
+    Ok(())
+}
 
-    let runtime = NativeSupervisor::start(payload, observed, profile)?;
+pub(super) async fn run_device_declared(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    prepare(profile)?;
+    let io = profile.parent().ok_or("fixture parent missing")?.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let store = Credentials::open(profile, &runtime.health()?.profile)?;
+    ensure(
+        store.status().await?.is_empty(),
+        "declared device fixture not empty",
+    )?;
     let set_mode = |mode: &str| -> Result<()> {
         fs::write(io.join("mode"), mode)?;
         for name in ["entered", "cancelled", "calls"] {
@@ -931,15 +972,24 @@ pub(super) async fn run_device(
             )?;
         }
         if mode == "backoff" {
+            fs::write(
+                profile
+                    .parent()
+                    .ok_or("fixture parent missing")?
+                    .join("device-backoff-observation.json"),
+                serde_json::to_vec(&serde_json::json!({
+                    "elapsed_ms":before.elapsed().as_millis(),"polls":fs::read_to_string(io.join("calls"))?.parse::<u64>()?
+                }))?,
+            )?;
             ensure(
-                before.elapsed() >= Duration::from_secs(12)
+                before.elapsed() >= Duration::from_secs(14)
                     && fs::read_to_string(io.join("calls"))? == "3",
                 "polling ignored slow_down or long native deadline",
             )?;
         }
         let (_account, _token) = runtime.github_verify(grant.access).await?;
     }
-    println!("PASS: declared transport grants preserve expiring/refresh and long-lived facts; native identity verifier composes; upstream slow_down takes >12 seconds across the normal 10-second server deadline");
+    println!("PASS: declared Rust HTTPS device grants preserve expiring/refresh and long-lived facts; fresh identity verifies; pending/slow_down respects >12-second polling schedule");
     for (mode, status) in [
         ("denied", 403),
         ("expired", 408),
@@ -953,12 +1003,12 @@ pub(super) async fn run_device(
             "device refusal/expiry was not preserved",
         )?;
     }
-    for mode in ["bad-uri", "oversized", "redirect"] {
+    for (mode, status) in [("bad-uri", 502), ("oversized", 413), ("redirect", 502)] {
         set_mode(mode)?;
         ensure(
             matches!(
                 runtime.github_device_start().await,
-                Err(Error::Provider(502))
+                Err(Error::Provider(code)) if code == status
             ),
             "invalid upstream challenge was accepted",
         )?;
@@ -985,8 +1035,24 @@ pub(super) async fn run_device(
         store.status().await?.is_empty(),
         "authorization producer saved a credential",
     )?;
+    ensure(
+        !io.join("calls").exists() && !io.join("unexpected-request").exists(),
+        "retired device operation sent an unexpected request",
+    )?;
     store.retire();
-    println!("PASS: declared transport denial, expiry, local deadline, invalid token/URI/body/redirect, in-flight start/wait cancellation and retired authorization refuse; isolated OS custody remains empty; private native PG/backend stop cleanly");
+    fs::write(
+        profile
+            .parent()
+            .ok_or("fixture parent missing")?
+            .join("device-declared-result.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "declared_https_only":true,"production_rust_connector":true,"real_grant_used":false,
+            "expiring_and_long_lived_preserved":true,"pending_and_slowdown_observed":true,
+            "denial_expiry_deadline_and_malformed_refused":true,"start_and_wait_cancelled_upstream":true,
+            "retired_authorization_refused_before_network":true,"custody_empty":true
+        }))?,
+    )?;
+    println!("PASS: declared Rust HTTPS denial, expiry, local deadline, invalid token/URI/body/redirect, in-flight start/wait cancellation and retired authorization refuse; actual keyring stays empty and owned PG/backend stop");
     Ok(())
 }
 async fn cancelled(io: &Path) -> Result<()> {

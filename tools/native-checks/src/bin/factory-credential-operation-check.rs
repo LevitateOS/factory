@@ -1168,20 +1168,32 @@ fn main() {
         if args.len() == 2 && args[0] == "--grant-custody" {
             return runtime.block_on(run_grant_custody(Path::new(&args[1])));
         }
-        if args.len() == 4 && args[0] == "--github-grant" {
+        if args.len() == 4 && args[0] == "--github-grant-declared" {
             return runtime.block_on(native_github_transport::run_grant(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
             ));
         }
-        if args.len() == 5 && args[0] == "--github-device" {
-            return runtime.block_on(native_github_transport::run_device(
+        if args.first().is_some_and(|arg| arg == "--github-grant") {
+            return Err("historical Go grant observer retired; use --github-grant-declared with production backend, PostgreSQL payload and fresh profile".into());
+        }
+        if args.len() == 4 && args[0] == "--github-device-pending" {
+            return runtime.block_on(native_github_transport::run_device_pending(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-                Path::new(&args[4]),
             ));
+        }
+        if args.len() == 4 && args[0] == "--github-device-declared" {
+            return runtime.block_on(native_github_transport::run_device_declared(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
+        if args.first().is_some_and(|arg| arg == "--github-device") {
+            return Err("historical Go device observer retired; use --github-device-pending or --github-device-declared with production backend, PostgreSQL payload and fresh profile".into());
         }
         if args.len() == 5 && args[0] == "--github-transport" {
             return runtime.block_on(native_github_transport::run(
