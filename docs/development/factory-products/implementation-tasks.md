@@ -29153,3 +29153,66 @@ predecessors. Reviewer name-binding and historical thread-anchor limits, D1/D2/D
 D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
 retirement/settlement and release/upgrade/freshness remain unfinished. No broad
 gate, Daybreak work or whole product was marked complete.
+
+### T11-WRITES checkpoint: one-shot human review dispatch (2026-11-05)
+
+The existing `HumanReviewCapture` and sole Go command ledger now supply typed
+`HumanReviewDispatchState`, `ReserveHumanReviewDispatch` and
+`CancelHumanReviewDispatch` wrappers over the shared row-lock protocol.
+`factory_human_review.go` exposes its existing observation save/reducer within
+that transaction. Only a saved, exact, unfinished, not-observed, unclaimed capture
+can return true after committing a reservation. Reserved state, a lost commit
+reply and later not-observed lookups never recover permission to send. Unclaimed
+cancellation is a terminal local no-effect; reserved/legacy cancellation retains
+uncertainty. Late causal primary or known no-effect receipts retain cancellation
+uncertainty by copying the caller's observation, using the existing common helper.
+No provider mutation, pending-review discovery or writer was enabled.
+
+Schema 89 extends the defining immutable SQL guard to `pull_request.review.submit`.
+The explicit 88→89 migration conservatively fences old unclaimed review captures
+`legacy_unknown`, preserving exact draft/comment/approval/request-changes intent,
+writing, preparation, timestamps and outcomes. Existing reservations and other
+operation types remain intact. The version predicate prevents stale openers from
+fencing captures made after the upgrade. Supported schema upgrades retain the
+explicit migration chain and final verification; unknown 67/90 markers refuse
+without rewriting their marker or a retained command.
+
+The existing native PostgreSQL driver ran the private review dispatch integration
+program under `/home/vince/tmp/factory-review-dispatch-1105/`. Actual old schema-88
+captures were made with the retained source archive of
+`98e48eabe4dec1d8d71051bb0e42418d00d7bc1d`, not by changing a current database marker.
+Fresh and upgraded profiles passed 11 exact-capture conflicts; six invalid capture
+shapes; four missing/foreign repository/actor refusals without a command row;
+all four review events; maximum 64-KiB Unicode writing and 512-KiB provider intent;
+missing/unsuitable lookup refusal; one winner among 32 concurrent claims across
+independent stores; 32 claim/cancel races (fresh 18/14, upgraded 24/8); cancellation
+before send and after reservation; late committed/no-effect evidence without
+mutating the caller; SQL identity/reservation/terminal immutability; and regression
+checks for comment/lock/thread/reviewer-request/PR-creation fences. Concurrent
+process upgrade, stale upgrade DDL, exact five old command records, retained
+restart, actual PostgreSQL child crash/WAL recovery and clean shutdown passed.
+No provider, browser, credential or security gate was exercised by this SQL check.
+
+| Artifact under `/home/vince/tmp/factory-review-dispatch-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `28cddbc0eae49630038f16a8aab98052d53d6f21ac11974753806a111124e0cb` |
+| `shared.go` | `cac13cdd9b88f9473cbf3f962738d5e2d29e4768702d8a8fac5d3bcc4bbfd062` |
+| `legacy.go` | `89d6c99d61a8f45bbf3a431c530d3a7818f7722eacbe4539d08bc78ff541b8f4` |
+| `check` | `cb5bed781535ac9a0158bcd68fcb42e24e4838ab4cdd997db20aa50bff7e9e49` |
+| `legacy` | `c6873708c02a6f0ff4151b6409e61058d24a90e4b365ec6a0135de4d17c8b45b` |
+| `fresh.log` | `3b306a5ac4de2ffa7ad9c535c0f2d6612e3ef1c5e526d2d9f29629ac175f754f` |
+| `upgraded.log` | `f2238ee6e7e1510b31904eba9a7f0983dd1dad5653bf2fcddd1acda599936ade` |
+
+Go domain/store/runtime builds, ownership boundaries and whitespace checks passed.
+No unit tests/roots, schema test rewrite, dependencies, Rust transaction owner or
+second journal was introduced. This proves local single-attempt coordination and
+capture retention, not remote review idempotency or current human permission.
+Next dependencies: complete current-account pending-review/head observation,
+fixed Rust draft-versus-submitted review effects, typed callback and exact-route
+writing bounds, Go canonical preparation/writer and normal readback; then actual
+provider and shared review UI evidence. Original capture expiry, causal/lost reply/
+cancel/withdrawal/replacement/restart composition still need review-specific
+provider-consumer checks. Shared write capabilities remain unavailable. T11-WRITES
+and the previously recorded branch/merge/provider, D1/D2/D3/D5, custody/admission/
+isolation/execution/retirement/settlement and distribution requirements remain
+open. No broad gate, Daybreak work or whole product is complete.

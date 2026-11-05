@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 88
+const schemaFormatVersion = 89
 
 // schemaStatements creates the current PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -19,7 +19,7 @@ var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
 	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY)`,
-	`INSERT INTO schema_version(version) VALUES(88)`,
+	`INSERT INTO schema_version(version) VALUES(89)`,
 	`CREATE TABLE applications(id TEXT PRIMARY KEY, administrator_id BIGINT NOT NULL CHECK(administrator_id>0), name TEXT NOT NULL, data_id TEXT NOT NULL UNIQUE, owner_team TEXT NOT NULL, origin TEXT NOT NULL UNIQUE, hostname TEXT NOT NULL UNIQUE, port INTEGER NOT NULL UNIQUE CHECK(port>=20000 AND port<30000), revision BIGINT NOT NULL CHECK(revision>0), observation JSONB CHECK(observation IS NULL OR octet_length(observation::text)<=2048))`,
 	`CREATE TABLE application_revisions(application_id TEXT NOT NULL REFERENCES applications(id), revision BIGINT NOT NULL CHECK(revision>0), spec JSONB NOT NULL CHECK(octet_length(spec::text)<=4096), PRIMARY KEY(application_id,revision))`,
 	`CREATE TABLE application_projects(application_id TEXT PRIMARY KEY REFERENCES applications(id), repository BIGINT NOT NULL CHECK(repository>0))`,
@@ -651,6 +651,15 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 			}
 		}
 		version = 88
+	}
+	if version == 88 {
+		for _, statement := range HumanReviewDispatchUpgradeDDL {
+			if _, err = t.ExecContext(ctx, statement); err != nil {
+				rollback()
+				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate human review dispatch: %w", err))
+			}
+		}
+		version = 89
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err

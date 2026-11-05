@@ -2836,3 +2836,36 @@ reviewer mutable-name and historical-thread-anchor constraints, D1/D2/D3/D5,
 custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
 retirement/settlement and release/upgrade/freshness retain recorded requirements.
 No broad gate or Daybreak work was closed; the product remains unfinished.
+
+T11-WRITES human review local dispatch dependency (2026-11-05):
+`factory_human_review_dispatch.go`, `factory_command_dispatch.go`,
+`factory_human_review.go`, `human_review_outcomes.go` and schema 89 now fence
+review submission attempts with the existing immutable Go ledger and row-lock
+protocol. Actual fresh and 88→89 PostgreSQL evidence preserves old exact captures
+and outcomes, protects new rows against stale upgrades, permits one of 32 claims,
+serializes cancellation races and retains late causal/no-effect evidence without
+mutating the caller. Restart, real child crash/WAL recovery, unknown-schema
+refusal and other existing operation fence regressions passed. Evidence:
+`/home/vince/tmp/factory-review-dispatch-1105/fresh.log` SHA-256
+`3b306a5ac4de2ffa7ad9c535c0f2d6612e3ef1c5e526d2d9f29629ac175f754f` and
+`upgraded.log` SHA-256
+`f2238ee6e7e1510b31904eba9a7f0983dd1dad5653bf2fcddd1acda599936ade`.
+The canonical plan records source/binary hashes and the real schema-88 baseline.
+This is local journal coordination; no provider/security gate was tested or closed.
+
+Exact remaining review dependencies: complete current-account pending-review and
+selected PR/head facts; fixed native draft-versus-submitted effects that preserve
+existing pending review identity, full writing and notification semantics; typed
+callback/deadlines and exact-route envelopes; Go canonical capture/writer and
+normal review readback; then fresh scoped owner-authorized provider/shared UI/
+installed evidence. A retained capture, not-observed row, current matching review
+or SQL reservation cannot prove current permission, remote absence, attribution,
+head atomicity or retry safety. Closure needs actual current identity/scope/head
+and existing pending review binding, causal bounded receipt, exact event/writing,
+no duplicate after lost reply/cancel/withdrawal/replacement/restart, original
+unclaimed expiry and truthful refusal/visibility retirement. Existing review
+comments/threads, reviewer mutable-name, PR delegation and D5 tip conditions
+retain their separate requirements. Relevant consumers are the future
+`github_provider` review effect/observation, `collaboration.rs`, native product
+adapters and shared review UI; Go registry/transactions stay in Go. Shared writes
+remain unavailable. No broad gate or Daybreak work is complete.

@@ -54,6 +54,7 @@ func AdvanceHumanReviewObservation(c HumanReviewCapture, old, next collaboration
 	if ValidateHumanReviewObservation(c, old) != nil || ValidateHumanReviewObservation(c, next) != nil {
 		return collaboration.OperationLookup{}, ErrHumanReviewObservation
 	}
+	next = retainHumanCancellationUncertainty(old, next)
 	result, err := advanceHumanCommandObservation(old, next)
 	if err != nil {
 		return collaboration.OperationLookup{}, ErrHumanReviewObservation

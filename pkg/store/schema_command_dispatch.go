@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -91,4 +91,13 @@ var HumanPullCreateDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=87)`,
 	`UPDATE schema_version SET version=88 WHERE version=87`,
+}
+
+// Earlier draft/submitted review captures may already have reached a provider.
+// Preserve exact event, writing and outcomes while fencing unknown history.
+// The version predicate protects new captures from stale concurrent openers.
+var HumanReviewDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.submit' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=88)`,
+	`UPDATE schema_version SET version=89 WHERE version=88`,
 }
