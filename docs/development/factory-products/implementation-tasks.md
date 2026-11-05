@@ -29216,3 +29216,77 @@ provider-consumer checks. Shared write capabilities remain unavailable. T11-WRIT
 and the previously recorded branch/merge/provider, D1/D2/D3/D5, custody/admission/
 isolation/execution/retirement/settlement and distribution requirements remain
 open. No broad gate, Daybreak work or whole product is complete.
+
+### T11-WRITES checkpoint: current-account pending-review preparation producer (2026-11-05)
+
+`github_provider/review_preparation.rs` adds the fixed
+`Read::PullReviewPreparation { repository, number }` operation. The defining Rust
+reader authenticates current numeric account/Node identity, resolves the selected
+numeric repository and PR, and reads all visible pending-review identities in
+50-record pages, at most 1,000. It never filters by mutable author login. It
+validates consistent PR/Node/numeric/repository/head bindings, page totals and
+cursors, rejects hidden/unknown authors and ambiguous multiple current-account
+pending reviews, then fetches full writing only for the selected current-account
+review through its immutable Node ID. Other users' pending reviews are not adopted.
+
+The credential-free preparation contains current PR/head/state facts and nullable
+repository flags, plus either no observed current-account pending review or its
+exact Node identity, nullable numeric identity, full bounded body, nullable actual
+review commit, comment count and dates. Unknown IDs/commits stay null; a historical
+pending commit is never replaced by the current head. Rechecks reject observed
+PR/base/head/flag changes and a changed numeric/Node account. This is a bounded
+current observation, not an atomic snapshot, write grant, global remote absence,
+historical thread anchor or receipt attributing a prior effect. Query/response
+bytes, whole deadline, no-redirect/no-retry transport and joined native retirement
+retain the defining native owner. No generic GraphQL capability was introduced.
+
+The existing native executable gained
+`--github-review-preparation-declared FRESH_PROFILE` in
+`native_github_review_requests.rs`. Production provider/transport passed 58 declared
+cases, two invalid selectors before provider I/O and owner retirement against the
+owned no-forwarding TLS peer under
+`/home/vince/tmp/factory-review-preparation-1105/attempt2/`. Positive cases include
+no pending review, another user's review, own pending review, 51/1,000-record
+complete traversal, full 64-KiB Unicode writing, old/null commit, unknown numeric
+review identity, nullable metadata and 64-bit IDs. Refusals cover current account
+and Node contradictions, absent/moved repository/PR/head, partial errors and
+transport refusal/bounds, counts/paging/duplicates/ambiguous ownership, disappeared
+or submitted pending reviews, parent/repository/author/head mismatches, invalid
+body/commit/ID/count/date and native owner retirement. Zero mutations ran. Attempt
+1 and its peer/binary/profile/log are retained: its changed name-slot response was
+correctly rejected by the existing earlier repository check with 502, while the
+observer expected 409. Only that expected status changed before the passing run.
+
+| Artifact under `/home/vince/tmp/factory-review-preparation-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `d9333eeed8b0d2894b7a0296d6607e620c6edac61610d62a87423d90e7b7fcb6` |
+| `provider` | `5f9c2923e775bb56dbb2cf6a23115c803b24ef56bf4e068dfbe4edd4f15cfc9a` |
+| `check-bin` | `72f3eaec974e444d5e5bfcaa675dd140053c51489513a9b3af24239a9b62ac94` |
+| `run.sh` | `bbd908d88117f97e75bfd55d21ec0357ff4ca1e50b6983d77bb978a1092b2ba7` |
+| `session.sh` | `061e10487d4e1bb945ef7b7a9fbb7b6d941102e09fc281f15b0f79ffa21e15fc` |
+| `attempt2/result.log` | `f98d717f882479a8666cab1de9105ca56e00b49ff8d03fc47937c1d4bcd12816` |
+| `attempt2/review-preparation-result.json` | `47f6060c2a9e0f8e189ea148914d758e0d7f6cdf8fc481e1d72819ed50300831` |
+
+Locked/offline native executable and desktop-feature source builds, ownership
+boundaries and whitespace checks passed. No unit-test root, dependency, Go provider
+implementation or product consumer was added. Current live GitHub schema/grant/
+visibility and 1,000-record maximum-body multi-page provider behavior were not
+qualified; small declared responses are not evidence for every combined maximum.
+Shared writes stay unavailable. Next: fixed native new-review/draft/submission
+behavior over saved preparation, typed callback and writing envelopes, canonical
+Go writer/readback and actual admitted provider/shared UI evidence. Pending review
+identity, original expiry, full writing/comments, lost reply/replay/cancel/custody/
+restart and draft-versus-notification semantics remain requirements.
+
+Review lifecycle constraint found in the official schema: the
+[review creation input](https://docs.github.com/en/graphql/reference/pulls#addpullrequestreviewinput)
+accepts a commit and optional event; the
+[existing-review submission input](https://docs.github.com/en/graphql/reference/pulls#submitpullrequestreviewinput)
+addresses an existing review. The
+[body update input](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestreviewinput)
+lists no expected-state/body condition. A pending preflight cannot establish that
+a later body update remains draft-only if another client submits it meanwhile.
+No supported D5 policy, provider condition or race fix was inferred from this
+research. Exact remaining dependency and closure evidence are in the security
+handoff. T11-WRITES and all previously recorded broad/provider/execution/
+distribution gates remain open; no Daybreak work or full product was completed.

@@ -99,6 +99,10 @@ pub enum Read {
         number: u64,
         target: Option<super::ReviewerTarget>,
     },
+    PullReviewPreparation {
+        repository: String,
+        number: u32,
+    },
     PullBranches {
         repository: String,
         head_repository: String,

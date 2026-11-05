@@ -82,6 +82,16 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "pull_review_preparation" => (
+                            "preparation",
+                            reader
+                                .review_preparation(
+                                    q["number"].as_u64().ok_or_else(Failure::invalid)?,
+                                    identity.node_id.as_deref().ok_or_else(Failure::protocol)?,
+                                    &identity.external_id,
+                                )
+                                .await?,
+                        ),
                         "pull_branches" => {
                             let Read::PullBranches {
                                 repository,

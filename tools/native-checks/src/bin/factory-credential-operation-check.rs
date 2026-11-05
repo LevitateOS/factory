@@ -1234,6 +1234,11 @@ fn main() {
         if args.len() == 2 && args[0] == "--github-reviewer-read-declared" {
             return runtime.block_on(native_github_review_requests::producer(Path::new(&args[1])));
         }
+        if args.len() == 2 && args[0] == "--github-review-preparation-declared" {
+            return runtime.block_on(native_github_review_requests::preparation(Path::new(
+                &args[1],
+            )));
+        }
         if args.len() == 2 && args[0] == "--github-pull-branches-declared" {
             return runtime.block_on(native_github_pull_branches::producer(Path::new(&args[1])));
         }

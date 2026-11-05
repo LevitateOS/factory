@@ -30,6 +30,10 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    ReviewPreparation {
+        query: super::review_preparation::PreparationQuery,
+        token: Zeroizing<Vec<u8>>,
+    },
     PullCreate {
         base: String,
         head: String,
@@ -442,6 +446,19 @@ impl Client {
             .await?
             .value)
     }
+    pub(super) async fn review_preparation_query(
+        &self,
+        query: super::review_preparation::PreparationQuery,
+        token: &[u8],
+    ) -> Result<Value> {
+        Ok(self
+            .mutation(Request::ReviewPreparation {
+                query,
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?
+            .value)
+    }
     pub(super) async fn post_thread_resolution(
         &self,
         node: &str,
@@ -509,7 +526,10 @@ impl Client {
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let read_query = matches!(
             &request,
-            Request::Threads { .. } | Request::Reviewers { .. } | Request::PullBranches { .. }
+            Request::Threads { .. }
+                | Request::Reviewers { .. }
+                | Request::PullBranches { .. }
+                | Request::ReviewPreparation { .. }
         );
         let wire = self.request(request).await?;
         if wire.status != 200 {
@@ -707,6 +727,10 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
         Request::Threads { query, token } => {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
+        }
+        Request::ReviewPreparation { query, token } => {
+            let (query, variables) = query.wire();
+            (graphql(http, &token, query, variables)?, 1024 * 1024)
         }
         Request::Reviewers { query, token } => {
             let (query, variables) = query.wire();

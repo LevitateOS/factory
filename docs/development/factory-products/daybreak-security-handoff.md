@@ -2869,3 +2869,51 @@ retain their separate requirements. Relevant consumers are the future
 `github_provider` review effect/observation, `collaboration.rs`, native product
 adapters and shared review UI; Go registry/transactions stay in Go. Shared writes
 remain unavailable. No broad gate or Daybreak work is complete.
+
+T11-WRITES current-account pending-review observation (2026-11-05):
+The native observation prerequisite now exists in
+`github_provider/review_preparation.rs`, `request.rs`, `reads.rs`, `transport.rs`
+and the existing native observer. It binds numeric/Node account, selected
+repository/PR and head, traverses complete bounded visible pending identities
+without a mutable login filter, selects only the exact current author Node and
+fetches that review's full writing. Unknown numeric review IDs/commits/flags remain
+unknown; historical pending commits remain distinct from the current head.
+Observed contradictions/changes, hidden authors, multiple current pending reviews
+and invalid counts/pages/details refuse. No write permission or atomic snapshot
+is inferred. The source dependency for this producer is resolved; Go consumption
+and fixed authenticated review effects remain pending.
+
+Production native reader/transport passed 58 owned declared cases, two invalid
+selectors and joined owner retirement with zero mutations. Evidence:
+`/home/vince/tmp/factory-review-preparation-1105/attempt2/review-preparation-result.json`,
+SHA-256 `47f6060c2a9e0f8e189ea148914d758e0d7f6cdf8fc481e1d72819ed50300831`.
+The plan records the exact peer/binary/runner hashes, first expected-status
+correction and preserved artifacts. This is dummy-only/no-forwarding TLS, not
+live GitHub schema/grant/visibility/permission, all combined maximum-body/page
+bounds, shared UI, installed admission or a D5 condition. Shared writes remain
+unavailable.
+
+New exact review lifecycle blocker identified in the
+[official review input schema](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestreviewinput):
+`updatePullRequestReview` addresses a review and body without an expected-state or
+body condition. A separate pending preflight followed by that update could race
+another client's submission; it cannot prove the updated writing stayed private
+in a draft. Creation and existing-review submission also have different semantics
+and must preserve the actual pending identity and comments rather than create a
+replacement review or silently publish a draft. Relevant files: the new producer,
+future native review effect, `collaboration.rs`, native Go human-review adapter,
+`human_review.go` capture and shared review editor.
+
+What is proved: bounded current identity/pending/head observations and the schema-89
+local one-shot fence, separately. What remains unverified: a supported draft/body/
+head condition or explicit safe product policy for concurrent submission/editing;
+exact existing review/comment preservation and notification behavior; stale/dropped
+reply/cancel/custody/restart attribution; original unclaimed expiry; actual provider
+and shared UI behavior. Closure requires evidence from the actual admitted review
+operation and causal receipt under current account/head, concurrent external
+submission/body-change cases, truthful partial/indeterminate outcomes and no
+unrequested publication or duplicate. No proposed restriction or preflight is a
+verified fix. This routine product work remains in the normal queue; use Daybreak
+only for a user-started check that looks like hacking. D5 and the previous review,
+PR delegation, thread/reviewer, custody/admission/isolation/execution/distribution
+gates remain open.

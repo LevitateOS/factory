@@ -1179,3 +1179,209 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     );
     Ok(())
 }
+
+pub(super) async fn preparation(profile: &Path) -> Result<()> {
+    use soda_desktop_runtime::github_provider::Read;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let request = || Read::PullReviewPreparation {
+        repository: "123".into(),
+        number: 7,
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "absent",
+        "pending",
+        "other-user",
+        "paged",
+        "maximum",
+        "max-body",
+        "old-commit",
+        "null-commit",
+        "unknown-review-id",
+        "unknown-metadata",
+        "big-ids",
+    ] {
+        mode(name)?;
+        let v = client
+            .observe(token()?, "321", &request())
+            .await
+            .map_err(|f| format!("preparation {name}: {} {}", f.status, f.code))?;
+        let p = &v["preparation"];
+        ensure(
+            v["kind"] == "pull_review_preparation"
+                && v["account"]["external_id"] == "321"
+                && p["repository"] == "123"
+                && p["pull"]["number"] == 7
+                && p["actor_node_id"] == "U_321",
+            "pending preparation lost account/resource scope",
+        )?;
+        if matches!(name, "absent" | "other-user") {
+            ensure(
+                p["pending"].is_null(),
+                "another user's pending review was adopted",
+            )?
+        } else {
+            ensure(
+                p["pending"]["node_id"] == "REV_owned" && p["pending"]["state"] == "pending",
+                "current pending review lost",
+            )?;
+        }
+        match name {
+            "max-body" => ensure(
+                p["pending"]["body"]
+                    .as_str()
+                    .is_some_and(|b| b.len() == 65536),
+                "pending full body truncated",
+            )?,
+            "maximum" => ensure(
+                p["visible_pending_count"] == 1000,
+                "bounded complete pending traversal lost rows",
+            )?,
+            "paged" => ensure(
+                p["visible_pending_count"] == 51,
+                "paged pending traversal lost rows",
+            )?,
+            "unknown-review-id" => ensure(
+                p["pending"]["external_id"].is_null(),
+                "unknown numeric review identity invented",
+            )?,
+            "null-commit" => ensure(
+                p["pending"]["commit"].is_null(),
+                "unknown pending commit invented",
+            )?,
+            "old-commit" => ensure(
+                p["pending"]["commit"] != p["pull"]["head"],
+                "historical pending commit replaced by current head",
+            )?,
+            "unknown-metadata" => ensure(
+                p["archived"].is_null() && p["pull"]["draft"].is_null(),
+                "unknown facts became false",
+            )?,
+            "big-ids" => ensure(
+                p["pending"]["external_id"] == "5000000001"
+                    && p["pull"]["external_id"] == "5000000000",
+                "BigInt identities truncated",
+            )?,
+            _ => (),
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&v)?)?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("identity-denied", 401),
+        ("identity-change", 409),
+        ("identity-alias", 409),
+        ("missing-actor-node", 502),
+        ("missing-pull-node", 502),
+        ("missing-repo-node", 502),
+        ("missing-head", 502),
+        ("invalid-head", 502),
+        ("head-change", 409),
+        ("repo-slot-change", 502),
+        ("partial-errors", 502),
+        ("query-denied", 403),
+        ("query-rejected", 400),
+        ("query-oversized", 413),
+        ("list-hidden", 404),
+        ("wrong-pull", 409),
+        ("wrong-number", 409),
+        ("wrong-repo", 409),
+        ("wrong-head", 409),
+        ("wrong-full-id", 409),
+        ("count-change", 409),
+        ("count-mismatch", 409),
+        ("too-many", 413),
+        ("too-many-page", 502),
+        ("duplicate-node", 502),
+        ("cursor-cycle", 502),
+        ("empty-continuation", 502),
+        ("unknown-author", 502),
+        ("wrong-review-parent", 502),
+        ("wrong-review-repo", 502),
+        ("nonpending-list", 502),
+        ("two-owned", 409),
+        ("detail-gone", 409),
+        ("detail-submitted", 409),
+        ("detail-wrong-id", 409),
+        ("detail-wrong-owner", 409),
+        ("detail-wrong-pull", 409),
+        ("detail-wrong-repo", 409),
+        ("detail-wrong-head", 409),
+        ("detail-submitted-date", 409),
+        ("detail-null-body", 502),
+        ("detail-oversized-body", 413),
+        ("detail-invalid-commit", 502),
+        ("detail-wrong-commit-repo", 502),
+        ("detail-invalid-id", 502),
+        ("detail-invalid-count", 502),
+        ("detail-invalid-date", 502),
+    ] {
+        mode(name)?;
+        let f = client
+            .observe(token()?, "321", &request())
+            .await
+            .err()
+            .ok_or("invalid preparation passed")?;
+        ensure(
+            f.status == status,
+            &format!(
+                "preparation refusal {name}: {} {}, expected {status}",
+                f.status, f.code
+            ),
+        )?;
+        cases.push(name);
+    }
+    let before = fs::read(io.join("gets"))?;
+    for q in [
+        Read::PullReviewPreparation {
+            repository: "0".into(),
+            number: 7,
+        },
+        Read::PullReviewPreparation {
+            repository: "123".into(),
+            number: 0,
+        },
+    ] {
+        ensure(
+            client.observe(token()?, "321", &q).await.is_err(),
+            "invalid selector accepted",
+        )?;
+    }
+    ensure(
+        fs::read(io.join("gets"))? == before,
+        "invalid preparation selector reached provider",
+    )?;
+    mode("pause")?;
+    let pending_request = request();
+    let pending = client.observe(token()?, "321", &pending_request);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        pending.await.is_err() && started.elapsed() < Duration::from_secs(2),
+        "pending preparation owner retirement blocked or delivered",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists() && !io.join("writes").exists(),
+        "preparation sent undeclared/mutating request",
+    )?;
+    fs::write(
+        root.join("review-preparation-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":2,"complete_pending_traversal":true,"mutable_author_filter":false,"retirement":true,"provider_mutations":0,"real_github":false,"review_permission_qualified":false,"atomic_head_body_qualified":false,"product_consumer_connected":false}),
+        )?,
+    )?;
+    println!("native review preparation passed {} declared cases, two invalid selectors and retirement; no mutations or live-provider qualification",cases.len());
+    Ok(())
+}
