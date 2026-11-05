@@ -3,7 +3,7 @@
 //! result may cross the native callback.
 use crate::database::{private_dir, private_file};
 use hmac::{Hmac, KeyInit, Mac};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use std::ffi::CString;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
@@ -32,12 +32,18 @@ impl Signer {
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
                     _ => return Err("native MCP key staging uncertain".into()),
                 }
-                return Ok(Self {
-                    key: read_key(&path)?,
-                });
+                let key = read_key(&path)?;
+                identity(profile, &key)?;
+                return Ok(Self { key });
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
             Err(_) => return Err("native MCP key unavailable".into()),
+        }
+        for name in ["native-mcp.key.identity", "native-mcp.key.identity.pending"] {
+            match fs::symlink_metadata(profile.join(name)) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                _ => return Err("native MCP retained key missing".into()),
+            }
         }
         match fs::symlink_metadata(&pending) {
             Ok(metadata) => {
@@ -82,6 +88,7 @@ impl Signer {
         fs::File::open(profile)
             .and_then(|directory| directory.sync_all())
             .map_err(|_| "native MCP key durability unavailable")?;
+        identity(profile, &key)?;
         Ok(Self { key })
     }
 
@@ -100,6 +107,91 @@ impl Signer {
         let result = mac.finalize().into_bytes();
         Ok(result.iter().map(|byte| format!("{byte:02x}")).collect())
     }
+}
+
+// The identity is nonsecret evidence that this profile has used a root key.
+// A missing or changed key after this marker commits must not silently rotate.
+// Existing pre-marker profiles acquire it only after their exact key is read.
+fn identity(profile: &Path, key: &[u8; 32]) -> Result<()> {
+    let marker = profile.join("native-mcp.key.identity");
+    let pending = profile.join("native-mcp.key.identity.pending");
+    let expected: String = Sha256::digest(key)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    match fs::symlink_metadata(&marker) {
+        Ok(_) => {
+            match fs::symlink_metadata(&pending) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+                _ => return Err("native MCP key identity staging uncertain".into()),
+            }
+            let file = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(&marker)
+                .map_err(|_| "native MCP key identity unavailable")?;
+            let metadata = file
+                .metadata()
+                .map_err(|_| "native MCP key identity unavailable")?;
+            if !metadata.is_file()
+                || metadata.uid() != unsafe { libc::geteuid() }
+                || metadata.mode() & 0o077 != 0
+                || metadata.nlink() != 1
+                || metadata.len() != 64
+            {
+                return Err("native MCP key identity invalid".into());
+            }
+            let mut actual = String::new();
+            file.take(65)
+                .read_to_string(&mut actual)
+                .map_err(|_| "native MCP key identity invalid")?;
+            if actual != expected {
+                return Err("native MCP key identity differs".into());
+            }
+            return Ok(());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(_) => return Err("native MCP key identity unavailable".into()),
+    }
+    match fs::symlink_metadata(&pending) {
+        Ok(metadata) => {
+            if !metadata.is_file()
+                || metadata.uid() != unsafe { libc::geteuid() }
+                || metadata.mode() & 0o077 != 0
+                || metadata.nlink() != 1
+            {
+                return Err("native MCP key identity staging uncertain".into());
+            }
+            fs::remove_file(&pending).map_err(|_| "native MCP key identity staging uncertain")?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(_) => return Err("native MCP key identity staging uncertain".into()),
+    }
+    let mut file =
+        private_file(&pending, true).map_err(|_| "native MCP key identity staging unavailable")?;
+    file.write_all(expected.as_bytes())
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "native MCP key identity write unavailable")?;
+    let from = CString::new(pending.as_os_str().as_bytes())
+        .map_err(|_| "native MCP key identity staging invalid")?;
+    let to = CString::new(marker.as_os_str().as_bytes())
+        .map_err(|_| "native MCP key identity staging invalid")?;
+    if unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            from.as_ptr(),
+            libc::AT_FDCWD,
+            to.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    } != 0
+    {
+        return Err("native MCP key identity commit unavailable".into());
+    }
+    fs::File::open(profile)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|_| "native MCP key identity durability unavailable")?;
+    Ok(())
 }
 
 fn read_key(path: &Path) -> Result<Zeroizing<[u8; 32]>> {

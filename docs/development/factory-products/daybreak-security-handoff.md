@@ -82,6 +82,13 @@ process-kill/power-loss recovery, rotation after admitted work, canonical
 capability admission and isolated worker access remain unverified. This does
 not close the custody row above.
 
+A synced private identity marker now binds a committed MCP root key across
+restarts. A disposable pre-marker profile kept its exact key and gained that
+marker; changed and missing retained keys refused. An interrupted marker write
+is reconstructed only from the already committed key. This covers local
+retained-state behavior, not a real interrupted process/power-loss event or an
+authorized key rotation with admitted capabilities. Those gates remain open.
+
 For D3 storage, the broker has a source-level and direct filesystem check of
 a 512 MiB aggregate allocated-block bound over retained preparation trees.
 `cargo check --locked --offline -p soda-factory-broker` passes. The initial

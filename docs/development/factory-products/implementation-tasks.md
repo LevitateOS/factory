@@ -25328,3 +25328,16 @@ supervisor check then passed the synthetic Go client and direct Rust callback
 twice across an ordered restart. This is first-use durability evidence, not a
 process-kill or power-loss test and not key rotation after admitted work. The
 canonical capability, worker and D3 gates remain open.
+
+T09-NATIVE-EXECUTOR retained native MCP key identity checkpoint (2026-11-05):
+a synced private identity marker now records the hash of the committed root
+key before the signer returns. A later missing or same-size changed key refuses
+startup instead of silently minting a replacement. An existing pre-marker
+private key is read exactly and gains the marker without rotation. An
+interrupted marker write can be rebuilt from the committed key under the
+supervisor lock. The disposable native fixture passed pre-marker adoption,
+standard-HMAC agreement, stable reopening, changed-key refusal and missing-key
+refusal. The fresh headless PostgreSQL/Go/Rust supervisor callback passed
+across an ordered restart with this marker. This does not prove actual crash or
+power-loss recovery, a deliberate rotation protocol, canonical capability
+admission or worker delivery. T09-NATIVE-EXECUTOR and D3 remain open.

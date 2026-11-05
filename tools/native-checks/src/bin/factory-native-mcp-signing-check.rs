@@ -82,9 +82,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let recovered = Signer::open(&interrupted)?;
     let scoped = recovered.derive(id, &digest)?;
     assert!(!interrupted.join("native-mcp.key.pending").exists());
+    assert!(interrupted.join("native-mcp.key.identity").is_file());
     drop(recovered);
     assert_eq!(Signer::open(&interrupted)?.derive(id, &digest)?, scoped);
-    println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation and invalid-file refusal");
+    let legacy = root.join(format!("mcp-before-marker-{name}"));
+    DirBuilder::new().mode(0o700).create(&legacy)?;
+    let legacy = fs::canonicalize(legacy)?;
+    let mut retained_key = [0u8; 32];
+    getrandom::fill(&mut retained_key)?;
+    let key_path = legacy.join("native-mcp.key");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&key_path)?;
+    file.write_all(&retained_key)?;
+    file.sync_all()?;
+    OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(legacy.join("native-mcp.key.identity.pending"))?
+        .write_all(b"interrupted marker write")?;
+    let adopted = Signer::open(&legacy)?;
+    assert!(legacy.join("native-mcp.key.identity").is_file());
+    assert!(!legacy.join("native-mcp.key.identity.pending").exists());
+    let adopted_secret = adopted.derive(id, &digest)?;
+    let mut reference = Hmac::<Sha256>::new_from_slice(&retained_key)?;
+    reference.update(format!("{id}\n{digest}").as_bytes());
+    let expected: String = reference
+        .finalize()
+        .into_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    retained_key.fill(0);
+    assert_eq!(adopted_secret, expected);
+    drop(adopted);
+    assert_eq!(Signer::open(&legacy)?.derive(id, &digest)?, adopted_secret);
+    fs::write(&key_path, [0u8; 32])?;
+    assert!(Signer::open(&legacy).is_err());
+    fs::remove_file(&key_path)?;
+    assert!(Signer::open(&legacy).is_err());
+    println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation, pre-marker adoption, changed-key and missing-key refusal");
     Ok(())
 }
 
