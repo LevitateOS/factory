@@ -60,14 +60,16 @@ type nativeReviewCreateReceipt struct {
 	ProviderResponse nativeCreationResponse `json:"provider_response"`
 }
 type nativeReviewPreparationFacts struct {
-	Repository          string          `json:"repository"`
-	Name                string          `json:"name"`
-	RepositoryNodeID    string          `json:"repository_node_id"`
-	ActorNodeID         string          `json:"actor_node_id"`
-	Archived            *bool           `json:"archived"`
-	Disabled            *bool           `json:"disabled"`
-	VisiblePendingCount *uint64         `json:"visible_pending_count"`
-	Pending             json.RawMessage `json:"pending"`
+	PendingSHA256       *string                      `json:"pending_sha256"`
+	CommentsSnapshot    *nativeReviewCommentSnapshot `json:"comments_snapshot"`
+	Repository          string                       `json:"repository"`
+	Name                string                       `json:"name"`
+	RepositoryNodeID    string                       `json:"repository_node_id"`
+	ActorNodeID         string                       `json:"actor_node_id"`
+	Archived            *bool                        `json:"archived"`
+	Disabled            *bool                        `json:"disabled"`
+	VisiblePendingCount *uint64                      `json:"visible_pending_count"`
+	Pending             json.RawMessage              `json:"pending"`
 	Pull                struct {
 		ExternalID string `json:"external_id"`
 		NodeID     string `json:"node_id"`
@@ -79,11 +81,9 @@ type nativeReviewPreparationFacts struct {
 		Head       string `json:"head"`
 	} `json:"pull"`
 }
-type nativeHumanReviews struct{ *nativeProductAccount }
+type nativeHumanNewReviews struct{ *nativeProductAccount }
 
-var _ factoryservice.HumanReviewWriter = nativeHumanReviews{}
-
-func (s nativeHumanReviews) admit(ctx context.Context, q factory.HumanReviewCommand) error {
+func (s nativeHumanNewReviews) admit(ctx context.Context, q factory.HumanReviewCommand) error {
 	if q.Validate() != nil || !nativeIndex(q.Number) {
 		return factoryservice.ErrHumanReviewQuery
 	}
@@ -92,7 +92,7 @@ func (s nativeHumanReviews) admit(ctx context.Context, q factory.HumanReviewComm
 	}
 	return s.current(ctx)
 }
-func (s nativeHumanReviews) PrepareHumanReview(ctx context.Context, q factory.HumanReviewCommand) (factory.HumanReviewCapture, error) {
+func (s nativeHumanNewReviews) PrepareHumanReview(ctx context.Context, q factory.HumanReviewCommand) (factory.HumanReviewCapture, error) {
 	var empty factory.HumanReviewCapture
 	if err := s.admit(ctx, q); err != nil {
 		return empty, err
@@ -110,7 +110,7 @@ func (s nativeHumanReviews) PrepareHumanReview(ctx context.Context, q factory.Hu
 	// This adapter creates a new review. Existing pending records require their
 	// dedicated submission path and cannot be adopted or overwritten here.
 	if string(observed.Pending) != "null" {
-		return empty, factoryservice.ErrHumanReviewUnavailable
+		return (nativeHumanPendingReviews{s.nativeProductAccount}).prepare(ctx, q, observed)
 	}
 	if _, err := s.mapRead(ctx, observed.Repository, observed.Name, nil, nil); err != nil {
 		return empty, err
@@ -125,7 +125,7 @@ func (s nativeHumanReviews) PrepareHumanReview(ctx context.Context, q factory.Hu
 	_, err = c.Command()
 	return c, err
 }
-func (s nativeHumanReviews) decode(ctx context.Context, c factory.HumanReviewCapture) (nativeReviewCreatePreparation, error) {
+func (s nativeHumanNewReviews) decode(ctx context.Context, c factory.HumanReviewCapture) (nativeReviewCreatePreparation, error) {
 	var p nativeReviewCreatePreparation
 	if _, err := c.Command(); err != nil {
 		return p, factoryservice.ErrHumanReviewQuery
@@ -146,11 +146,17 @@ func nativeReviewCreateRecord(c factory.HumanReviewCapture) collaboration.Operat
 	cmd, _ := c.Command()
 	return collaboration.OperationRecord{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, Binding: &collaboration.OperationBinding{Repository: c.Request.Repository, Actor: c.Request.Actor, Kind: collaboration.SubmitReview, Atomicity: collaboration.Atomic, IntentDigest: cmd.Digest}, Effect: collaboration.EffectIndeterminate, Cancellation: collaboration.CancellationNone, Completion: collaboration.CompletionNeedsIntervention, Reason: "dispatch_history_unresolved"}
 }
-func (s nativeHumanReviews) LookupHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationLookup, error) {
-	var empty collaboration.OperationLookup
+func (s nativeHumanNewReviews) LookupHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationLookup, error) {
 	if _, err := s.decode(ctx, c); err != nil {
-		return empty, err
+		return collaboration.OperationLookup{}, err
 	}
+	return s.nativeProductAccount.humanReviewLookup(ctx, c)
+}
+
+// A reserved dispatch or an unattributed current review can never authorize a
+// second send. Both preparation versions use the same durable journal fence.
+func (s *nativeProductAccount) humanReviewLookup(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationLookup, error) {
+	var empty collaboration.OperationLookup
 	state, err := s.store.HumanReviewDispatchState(ctx, c)
 	if err != nil {
 		return empty, err
@@ -190,7 +196,7 @@ func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeRev
 	return r, nil
 }
 
-func (s nativeHumanReviews) SubmitHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationRecord, error) {
+func (s nativeHumanNewReviews) SubmitHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
 	p, err := s.decode(ctx, c)
 	if err != nil {
@@ -249,7 +255,7 @@ func (s nativeHumanReviews) SubmitHumanReview(ctx context.Context, c factory.Hum
 	}
 	return r, r.Validate()
 }
-func (s nativeHumanReviews) CancelHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationRecord, error) {
+func (s nativeHumanNewReviews) CancelHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationRecord, error) {
 	if _, err := s.decode(ctx, c); err != nil {
 		return collaboration.OperationRecord{}, err
 	}
@@ -262,7 +268,7 @@ func (s nativeHumanReviews) CancelHumanReview(ctx context.Context, c factory.Hum
 	}
 	return *o.Record, nil
 }
-func (s nativeHumanReviews) ReadCreatedHumanReview(ctx context.Context, c factory.HumanReviewCapture, o collaboration.OperationLookup) (collaboration.ReviewRef, error) {
+func (s nativeHumanNewReviews) ReadCreatedHumanReview(ctx context.Context, c factory.HumanReviewCapture, o collaboration.OperationLookup) (collaboration.ReviewRef, error) {
 	var empty collaboration.ReviewRef
 	p, err := s.decode(ctx, c)
 	if err != nil {

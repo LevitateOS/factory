@@ -5,8 +5,8 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    IssueCreate, PullCreate, Read, ReviewCreate, ReviewRequestChange, ThreadResolution,
-    WriteOutcome,
+    IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate, ReviewRequestChange,
+    ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -374,6 +374,12 @@ enum Effect {
         not_after: u64,
         review: ReviewCreate,
     },
+    SubmitPendingReview {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        review: PendingReviewSubmit,
+    },
     SetDiscussionState {
         command_id: String,
         digest: String,
@@ -427,6 +433,12 @@ impl Effect {
                 pull,
             } => Some((command_id, digest, *not_after, &pull.repository)),
             Self::CreateReview {
+                command_id,
+                digest,
+                not_after,
+                review,
+            } => Some((command_id, digest, *not_after, &review.repository)),
+            Self::SubmitPendingReview {
                 command_id,
                 digest,
                 not_after,
@@ -600,6 +612,7 @@ async fn dispatch(
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
             | Effect::CreateReview { .. }
+            | Effect::SubmitPendingReview { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
     ) && body.len() > 8192
@@ -638,6 +651,7 @@ async fn dispatch(
             Effect::CreateIssue { issue, .. } => issue.validate()?,
             Effect::CreatePull { pull, .. } => pull.validate()?,
             Effect::CreateReview { review, .. } => review.validate()?,
+            Effect::SubmitPendingReview { review, .. } => review.validate()?,
             Effect::SetDiscussionState { state, .. } => state.validate()?,
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
             Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
@@ -674,6 +688,7 @@ async fn dispatch(
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
             | Effect::CreateReview { .. }
+            | Effect::SubmitPendingReview { .. }
             | Effect::SetDiscussionState { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
@@ -718,6 +733,11 @@ async fn mutate(
     let deadline = measured + Duration::from_secs(not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
     let update = match effect {
+        Effect::SubmitPendingReview { review, .. } => Some(
+            provider
+                .review_submit_account(token, account, review, Some(deadline))
+                .await,
+        ),
         Effect::SetDiscussionState { state, .. } => Some(
             provider
                 .state_account(token, account, state, Some(deadline))

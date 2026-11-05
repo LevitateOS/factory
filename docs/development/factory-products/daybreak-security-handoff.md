@@ -3170,3 +3170,66 @@ editing/concurrent submission, concrete head/body/comment-set limits and other
 review/branch/merge work remain normal T11 tasks, not D5's Fountain admission gate.
 Shared writes and all actual canonical/broad gate claims remain unavailable/open.
 No Daybreak work ran or was marked complete.
+
+T11-WRITES journaled pending-review composition (2026-11-05):
+`pkg/factory/runtime/native_product_{reviews,pending_reviews,review_creates,observations}.go`,
+`native_collaboration.go` and Rust `collaboration.rs` now bind the exact pending
+submission to the canonical schema-89 one-shot journal. Saved version-1 creation
+captures retain their implementation and deadline; new version-2 captures retain
+native pending/comment pins and exact account/parent/review/commit identity.
+Empty canonical summary preserves saved writing; nonempty replaces it exactly.
+Explicit clear and existing-draft-only editing remain unsupported product intents.
+
+A valid causal receipt is durably committed with unfinished completion before a
+separately admitted lookup verifies current published summary/comment identity
+and exact writing. Verification failure/mismatch retains the immutable known
+primary without resend. A causal count discrepancy stays unfinished even after
+later count restoration. A lost receipt remains indeterminate despite readable
+matching current writing. Cancellation uncertainty survives late primary and
+later completion; account replacement or supervisor restart cannot recover send
+ownership from a reserved dispatch.
+
+Actual Rust custody/native supervisor, Go HTTP and PostgreSQL passed 23 declared
+cases with 16 dummy attempts. Evidence:
+`/home/vince/tmp/factory-pending-review-product-1105/attempt3/pending-review-product-result.json`,
+SHA-256 `19ca099b76d34e4073fbd512b99123c8c01c0e04dfbf50881f5aecde2a832bd3`;
+read-only journal assertions/log SHA-256
+`41a0963eac03ef4e34781e5484a2eeeb592e83a154afd5ff5b0ce7a7d76fb2d6`.
+Maximum writing, nullable/64-bit identities, historical commit/head advance/later
+dismissal, failed/changed publication verification, count mismatch, concurrency,
+lost reply, late cancellation/primary/completion, custody replacement, restart
+and other-account refusal were observed. The version-1 regression passed 14
+cases/ten dummy attempts in `rg2/`; its result SHA-256 is
+`4caa9a912759a0ff017a0a374e4a3e1ec84ac779af4923cf4497559445aab144`.
+The plan records exact retained artifacts, earlier fixture/observer/path failures
+and the regression observer artifact retention limit. These independent declared
+provider states are not a continuous live GitHub lifecycle or a security gate.
+
+Exact remaining evidence includes original pending-capture expiry (separate
+record below), longest combined identity receipt bounds, fresh actual GitHub
+schema/grant/permission/pending privacy, summary/comment preservation and final
+event/notification semantics, then shared UI and installed journeys. No atomic
+expected-head/body/comment-set publication follows from separate bounded reads.
+Actual provider cases require fresh specifically scoped owner authorization;
+historical sign-ins or dummy request approvals do not authorize real writes.
+Existing-draft/concurrent-submission and inline/branch/merge work remain concrete
+normal T11 tasks. Shared write capabilities, D1/D2/D3/D4/D5 and broad qualification
+claims remain unavailable/open. No Daybreak work ran or was marked complete.
+
+T11-WRITES original pending-review capture expiry (2026-11-05): the existing
+native expiry observer now selects version 2. In a fresh disposable native/Go/
+PostgreSQL profile, a first-outcome SQL delay left the actual product capture
+unclaimed without rewriting its command, preparation or five-minute deadline.
+After 287 real seconds to the saved original deadline plus one, exact POST
+returned 403, SQL capture bytes/deadline remained identical, no new preparation
+query or mutation occurred, lookup invented no effect, and local cancellation
+completed as no-effect/cancelled. The fixture trigger/function were removed;
+owned account withdrawal and clean stop passed. Evidence:
+`/home/vince/tmp/factory-pending-review-product-1105/ex1/review-expiry-result.json`,
+SHA-256 `98ffb60e830cd1828aa10915b75603fb0deee1c58c752beacc93ebb10dc4346d`;
+log SHA-256 `23381cd3848e7eee4ff8c513f6a7fad290d9c1305eb520995f1a743dbcdf844b`.
+The plan records exact helper/observer/runners and production artifacts. This
+closes original-expiry evidence for this consumer only. It is a dummy-only
+declared check, not actual provider, installed, freshness or security-gate
+qualification. All other concrete tasks, dependencies and evidence requirements
+in the preceding checkpoint remain open; no Daybreak work was completed.

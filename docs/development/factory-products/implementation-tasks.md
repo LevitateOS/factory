@@ -29793,3 +29793,147 @@ Existing-draft updates and other concrete T11 condition/branch/merge obligations
 remain unfinished; no new D5 decision is inferred. Shared writes and all actual
 broad gate claims remain unavailable/open. No Daybreak work or whole-product
 completion was declared.
+
+### T11-WRITES checkpoint: journaled pending-review primary and separate completion (2026-11-05)
+
+`native_product_reviews.go` now routes retained review preparations by their saved
+version: version 1 keeps the existing new-review owner and original deadline;
+version 2 submits an explicitly observed existing pending review. Preparation
+uses the bounded native full pending/comment snapshot, preserving its native
+digest, exact Node/nullable numeric identity, actual reviewed commit, account,
+repository/PR/head and comment identity/writing digest. It never re-encodes the
+native pending record to manufacture its digest. In the existing canonical
+command an empty summary preserves pending writing; a nonempty summary replaces
+it exactly. Explicit clearing and existing-draft-only summary editing still need
+their own product intent/semantics. Draft never silently submits or replaces an
+existing pending review.
+
+`native_product_pending_reviews.go`, `native_collaboration.go`,
+`native_product_observations.go` and Rust `collaboration.rs` compose the fixed
+typed native submission and exact publication observer. Only the typed submission
+joins the existing 512 KiB writing envelope; ordinary descriptor bounds remain.
+Every effect requires the existing schema-89 committed one-shot reservation,
+current account/canonical scope, original deadline and echoed command/digest.
+The Rust connector remains the defining authenticated provider owner; Go owns
+canonical mapping and the durable journal. No Go provider HTTP implementation,
+credential round trip, arbitrary provider URL or new transaction owner was added.
+
+A valid causal reply first becomes **committed with unfinished completion** in
+PostgreSQL. Its bounded receipt is immutable and still says publication
+verification is required. A separately admitted later command lookup authenticates
+that saved receipt and preparation before comparing published numeric/Node and
+parent identities, actual reviewed commit, exact summary hash and complete
+comment identity/writing digest/count. A valid observed head advance or subsequent
+dismissal does not erase the historical primary. Verification failure, changed
+writing/identity/count or unavailable facts retain commitment without resending.
+A causal reply count discrepancy remains unfinished even if later counts return
+to the original value. Current matching reviews cannot attribute a lost reply.
+Cancellation uncertainty survives late primary receipt persistence and later
+completion without changing caller objects or receipt bytes.
+
+The existing native executable gained
+`--github-pending-review-product-declared BACKEND PG_PAYLOAD READ_ONLY_HELPER FRESH_PROFILE`.
+The actual Rust custody/supervisor, Go HTTP/service and native PostgreSQL journey
+passed 23 declared cases with 16 dummy mutation attempts under
+`/home/vince/tmp/factory-pending-review-product-1105/attempt3/`: all final events,
+preserve/replace summary, maximum Unicode/control writing, historical commit,
+nullable original review ID and 64-bit identities; immutable durable primary
+before verification; refused verification and summary/comment writing/comment
+identity/count changes; later head advance/dismissal; causal count discrepancy;
+lost reply with normally readable matching writing but no attribution;
+simultaneous identical command; late primary after cancellation and subsequent
+completion; known unfinished primary across actual stop/restart; in-flight
+withdrawal/replacement and stop/restart; other-account refusal; and explicit
+existing-draft update unavailability. The external helper reads actual rows and
+compares capture/preparation/receipt bytes; it seeds or changes no journal rows.
+Each provider scenario is declared independently, not a continuous live GitHub
+pending-review lifecycle. No public response exposes preparation or receipts.
+
+The 14-case/ten-dummy-write version-1 new-review product regression also passed
+under `rg2/`, including all four events, full writing, concurrency, lost reply,
+cancel races, custody replacement and retained restart. Its existing-pending
+refusal now explicitly selects draft editing, which remains unsupported. That
+run used the same production source/server before observer-only expiry/status
+additions; its observer copy was subsequently replaced, so no retained exact
+observer binary digest is claimed for `rg2`. Its result/log remain preserved.
+
+Earlier attempts are retained: the initial fixture setup found Ruby unavailable
+and was recreated with the available Node runtime; `attempt1` exposed a fixture
+which reverted a 64-bit parent identity after submission; `attempt2` exposed the
+observer's incorrect assumption that unfinished command lookup must use 202
+(lookup uses 200). Production completion was not weakened to satisfy either.
+`new-review-regression/` refused before the journey because its profile path
+exceeded the Unix socket bound; `rg2/` used a shorter fresh path.
+
+| Artifact under `/home/vince/tmp/factory-pending-review-product-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `de496e27de72a70e4f946e640aa130000eac66d0bd3bbb9aeaafdd9fc7ac007e` |
+| `provider` | `b17fb0f20f716f6a821a09aae0c693003594aa35de23f9b5ca997c659f0788dc` |
+| `helper.go` | `88e53c64f7d1f53f03154f149079a7c3fa05d0c6f6cca2cb1e4e0a710088feb6` |
+| `helper` | `a92a8acbc9e61615d9ec593f2aeee95b072a8974476adcfb71844c8ff7ec31bb` |
+| `server` | `0bfcc21570f4512b7bb6cf5f47b34fb118b75cd4aabdd3e674eac32e436de078` |
+| `check-bin` | `f732f9b42d52d7c6877197045f61feb6936d705d42d82955add3bea230755d18` |
+| `run.sh` | `df6e8fe5c4623aa210e26a7ea6b4b2284c41ed54ec05b3fb3e0ee020f55ebf98` |
+| `session.sh` | `f42f0eb2794d38b244bc4b3e2d5e93ea2f9ee72cb7e2c7cc81ebfb90039f769e` |
+| `attempt3/result.log` | `41a0963eac03ef4e34781e5484a2eeeb592e83a154afd5ff5b0ce7a7d76fb2d6` |
+| `attempt3/pending-review-product-result.json` | `19ca099b76d34e4073fbd512b99123c8c01c0e04dfbf50881f5aecde2a832bd3` |
+| `rg2/result.log` | `4b38e983d1c40555cf0d4f096df7f13b206006c67af16a1981e2713b238c2918` |
+| `rg2/review-product-result.json` | `4caa9a912759a0ff017a0a374e4a3e1ec84ac779af4923cf4497559445aab144` |
+
+Go production server, locked/offline native executable and desktop-feature builds,
+ownership boundaries and whitespace checks passed. No dependency, authored
+Python, unit-test root or Rust test module was added. The fixed dummy TLS peer
+cannot forward to GitHub. This proves the composed declared product path, not
+fresh dependencies, actual GitHub permissions/schema/privacy/notifications,
+atomic expected-head/body/comment-set publication or installed/shared UI behavior.
+Longest combined identity receipt bounds remain unqualified. Genuine original
+pending-capture expiry is checked separately below; this 23-case run itself does
+not qualify it. Other writers' original-expiry evidence is not inferred.
+
+Remaining T11 work includes explicit draft summary behavior, inline writing,
+branch/merge operations and concrete provider condition limits, followed by fresh
+owner-authorized actual-provider/shared UI and installed journeys. The shared
+write capability and all actual canonical/broad gate claims remain unavailable/
+open; T11-WRITES and the complete product remain unfinished. No Daybreak work ran
+or was marked complete.
+
+### T11-WRITES checkpoint: original pending-review capture expiration (2026-11-05)
+
+The same existing expiry observer now accepts
+`--github-pending-review-expiry-product-declared BACKEND PG_PAYLOAD HELPER FRESH_PROFILE`.
+It selects a real version-2 pending-review product capture, not a seeded or
+rewritten journal row. The owned disposable SQL trigger delays only the first
+outcome transaction after capture commit, causing its real request to time out
+and roll back that outcome while leaving the actual original capture unclaimed.
+The external helper verifies version 2/account/request, the original five-minute
+deadline against actual capture creation, removes the trigger/function, and
+checks that no late outcome/reservation appeared. No capture, writing, provider
+intent or deadline is inserted/replaced by that helper.
+
+Under `/home/vince/tmp/factory-pending-review-product-1105/ex1/`, the observer
+waited **287 real seconds** until the saved original deadline plus one second.
+Exact POST then returned 403. Actual SQL retained identical command identity,
+type, target, principal, digest, payload/preparation, created time and deadline;
+the dispatch remained unclaimed. Native preparation query count stayed unchanged
+and zero provider mutations occurred. Lookup invented no effect; local unclaimed
+cancellation completed as known no-effect/cancelled. Owned account withdrawal,
+empty custody and supervisor stop passed. This closes this pending consumer's
+original-expiry evidence; it does not infer equivalent evidence for other writers.
+
+| Artifact under `/home/vince/tmp/factory-pending-review-product-1105/` | SHA-256 |
+| --- | --- |
+| `expiry-check-bin` | `b97fb8139b5b871e711bbcd4713f7086ee385dfb107d766bc17b6aa3b14660b0` |
+| `expiry-helper.go` | `dd2f4f4c04a17d136c79338834c483864da36c9c70b743a7566d2716dcba2b73` |
+| `expiry-helper` | `38848e9adb94cffc83f81edc02db96097230cefd27ce9597beaee87f4f42b274` |
+| `expiry-run.sh` | `fc136673ac140bdab3c6cb948cfd303772b3bff8e741e2946e36af8bfe6a8dce` |
+| `expiry-session.sh` | `0ed6df3193712a0e8c83552f05f81f8b6d1791e483f1af377b5c8e4372f802ea` |
+| `ex1/result.log` | `23381cd3848e7eee4ff8c513f6a7fad290d9c1305eb520995f1a743dbcdf844b` |
+| `ex1/review-expiry-result.json` | `98ffb60e830cd1828aa10915b75603fb0deee1c58c752beacc93ebb10dc4346d` |
+
+Server, dummy peer and provider binaries are the retained exact artifacts in the
+preceding composition table. The expiry observer was built before the later
+observer-only lookup-status correction; production source/server were identical.
+Locked/offline compilation is historical-input component evidence, not a fresh
+baseline or installed qualification. No real grant, provider write, notification,
+Daybreak work or broad security/product gate was qualified. The explicit remaining
+dependencies and open gates from the preceding checkpoint remain unchanged.

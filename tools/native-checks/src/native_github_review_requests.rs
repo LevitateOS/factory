@@ -1894,7 +1894,7 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
         &envelope(
             &submit,
             "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-            "comment",
+            "draft",
             "Existing pending must be preserved",
         )?,
     )
@@ -2180,6 +2180,468 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
     Ok(())
 }
 
+// Composed pending submission uses the actual native owner, Go HTTP/journal and
+// PostgreSQL. Its external helper only reads this newly created owned journal
+// and compares immutable preparation/receipt bytes; no row is seeded or edited.
+pub(super) async fn pending_product(
+    production: &Path,
+    payload: &Path,
+    helper: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed, set_mode};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{os::unix::fs::PermissionsExt, process::Command, sync::Arc};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let mode = |name: &str| -> Result<()> {
+        for marker in ["entered", "release", "cancelled", "verification-mode"] {
+            match fs::remove_file(io.join(marker)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        set_mode(&io, name)
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let journal = |id: &str, stage: &str| -> Result<()> {
+        ensure(
+            Command::new(helper)
+                .arg(profile)
+                .arg(id)
+                .arg(stage)
+                .status()?
+                .success(),
+            "owned journal proof failed",
+        )
+    };
+    let primary = |r: &(u16, serde_json::Value)| -> Result<()> {
+        ensure(
+            matches!(r.0, 200 | 202) && r.1["effect"] == "committed" && r.1["finished"] == false,
+            "causal primary lost or verification claimed before durable save",
+        )
+    };
+    let uncertain = |r: &(u16, serde_json::Value)| -> Result<()> {
+        ensure(
+            matches!(r.0, 200 | 202)
+                && r.1["effect"] == "indeterminate"
+                && r.1["finished"] == false
+                && r.1["review"].is_null(),
+            "lost reply became attributable",
+        )
+    };
+    mode("submit-start")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "pending product requires empty owned custody",
+    )?;
+    let account = || {
+        Account::new(Provider::Github, "https://github.com", "321")
+            .and_then(|a| a.with_label("declared-writer"))
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let mut connection = store.store(account()?, token()?).await?.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "pending catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let submit = format!("/api/factory/collaboration/repositories/{repository}/pulls/7/reviews");
+    let command = |id: &str| format!("{submit}/commands/{id}");
+    let envelope = |id: &str, event: &str, body: &str| -> Result<Vec<u8>> {
+        let request: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":submit,"body":{"command_id":id,"event":event,"body":body}}),
+        )?;
+        Ok(request.request()?.2)
+    };
+    let mut cases = Vec::new();
+    for (i, (name, event, body)) in [
+        ("comment", "comment", String::new()),
+        ("approve", "approve", String::new()),
+        (
+            "changes",
+            "request_changes",
+            "Exact replacement 🍵\n[link](relative.md)".into(),
+        ),
+        ("max-control", "comment", "\u{0001}".repeat(65536)),
+        ("max-unicode", "approve", "🍵".repeat(16384)),
+        ("historical-commit", "comment", String::new()),
+        ("unknown-review-id", "approve", String::new()),
+        ("big-ids", "comment", String::new()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        mode(&format!("submit-{name}"))?;
+        let id = format!("{:032x}", 100 + i);
+        let bytes = envelope(&id, event, &body)?;
+        let before = writes()?;
+        let r = call(&runtime, &store, &connection, "POST", &submit, &bytes).await?;
+        primary(&r)?;
+        journal(&id, "primary")?;
+        ensure(
+            !r.1["review"].is_null(),
+            "known primary lost readable canonical destination",
+        )?;
+        let external = r.1["review"]["external_id"]
+            .as_str()
+            .ok_or("review destination absent")?;
+        let read = call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{submit}/{external}"),
+            &[],
+        )
+        .await?;
+        let expected = if body.is_empty() {
+            "Exact pending writing 🍵\n[link](relative.md)"
+        } else {
+            &body
+        };
+        ensure(
+            read.0 == 200 && read.1["body"] == expected,
+            "pending submission changed summary writing",
+        )?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        journal(&id, "complete")?;
+        completed(
+            &call(&runtime, &store, &connection, "POST", &submit, &bytes).await?,
+            "committed",
+        )?;
+        completed(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(&id)),
+                b"{}",
+            )
+            .await?,
+            "committed",
+        )?;
+        let conflict = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &envelope(&id, event, "Different writing")?,
+        )
+        .await?;
+        ensure(
+            conflict.0 == 409 && writes()? == before + 1,
+            "pending replay/conflict/cancel repeated dispatch",
+        )?;
+        cases.push(name.to_owned());
+    }
+    // All verifier failures retain the exact saved causal primary. Changes to
+    // writing or comment identity cannot finish preservation from counts alone.
+    mode("submit-verification")?;
+    let id = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let bytes = envelope(id, "comment", "")?;
+    let before = writes()?;
+    primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+    journal(id, "primary")?;
+    for fault in ["deny", "body", "writing", "identity", "count"] {
+        fs::write(io.join("verification-mode"), fault)?;
+        primary(&call(&runtime, &store, &connection, "GET", &command(id), &[]).await?)?;
+        journal(id, "unfinished")?;
+        primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+        primary(
+            &call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &format!("{}/cancel", command(id)),
+                b"{}",
+            )
+            .await?,
+        )?;
+        ensure(
+            writes()? == before + 1,
+            "verification failure resent primary",
+        )?;
+        cases.push(format!("verification-{fault}"));
+    }
+    // A current head advance or later dismissal does not erase a historical
+    // valid primary when exact review/comment writing remains observable.
+    fs::write(io.join("verification-mode"), "head-dismissed")?;
+    completed(
+        &call(&runtime, &store, &connection, "GET", &command(id), &[]).await?,
+        "committed",
+    )?;
+    journal(id, "complete")?;
+    cases.push("head-advance-dismissal".into());
+    mode("submit-changed-count-reply")?;
+    let id = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let bytes = envelope(id, "approve", "")?;
+    let before = writes()?;
+    primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+    journal(id, "primary")?;
+    fs::write(io.join("verification-mode"), "restore-count")?;
+    primary(&call(&runtime, &store, &connection, "GET", &command(id), &[]).await?)?;
+    journal(id, "unfinished")?;
+    primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "count mismatch erased historical discrepancy or repeated send",
+    )?;
+    cases.push("causal-count-mismatch".into());
+    mode("submit-drop-reply")?;
+    let lost_id = "cccccccccccccccccccccccccccccccc";
+    let lost = envelope(lost_id, "comment", "Lost causal reply writing")?;
+    let before = writes()?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    let read = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        &format!("{submit}/800"),
+        &[],
+    )
+    .await?;
+    ensure(
+        read.0 == 200 && read.1["body"] == "Lost causal reply writing",
+        "lost reply destination not normally readable",
+    )?;
+    uncertain(&call(&runtime, &store, &connection, "GET", &command(lost_id), &[]).await?)?;
+    uncertain(&call(&runtime, &store, &connection, "POST", &submit, &lost).await?)?;
+    ensure(
+        writes()? == before + 1,
+        "current matching review attributed lost reply",
+    )?;
+    cases.push("lost-reply".into());
+    mode("submit-concurrent")?;
+    let id = "dddddddddddddddddddddddddddddddd";
+    let bytes = envelope(id, "approve", "")?;
+    let before = writes()?;
+    let (a, b) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &bytes),
+        call(&runtime, &store, &connection, "POST", &submit, &bytes)
+    );
+    for r in [a?, b?] {
+        if r.1["effect"] == "indeterminate" {
+            uncertain(&r)?
+        } else if r.1["finished"] == true {
+            completed(&r, "committed")?
+        } else {
+            primary(&r)?
+        }
+    }
+    completed(
+        &call(&runtime, &store, &connection, "GET", &command(id), &[]).await?,
+        "committed",
+    )?;
+    ensure(
+        writes()? == before + 1,
+        "simultaneous pending submission repeated mutation",
+    )?;
+    cases.push("concurrent".into());
+    mode("submit-cancel-race")?;
+    let id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let bytes = envelope(id, "comment", "Cancelled after sending")?;
+    let before = writes()?;
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(&connection).await?,
+        Some("123".into()),
+    )?;
+    let pending = request.request("POST", &submit, &bytes);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let cancelled = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &format!("{}/cancel", command(id)),
+        b"{}",
+    )
+    .await?;
+    uncertain(&cancelled)?;
+    ensure(
+        cancelled.1["cancellation"] == "indeterminate",
+        "cancel invented a no-effect acknowledgment",
+    )?;
+    fs::write(io.join("release"), b"")?;
+    let reply = pending.await?;
+    let r = (reply.status, serde_json::from_slice(&reply.body)?);
+    primary(&r)?;
+    ensure(
+        r.1["cancellation"] == "indeterminate",
+        "late unfinished primary erased cancellation",
+    )?;
+    journal(id, "primary")?;
+    let r = call(&runtime, &store, &connection, "GET", &command(id), &[]).await?;
+    completed(&r, "committed")?;
+    journal(id, "complete")?;
+    ensure(
+        r.1["cancellation"] == "indeterminate" && writes()? == before + 1,
+        "completion lost cancellation or repeated send",
+    )?;
+    cases.push("late-primary-cancel-completion".into());
+    // Preserve an unfinished known primary across actual backend retirement.
+    mode("submit-restart-known")?;
+    let known_id = "ffffffffffffffffffffffffffffffff";
+    let bytes = envelope(known_id, "comment", "")?;
+    primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+    journal(known_id, "primary")?;
+    runtime.stop()?;
+    store.retire();
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(known_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    journal(known_id, "complete")?;
+    cases.push("known-primary-restart".into());
+    for (name, id, withdraw) in [
+        ("submit-withdraw", "11111111111111111111111111111111", true),
+        ("submit-stop", "22222222222222222222222222222222", false),
+    ] {
+        mode(name)?;
+        let bytes = envelope(id, "approve", "")?;
+        let before = writes()?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let pending = request.request("POST", &submit, &bytes);
+        tokio::pin!(pending);
+        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        if withdraw {
+            store.withdraw(&connection).await?;
+            connection = store.store(account()?, token()?).await?.connection;
+            fs::write(io.join("release"), b"")?;
+            ensure(
+                pending.await.is_err(),
+                "retired generation delivered old reply",
+            )?;
+        } else {
+            runtime.stop()?;
+            fs::write(io.join("release"), b"")?;
+            ensure(
+                pending.await.is_err(),
+                "retired generation delivered old reply",
+            )?;
+            store.retire();
+            runtime = NativeSupervisor::start(payload, production, profile)?;
+            store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+        }
+        uncertain(&call(&runtime, &store, &connection, "GET", &command(id), &[]).await?)?;
+        uncertain(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+        ensure(
+            writes()? == before + 1,
+            "retained unknown pending submission repeated send",
+        )?;
+        cases.push(name.into());
+    }
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?
+                .with_label("declared-other")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    let before = writes()?;
+    let r = call(
+        &runtime,
+        &store,
+        &other.connection,
+        "GET",
+        &command(lost_id),
+        &[],
+    )
+    .await?;
+    ensure(r.0 == 404, "other account read pending capture")?;
+    let r = call(&runtime, &store, &other.connection, "POST", &submit, &lost).await?;
+    ensure(
+        r.0 == 409 && writes()? == before,
+        "other account adopted pending capture",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account".into());
+    mode("submit-draft-unavailable")?;
+    let before = writes()?;
+    let r = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &submit,
+        &envelope(
+            "33333333333333333333333333333333",
+            "draft",
+            "Unsubmitted writing",
+        )?,
+    )
+    .await?;
+    ensure(
+        r.0 == 503 && writes()? == before,
+        "draft update silently submitted or replaced existing review",
+    )?;
+    cases.push("existing-draft-update-unavailable".into());
+    ensure(
+        !io.join("unexpected-request").exists()
+            && !io.join("overlap").exists()
+            && !io.join("too-fast").exists(),
+        "unexpected/unserialized/unpaced provider request",
+    )?;
+    store.withdraw(&connection).await?;
+    ensure(store.status().await?.is_empty(), "owned grants remain")?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("pending-review-product-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"native_product_consumer":true,"actual_provider":false,"provider_mutations":writes()?,"immutable_journal_proved":true,"capabilities_enabled":false,"atomic_publication_qualified":false,"original_expiry_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: composed pending review submission persists the exact causal primary before separate writing/identity verification, retains uncertainty/cancellation across loss, custody and restart; dummy-only provider");
+    Ok(())
+}
+
 // The external helper operates only on this newly created disposable profile.
 // Its SQL trigger delays the first outcome transaction after capture commit;
 // it never inserts/replaces a capture or changes its preparation/deadline.
@@ -2188,6 +2650,7 @@ pub(super) async fn expiry(
     payload: &Path,
     helper: &Path,
     profile: &Path,
+    pending: bool,
 ) -> Result<()> {
     use super::native_github_issues::{call, completed};
     use soda_desktop_runtime::{
@@ -2204,7 +2667,10 @@ pub(super) async fn expiry(
     let root = profile.parent().ok_or("fixture parent absent")?;
     let io = root.join("io");
     fs::create_dir(&io)?;
-    fs::write(io.join("mode"), "expiry")?;
+    fs::write(
+        io.join("mode"),
+        if pending { "submit-expiry" } else { "expiry" },
+    )?;
     let runtime = NativeSupervisor::start(payload, production, profile)?;
     let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
     ensure(
@@ -2214,7 +2680,11 @@ pub(super) async fn expiry(
     let connection = store
         .store(
             Account::new(Provider::Github, "https://github.com", "321")?,
-            Token::new(b"factory-declared-review-create".to_vec())?,
+            Token::new(if pending {
+                b"factory-declared-review-preparation".to_vec()
+            } else {
+                b"factory-declared-review-create".to_vec()
+            })?,
         )
         .await?
         .connection;
@@ -2313,7 +2783,7 @@ pub(super) async fn expiry(
     fs::write(
         root.join("review-expiry-result.json"),
         serde_json::to_vec(
-            &json!({"actual_product_capture":true,"original_not_after":deadline,"waited_real_seconds":wait,"capture_unclaimed":true,"intent_deadline_unchanged":true,"no_reprepare":true,"provider_mutations":0,"expired_http_status":r.0,"local_cancellation_complete":true,"owned_account_removed":true,"native_go_postgresql":true,"real_github":false}),
+            &json!({"preparation_version":if pending{2}else{1},"actual_product_capture":true,"original_not_after":deadline,"waited_real_seconds":wait,"capture_unclaimed":true,"intent_deadline_unchanged":true,"no_reprepare":true,"provider_mutations":0,"expired_http_status":r.0,"local_cancellation_complete":true,"owned_account_removed":true,"native_go_postgresql":true,"real_github":false}),
         )?,
     )?;
     println!("PASS: real product review capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
