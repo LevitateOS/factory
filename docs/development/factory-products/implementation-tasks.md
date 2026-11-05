@@ -26369,3 +26369,49 @@ remote revocation/refusal/local cleanup and equivalent current coverage before
 retiring historical Go-observer consumers. D1/D2/D3/D5, native executor and
 installed gates remain open. Provider error contract:
 [GitHub OAuth request errors](https://docs.github.com/en/apps/oauth-apps/maintaining-oauth-apps/troubleshooting-oauth-app-access-token-request-errors).
+
+Historical observer migration inventory (source audit; still unqualified):
+
+| Existing consumer | Exact missing current coverage before retirement |
+| --- | --- |
+| `tools/native-checks/src/native_github_transport.rs` `run_refresh` / CLI `--github-refresh` | The actual-provider negative phase now runs independently. Migrate declared success/rotation, malformed or incomplete pair, scope/expiry, identity refusal/change, cancellation, withdrawal, replacement and retirement to the production Rust HTTPS/OAuth owner. The old second-backend hooks observe superseded Go HTTP. |
+| Same file `run_grant` / `--github-grant` | Current device grant → fresh identity → full native encrypted grant reload, preserving both expiry fields and refresh. Actual positive consent/reload already ran; declared shape/refusal coverage still needs current transport. |
+| Same file `run_device` / `--github-device` | Preserve actual unapproved challenge/cancellation; migrate declared pending/slow-down, long-lived grant, denial/expiry/deadline, malformed challenge/grant, redirect/size refusal, cancellation and retired authorization. |
+| Same file `run_verify` / `--github-verify` | Preserve actual unauthenticated identity refusal and empty custody; move declared cancellation and retired unpersisted verification to Rust HTTP, without expecting Go request-header observers. |
+| Same file `run` / `--github-transport` | Replace historical Go SDK/header counts with current fixed-origin Rust observations, including binding/refusal, concurrent replacement, withdrawal, dropped-call cancellation and joined retirement. Current declared evidence withdrawal and connected product cancellation cover only part of this obligation. |
+| `cmd/soda-desktop/src/check_credentials.rs` declared `start_signin`, `binding_checks`, `issue_checks` / `--check-signin` | Migrate old `io/mode` Go observer expectations: UI denial/cancel/expiry, stable canonical mappings across restart/rename, decimal provider IDs above JS integer precision, duplicate/foreign bindings, nullable records and filtered pagination, withdrawal and backend retirement. Actual connected consent/UI and the 62-case evidence suite do not replace all these cases. |
+
+Production `pkg/github` has only its historical README; no Go authenticated
+connector or Go SDK fallback remains. The other current actual-invalid-token
+read checks (issues, pulls, discussion, reviews, diffs, files, check runs,
+statuses and inline comments) use the production backend directly; they are
+not automatically obsolete. Do not delete these checks or claim equivalent
+coverage merely because the connected happy path passed. The required private
+declared fixture must use only dummy grants, process-local HTTPS trust and the
+current fixed provider endpoints; it must never forward a retained grant.
+
+Corrected live revocation qualification (2026-11-05):
+
+The fresh actual connected check under
+`/home/vince/tmp/factory-github-revocation-v2-1105/` exited 0 after owner consent
+and explicit client-specific grant revocation. Positive encrypted reload,
+identity, two repository pages, private detail, actual refresh and post-refresh
+identity, canonical workflow-job continuation/protection and actual shared UI
+ran before revocation. Actual identity then returned 401; canonical
+identity/catalogue/jobs and actual WebKit reconnect refused. The one-shot refresh
+returned the recorded `client_credentials_rejected` native outcome, not
+`bad_refresh_token`. Pending custody remained fenced until normal local
+withdrawal; the owned account was removed and owned PostgreSQL shut down.
+
+Safe result hashes: `provider-revocation-result.json`
+`93b8c3ee4768f20757c4550221c2540c87ae7b0f1df24a96c58b430b72589aa6`,
+`provider-revocation-refresh-result.json`
+`5811af33a692bbf8d89627f0e3919448683482a4c17f3b6eaf869a64bdf8c830`,
+`consent-result.json`
+`2465bdf381315763a2c9dd94224bd50461631058823d2c000cf3a5b9b4a6a80b`,
+log `265846cde278dc715464115e4848ffb6789272b93ac3ea163dc58dc35a12db74`.
+The earlier failed exchange remains unclassified and preserved. No replay or
+retroactive pass is claimed. The actual provider-side revocation/subsequent
+refusal/local removal obligation is now satisfied. T06-GITHUB stays Active for
+the inventoried historical observer migration/retirement, with no installed or
+executor qualification implied.

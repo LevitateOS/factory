@@ -1305,3 +1305,31 @@ must remain labelled as client rejection; it does not establish a
 `bad_refresh_token` response. T06-GITHUB also still requires migration/retirement
 of the historical Go-observer check consumers. Installed and D1/D2/D3/D5 gates
 remain open with their existing dependencies.
+
+Corrected actual revocation check (2026-11-05, passed for this obligation):
+`/home/vince/tmp/factory-github-revocation-v2-1105/` exited 0 after fresh owner
+consent, positive native/canonical/shared-UI/private/paging/refresh checks and the
+owner's second explicit app-grant revocation. Actual identity returned 401;
+canonical identity/catalogue/jobs and WebKit reconnect refused. The subsequent
+refresh returned the typed `client_credentials_rejected` outcome. It did not
+return `bad_refresh_token`, and the safe evidence explicitly records that false.
+The failed rotation remained durably pending until normal withdrawal removed
+this owned local account; no refresh was replayed. Owned PostgreSQL shut down.
+
+Safe evidence hashes in that root:
+- `result.log`: `265846cde278dc715464115e4848ffb6789272b93ac3ea163dc58dc35a12db74`
+- `provider-revocation-access-result.json`: `d54f016e022b35880889ac7e2c4ad96f8d6f60eaf495444012f290a9e897ee44`
+- `provider-revocation-refresh-result.json`: `5811af33a692bbf8d89627f0e3919448683482a4c17f3b6eaf869a64bdf8c830`
+- `provider-revocation-result.json`: `93b8c3ee4768f20757c4550221c2540c87ae7b0f1df24a96c58b430b72589aa6`
+- `consent-result.json`: `2465bdf381315763a2c9dd94224bd50461631058823d2c000cf3a5b9b4a6a80b`
+
+This supersedes the pending fresh remote-revocation obligation above. The first
+attempt remains failed and its original refresh class remains unknown. It is
+not retroactively repaired by this result. T06-GITHUB remains Active for the
+historical observer migration inventory in the canonical plan. In particular,
+current Rust OAuth malformed-response, cancellation/rotation/withdrawal and
+retirement obligations still need equivalent declared HTTPS evidence before
+retiring the Go-observer consumers in
+`tools/native-checks/src/native_github_transport.rs` and
+`cmd/soda-desktop/src/check_credentials.rs`. No installed, D1/D2/D3/D5 or executor
+gate is closed by this connected provider check.
