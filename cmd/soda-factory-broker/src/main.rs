@@ -46,6 +46,12 @@ enum Request {
         profile: String,
         sha256: String,
     },
+    RetireUnlaunched {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+    },
     QuiesceRun {
         version: u8,
         run: String,
@@ -978,7 +984,9 @@ fn agent_manifest(
     tool: &str,
     prompt: &str,
 ) -> String {
-    format!("FACTORY_ROLE={role}\nFACTORY_PROFILE={profile}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\nFACTORY_TOOL_SHA256={tool}\nFACTORY_PROMPT_SHA256={prompt}\n")
+    format!(
+        "FACTORY_ROLE={role}\nFACTORY_PROFILE={profile}\nFACTORY_CANDIDATE={candidate}\nFACTORY_BUNDLE_SHA256={digest}\nFACTORY_TOOL_SHA256={tool}\nFACTORY_PROMPT_SHA256={prompt}\n"
+    )
 }
 
 fn arm_agent(
@@ -1306,6 +1314,7 @@ fn execute_agent<R: Read, W: Write>(
         if ready != *b"R" {
             return Err(denied("agent execution readiness invalid"));
         }
+        mark_root_launch(run, profile, bundle_sha256)?;
         let marker = directory.join("agent.launch");
         let mut file = OpenOptions::new()
             .write(true)
@@ -1448,6 +1457,11 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
+    match fs::remove_file(directory.join("owner.lifecycle")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
     match fs::remove_file(directory.join("owner.profile")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -1504,7 +1518,7 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
+fn retire(run: &str, profile: &str, digest: &str, only_unlaunched: bool) -> io::Result<bool> {
     let runs = state()?;
     let _lock = lock(&runs)?;
     let preparations = preparations()?;
@@ -1514,6 +1528,11 @@ fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if retiring_run(&name) == Some(run) {
+            // A partial prior retirement no longer has a preparation marker.
+            // Setup cleanup cannot prove that this run was never launched.
+            if only_unlaunched {
+                return Err(denied("unlaunched retirement state unconfirmed"));
+            }
             if entry.path() != retiring {
                 return Err(denied("run retirement digest differs"));
             }
@@ -1539,6 +1558,9 @@ fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
             if preparation_run(&preparations, run)?.is_some() {
                 return Err(denied("orphan preparation cannot retire"));
             }
+            if only_unlaunched {
+                return Ok(false);
+            }
             stop_relay(run)?;
             return Ok(false);
         }
@@ -1553,6 +1575,13 @@ fn retire(run: &str, profile: &str, digest: &str) -> io::Result<bool> {
     read_digest(&directory, "owner.prompt_sha256")?;
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
+    }
+    if only_unlaunched {
+        if run_lifecycle(&directory)? != Some(false) || launched_run(run)? {
+            return Err(denied(
+                "launched or legacy run requires outcome reconciliation",
+            ));
+        }
     }
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
@@ -1598,10 +1627,71 @@ fn retiring_run(name: &str) -> Option<&str> {
     retiring_identity(name).map(|(run, _, _)| run)
 }
 
+fn run_lifecycle(directory: &Path) -> io::Result<Option<bool>> {
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("owner.lifecycle"))
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let metadata = file.metadata()?;
+    if !metadata.is_file()
+        || metadata.uid() != 0
+        || !matches!(metadata.mode() & 0o7777, 0o444 | 0o600)
+        || metadata.len() != 2
+    {
+        return Err(denied("broker run lifecycle declaration invalid"));
+    }
+    let mut bytes = [0u8; 2];
+    (&file).read_exact(&mut bytes)?;
+    if metadata.mode() & 0o7777 == 0o600 {
+        // A torn transition remains launched even if its contents are not
+        // complete. The worker cannot receive launch bytes before this sync.
+        return Ok(Some(true));
+    }
+    if !matches!(bytes, [b'2' | b'3', b'\n']) {
+        return Err(denied("broker run lifecycle version invalid"));
+    }
+    Ok(Some(bytes == *b"3\n"))
+}
+
+fn mark_root_launch(run: &str, profile: &str, digest: &str) -> io::Result<()> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let directory = runs.join(run);
+    private_dir(&directory, 0o555)?;
+    verified_profile(&directory, profile)?;
+    if !verified_bundle(&directory, digest)? || run_lifecycle(&directory)? != Some(false) {
+        return Err(denied("broker launch fence unavailable"));
+    }
+    let path = directory.join("owner.lifecycle");
+    let marker = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&path)?;
+    marker.set_permissions(fs::Permissions::from_mode(0o600))?;
+    marker.sync_all()?;
+    let mut marker = OpenOptions::new()
+        .write(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&path)?;
+    marker.write_all(b"3\n")?;
+    marker.sync_all()?;
+    marker.set_permissions(fs::Permissions::from_mode(0o444))?;
+    marker.sync_all()
+}
+
 // Return one exact selector at a time to stay inside the fixed 768-byte wire
 // bound. The desktop supervisor holds its profile lock while consuming these;
 // the root broker validates every selector from its own private declarations.
 fn launched_run(run: &str) -> io::Result<bool> {
+    let root = state()?.join(run);
+    if run_lifecycle(&root)? == Some(true) {
+        return Ok(true);
+    }
     let Some(directory) = preparation_run(&preparations()?, run)? else {
         return Ok(false);
     };
@@ -1706,6 +1796,9 @@ fn stage(
     let final_dir = runs.join(run);
     if final_dir.exists() {
         private_dir(&final_dir, 0o555)?;
+        if run_lifecycle(&final_dir)? != Some(false) {
+            return Err(denied("run already launched or legacy staged"));
+        }
         verified_profile(&final_dir, profile)?;
         verified_role(&final_dir, role)?;
         verified_digest(&final_dir, "owner.tool_sha256", tool_sha256)?;
@@ -1804,6 +1897,15 @@ fn stage(
         prompt_declaration.write_all(format!("{prompt_sha256}\n").as_bytes())?;
         prompt_declaration.sync_all()?;
         prompt_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
+        let mut lifecycle = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o444)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(temp.join("owner.lifecycle"))?;
+        lifecycle.write_all(b"2\n")?;
+        lifecycle.sync_all()?;
+        lifecycle.set_permissions(fs::Permissions::from_mode(0o444))?;
         fs::set_permissions(&temp, fs::Permissions::from_mode(0o555))?;
         File::open(&temp)?.sync_all()?;
         fs::rename(&temp, &final_dir)?;
@@ -1894,7 +1996,26 @@ fn serve() -> io::Result<()> {
                 return Err(denied("broker retirement declaration invalid"));
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
-            let removed = retire(&run, &profile, &sha256)?;
+            let removed = retire(&run, &profile, &sha256, false)?;
+            serde_json::to_vec(&Retired {
+                kind: "retired",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                removed,
+            })?
+        }
+        Request::RetireUnlaunched {
+            version,
+            run,
+            profile,
+            sha256,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
+                return Err(denied("broker unlaunched retirement declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let removed = retire(&run, &profile, &sha256, true)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,

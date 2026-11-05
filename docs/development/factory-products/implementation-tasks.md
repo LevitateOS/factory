@@ -25145,3 +25145,30 @@ code 1, complete 191-byte output and no candidate from the retained receipt.
 This proves a failed dummy-attempt receipt survives the credential-session
 boundary. No Go ledger transaction or crash/reboot recovery consumed it, and
 no successful finite model task ran. T09-NATIVE-EXECUTOR and D3 remain open.
+
+T09-NATIVE-EXECUTOR setup-retirement launch fence (2026-11-05): production
+`RunOwner::start` now uses a broker request restricted to unlaunched v2 stages
+for setup failure cleanup. The broker transitions a root-owned lifecycle file
+before sending worker launch bytes; a writable or launched state fences that
+cleanup even when the preparation tree is later removed. Legacy stages and
+partial retirement cannot be called unlaunched. A disposable current broker,
+preparer, relay and isolated agent ran a credential-free coder with a local
+owner listener. It retired an unlaunched staged bundle, refused the same
+cleanup after worker launch, reported the retained run as launched, and then
+completed explicit retirement. Locked offline broker/runtime checks and the
+fixture build passed; disposable units, binaries, owner socket and run paths
+were removed. The initial fixture lacked the relay owner socket and failed
+before launch; a later attempt exposed the broker's lack of write permission
+inside the read-only source directory, leading to the lifecycle-file design.
+This normal-path dummy check does not prove torn-update/reboot recovery, Go
+ledger outcome reconciliation, a successful provider task or D3 completion.
+T09-NATIVE-EXECUTOR remains Pending and D3 remains open.
+
+T06-CONNECT unavailable historical crash artifacts (2026-11-05): the user
+confirmed the recorded `connected-ui-v2` and `ui-v4` logs/cores are no longer
+available. Their exact pre-consent WebKit failure cannot be reconstructed from
+the surviving plan description or the later successful offline `--check`.
+Before another connected challenge, capture fresh current-runtime pre-consent
+diagnostics and retain the exact source/runtime identity and logs. The
+authenticated connected journey and IPC admission still need direct evidence;
+T06-CONNECT remains Active.

@@ -29,7 +29,7 @@ struct Staged {
 impl Staged {
     fn abort(&mut self) -> io::Result<()> {
         if self.active {
-            Broker::retire_bundle(&self.run, &self.profile, &self.sha256)?;
+            Broker::retire_unlaunched(&self.run, &self.profile, &self.sha256)?;
             self.active = false;
         }
         Ok(())
@@ -115,7 +115,7 @@ impl RunOwner {
                     // The broker may have committed staging before its reply was
                     // lost. The exact admitted digest is the only safe cleanup
                     // selector; unavailable cleanup remains uncertain.
-                    return if Broker::retire_bundle(&run, &profile, &expected).is_ok() {
+                    return if Broker::retire_unlaunched(&run, &profile, &expected).is_ok() {
                         Err(error)
                     } else {
                         Err(refused("broker staging cleanup unconfirmed"))

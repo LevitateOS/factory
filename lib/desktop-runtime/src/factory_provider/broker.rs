@@ -867,12 +867,12 @@ impl Broker {
     /// Stop the exact relay and prepared checkout through the broker after the
     /// local owner is stopped. A failed retirement must be retried with the
     /// same digest; a different digest is never authority to clean this run.
-    pub fn retire_bundle(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+    fn retire_request(kind: &str, run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
         if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) {
             return Err(refused("broker retirement declaration invalid"));
         }
         let reply: Retired = exchange(
-            json!({"kind":"retire_bundle","version":1,"run":run,"profile":profile,"sha256":sha256}),
+            json!({"kind":kind,"version":1,"run":run,"profile":profile,"sha256":sha256}),
             None,
             PREPARE_TIME,
         )?;
@@ -884,6 +884,18 @@ impl Broker {
             return Err(refused("broker retired identity invalid"));
         }
         Ok(reply.removed)
+    }
+
+    /// Setup cleanup may retire only a run whose launch marker is absent.
+    /// The broker checks this under its root run lock before removing state.
+    pub fn retire_unlaunched(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+        Self::retire_request("retire_unlaunched", run, profile, sha256)
+    }
+
+    /// After a durable receipt and credential withdrawal, retire the exact
+    /// launched run or finish an interrupted root retirement.
+    pub fn retire_bundle(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+        Self::retire_request("retire_bundle", run, profile, sha256)
     }
 
     /// Stop the exact agent tree and relay while retaining its root staging.
