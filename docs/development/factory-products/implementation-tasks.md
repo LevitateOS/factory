@@ -29467,3 +29467,63 @@ finish condition changed. They do not create a general stop on independent
 connector, read/write UI or product implementation. Routine security engineering
 remains normal queue work under AGENTS.md; Daybreak is only user-started for work
 that looks like hacking. No gate or product completion is inferred.
+
+### T11-WRITES checkpoint: genuine original new-review capture expiration (2026-11-05)
+
+The existing native executable gained
+`--github-review-expiry-product-declared BACKEND PG_PAYLOAD OWNED_HELPER FRESH_PROFILE`.
+This verifies the original expiration through the actual new-review product
+consumer, without a fake clock, seeded capture, changed preparation/deadline or
+already-reserved/terminal record.
+
+The real native credential/supervisor/callback, Go HTTP/registry/service/journal
+and owned PostgreSQL path created the capture through the production endpoint.
+A private helper installed an owned SQL trigger in this fresh schema-89 profile
+to delay only the first outcome transaction after capture commit. The initial
+native request timed out, the outcome transaction rolled back and the exact
+capture remained committed, unfinished and `unclaimed`, with no outcome. The
+helper removed its trigger/function and rechecked that no delayed outcome or
+reservation committed. It never inserted a command or changed its intent.
+Private database input was consumed locally and never printed.
+
+The helper authenticated the retained product capture and original version-1
+preparation, checked its five-minute deadline against its actual creation time,
+and privately saved the original record. The observer then waited 287 real
+seconds for the untouched deadline to pass (after the initial request elapsed).
+Submitting the identical original request returned HTTP 403. Original ID/type/
+target/principal/digest/payload/creation time, including exact provider preparation
+and deadline, remained byte-for-byte unchanged and the fence remained unclaimed.
+The fixed preparation query count did not increase and zero provider mutations
+ran. Lookup invented no provider outcome. Exact local cancellation then completed
+with `not_committed`/`cancelled`, without acquiring a reservation. The final owned
+dummy account was withdrawn and the native supervisor stopped cleanly.
+
+The first full run passed under `/home/vince/tmp/factory-review-expiry-1105/attempt1/`.
+The owned TLS peer never forwards and uses only a fixed dummy credential. The
+production Go server is the same binary used in the completed new-review
+composition check. No production code hook, real grant or new unit-test root was
+added; helper/state/evidence remain private outside the repository.
+
+| Artifact under `/home/vince/tmp/factory-review-expiry-1105/` | SHA-256 |
+| --- | --- |
+| `helper.go` | `a0a55121f135ba107e15fc375f9bc9e9a3926121e2087c9ad0e4514cef7f2029` |
+| `helper` | `1bcf139b01da2a8e5a182eafe71da4365775e2f0b5e0aeaa2cbba9683a3a3bc0` |
+| `provider.go` | `a4ca50745812ee83758d212f9d5e10c64b06333d2ca52afe51bfa5d3619fba4e` |
+| `provider` | `37caf016f1ca5a289532f3882bc887fc3ac81c9bddba4fc0cd0f1e3f2a5518cf` |
+| `check-bin` | `45e225de7461bc0d1b03aa2d7f46ce1debe7e316ec4bb87428654cad268ae30b` |
+| `server` | `5559242dd5a1eda70b877cd3287ed96af71e2d7a9bf663e7c540bef36226e02a` |
+| `run.sh` | `c1f6468ec6749529c8d936b846d72b5889ce4a5c43458338bc20ad2801c217d2` |
+| `session.sh` | `18dcb4011165f36e3ffd9344eff38e49423215e111ea3ef75f5f67e1bbf5ccc3` |
+| `attempt1/result.log` | `23381cd3848e7eee4ff8c513f6a7fad290d9c1305eb520995f1a743dbcdf844b` |
+| `attempt1/review-expiry-result.json` | `6681e919731b1f23e80c276b94e0b3863ef91973b77830f8ee2761838751f447` |
+
+The native executable build, ownership boundaries and whitespace checks passed.
+This resolves the genuinely unclaimed original-expiry evidence dependency for
+this new-review Go consumer. It does not qualify other writers' expiry branches,
+existing pending-review submission/editing, a live provider, notification, shared
+UI, installed admission or any broad security gate. T11-WRITES, concrete provider
+condition/identity constraints and remaining branch/review/merge work stay Active;
+D1/D2/D3/D5 retain their actual canonical scopes. Other custody/isolation/execution/
+retirement/settlement and release/upgrade/freshness requirements remain unfinished.
+Shared write capabilities remain unavailable. No Daybreak work ran and the whole
+product is not complete.

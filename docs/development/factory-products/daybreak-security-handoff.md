@@ -3009,3 +3009,33 @@ No pending edit/submission protection is inferred from this new-review refusal.
 Other review/branch/merge effects, reviewer/thread/PR-delegation constraints and
 D1/D2/D3/D5, custody/admission/isolation/execution/distribution requirements remain
 open. No Daybreak work ran or was marked complete.
+
+T11-WRITES original new-review capture expiry proved locally (2026-11-05):
+The new-review consumer's genuinely unclaimed original-expiry dependency is now
+resolved by the actual native credential/callback/Go HTTP/service/journal/
+PostgreSQL path. The private fixture helper delayed only the first post-capture
+outcome transaction, verified rollback and an exact committed unfinished unclaimed
+capture, then removed its trigger/function. No command/preparation/deadline was
+inserted or rewritten by the helper. After waiting 287 real seconds for the
+original five-minute deadline, the same request returned 403 with original
+capture/intent/deadline bytes unchanged, no reservation, no further preparation
+query and zero provider mutations. Local cancellation then completed, the owned
+dummy account was withdrawn and the supervisor stopped cleanly.
+
+Evidence: `/home/vince/tmp/factory-review-expiry-1105/attempt1/review-expiry-result.json`,
+SHA-256 `6681e919731b1f23e80c276b94e0b3863ef91973b77830f8ee2761838751f447`.
+The plan records exact helper/peer/binary/runner hashes and the method. Private
+owned database input was read locally without printing it; all state/evidence
+remain outside the repository. This is the production consumer with a disposable
+SQL timing fixture and dummy-only/no-forwarding provider. It is not a fake clock,
+seeded expired capture, reserved replay, live provider or broad gate qualification.
+
+Remaining expiry obligations apply to other native writer consumers and future
+existing-pending review paths, not this proved new-review branch. Existing review
+submission/draft-edit semantics, exact pending/comment preservation, concrete
+provider head/body/visibility limits, actual permission/event/notification and
+shared UI/installed evidence still require their recorded work. D5 is specifically
+Fountain issue-only admission; it is not a generic GitHub mutation gate. Normal
+routine engineering and independent product work continue. Shared writes remain
+unavailable, all actual D1/D2/D3/D5 and custody/admission/isolation/execution/
+distribution gates remain open, and no Daybreak work was marked complete.

@@ -2179,3 +2179,143 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
     println!("PASS: composed native/Rust/Go/PG review creation retains exact writing, causal identity, readable destination, one-shot replay, ambiguous replies, cancel races, withdrawal, other-account refusal and restart; dummy-only provider, no actual GitHub or installed gate qualification");
     Ok(())
 }
+
+// The external helper operates only on this newly created disposable profile.
+// Its SQL trigger delays the first outcome transaction after capture commit;
+// it never inserts/replaces a capture or changes its preparation/deadline.
+pub(super) async fn expiry(
+    production: &Path,
+    payload: &Path,
+    helper: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{
+        process::Command,
+        sync::Arc,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::write(io.join("mode"), "expiry")?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "expiry requires empty owned custody",
+    )?;
+    let connection = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "321")?,
+            Token::new(b"factory-declared-review-create".to_vec())?,
+        )
+        .await?
+        .connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "expiry catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("expiry canonical repository absent")?;
+    let submit = format!("/api/factory/collaboration/repositories/{repository}/pulls/7/reviews");
+    let id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let command = format!("{submit}/commands/{id}");
+    let q: ProductRequest = serde_json::from_value(
+        json!({"kind":"write","path":submit,"body":{"command_id":id,"event":"comment","body":"Exact original retained review 🍵"}}),
+    )?;
+    let body = q.request()?.2;
+    let run_helper = async |action: &str| -> Result<()> {
+        let helper = helper.to_path_buf();
+        let profile = profile.to_path_buf();
+        let action = action.to_owned();
+        let status = tokio::task::spawn_blocking(move || {
+            Command::new(helper).arg(action).arg(profile).status()
+        })
+        .await??;
+        ensure(status.success(), "owned expiry SQL helper refused")
+    };
+    run_helper("install").await?;
+    let initial = call(&runtime, &store, &connection, "POST", &submit, &body).await;
+    ensure(
+        initial.is_err(),
+        "delayed first outcome unexpectedly completed",
+    )?;
+    run_helper("capture").await?;
+    run_helper("disarm").await?;
+    let deadline = fs::read_to_string(io.join("expiry-deadline"))?.parse::<u64>()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    ensure(
+        deadline > now && deadline - now <= 300,
+        "original expiry deadline was not captured in the future",
+    )?;
+    let queries = fs::read(io.join("queries"))?;
+    let wait = deadline.saturating_add(1).saturating_sub(now);
+    fs::write(
+        root.join("expiry-wait.json"),
+        serde_json::to_vec(
+            &json!({"original_not_after":deadline,"wait_seconds":wait,"capture_unclaimed":true,"deadline_rewritten":false}),
+        )?,
+    )?;
+    println!("original review capture is unclaimed; waiting {wait} real seconds until its saved deadline passes");
+    tokio::time::sleep(Duration::from_secs(wait)).await;
+    let r = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
+    ensure(r.0 == 403, "expired original review was admitted")?;
+    run_helper("verify").await?;
+    ensure(
+        fs::read(io.join("queries"))? == queries && !io.join("writes").exists(),
+        "expired capture was reprepared or reached a mutation",
+    )?;
+    let lookup = call(&runtime, &store, &connection, "GET", &command, &[]).await?;
+    ensure(
+        lookup.0 == 200 && lookup.1["finished"] == false && lookup.1["effect"].is_null(),
+        "expired unclaimed lookup invented a provider outcome",
+    )?;
+    let cancel = call(
+        &runtime,
+        &store,
+        &connection,
+        "POST",
+        &format!("{command}/cancel"),
+        b"{}",
+    )
+    .await?;
+    completed(&cancel, "not_committed")?;
+    ensure(
+        cancel.1["cancellation"] == "cancelled",
+        "expired unclaimed cancellation became uncertain",
+    )?;
+    run_helper("cancelled").await?;
+    store.withdraw(&connection).await?;
+    ensure(
+        store.status().await?.is_empty(),
+        "expiry left owned account",
+    )?;
+    store.retire();
+    runtime.stop()?;
+    ensure(
+        !io.join("unexpected-request").exists() && !io.join("writes").exists(),
+        "expiry sent undeclared or mutating provider request",
+    )?;
+    fs::write(
+        root.join("review-expiry-result.json"),
+        serde_json::to_vec(
+            &json!({"actual_product_capture":true,"original_not_after":deadline,"waited_real_seconds":wait,"capture_unclaimed":true,"intent_deadline_unchanged":true,"no_reprepare":true,"provider_mutations":0,"expired_http_status":r.0,"local_cancellation_complete":true,"owned_account_removed":true,"native_go_postgresql":true,"real_github":false}),
+        )?,
+    )?;
+    println!("PASS: real product review capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
+    Ok(())
+}
