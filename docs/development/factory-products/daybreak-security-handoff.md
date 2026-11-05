@@ -2690,3 +2690,38 @@ shared WebKit/installed evidence. Shared writes stay unavailable. Reviewer/threa
 limitations, other T11 effects, D1/D2/D3/D5, custody/root absence/scoped delivery,
 IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
 freshness retain recorded blockers. No broad gate or Daybreak work was closed.
+
+T11-WRITES current PR base/head branch observation prerequisite (2026-11-05):
+`github_provider/pull_branches.rs`, `request.rs`, `reads.rs` and `transport.rs`
+now share fixed authenticated branch-pair observations with bounded responses,
+whole deadline and joined retirement. Numeric repository identity binds to its
+same-object Node ID; repository/name/owner/ref/commit scope, exact branch prefix
+and pair rechecks refuse contradictions or observed changes. Unknown permission,
+read-only and fork/source facts stay unknown. Related repository facts cannot
+contradict primary numeric/Node identities. Neither data nor a matching fork label
+admits creation, maintainer modification, spending or execution.
+
+The actual native reader passed 60 declared cases, 12 invalid descriptors before
+provider I/O and retirement against the owned dummy-only, no-forwarding TLS peer.
+Evidence `/home/vince/tmp/factory-pull-branches-1105/attempt2/pull-branches-result.json`,
+SHA-256 `e3e674ef45a3707a598fba6cee77142efe2bd0522cb5cf054e7ae982be6e2b37`.
+The plan records exact peer/binary/runner identities and preserved earlier passing
+artifacts. There were zero mutations, real grants, canonical consumer, browser or
+installed checks. Current branch tips are not a proved historical thread anchor.
+
+The current branch producer dependency is resolved in source. Exact remaining
+dependencies: fixed Rust PR creation over saved preparation, admitted typed
+callback and explicit secondary-head/fork scope, Go canonical preparation/writer/
+destination/readback using schema 88, and exact-route maximum-writing envelopes.
+Current native PR POST still has the ordinary 64 KiB request limit. Relevant
+files include the new producer, `collaboration.rs`, runtime product adapters,
+`product_request.rs`, native collaboration envelopes and shared PR services/UI.
+The official creation input lists no expected-tip condition; preflight/recheck is
+not an atomic write condition. Supported D5 policy and actual tip/repository/
+visibility/race evidence remain open, alongside current fork/branch/maintainer
+permission, captured expiry, causal/lost reply/replay/cancel/withdrawal/replacement/
+restart and fresh owner-authorized provider/shared WebKit/installed evidence.
+Shared writes remain unavailable. Reviewer/thread constraints, other T11 effects,
+D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance, isolation/
+execution/retirement/settlement and release/upgrade/freshness retain recorded
+blockers and closure evidence. No broad gate or Daybreak work was closed.

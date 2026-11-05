@@ -28904,3 +28904,75 @@ original thread context, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/
 window/instance, isolation/execution/retirement/settlement and release/upgrade/
 freshness retain their open requirements. No broad gate or Daybreak work closed;
 the full product remains unfinished.
+
+### T11-WRITES checkpoint: authenticated current base/head branch producer (2026-11-05)
+
+`github_provider/pull_branches.rs` and `Read::PullBranches` now supply bounded
+current facts for explicitly selected base/head repositories and existing branch
+names. The producer uses the defining native account/semantic-read path; its fixed
+GraphQL query has no mutation or arbitrary endpoint/query input. It resolves
+numeric repository identity to Node identity from the same observed object,
+checks current repository/name/owner, exact `refs/heads/` prefix/name and ref/
+commit/repository identity, and rechecks both repository facts and the branch pair
+before return. Primary/related repository facts cannot assign contradictory
+numeric/Node identities, and one repository cannot supply inconsistent metadata
+for its two roles. The whole operation retains the existing eight-second deadline,
+joined owner retirement and a 1 MiB GraphQL response limit.
+
+Output distinguishes base/head refs, current commit IDs and provider metadata.
+Unknown push/read-only/fork flags and absent parent/source facts stay nullable.
+An unrelated or unknown fork network is returned as observed data, without
+claiming creation eligibility or inferring a root. No canonical IDs, product
+permission, maintainer-edit grant, branch creation, execution or mutation is
+performed. Rechecks are not an atomic snapshot, an original historical anchor,
+or a conditional write guarantee.
+
+The existing native executable gained `--github-pull-branches-declared
+FRESH_PROFILE`. Its production reader/transport passed 60 declared cases,
+12 invalid descriptors before provider I/O and joined retirement under
+`/home/vince/tmp/factory-pull-branches-1105/attempt2/`. Coverage includes same and
+separate repositories (including same-named branches), Unicode names, current
+renamed labels, large numeric repository IDs, accepted commit hash shapes,
+read-only/unknown metadata, unrelated/unknown sources, numeric/Node contradictions,
+identity/owner/repository/ref scope, null/missing/non-commit targets, changed tips/
+ref Nodes/metadata on recheck, malformed/partial/refused/limited replies, query
+classification, redirects, response bounds and whole-operation deadline. The
+owned local TLS peer accepts only fixed declared reads and its dummy credential,
+never forwards and receives zero mutations. The first 55-case passing artifacts
+were retained before adding the identity-contradiction cases; the final matrix
+passed with the production source/binary below.
+
+| Artifact under `/home/vince/tmp/factory-pull-branches-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `8cbaf8e1b5968b4e6ac26b0a048efebe7be64652b1dd3317d43537e0c55d4cbc` |
+| `provider` | `f0946e87d63ba20b973386486dfffe3af9217dba68de9d5a2bf1e35d2be9ce60` |
+| `check-bin` | `57e6ccc4a85acabe626663af66b1666d8d7f92ece9f48ec625c72875b9ed97ff` |
+| `run.sh` | `adf82da1e336270a0ca6122556d633e3d5781bd2c39f92f59e96ef6d864966d8` |
+| `session.sh` | `9afd48460f2fc082a64d87df511c91edffab71429885c74aa0273689a92b9fe8` |
+| `attempt2/result.log` | `5bd26c51f3a1dc7101f1124c7d9901032c0501a03e7ff4d5ee345c4dc33dadc3` |
+| `attempt2/pull-branches-result.json` | `e3e674ef45a3707a598fba6cee77142efe2bd0522cb5cf054e7ae982be6e2b37` |
+
+Locked/offline native and desktop-feature builds, ownership boundaries and
+whitespace checks passed. No dependency or unit-test hierarchy was added.
+
+Current official [creation input](https://docs.github.com/en/graphql/reference/pulls#createpullrequestinput)
+lists repository Node IDs and branch names, with no expected-tip condition. The
+[reference contract](https://docs.github.com/en/graphql/reference/git#ref) supports
+the observed identity/prefix/target checks. These documented shapes do not prove
+live compatibility or atomic protection. Supported D5 policy/invariants and real
+evidence remain required; preflight/readback alone cannot establish CAS.
+
+The bounded current-branch producer prerequisite is resolved in source. Next:
+fixed native PR creation against saved preparation, then typed creation callback,
+explicit selected secondary-head scope and Go canonical preparation/writer/
+destination/readback using schema 88. Native product request/envelope limits must
+be extended only for that exact typed creation route before maximum writing is
+claimed; current PR POST uses the ordinary 64 KiB native envelope. Actual fork/
+branch/maintainer eligibility, supported conditional policy, original captured
+expiration, causal/lost-reply/replay/cancel/races/withdrawal/replacement/restart and
+fresh specifically owner-authorized provider/shared WebKit/installed checks remain
+pending. No real grant/write or product consumer was exercised. Shared writes stay
+unavailable. T11-WRITES, reviewer/thread limitations, other effects, D1/D2/D3/D5,
+custody/root absence/scoped delivery, IPC/window/instance, isolation/execution/
+retirement/settlement and release/upgrade/freshness retain open requirements. No
+broad gate or Daybreak work closed; the full product remains unfinished.

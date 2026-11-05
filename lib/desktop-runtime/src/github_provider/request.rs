@@ -99,6 +99,12 @@ pub enum Read {
         number: u64,
         target: Option<super::ReviewerTarget>,
     },
+    PullBranches {
+        repository: String,
+        head_repository: String,
+        base_branch: String,
+        head_branch: String,
+    },
     PullCheckRuns {
         repository: String,
         number: u32,
@@ -172,9 +178,37 @@ pub(crate) fn commit(value: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
+pub(super) fn branch_name(value: &str) -> bool {
+    !value.is_empty()
+        && "refs/heads/".len() + value.len() <= 512
+        && value.trim() == value
+        && !value.ends_with('.')
+        && !value.contains("..")
+        && !value.contains("@{")
+        && !value.chars().any(|c| " ~^:?*[\\".contains(c))
+        && !value.bytes().any(|b| b < 32 || b == 127)
+        && value
+            .split('/')
+            .all(|p| !p.is_empty() && !p.starts_with('.') && !p.ends_with(".lock"))
+}
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::PullBranches {
+            repository,
+            head_repository,
+            base_branch,
+            head_branch,
+        } = self
+        {
+            super::PullBranchRead {
+                repository: repository.clone(),
+                head_repository: head_repository.clone(),
+                base_branch: base_branch.clone(),
+                head_branch: head_branch.clone(),
+            }
+            .validate()?;
+        }
         if let Self::PullReviewRequests {
             repository,
             number,

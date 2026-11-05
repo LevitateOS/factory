@@ -30,6 +30,13 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    PullBranches {
+        base: String,
+        head: String,
+        base_ref: String,
+        head_ref: String,
+        token: Zeroizing<Vec<u8>>,
+    },
     Api {
         path: String,
         query: Vec<(String, String)>,
@@ -470,10 +477,29 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn pull_branch_query(
+        &self,
+        base: &Value,
+        head: &Value,
+        base_branch: &str,
+        head_branch: &str,
+        token: &[u8],
+    ) -> Result<Value> {
+        Ok(self
+            .mutation(Request::PullBranches {
+                base: super::records::text(base, "node_id")?.into(),
+                head: super::records::text(head, "node_id")?.into(),
+                base_ref: format!("refs/heads/{base_branch}"),
+                head_ref: format!("refs/heads/{head_branch}"),
+                token: Zeroizing::new(token.to_vec()),
+            })
+            .await?
+            .value)
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let read_query = matches!(
             &request,
-            Request::Threads { .. } | Request::Reviewers { .. }
+            Request::Threads { .. } | Request::Reviewers { .. } | Request::PullBranches { .. }
         );
         let wire = self.request(request).await?;
         if wire.status != 200 {
@@ -549,6 +575,34 @@ async fn run(mut job: Job, http: Http, alive: Arc<AtomicBool>) {
 }
 async fn wire(http: &Http, request: Request) -> Result<Wire> {
     let (request, limit) = match request {
+        Request::PullBranches {
+            base,
+            head,
+            base_ref,
+            head_ref,
+            token,
+        } => {
+            if !super::request::node_id(&base)
+                || !super::request::node_id(&head)
+                || !base_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(super::request::branch_name)
+                || !head_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(super::request::branch_name)
+            {
+                return Err(Failure::invalid());
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    super::pull_branches::QUERY,
+                    serde_json::json!({"base":base,"head":head,"baseRef":base_ref,"headRef":head_ref}),
+                )?,
+                1024 * 1024,
+            )
+        }
         Request::Api { path, query, token } => {
             let mut url = url::Url::parse(&format!("https://api.github.com{path}"))
                 .map_err(|_| Failure::invalid())?;

@@ -82,6 +82,24 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "pull_branches" => {
+                            let Read::PullBranches {
+                                repository,
+                                head_repository,
+                                base_branch,
+                                head_branch,
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            let selector = super::PullBranchRead {
+                                repository: repository.clone(),
+                                head_repository: head_repository.clone(),
+                                base_branch: base_branch.clone(),
+                                head_branch: head_branch.clone(),
+                            };
+                            ("branches", reader.pull_branches(&selector).await?)
+                        }
                         "issues" | "issue" => ("issues", reader.subjects(&q, false).await?),
                         "pulls" | "pull" => ("pulls", reader.subjects(&q, true).await?),
                         "issue_comments" | "pull_comments" => {

@@ -24,6 +24,8 @@ mod native_github_edits;
 mod native_github_issues;
 #[path = "../native_github_locks.rs"]
 mod native_github_locks;
+#[path = "../native_github_pull_branches.rs"]
+mod native_github_pull_branches;
 #[path = "../native_github_review_requests.rs"]
 mod native_github_review_requests;
 #[path = "../native_github_states.rs"]
@@ -1231,6 +1233,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-reviewer-read-declared" {
             return runtime.block_on(native_github_review_requests::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-pull-branches-declared" {
+            return runtime.block_on(native_github_pull_branches::producer(Path::new(&args[1])));
         }
         if args.len() == 2 && args[0] == "--github-reviewer-write-declared" {
             return runtime.block_on(native_github_review_requests::effects(Path::new(&args[1])));
