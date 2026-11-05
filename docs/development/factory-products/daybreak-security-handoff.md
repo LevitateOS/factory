@@ -2647,3 +2647,46 @@ selection UI. Other T11 effects, original thread context, D1/D2/D3/D5, custody/r
 absence/scoped delivery, IPC/window/instance, isolation/execution/retirement/
 settlement and release/upgrade/freshness retain recorded blockers and closure
 evidence. No broad gate or Daybreak work was closed.
+
+T11-WRITES PR-creation one-shot journal prerequisite (2026-11-05):
+`pkg/store/factory_human_pull_create_dispatch.go`, `factory_command_dispatch.go`,
+`factory_human_pull_create.go` and `pkg/factory/human_pull_create_outcomes.go` now
+share exact capture, committed reservation, cancellation and late-primary result
+retention. Only receiving true after SQL commit permits one send; reserved or
+legacy-unknown history cannot release or regain ownership. Schema 88
+(`schema.go`, `schema_command_dispatch.go`) fences actual schema-87 PR captures
+without rewriting original base/head repositories/branches, prose, maintainer
+intent or outcomes. This establishes no current provider/fork/branch authority.
+
+The actual Store/native PostgreSQL observer passed 15 capture conflicts, six
+invalid commands, six missing/foreign head/base/actor refusals with no command,
+same/separate repository intents, maximum writing/preparation, one of 32 claims,
+32 cancellation races per run, late causal/no-effect receipts without caller
+mutation and immutable SQL/previous-operation regressions. Actual schema-87
+captures (including a maximum-size capture) survived concurrent upgrade/stale DDL;
+unsupported older/future markers refused without rewrite. Restart, owned-child
+WAL recovery and clean shutdown passed. Evidence root
+`/home/vince/tmp/factory-pull-create-dispatch-1105/`, fresh final log SHA-256
+`53c37f42020747a1cfe29b88c377d47795c890accc6c76b7252c8ebd773a8ae2`, upgraded
+final log `f47ea48731380f56cad1675106c1ef6fef4b60d32306218fb5e33618192c3db9`.
+The plan records exact baseline/source/binary identities and the preserved failed
+initial upgrade that caught the omitted version admission. This is local journal
+evidence; no provider effect, shared action or installed gate was exercised.
+
+Exact remaining PR-creation blockers: authenticated current base/head repository
+and branch producers, selected secondary head/fork scope and immutable identity,
+original tip/preparation conditions, fixed Rust creation effect, admitted typed
+callback and Go canonical writer/destination/readback using this fence. Relevant
+files are `pkg/factory/human_pull_create.go`, native provider `request.rs`/
+`reads.rs`/`transport.rs`, future creation producer, `collaboration.rs`, runtime
+product adapters, native/shared request envelopes and existing PR HTTP services.
+Current permission/fork use, maintainer-edit support, provider conditional API
+semantics and intervening tip/repository/visibility changes are unverified; a
+proposed preflight or SQL identity cannot prove atomic protection. Close only
+with supported documented policy/invariant and actual scope/permission/refusal,
+causal/lost-reply/replay/cancel/races/withdrawal/replacement/restart, captured expiry,
+normal destination/readback and fresh specifically owner-authorized provider/
+shared WebKit/installed evidence. Shared writes stay unavailable. Reviewer/thread
+limitations, other T11 effects, D1/D2/D3/D5, custody/root absence/scoped delivery,
+IPC/window/instance, isolation/execution/retirement/settlement and release/upgrade/
+freshness retain recorded blockers. No broad gate or Daybreak work was closed.

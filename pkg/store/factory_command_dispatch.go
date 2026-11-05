@@ -105,6 +105,16 @@ func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
 			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
 				return saveHumanReviewRequestObservation(ctx, tx, saved, c, o)
 			}}
+	case factory.CommandHumanPullCreate:
+		c, err := factory.DecodeHumanPullCreateCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanPullCreateObservation,
+			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanPullCreateObservation(c, o) }, finished: factory.HumanPullCreateFinished,
+			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return saveHumanPullCreateObservation(ctx, tx, saved, c, o)
+			}}
 	default:
 		return s, ErrCommandConflict
 	}

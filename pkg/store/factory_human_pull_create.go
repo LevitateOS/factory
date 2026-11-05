@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -112,6 +113,22 @@ func (s *Store) ObserveHumanPullCreate(ctx context.Context, c factory.HumanPullC
 	if _, err := factory.DecodeHumanPullCreateCapture(stored); err != nil {
 		return empty, err
 	}
+	o, err = saveHumanPullCreateObservation(ctx, tx, stored, c, o)
+	if err != nil {
+		return empty, err
+	}
+	if err := tx.Commit(); err != nil {
+		return empty, err
+	}
+	return o, nil
+}
+
+func saveHumanPullCreateObservation(ctx context.Context, tx *sql.Tx, stored factory.Command, c factory.HumanPullCreateCapture, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+	var empty collaboration.OperationLookup
+	if err := factory.ValidateHumanPullCreateObservation(c, o); err != nil {
+		return empty, err
+	}
+	var err error
 	if stored.Outcome != "" {
 		var prior collaboration.OperationLookup
 		if json.Unmarshal([]byte(stored.Outcome), &prior) != nil {
@@ -138,13 +155,10 @@ func (s *Store) ObserveHumanPullCreate(ctx context.Context, c factory.HumanPullC
 		if factory.HumanPullCreateFinished(o) {
 			finished = time.Now().UTC().Format(time.RFC3339Nano)
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE factory_commands SET outcome=$2,finished=$3 WHERE id=$1 AND finished=''`, cmd.ID, string(raw), finished)
+		result, err := tx.ExecContext(ctx, `UPDATE factory_commands SET outcome=$2,finished=$3 WHERE id=$1 AND finished=''`, stored.ID, string(raw), finished)
 		if err := checkGrantRowsAffected(result, err, "human pull creation observation save failed"); err != nil {
 			return empty, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return empty, err
 	}
 	return o, nil
 }

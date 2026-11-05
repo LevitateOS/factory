@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -82,4 +82,13 @@ var HumanReviewRequestDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.request' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=86)`,
 	`UPDATE schema_version SET version=87 WHERE version=86`,
+}
+
+// Earlier PR creation captures may already have reached an adapter. Preserve
+// exact head/base repositories, branches, writing and outcomes while fencing
+// that unknown dispatch history. Stale openers cannot fence new captures.
+var HumanPullCreateDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=87)`,
+	`UPDATE schema_version SET version=88 WHERE version=87`,
 }

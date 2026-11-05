@@ -54,6 +54,7 @@ func AdvanceHumanPullCreateObservation(c HumanPullCreateCapture, old, next colla
 	if ValidateHumanPullCreateObservation(c, old) != nil || ValidateHumanPullCreateObservation(c, next) != nil {
 		return collaboration.OperationLookup{}, ErrHumanPullCreateObservation
 	}
+	next = retainHumanCancellationUncertainty(old, next)
 	result, err := advanceHumanCommandObservation(old, next)
 	if err != nil {
 		return collaboration.OperationLookup{}, ErrHumanPullCreateObservation

@@ -28825,3 +28825,82 @@ write capabilities remain unavailable. T11-WRITES, original thread context, othe
 effects, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/window/instance,
 isolation/execution/retirement/settlement and release/upgrade/freshness retain open
 requirements. No broad gate or Daybreak work closed; the full product is unfinished.
+
+### T11-WRITES checkpoint: one-shot human PR-creation dispatch (2026-11-05)
+
+`factory_human_pull_create_dispatch.go` now uses the defining shared
+`factory_command_dispatch.go` row lock for exact capture state, reservation and
+cancellation. `factory_human_pull_create.go` shares its observation-save helper
+with that protocol. Late primary committed/not-committed results retain uncertain
+cancellation through the existing reducer helper without mutating caller records.
+The capture still binds explicit canonical base/head repositories, both branch
+names, original title/body, maintainer-edit intent, authority, operation and opaque
+provider preparation. A saved not-observed lookup and unfinished unclaimed row
+are prerequisites; only receiving true after reservation commit permits one send.
+A reserved read, lost reply or later not-observed lookup cannot regain ownership.
+Registry/SQL facts do not establish current branch tips, fork use or permission.
+
+Schema 88 adds `pull_request.create` to the same immutable dispatch guard. The
+actual 87→88 migration conservatively fences old unclaimed PR-creation captures
+as legacy-unknown without changing intent, outcomes, creation/finish facts or
+existing reservations for previously supported operations. Its version predicate
+keeps stale concurrent DDL from fencing new captures. The schema admission gate
+now states the contiguous supported upgrade range directly; explicit migrations
+and final schema verification remain required. Unsupported older/future markers
+still refuse without rewriting the marker or retained command.
+
+Real native PostgreSQL checks used
+`/home/vince/tmp/factory-pull-create-dispatch-1105/`. The historical seeder was
+built against actual schema-87 source
+`9dda690a87c3211c705e7f3503bcfe2c5eae829e`, archived under `baseline/`.
+It retained five actual PR-creation captures, including maximum-size original
+writing/preparation and not-observed, cancelled, unknown and committed outcomes.
+Final fresh and upgraded runs passed:
+
+- 15 exact capture conflicts across both repository/branch identities, prose,
+  maintainer-edit intent and opaque preparation; six invalid commands and six
+  missing/foreign repository/head/actor refusals with no command row created.
+- Same-repository and explicitly separate head-repository intents; 255-byte title,
+  64 KiB Unicode body and 1 MiB provider preparation under the existing envelope.
+- One of 32 claims across two Store pools; 32 cancellation races per run; cancelled
+  unclaimed work never dispatches, and reserved/unknown history cannot release.
+- Late causal/no-effect results retaining cancellation uncertainty and unchanged
+  caller records; immutable SQL payload, state and terminal facts; existing
+  comment/lock/thread/reviewer reservation regressions.
+- Two concurrent upgrade processes, stale migration DDL, unknown version 67/89
+  refusal, retained restart, owned-child crash/WAL recovery and clean shutdown.
+
+Fresh races split 22 reserved/10 cancelled; upgraded races split 31/1. The first
+upgrade attempt exposed an omitted schema-87 entry in the former literal admission
+list; that failed profile/log/binary are retained. Final `fresh-v2.log` and
+`upgraded-v2.log` are the passing production checks after the gate fix.
+
+| Artifact under `/home/vince/tmp/factory-pull-create-dispatch-1105/` | SHA-256 |
+| --- | --- |
+| `check.go` | `96614b3e617c746f250e4b1b099e8aa56643eabf831692a28e7b1d832b3a3867` |
+| `shared.go` | `13bfd225b208e1314b62c7225d0f985e079210bb515c43856f1a320c3f6a7169` |
+| `legacy.go` | `eb1f9e75bafc4a312a827a61fc640dbf7ed57d6b041b81f611eb7450ef912137` |
+| `check` | `1adee59c2859fe078e28da44e6e1754ddf4647c63473ea3e0ae55357a3d2150e` |
+| `legacy` | `e0105ab747f8a945448bcd2aebd275cab7ce35c330b84fa96c6ac51040ec98e5` |
+| `fresh-v2.log` | `53c37f42020747a1cfe29b88c377d47795c890accc6c76b7252c8ebd773a8ae2` |
+| `upgraded-v2.log` | `f47ea48731380f56cad1675106c1ef6fef4b60d32306218fb5e33618192c3db9` |
+
+Go Store/runtime builds, ownership boundaries and whitespace checks passed. No
+new dependency or unit-test hierarchy was added. This resolves the local dispatch
+prerequisite only. No Rust PR-creation effect/callback, native Go PR writer,
+provider write or shared capability was added here.
+
+Next: authenticated base/head repository and branch observations/preparation,
+fixed Rust creation effect, typed admitted callback and Go canonical consumer
+using this fence. Current account, secondary head-repository/fork scope, branch
+tips, maintainer-edit permission and supported provider conditional guarantees
+need explicit verification; a saved capture or branch name is not that evidence.
+Verify actual provider API support before claiming atomic branch/repository
+conditions. Original captured expiration, no-op/causal/lost-reply distinctions,
+replay/cancel/races/withdrawal/replacement/restart, normal destination/readback and
+fresh scoped owner-authorized provider/shared WebKit/installed checks remain
+pending. T11-WRITES and other effects, reviewer mutable-name/concurrent policy,
+original thread context, D1/D2/D3/D5, custody/root absence/scoped delivery, IPC/
+window/instance, isolation/execution/retirement/settlement and release/upgrade/
+freshness retain their open requirements. No broad gate or Daybreak work closed;
+the full product remains unfinished.
