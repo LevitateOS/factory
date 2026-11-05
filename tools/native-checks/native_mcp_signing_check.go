@@ -4,23 +4,30 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
+	"github.com/levitateos/factory/pkg/store"
 )
 
 type syntheticCapability struct{ current factory.MCPCapability }
@@ -56,6 +63,9 @@ func check(profile, instance string, unavailable bool) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	defer cancel()
+	if err := checkNativeRecovery(config, instance, unavailable); err != nil {
+		return err
+	}
 	secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, capability)
 	if unavailable {
 		if err == nil || secret != "" {
@@ -341,6 +351,189 @@ func discoverCatalog(ctx context.Context, deps mcpserver.Dependencies, verify fa
 			}
 		}
 	}
+	return nil
+}
+
+// Uses the owned disposable PostgreSQL and actual private Go HTTP listener.
+// The run metadata is declared fixture data, never native execution evidence.
+func checkNativeRecovery(config factoryruntime.NativeConfig, instance string, unavailable bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", config.Socket)
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+	read := func(selector, selectedInstance string, mutate func(*http.Request)) (int, []byte, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://soda-native/api/native/execution/recovery/"+selector, nil)
+		if err != nil {
+			return 0, nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
+		req.Header.Set("X-Soda-Native-Instance", selectedInstance)
+		if mutate != nil {
+			mutate(req)
+		}
+		response, err := client.Do(req)
+		if err != nil {
+			return 0, nil, err
+		}
+		defer response.Body.Close()
+		raw, err := io.ReadAll(io.LimitReader(response.Body, 16385))
+		if len(raw) > 16384 {
+			return 0, nil, errors.New("recovery projection exceeded its fixture bound")
+		}
+		if response.Header.Get("Cache-Control") != "no-store" {
+			return 0, nil, errors.New("private recovery response was cacheable")
+		}
+		return response.StatusCode, raw, err
+	}
+	brokerRun := strings.Repeat("c7", 16)
+	if unavailable {
+		if status, _, err := read(brokerRun, instance, nil); err == nil || status == http.StatusOK {
+			return errors.New("retired backend released recovery metadata")
+		}
+		return nil
+	}
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	marker := filepath.Join(config.Directory, "check-recovery-run.id")
+	retainedID, markerErr := os.ReadFile(marker)
+	run, err := db.NativeFactoryRun(ctx, config.Profile, brokerRun)
+	if errors.Is(err, store.ErrNotFound) {
+		if !errors.Is(markerErr, os.ErrNotExist) {
+			return errors.New("previous canonical recovery row disappeared across restart")
+		}
+		now := time.Now().UTC()
+		run = factory.Run{ID: factory.NewID(), ProjectID: "p123456789012345678901234", Role: "reviewer", InputSHA: strings.Repeat("a", 40), Started: now, Deadline: now.Add(time.Hour), Harness: "muse-fixture-1", Model: "local-fixture", Summary: "fixture-private-summary-omitted"}
+		run.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("b", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("d", 64), PromptSHA256: strings.Repeat("e", 64), Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: config.Profile, InstanceID: factory.NewID(), WorktreeID: "declared-native-checkout", BrokerRun: brokerRun, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
+		if err = db.RecordFactoryRun(ctx, run); err != nil {
+			return err
+		}
+		if err = os.WriteFile(marker, []byte(run.ID), 0600); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	} else if markerErr != nil || string(retainedID) != run.ID {
+		return errors.New("canonical recovery mapping changed across restart")
+	}
+	if run.ID == brokerRun {
+		return errors.New("fixture failed to distinguish canonical and broker IDs")
+	}
+	status, raw, err := read(brokerRun, instance, nil)
+	if err != nil || status != 200 {
+		return fmt.Errorf("native recovery read failed: %d %v", status, err)
+	}
+	var envelope struct {
+		Kind     string
+		Version  int
+		Profile  collaboration.ProfileID
+		Instance string
+		Run      struct {
+			ID, Workspace, Role string
+			SourceCommit        string `json:"source_commit"`
+			Native              *execution.NativeRecord
+			Launch              *execution.NativeLaunch
+			Reconciled          bool
+		}
+	}
+	if json.Unmarshal(raw, &envelope) != nil || envelope.Kind != "native_run_recovery" || envelope.Version != 1 || envelope.Profile != config.Profile || envelope.Instance != instance || envelope.Run.ID != run.ID || envelope.Run.Workspace != run.ProjectID || envelope.Run.Role != run.Role || envelope.Run.SourceCommit != run.InputSHA || !reflect.DeepEqual(envelope.Run.Native, run.Native) || envelope.Run.Launch != nil || envelope.Run.Reconciled || strings.Contains(string(raw), run.Summary) {
+		return errors.New("native recovery projection changed canonical evidence or invented placement/admission")
+	}
+	for _, probe := range []struct {
+		selector, instance string
+		mutate             func(*http.Request)
+		status             int
+	}{
+		{factory.NewID(), instance, nil, 404}, {"invalid", instance, nil, 400}, {brokerRun, factory.NewID(), nil, 401},
+		{brokerRun, instance, func(r *http.Request) { r.URL.RawQuery = "extra=1" }, 400},
+		{brokerRun, instance, func(r *http.Request) { r.Header.Set("Origin", "http://fixture.invalid") }, 403},
+		{brokerRun, instance, func(r *http.Request) { r.Method = http.MethodPost }, 400},
+		{brokerRun, instance, func(r *http.Request) { r.Header.Add("X-Soda-Native-Instance", instance) }, 401},
+	} {
+		if status, _, err := read(probe.selector, probe.instance, probe.mutate); err != nil || status != probe.status {
+			return fmt.Errorf("recovery refusal differs: %d want %d, %v", status, probe.status, err)
+		}
+	}
+	clone := func() factory.Run {
+		next := run
+		native := *run.Native
+		next.Native = &native
+		next.ID = factory.NewID()
+		return next
+	}
+	other := clone()
+	other.Native.Provenance.Profile = collaboration.ProfileID(factory.NewID())
+	if err = db.RecordFactoryRun(ctx, other); err != nil {
+		return err
+	}
+	if status, _, err := read(brokerRun, instance, nil); err != nil || status != 200 {
+		return errors.New("another profile changed the selected recovery mapping")
+	}
+	if _, err := db.NativeFactoryRun(ctx, other.Native.Provenance.Profile, factory.NewID()); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("missing selector became observed")
+	}
+	settled := clone()
+	settled.Native.Provenance.BrokerRun = factory.NewID()
+	settled.Native.Retirement = execution.Retired
+	settled.Native.Sealed = true
+	if err = db.RecordFactoryRun(ctx, settled); err != nil {
+		return err
+	}
+	settled.Outcome, settled.Reconciled = factory.Cancelled, true
+	if err = db.SaveFactoryRun(ctx, settled); err != nil {
+		return err
+	}
+	if status, raw, err := read(settled.Native.Provenance.BrokerRun, instance, nil); err != nil || status != 200 || !strings.Contains(string(raw), "\"reconciled\":true") {
+		return errors.New("settled history disappeared from recovery reads")
+	}
+	ambiguous := clone()
+	ambiguous.Native.Provenance.BrokerRun = factory.NewID()
+	if err = db.RecordFactoryRun(ctx, ambiguous); err != nil {
+		return err
+	}
+	duplicate := ambiguous
+	duplicate.ID = factory.NewID()
+	if err = db.RecordFactoryRun(ctx, duplicate); err != nil {
+		return err
+	}
+	if status, _, err := read(ambiguous.Native.Provenance.BrokerRun, instance, nil); err != nil || status != 409 {
+		return errors.New("ambiguous broker selector selected one canonical run")
+	}
+	// Simulated damaged rows in this disposable ledger must not become a
+	// canonical selector match. No production record or broker is changed.
+	damaged := clone()
+	damaged.Native.Provenance.BrokerRun = factory.NewID()
+	if err = db.RecordFactoryRun(ctx, damaged); err != nil {
+		return err
+	}
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	if _, err = rawDB.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{id}',to_jsonb($1::text)) WHERE id=$2`, factory.NewID(), damaged.ID); err != nil {
+		return err
+	}
+	if status, _, err := read(damaged.Native.Provenance.BrokerRun, instance, nil); err != nil || status != 409 {
+		return errors.New("damaged row ID became a canonical recovery mapping")
+	}
+	if _, err = rawDB.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(jsonb_set(data,'{id}',to_jsonb($1::text)),'{native,prompt_sha256}','""'::jsonb) WHERE id=$1`, damaged.ID); err != nil {
+		return err
+	}
+	if status, _, err := read(damaged.Native.Provenance.BrokerRun, instance, nil); err != nil || status != 409 {
+		return errors.New("invalid retained scope became recovery evidence")
+	}
+
+	after, err := db.FactoryRun(ctx, run.ID)
+	if err != nil || !reflect.DeepEqual(after, run) {
+		return errors.New("recovery GET changed its retained run")
+	}
+	fmt.Println("PASS: real native ledger read preserves distinct canonical/broker scope and unplaced history; settled history remains readable; missing, stale, noncanonical, browser, ambiguous and damaged-record reads refuse; GET does not mutate the run")
 	return nil
 }
 

@@ -129,6 +129,16 @@ while preserving another and verified stopped-socket refusal. Go's retained
 execution outcome still needs durable recovery before D3 closes. The marker
 fence alone cannot recover an outcome after retirement or host reboot.
 
+Go now exposes a private, instance-bound
+`GET /api/native/execution/recovery/{broker-run}` ledger projection. Its Store
+lookup resolves the profile/broker selector to one validated canonical run,
+including settled history; missing, ambiguous or damaged matches refuse.
+Canonical run/workspace IDs remain distinct from native selectors. The response
+includes retained native scope and optional recorded launch placement, without
+prompt/output/summary or credentials, and grants no launch/settlement authority.
+The Rust recovery consumer and post-ledger startup sequence still need to be
+composed; the current pre-Go broker fence is unchanged.
+
 Direct `NativePostgres` consumers must keep their spawning thread alive until
 stop: Linux parent-death semantics are tied to that thread. Applications should
 use `NativeSupervisor`, whose dedicated owner supplies that lifetime even when

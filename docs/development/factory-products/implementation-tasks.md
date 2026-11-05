@@ -25791,3 +25791,33 @@ fix startup's ledger ordering, or qualify crash/restart/reboot, actual provider
 work, installed Quit or atomic settlement. The handoff records exact remaining
 files/dependencies and evidence needs. N3, N4 and D3 remain open; no canonical
 slice or security gate is marked complete from these component checks.
+
+
+T09-NATIVE-EXECUTOR retained Go ledger-read producer (2026-11-05):
+`Store.NativeFactoryRun` resolves a profile/broker selector to one validated
+canonical run, including settled history. Ambiguous matches and damaged records
+refuse. The private instance-bound native recovery GET projects canonical
+run/workspace/source, retained native scope and optional captured launch
+placement without prompt/output/summary or credentials. It grants no current
+launch/settlement admission and writes no recovery outcome. Go retains the
+canonical model, validation and SQL; Rust still owns native recovery effects.
+
+The existing real PostgreSQL/Go/Rust native MCP integration check passed the
+read across supervisor restart, with a private marker proving retention of the
+same canonical mapping. Unplaced metadata stayed unplaced, settled history
+remained readable, another profile did not affect selection, and GET left the
+original row unchanged. Missing/stale/noncanonical/browser requests, ambiguous
+selectors, mismatched row IDs and invalid retained scopes refused. Evidence and
+driver: `/home/vince/tmp/fnr3-1105/`; result SHA-256:
+`7ceb5705fc6e32b461e75e9d2b74be9f3810d287d1bf3db87fdc155414ca6fc2`.
+Affected Go builds, the locked offline native-check build and whitespace checks
+passed. These are declared records with retained inputs, not actual native
+launch/placement admission or fresh release qualification.
+
+The next consumer must decode and compare this projection with exact retained
+native receipt/custody before recovery effects, compose post-ledger startup
+ordering, and reconcile outcomes through Go's transaction owner. The existing
+pre-Go broker fence still blocks launched roots; it has not been bypassed.
+Captured placement projection through a production packet, interrupted ownership,
+crash/restart/reboot, installed Quit, actual provider work and atomic settlement
+remain unverified. N3/N4/D3 remain open; the handoff records these dependencies.
