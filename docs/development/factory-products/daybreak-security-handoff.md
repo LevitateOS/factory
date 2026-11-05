@@ -330,6 +330,10 @@ exact complete receipt before retiring its broker root. A disposable isolated
 coder left a durable receipt and launched root across a fixture process exit;
 a separate process retired that root from the receipt and reopened the same
 receipt. A cancelled launched run with no receipt was not retired by this API.
+The broker now requires launched state for this receipt recovery request: a
+stale complete receipt was refused against a newly staged unlaunched run with
+the same selector, while a fresh separate-process launched receipt retired its
+exact root.
 Those checks had no Go ledger, actual process kill, reboot or real provider
 credential. The helper is not composed into desktop startup, so the startup
 order above still blocks a launched root. Keep launch disabled

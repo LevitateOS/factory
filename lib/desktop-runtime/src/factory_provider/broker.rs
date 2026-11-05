@@ -908,6 +908,10 @@ impl Broker {
         Self::retire_request("retire_unlaunched", run, profile, sha256)
     }
 
+    pub(super) fn retire_launched(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
+        Self::retire_request("retire_launched", run, profile, sha256)
+    }
+
     fn finish_retiring(run: &str, profile: &str, sha256: &str) -> io::Result<bool> {
         Self::retire_request("finish_retiring", run, profile, sha256)
     }

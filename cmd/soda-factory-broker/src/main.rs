@@ -52,6 +52,12 @@ enum Request {
         profile: String,
         sha256: String,
     },
+    RetireLaunched {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+    },
     FinishRetiring {
         version: u8,
         run: String,
@@ -1529,6 +1535,7 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
 enum RetirementMode {
     Any,
     Unlaunched,
+    Launched,
     Pending,
 }
 
@@ -1599,6 +1606,8 @@ fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::R
                 "launched or legacy run requires outcome reconciliation",
             ));
         }
+    } else if mode == RetirementMode::Launched && !launched_run(run)? {
+        return Err(denied("unlaunched run has no recovered outcome"));
     }
     clean_preparation(&preparations, run)?;
     fs::rename(directory, &retiring)?;
@@ -2033,6 +2042,25 @@ fn serve() -> io::Result<()> {
             }
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
             let removed = retire(&run, &profile, &sha256, RetirementMode::Unlaunched)?;
+            serde_json::to_vec(&Retired {
+                kind: "retired",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                removed,
+            })?
+        }
+        Request::RetireLaunched {
+            version,
+            run,
+            profile,
+            sha256,
+        } => {
+            if version != 1 || !id(&run, 32) || !id(&profile, 32) || !id(&sha256, 64) {
+                return Err(denied("broker launched retirement declaration invalid"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            let removed = retire(&run, &profile, &sha256, RetirementMode::Launched)?;
             serde_json::to_vec(&Retired {
                 kind: "retired",
                 version: 1,

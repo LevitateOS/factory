@@ -25246,3 +25246,17 @@ port before N4 activation. The Go capability ledger and authorization owner
 must remain canonical, and Forge's separate appliance path must be preserved.
 No Rust native signer, key migration, live worker delivery or denial evidence
 was produced by this audit. D3 custody and T09-NATIVE-EXECUTOR remain open.
+
+T09-NATIVE-EXECUTOR stale-receipt retirement fence (2026-11-05): the
+`retire_recovered_receipt` path now asks the broker to retire only an exact
+launched run. A complete receipt from a prior run cannot authorize removal of
+a newly staged unlaunched root with the same run/profile/source selector.
+The disposable service check re-staged the prior receipt's selector, observed
+that recovered retirement was refused and the unlaunched root remained, then
+removed it through setup cleanup. A fresh isolated coder produced a new
+complete receipt and left its launched root staged; a second process used the
+launched-only request to retire that root and read the receipt again. Locked
+offline broker/runtime and fixture builds passed; disposable units, binaries,
+owner sockets and run paths were removed. These checks do not prove Go ledger
+admission, a real provider task, actual crash/reboot recovery or D3 closure.
+T09-NATIVE-EXECUTOR remains Pending.

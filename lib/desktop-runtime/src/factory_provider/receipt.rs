@@ -413,6 +413,6 @@ pub fn retire_recovered_receipt(
     let Some(observed) = read_retained(profile_dir, scope)? else {
         return Ok(None);
     };
-    Broker::retire_bundle(scope.run, scope.profile, scope.source_sha256)?;
+    Broker::retire_launched(scope.run, scope.profile, scope.source_sha256)?;
     Ok(Some(observed))
 }
