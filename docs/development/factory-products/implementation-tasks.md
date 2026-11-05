@@ -584,7 +584,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 188 | T07-FOUNTAIN-NAVIGATION | T07-ISSUE-COMPOSITION | Supply live native default-branch navigation metadata through the existing SDK/private callback and canonical repository identity boundary; qualify real native/HTTP identity, changed branch and access/session refusal before Fountain Markdown/route consumers. | Complete |
 | 189 | T07-FOUNTAIN-ISSUE-HOST | T07-FOUNTAIN-NAVIGATION | Build the Fountain shared-issue context adapter with fresh canonical/native/account binding, provider-relative Markdown and separate cancellable native/external navigation ports; qualify rendered production issue views over browser HTTP before the coherent route/template cutover. | Complete |
 | 190 | T07-FOUNTAIN-ISSUE-ROUTES | T07-FOUNTAIN-ISSUE-HOST | Mount shared issue list/detail and Factory facts in Fountain; replace the two status patterns with work/{kind} routes and update native header/templates plus all current request/feed/work callers together. Preserve existing Factory workflow controls, explicit native originals and truthful unsupported PR routes; qualify host browser navigation and native route/template behavior. | Complete |
-| 191 | T07-READ | T07-FOUNTAIN-ISSUE-ROUTES, T07-FOUNTAIN-ISSUE-HOST, T07-FOUNTAIN-NAVIGATION, T07-ISSUE-COMPOSITION, T07-ISSUE-DETAIL, T07-ISSUE-LIST, T04-UI, T06-FOUNTAIN, T06-CONNECT | Shared issue list/detail/conversation with safe Markdown and Factory facts in the Fountain host and connected Linux desktop. Verify supported provider/host combinations; desktop Fountain is qualified later. | Active |
+| 191 | T07-READ | T07-FOUNTAIN-ISSUE-ROUTES, T07-FOUNTAIN-ISSUE-HOST, T07-FOUNTAIN-NAVIGATION, T07-ISSUE-COMPOSITION, T07-ISSUE-DETAIL, T07-ISSUE-LIST, T04-UI, T06-FOUNTAIN, T06-CONNECT | Shared issue list/detail/conversation with safe Markdown and Factory facts in the Fountain host and connected Linux desktop. Verify supported provider/host combinations; desktop Fountain is qualified later. | Complete |
 | 192 | T10-COMMENT-SNAPSHOT | T03-APP, T06-FOUNTAIN | Produce live human comment preparation snapshots with exact issue/PR parent IDs, current comment capability and a stable idle native revision; qualify actual callback/SDK permissions, races and absence of effects. This is a condition read, never mutation authority. | Complete |
 | 193 | T10-COMMENT-NATIVE | T10-COMMENT-SNAPSHOT | Produce native human issue/PR comment submission through the existing conditional journal/reservation, with fresh human-authorizer checks, atomic comment/receipt, replay and offline recovery; qualify real native SQL effects/refusals. No background completion-note broadening or public activation. | Complete |
 | 194 | T10-COMMENT-SDK | T10-COMMENT-NATIVE | Wire native comment submit/get/cancel through typed SDK and current callback admission, with actor/repository/installation operation scope, current human/permission checks and real private transport effects/replay/refusal. | Complete |
@@ -26742,3 +26742,63 @@ stock Fountain presentation and direct list entry; it does not qualify the
 paired branded header cutover. Use the existing production presentation stage
 producer and actual native template path for that remaining check. Installed,
 D1/D2/D3/D5, credential/executor/isolation and desktop-Fountain gates stay open.
+
+## T07-READ — complete connected source read journey (2026-11-05)
+
+The remaining normal-header consumer now uses the complete shipped native
+presentation. An external owned adapter calls the existing public
+`soda_release_assets::render::stage::stage_dev_forgejo` and locale merger from
+the clean Soda source archive; existing Bun production producers build its JS
+and shared extension assets. It stages the exact templates, native assets,
+fonts and locale into `stage/forgejo` with the production `presentation.json`.
+No hand-written header substitute or original-source edit is used.
+
+The existing `--issues-browser` check now requires that complete presentation
+and copies it to only its fresh native host custom-root before startup. The
+actual native template engine therefore renders the shipped Issues tab. The
+browser enters the repository Feed, clicks `data-soda-place="issues"`, verifies
+its exact shared route, then continues the ordinary issue journey. It now also
+waits for the actual recorded Factory-facts response both initially and after
+reload; a loading button alone cannot satisfy that read. The fixture has no
+Factory sections, and the actual empty state is shown without invented work.
+
+Attempt5 exited 0: host `/home/vince/tmp/ff-read-host-1105-a5/`, managed PG
+`/home/vince/tmp/ff-read-pg-1105-a5/`, stage/evidence
+`/home/vince/tmp/factory-fountain-read-1105/`. Native login, populated private
+HTTP reads/paging/rename, normal Feed → shared Issues header, detail/conversation,
+safe Markdown/explicit links, heading/comment history and scroll, Factory
+section/Back, fragment reload, explicit native original, actual reader access
+revocation with content/facts/control retirement, native stale generation/logout
+refusal and clean child/PG shutdown all passed. The final viewport was inspected:
+ordinary conversation and the loaded empty recorded-work state are visible.
+Attempt4 passed before the explicit loaded-facts assertion and remains preserved.
+
+Safe hashes:
+- host result: `950edd6347403fb03a0dcd7cf99a58ee7acb99acd15f72d6054e2a8861d322e6`
+- browser result: `25d0e110375477633d8215b22d2a2b9053890fd98b68e13be945534cd7bb077e`
+- attempt5 log: `3e1741abe5c4d974a4e2859cad760c68b07efdc059e82c1025b093e0a959dd49`
+- viewport: `eddb4ebe9730d97dadeed7682deb215fa11fd5227cb197a5116c357a9d3ba33d`
+- presentation inventory: `103cce2b186a95bf2b9606b2756f28586edf5825e745153a73eaeb6a9e1b92f3`
+
+Finish-condition audit:
+
+| Requirement | Authoritative evidence and scope |
+| --- | --- |
+| Shared issue list/detail/ordinary conversation in GitHub desktop | Actual connected owner-approved GitHub journey recorded in T06-CONNECT/T06-GITHUB, plus current actual WebKit declared read/history/paging/denial/disconnect journey in `factory-gh-read-1105/a2/`. Same production Lit/Rust/Go owners; declared edge cases do not substitute for real consent. |
+| Same shared components in the Fountain host | Actual native host/package/private provider/Factory/PG plus Chromium in attempt5; no intercepted API or fabricated admission context. |
+| Safe Markdown, labels/assignees/state/timestamps, complete bodies and bounded pages | Completed shared issue producers and current native HTTP/full-body/participant/filter/paging checks; current WebKit and Fountain browser render the production sanitized description/conversation and explicit attachments/host links. |
+| Normal navigation/history/Factory facts/native original | Shipped native Feed → Issues header and shared Factory section/Back/deep-link/reload in attempt5; desktop canonical routes, fragment retention, conversation paging and Back from Factory work in its actual WebKit journey. Both preserve truthful absent recorded work. |
+| Access/account/resource retirement | Actual Fountain collaborator revocation removes primary content and facts/controls; native logout/stale generation refuses. Desktop primary denial and pending-read disconnect cancel/clear the shared screen. These are connected source cases, not full installed admission qualification. |
+
+T07-READ is Complete for its two supported source combinations: GitHub in the
+Linux native desktop and Fountain in its native extension/host. Desktop Fountain
+remains T10-GATEWAY/T13-FOUNTAIN. Ordinary mutations are T07-EDIT/T11-WRITES;
+PR rendering, real execution, installed release/upgrade/parity and D1/D2/D3/D5
+remain separate unfinished gates. Captured source/locked build inputs do not
+constitute a fresh distribution baseline. Boundary and whitespace checks pass;
+no new unit-test root, source ownership change or production dependency was added.
+
+No row remains Active. T11-WRITES is the next dependency-ready unfinished row
+in canonical order; implement its journaled GitHub operations with Rust owning
+the complete authenticated connector and Go retaining product decisions and
+durable transactions. The full product goal remains active and incomplete.

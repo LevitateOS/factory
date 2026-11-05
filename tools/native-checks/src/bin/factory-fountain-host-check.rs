@@ -243,6 +243,20 @@ fn run() -> Result<()> {
     let ini = root.join("app.ini");
     let work = root.join("fountain");
     fs::create_dir(&work)?;
+    if issue_browser {
+        require(
+            stage.join("presentation.json").is_file()
+                && stage.join("forgejo/templates/repo/header.tmpl").is_file(),
+            "--issues-browser requires the complete production presentation stage",
+        )?;
+        checked(
+            Command::new("cp")
+                .arg("-a")
+                .arg(stage.join("forgejo"))
+                .arg(work.join("custom")),
+            "owned native presentation copy failed",
+        )?;
+    }
     private_file(&ini,format!("RUN_USER = {user}\nRUN_MODE = prod\n[server]\nAPP_DATA_PATH = {r}/data\nPROTOCOL = https\nHTTP_ADDR = 127.0.0.1\nHTTP_PORT = {native_port}\nROOT_URL = {origin}/\nSTATIC_ROOT_PATH = {s}\nDISABLE_SSH = true\nOFFLINE_MODE = true\nCERT_FILE = {r}/cert.pem\nKEY_FILE = {r}/key.pem\n[database]\nDB_TYPE = sqlite3\nPATH = {r}/fountain.db\n[repository]\nROOT = {r}/repositories\n[security]\nINSTALL_LOCK = true\n[service]\nDISABLE_REGISTRATION = true\n[session]\nPROVIDER = file\nPROVIDER_CONFIG = {r}/sessions\nCOOKIE_SECURE = true\n[extensions]\nENABLED = true\nPATH = {r}/extensions\nSERVICE_CALLBACK_PATH = {r}/callback.sock\n[log]\nMODE = console\nLEVEL = Warn\n[actions]\nENABLED = true\n",r=root.display(),s=source.display()).as_bytes())?;
     let fountain = stage.join("fountain");
     let cli = |tail: &[&str]| {

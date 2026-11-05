@@ -38,11 +38,17 @@ try {
     .getByRole('button', {name: /^sign in$/i})
     .click();
   await page.waitForURL((url) => !url.pathname.startsWith('/user/login'));
-  stage = 'list';
+  stage = 'header';
   const repository = '/factory-check/read-one-renamed';
   const list = repository + '/feed/work/issues';
   const issue = list + '/' + input.number;
-  await page.goto(input.origin + list);
+  await page.goto(input.origin + repository + '/feed');
+  const issuesTab = page.locator('a[data-soda-place="issues"]');
+  await issuesTab.waitFor();
+  assert((await issuesTab.getAttribute('href')) === list, 'native Issues header did not use the shared route');
+  await issuesTab.click();
+  await page.waitForURL((url) => url.pathname === list);
+  stage = 'list';
   await page.locator('soda-factory-issues').getByRole('button', {name: 'Rendered native read', exact: true}).click();
   await page.waitForURL((url) => url.pathname === issue);
   const detail = page.locator('soda-factory-issue');
@@ -75,6 +81,8 @@ try {
     'attachment not explicit'
   );
   await page.locator('soda-factory-work-journey button').waitFor();
+  stage = 'facts';
+  await page.locator('soda-factory-work-journey').getByText('No journey sections recorded.', {exact: true}).waitFor();
   const heading = await description.locator('h1').getAttribute('id');
   const scroll = (id) =>
     until(
@@ -105,6 +113,7 @@ try {
   await page.reload();
   await comment.waitFor();
   await scroll('issuecomment-' + input.comment);
+  await page.locator('soda-factory-work-journey').getByText('No journey sections recorded.', {exact: true}).waitFor();
   assert(
     (
       await page
@@ -137,6 +146,8 @@ try {
   await save('issue-browser-result.json', {
     result: 'pass',
     actual_native_host_and_package: true,
+    production_native_presentation: true,
+    feed_to_issues_header: true,
     native_reader_login: true,
     shared_list_detail_conversation: true,
     sanitized_markdown: true,
@@ -144,6 +155,7 @@ try {
     native_repository_and_explicit_branch_links: true,
     fragments_and_history: true,
     factory_section_and_back: true,
+    recorded_factory_facts_read: true,
     deep_link_reload: true,
     native_original_available: true,
     access_revocation_retired_facts: true,
