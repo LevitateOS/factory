@@ -50,6 +50,11 @@ enum Request {
         body: String,
         token: Zeroizing<Vec<u8>>,
     },
+    State {
+        node: String,
+        mutation: super::states::StateMutation,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -310,6 +315,19 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn post_state(
+        &self,
+        node: &str,
+        mutation: super::states::StateMutation,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::State {
+            node: node.into(),
+            mutation,
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let wire = self.request(request).await?;
         if wire.status != 200 {
@@ -413,6 +431,24 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
                     &token,
                     super::comments::CREATE_COMMENT,
                     serde_json::json!({"subject":node,"body":body}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::State {
+            node,
+            mutation,
+            token,
+        } => {
+            if !super::request::node_id(&node) {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    mutation.query(),
+                    serde_json::json!({"subject":node}),
                 )?,
                 1024 * 1024,
             )

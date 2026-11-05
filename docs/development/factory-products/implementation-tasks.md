@@ -27431,3 +27431,63 @@ deadline expiry and installed qualification remain unverified. No real GitHub
 grant was used or retained here. T11-WRITES remains Active for its other operations
 and acceptance gates. All wider custody/admission/isolation/execution, D1/D2/D3/D5,
 release/upgrade/freshness and repository/visibility policy obligations remain open.
+
+### T11-WRITES — Rust direct close/reopen producer (2026-11-05)
+
+`github_provider/states.rs` adds the bounded semantic `DiscussionState` effect
+for plain issue/PR close and reopen. Four private fixed documented mutations
+([issues](https://docs.github.com/en/graphql/reference/issues#closeissue),
+[pulls](https://docs.github.com/en/graphql/reference/pulls#closepullrequest))
+address the Node ID learned from the same immutable-ID-checked REST subject.
+The provider owner verifies current account, subject kind/number/ID, repository
+ID/Node and known non-read-only state. Known merged PRs and unknown merged state
+refuse before dispatch. A subject already at the requested state returns a
+pre-dispatch no-effect refusal; it does not invent an attributable state change.
+No comment, merge or branch synchronization accompanies the mutation.
+
+The effect shares the existing eight-second whole-operation limit and serialized
+one-second mutation pacing. It sends at most once. Pre-dispatch errors are
+`NotSent`; later errors are `Indeterminate`. `Applied` requires the actual bounded
+causal response to bind the exact subject/repository Node and database IDs, number,
+requested state, unmerged PR status and canonical destination. A 4-KiB receipt
+retains verified account, mutation/status/request ID and original response digest;
+it makes no claim about a particular timeline event's author. No atomic revision,
+transfer, lock or remote idempotency guarantee is inferred.
+
+The existing native executable gained `--github-state-declared FRESH_PROFILE`.
+`/home/vince/tmp/factory-state-provider-1105/attempt3/` exited 0: 43 named cases,
+seven invalid descriptors, clone serialization/pacing with two held positive
+responses, in-flight retirement and retired refusal. Cases cover all four
+operations, large IDs, name-slot reuse, account/subject/repository/merged refusal,
+preflight and post-dispatch deadlines, misbound/partial/error/oversized/lost replies
+and one POST per uncertain effect. The local HTTPS fixture does not forward and
+uses only a literal dummy token and process-local CA.
+
+Two failed fixture attempts are preserved. The first lacked normal REST fields.
+The second reached the clone check but counted its deliberately sleeping timed-out
+handler as positive-response overlap. The corrected fixture measures only the
+two serialization replies and holds each beyond the pacing interval. Production
+behavior was unchanged by these fixture corrections. The defining issue-creation
+regression passed unchanged under `issue-regression-a1` after the transport extension.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `1c30604a2ee5097f9fdb6fc660600d6e8a580089f2694be3ca9db22a5a77400e` |
+| fixture executable | `fcc062e1efedc5fd5d12d844aefccc8c07f71ec193379c3f057dff8f88573919` |
+| preserved attempt2 fixture source | `b15737aca399cfb39066736b65746e8dbf0cd74de1fda5d81c154788abcb1af4` |
+| `run.sh` | `c45eff3e6d48dcea5c6a0e36c0dc4a1fb345ee56863ca547f34e5ec9e5d3f645` |
+| `session.sh` | `40528296a70f5c2e30a8c138e4e3da14e3757ab15ac502a3959bdc43a94b6326` |
+| native check executable | `e11f9286cfcf46a96f69abdf49567433211f8a8a0429b137b081f6b130340b96` |
+| state producer log | `22d4fc3fdea3e5b0774127d8f1da0fb83fcd47d29037ba64b488f44cef8e3991` |
+| state producer result | `c0db2e4c1e3dc58b849dbc1c30a45e5b560a2dd97ee545d67ea680bc6887ae0a` |
+| issue regression result | `bf9f2cf6c8eb5cf7a2e3787b9ddd9e10c5263eb12f31bb6c51f9811d2ad5e0dd` |
+
+Locked offline native/desktop builds, ownership boundaries and whitespace checks
+pass. No dependencies or unit-test roots were added. Next is the existing typed
+Go state-command dispatch/cancel protocol and its admitted native/Go consumer.
+Current write capabilities remain unavailable. Actual provider grants, mutation/
+readback, shared UI, current repository/visibility policy and all broader installed,
+credential, caller/window, D1/D2/D3/D5, isolation/executor and release gates remain
+unverified. T11-WRITES remains Active; no real GitHub write occurred here.

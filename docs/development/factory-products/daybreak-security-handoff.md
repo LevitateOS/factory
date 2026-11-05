@@ -1908,3 +1908,32 @@ dependencies. Installed IPC/window/instance/custody, D1/D2/D3/D5, worker isolati
 execution/retirement/settlement, root absence/scoped delivery and release/upgrade/
 freshness gates retain their exact earlier blockers and evidence requirements.
 No broad gate or Daybreak work is marked complete by this checkpoint.
+
+T11-WRITES direct close/reopen producer (2026-11-05):
+`lib/desktop-runtime/src/github_provider/states.rs` supplies four fixed issue/PR
+Node-ID mutations through the existing authenticated transport. It checks current
+account, immutable subject/repository binding and known read-only/merged state,
+keeps all post-dispatch failures uncertain, and validates the bounded causal
+state receipt. This does not attribute a timeline event, grant retry authority,
+merge/synchronize a PR or establish an atomic revision/transfer condition.
+
+The existing `--github-state-declared` native check passed 43 named cases, seven
+invalid descriptors, held-response clone serialization/pacing and retirement in
+`/home/vince/tmp/factory-state-provider-1105/attempt3/`. Earlier fixture failures
+are preserved and explained in the canonical plan. The existing issue-creation
+producer also passed after the transport extension. State result
+`c0db2e4c1e3dc58b849dbc1c30a45e5b560a2dd97ee545d67ea680bc6887ae0a`;
+source/executable/log hashes are in the plan. This was dummy-only loopback HTTPS
+with no forwarding or actual GitHub grant. It proves only the declared producer.
+
+Exact remaining state-operation dependencies: extend the single Go command
+journal's one-shot reservation and atomic cancellation to the existing typed
+state capture, then compose current native callback/account/repository/generation
+admission and prove causal persistence, replay, cancellation races, uncertainty,
+withdrawal and restart. Before enabling the shared action, qualify freshly
+authorized actual provider permission/mutation/readback and shared WebKit behavior.
+The movable-issue repository/visibility invariant needs the same explicit policy
+and permitted/refused evidence as comments; reply validation cannot retroactively
+prevent an effect after a transfer race. Installed caller/window/custody, D1/D2/
+D3/D5, worker isolation/execution/retirement, root absence/scoped delivery and
+release/upgrade/freshness gates retain all earlier blockers. No broad gate closes.

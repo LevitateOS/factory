@@ -20,6 +20,8 @@ type Result<T> = std::result::Result<T, Box<dyn StdError>>;
 mod native_github_comments;
 #[path = "../native_github_issues.rs"]
 mod native_github_issues;
+#[path = "../native_github_states.rs"]
+mod native_github_states;
 #[path = "../native_github_transport.rs"]
 mod native_github_transport;
 fn ensure(ok: bool, message: &str) -> Result<()> {
@@ -1206,6 +1208,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-issue-declared" {
             return runtime.block_on(native_github_issues::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-state-declared" {
+            return runtime.block_on(native_github_states::producer(Path::new(&args[1])));
         }
         if args.len() == 4 && args[0] == "--github-issue-product-declared" {
             return runtime.block_on(native_github_issues::product(
