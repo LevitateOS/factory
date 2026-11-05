@@ -26946,3 +26946,64 @@ capture-to-effect binding, current credential/caller/repository admission,
 causal response persistence, uncertain reply/restart/cancellation handling and
 actual authorized provider write/readback before enabling human comments. Other
 human operations and all broader installed/executor/security gates remain open.
+
+### T11-WRITES — atomic local comment cancellation (2026-11-05)
+
+The one-shot journal producer now supplies `CancelHumanCommentDispatch` for
+adapters that reserve **every** dispatch through this protocol. Admission of the
+current human/native account and exact namespace remains the adapter's required
+prerequisite. This is not Fountain's remote-journal cancellation protocol.
+
+Cancellation and reservation take the same existing command row lock. A winning
+pre-dispatch cancellation saves a final no-effect tombstone before a reservation
+can win. An already reserved or legacy-unknown command stays indeterminate;
+cancellation does not erase its fence or invent proof that a request was absent.
+Existing provider records and terminal receipts take precedence over a local
+unclaimed column. Both paths use the existing human-comment observation reducer
+and transaction owner, extracted into one shared save helper.
+
+A concurrent cancellation can precede persistence of an already returning
+successful provider reply. The human-comment reducer now preserves that valid
+complete committed receipt while retaining cancellation uncertainty. It does not
+rewrite the caller's observation or invent an acknowledged cancellation result.
+Previously, a cancellation-status regression could discard the new primary
+evidence. Other human-command reducers remain unchanged.
+
+The existing native PostgreSQL driver ran fresh-schema and actual schema-80
+upgrade fixtures under `/home/vince/tmp/factory-comment-cancel-1105/`. Both exited
+0 through retained restart, abrupt owned-child WAL recovery and clean shutdown.
+The previous dispatch producer's checks also ran. Thirty-two two-owner races
+per fixture exercised both reservation and cancellation winners (upgrade: 25/7;
+fresh: 20/12). Exact-capture conflicts, cancellation without a prior lookup,
+idempotent cancellation, terminal receipt preservation, unresolved prior provider
+record preservation, legacy uncertainty and late causal reply retention passed.
+Declared receipt data remains a storage probe, not a real provider write.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `42c6952e6718824aa5096fe6f607719ab39506e8afd485ebffce92ea1966f2fc` |
+| `legacy.go` | `839cdf248af7ecad7eab4d1e398578f04891d85955e0bef742df423ac90ad728` |
+| `check.go` | `15adda7bb4b7e42e80f2dea4a842f8e82cd70e3c6e4512c971caf86984beef33` |
+| `cancel.go` | `14fdad7384e5072e15954af0fee851a13745514babf70ca6ab32ba62fee20f5a` |
+| historical Store executable | `d03d94a7cf861ba27d38bb37120a07b5fbd69a2c697c715014bc0f5195905c6c` |
+| current executable | `9087700669579f65d956e5c46dfb6d14e294f456769a702e6fdff948aa564130` |
+| `legacy-a1.log` | `4af1ca2ffdb33595461b70ecf977b57dabb4b5921bfe47707e4d8b25be66ae9b` |
+| `fresh-a1.log` | `ba845f763c3c5a5a2b698f85f221b02b48da70ed8fd0ede7af2648dee5a2bcbc` |
+
+Go package compilation, the ownership boundary check and whitespace check pass.
+No new unit-test root or provider dependency was added. Captured inputs remain
+source evidence, not a fresh or installed upgrade qualification.
+
+T11-WRITES remains Active for its consumer and remaining operations. A concrete
+consumer constraint was found: `factory.Command.Validate`, the existing command
+outcome column/save helper and `ProviderReceipt.Payload` enforce bounded retained
+outcomes; duplicating a full 64 KiB comment into its success envelope can exceed
+those limits. Preserve exact writing in the original capture and select bounded
+causal provider evidence, or explicitly evolve the bounded retention contract;
+prove maximum-body persistence rather than enabling a path that loses its receipt.
+No solution to that consumer constraint is claimed verified by this checkpoint.
+The credential/IPC/service composition and actual provider mutation/readback
+obligations remain those recorded above; no public write capability or broad
+security/product gate is complete.

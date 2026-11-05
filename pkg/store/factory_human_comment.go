@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -89,6 +90,24 @@ func (s *Store) ObserveHumanComment(ctx context.Context, c factory.HumanCommentC
 	if _, err := factory.DecodeHumanCommentCapture(stored); err != nil {
 		return empty, err
 	}
+	o, err = saveHumanCommentObservation(ctx, tx, stored, c, o)
+	if err != nil {
+		return empty, err
+	}
+	if err := tx.Commit(); err != nil {
+		return empty, err
+	}
+	return o, nil
+}
+
+// The caller holds the exact captured command's row lock. Both ordinary
+// provider observations and local dispatch cancellation use this same reducer.
+func saveHumanCommentObservation(ctx context.Context, tx *sql.Tx, stored factory.Command, c factory.HumanCommentCapture, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+	var empty collaboration.OperationLookup
+	if err := factory.ValidateHumanCommentObservation(c, o); err != nil {
+		return empty, err
+	}
+	var err error
 	if stored.Outcome != "" {
 		var prior collaboration.OperationLookup
 		if json.Unmarshal([]byte(stored.Outcome), &prior) != nil {
@@ -115,13 +134,10 @@ func (s *Store) ObserveHumanComment(ctx context.Context, c factory.HumanCommentC
 		if factory.HumanCommentFinished(o) {
 			finished = time.Now().UTC().Format(time.RFC3339Nano)
 		}
-		result, err := tx.ExecContext(ctx, `UPDATE factory_commands SET outcome=$2,finished=$3 WHERE id=$1 AND finished=''`, cmd.ID, string(raw), finished)
+		result, err := tx.ExecContext(ctx, `UPDATE factory_commands SET outcome=$2,finished=$3 WHERE id=$1 AND finished=''`, stored.ID, string(raw), finished)
 		if err := checkGrantRowsAffected(result, err, "human comment observation save failed"); err != nil {
 			return empty, err
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return empty, err
 	}
 	return o, nil
 }

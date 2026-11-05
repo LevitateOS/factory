@@ -82,3 +82,59 @@ func (s *Store) ReserveHumanCommentDispatch(ctx context.Context, capture factory
 	}
 	return true, nil
 }
+
+// CancelHumanCommentDispatch is for adapters using this one-shot protocol for
+// EVERY dispatch. It does not cancel a remote provider journal. The caller must
+// first admit the current human and exact captured native account/namespace.
+// Taking the same row lock as reservation makes pre-dispatch cancellation final
+// before any winner can send. Reserved or legacy commands stay indeterminate;
+// cancellation cannot turn a possibly sent request into a no-effect receipt.
+func (s *Store) CancelHumanCommentDispatch(ctx context.Context, capture factory.HumanCommentCapture) (collaboration.OperationLookup, error) {
+	var empty collaboration.OperationLookup
+	cmd, err := capture.Command()
+	if err != nil {
+		return empty, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return empty, err
+	}
+	defer tx.Rollback()
+	saved, state, err := scanHumanCommentDispatch(tx.QueryRowContext(ctx, humanCommentDispatchQuery+` FOR UPDATE`, cmd.ID), cmd)
+	if err != nil {
+		return empty, err
+	}
+	lookup := collaboration.OperationLookup{Host: capture.Request.Host, Authority: capture.Authority, OperationID: capture.OperationID, State: collaboration.LookupFound}
+	record := &collaboration.OperationRecord{Host: capture.Request.Host, Authority: capture.Authority, OperationID: capture.OperationID,
+		Effect: collaboration.EffectNotCommitted, Cancellation: collaboration.CancellationCancelled,
+		Completion: collaboration.CompletionComplete, Reason: "cancelled_before_dispatch"}
+	if state != factory.DispatchUnclaimed {
+		record.Binding = &collaboration.OperationBinding{Repository: capture.Request.Repository, Actor: capture.Request.Actor, Kind: collaboration.CreateComment, Atomicity: collaboration.Atomic, IntentDigest: cmd.Digest}
+		record.Effect, record.Cancellation, record.Completion = collaboration.EffectIndeterminate, collaboration.CancellationIndeterminate, collaboration.CompletionNeedsIntervention
+		record.Reason = "dispatch_reserved"
+		if state == factory.DispatchLegacyUnknown {
+			record.Reason = "legacy_dispatch_unknown"
+		}
+	}
+	lookup.Record = record
+	// A prior provider record is stronger than the local fence. Never infer a
+	// pre-submit tombstone from an unclaimed column when another protocol has
+	// already supplied evidence, and never replace a terminal provider result.
+	if saved.Outcome != "" {
+		var prior collaboration.OperationLookup
+		if json.Unmarshal([]byte(saved.Outcome), &prior) != nil || factory.ValidateHumanCommentObservation(capture, prior) != nil {
+			return empty, factory.ErrHumanCommentObservation
+		}
+		if prior.Record != nil && (state == factory.DispatchUnclaimed || factory.HumanCommentFinished(prior)) {
+			lookup = prior
+		}
+	}
+	lookup, err = saveHumanCommentObservation(ctx, tx, saved, capture, lookup)
+	if err != nil {
+		return empty, err
+	}
+	if err := tx.Commit(); err != nil {
+		return empty, err
+	}
+	return lookup, nil
+}

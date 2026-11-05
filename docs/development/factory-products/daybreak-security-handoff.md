@@ -1615,3 +1615,37 @@ actual GitHub write/readback. All registered D1/D2/D3/D5, installed custody/
 admission, native isolation/retirement/settlement, finite provider execution and
 fresh release/upgrade gates retain their existing dependencies and evidence
 requirements. No Daybreak invocation or broad completion is inferred here.
+
+T11-WRITES atomic cancellation checkpoint (2026-11-05):
+`pkg/store/factory_human_comment_dispatch.go` now shares reservation's row lock
+with a local cancellation decision, and `factory_human_comment.go` retains one
+observation-save owner. `pkg/factory/human_comment_outcomes.go` preserves a newly
+proved complete creation receipt when a prior local cancellation remains
+indeterminate, without mutating the caller's evidence or inventing cancellation
+acknowledgment. Reserved and legacy-unknown commands cannot become pre-dispatch
+no-effect tombstones through this helper. It applies only to adapters using the
+one-shot protocol for every dispatch; ordinary current caller/account/namespace
+admission is still required before calling it.
+
+Fresh and actual schema-80 upgrade checks in
+`/home/vince/tmp/factory-comment-cancel-1105/` exited 0 through restart, WAL recovery
+and clean owned-child shutdown. Both sets of 32 concurrent two-owner races
+exercised reservation and cancellation winners. Exact-capture conflict refusal,
+terminal and prior-provider-record preservation, legacy uncertainty, idempotence
+and late causal receipt retention passed with declared provider records. Log
+hashes: upgrade `4af1ca2ffdb33595461b70ecf977b57dabb4b5921bfe47707e4d8b25be66ae9b`,
+fresh `ba845f763c3c5a5a2b698f85f221b02b48da70ed8fd0ede7af2648dee5a2bcbc`.
+The canonical plan retains fixture/source/executable hashes. This does not prove
+native caller admission, actual wire cancellation or a real provider mutation.
+
+Additional consumer blocker discovered: a full 64 KiB comment copied into its
+success receipt can exceed the existing 64 KiB journal outcome/receipt limits.
+Relevant files are `pkg/factory/types.go`, `pkg/collaboration/effect_outcomes.go`,
+`pkg/store/schema.go`, `pkg/store/factory_human_comment.go` and the Rust comment
+producer/upcoming native bridge. Before enabling the action, select bounded causal
+receipt evidence or explicitly evolve its bounded retention contract, then prove
+maximum-length Unicode/control-escaped writing retains both its exact capture
+and attributable success through the real native/Go/PG path and restart. A body
+hash or readback alone must not be promoted to causal provider write evidence.
+No proposed solution is verified here. Credential/IPC/current-authority composition,
+real scoped provider write/readback and all broader registered gates stay open.

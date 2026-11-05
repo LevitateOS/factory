@@ -54,6 +54,20 @@ func AdvanceHumanCommentObservation(c HumanCommentCapture, old, next collaborati
 	if ValidateHumanCommentObservation(c, old) != nil || ValidateHumanCommentObservation(c, next) != nil {
 		return collaboration.OperationLookup{}, ErrHumanCommentObservation
 	}
+	// A local cancellation can race the causal provider reply. Preserve the
+	// cancellation uncertainty without discarding a newly proved complete primary
+	// effect just because that reply predates the cancellation request. Copy the
+	// record so the caller's observation is never mutated.
+	if old.Record != nil && next.Record != nil &&
+		old.Record.Effect == collaboration.EffectIndeterminate &&
+		old.Record.Cancellation == collaboration.CancellationIndeterminate &&
+		next.Record.Effect == collaboration.EffectCommitted &&
+		next.Record.Completion == collaboration.CompletionComplete &&
+		next.Record.Cancellation == collaboration.CancellationNone {
+		record := *next.Record
+		record.Cancellation = old.Record.Cancellation
+		next.Record = &record
+	}
 	result, err := advanceHumanCommandObservation(old, next)
 	if err != nil {
 		return collaboration.OperationLookup{}, ErrHumanCommentObservation
