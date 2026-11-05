@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 // durable reconciliation or actual GitHub mutation qualification is implied.
 pub(super) async fn run_comment_declared(profile: &Path) -> Result<()> {
     use serde_json::json;
+    use sha2::{Digest, Sha256};
     use soda_desktop_runtime::github_provider::{Comment, CommentOutcome, Owner};
     prepare(profile)?;
     let root = profile.parent().ok_or("fixture parent missing")?;
@@ -41,11 +42,17 @@ pub(super) async fn run_comment_declared(profile: &Path) -> Result<()> {
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
     let mut cases = Vec::new();
-    for name in ["positive", "pull"] {
+    for name in ["positive", "pull", "max-unicode", "max-control"] {
         mode(name)?;
         let mut c = comment();
         if name == "pull" {
             c.subject = "pull".into();
+        }
+        if name == "max-unicode" {
+            c.body = "🍵".repeat(16384);
+        }
+        if name == "max-control" {
+            c.body = "\u{0001}".repeat(65536);
         }
         let CommentOutcome::Created(value) = client.create_comment(token()?, "321", &c).await
         else {
@@ -53,12 +60,30 @@ pub(super) async fn run_comment_declared(profile: &Path) -> Result<()> {
         };
         ensure(
             value["comment"]["external_id"] == "900"
-                && value["comment"]["body"] == c.body
+                && value["comment"].get("body").is_none()
+                && value["comment"]["body_sha256"]
+                    == Sha256::digest(c.body.as_bytes())
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
                 && value["comment"]["author"]["external_id"] == "321"
                 && value["repository"] == "123"
                 && value["subject_id"] == "700"
                 && value["subject"] == c.subject,
             "declared comment lost response scope or human writing",
+        )?;
+        ensure(
+            value["provider_response"]["status"] == 201
+                && value["provider_response"]["request_id"] == "DECLARED:COMMENT:201"
+                && value["provider_response"]["response_sha256"]
+                    .as_str()
+                    .is_some_and(|s| s.len() == 64)
+                && serde_json::to_vec(&value)?.len() <= 4096,
+            "native comment lost bounded causal POST evidence",
+        )?;
+        fs::write(
+            root.join(format!("{name}-receipt.json")),
+            serde_json::to_vec(&value)?,
         )?;
         cases.push(name);
     }
@@ -123,6 +148,9 @@ pub(super) async fn run_comment_declared(profile: &Path) -> Result<()> {
         ("wrong-author", 502),
         ("wrong-body", 502),
         ("oversized", 413),
+        ("receipt-oversized", 413),
+        ("request-id-oversized", 502),
+        ("request-id-duplicate", 502),
         ("drop-reply", 503),
         ("deadline", 504),
     ] {

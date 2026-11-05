@@ -27007,3 +27007,69 @@ No solution to that consumer constraint is claimed verified by this checkpoint.
 The credential/IPC/service composition and actual provider mutation/readback
 obligations remain those recorded above; no public write capability or broad
 security/product gate is complete.
+
+### T11-WRITES — bounded causal comment receipt (2026-11-05)
+
+The native comment producer now returns a bounded causal receipt rather than
+duplicating human writing in the outcome. It still compares the actual 201 POST
+response's body, author, parent URL and comment URL/ID against the exact requested
+writing and selected scope before yielding success. The receipt retains the
+provider-returned metadata/URLs, the actual status, the provider request header
+when present, a digest of the actual received response bytes and a writing digest.
+The original complete writing remains in the immutable Go command capture.
+Neither a body hash nor later readback can independently manufacture this receipt.
+
+Request IDs are optional, bounded to 256 printable bytes and rejected when
+duplicated. The complete receipt is bounded to 4 KiB before it leaves the
+provider owner; malformed/oversized metadata after POST remains indeterminate.
+The existing 64 KiB outcome/receipt contracts and SQL schema are unchanged.
+No provider dependency, retry path or public mutation capability was added.
+
+The existing `--github-comment-declared` native check passed 31 named cases,
+eight invalid descriptors, serialization/pacing and in-flight retirement under
+`/home/vince/tmp/factory-github-comment-receipt-1105/attempt1/`. Additional cases
+cover exactly 65,536-byte Unicode and control-escaped writing, oversized receipt
+metadata and oversized/duplicate provider request IDs. All earlier provider
+refusal, uncertainty, response-bound and scope cases still pass. The new owned
+fixture never forwards requests and contains only dummy tokens. The prior
+comment fixture/evidence remains unchanged.
+
+An external Go acceptance command then consumed those actual Rust/local-HTTPS
+receipt outputs through the existing real native PostgreSQL driver under
+`/home/vince/tmp/factory-comment-receipt-store-1105/`. Both maximum-size comments
+retain exact captures and 1,565-byte complete outcomes through retained restart
+and abrupt owned-child WAL recovery. The command independently reconstructs the
+fixture's actual provider response bytes and checks their digest, the writing
+digest, causal status/request ID and selected account/repository/subject/comment
+before storage. Exact receipt bytes, terminal outcome and irreversible reservation
+survive restart/recovery; duplicate dispatch remains refused. The check exited 0
+with clean PostgreSQL shutdown.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| HTTPS `provider.go` | `c284b6189985f0c6c6ae2b1cdc1d920667299f8088b8642996e21d14501a0abc` |
+| provider executable | `cc8c0092336d79f60d09010df896a26275c42a0428d5a575244cd1be44e97fd9` |
+| `run.sh` | `c4310bb6d4dfc21c3265ac8a5ca4dad38a03cac24606c31af54355fa8fe53656` |
+| `session.sh` | `6651e406b7607cefa56c4770c29e56b7942ca11fdc0026404bb462df30b303dd` |
+| HTTPS log | `7c18b2d3058d0945f11eafd3a912fefd64b4fb0458a982d59a26ec8fb54bf63f` |
+| HTTPS result | `4fdb2822de8ed0d3c43768f4ce61c4ee53a7018316252f7aac4269ca9b3bdbc8` |
+| Unicode receipt | `cfce5992ed3cfbcdff205e884caf93f7bf9a92a9b1c1cf513df7b88b252a267c` |
+| control-escaped receipt | `489a9d50f562c199014300c499ccd7ebf11e1725b0dd9f41308d9ebfbcbed51b` |
+| native check executable | `31b3cf0c4ab0c0c876dcb3fa18daced978ed0f148a63a2a3495700bf026e803d` |
+| Store `check.go` | `84f7904b3a85206078d86a767030c08e4b5c60375eb70a49bc7262ce3206b652` |
+| Store check executable | `09788bfd6ce3273823ca30f8766f655fd9e2a95d3ed812ff129cbfa7036ef888` |
+| Store log | `10d039c921c0331ea3db93f3e23124c69fae4b00a9271986acdb7840bf9f4308` |
+
+Rust locked-source compilation, the ownership boundary check and whitespace
+check pass. This resolves the identified receipt-size constraint for the
+producer/storage path. The artifact-consuming acceptance command is not the
+production native IPC/service consumer; its declared native facts do not qualify
+actual credential/current-caller admission or real GitHub writes. The native IPC
+request currently has an 8 KiB bound and must explicitly accommodate the bounded
+64 KiB writing contract before a consumer is enabled. Its outer deadline,
+account/repository/generation checks, one-shot reservation and cancellation/
+uncertainty behavior still need a composed native/Go/PG check. T11-WRITES and the
+overall product goal remain Active/incomplete. No fresh or installed release,
+executor/isolation/custody/admission or D1/D2/D3/D5 gate is closed.

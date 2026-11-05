@@ -100,9 +100,10 @@ impl Client {
             self.current()?;
             *next = Instant::now() + Duration::from_secs(1);
             attempted = true;
-            let raw = self
+            let response = self
                 .post_comment(&reader.name, comment.number, &comment.body, token)
                 .await?;
+            let raw = &response.value;
             let id = r::id(&raw["id"])?;
             if raw["url"] != reader.url(&format!("/issues/comments/{id}"))
                 || raw["issue_url"] != reader.url(&format!("/issues/{}", comment.number))
@@ -111,12 +112,29 @@ impl Client {
             {
                 return Err(Failure::protocol());
             }
-            let projected = r::comment(&raw)?;
+            let mut projected = r::comment(raw)?;
+            // The immutable Go capture already retains the exact human writing.
+            // Keep provider-returned metadata and causal POST evidence bounded,
+            // rather than duplicating up to 64 KiB into its 64 KiB outcome.
+            projected
+                .as_object_mut()
+                .ok_or_else(Failure::protocol)?
+                .remove("body");
+            projected["body_sha256"] = json!(super::transport::sha256(comment.body.as_bytes()));
+            projected["url"] = raw["url"].clone();
+            projected["issue_url"] = raw["issue_url"].clone();
             self.current()?;
-            Ok(
-                json!({"account":identity,"repository":comment.repository,"subject":comment.subject,
-                "subject_id":comment.subject_id,"number":comment.number,"comment":projected}),
-            )
+            let receipt = json!({"account":identity,"repository":comment.repository,"subject":comment.subject,
+                "subject_id":comment.subject_id,"number":comment.number,"comment":projected,
+                "provider_response":{"status":201,"request_id":response.request_id,"response_sha256":response.response_sha256}});
+            if serde_json::to_vec(&receipt)
+                .map_err(|_| Failure::protocol())?
+                .len()
+                > 4096
+            {
+                return Err(Failure::new(413, "github_receipt_too_large"));
+            }
+            Ok(receipt)
         };
         let result = self
             .scope(async {

@@ -1649,3 +1649,39 @@ and attributable success through the real native/Go/PG path and restart. A body
 hash or readback alone must not be promoted to causal provider write evidence.
 No proposed solution is verified here. Credential/IPC/current-authority composition,
 real scoped provider write/readback and all broader registered gates stay open.
+
+T11-WRITES bounded causal receipt checkpoint (2026-11-05): the preceding
+receipt-size blocker is resolved for the defining Rust producer and Go storage
+path. `github_provider/{comments,transport}.rs` emit at most 4 KiB of provider
+metadata/URLs, causal HTTP status, optional bounded unique request ID and actual
+response/writing digests only after the received POST reply is validated against
+the exact captured writing and scope. The original writing stays in the immutable
+capture. A digest or readback alone is not accepted as a causal write receipt.
+Post-dispatch malformed/oversized evidence remains indeterminate.
+
+The extended existing native HTTPS check passed 31 named cases, including exact
+65,536-byte Unicode and control-escaped bodies and malformed receipt/request-ID
+boundaries. A Go acceptance command consumed its actual dummy-only HTTPS receipt
+outputs and independently checked the fixture's original response-byte digest,
+writing, scope and status before real Store persistence. Both maximum writing
+captures and 1,565-byte complete outcomes, exact receipts and dispatch fences
+survived retained PostgreSQL restart and WAL recovery. Clean shutdown passed.
+Evidence roots: `/home/vince/tmp/factory-github-comment-receipt-1105/attempt1/`
+and `/home/vince/tmp/factory-comment-receipt-store-1105/`. Result hash
+`4fdb2822de8ed0d3c43768f4ce61c4ee53a7018316252f7aac4269ca9b3bdbc8`,
+Store log `10d039c921c0331ea3db93f3e23124c69fae4b00a9271986acdb7840bf9f4308`.
+The canonical plan records source/executable/receipt hashes. Prior evidence is
+preserved unchanged; no actual provider request was forwarded by the fixture.
+
+Exact remaining blocker: these producer/storage checks consume artifact receipts,
+not the production admitted native IPC/service path. The current private request
+bound is 8 KiB (`lib/desktop-runtime/src/collaboration.rs`,
+`pkg/factory/runtime/native_collaboration.go`), so explicitly evolve that bounded
+semantic channel to carry maximum human writing before enabling the action.
+Compose current credential/account/repository/generation and Go caller/canonical
+admission, exact capture-to-effect binding, reservation, causal receipt persistence
+and concurrent cancel/lost-reply/restart handling in the real native/Go/PG path.
+Only then qualify a freshly authorized and concretely scoped actual GitHub
+write/readback. Native mutation capabilities remain unavailable. All broader
+registered security, executor, installed release/freshness and upgrade gates
+retain their dependencies and evidence requirements; none is complete here.

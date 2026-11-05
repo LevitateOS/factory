@@ -1,6 +1,7 @@
 use super::{Failure, Result, API_VERSION};
 use reqwest::{header, redirect, Client as Http};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -17,6 +18,11 @@ pub(crate) struct Response {
     pub value: Value,
     pub next: u32,
     pub last: u32,
+}
+pub(super) struct CommentResponse {
+    pub value: Value,
+    pub request_id: Option<String>,
+    pub response_sha256: String,
 }
 struct Wire {
     status: u16,
@@ -277,7 +283,7 @@ impl Client {
         number: u64,
         body: &str,
         token: &[u8],
-    ) -> Result<Value> {
+    ) -> Result<CommentResponse> {
         let wire = self
             .request(Request::Comment {
                 name: name.into(),
@@ -292,7 +298,31 @@ impl Client {
             }
             return Err(provider_failure(&wire));
         }
-        serde_json::from_slice(&wire.bytes).map_err(|_| Failure::protocol())
+        let request_ids = wire.headers.get_all("x-github-request-id");
+        if request_ids.iter().count() > 1 {
+            return Err(Failure::protocol());
+        }
+        let request_id = request_ids
+            .iter()
+            .next()
+            .map(|value| {
+                value
+                    .to_str()
+                    .ok()
+                    .filter(|value| {
+                        !value.is_empty()
+                            && value.len() <= 256
+                            && value.bytes().all(|byte| (33..=126).contains(&byte))
+                    })
+                    .map(str::to_owned)
+                    .ok_or_else(Failure::protocol)
+            })
+            .transpose()?;
+        Ok(CommentResponse {
+            value: serde_json::from_slice(&wire.bytes).map_err(|_| Failure::protocol())?,
+            request_id,
+            response_sha256: sha256(wire.bytes.as_slice()),
+        })
     }
     pub(crate) async fn delay(&self, duration: Duration) -> Result<()> {
         self.current()?;
@@ -407,6 +437,12 @@ fn network_failure(error: reqwest::Error) -> Failure {
     } else {
         Failure::unavailable()
     }
+}
+pub(super) fn sha256(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 pub(crate) fn secret(value: &[u8]) -> bool {
     (1..=8192).contains(&value.len()) && value.iter().all(|b| (33..=126).contains(b))
