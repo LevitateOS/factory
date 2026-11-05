@@ -29645,3 +29645,75 @@ pending submission, canonical consumer, current publication verification and fre
 scoped provider/shared UI/installed evidence remain pending. T11-WRITES, all actual
 canonical decisions and broader gates remain open; shared writes remain unavailable.
 No Daybreak work or full product completion was inferred.
+
+### T11-WRITES checkpoint: current published-review/comment verification producer (2026-11-05)
+
+`Read::PullReviewPublication` now observes the exact numeric/Node review inside the
+current authenticated account and canonical selected PR/repository scope. The
+fixed native detail/comment selectors validate submitted review/comment states,
+body, actual reviewed commit, submission dates, counts and complete bounded
+comment traversal. Review/parent/account rechecks reject observed changes. A
+current PR head may advance without replacing the review's actual historical
+commit. This is a read of current facts, explicitly `observation_only`; it cannot
+attribute creation/submission or settle a lost reply without an already verified
+causal receipt in the Go journal.
+
+The pending/publication paths share one defining comment decoder and bounds.
+Snapshots now include both the complete observed-fact digest and a separate digest
+of sorted immutable comment Node IDs plus exact body hashes. Publication timestamps
+can change without being described as changed writing. Unknown numeric IDs,
+authors/author Nodes and commits remain unknown in the full-fact digest; writing
+and identity are never inferred from count alone. Pending preparations also carry
+a native-produced `pending_sha256`, avoiding Go/Rust JSON re-encoding assumptions
+when a future effect pins the exact native preparation. These observed digests
+are not provider revision/CAS tokens or mutation grants.
+
+The existing native executable gained
+`--github-review-publication-declared FRESH_PROFILE`. The production reader/
+transport passed 41 declared cases, three invalid selectors before I/O and joined
+owner retirement under `/home/vince/tmp/factory-review-publication-1105/attempt1/`.
+It independently checked complete identity/writing digests for ordinary/approved/
+changes-requested/dismissed reviews, empty and 1,000-comment sets, maximum escaped
+writing, old reviewed commit with advancing current head, publication date changes,
+changed writing and nullable metadata. Refusals covered missing/misbound/non-
+submitted review, absent submission time, body/commit/date/count/state/scope changes,
+duplicate/cyclic pages, partial/provider errors, response bounds and deadlines.
+Zero mutations ran; no causal attribution was invented.
+
+The same production decoder then passed the existing 48-case pending snapshot
+mode, two invalid selectors and retirement in `pending-regression/`, with added
+independent checks of `pending_sha256` and the identity/writing digest. This used
+`pending-check-bin`; the 41-case observer used the separately retained `check-bin`.
+Only assertions in the pending observer changed between those executable builds;
+the production library was unchanged. The first publication run and the pending
+regression both passed with required isolated setup and the owned no-forwarding
+TLS peer. No real grant, pending privacy, notification or custody gate was tested.
+
+| Artifact under `/home/vince/tmp/factory-review-publication-1105/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `50bc8dda3bacc4944532eac52b27276975b523e74b1e6ff6b0cd406f7f9041ab` |
+| `provider` | `89d5af0883d3e277a639f2a4961cfe9234066bb19a5afc567ad9a48b1d3ad59d` |
+| `check-bin` | `353bbb060ef2ed8f22b6eab48208263acfcc24a907d3039076b9c76f5ddac920` |
+| `pending-check-bin` | `c46ff97d6738a2baa514260694e7204d0e06b4b69caf57c5b5334240b36000be` |
+| `run.sh` | `3c3e958f66d106f7881d3e39376d4441894dc832ba3c019c2a985b5943cc58b0` |
+| `session.sh` | `4e7511cd5c327a982a879cd3e03135542bd3fea6debfb19be5f234713c435e20` |
+| `pending-run.sh` | `50cb0c44aa549dd789a447f212113e9b9ac8931dbaa0f3aad8c5047b26a482d4` |
+| `pending-session.sh` | `1e2f87e8e0a0ac334f980cc3bb12d2d10d2c306d0482b5fcdca5c89c02f25338` |
+| `attempt1/result.log` | `fa70586da413e704b33ea71ac1da48a862ecd531ef990d07eafceffe91ae8830` |
+| `attempt1/review-publication-result.json` | `9b89b21ee4b16922552f1599a968b27b8a7a20da76e225f2895bf8d03ec14871` |
+| `pending-regression/result.log` | `3f3d94d1ae3029a93428ad65b0adce6d51b67655f49e9c951da63b1cfa997d6f` |
+| `pending-regression/pending-review-snapshot-result.json` | `a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2` |
+
+Locked/offline native executable and desktop-feature builds, ownership boundaries
+and whitespace checks passed. No dependency, unit-test root, product consumer or
+new authority channel was added. Next: fixed pending-review submission over exact
+saved native pending/comment digests, preserving a valid causal primary before
+separate publication verification; then the Go capture/writer/completion consumer.
+Read failures must leave a known primary committed with unfinished completion,
+never resend it or infer it from a matching current review. Actual provider
+operation/comment preservation, loss/replay/cancel/custody/restart/expiry and shared
+UI/installed evidence remain required. Existing-draft body editing and concrete
+provider-condition limits remain separate T11 work. D5 retains its actual Fountain
+issue-only admission scope. Shared writes and all actual broad gates remain
+unavailable/open; T11-WRITES and the full product are unfinished. No Daybreak work
+was completed.

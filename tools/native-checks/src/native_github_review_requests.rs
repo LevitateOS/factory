@@ -2426,11 +2426,25 @@ pub(super) async fn pending_snapshot(profile: &Path) -> Result<()> {
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect::<String>();
+        let pending_hash = Sha256::digest(serde_json::to_vec(&p["pending"])?)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        let mut writing = Vec::new();
+        for item in &expected {
+            writing.push(json!({"node_id":item["node_id"],"body_sha256":Sha256::digest(item["body"].as_str().ok_or("expected writing absent")?.as_bytes()).iter().map(|b|format!("{b:02x}")).collect::<String>()}));
+        }
+        let writing_hash = Sha256::digest(serde_json::to_vec(&writing)?)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
         ensure(
             digest["count"] == count
                 && digest["complete"] == true
                 && digest["condition"] == "bounded_observation"
                 && digest["sha256"] == hash
+                && digest["identity_writing_sha256"] == writing_hash
+                && p["pending_sha256"] == pending_hash
                 && p["pending"]["node_id"] == "REV_owned",
             &format!("pending full identity/writing digest differs: {name}"),
         )?;
@@ -2539,5 +2553,209 @@ pub(super) async fn pending_snapshot(profile: &Path) -> Result<()> {
         )?,
     )?;
     println!("pending review comment snapshot passed {} declared cases, two invalid selectors and retirement; no mutations or atomic-publication claim",cases.len());
+    Ok(())
+}
+
+pub(super) async fn publication(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::Read;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let request = || Read::PullReviewPublication {
+        repository: "123".into(),
+        number: 7,
+        review_id: "800".into(),
+        review_node_id: "REV_owned".into(),
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let hash = |bytes: &[u8]| {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    let mut baseline = None;
+    for name in [
+        "commented",
+        "approved",
+        "changes-requested",
+        "dismissed",
+        "empty",
+        "maximum",
+        "max-control",
+        "old-review-commit",
+        "head-moves",
+        "changed-dates",
+        "changed-writing",
+        "unknown-id",
+        "null-author",
+        "null-commits",
+    ] {
+        mode(&format!("publication-{name}"))?;
+        let v = client
+            .observe(token()?, "321", &request())
+            .await
+            .map_err(|f| format!("publication {name}: {} {}", f.status, f.code))?;
+        let p = &v["publication"];
+        let snapshot = &p["comments_snapshot"];
+        let count = if name == "empty" {
+            0
+        } else if name == "maximum" {
+            1000
+        } else {
+            3
+        };
+        let mut expected = Vec::new();
+        for i in 0..count {
+            let body = if name == "maximum" {
+                "x".into()
+            } else if name == "max-control" {
+                "\u{0001}".repeat(65536)
+            } else if name == "changed-writing" && i == 0 {
+                "Changed published writing".into()
+            } else {
+                format!("Exact pending comment {i} 🍵\n[link](relative.md)")
+            };
+            expected.push(json!({"node_id":format!("PC_{i}"),"body_sha256":hash(body.as_bytes())}));
+        }
+        expected.sort_by(|a, b| a["node_id"].as_str().cmp(&b["node_id"].as_str()));
+        let expected_hash = hash(&serde_json::to_vec(&expected)?);
+        ensure(
+            v["kind"] == "pull_review_publication"
+                && v["account"]["external_id"] == "321"
+                && p["repository"] == "123"
+                && p["pull"]["external_id"] == "700"
+                && p["review"]["external_id"] == "800"
+                && p["review"]["node_id"] == "REV_owned"
+                && p["observation_only"] == true
+                && snapshot["count"] == count
+                && snapshot["identity_writing_sha256"] == expected_hash
+                && snapshot["complete"] == true,
+            "publication lost scope or complete identity/writing facts",
+        )?;
+        if name == "commented" {
+            baseline = Some(expected_hash.clone())
+        }
+        if name == "changed-dates" {
+            ensure(
+                baseline.as_deref() == Some(&expected_hash),
+                "publication timestamps changed the writing digest",
+            )?
+        }
+        if name == "changed-writing" {
+            ensure(
+                baseline.as_deref() != Some(&expected_hash),
+                "changed writing was hidden",
+            )?
+        }
+        if name == "old-review-commit" {
+            ensure(
+                p["review"]["commit"] == "c".repeat(40),
+                "published review was repinned to current head",
+            )?
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&v)?)?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("detail-gone", 404),
+        ("detail-wrong-id", 409),
+        ("detail-wrong-owner", 409),
+        ("detail-wrong-pull", 409),
+        ("detail-wrong-repo", 409),
+        ("detail-pending", 409),
+        ("detail-no-submission", 502),
+        ("detail-large-body", 413),
+        ("detail-invalid-commit", 502),
+        ("detail-invalid-date", 502),
+        ("detail-change", 409),
+        ("wrong-root", 409),
+        ("wrong-owner", 409),
+        ("wrong-pull", 409),
+        ("wrong-repo", 409),
+        ("pending-comment", 502),
+        ("count-change", 409),
+        ("duplicate-node", 502),
+        ("duplicate-id", 502),
+        ("cursor-cycle", 502),
+        ("null-body", 502),
+        ("large-body", 413),
+        ("invalid-date", 502),
+        ("denied", 403),
+        ("partial-errors", 502),
+        ("oversized", 413),
+        ("deadline", 504),
+    ] {
+        mode(&format!("publication-{name}"))?;
+        let f = client
+            .observe(token()?, "321", &request())
+            .await
+            .err()
+            .ok_or("invalid publication passed")?;
+        ensure(
+            f.status == status,
+            &format!(
+                "publication refusal {name}: {} {}, expected {status}",
+                f.status, f.code
+            ),
+        )?;
+        cases.push(name);
+    }
+    let before = fs::read(io.join("gets"))?;
+    for i in 0..3 {
+        let mut q = request();
+        if let Read::PullReviewPublication {
+            repository,
+            review_id,
+            review_node_id,
+            ..
+        } = &mut q
+        {
+            match i {
+                0 => *repository = "0".into(),
+                1 => review_id.clear(),
+                _ => review_node_id.clear(),
+            }
+        }
+        ensure(
+            client.observe(token()?, "321", &q).await.is_err(),
+            "invalid publication selector accepted",
+        )?;
+    }
+    ensure(
+        fs::read(io.join("gets"))? == before,
+        "invalid publication reached provider",
+    )?;
+    mode("publication-pause")?;
+    let q = request();
+    let pending = client.observe(token()?, "321", &q);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        pending.await.is_err() && started.elapsed() < Duration::from_secs(2),
+        "publication retirement blocked or delivered",
+    )?;
+    ensure(
+        !io.join("writes").exists() && !io.join("unexpected-request").exists(),
+        "publication reader sent mutation/undeclared request",
+    )?;
+    fs::write(
+        root.join("review-publication-result.json"),
+        serde_json::to_vec(
+            &json!({"cases":cases,"invalid_descriptors":3,"identity_writing_digest":true,"publication_dates_distinct_from_writing":true,"historical_commit_preserved":true,"current_head_may_advance":true,"current_observation_only":true,"causal_attribution":false,"retirement":true,"provider_mutations":0,"real_github":false,"product_consumer_connected":false}),
+        )?,
+    )?;
+    println!("review publication observer passed {} declared cases, three invalid selectors and retirement; current facts only, no mutations or attribution",cases.len());
     Ok(())
 }

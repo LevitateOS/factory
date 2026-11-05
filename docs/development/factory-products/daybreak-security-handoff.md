@@ -3101,3 +3101,38 @@ behavior. A known causal primary must survive later verification failure; do not
 replace it with no-effect, discard it, mutate its receipt or resend to finish
 completion. Concrete provider-condition limits and all actual canonical/broad
 gates remain open. No Daybreak work ran or was marked complete.
+
+T11-WRITES current publication verification observation (2026-11-05):
+`github_provider/review_preparation.rs`, `request.rs` and `reads.rs` now expose
+`PullReviewPublication` for an exact numeric/Node review under the current account,
+PR and repository. One defining bounded decoder handles pending and submitted
+comment facts. It returns both full-fact and identity/exact-writing digests;
+publication timestamp changes are separate from writing, and historical review
+commits stay distinct from a later current head. Pending snapshots also supply a
+native-produced preparation digest. None is a provider revision token or proof
+attributing a prior command. No write or product consumer was enabled.
+
+Production reader/transport passed 41 declared publication cases, three invalid
+selectors and retirement with zero mutations. The shared decoder then passed the
+48-case pending regression, two invalid selectors and retirement with independent
+pending-record and writing/identity digest assertions. Evidence:
+`/home/vince/tmp/factory-review-publication-1105/attempt1/review-publication-result.json`,
+SHA-256 `9b89b21ee4b16922552f1599a968b27b8a7a20da76e225f2895bf8d03ec14871`,
+and `pending-regression/pending-review-snapshot-result.json`, SHA-256
+`a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2`.
+The canonical plan identifies exact peer/runners and the two observer binaries.
+This is dummy-only/no-forwarding native component evidence, not live provider
+permission/privacy/publication, custody, shared UI or installed qualification.
+
+Exact remaining dependencies: dedicated fixed pending submission, causal receipt
+persistence in the schema-89 Go journal, then separately admitted current
+publication verification/completion. A verifier may be used for completion only
+after authenticating the immutable saved causal receipt and exact command/scope;
+it must not adopt a matching current review after a lost reply. Known primary
+commitment must survive verification failure with unfinished completion and no
+resend. Actual provider identity/writing/comment preservation and event semantics,
+loss/cancel/custody replacement/restart/expiry and shared UI/installed cases remain
+unverified. Existing-draft update/concurrent-submission and other concrete T11
+condition limits remain recorded; no atomic publication guarantee follows from
+these reads. All actual canonical/broad gates remain open, shared writes remain
+unavailable, and no Daybreak work ran or was marked complete.

@@ -82,6 +82,18 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "pull_review_publication" => (
+                            "publication",
+                            reader
+                                .review_publication(
+                                    q["number"].as_u64().ok_or_else(Failure::invalid)?,
+                                    r::text(&q, "review_id")?,
+                                    r::text(&q, "review_node_id")?,
+                                    identity.node_id.as_deref().ok_or_else(Failure::protocol)?,
+                                    &identity.external_id,
+                                )
+                                .await?,
+                        ),
                         "pull_pending_review_snapshot" => (
                             "preparation",
                             reader

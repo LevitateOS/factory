@@ -46,6 +46,15 @@ fn opaque<'a>(raw: &'a Value, key: &str) -> Result<&'a str> {
 // caller's existing whole deadline also bound the complete traversal.
 const COMMENTS:&str="query FactoryPendingReviewComments($review:ID!,$after:String){node(id:$review){__typename ... on PullRequestReview{id state author{__typename ... on User{id}} pullRequest{id repository{id} headRefOid} repository{id} comments(first:2,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId state body author{__typename login ... on Node{id}} pullRequestReview{id} pullRequest{id} repository{id} commit{oid} originalCommit{oid} createdAt updatedAt}}}}}";
 
+struct CommentScope<'a> {
+    review: &'a str,
+    pull: &'a str,
+    repo: &'a str,
+    actor: &'a str,
+    head: Option<&'a str>,
+    pending: bool,
+    expected_count: u64,
+}
 impl Reader<'_> {
     pub(super) async fn pending_review_snapshot(
         &self,
@@ -56,11 +65,56 @@ impl Reader<'_> {
         let mut before = self.review_preparation(number, actor, account).await?;
         if before["pending"].is_null() {
             before["comments_snapshot"] = Value::Null;
+            before["pending_sha256"] = Value::Null;
             return Ok(before);
         }
         let review = r::text(&before["pending"], "node_id")?;
         let pull = r::text(&before["pull"], "node_id")?;
         let repo = r::text(&before, "repository_node_id")?;
+        let snapshot = self
+            .review_comment_snapshot(CommentScope {
+                review,
+                pull,
+                repo,
+                actor,
+                head: Some(r::text(&before["pull"], "head")?),
+                pending: true,
+                expected_count: before["pending"]["comments_count"]
+                    .as_u64()
+                    .ok_or_else(Failure::protocol)?,
+            })
+            .await?;
+        let current = self.review_preparation(number, actor, account).await?;
+        for key in [
+            "repository",
+            "repository_node_id",
+            "actor_node_id",
+            "archived",
+            "disabled",
+            "pull",
+            "pending",
+        ] {
+            if current[key] != before[key] {
+                return Err(Failure::new(409, "github_pending_review_changed"));
+            }
+        }
+        before["pending_sha256"] = json!(super::transport::sha256(
+            &serde_json::to_vec(&before["pending"]).map_err(|_| Failure::protocol())?
+        ));
+        before["comments_snapshot"] = snapshot;
+        Ok(before)
+    }
+
+    async fn review_comment_snapshot(&self, scope: CommentScope<'_>) -> Result<Value> {
+        let CommentScope {
+            review,
+            pull,
+            repo,
+            actor,
+            head,
+            pending,
+            expected_count,
+        } = scope;
         let mut after = None;
         let mut cursors = HashSet::new();
         let mut ids = HashSet::new();
@@ -85,13 +139,20 @@ impl Reader<'_> {
             }
             if raw["__typename"] != "PullRequestReview"
                 || raw["id"] != review
-                || raw["state"] != "PENDING"
+                || !if pending {
+                    raw["state"] == "PENDING"
+                } else {
+                    matches!(
+                        raw["state"].as_str(),
+                        Some("COMMENTED" | "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED")
+                    )
+                }
                 || raw["author"]["__typename"] != "User"
                 || raw["author"]["id"] != actor
                 || raw["pullRequest"]["id"] != pull
                 || raw["pullRequest"]["repository"]["id"] != repo
                 || raw["repository"]["id"] != repo
-                || raw["pullRequest"]["headRefOid"] != before["pull"]["head"]
+                || head.is_some_and(|head| raw["pullRequest"]["headRefOid"] != head)
             {
                 return Err(Failure::new(409, "github_pending_review_changed"));
             }
@@ -102,9 +163,7 @@ impl Reader<'_> {
             if count > 1000 {
                 return Err(Failure::new(413, "github_pending_comments_too_large"));
             }
-            if total.replace(count).is_some_and(|old| old != count)
-                || before["pending"]["comments_count"].as_u64() != Some(count)
-            {
+            if total.replace(count).is_some_and(|old| old != count) || count != expected_count {
                 return Err(Failure::new(409, "github_pending_comments_changed"));
             }
             let nodes = connection["nodes"]
@@ -116,7 +175,7 @@ impl Reader<'_> {
             for comment in nodes {
                 let node = opaque(comment, "id")?;
                 if !ids.insert(node.to_owned())
-                    || comment["state"] != "PENDING"
+                    || comment["state"] != if pending { "PENDING" } else { "SUBMITTED" }
                     || comment["pullRequestReview"]["id"] != review
                     || comment["pullRequest"]["id"] != pull
                     || comment["repository"]["id"] != repo
@@ -193,25 +252,93 @@ impl Reader<'_> {
             }
             after = next;
         }
-        let current = self.review_preparation(number, actor, account).await?;
-        for key in [
-            "repository",
-            "repository_node_id",
-            "actor_node_id",
-            "archived",
-            "disabled",
-            "pull",
-            "pending",
-        ] {
-            if current[key] != before[key] {
-                return Err(Failure::new(409, "github_pending_review_changed"));
-            }
-        }
-        // Complete observed set, not an atomic publication revision. Page
-        // ordering alone does not change its deterministic digest.
         items.sort_by(|a, b| a["node_id"].as_str().cmp(&b["node_id"].as_str()));
-        before["comments_snapshot"] = json!({"count":items.len(),"sha256":super::transport::sha256(&serde_json::to_vec(&items).map_err(|_|Failure::protocol())?),"complete":true,"condition":"bounded_observation"});
-        Ok(before)
+        let mut writing = Vec::new();
+        for item in &items {
+            writing.push(json!({"node_id":item["node_id"],"body_sha256":super::transport::sha256(r::text(item,"body")?.as_bytes())}));
+        }
+        Ok(
+            json!({"count":items.len(),"sha256":super::transport::sha256(&serde_json::to_vec(&items).map_err(|_|Failure::protocol())?),"identity_writing_sha256":super::transport::sha256(&serde_json::to_vec(&writing).map_err(|_|Failure::protocol())?),"complete":true,"condition":"bounded_observation"}),
+        )
+    }
+
+    pub(super) async fn review_publication(
+        &self,
+        number: u64,
+        review_id: &str,
+        review_node: &str,
+        actor: &str,
+        account: &str,
+    ) -> Result<Value> {
+        let subject = self.raw_subject(true, number).await?;
+        let pull = opaque(&subject, "node_id")?;
+        let repository = self.get("", &[]).await?.value;
+        if r::id(&repository["id"])? != self.repository {
+            return Err(Failure::new(409, "github_repository_changed"));
+        }
+        let repo = opaque(&repository, "node_id")?;
+        let raw = self
+            .client
+            .review_preparation_query(
+                PreparationQuery::Detail {
+                    review: review_node.into(),
+                },
+                self.token,
+            )
+            .await?;
+        let before = publication_detail(
+            &raw["data"]["node"],
+            review_id,
+            review_node,
+            pull,
+            repo,
+            actor,
+        )?;
+        let snapshot = self
+            .review_comment_snapshot(CommentScope {
+                review: review_node,
+                pull,
+                repo,
+                actor,
+                head: None,
+                pending: false,
+                expected_count: before["comments_count"]
+                    .as_u64()
+                    .ok_or_else(Failure::protocol)?,
+            })
+            .await?;
+        let raw = self
+            .client
+            .review_preparation_query(
+                PreparationQuery::Detail {
+                    review: review_node.into(),
+                },
+                self.token,
+            )
+            .await?;
+        let current = publication_detail(
+            &raw["data"]["node"],
+            review_id,
+            review_node,
+            pull,
+            repo,
+            actor,
+        )?;
+        if before != current {
+            return Err(Failure::new(409, "github_review_publication_changed"));
+        }
+        let current_subject = self.raw_subject(true, number).await?;
+        if current_subject["node_id"] != pull || current_subject["id"] != subject["id"] {
+            return Err(Failure::new(409, "github_review_inputs_changed"));
+        }
+        self.recheck().await?;
+        let identity = self.client.identity(self.token).await?;
+        if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
+            return Err(Failure::new(409, "github_account_changed"));
+        }
+        Ok(
+            json!({"repository":self.repository,"name":self.name,"repository_node_id":repo,"actor_node_id":actor,"pull":{"external_id":r::id(&subject["id"])?,"node_id":pull,"number":number},"review":before,"comments_snapshot":snapshot,"observation_only":true}),
+        )
     }
     pub(super) async fn review_preparation(
         &self,
@@ -382,4 +509,59 @@ impl Reader<'_> {
             json!({"repository":self.repository,"name":self.name,"repository_node_id":repo,"archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,"pull":{"external_id":external,"node_id":pull,"number":number,"state":before["state"],"locked":r::boolean(&before,"locked")?,"draft":r::boolean(&before,"draft")?,"merged":r::boolean(&before,"merged")?,"head":head},"pending":pending,"visible_pending_count":count,"actor_node_id":actor}),
         )
     }
+}
+
+fn publication_detail(
+    raw: &Value,
+    id: &str,
+    node: &str,
+    pull: &str,
+    repo: &str,
+    actor: &str,
+) -> Result<Value> {
+    if raw.is_null() {
+        return Err(Failure::new(404, "github_not_visible"));
+    }
+    if raw["__typename"] != "PullRequestReview"
+        || raw["id"] != node
+        || r::big_id(&raw["fullDatabaseId"])? != id
+        || raw["author"]["__typename"] != "User"
+        || raw["author"]["id"] != actor
+        || raw["pullRequest"]["id"] != pull
+        || raw["pullRequest"]["repository"]["id"] != repo
+        || raw["repository"]["id"] != repo
+        || !matches!(
+            raw["state"].as_str(),
+            Some("COMMENTED" | "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED")
+        )
+    {
+        return Err(Failure::new(409, "github_review_publication_changed"));
+    }
+    let body = r::text(raw, "body")?;
+    if body.len() > 65536 || body.contains('\0') {
+        return Err(Failure::new(413, "github_review_body_too_large"));
+    }
+    let oid = if raw["commit"].is_null() {
+        Value::Null
+    } else {
+        let oid = r::text(&raw["commit"], "oid")?;
+        if !commit(oid) || raw["commit"]["repository"]["id"] != repo {
+            return Err(Failure::protocol());
+        }
+        json!(oid)
+    };
+    let count = raw["comments"]["totalCount"]
+        .as_u64()
+        .ok_or_else(Failure::protocol)?;
+    if count > 1000 {
+        return Err(Failure::new(413, "github_pending_comments_too_large"));
+    }
+    let dates = json!({"created_at":raw["createdAt"],"updated_at":raw["updatedAt"],"submitted_at":raw["submittedAt"]});
+    let submitted = r::date(&dates, "submitted_at")?;
+    if submitted.is_null() {
+        return Err(Failure::protocol());
+    }
+    Ok(
+        json!({"external_id":id,"node_id":node,"state":r::text(raw,"state")?.to_ascii_lowercase(),"body_sha256":super::transport::sha256(body.as_bytes()),"commit":oid,"comments_count":count,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted}),
+    )
 }

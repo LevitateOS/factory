@@ -107,6 +107,12 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    PullReviewPublication {
+        repository: String,
+        number: u32,
+        review_id: String,
+        review_node_id: String,
+    },
     PullBranches {
         repository: String,
         head_repository: String,
@@ -202,6 +208,11 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::PullReviewPublication { review_node_id, .. } = self {
+            if !node_id(review_node_id) {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::PullBranches {
             repository,
             head_repository,
