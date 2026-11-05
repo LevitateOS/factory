@@ -720,7 +720,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 324 | T04-REPO-GO | T03-APP, T04-UI, T05-LIFECYCLE | Switch all Forge Go consumers to the public Factory module at its published source revision; remove duplicate core/store/application/identity owners, preserve the appliance service/SDK boundary and qualify builds plus an existing real native edit/recovery journey. | Complete |
 | 325 | T04-REPO-UI | T04-REPO-GO, T04-UI | Switch Forge shared component/build/asset consumers to the Factory repository, remove duplicate UI owners and verify both production bundles use the same defining sources; installed parity remains T14-PARITY. | Complete |
 | 326 | T04-REPO-NATIVE | T04-REPO-UI, T05-LIFECYCLE | Remove the remaining duplicate Factory desktop/runtime/workbench and shared Unix transport Rust owners from Forge; point its retained native acceptance/PG consumers at the defining Factory crates and verify the real managed native lifecycle before distribution. Preserve the original source and unrelated workspace changes. | Complete |
-| 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Pending |
+| 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Active |
 | 328 | T07-EDIT | T07-READ, T07-ISSUE-COMMENT, T07-ISSUE-CREATE, T07-ISSUE-EDIT-BASE, T07-ISSUE-EDITOR, T10-WRITES, T11-WRITES | Shared issue editor/comment mutations, draft recovery and Fountain normal-navigation route cutover; verify real writes in Fountain and the GitHub-connected desktop. Do not claim the later Fountain desktop journey. | Pending |
 | 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Pending |
 | 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
@@ -23998,9 +23998,13 @@ operation guarantees; it does not need a mounted appliance Unix socket.
 
 Slices: T11-WRITES requires T03-APP and T06-GITHUB. T11-INTAKE additionally
 requires T09-EXECUTION and T12-PLACEMENT. Human mutations do not wait for an
-executor, polling or the Fountain gateway. Owner: Go/provider with core policy.
-Files: `internal/github/{mutations,polling,capabilities}.go`, service intake,
-operation/scan cursor storage and necessary schema/grant definitions.
+executor, polling or the Fountain gateway. Go owns admission, durable command
+journals, reconciliation policy and intake. Rust owns the complete authenticated
+desktop provider connector and bounded effects under the selected native account.
+Files: `lib/desktop-runtime/src/github_provider/`, the semantic native bridge,
+`pkg/factory/service/`, `pkg/factory/runtime/`, `pkg/store/` and necessary
+schema/grant definitions. Follow the selected language allocation; do not restore
+an authenticated Go GitHub connector.
 
 - **C:** Implement journaled issue/comment/branch/PR/review/thread/allowed merge
   effects using supported APIs. Bound and serialize mutations; reconcile lost
@@ -26802,3 +26806,70 @@ No row remains Active. T11-WRITES is the next dependency-ready unfinished row
 in canonical order; implement its journaled GitHub operations with Rust owning
 the complete authenticated connector and Go retaining product decisions and
 durable transactions. The full product goal remains active and incomplete.
+
+### T11-WRITES — durable one-shot comment dispatch producer (2026-11-05)
+
+T11-WRITES is now Active. The first bounded producer extends the existing Go
+`factory_commands` row; it does not create a second operation journal or an
+authenticated Go provider connector. `pkg/factory/command_dispatch.go`,
+`pkg/store/factory_human_comment_dispatch.go`, `pkg/store/schema_command_dispatch.go`
+and `pkg/store/schema.go` define the local dispatch reservation and schema 81.
+
+An exact captured human comment with a persisted, validated `not_observed`
+lookup can acquire one reservation under the existing row lock. Only the caller
+receiving a successful commit may dispatch once. Reading `reserved` cannot
+recover ownership. Unknown replies, later absence observations, process restart
+and WAL recovery cannot release the reservation. Finished commands cannot
+acquire it. This is local dispatch eligibility, never current provider permission,
+remote absence, a cancellation guarantee or evidence that a request was sent.
+
+The actual schema-80 upgrade marks every existing command `legacy_unknown`,
+retaining its captured bytes/outcomes and refusing new dispatch through this
+protocol. It does not invent a historical attempt time. Fresh rows default to
+`unclaimed`. Fresh and upgraded databases use the same identity, terminal-outcome
+and irreversible-dispatch trigger. Existing remote-journal adapters retain their
+own protocol; this producer does not alter Fountain's dispatch behavior.
+
+Real PostgreSQL evidence is preserved under
+`/home/vince/tmp/factory-comment-dispatch-1105/`. `baseline/` is an archive of
+`fa0dff6`, used to compile the actual schema-80 Store, not a simulated old marker.
+The existing `soda-native-pg-check` ran the external Go integration command twice:
+`pg-legacy-a1` with `check legacy`, and `pg-fresh-a1` with `check`. Both exited 0,
+including clean shutdown, retained restart and abrupt owned-child WAL recovery.
+No retained user profile was opened or modified.
+
+The checks proved: absent capture refusal; unprepared/unknown/unavailable lookup
+refusal; seven exact-capture conflicts; exactly one winner among 32 simultaneous
+claims across two Store owners; no reset after unknown or renewed absence;
+terminal cancellation and declared committed-receipt protection; SQL identity,
+terminal and reservation guards; and exact schema-80 payload/outcome preservation.
+The provider receipt in this storage check is declared fixture data, not actual
+GitHub write evidence. The full UTF-8 human body remains unchanged, without a
+hidden deduplication marker.
+
+Safe evidence hashes:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `shared.go` | `42c6952e6718824aa5096fe6f607719ab39506e8afd485ebffce92ea1966f2fc` |
+| `legacy.go` | `796d7e276ecdd2a003d216c674f6af4ea2d49e388cbc711383ce7ab4db4366b6` |
+| `check.go` | `e1ff92e5fb908eec28fe3b32c78be1c65e1ce94b19b4e0cf35c9d946a06e1abd` |
+| schema-80 executable | `5d0ee4c2cdb2e9bfca743c64bb99e920a42131328044dde208fe4e7acb071272` |
+| current executable | `785240b1286741eb8124b46e394b9a4eeae3d595866ea252f18d0c28f7b8e895` |
+| `legacy-a1.log` | `bcda65f3bc33e867925c47519c4b2d7e1400ce62c33b7be091ac0b5f0fdc4324` |
+| `fresh-a1.log` | `2e1099cd29e9249d78e0217a666ebed4080e907f3881ee82fcceb90f160d2218` |
+
+Selected source/locked dependencies were reused for this bounded producer check;
+this is not a fresh release baseline or installed upgrade qualification. Go
+package compilation, the existing ownership boundary check and whitespace check
+pass. No unit-test root, provider dependency or public mutation capability was
+added.
+
+Next dependency-ready work is the Rust-owned semantic comment effect and its
+Go-owned journal/service composition. Current account/repository/issue authority,
+bounded no-retry dispatch, authenticated attributable receipts, lost-response and
+cancellation reconciliation, and actual authorized GitHub write/readback remain
+unverified. Keep native mutation capabilities unavailable until their complete
+path is admitted. Other T11 human operations, T07-EDIT and T11-INTAKE remain
+unfinished; D1 automation policy is a T11-INTAKE activation prerequisite, not a
+prerequisite for human comments. No broad security or product gate is closed.

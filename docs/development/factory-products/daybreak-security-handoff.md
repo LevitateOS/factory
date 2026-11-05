@@ -1543,3 +1543,41 @@ provider execution retain their registered dependencies and required evidence.
 Desktop Fountain and installed release/freshness/upgrade/parity remain pending.
 The next product slice is T11-WRITES; none of these broader security gates is
 closed by the read journey. The overall goal remains active and incomplete.
+
+### T11-WRITES local dispatch fence checkpoint (2026-11-05)
+
+T11-WRITES is Active. Ordinary product engineering continues under the corrected
+Daybreak boundary. No hacking-like check was performed or delegated here.
+
+Relevant files: `pkg/factory/command_dispatch.go`,
+`pkg/store/factory_human_comment_dispatch.go`, `pkg/store/schema_command_dispatch.go`,
+`pkg/store/schema.go`; upcoming consumers remain `pkg/factory/service/`,
+`pkg/factory/runtime/`, the semantic native bridge and
+`lib/desktop-runtime/src/github_provider/`.
+
+Proved: the existing Go journal now durably reserves one comment dispatch for
+an exact winning capture after a validated saved absence observation. Exactly
+one of 32 concurrent callers across two Store owners won. Reservations cannot
+reset after unknown/absence observations, restart or WAL recovery. Terminal
+commands cannot acquire a reservation. A real schema-80 Store archive produced
+the retained captures; schema 81 conservatively fences them `legacy_unknown`
+and preserves their complete UTF-8 bodies, preparation and outcomes byte for
+byte. Fresh-schema and upgrade checks both exited 0 through the existing native
+PostgreSQL driver, with clean owned-child shutdown. Fixture source/executable
+and log hashes are recorded in the canonical T11 checkpoint under
+`/home/vince/tmp/factory-comment-dispatch-1105/`.
+
+| Remaining task | Exact blocker/dependency | Unverified and evidence needed to close |
+| --- | --- | --- |
+| Current-account human comment admission and native effect authority | The reservation has no Rust provider consumer yet. Compose T11-WRITES with the existing native account/credential lifetime and Go current caller/canonical registry admission before enabling the action. | Prove the exact selected account, host, actor, repository and issue/pull binding; actual comment permission and lock/read-only refusal; account withdrawal, permission revocation, stale IPC/runtime generation and resource mismatch must refuse or retire the effect. Repository push permission alone is not comment admission evidence. |
+| No duplicate or falsely attributed comment after timeout/cancellation/restart | The local reservation only prevents a second claim. Rust bounded dispatch, causal response capture and Go outcome reconciliation are not implemented by this checkpoint. | Prove a single authenticated POST without automatic retry; causally bound successful response/readback; uncertain transport or lost reply remains indeterminate and fenced; pre-dispatch cancellation differs from cancellation after a reserved/in-flight request; no absence/body search or user-writing marker is promoted to a receipt. |
+| Retained/installed schema upgrade and release admission | Only fresh owned PostgreSQL and actual schema-80 fixture upgrade ran with captured source inputs. | Current release selection, full retained installed profile compatibility, failure/recovery and the installed product journeys remain their existing packaging/upgrade dependencies. This bounded schema probe does not close that gate. |
+
+No real GitHub comment was posted, no credential was requested or exposed, and no
+native mutation capability was enabled. The earlier owner-revoked test grant
+remains removed and must not be replayed. Actual connected writes will require
+a fresh authorized grant and a concretely scoped owned fixture. D1/D2/D3/D5,
+credential root absence/scoped delivery, installed admission, executor isolation,
+retirement/settlement and finite provider execution retain their previously
+recorded blockers and evidence requirements. No broad gate or full product is
+complete from this producer.

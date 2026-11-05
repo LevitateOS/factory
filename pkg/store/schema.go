@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 80
+const schemaFormatVersion = 81
 
 // schemaStatements creates the current PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -19,7 +19,7 @@ var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
 	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY)`,
-	`INSERT INTO schema_version(version) VALUES(80)`,
+	`INSERT INTO schema_version(version) VALUES(81)`,
 	`CREATE TABLE applications(id TEXT PRIMARY KEY, administrator_id BIGINT NOT NULL CHECK(administrator_id>0), name TEXT NOT NULL, data_id TEXT NOT NULL UNIQUE, owner_team TEXT NOT NULL, origin TEXT NOT NULL UNIQUE, hostname TEXT NOT NULL UNIQUE, port INTEGER NOT NULL UNIQUE CHECK(port>=20000 AND port<30000), revision BIGINT NOT NULL CHECK(revision>0), observation JSONB CHECK(observation IS NULL OR octet_length(observation::text)<=2048))`,
 	`CREATE TABLE application_revisions(application_id TEXT NOT NULL REFERENCES applications(id), revision BIGINT NOT NULL CHECK(revision>0), spec JSONB NOT NULL CHECK(octet_length(spec::text)<=4096), PRIMARY KEY(application_id,revision))`,
 	`CREATE TABLE application_projects(application_id TEXT PRIMARY KEY REFERENCES applications(id), repository BIGINT NOT NULL CHECK(repository>0))`,
@@ -58,7 +58,8 @@ data JSONB NOT NULL)`,
 id TEXT PRIMARY KEY, type TEXT NOT NULL, target TEXT NOT NULL DEFAULT '',
 principal TEXT NOT NULL, digest TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '' CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create') AND octet_length(payload)<=2097152) OR (type IN ('pull_request.review.thread.resolve','pull_request.review.request') AND octet_length(payload)<=131072) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply','pull_request.review.submit','pull_request.review.comment.create','pull_request.merge','pull_request.create','pull_request.review.thread.resolve','pull_request.review.request') AND char_length(payload)<=8192)),
 outcome TEXT NOT NULL DEFAULT '' CHECK(char_length(outcome)<=65536),
-created TEXT NOT NULL, finished TEXT NOT NULL DEFAULT '')`,
+created TEXT NOT NULL, finished TEXT NOT NULL DEFAULT '',
+dispatch_state TEXT NOT NULL DEFAULT 'unclaimed' CHECK(dispatch_state IN ('unclaimed','reserved','legacy_unknown')))`,
 	`CREATE INDEX factory_finished_commands_target ON factory_commands(target,type,created,id) WHERE finished<>''`,
 	`CREATE TABLE factory_policies(repository BIGINT PRIMARY KEY CHECK(repository>0), revision INTEGER NOT NULL, data JSONB NOT NULL)`,
 	`CREATE TABLE factory_capacity(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, data JSONB NOT NULL)`,
@@ -204,18 +205,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$ LANGUAGE plpgsql`,
-	`CREATE OR REPLACE FUNCTION soda_guard_command() RETURNS trigger AS $$
-BEGIN
-  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.type IS DISTINCT FROM OLD.type
-    OR NEW.target IS DISTINCT FROM OLD.target OR NEW.principal IS DISTINCT FROM OLD.principal
-    OR NEW.digest IS DISTINCT FROM OLD.digest OR NEW.payload IS DISTINCT FROM OLD.payload
-    OR NEW.created IS DISTINCT FROM OLD.created
-    OR (OLD.finished!='' AND (NEW.finished IS DISTINCT FROM OLD.finished OR NEW.outcome IS DISTINCT FROM OLD.outcome))
-  THEN
-    RAISE EXCEPTION 'factory command is immutable';
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql`,
+	commandGuardDDL,
 	`CREATE OR REPLACE FUNCTION soda_guard_preparation_refs() RETURNS trigger AS $$
 BEGIN
   IF NEW.id IS DISTINCT FROM OLD.id OR NEW.project_id IS DISTINCT FROM OLD.project_id
@@ -353,7 +343,7 @@ func verifyRequiredColumns(ctx context.Context, t *sql.Tx) error {
 		`SELECT id,project_id,role,revision,requirements,approval,data FROM project_preparations LIMIT 0`,
 		`SELECT kind,execution_id,state,lease_id,data FROM identity_executions LIMIT 0`,
 		`SELECT seq,id,active,settled,data FROM factory_runs LIMIT 0`,
-		`SELECT id,type,target,principal,digest,payload,outcome,created,finished FROM factory_commands LIMIT 0`,
+		`SELECT id,type,target,principal,digest,payload,outcome,created,finished,dispatch_state FROM factory_commands LIMIT 0`,
 		`SELECT repository,revision,data FROM factory_policies LIMIT 0`,
 		`SELECT id,revision,data FROM factory_capacity LIMIT 0`,
 		`SELECT repository,revision,data FROM factory_operator_grants LIMIT 0`,
@@ -485,7 +475,7 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 		}
 		version = 69
 	} else if version != SchemaVersion() {
-		if version != 69 && version != 70 && version != 71 && version != 72 && version != 73 && version != 74 && version != 75 && version != 76 && version != 77 && version != 78 && version != 79 {
+		if version != 69 && version != 70 && version != 71 && version != 72 && version != 73 && version != 74 && version != 75 && version != 76 && version != 77 && version != 78 && version != 79 && version != 80 {
 			return errors.New("database schema differs from this application")
 		}
 	}
@@ -588,6 +578,15 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 		}
 		version = 80
 	}
+	if version == 80 {
+		for _, statement := range CommandDispatchUpgradeDDL {
+			if _, err = t.ExecContext(ctx, statement); err != nil {
+				rollback()
+				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate command dispatch fence: %w", err))
+			}
+		}
+		version = 81
+	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err
 	}
@@ -625,6 +624,9 @@ func reopenAfterLostUpgradeRace(ctx context.Context, db *sql.DB, upgradeErr erro
 // query plus the immutability trigger guards.
 func verifyCurrentSchema(ctx context.Context, t *sql.Tx) error {
 	if err := verifyRequiredColumns(ctx, t); err != nil {
+		return err
+	}
+	if err := verifyTrigger(ctx, t, "factory_command_immutable", "factory_commands"); err != nil {
 		return err
 	}
 	if err := verifyImmutableCreationProfile(ctx, t); err != nil {
