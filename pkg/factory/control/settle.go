@@ -247,12 +247,10 @@ func settleOutcome(state execution.RunObservation) (factory.Outcome, bool) {
 		return factory.Failed, true
 	}
 	// The isolated adapter must retain an actual zero child exit before the
-	// coordinator can settle a completed native run as successful.
-	if state.Phase == project.FactoryCompleted && state.Kind == collaboration.Native && state.Native != nil {
-		if state.Native.TrustMode == "isolated_system_worker" &&
-			(state.Native.Process == nil || state.Native.Process.ExitCode == nil) {
-			return "", false
-		}
+	// coordinator can settle a completed native run as successful. The receipt
+	// must also confirm complete output and an ordinary child exit.
+	if state.Phase == project.FactoryCompleted && isolatedNative(state) && !isolatedCompletionConfirmed(state) {
+		return "", false
 	}
 	switch state.Phase {
 	case project.FactoryCompleted:
@@ -270,6 +268,12 @@ func settleReason(state execution.RunObservation) string {
 	if reason := nativeExitFailure(state); reason != "" {
 		return reason
 	}
+	if state.Phase == project.FactoryCompleted && isolatedNative(state) && !isolatedCompletionConfirmed(state) {
+		if state.Reason != "" && state.Reason != "exited" {
+			return state.Reason
+		}
+		return "native completion evidence unconfirmed"
+	}
 	if state.Phase == project.FactoryCompleted && state.Output != "" {
 		if len(state.Output) > 4096 {
 			return state.Output[:4096]
@@ -283,6 +287,9 @@ func settleReason(state execution.RunObservation) string {
 }
 
 func nativeExitFailure(state execution.RunObservation) string {
+	if isolatedNative(state) && state.Reason == "output_limit" {
+		return "native output limit exceeded"
+	}
 	if state.Kind != collaboration.Native || state.Native == nil || state.Native.Process == nil {
 		return ""
 	}
@@ -294,6 +301,18 @@ func nativeExitFailure(state execution.RunObservation) string {
 		return "native worker exited with code " + strconv.Itoa(*process.ExitCode)
 	}
 	return ""
+}
+
+func isolatedNative(state execution.RunObservation) bool {
+	return state.Kind == collaboration.Native && state.Native != nil && state.Native.TrustMode == "isolated_system_worker"
+}
+
+func isolatedCompletionConfirmed(state execution.RunObservation) bool {
+	if !isolatedNative(state) || state.Native.Process == nil {
+		return false
+	}
+	code := state.Native.Process.ExitCode
+	return code != nil && *code == 0 && state.OutputComplete && state.Reason == "exited"
 }
 
 // adoptExecutionFacts fills recorded lease/binding/credential facts from host

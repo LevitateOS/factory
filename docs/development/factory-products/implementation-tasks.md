@@ -25035,3 +25035,28 @@ result, credential custody, Go ledger consumption or a real provider task.
 Cross-run denial remains an explicit D3 qualification task; route a check that
 looks like hacking to the user-started Daybreak session. T09-NATIVE-EXECUTOR
 remains Pending.
+
+T09-NATIVE-EXECUTOR bounded output service path (2026-11-05): a disposable
+broker/preparer/relay/agent installation ran a 15,240-byte credential-free
+ELF attempting 24 MiB of stdout writes from the isolated coder. The typed Rust
+broker client returned `reason=output_limit`, signal 9, exactly 16,777,216
+captured bytes, `output_complete=false`, unchanged candidate and exact broker
+retirement. The agent and relay units ended with `MainPID=0`; the agent journal
+recorded a 33.9 MiB memory peak. Temporary units, binaries, owner socket and
+run paths were removed. This proves one actual service-path output cap and
+cleanup for dummy inputs. It does not prove that the future Go consumer treats
+incomplete output as failure, nor role tool capability, credential use, strict
+aggregate storage, crash/reboot recovery or a real provider task. N3 and D3
+remain open.
+
+T09-NATIVE-EXECUTOR Go output-completeness contract (2026-11-05): the shared
+run observation now carries the native owner's `OutputComplete` fact. The Go
+coordinator treats an isolated `output_limit` observation as failed even if an
+adapter reports a completed phase, and it refuses to settle an isolated
+completed run as successful without an ordinary child exit, zero exit code
+and complete output. An incomplete completed observation retains its reason
+instead of using partial output as a success summary. `go test` compiled the execution
+and control packages (neither has test files); `go vet`, `gofmt -d` and
+`git diff --check` passed. This is a source-level consumer contract, not a
+connected Rust-to-Go receipt transaction or proof of durable failure/success
+settlement. T09-NATIVE-EXECUTOR and D3 remain open.

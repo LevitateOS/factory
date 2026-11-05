@@ -56,11 +56,14 @@ type CustodyObserver interface {
 // invented by a translator. VerificationChecks is the existing shared manifest
 // receipt, independently validated against the admitted run by its consumer.
 type RunObservation struct {
-	Run                string
-	Workspace          string
-	Role               string
-	Phase              string
-	Output             string
+	Run       string
+	Workspace string
+	Role      string
+	Phase     string
+	Output    string
+	// OutputComplete is the native owner's retained output observation. A false
+	// value is unknown or incomplete, never evidence of a successful isolated run.
+	OutputComplete     bool
 	Reason             string
 	ExitCode           *int
 	Live               bool

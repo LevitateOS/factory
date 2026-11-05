@@ -144,8 +144,30 @@ run-specific source, preparation, socket and relay paths. This proves one
 bounded growth and cleanup observation, not the tmpfs `ENOSPC` path, all
 writable surfaces, multi-run capacity or denial with low `/run` free space.
 The service reported `Result=success` even though the child was killed, so the
-future Go adapter and transaction must preserve the exit signal as a failed execution
-observation. Prove that consumer behavior before D3 closure.
+future Go adapter and transaction must preserve the exit signal as a failed
+execution observation. Prove that consumer behavior before D3 closure.
+
+For output bounds, a disposable full broker/preparer/relay/agent path ran a
+15,240-byte credential-free ELF attempting 24 MiB of stdout writes. The typed
+Rust client returned `output_limit`, signal 9, exactly 16,777,216 captured
+bytes, `output_complete=false`, unchanged candidate and exact run retirement.
+The agent and relay units ended with `MainPID=0`, and the agent journal showed
+a 33.9 MiB memory peak. Temporary units, binaries, owner socket and run paths
+were removed. This is one dummy-input cap check. The Go consumer has not
+processed an incomplete native receipt; prove it cannot promote such a result
+to successful completion on the actual ledger path. Relevant files include
+`lib/native-process/src/process.rs`,
+`cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`,
+`lib/desktop-runtime/src/factory_provider/{broker,receipt}.rs` and
+`pkg/factory/control/settle.go`.
+
+The Go source contract now has `RunObservation.OutputComplete`; isolated
+`output_limit` maps to failure, and an isolated completed phase needs an
+ordinary child exit, zero exit code and complete output before successful
+settlement. The changed Go packages compiled and passed `go vet`, but no actual
+Rust receipt crossed the
+Go port or product transaction. Prove that mapping and its retained outcome
+with a real admitted run; the service probe and source check do not close D3.
 
 The Go coordinator now has a source-level settlement guard for that observation:
 `pkg/factory/control/settle.go` maps a retained native child signal or nonzero
