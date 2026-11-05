@@ -22,6 +22,8 @@ mod native_github_comments;
 mod native_github_edits;
 #[path = "../native_github_issues.rs"]
 mod native_github_issues;
+#[path = "../native_github_locks.rs"]
+mod native_github_locks;
 #[path = "../native_github_states.rs"]
 mod native_github_states;
 #[path = "../native_github_transport.rs"]
@@ -1216,6 +1218,9 @@ fn main() {
         }
         if args.len() == 2 && args[0] == "--github-edit-declared" {
             return runtime.block_on(native_github_edits::producer(Path::new(&args[1])));
+        }
+        if args.len() == 2 && args[0] == "--github-lock-declared" {
+            return runtime.block_on(native_github_locks::producer(Path::new(&args[1])));
         }
         if args.len() == 4 && args[0] == "--github-edit-product-declared" {
             return runtime.block_on(native_github_edits::product(

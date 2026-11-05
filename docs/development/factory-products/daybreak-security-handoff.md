@@ -2109,3 +2109,32 @@ Shared write capabilities remain unavailable. Installed custody/root absence/
 scoped delivery, peer/window/instance admission, D1/D2/D3/D5, worker isolation/
 execution/retirement/settlement and release/upgrade/freshness retain all earlier
 blockers. No broad security gate or Daybreak work closes from this checkpoint.
+
+T11-WRITES direct lock/unlock producer (2026-11-05):
+`lib/desktop-runtime/src/github_provider/locks.rs` and its private transport variant
+implement one fixed issue/PR effect. Rust maps only exact documented reason values,
+rejects unsupported text without provider I/O, verifies current account/subject/
+repository and causal actor/state/reason evidence, and keeps post-dispatch failures
+uncertain. Missing nullable reason is not proof of a cleared reason. There is no
+implicit unlock/relock sequence, atomic transfer guard or remote retry grant.
+
+The existing `--github-lock-declared` observer passed 52 cases, eight invalid
+descriptors, four unsupported reasons, serialization/pacing and retirement under
+`/home/vince/tmp/factory-lock-provider-1105/attempt1/`. Result
+`78c75b5c2756c8376831164c00784404ba003cd07962ed5fc11e1d3a184c41bd`;
+source/executable/log identities are in the canonical plan. This is direct native
+producer evidence against a dummy-only no-forwarding local peer, not actual
+provider permissions or composed/installed admission.
+
+Exact remaining lock dependencies: extend the existing typed Go lock journal
+reservation/cancellation, then connect the admitted native callback/Go writer.
+Relevant consumers are `pkg/store/factory_human_lock.go`,
+`pkg/factory/{human_lock,human_lock_outcomes}.go`, `pkg/factory/service/human_locks.go`
+and the future `native_product_locks.go`. Prove supported/unsupported reason outcomes,
+current caller/account/repository/generation, causal persistence, one-shot replay,
+cancel races, withdrawal and restart through native/Go/PostgreSQL before claiming
+that composition. Actual freshly authorized provider schema/permissions/reason
+behavior/normal readback and shared UI remain unverified. The same selected-resource/
+visibility/transfer policy and all broader D1/D2/D3/D5, custody/root absence/scoped
+delivery, installed IPC/window/instance, worker isolation/execution/retirement and
+release/upgrade/freshness dependencies remain open. No broad gate closes here.

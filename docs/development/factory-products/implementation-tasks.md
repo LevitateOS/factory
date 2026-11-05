@@ -27815,3 +27815,57 @@ captured-deadline expiry remain unverified. D1/D2/D3/D5, installed custody/admis
 isolation/execution/retirement and release/upgrade/freshness retain their own gates.
 T11-WRITES stays Active for its other operations and acceptance; the full product
 is unfinished and no actual GitHub mutation occurred here.
+
+### T11-WRITES — Rust direct lock/unlock producer (2026-11-05)
+
+`github_provider/locks.rs` adds one direct issue/PR lock or unlock through fixed
+documented [lock inputs](https://docs.github.com/en/graphql/reference/issues#locklockableinput).
+The generic human reason remains intact. Rust alone maps exact `off-topic`,
+`resolved`, `spam` and `too heated` values to the documented enum; blank omits the
+reason. Unsupported prose, changed case/padding and a maximum escaped unsupported
+reason yield a known `NotSent` refusal before provider I/O. Structural admission
+retains the generic 64-KiB reason bound, so a future composed callback can return
+that no-send outcome without duplicating provider reason policy in Go. Unlock
+carries no reason. No implicit unlock/relock sequence or content mutation occurs.
+
+The native owner verifies current account/Node, immutable subject kind/ID/number,
+known lock observation, repository ID/Node and non-read-only state. The causal
+reply must bind the returned actor Node, exact selected object/repository, desired
+lock state and actual reason, including known null. Missing reason evidence is
+not read as cleared. The 4-KiB receipt retains actor/provider metadata, exact human
+reason, nullable provider reason, request ID and original response digest. Shared
+whole-operation deadlines, mutation serialization/pacing, no redirects/retries
+and joined retirement are retained. Every failure after dispatch is uncertain.
+This supplies no atomic repository/transfer condition or remote retry authority.
+
+The existing native tool gained `--github-lock-declared FRESH_PROFILE`.
+`/home/vince/tmp/factory-lock-provider-1105/attempt1/` exited 0 with 52 named cases,
+eight invalid descriptors and four unsupported reasons: both issue/PR operations,
+all configured/blank reasons, large IDs, name-slot reuse, account/subject/repository/
+read-only/unknown-lock refusal, exact actor/reason/type/state replies, missing null
+evidence, bounded receipt/response/header errors, partial GraphQL errors, lost
+replies, both deadline phases, held-response serialization/pacing and retirement.
+Each uncertain effect issued one POST. The loopback-only HTTPS peer uses a private
+process-local CA and literal dummy token; it never forwards.
+
+Safe evidence hashes (root above):
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `provider.go` | `b51ea05de0d9a9f58415a13045cb84a82eb22ac7b08fa319f44ba3d00c5f4183` |
+| fixture executable | `6f74af20e141192a45a1c4240a8cce1a896d6462a6f607c82353938be0e3e10d` |
+| `run.sh` | `734f635270a099d53cd0741b6926515650c2f04cd715437509ddc31325dd56eb` |
+| `session.sh` | `a11e71c6217a71e7e32b97a3e4c7587b29060bbf87c47d2fad2c44654b16ffb6` |
+| native check executable | `d49b885c1573ba58745faa816e493516a61ad33d6b954bd566675a82f7ae603d` |
+| lock producer log | `b7fd74d8d65ac1f33816ed320042cda3ae947b729bce70962bada3b998f32e4a` |
+| lock producer result | `78c75b5c2756c8376831164c00784404ba003cd07962ed5fc11e1d3a184c41bd` |
+
+Native/desktop locked feature builds, ownership boundaries and whitespace checks
+pass. No dependency or unit-test root was added. Next is the existing typed Go
+lock journal reservation/cancel protocol and admitted native/Go consumer, including
+supported/unsupported reasons and atomic local cancellation. Actual provider
+permission/schema/lock-reason behavior/readback, shared WebKit actions, delayed
+captured deadlines, repository/visibility/transfer policy and all broader D1/D2/D3/
+D5, installed custody/IPC/window, isolation/execution/retirement and release/upgrade/
+freshness gates remain unqualified. Shared write capabilities stay unavailable.
+T11-WRITES and the full product goal remain unfinished; no real GitHub lock ran.

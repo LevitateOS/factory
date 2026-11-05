@@ -62,6 +62,12 @@ enum Request {
         body: Option<String>,
         token: Zeroizing<Vec<u8>>,
     },
+    Lock {
+        node: String,
+        lock: bool,
+        reason: Option<String>,
+        token: Zeroizing<Vec<u8>>,
+    },
 }
 struct Completion {
     result: Result<Wire>,
@@ -352,6 +358,21 @@ impl Client {
         })
         .await
     }
+    pub(super) async fn post_lock(
+        &self,
+        node: &str,
+        lock: bool,
+        reason: Option<&str>,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::Lock {
+            node: node.into(),
+            lock,
+            reason: reason.map(str::to_owned),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     async fn mutation(&self, request: Request) -> Result<MutationResponse> {
         let wire = self.request(request).await?;
         if wire.status != 200 {
@@ -455,6 +476,34 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
                     &token,
                     super::comments::CREATE_COMMENT,
                     serde_json::json!({"subject":node,"body":body}),
+                )?,
+                1024 * 1024,
+            )
+        }
+        Request::Lock {
+            node,
+            lock,
+            reason,
+            token,
+        } => {
+            if !super::request::node_id(&node) || !lock && reason.is_some() {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            let mut input = serde_json::Map::new();
+            input.insert("lockableId".into(), serde_json::json!(node));
+            if let Some(reason) = reason {
+                input.insert("lockReason".into(), serde_json::json!(reason));
+            }
+            (
+                graphql(
+                    http,
+                    &token,
+                    if lock {
+                        super::locks::LOCK
+                    } else {
+                        super::locks::UNLOCK
+                    },
+                    serde_json::json!({"input":input}),
                 )?,
                 1024 * 1024,
             )
