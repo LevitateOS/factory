@@ -1,12 +1,12 @@
-//! Read a retained native run observation without relaunching its worker.
+//! Persist and read a retained native run observation without relaunching its worker.
 //! The receipt is evidence for the Go ledger, never execution admission or
 //! proof that the broker, credential and worker lifetimes are retired.
 use super::broker::{AgentProcess, AgentRun};
 use super::Role;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fs::{self, OpenOptions};
-use std::io::{self, Read};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 
@@ -123,7 +123,7 @@ impl<'a> ReceiptScope<'a> {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Header {
     kind: String,
@@ -192,6 +192,7 @@ fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
         && header.tool_sha256 == scope.tool_sha256
         && header.prompt_sha256 == scope.prompt_sha256
         && header.desktop_uid == unsafe { libc::geteuid() }
+        && header.desktop_uid != 0
         && header.worker_uid != 0
         && header.worker_uid != header.desktop_uid
         && hex(&header.invocation, 32)
@@ -221,6 +222,84 @@ fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
         && header.output_length <= MAX_OUTPUT
         && hex(&header.output_sha256, 64)
         && candidate
+}
+
+/// Persist one complete native observation before root run retirement. This
+/// writes evidence only; the Go ledger still owns product outcome admission.
+/// A failed write leaves `.pending` as an uncertain result for recovery.
+pub fn write_retained(
+    profile_dir: &Path,
+    scope: &ReceiptScope<'_>,
+    run: &AgentRun,
+) -> io::Result<()> {
+    profile(profile_dir, scope.profile)?;
+    let receipts = profile_dir.join("native-run-receipts");
+    private_dir(&receipts)?;
+    if run.output.len() > MAX_OUTPUT || run.candidate_bundle.len() > MAX_BUNDLE {
+        return Err(refused("native receipt body bound exceeded"));
+    }
+    let role = match scope.role {
+        Role::Reviewer => "reviewer",
+        Role::Coder => "coder",
+    };
+    let header = Header {
+        kind: "native_agent_receipt".into(),
+        version: 2,
+        run: scope.run.into(),
+        profile: scope.profile.into(),
+        source_sha256: scope.source_sha256.into(),
+        candidate: scope.candidate.into(),
+        role: role.into(),
+        tool_sha256: scope.tool_sha256.into(),
+        prompt_sha256: scope.prompt_sha256.into(),
+        desktop_uid: unsafe { libc::geteuid() },
+        worker_uid: run.worker_uid,
+        invocation: run.process.invocation.clone(),
+        system_instance: run.process.system_instance.clone(),
+        start_identity: run.process.start_identity.clone(),
+        namespace_pid: run.process.namespace_pid,
+        started_unix_ms: run.process.started_unix_ms,
+        reason: run.reason.clone(),
+        exit_code: run.exit_code,
+        exit_signal: run.exit_signal,
+        output_complete: run.output_complete,
+        output_length: run.output.len(),
+        output_sha256: digest(&run.output),
+        candidate_state: run.candidate_state.clone(),
+        result_candidate: run.result_candidate.clone(),
+        bundle_length: run.candidate_bundle.len(),
+        bundle_sha256: run.bundle_sha256.clone(),
+    };
+    if !valid(&header, scope)
+        || header
+            .bundle_sha256
+            .as_deref()
+            .is_some_and(|value| digest(&run.candidate_bundle) != value)
+    {
+        return Err(refused("native receipt observation invalid"));
+    }
+    let bytes = serde_json::to_vec(&header)
+        .map_err(|_| refused("native receipt header encoding invalid"))?;
+    if bytes.is_empty() || bytes.len() > MAX_HEADER {
+        return Err(refused("native receipt header bound exceeded"));
+    }
+    let pending = receipts.join(format!("{}.pending", scope.run));
+    let committed = receipts.join(format!("{}.receipt", scope.run));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&pending)?;
+    file.write_all(&(bytes.len() as u32).to_le_bytes())?;
+    file.write_all(&bytes)?;
+    file.write_all(&run.output)?;
+    file.write_all(&run.candidate_bundle)?;
+    file.sync_all()?;
+    fs::hard_link(&pending, &committed)?;
+    File::open(&receipts)?.sync_all()?;
+    fs::remove_file(&pending)?;
+    File::open(&receipts)?.sync_all()
 }
 
 /// Read a durable exact receipt after restart. `None` means no completed

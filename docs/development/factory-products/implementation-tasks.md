@@ -24959,3 +24959,20 @@ proves one broker-to-worker coder result with dummy inputs. The production
 native receipt writer/readback, Go transaction/admission, credential custody,
 storage exhaustion, cross-run denial, real finite provider task and D3 remain
 open. T09-NATIVE-EXECUTOR remains Pending.
+
+T09-NATIVE-EXECUTOR native receipt roundtrip (2026-11-05): the production
+writer moved beside the reader in Rust; both now use one exact `ReceiptScope`
+and v2 header validator, and `RunOwner::execute` calls that writer before
+root retirement. The existing native receipt fixture passed complete
+write/readback, interrupted pending uncertainty, wrong-source refusal,
+altered-output refusal, older-version refusal and rejection of a mismatched
+bundle digest before writing. A disposable current broker/preparer/relay/agent
+installation then returned a dummy coder result through the typed Rust client.
+The production writer synced a private receipt with 31 bytes of output and a
+419-byte candidate bundle; a separate process reopened it after the writer
+exited, recovered the same result, and refused a wrong source scope. Git
+verified the bundle's descendant commit and expected one-line edit. Exact
+broker retirement removed the run, and the temporary units, binaries and
+owner socket were removed. The credential-bearing `RunOwner` path, Go ledger
+admission/settlement, cross-run/storage bounds, crash/reboot reconciliation
+and real provider task remain open. T09-NATIVE-EXECUTOR and D3 remain open.

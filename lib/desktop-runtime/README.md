@@ -252,6 +252,17 @@ must obtain that scope from the Go ledger. The native receipt still needs an
 admitted Go consumer, exact retained-run transaction and restart reconciliation;
 its presence alone is not a product outcome, proof of root retirement, or
 permission to reactivate an agent.
+The writer and reader now share one `ReceiptScope` and v2 header validator;
+`RunOwner::execute` calls `factory_provider::write_retained` before retirement.
+In a disposable current-unit check, the typed Rust broker client received a
+credential-free coder result from the real broker, preparer, relay and worker.
+The production writer synced its 31-byte output and 419-byte candidate bundle
+to a private receipt. A separate process reopened it after the writer exited,
+recovered the same process/output/candidate facts and refused a wrong source
+scope. Git verified the recovered bundle's descendant commit and one-line edit.
+Exact broker retirement and removal of the temporary units and owner socket
+passed. This did not exercise `RunOwner` with an actual provider credential,
+Go ledger settlement, a crash/reboot or an installed desktop.
 After the broker returns, `RunOwner` retains the external cancellation signal
 through owner and broker retirement and refuses a result if it was set during
 that cleanup. The native caller still must join execution and

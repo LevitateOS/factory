@@ -1,12 +1,14 @@
 //! One native-only owner for an exact isolated run. Product admission is still
 //! supplied by the future Go execution port; this module cannot create it.
-use super::{AgentCancellation, AgentRun, BoundOwner, Broker, Owner, Policy, Role};
+use super::{
+    write_retained, AgentCancellation, AgentRun, BoundOwner, Broker, Owner, Policy, ReceiptScope,
+    Role,
+};
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
-use serde_json::json;
 use sha2::{Digest, Sha256};
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::fs::OpenOptions;
+use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -53,7 +55,7 @@ pub struct RunOwner {
     tool_sha256: String,
     prompt_sha256: String,
     deadline: Instant,
-    receipts: PathBuf,
+    profile_dir: PathBuf,
     attempted: bool,
     receipt_persisted: bool,
     retired: bool,
@@ -178,7 +180,7 @@ impl RunOwner {
             tool_sha256: tool_sha256.to_owned(),
             prompt_sha256: prompt_sha256.to_owned(),
             deadline,
-            receipts,
+            profile_dir: profile_dir.to_path_buf(),
             attempted: false,
             receipt_persisted: false,
             retired: false,
@@ -190,94 +192,6 @@ impl RunOwner {
     /// the exact worker stream and retires its process tree.
     pub fn cancellation(&self) -> AgentCancellation {
         self.cancellation.clone()
-    }
-
-    // A complete, bounded broker observation is retained before root cleanup.
-    // The Go owner will consume the exact file under its own run transaction;
-    // a file by itself never authorizes a successful product outcome.
-    fn persist_receipt(&self, run: &AgentRun) -> io::Result<()> {
-        private_dir(&self.receipts).map_err(|_| refused("provider receipt directory invalid"))?;
-        let desktop_uid = unsafe { libc::geteuid() };
-        if desktop_uid == 0 || run.worker_uid == 0 || run.worker_uid == desktop_uid {
-            return Err(refused("provider receipt isolation identity invalid"));
-        }
-        if run.output.len() > 16 * 1024 * 1024 {
-            return Err(refused("provider receipt output bound exceeded"));
-        }
-        let observed_bundle_sha256: String = Sha256::digest(&run.candidate_bundle)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        let captured = run.candidate_state == "captured"
-            && self.role == Role::Coder
-            && run.result_candidate.as_ref().is_some_and(|commit| {
-                commit.len() == 40
-                    && commit
-                        .bytes()
-                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            })
-            && (1..=4 * 1024 * 1024).contains(&run.candidate_bundle.len())
-            && run.bundle_sha256.as_deref() == Some(observed_bundle_sha256.as_str());
-        let no_bundle = match self.role {
-            Role::Reviewer => run.candidate_state == "not_applicable",
-            Role::Coder => matches!(
-                run.candidate_state.as_str(),
-                "unchanged" | "dirty" | "unavailable"
-            ),
-        } && run.result_candidate.is_none()
-            && run.candidate_bundle.is_empty()
-            && run.bundle_sha256.is_none();
-        if !captured && !no_bundle {
-            return Err(refused("provider receipt candidate bundle invalid"));
-        }
-        let role = match self.role {
-            Role::Reviewer => "reviewer",
-            Role::Coder => "coder",
-        };
-        let output_sha256: String = Sha256::digest(&run.output)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        let header = serde_json::to_vec(&json!({
-            "kind":"native_agent_receipt","version":2,
-            "run":self.run,"profile":self.profile,"source_sha256":self.sha256,
-            "candidate":self.candidate,"role":role,
-            "tool_sha256":self.tool_sha256,"prompt_sha256":self.prompt_sha256,
-            "desktop_uid":desktop_uid,"worker_uid":run.worker_uid,
-            "invocation":run.process.invocation,
-            "system_instance":run.process.system_instance,
-            "start_identity":run.process.start_identity,
-            "namespace_pid":run.process.namespace_pid,
-            "started_unix_ms":run.process.started_unix_ms,
-            "reason":run.reason,"exit_code":run.exit_code,"exit_signal":run.exit_signal,
-            "output_complete":run.output_complete,
-            "output_length":run.output.len(),"output_sha256":output_sha256,
-            "candidate_state":run.candidate_state,
-            "result_candidate":run.result_candidate,
-            "bundle_length":run.candidate_bundle.len(),
-            "bundle_sha256":run.bundle_sha256,
-        }))
-        .map_err(|_| refused("provider receipt header invalid"))?;
-        if header.is_empty() || header.len() > 2048 {
-            return Err(refused("provider receipt header bound exceeded"));
-        }
-        let pending = self.receipts.join(format!("{}.pending", self.run));
-        let committed = self.receipts.join(format!("{}.receipt", self.run));
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(&pending)?;
-        file.write_all(&(header.len() as u32).to_le_bytes())?;
-        file.write_all(&header)?;
-        file.write_all(&run.output)?;
-        file.write_all(&run.candidate_bundle)?;
-        file.sync_all()?;
-        fs::hard_link(&pending, &committed)?;
-        File::open(&self.receipts)?.sync_all()?;
-        fs::remove_file(&pending)?;
-        File::open(&self.receipts)?.sync_all()
     }
 
     fn quiesce_uncertain(&mut self) -> io::Result<()> {
@@ -326,7 +240,17 @@ impl RunOwner {
                 return Err(refused("provider run outcome unconfirmed"));
             }
         };
-        if self.persist_receipt(&run).is_err() {
+        let persisted = ReceiptScope::new(
+            &self.run,
+            &self.profile,
+            &self.sha256,
+            &self.candidate,
+            self.role,
+            &self.tool_sha256,
+            &self.prompt_sha256,
+        )
+        .and_then(|scope| write_retained(&self.profile_dir, &scope, &run));
+        if persisted.is_err() {
             let _ = self.quiesce_uncertain();
             return Err(refused("provider run receipt not durable"));
         }

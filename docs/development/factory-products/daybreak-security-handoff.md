@@ -156,9 +156,16 @@ retired tree, complete output and a 419-byte candidate bundle. Git verified
 the returned commit's parent and expected edit. Exact retirement removed the
 run source, preparation, agent socket and relay runtime; temporary units,
 binaries and owner socket were removed. This proves the broker-to-worker
-result path for one dummy run. The live native receipt writer-to-reader
-roundtrip, cross-run refusal, Go admission/checkpoint binding, candidate
-retrieval/publication and crash/reboot reconciliation are unverified. The
+result path for one dummy run. The production receipt writer and reader now
+share one exact scope and header validator. A further disposable current-unit
+check used the typed Rust broker client and this writer on a dummy coder run.
+It synced the 31-byte output and 419-byte candidate bundle to a private
+receipt; a separate process reopened the same receipt after the writer exited,
+recovered the matching result and refused a wrong source scope. Git verified
+the recovered candidate bundle, and exact broker retirement removed the run.
+The live `RunOwner` credential-bearing receipt path, cross-run refusal, Go
+admission/checkpoint binding, candidate retrieval/publication and crash/reboot
+reconciliation are unverified. The
 aggregate worker workspace and ignored-file storage bound is still
 unqualified on the actual worker service; the changed-file preflight is not
 that bound. A failed checkpoint currently yields uncertainty, but no recovered
