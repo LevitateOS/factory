@@ -96,10 +96,17 @@ in both the native-process parent and its captured child, although stat worked
 and a direct command in the matching disposable service profile could read it.
 Copying the fixture from the protected worktree to `/run` did not change the
 denial. The cause is unverified. The temporary socket, units, binaries and
-`/run` fixture were removed. Before any N3/D3 closure, reproduce with the
-broker's actual preparation source, establish the file-access cause without
-bypassing an enforced boundary, then prove a complete exact reviewer and coder
-service response with source/candidate checks and cleanup. Relevant code:
+`/run` fixture were removed. A follow-up disposable check used the actual
+`soda-factory-preparer` binary on a 373-byte dummy Git bundle in the broker's
+root-owned source/output layout. It exited zero and created a dynamic-UID
+checkout. With that checkout bound read-only, the current agent profile
+returned exact reviewer and coder attestations: worker UID 64596, root peer,
+read-only source and a private workspace only for coder. This proves the
+preparer-to-worker component path for those dummy inputs, not why the
+hand-built fixture was denied. The broker did not orchestrate the run, and no
+tool/provider, candidate result or credential path was exercised. Before N3/D3
+closure, verify the broker-orchestrated production source and explain any
+remaining file-access denial without bypassing an enforced boundary. Relevant code:
 `cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`,
 `lib/native-process/src/`, `cmd/soda-factory-broker/src/main.rs`,
 `cmd/soda-factory-broker/src/preparation_quota.rs` and the agent service/socket
@@ -110,11 +117,10 @@ service-path checks of retained multi-run capacity/refusal, cleanup/retry,
 coder/output bounds, writable mounts, and denial when `/run` has low free
 space, with exact process and filesystem observations. These component checks
 do not close D3.
-The agent unit also now disables swap under its existing 1 GiB memory ceiling;
-its binary built and a rendered scratch unit passed parser verification, but no
-live agent service ran. Actual coder workspace/output limits, cleanup and
-captured results still need service-path evidence before the D3 storage
-requirement can close.
+The agent unit also disables swap under its existing 1 GiB memory ceiling.
+The current disposable service attested workspace creation but did not exercise
+workspace/output limits, cleanup under growth, or captured results. Those
+require service-path evidence before the D3 storage requirement can close.
 
 For D3 result custody, the worker now has a direct Git check of clean committed
 candidate bundling and bounded dirty-edit checkpointing. After the agent tree

@@ -24917,3 +24917,17 @@ unverified. The temporary units, binaries, socket and `/run` fixture were
 removed. Reproduce with the actual broker preparation source and establish the
 access cause before considering any N3 service-path qualification. This failed
 attempt does not complete T09-NATIVE-EXECUTOR or D3.
+
+T09-NATIVE-EXECUTOR preparer-to-worker follow-up (2026-11-05): a 373-byte
+verified dummy Git bundle was staged under the broker's root-owned `/run`
+layout. The actual `soda-factory-preparer` binary, run under its dynamic-UID
+systemd profile, exited zero and produced a checkout with the expected owner
+and mode. A temporary current agent service/socket then returned exact reviewer
+and coder attestations against that read-only checkout. Both reported worker
+UID 64596 and root peer; the coder alone reported a private workspace. This
+narrows the earlier `EACCES` observation to the hand-built fixture without
+explaining it. The broker did not orchestrate these manual staging inputs; no
+`execute_agent`, provider credential, candidate capture, storage exhaustion or
+cross-run check ran. The temporary units, binaries, socket and exact staged
+run were removed; the preexisting broker runtime parents and lock remained.
+T09-NATIVE-EXECUTOR and D3 remain open.

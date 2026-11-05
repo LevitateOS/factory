@@ -358,6 +358,17 @@ cause is unresolved. The temporary units, binaries and `/run` fixture were
 removed. This failed attempt does not qualify worker source admission, native
 process reads, or the D3 gate.
 
+A follow-up disposable check used the actual `soda-factory-preparer` binary on
+a 373-byte dummy Git bundle, with the broker's root-owned source and output
+mount modes. The preparer exited zero and created a dynamic-UID checkout. The
+current agent service profile then returned exact reviewer and coder
+attestations from that checkout: worker UID 64596, root peer, read-only source,
+and a private coder workspace only for the coder role. This narrows the earlier
+`EACCES` to the hand-built fixture path without establishing its cause. The
+broker did not orchestrate this preparation; neither role executed a tool or
+provider request. The temporary services, binaries, socket and staged run were
+removed. Full service admission, storage exhaustion and D3 remain open.
+
 The production agent's Git HEAD admission check now runs the fixed captured
 `/usr/bin/git` executable inside its native process owner, with a three-second
 deadline, 4 KiB output ceiling, CPU/memory/process limits, and required tree
