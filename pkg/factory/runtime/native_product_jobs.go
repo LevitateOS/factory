@@ -53,16 +53,21 @@ type nativeJob struct {
 	CheckRunURL        *string                `json:"check_run_url"`
 }
 type nativeJobCursor struct {
-	Kind       string                 `json:"kind"`
-	Repository string                 `json:"repository"`
-	Number     int64                  `json:"number"`
-	Head       collaboration.CommitID `json:"head"`
-	Limit      int                    `json:"limit"`
-	RunPage    int                    `json:"run_page"`
-	JobPage    int                    `json:"job_page"`
-	Run        string                 `json:"run"`
-	Attempt    string                 `json:"attempt"`
-	Total      int64                  `json:"total"`
+	Kind         string                 `json:"kind"`
+	Repository   string                 `json:"repository"`
+	Number       int64                  `json:"number"`
+	Head         collaboration.CommitID `json:"head"`
+	Base         collaboration.CommitID `json:"base"`
+	Branch       string                 `json:"branch"`
+	Limit        int                    `json:"limit"`
+	RunPage      int                    `json:"run_page"`
+	JobPage      int                    `json:"job_page"`
+	Run          string                 `json:"run"`
+	Attempt      string                 `json:"attempt"`
+	Total        int64                  `json:"total"`
+	JobTotal     int64                  `json:"job_total"`
+	PreviousJobs []string               `json:"previous_jobs"`
+	PreviousRun  string                 `json:"previous_run"`
 }
 
 func jobReadError(err error) error {
@@ -110,9 +115,16 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 	if q.Cursor != "" {
 		encoded, err := base64.RawURLEncoding.DecodeString(q.Cursor)
 		var supplied nativeJobCursor
-		if err != nil || len(q.Cursor) > 4096 || nativeDecode(encoded, &supplied) != nil || supplied.Kind != c.Kind || supplied.Repository != c.Repository || supplied.Number != number || supplied.Head != c.Head || supplied.Limit != q.Limit || supplied.RunPage < 1 || supplied.RunPage > 1_000_000 || supplied.JobPage < 1 || supplied.JobPage > 1_000_000 || supplied.Total < 0 ||
-			!(supplied.Run == "" && supplied.Attempt == "" && supplied.JobPage == 1 || nativeRemoteID(supplied.Run) && nativeRemoteID(supplied.Attempt)) {
+		if err != nil || len(q.Cursor) > 4096 || nativeDecode(encoded, &supplied) != nil || supplied.Kind != c.Kind || supplied.Repository != c.Repository || supplied.Number != number || supplied.Head != c.Head || !collaboration.ValidCommitID(supplied.Base) || !collaboration.ValidText(supplied.Branch, 4096) || supplied.Limit != q.Limit || supplied.RunPage < 1 || supplied.RunPage > 1000 || supplied.JobPage < 1 || supplied.JobPage > 1_000_000 || supplied.Total < 1 || supplied.Total > 1000 || supplied.JobTotal < 0 || len(supplied.PreviousJobs) > q.Limit || supplied.PreviousRun != "" && !nativeRemoteID(supplied.PreviousRun) || supplied.RunPage > 1 && supplied.PreviousRun == "" ||
+			!(supplied.Run == "" && supplied.Attempt == "" && supplied.JobPage == 1 && supplied.RunPage > 1 && supplied.JobTotal == 0 && len(supplied.PreviousJobs) == 0 || nativeRemoteID(supplied.Run) && nativeRemoteID(supplied.Attempt) && supplied.JobPage > 1 && supplied.JobTotal > 0 && len(supplied.PreviousJobs) > 0) {
 			return empty, factoryservice.ErrChecksQuery
+		}
+		seen := map[string]bool{}
+		for _, id := range supplied.PreviousJobs {
+			if !nativeRemoteID(id) || seen[id] {
+				return empty, factoryservice.ErrChecksQuery
+			}
+			seen[id] = true
 		}
 		c = supplied
 	}
@@ -151,6 +163,10 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 		return empty, errNativeRead
 	}
 	c.Head = raw.Head
+	if c.Base != "" && (c.Base != raw.Base || c.Branch != raw.Branch) {
+		return empty, factoryservice.ErrChecksChanged
+	}
+	c.Base, c.Branch = raw.Base, raw.Branch
 	runs := raw.Runs
 	stage = "workflow_binding"
 	if runs.Repository != c.Repository || runs.Head != c.Head || runs.Items == nil || !validNativePage(runs.NextPage, c.RunPage, 1, len(runs.Items), false) || runs.Total < int64(len(runs.Items)) || q.Cursor != "" && runs.Total != c.Total || len(runs.Items) == 0 && (c.RunPage != 1 || runs.Total != 0) {
@@ -162,34 +178,48 @@ func (s nativeCollaborationReads) readJobs(ctx context.Context, actor collaborat
 	var jobFacts any
 	if len(runs.Items) == 1 {
 		run := runs.Items[0]
-		if !nativeRemoteID(run.ExternalID) || !nativeRemoteID(run.RunNumber) || !nativeRemoteID(run.Attempt) || !nativeRemoteID(run.WorkflowID) || run.Head != c.Head || run.Path == "" || run.Event == "" || c.Run != "" && (c.Run != run.ExternalID || c.Attempt != run.Attempt) {
+		if !nativeRemoteID(run.ExternalID) || !nativeRemoteID(run.RunNumber) || !nativeRemoteID(run.Attempt) || !nativeRemoteID(run.WorkflowID) || run.Head != c.Head || run.Path == "" || run.Event == "" || c.Run != "" && (c.Run != run.ExternalID || c.Attempt != run.Attempt) || c.PreviousRun == run.ExternalID {
 			return empty, factoryservice.ErrChecksChanged
 		}
 		jobs := raw.Jobs
 		stage = "job_binding"
-		if jobs == nil || jobs.Repository != c.Repository || jobs.Name != runs.Name || !sameNativeWorkflow(jobs.Run, run) || jobs.Items == nil || !validNativePage(jobs.NextPage, c.JobPage, c.Limit, len(jobs.Items), false) || jobs.Total < int64(len(jobs.Items)) {
+		if jobs == nil || jobs.Repository != c.Repository || jobs.Name != runs.Name || !sameNativeWorkflow(jobs.Run, run) || jobs.Items == nil || !validNativePage(jobs.NextPage, c.JobPage, c.Limit, len(jobs.Items), false) || jobs.Total < int64(len(jobs.Items)) || c.JobPage > 1 && jobs.Total != c.JobTotal {
 			return empty, factoryservice.ErrChecksChanged
 		}
 		run = jobs.Run
 		stage = "job_projection"
 		seen := map[string]bool{}
+		previous := map[string]bool{}
+		for _, id := range c.PreviousJobs {
+			previous[id] = true
+		}
+		previousJobs := []string{}
 		for _, job := range jobs.Items {
+			if previous[job.ExternalID] {
+				return empty, factoryservice.ErrChecksChanged
+			}
 			if !nativeRemoteID(job.ExternalID) || seen[job.ExternalID] || job.RunID != run.ExternalID || job.Attempt != run.Attempt || job.Head != c.Head || job.Name == "" {
 				return empty, errNativeRead
 			}
 			seen[job.ExternalID] = true
+			previousJobs = append(previousJobs, job.ExternalID)
 			items = append(items, collaboration.Check{Repository: repo, Commit: c.Head, Kind: "job", ExternalID: "job:" + job.ExternalID, Name: job.Name, Observation: s.observation(job),
 				ProviderState: deref(job.ProviderStatus), State: job.State, Conclusion: job.Conclusion, DetailsURL: deref(job.DetailsURL),
 				Job: &collaboration.CheckJob{RunID: run.ExternalID, RunNumber: run.RunNumber, Workflow: run.Path, Ref: deref(run.HeadBranch), Event: run.Event, RunState: deref(run.ProviderStatus), JobID: job.ExternalID, Attempt: run.Attempt, StartedAt: job.StartedAt, StoppedAt: job.CompletedAt}})
 		}
 		if jobs.NextPage != 0 {
 			c.JobPage, c.Run, c.Attempt = jobs.NextPage, run.ExternalID, run.Attempt
+			c.JobTotal, c.PreviousJobs = jobs.Total, previousJobs
 		} else if runs.NextPage != 0 {
 			c.RunPage, c.JobPage, c.Run, c.Attempt = runs.NextPage, 1, "", ""
+			c.PreviousRun, c.JobTotal, c.PreviousJobs = run.ExternalID, 0, nil
 		}
 		if jobs.NextPage != 0 || runs.NextPage != 0 {
 			encoded, _ := json.Marshal(c)
 			next = base64.RawURLEncoding.EncodeToString(encoded)
+			if len(next) > 4096 {
+				return empty, factoryservice.ErrChecksTooLarge
+			}
 		}
 		jobFacts = jobs
 	} else if raw.Jobs != nil {

@@ -576,7 +576,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 180 | T06-CONNECT-READS | T06-CONNECT-PRODUCT | N2 producer: Map the complete native Rust collaboration observations into Go canonical issue/PR/discussion/review/file/check read sources, wire shared read services over fresh selected-resource admission and preserve pagination/null facts/atomic participant and repository mappings. Qualify bound shared HTTP before desktop selection/UI; provider decoding stays in Rust. | Complete |
 | 181 | T06-CONNECT-BRIDGE | T06-CONNECT-READS | N2 producer: Supply per-window native account/repository connection admission and bounded cancellable shared-product IPC, retaining Rust custody/lifecycle and Go canonical product identity/transactions. Qualify the actual native bridge before binding the shared Lit application. | Complete |
 | 182 | T06-CONNECT | T06-CONNECT-BRIDGE | N2: Bind production desktop selection/shared UI and Go product services to the current account/repository and real GitHub reads; expose execution as unavailable until its ports are admitted; verify switches/reconnect/drafts and preserve empty filtered issue pages with continuations. Fountain desktop connects later in T10-GATEWAY; its absence must not block the GitHub path. | Complete |
-| 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Active |
+| 183 | T06-GITHUB-EVIDENCE | T06-CONNECT | Complete native authenticated workflow-job and branch-protection observations and their Go canonical read projection; qualify actual connected reads and preserve unknown requirements/gates until this producer is admitted. Rust owns provider operations/decoding, Go owns projection and policy. | Complete |
 | 184 | T06-GITHUB | T06-CONNECT, T06-GITHUB-EVIDENCE, T06-GITHUB-RUST, T06-GITHUB-FILES, T06-GITHUB-REVIEWS, T06-GITHUB-CHECK-RUNS, T06-GITHUB-STATUSES, T06-GITHUB-REVIEW-COMMENTS | GitHub public-client login and normalized collaboration reads using the bounded native credential capability; verify successful consent/identity/storage, canonical identity mapping, pagination, private access and revocation in the connected desktop. Retire/migrate the historical Go-observer check consumers without adding a parallel connector or test hierarchy. | Pending |
 | 185 | T07-ISSUE-LIST | T04-UI, T06-FOUNTAIN | Build the shared production Lit issue list over canonical collaboration reads with state filters, bounded paging, labels/assignees/timestamps and host-owned issue navigation; verify production bundle, stories and browser scope/retirement/access behavior. Connected host navigation remains in T07-READ. | Complete |
 | 186 | T07-ISSUE-DETAIL | T07-ISSUE-LIST | Build the shared read-only issue detail/conversation over canonical reads, with sanitized Markdown, host-owned links, bounded comment paging and scoped retirement/access handling; verify emitted assets, stories and browser behavior before connected navigation. | Complete |
@@ -26238,3 +26238,72 @@ canonical evidence
 `295e7dba0e461997c28d0ea784a3fd1cfe657be7f3387c267ddf5fa407477f85`.
 The declared mutation proof and the live connected read proof remain separate;
 neither is installed or full-provider qualification.
+
+## T06-GITHUB-EVIDENCE — completed source producer (2026-11-05)
+
+The remaining workflow-job qualification is complete. The existing declared
+HTTPS/native/keyring/PostgreSQL/Go integration check exited zero with 62 case
+entries across protection and jobs, plus local withdrawal. Normal job paging
+progresses; zero workflows, zero jobs, and an empty first run with a nonempty
+successor stay distinct. Captured run/attempt/count and cursor scope changes
+refuse; malformed job bindings, inconsistent/truncated pages, and the filtered
+workflow cap refuse. Withdrawal during a provider-blocked job read releases no
+observation, and an already admitted old local capability cannot start a job
+read afterward. The fixture uses a dummy token and has no outbound forwarding.
+
+The check recorded five missed refusals before the fix: changed job count,
+repeated job, changed base/branch, and a run repeated after an empty first run.
+The Go job cursor now retains base/branch, exact job total, the previous job
+page's IDs and the previous completed run, alongside the existing repository/
+PR/head/page-size/run/attempt/run-count pins. Empty runs still retain their real
+successor. Cursor shape and IDs are bounded, old weaker cursors refuse, and an
+oversized emitted cursor refuses instead of returning an unusable continuation.
+Rust additionally checks exact workflow/job count, page size and consecutive
+continuation metadata rather than presenting truncated data as complete.
+These remain bounded page observations, not an atomic historical snapshot across
+all pages. No merge eligibility or actor/bypass authority is inferred.
+
+Declared source/fixture/scripts/input hashes and results:
+`/home/vince/tmp/factory-github-declared-1105/attempt9/`.
+Safe result SHA-256:
+`cf1a9efcdceaaf1f79018f9d59d30175dd7fe458b89a36c1db44ee0ca6198ea7`;
+missed-refusal inventory (empty):
+`4b1956ba5ce910f65e2dd9a7563d99651cda7dcd8893dde419524462686d44ee`.
+Attempts 6–7 retain incorrect harness status expectations; attempt 8 records the
+five missing consistency refusals; attempt 9 passes those refusals. Earlier
+policy/source failures remain preserved too. Go build/vet, locked offline native
+integration and desktop native-check builds, dependency-boundary and whitespace
+checks passed. Retained inputs are not a fresh installed qualification.
+
+The rebuilt actual connected Tauri/WebKit/native Rust/Go/PostgreSQL/GitHub
+journey also exited zero: canonical job read and progressing continuation,
+changed-head/malformed-cursor refusals, canonical protection with unavailable
+classic input kept unknown, private access, two repository pages, real refresh
+and the shared UI journey. Its approved encrypted account is retained for the
+next provider slice; local removal and remote revocation are false here.
+Current live root `/home/vince/tmp/factory-github-jobs-1105/`; the preceding live
+snapshot checkpoint is preserved in `protection-snapshot-checkpoint/`.
+Current live log SHA-256:
+`3fa077b6ccf79ff2e225a411dacd7f49db220e8781bbaeb23ff35c57421d3b03`;
+safe consent result:
+`bf7d3f18307d75fb9ef8969519cdd6204056651ed7ec79d81b4b6096c49f8007`;
+explicit canonical evidence:
+`295e7dba0e461997c28d0ea784a3fd1cfe657be7f3387c267ddf5fa407477f85`.
+
+### Finish-condition audit
+
+| Requirement | Authoritative evidence | Result |
+| --- | --- | --- |
+| Complete defining native authenticated workflow/run-attempt/job observations | Rust semantic selectors/decoder and the actual connected native job read; declared run/attempt/binding/count/truncation cases in attempt 9 | Complete for this source producer |
+| Branch-protection observations with unavailable/app-qualified facts preserved | Actual active-rules/hidden-classic read; declared positive classic/rules, typed app-source constraints, unknown parameters and policy mutations through real native/Go components | Complete for this source producer; live positive classic mutations are not claimed |
+| Go canonical identity and read projection | Actual shared HTTP job/protection reads and continuation; declared canonical scope/base/branch/cursor and withdrawal refusals | Complete; Go retains product identity/transactions/policy |
+| Actual connected behavior | Terminal-zero rebuilt Tauri/WebKit/keyring/PG/Go/Rust/GitHub journey and explicit canonical evidence above | Complete for source composition |
+| Preserve unknown requirements and gates | Job approval, definition commit, requiredness, actor/bypass authority and merge status remain unknown; hidden/partial sources cannot become complete requirements | Complete; no execution or mutation authority enabled |
+
+Row T06-GITHUB-EVIDENCE is Complete. The next ready row is T06-GITHUB, whose own
+finish condition still requires provider-side revocation/subsequent refusal and
+retiring/migrating the historical Go-observer check consumers. Neither these
+producer results nor local withdrawal close that final provider gate. Installed,
+D1/D2/D3/D5 and native executor gates remain open; the full product goal remains
+active. No unrelated edits, retained credentials/profiles or evidence were
+removed, and no remote repository was changed.

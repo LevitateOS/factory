@@ -266,12 +266,194 @@ pub(super) async fn run_evidence_declared(
         )?;
         cases.push(name);
     }
+    let jobs_target =
+        format!("/api/factory/collaboration/repositories/{repository}/pulls/7/checks/jobs?limit=1");
+    mode("jobs-normal-product")?;
+    let (status, first) =
+        declared_product(&runtime, &store, &saved.connection, &jobs_target).await?;
+    ensure(
+        status == 200
+            && first["kind"] == "job"
+            && first["commit"] == "a".repeat(40)
+            && first["status_gate"] == "unknown"
+            && first["checks"]["items"][0]["job"]["run_id"] == "100"
+            && first["checks"]["items"][0]["job"]["attempt"] == "1"
+            && first["checks"]["items"][0]["required"].is_null(),
+        "canonical declared workflow job lost scope or invented authority",
+    )?;
+    let cursor = first["checks"]["next"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .ok_or("job continuation missing")?;
+    let continued = format!("{jobs_target}&head={}&cursor={cursor}", "a".repeat(40));
+    let (status, next) = declared_product(&runtime, &store, &saved.connection, &continued).await?;
+    ensure(
+        status == 200
+            && next["checks"]["complete"] == true
+            && next["checks"]["items"][0]["external_id"]
+                != first["checks"]["items"][0]["external_id"],
+        "job continuation did not progress to completion",
+    )?;
+    cases.push("jobs-normal-product");
+    let mut missed = Vec::new();
+    for name in [
+        "jobs-job-count-change-product",
+        "jobs-repeat-product",
+        "jobs-base-change-product",
+        "jobs-branch-change-product",
+        "jobs-run-count-change-product",
+        "jobs-run-replaced-product",
+        "jobs-attempt-change-product",
+    ] {
+        mode(name)?;
+        let (status, body) =
+            declared_product(&runtime, &store, &saved.connection, &continued).await?;
+        if status != 409 || body.get("checks").is_some() {
+            missed.push(name);
+        } else {
+            cases.push(name);
+        }
+    }
+    {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        let original: Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(cursor)?)?;
+        for (field, value) in [
+            ("repository", json!("124")),
+            ("number", json!(8)),
+            ("head", json!("c".repeat(40))),
+            ("limit", json!(2)),
+        ] {
+            mode("jobs-cursor-product")?;
+            let mut wrong = original.clone();
+            wrong[field] = value;
+            let wrong = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&wrong)?);
+            let (status, body) = declared_product(
+                &runtime,
+                &store,
+                &saved.connection,
+                &format!("{jobs_target}&head={}&cursor={wrong}", "a".repeat(40)),
+            )
+            .await?;
+            ensure(
+                status == 400 && body.get("checks").is_none(),
+                "job cursor escaped captured scope",
+            )?;
+        }
+        cases.push("jobs-cursor-scope-product");
+    }
+    for name in [
+        "jobs-empty-product",
+        "jobs-no-jobs-product",
+        "jobs-empty-first-product",
+    ] {
+        mode(name)?;
+        let (status, body) =
+            declared_product(&runtime, &store, &saved.connection, &jobs_target).await?;
+        ensure(
+            status == 200
+                && body["checks"]["items"] == json!([])
+                && body["status_gate"] == "unknown",
+            "empty workflow observation invented a job or gate",
+        )?;
+        if name == "jobs-empty-first-product" {
+            let cursor = body["checks"]["next"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .ok_or("empty job run lost successor")?;
+            let target = format!("{jobs_target}&head={}&cursor={cursor}", "a".repeat(40));
+            let (status, next) =
+                declared_product(&runtime, &store, &saved.connection, &target).await?;
+            ensure(
+                status == 200
+                    && next["checks"]["complete"] == true
+                    && next["checks"]["items"][0]["job"]["run_id"] == "101",
+                "empty job run did not continue to another run",
+            )?;
+            mode("jobs-multi-reordered-product")?;
+            let (status, next) =
+                declared_product(&runtime, &store, &saved.connection, &target).await?;
+            if status != 409 || next.get("checks").is_some() {
+                missed.push("jobs-multi-reordered-product");
+            } else {
+                cases.push("jobs-multi-reordered-product");
+            }
+        } else {
+            ensure(
+                body["checks"]["complete"] == true && body["checks"]["next"] == "",
+                "empty workflow result did not end",
+            )?;
+        }
+        cases.push(name);
+    }
+    for (name, expected) in [
+        ("jobs-attempt-during-product", 409),
+        ("jobs-list-head-product", 502),
+        ("jobs-bad-run-product", 502),
+        ("jobs-bad-head-product", 502),
+        ("jobs-bad-attempt-product", 502),
+        ("jobs-bad-url-product", 502),
+        ("jobs-truncated-product", 502),
+        ("jobs-empty-inconsistent-product", 502),
+        ("jobs-cap-product", 413),
+        ("revoked-product", 0),
+        ("limited-product", 0),
+        ("identity-change-product", 0),
+        ("repository-change-product", 0),
+    ] {
+        mode(name)?;
+        let response = declared_product(&runtime, &store, &saved.connection, &jobs_target).await;
+        if let Ok((status, body)) = response {
+            ensure(
+                (status == expected || expected == 0 && (400..=599).contains(&status))
+                    && body.get("checks").is_none(),
+                &format!("declared job refusal {name} differs: {status}"),
+            )?;
+        }
+        cases.push(name);
+    }
+    fs::write(
+        root.join("job-refusals.json"),
+        serde_json::to_vec(&json!({"declared_provider_responses":true,"missed_refusals":missed}))?,
+    )?;
+    ensure(
+        missed.is_empty(),
+        "declared workflow job consistency refusals missing; see private job-refusals.json",
+    )?;
     let retired = runtime.admit_product(
         store.clone(),
         store.capability(&saved.connection).await?,
         Some("123".into()),
     )?;
+    let retired_jobs = runtime.admit_product(
+        store.clone(),
+        store.capability(&saved.connection).await?,
+        Some("123".into()),
+    )?;
+    mode("jobs-pause-product")?;
+    let pending = runtime.admit_product(
+        store.clone(),
+        store.capability(&saved.connection).await?,
+        Some("123".into()),
+    )?;
+    let mut pending = Box::pin(pending.request("GET", &jobs_target, &[]));
+    entered(pending.as_mut(), &io).await?;
     store.withdraw(&saved.connection).await?;
+    mark(&io.join("release"))?;
+    if let Ok(response) = pending.await {
+        let body: Value = serde_json::from_slice(&response.body)?;
+        ensure(
+            response.status != 200 && body.get("checks").is_none(),
+            "withdrawn pending job read released observations",
+        )?;
+    }
+    ensure(
+        retired_jobs
+            .request("GET", &jobs_target, &[])
+            .await
+            .is_err(),
+        "withdrawn declared capability admitted jobs",
+    )?;
+    cases.push("jobs-withdraw-pending-product");
     ensure(
         retired.request("GET", &target, &[]).await.is_err(),
         "withdrawn declared capability admitted canonical protection",
@@ -290,6 +472,21 @@ pub(super) async fn run_evidence_declared(
     )?;
     println!("PASS: declared HTTPS protection facts/refusals cross production native decoder, canonical Go reads and private keyring/PG; no live provider or merge gate qualified");
     Ok(())
+}
+
+async fn declared_product(
+    runtime: &NativeSupervisor,
+    store: &Arc<Credentials>,
+    connection: &str,
+    target: &str,
+) -> Result<(u16, serde_json::Value)> {
+    let request = runtime.admit_product(
+        store.clone(),
+        store.capability(connection).await?,
+        Some("123".into()),
+    )?;
+    let response = request.request("GET", target, &[]).await?;
+    Ok((response.status, serde_json::from_slice(&response.body)?))
 }
 
 fn account() -> Account {
@@ -734,8 +931,8 @@ fn pause(io: &Path) -> Result<()> {
     }
     mark(&io.join("pause"))
 }
-async fn entered<T>(
-    future: Pin<&mut impl Future<Output = std::result::Result<T, Error>>>,
+async fn entered<T, E: std::fmt::Display>(
+    future: Pin<&mut impl Future<Output = std::result::Result<T, E>>>,
     io: &Path,
 ) -> Result<()> {
     let mut future = future;

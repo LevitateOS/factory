@@ -13,6 +13,28 @@ fn total(value: &Value) -> Result<u64> {
         .ok_or_else(Failure::protocol)
 }
 
+// These endpoints provide an exact count. Missing/truncated page data or a
+// skipped continuation must not become a falsely complete workflow/job read.
+fn counted_page(
+    response: &super::transport::Response,
+    page: u32,
+    limit: u32,
+    count: u64,
+) -> Result<&Vec<Value>> {
+    let items = page_items(response, page, limit, true)?;
+    let start = u64::from(page - 1) * u64::from(limit);
+    let expected = count.saturating_sub(start).min(u64::from(limit));
+    let next = if start + (items.len() as u64) < count {
+        page + 1
+    } else {
+        0
+    };
+    if items.len() as u64 != expected || response.next != next {
+        return Err(Failure::protocol());
+    }
+    Ok(items)
+}
+
 impl Reader<'_> {
     fn workflow(&self, value: &Value) -> Result<Value> {
         let id = r::id(&value["id"])?;
@@ -65,7 +87,7 @@ impl Reader<'_> {
         response.value = response.value["workflow_runs"].take();
         let mut items = Vec::new();
         let mut seen = HashSet::new();
-        for value in page_items(&response, page, limit, true)? {
+        for value in counted_page(&response, page, limit, count)? {
             let run = self.workflow(value)?;
             unique(&mut seen, r::text(&run, "external_id")?)?;
             if !head.is_empty() && run["head"] != head {
@@ -112,7 +134,7 @@ impl Reader<'_> {
         response.value = response.value["jobs"].take();
         let mut items = Vec::new();
         let mut seen = HashSet::new();
-        for value in page_items(&response, page, limit, true)? {
+        for value in counted_page(&response, page, limit, count)? {
             let id = r::id(&value["id"])?;
             unique(&mut seen, &id)?;
             if r::id(&value["run_id"])? != run
