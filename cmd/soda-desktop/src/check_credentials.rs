@@ -1029,7 +1029,24 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#.replace("__LIVE__",if mode != check::SignInMode::Declared {"true"} else {"false"})
     .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"});
-    let _ = window.eval(&script);
+    if mode == check::SignInMode::Consent {
+        tauri::async_runtime::spawn(async move {
+            let ready = match app.state::<Desktop>().credentials() {
+                Ok(store) => store.storage_ready().await.is_ok(),
+                Err(_) => false,
+            };
+            if !ready {
+                eprintln!("Native approved sign-in check refused: default keyring unavailable");
+                app.exit(1);
+                return;
+            }
+            if window.eval(&script).is_err() {
+                app.exit(1);
+            }
+        });
+    } else {
+        let _ = window.eval(&script);
+    }
 }
 
 pub fn start(app: tauri::AppHandle) {

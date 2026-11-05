@@ -145,6 +145,10 @@ The historical `--check-signin` declared provider observer depended on the retir
 Go connector and is no longer current cutover evidence. Its source is retained
 for the existing check migration, without adding a second production connector.
 The real `--check-signin-live`/`--check-signin-consent` paths use the Rust owner.
+The opt-in consent observer checks that the current Secret Service has an
+unlocked default collection before it starts a new device challenge. This
+preflight catches an absent or locked fixture keyring; it does not prove that
+an approved grant can be written and reopened.
 The consent check additionally exercises actual WebKit IPC for native connection,
 repository paging/selection, canonical Go identity, feed/issue/PR reads, explicit
 request cancellation, disconnect and reconnect. It keeps missing job evidence

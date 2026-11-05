@@ -25416,3 +25416,22 @@ returned 403 on both ordered backend incarnations. Existing Go MCP HTTP
 integration checks passed. This does not supply the production native MCP
 listener, canonical capability row, isolated worker transport or a real
 admitted run. N3 and D3 remain open.
+
+T06-CONNECT consent keyring preflight checkpoint (2026-11-05): the opt-in
+`--check-signin-consent` observer now asks the Rust credential owner whether
+the current Secret Service has an unlocked default collection before starting
+a fresh GitHub device challenge. A missing or locked collection exits the
+check early with a generic error, avoiding another user approval that cannot
+be saved. Locked offline native-check compilation and touched-file rustfmt
+passed. A fresh headless Tauri/WebKit run against an uninitialized private
+keyring reached the shared UI and native backend, reported the expected
+default-keyring refusal, exited 1 and created no public user-code file. Its
+retained external log is
+`/home/vince/tmp/factory-evidence-20261105/consent-preflight-20261105.log`
+(SHA-256 `2a0a0b9232178859c32f075a7b3aef3d6c52af42161965908dc6d96cb35641b7`).
+The scratch desktop ELF was SHA-256
+`576542b9b9ba036c0f8632b07a3aaa53e8659d9714c5a44f241686025a2bdc07`.
+This negative preflight does not write or reopen a grant, diagnose the
+historical crash, or close T06-CONNECT. A fresh private keyring must still be
+initialized and a complete approved connected journey observed when the user
+is available.

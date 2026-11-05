@@ -76,6 +76,17 @@ another real challenge, initialize and verify a fresh private keyring for the
 headless fixture, then retain the actual native save/reload and connected
 read/IPC result. The user is unavailable for another consent step for the
 next four to six hours. No connected gate is closed.
+The opt-in consent observer now checks for an unlocked default collection
+before starting a new challenge. Locked offline native-check compilation
+passed. A fresh uninitialized private-keyring Tauri/WebKit run reached the
+shared UI and native backend, reported the expected refusal, exited 1 and
+created no user-code file. Its external log is
+`/home/vince/tmp/factory-evidence-20261105/consent-preflight-20261105.log`
+(SHA-256 `2a0a0b9232178859c32f075a7b3aef3d6c52af42161965908dc6d96cb35641b7`).
+This proves only the negative preflight; it does not prove a write or restore
+the absent collection. Initialize and verify the disposable keyring before
+another approval request, then retain the actual grant save/reload and
+connected result.
 A subsequent disposable PostgreSQL/Go/Rust supervisor check exercised a
 synthetic bound MCP initialization through the real Rust secret verifier.
 Exact current-work preparation and run observation returned 200; missing

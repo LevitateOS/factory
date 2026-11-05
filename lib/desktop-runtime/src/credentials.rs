@@ -377,6 +377,19 @@ impl Credentials {
         })
         .await
     }
+    /// Check that the session has an unlocked default collection before a
+    /// consent flow asks the user to approve a grant that must be saved.
+    pub async fn storage_ready(&self) -> Result<()> {
+        self.bounded(async {
+            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let collection = service.get_default_collection().await?;
+            if collection.is_locked().await? {
+                return Err(Error::Locked);
+            }
+            Ok(())
+        })
+        .await
+    }
     /// Login writes come from a native connector, never a webview command.
     pub async fn store(&self, account: Account, token: Token) -> Result<AccountStatus> {
         self.store_secret(account, Secret::Token(token)).await
