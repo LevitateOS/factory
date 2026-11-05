@@ -2,8 +2,8 @@
 //! supplied by the future Go execution port; this module cannot create it.
 use super::receipt::ensure_receipts;
 use super::{
-    write_retained, AgentCancellation, AgentRun, BoundOwner, Broker, Owner, Policy, ReceiptScope,
-    Role,
+    write_retained, AgentCancellation, AgentRun, AgentStarted, BoundOwner, Broker, Owner, Policy,
+    ReceiptScope, Role,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
@@ -210,6 +210,18 @@ impl RunOwner {
         executable: &Path,
         duration: Duration,
     ) -> io::Result<AgentRun> {
+        self.execute_observed(prompt, executable, duration, |_| Ok(()))
+    }
+
+    /// Observe the broker-validated isolated process before its terminal
+    /// receipt. Observation alone never activates product or MCP authority.
+    pub fn execute_observed(
+        &mut self,
+        prompt: &[u8],
+        executable: &Path,
+        duration: Duration,
+        on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
+    ) -> io::Result<AgentRun> {
         if self.attempted || self.retired {
             return Err(refused("provider run already consumed"));
         }
@@ -219,7 +231,7 @@ impl RunOwner {
             return Err(refused("provider run deadline or owner unavailable"));
         }
         self.attempted = true;
-        let result = Broker::execute_agent_cancellable(
+        let result = Broker::execute_agent_observed(
             &self.run,
             &self.profile,
             &self.sha256,
@@ -232,6 +244,7 @@ impl RunOwner {
             self.owner.placeholder(),
             duration,
             self.cancellation.clone(),
+            on_started,
         );
         let run = match result {
             Ok(run) => run,

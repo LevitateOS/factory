@@ -230,6 +230,14 @@ check denied desktop canary access and source writes, refused altered prompt
 and ELF bytes before launch, and retired a sleeping child when the caller left.
 The captured Muse ELF reached a credential-free private relay, which returned
 401; this did not qualify account credential custody or a real provider run.
+The version-2 execution request also emits a bounded `agent_started` frame
+immediately after the captured process starts. The broker and native owner
+validate its exact run and process identity before exposing it to a trusted
+observer, then require the terminal receipt to match. A disposable service
+check received it before a three-second local child exited and stopped a
+second run when the observer refused. This supplies start evidence for the
+execution consumer; current liveness, Go admission and MCP activation remain
+separate requirements.
 The execution receipt now carries the process owner's invocation ID, boot ID,
 start tick, start time, namespace PID and exit code/signal for later native
 provenance binding. These added fields have source/build validation; the prior

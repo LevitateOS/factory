@@ -213,6 +213,26 @@ struct AgentAttested {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct AgentStartedReply {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    candidate: String,
+    role: String,
+    tool_sha256: String,
+    prompt_sha256: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    invocation: String,
+    system_instance: String,
+    start_identity: String,
+    namespace_pid: u32,
+    started_unix_ms: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AgentExecuted {
     kind: String,
     version: u8,
@@ -271,6 +291,7 @@ fn candidate_reply_valid(reply: &AgentExecuted) -> bool {
         && reply.bundle_sha256.is_none()
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentProcess {
     pub invocation: String,
     pub system_instance: String,
@@ -278,6 +299,14 @@ pub struct AgentProcess {
     /// PID inside the isolated worker's PID namespace.
     pub namespace_pid: u32,
     pub started_unix_ms: u64,
+}
+
+/// Observed after the isolated process starts, before its terminal receipt.
+/// This does not prove it remains live after delivery or grant MCP authority.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentStarted {
+    pub worker_uid: u32,
+    pub process: AgentProcess,
 }
 
 pub struct AgentRun {
@@ -725,6 +754,42 @@ impl Broker {
         duration: Duration,
         cancellation: AgentCancellation,
     ) -> io::Result<AgentRun> {
+        Self::execute_agent_observed(
+            run,
+            profile,
+            sha256,
+            candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+            prompt,
+            executable,
+            placeholder,
+            duration,
+            cancellation,
+            |_| Ok(()),
+        )
+    }
+
+    /// Deliver one exact broker-validated process-start observation before
+    /// waiting for the terminal receipt. The trusted observer must be bounded;
+    /// refusal closes the stream and leaves retirement to the native owner.
+    #[allow(clippy::too_many_arguments)]
+    pub fn execute_agent_observed(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        role: Role,
+        tool_sha256: &str,
+        prompt_sha256: &str,
+        prompt: &[u8],
+        executable: &Path,
+        placeholder: &str,
+        duration: Duration,
+        cancellation: AgentCancellation,
+        on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
+    ) -> io::Result<AgentRun> {
         if cancellation.cancelled() {
             return Err(refused("agent execution cancelled"));
         }
@@ -765,7 +830,7 @@ impl Broker {
         stream.set_read_timeout(Some(duration + Duration::from_secs(180)))?;
         let _watch = AgentWatch::start(&stream, cancellation.clone())?;
         let request = serde_json::to_vec(&json!({
-            "kind":"execute_agent","version":1,"run":run,"profile":profile,
+            "kind":"execute_agent","version":2,"run":run,"profile":profile,
             "sha256":sha256,"candidate":candidate,"role":role.as_str(),
             "tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,
             "executable_length":metadata.len(),"prompt_length":prompt.len(),
@@ -782,6 +847,50 @@ impl Broker {
             return Err(refused("agent executable source changed during transfer"));
         }
         let mut header = [0u8; 4];
+        stream.read_exact(&mut header)?;
+        let length = u32::from_le_bytes(header) as usize;
+        if length == 0 || length > 1024 {
+            return Err(refused("agent start announcement bound invalid"));
+        }
+        let mut bytes = vec![0u8; length];
+        stream.read_exact(&mut bytes)?;
+        let started: AgentStartedReply = serde_json::from_slice(&bytes)
+            .map_err(|_| refused("agent start announcement shape invalid"))?;
+        let uid = unsafe { libc::geteuid() };
+        if started.kind != "agent_started"
+            || started.version != 1
+            || started.run != run
+            || started.profile != profile
+            || started.candidate != candidate
+            || started.role != role.as_str()
+            || started.tool_sha256 != tool_sha256
+            || started.prompt_sha256 != prompt_sha256
+            || started.worker_uid == 0
+            || started.worker_uid == uid
+            || started.peer_uid != 0
+            || !id(&started.invocation, 32)
+            || !boot_id(&started.system_instance)
+            || !matches!(started.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
+            || started.namespace_pid == 0
+            || started.started_unix_ms == 0
+            || cancellation.cancelled()
+        {
+            return Err(refused("agent start announcement identity invalid"));
+        }
+        let started = AgentStarted {
+            worker_uid: started.worker_uid,
+            process: AgentProcess {
+                invocation: started.invocation,
+                system_instance: started.system_instance,
+                start_identity: started.start_identity,
+                namespace_pid: started.namespace_pid,
+                started_unix_ms: started.started_unix_ms,
+            },
+        };
+        on_started(&started)?;
+        if cancellation.cancelled() {
+            return Err(refused("agent execution cancelled"));
+        }
         stream.read_exact(&mut header)?;
         let length = u32::from_le_bytes(header) as usize;
         if length == 0 || length > MAX_EXEC_REPLY {
@@ -808,6 +917,12 @@ impl Broker {
             || !matches!(reply.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
             || reply.namespace_pid == 0
             || reply.started_unix_ms == 0
+            || reply.worker_uid != started.worker_uid
+            || reply.invocation != started.process.invocation
+            || reply.system_instance != started.process.system_instance
+            || reply.start_identity != started.process.start_identity
+            || reply.namespace_pid != started.process.namespace_pid
+            || reply.started_unix_ms != started.process.started_unix_ms
             || !reply.tree_retired
             || reply.output_length > MAX_OUTPUT
             || !id(&reply.output_sha256, 64)

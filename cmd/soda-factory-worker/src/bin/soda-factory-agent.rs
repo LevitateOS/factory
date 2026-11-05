@@ -72,6 +72,25 @@ struct Attestation<'a> {
 }
 
 #[derive(Serialize)]
+struct Started<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    candidate: &'a str,
+    role: &'a str,
+    tool_sha256: &'a str,
+    prompt_sha256: &'a str,
+    worker_uid: u32,
+    peer_uid: u32,
+    invocation: &'a str,
+    system_instance: &'a str,
+    start_identity: &'a str,
+    namespace_pid: u32,
+    started_unix_ms: u64,
+}
+
+#[derive(Serialize)]
 struct Execution<'a> {
     kind: &'static str,
     version: u8,
@@ -748,6 +767,36 @@ fn execute_agent(
             format!("{placeholder}\n").into_bytes(),
         )
         .map_err(|_| refused("agent process launch unavailable"))?;
+    let started = process.observe();
+    let started_unix_ms = started
+        .started_at
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| refused("agent process start time invalid"))?
+        .as_millis()
+        .try_into()
+        .map_err(|_| refused("agent process start time invalid"))?;
+    let announcement = serde_json::to_vec(&Started {
+        kind: "agent_started",
+        version: 1,
+        run,
+        profile,
+        candidate,
+        role,
+        tool_sha256,
+        prompt_sha256,
+        worker_uid,
+        peer_uid: 0,
+        invocation: &started.invocation,
+        system_instance: &started.system_instance,
+        start_identity: &started.start_identity,
+        namespace_pid: started.pid,
+        started_unix_ms,
+    })?;
+    if announcement.len() > 1024 {
+        return Err(refused("agent start announcement bound invalid"));
+    }
+    stream.write_all(&(announcement.len() as u32).to_le_bytes())?;
+    stream.write_all(&announcement)?;
     let deadline = Instant::now() + Duration::from_millis(duration_ms) + Duration::from_secs(3);
     let observed = loop {
         let observed = process.wait(Duration::from_millis(100));
@@ -943,7 +992,7 @@ fn serve() -> io::Result<()> {
             placeholder,
             duration_ms,
         } => {
-            if version != 1
+            if version != 2
                 || run != args[1]
                 || requested_profile != profile
                 || requested_candidate != candidate

@@ -25435,3 +25435,25 @@ This negative preflight does not write or reopen a grant, diagnose the
 historical crash, or close T06-CONNECT. A fresh private keyring must still be
 initialized and a complete approved connected journey observed when the user
 is available.
+
+T09-NATIVE-EXECUTOR process-start observation producer (2026-11-05): the
+isolated worker now emits an exact process-start frame before its terminal
+receipt. Execution requests require version 2; the root broker and Rust
+client validate run/profile/candidate/role/tool/prompt and observed UID,
+invocation, boot ID, start tick, namespace PID and start time. The terminal
+receipt must retain that same process identity. The headless
+`Broker::execute_agent_observed` and `RunOwner::execute_observed` expose the
+event to a bounded trusted observer; refusal closes the execution stream and
+leaves exact retirement required. Locked offline worker/broker/runtime builds
+passed. A disposable current service installation ran a credential-free
+three-second reviewer ELF: the callback arrived before exit and the terminal
+identity matched. A second callback refused and returned no terminal result.
+After exact retirement both agent and relay units were inactive with
+`MainPID=0`, and their root source/preparation paths were absent. Temporary
+service files and binaries were removed. The retained external result is
+`/home/vince/tmp/factory-native-start-20261105/result-v2.log`, SHA-256
+`e1ba1782140b819d7fe9f6d0a6e525f316a48fef7da57cd5fc8abf37c37f36ee`;
+the external `driver.rs` records the disposable check. This event proves a
+process started, not continuing liveness, Go current-work admission, MCP
+activation/delivery, credential custody, a model task or crash/reboot
+settlement. N3 and D3 remain open; N4 remains Pending.

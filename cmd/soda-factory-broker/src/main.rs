@@ -292,6 +292,26 @@ struct AgentExecutionRequest<'a> {
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+struct AgentStartedReply {
+    kind: String,
+    version: u8,
+    run: String,
+    profile: String,
+    candidate: String,
+    role: String,
+    tool_sha256: String,
+    prompt_sha256: String,
+    worker_uid: u32,
+    peer_uid: u32,
+    invocation: String,
+    system_instance: String,
+    start_identity: String,
+    namespace_pid: u32,
+    started_unix_ms: u64,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct AgentExecutionReply {
     kind: String,
     version: u8,
@@ -1367,6 +1387,37 @@ fn execute_agent<R: Read, W: Write>(
         let mut header = [0u8; 4];
         read_worker(&mut worker, &mut header, deadline)?;
         let length = u32::from_le_bytes(header) as usize;
+        if length == 0 || length > 1024 {
+            return Err(denied("agent start announcement bound invalid"));
+        }
+        let mut bytes = vec![0u8; length];
+        read_worker(&mut worker, &mut bytes, deadline)?;
+        let started: AgentStartedReply = serde_json::from_slice(&bytes)
+            .map_err(|_| denied("agent start announcement shape invalid"))?;
+        if started.kind != "agent_started"
+            || started.version != 1
+            || started.run != run
+            || started.profile != profile
+            || started.candidate != candidate
+            || started.role != role
+            || started.tool_sha256 != tool_sha256
+            || started.prompt_sha256 != prompt_sha256
+            || started.worker_uid == 0
+            || started.worker_uid == desktop_uid
+            || started.peer_uid != 0
+            || !id(&started.invocation, 32)
+            || !boot_id(&started.system_instance)
+            || !matches!(started.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
+            || started.namespace_pid == 0
+            || started.started_unix_ms == 0
+        {
+            return Err(denied("agent start announcement identity invalid"));
+        }
+        output.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        output.write_all(&bytes)?;
+        output.flush()?;
+        read_worker(&mut worker, &mut header, deadline)?;
+        let length = u32::from_le_bytes(header) as usize;
         if length == 0 || length > MAX_AGENT_REPLY {
             return Err(denied("agent execution reply bound invalid"));
         }
@@ -1390,6 +1441,12 @@ fn execute_agent<R: Read, W: Write>(
             || !matches!(reply.start_identity.parse::<u64>(), Ok(ticks) if ticks > 0)
             || reply.namespace_pid == 0
             || reply.started_unix_ms == 0
+            || reply.worker_uid != started.worker_uid
+            || reply.invocation != started.invocation
+            || reply.system_instance != started.system_instance
+            || reply.start_identity != started.start_identity
+            || reply.namespace_pid != started.namespace_pid
+            || reply.started_unix_ms != started.started_unix_ms
             || reply
                 .exit_code
                 .is_some_and(|code| !(0..=255).contains(&code))
@@ -2311,7 +2368,7 @@ fn serve() -> io::Result<()> {
             placeholder,
             duration_ms,
         } => {
-            if version != 1
+            if version != 2
                 || !id(&run, 32)
                 || !id(&profile, 32)
                 || !id(&sha256, 64)
@@ -2328,7 +2385,7 @@ fn serve() -> io::Result<()> {
             }
             let worker_request = AgentExecutionRequest {
                 kind: "execute_agent",
-                version: 1,
+                version: 2,
                 run: &run,
                 profile: &profile,
                 candidate: &candidate,

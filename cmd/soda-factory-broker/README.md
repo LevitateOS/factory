@@ -378,6 +378,20 @@ client for this protocol. The worker receipt also carries the native process
 invocation, boot ID, start tick, PID inside its private PID namespace, start
 time and exit signal/code. The broker and desktop client validate those fields;
 the namespace PID must not be treated as a host PID. No product path invokes it.
+Execution requests now require protocol version 2. Before the terminal receipt,
+the worker sends one bounded `agent_started` version-1 frame containing the same
+run/profile/candidate/role/tool/prompt binding and actual process identity. The
+broker validates and forwards that frame immediately; the terminal receipt must
+match its UID, invocation, boot ID, start tick, namespace PID and start time.
+`Broker::execute_agent_observed` and `RunOwner::execute_observed` expose the event
+to a bounded trusted observer. Observer refusal closes the connection and
+requires exact retirement. The event proves a process started; it does not
+prove continuing liveness, activate an MCP capability or admit Go work. Older
+single-receipt execution clients and services fail closed on version mismatch.
+A disposable actual-service check on 2026-11-05 received the event before a
+three-second credential-free child exited, matched the terminal identity, and
+stopped a second run after observer refusal. Both agent and relay units were
+inactive with `MainPID=0`, and exact staging was absent after retirement.
 A cancellable desktop client call now closes its broker stream when the trusted
 native owner signals cancellation and refuses any late receipt. A disposable
 root-peer socket probe observed that EOF after an uploaded dummy request. The

@@ -94,6 +94,17 @@ preparation, missing observation and empty observation returned 403. The Go
 bound catalog now also requires the exact observation on each tool call.
 This is a transport/component check, not a canonical capability transaction,
 production native listener, worker delivery or D3 qualification.
+A later disposable service check exercised the new version-2 native execution
+protocol. A credential-free three-second reviewer process emitted its exact
+start observation before exit; the broker and Rust client matched that identity
+to its terminal result. Observer refusal stopped a second run. Exact retirement
+left both agent/relay units inactive with `MainPID=0` and removed source and
+preparation paths. The result and disposable driver are retained under
+`/home/vince/tmp/factory-native-start-20261105/`. `RunOwner::execute_observed`
+now exposes this producer event, but it is not a current-liveness observer or
+Go admission. The native consumer must still prove those facts, MCP activation
+and delivery, custody and transactional crash/reboot recovery on the admitted
+path before D3 closes.
 A production-bundle Chromium check with a local Tauri command fixture now proves
 that a failed `credential_status` read removes stale saved-account UI rows and
 repository options. It uses no real keyring, provider, consent or authenticated
