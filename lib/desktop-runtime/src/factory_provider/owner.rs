@@ -19,7 +19,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::watch;
 use tokio::task::JoinSet;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 const MAX_HEADER: usize = 16 * 1024;
 const MAX_BODY: usize = 256 * 1024;
@@ -45,15 +45,25 @@ fn owned_directory(path: &Path, uid: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn cleanup(path: &Path, parent: &Path, original: &Metadata) {
-    if path.symlink_metadata().is_ok_and(|current| {
-        current.file_type().is_socket()
-            && current.dev() == original.dev()
-            && current.ino() == original.ino()
-    }) {
-        let _ = fs::remove_file(path);
+fn cleanup(path: &Path, parent: &Path, original: &Metadata) -> io::Result<()> {
+    match path.symlink_metadata() {
+        Ok(current)
+            if current.file_type().is_socket()
+                && current.dev() == original.dev()
+                && current.ino() == original.ino() =>
+        {
+            fs::remove_file(path)?
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+        Ok(_) => return Err(refused("provider owner socket changed before cleanup")),
+    }
+    match path.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        _ => return Err(refused("provider owner socket cleanup unconfirmed")),
     }
     let _ = fs::remove_dir(parent);
+    Ok(())
 }
 
 /// Bound before the broker starts the relay, then activated only with the
@@ -127,12 +137,12 @@ impl BoundOwner {
             return Err(refused("provider owner socket identity invalid"));
         }
         if let Err(error) = listener.set_nonblocking(true) {
-            cleanup(&path, &parent, &original);
+            let _ = cleanup(&path, &parent, &original);
             return Err(error);
         }
         let mut random = [0u8; 32];
         if getrandom::fill(&mut random).is_err() {
-            cleanup(&path, &parent, &original);
+            let _ = cleanup(&path, &parent, &original);
             return Err(refused("provider owner placeholder unavailable"));
         }
         let placeholder = Zeroizing::new(random.iter().map(|byte| format!("{byte:02x}")).collect());
@@ -291,6 +301,8 @@ impl BoundOwner {
                     attestation: Some(attestation),
                     retired,
                     thread: Some(thread),
+                    joined: false,
+                    stopped: false,
                 })
             }
             Ok(Err(error)) => {
@@ -325,7 +337,7 @@ impl Drop for CancelOnFailure {
 impl Drop for BoundOwner {
     fn drop(&mut self) {
         if self.cleanup {
-            cleanup(&self.path, &self.parent, &self.original);
+            let _ = cleanup(&self.path, &self.parent, &self.original);
         }
     }
 }
@@ -338,6 +350,8 @@ pub struct Owner {
     attestation: Option<RelayAttestation>,
     retired: watch::Sender<bool>,
     thread: Option<JoinHandle<io::Result<()>>>,
+    joined: bool,
+    stopped: bool,
 }
 impl Owner {
     pub fn placeholder(&self) -> &str {
@@ -353,14 +367,26 @@ impl Owner {
     pub fn stop(&mut self) -> io::Result<()> {
         self.retired.send_replace(true);
         let result = if let Some(thread) = self.thread.take() {
-            thread
-                .join()
-                .unwrap_or_else(|_| Err(refused("provider owner thread failed")))
+            match thread.join() {
+                Ok(result) => {
+                    self.joined = true;
+                    result
+                }
+                Err(_) => Err(refused("provider owner thread failed")),
+            }
+        } else if !self.joined {
+            Err(refused("provider owner join unconfirmed"))
         } else {
             Ok(())
         };
-        cleanup(&self.path, &self.parent, &self.original);
-        result
+        self.placeholder.zeroize();
+        let cleaned = cleanup(&self.path, &self.parent, &self.original);
+        self.stopped = self.joined && cleaned.is_ok();
+        result.and(cleaned)
+    }
+
+    pub(super) fn locally_stopped(&self) -> bool {
+        self.stopped
     }
 
     /// An attempted run without a durable receipt must keep its broker record

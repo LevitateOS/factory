@@ -25663,3 +25663,44 @@ Go work/placement admission, ledger settlement and interrupted/crash/reboot
 recovery remain open; profile-wide local-change notification is still
 conservative and multi-account behavior is unqualified. The handoff records
 these dependencies. N3, N4 and D3 remain open.
+
+T09-NATIVE-EXECUTOR native custody observations (2026-11-05): the headless
+runtime now retains an immutable acquisition record under the private profile
+before broker staging, binding a random native acquisition ID, provider
+connection and one-shot generation 1 to the exact run/profile/source/candidate/
+role/tool/prompt receipt scope. Generation is independent of credential revision,
+process incarnation and Go placement/capability generations. Existing acquisition
+directories, legacy receipts and pending receipts fence reuse without rewriting
+history. `RunOwner::custody` / `RunExecution::custody` expose live facts;
+`read_custody` returns only retained evidence and never activates a record.
+The live owner can report Held; reopening without release is Uncertain. Held is
+not current-account or product authority. Confirmed local thread join, exact
+socket removal and placeholder zeroization permit sealing; acknowledged broker
+quiescence/retirement permits durable release. File/directory sync and strict
+scope/marker reads preserve refusal on missing or uncertain evidence. Release
+remains independent of a confirmed process outcome and never proves Go settlement.
+
+The existing real native handle mode passed all seven finite/cancel/drop/idle
+withdrawal/replacement/independent-replacement/owner-retirement cases. Acquisition
+IDs stayed unique and immutable; separate processes read active journals as
+uncertain and completed retirement as sealed/released. Cancelled runs retained
+launched root evidence and no result receipt while confirming custody release.
+An acquisition-only journal blocked reuse after root disposal; a pre-journal
+receipt also blocked reuse and remained byte-for-byte unchanged. Changed
+connection and prompt scope refused. All agent/relay services stopped and exact
+fixture disposal removed temporary units/roots. A new process then read released
+custody after the private D-Bus/keyring session and native services had ended.
+Evidence and driver are external under
+`/home/vince/tmp/factory-native-custody-v3-20261105/`; result SHA-256 is
+`2d84c79a430d53c52ab2c12c904bbe805b19dd328b761d85b3eff8c135044177`, and the
+post-session read SHA-256 is
+`6b397387fe929dd8e1546c397ff379903178d71abd1775668172ad58eeea1c6c`.
+Locked offline runtime checking/building and touched-file formatting passed.
+These are retained-input, local-ELF/dummy-keyring component checks, not real Muse
+execution, a fresh release or D3 qualification. The lifecycle registry and Go
+custody/current-run adapters must still join the captured canonical run, work,
+placement and acquisition identities. Interrupted acquisition/seal/release writes,
+owner crash/reboot recovery, Go outcome settlement, production Quit and actual
+provider handling remain unqualified. Keep historical missing custody unknown;
+the new journal does not reconstruct old acquisitions or authorize replay.
+The handoff records these exact dependencies. N3, N4 and D3 remain open.

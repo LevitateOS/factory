@@ -3,9 +3,10 @@
 //! no worker-supplied URL, model, tool namespace or spend limit is authority.
 mod attempt;
 mod broker;
+mod custody;
 mod mcp;
-mod owner;
 mod observation;
+mod owner;
 mod receipt;
 mod response;
 mod run;
@@ -13,9 +14,10 @@ pub use attempt::{AttemptObservation, AttemptPhase, RunExecution};
 pub use broker::{
     AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
 };
+pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
-pub use owner::{BoundOwner, Owner};
 pub use observation::{AgentObservation, AgentObserver};
+pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use run::RunOwner;
 use serde_json::Value;

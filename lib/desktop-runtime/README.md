@@ -577,6 +577,23 @@ services/keyring checks cover local withdrawal/replacement, independent-process
 replacement and owner retirement. They do not qualify real Muse/Meta cancellation,
 canonical custody/Go settlement or crash/restart recovery.
 
+`RunOwner::custody` / `RunExecution::custody` retain native acquisition facts
+separately from process state and outcome. A private immutable record binds its
+random acquisition ID and provider connection to the exact receipt scope before
+broker staging. Each run has one acquisition generation (1), independently of
+credential revisions, process incarnations and Go placement/capability generations.
+The retained directory, older receipt or interrupted receipt fences reacquisition.
+The live owner can report `Held`; reopening unretired evidence reports `Uncertain`
+and never activates it. `Held` does not grant product admission or assert current
+account validity. Local thread join, exact socket removal and placeholder clearing
+permit a durable seal; acknowledged broker quiescence/retirement permits release.
+Marker writers and readers confirm file/directory synchronization. Custody can
+be released while the process outcome remains uncertain and has no result receipt.
+`read_custody` checks the captured scope/connection and supports readback without
+a keyring session. Missing/partial evidence never proves no acquisition or cleanup.
+The lifecycle registry, canonical Go projection and interrupted-write/crash/reboot
+reconciliation still need implementation and qualification before native intake.
+
 `WorkerMcp` also captures the defining Go tool-name catalog before launch.
 Go's `mcpserver.BoundToolNames` exposes that catalog using the same role and
 recorded task-controller selection as its SDK server, without activating a

@@ -102,6 +102,53 @@ qualified here. The remaining dependency is a lifecycle-owned execution/custody
 registry and the current Go observer, followed by complete finite-provider,
 withdrawal, Quit and restart reconciliation evidence. D3 remains open.
 
+Native custody now has a separate producer in
+`lib/desktop-runtime/src/factory_provider/custody.rs`, joined by `run.rs`,
+`attempt.rs`, `owner.rs` and the exact scope fingerprint in `receipt.rs`.
+An immutable private acquisition record is written before broker staging. Its
+random ID, provider connection and generation 1 belong to this one-shot native
+acquisition; they are not a credential revision, process incarnation or Go
+placement/capability generation. A retained directory or older receipt/pending
+receipt fences reacquisition. The live owner can report Held, independently of
+process liveness and current-account/product admission. A cold read without
+release is Uncertain. Local thread join, exact socket removal and placeholder
+zeroization precede the durable seal; broker quiescence/retirement acknowledgement
+precedes release. Strict scope/marker checks and file/directory sync apply to
+readers as well as writers. Release can be proved while an outcome stays
+uncertain with no result receipt; it does not settle Go work or erase the user's
+global login. Missing or partial evidence is never proof of no acquisition.
+
+The existing disposable real-unit/private-keyring handle mode passed all seven
+normal/cancel/drop/credential-change cases with unique stable acquisitions.
+Separate native readers observed active journals as uncertain without activating
+them, then exact sealed/released identity after cleanup. An acquisition-only
+record blocked reuse even without a result receipt; a copied pre-journal receipt
+also blocked reuse and stayed byte-for-byte unchanged. Changed connection and
+prompt scope refused. Uncertain worker outcomes retained their launched roots
+and no result receipt while separately confirming custody release. Agent/relay
+services had `MainPID=0`; exact fixture disposal removed roots and temporary
+units. Readback also passed in a new native process after the private credential
+session ended. Evidence is under
+`/home/vince/tmp/factory-native-custody-v3-20261105/`; result SHA-256 is
+`2d84c79a430d53c52ab2c12c904bbe805b19dd328b761d85b3eff8c135044177`, and
+post-session read SHA-256 is
+`6b397387fe929dd8e1546c397ff379903178d71abd1775668172ad58eeea1c6c`.
+
+The exact remaining dependency is the lifecycle-owned native registry and the
+Go `execution.CustodyObserver` / current-run adapter, comparing these facts to the
+captured canonical run/placement/acquisition before any capability activation or
+settlement. Relevant Go files are `pkg/factory/execution/{provenance,observation,
+native_record}.go`, `pkg/factory/service/worker_admission.go` and
+`pkg/factory/control/settle.go`. Still unverified: interrupted acquisition,
+seal/release writes and lost acknowledgements; recovery when the old native
+owner is interrupted; root/process/credential retirement across a full restart
+and reboot; actual finite Muse/provider work; production Quit and atomic Go
+outcome reconciliation. The normal readback checks did not inject a crash or
+power loss. Historical missing custody must stay unknown; do not synthesize an
+acquisition or authorize replay from an old receipt. These are ordinary
+implementation/qualification tasks; route hacking-like checks to user-started
+Daybreak. D3 remains open.
+
 The plan describes failed `connected-ui-v2` and `ui-v4` attempts in an external
 `.factory-signin-checks` root. That root was not found under `/home/vince` in
 this workspace on 2026-11-04. The recorded crash and the backtrace description

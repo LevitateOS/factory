@@ -3,7 +3,7 @@
 use super::receipt::ensure_receipts;
 use super::{
     write_retained, AgentCancellation, AgentObserver, AgentRun, AgentStarted, BoundOwner, Broker,
-    Owner, Policy, ReceiptScope, Role, WorkerMcp,
+    Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
 use crate::database::private_dir;
@@ -49,6 +49,7 @@ pub struct RunOwner {
     owner: Owner,
     cancellation: AgentCancellation,
     observer: AgentObserver,
+    custody: RunCustody,
     run: String,
     profile: String,
     sha256: String,
@@ -153,11 +154,23 @@ impl RunOwner {
         let candidate = policy.candidate().to_owned();
         let role = policy.role();
         let deadline = policy.deadline;
+        let connection = policy.connection().to_owned();
         let bound = BoundOwner::bind(policy, credentials, capability)?;
         let bound = match mcp {
             Some(mcp) => bound.with_mcp(mcp)?,
             None => bound,
         };
+        let cancellation = AgentCancellation::default();
+        let scope = ReceiptScope::new(
+            &run,
+            &profile,
+            &expected,
+            &candidate,
+            role,
+            tool_sha256,
+            prompt_sha256,
+        )?;
+        let custody = RunCustody::prepare(profile_dir, &scope, &connection, cancellation.clone())?;
         let staged =
             match Broker::stage_bundle(&run, &profile, role, tool_sha256, prompt_sha256, bundle) {
                 Ok(staged) => staged,
@@ -185,7 +198,6 @@ impl RunOwner {
                 Err(refused("broker source cleanup unconfirmed"))
             };
         }
-        let cancellation = AgentCancellation::default();
         let result = (|| {
             Broker::prepare_reviewer(&run, &profile, &staged, &candidate)?;
             let relay = Broker::attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
@@ -219,11 +231,13 @@ impl RunOwner {
                 };
             }
         };
+        custody.activate()?;
         cleanup.active = false;
         Ok(Self {
             owner,
             cancellation,
             observer: AgentObserver::default(),
+            custody,
             run,
             profile,
             sha256: staged,
@@ -252,11 +266,25 @@ impl RunOwner {
         self.observer.clone()
     }
 
+    pub fn custody(&self) -> RunCustody {
+        self.custody.clone()
+    }
+
     fn quiesce_uncertain(&mut self) -> io::Result<()> {
         self.cancellation.cancel();
         let stopped = self.owner.stop_preserving_bundle();
+        let sealed = if self.owner.locally_stopped() {
+            self.custody.seal()
+        } else {
+            Err(refused("provider local custody retirement unconfirmed"))
+        };
         let quiesced = Broker::quiesce_run(&self.run, &self.profile, &self.sha256);
-        stopped.and(quiesced)
+        let released = if sealed.is_ok() && quiesced.is_ok() {
+            self.custody.release()
+        } else {
+            Err(refused("provider custody retirement unconfirmed"))
+        };
+        stopped.and(sealed).and(quiesced).and(released)
     }
 
     /// One attempt only. The broker rehashes prompt and executable bytes under
@@ -354,7 +382,13 @@ impl RunOwner {
 
     fn retire_after_attempt(&mut self) -> io::Result<()> {
         if !self.retired {
-            self.owner.retire()?;
+            let retired = self.owner.retire();
+            if !self.owner.locally_stopped() {
+                return Err(refused("provider local custody retirement unconfirmed"));
+            }
+            self.custody.seal()?;
+            retired?;
+            self.custody.release()?;
             self.retired = true;
         }
         Ok(())

@@ -57,7 +57,7 @@ fn private_dir(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn profile(profile_dir: &Path, expected: &str) -> io::Result<()> {
+pub(super) fn profile(profile_dir: &Path, expected: &str) -> io::Result<()> {
     private_dir(profile_dir)?;
     let file = OpenOptions::new()
         .read(true)
@@ -97,8 +97,8 @@ pub(super) fn ensure_receipts(profile_dir: &Path) -> io::Result<PathBuf> {
 /// Exact identity retained in the Go ledger before the native attempt.
 /// Construct from that trusted record, never from a browser request.
 pub struct ReceiptScope<'a> {
-    run: &'a str,
-    profile: &'a str,
+    pub(super) run: &'a str,
+    pub(super) profile: &'a str,
     source_sha256: &'a str,
     candidate: &'a str,
     role: Role,
@@ -107,6 +107,25 @@ pub struct ReceiptScope<'a> {
 }
 
 impl<'a> ReceiptScope<'a> {
+    pub(super) fn fingerprint(&self) -> String {
+        digest(
+            format!(
+                "factory-native-receipt-scope-v1\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n",
+                self.run,
+                self.profile,
+                self.source_sha256,
+                self.candidate,
+                match self.role {
+                    Role::Reviewer => "reviewer",
+                    Role::Coder => "coder",
+                },
+                self.tool_sha256,
+                self.prompt_sha256
+            )
+            .as_bytes(),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         run: &'a str,
