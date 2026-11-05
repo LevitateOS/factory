@@ -25114,3 +25114,24 @@ delivery, production policy filtering, withdrawal or a real finite provider
 task. Keep those D3 requirements open and obtain explicit egress authorization
 before attempting that specific request. The approval boundary is separate
 from Daybreak, which is reserved for work that looks like hacking.
+
+T09-NATIVE-EXECUTOR authorized dummy-token Muse owner checkpoint
+(2026-11-05): the user explicitly authorized that one outbound dummy-token
+and fixture README prompt request after automatic approval review stopped the
+earlier launch. Two setup attempts failed locally before worker/network use:
+the retained dummy keyring's metadata was invalid, and a fresh Secret Service
+had no default collection. A separate private D-Bus session then used its
+in-memory collection as the default and stored only the dummy token. Production
+`RunOwner::start` and `execute` ran the current 396 MiB Muse 1.4.14 ELF as an
+isolated reviewer. It returned worker UID 64596, an ordinary child exit code
+1, complete 191-byte output reporting rejected dummy-key authentication, no
+reviewer candidate, a durable 1,139-byte receipt and exact retirement. The
+receipt did not contain the dummy token string. Worker and relay units ended
+inactive with `MainPID=0`; run-specific broker paths were absent; temporary
+units, binaries and empty `/run` paths were removed. The CLI's error is
+consistent with upstream authentication rejection, but the exact upstream
+HTTP status was not independently captured. This does not prove a usable
+provider credential, complete response/tool admission, cancellation or
+withdrawal, Go ledger settlement, crash/reboot recovery or a successful
+finite model task. T09-NATIVE-EXECUTOR and D3 remain open; the authorization
+does not extend to other credentials or prompts.
