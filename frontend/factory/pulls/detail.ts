@@ -8,6 +8,7 @@ import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 import '../review/diff.js';
 import './review.js';
 import './merge.js';
+import './inline.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
@@ -222,7 +223,13 @@ export class SodaFactoryPull extends LitElement {
         </nav>
         ${this.tab === 'files' ? html`<section aria-label="Changed files">
           ${this.view.diff && this.view.diff.head !== pull.head.commit ? html`<p role="status">This diff uses a different head from the pull request summary. Refresh before reviewing.</p>` : ''}
-          ${this.view.files.length ? this.view.files.map(file => {
+          ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-inline
+            .context=${{transport: context.transport, host: context.host, actor: context.actor,
+              repository: context.repository, pull: context.pull, scope: context.scope,
+              parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+            .files=${this.view.files} .threads=${this.view.threads}
+            @pull-inline-saved=${() => void this.refresh()}
+          ></soda-factory-pull-inline>` : this.view.files.length ? this.view.files.map(file => {
             const threads: DiffThread[] = this.view.threads.filter(thread => {
               const anchor = thread.currentAnchor ?? thread.anchor;
               return anchor ? anchor.old_path === file.old_path && anchor.new_path === file.new_path
@@ -234,7 +241,8 @@ export class SodaFactoryPull extends LitElement {
               comments: {items: thread.comments.map(comment => ({comment: {body: comment.body}})), next: thread.commentsNext},
             }));
             return html`<soda-factory-diff .file=${file} .threads=${threads} .allowDraft=${false}></soda-factory-diff>`;
-          }) : html`<p>No files on this page.</p>`}
+          }) : ''}
+          ${!this.view.files.length ? html`<p>No files on this page.</p>` : ''}
           <p role="status">${this.view.threadBusy ? 'Loading inline discussions…' : this.view.threadMessage}</p>
           ${this.view.threadNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadMoreThreads(this.view.threadNext)}>Load more inline discussions</button>` : ''}
         </section>` : this.tab === 'checks' ? html`<section aria-label="Checks">

@@ -163,7 +163,8 @@
 .soda-pull-detail > section > ol > li,
 .soda-pull-detail > section > ul > li { padding: 12px 0; border-top: 1px solid var(--soda-page-muted); }
 .soda-pull-review,
-.soda-pull-merge { display: block; max-width: 960px; margin-block: 24px; }
+.soda-pull-merge,
+.soda-pull-inline { display: block; max-width: 960px; margin-block: 24px; }
 .soda-pull-review label,
 .soda-pull-merge label { display: block; margin-block: 8px; }
 .soda-pull-review textarea { display: block; box-sizing: border-box; width: 100%; min-height: 120px; font: inherit; padding: 12px; }
