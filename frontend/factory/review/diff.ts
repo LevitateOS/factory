@@ -19,7 +19,7 @@ export interface DiffThread {
   resolution: string;
   anchor: ReviewAnchor | null;
   recorded_location: ReviewLocation | null;
-  comments: {items: readonly {comment: {body: string}}[] | null; next?: string};
+  comments: {items: readonly {comment: {body: string; author: string; createdAt: string | null}}[] | null; next?: string};
 }
 
 function sameFile(anchor: ReviewAnchor | null, file: ChangedFile): boolean {
@@ -236,7 +236,7 @@ export class SodaFactoryDiff extends LitElement {
             node.className = 'factory-inline-thread';
             node.setAttribute('role', 'note');
             node.dataset.threadId = thread.external_id;
-            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map((c) => c.comment.body).join('\n') ?? 'Comments unavailable'}`;
+            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map(({comment}) => `${comment.author}${comment.createdAt ? ` · ${comment.createdAt.slice(0, 10)}` : ''}\n${comment.body}`).join('\n') ?? 'Comments unavailable'}`;
             if (thread.comments.next) {
               const more = document.createElement('button');
               more.type = 'button';
@@ -450,7 +450,7 @@ export class SodaFactoryDiff extends LitElement {
               <p>
                 ${t.anchor ? sameFile(t.anchor, file) ? 'This discussion belongs to this file.' : 'This thread belongs to its original diff revision.' : 'Original diff context is unavailable.'}
               </p>
-              ${t.comments.items?.map((c) => html`<p>${c.comment.body}</p>`)}
+              ${t.comments.items?.map(({comment}) => html`<p><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<br />${comment.body}</p>`)}
               ${t.comments.next ? html`<button type="button" @click=${() => this.moreComments(t)}>Load more comments</button>` : ''}
             </details>`
         )}

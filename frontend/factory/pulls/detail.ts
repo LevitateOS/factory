@@ -297,7 +297,7 @@ export class SodaFactoryPull extends LitElement {
               external_id: thread.externalID, outdated: thread.outdated, resolution: thread.resolution,
               anchor: thread.currentAnchor ?? thread.anchor,
               recorded_location: thread.recordedLocation,
-              comments: {items: thread.comments.map(comment => ({comment: {body: comment.body}})), next: thread.commentsNext},
+              comments: {items: thread.comments.map(comment => ({comment})), next: thread.commentsNext},
             }));
             return html`<soda-factory-diff .file=${file} .threads=${threads} .allowDraft=${false}></soda-factory-diff>`;
           }) : ''}

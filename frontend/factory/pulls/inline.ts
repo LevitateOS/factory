@@ -225,7 +225,7 @@ export class SodaFactoryPullInline extends LitElement {
             : thread.recordedLocation?.path === file.old_path || thread.recordedLocation?.path === file.new_path;
         }).map(thread => ({external_id: thread.externalID, outdated: thread.outdated, resolution: thread.resolution,
           anchor: thread.currentAnchor ?? thread.anchor, recorded_location: thread.recordedLocation,
-          comments: {items: thread.comments.map(comment => ({comment: {body: comment.body}})), next: thread.commentsNext}}));
+          comments: {items: thread.comments.map(comment => ({comment})), next: thread.commentsNext}}));
         return html`<soda-factory-diff .file=${file} .threads=${threads}
           .draft=${draft && sameFile(draft.anchor, file) ? {anchor: draft.anchor, body: draft.body} : null}
           .allowDraft=${available && (!draft || sameFile(draft.anchor, file))} @factory-review-draft-change=${this.changeDraft}></soda-factory-diff>`;

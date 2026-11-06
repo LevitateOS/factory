@@ -2,8 +2,24 @@ import {LitElement, html} from 'lit';
 import type {Meta, StoryObj} from '@storybook/web-components-vite';
 import {diffFiles, reviewThreads, type DiffFixture} from '../../storybook/diff-fixtures.js';
 import type {ChangedFile} from '../api/collaboration.js';
-import type {ReviewDraft} from './diff.js';
+import type {DiffThread, ReviewDraft} from './diff.js';
 import './diff.js';
+
+const threads: DiffThread[] = reviewThreads.map(thread => ({
+  external_id: thread.external_id,
+  outdated: thread.outdated,
+  resolution: thread.resolution,
+  anchor: thread.current_anchor ?? thread.anchor,
+  recorded_location: thread.recorded_location,
+  comments: {
+    items: thread.comments.items?.map(({comment}) => ({comment: {
+      body: comment.body,
+      author: comment.author?.login ?? 'Unknown author',
+      createdAt: comment.created_at,
+    }})) ?? null,
+    next: thread.comments.next,
+  },
+}));
 
 class DiffStory extends LitElement {
   static properties = {file: {attribute: false}, draft: {state: true}, scheme: {type: String}};
@@ -23,7 +39,7 @@ class DiffStory extends LitElement {
     return html`<p>Storybook renderer fixture · No provider writes</p>
       <soda-factory-diff
         .file=${this.file}
-        .threads=${reviewThreads}
+        .threads=${threads}
         .draft=${this.draft}
         .scheme=${this.scheme}
         @factory-review-draft-change=${(event: CustomEvent<ReviewDraft | null>) => {
