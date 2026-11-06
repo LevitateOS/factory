@@ -199,11 +199,13 @@ export class SodaFactoryPullReview extends LitElement {
     check(!latest.blocked && latest.writing?.pending && sameReviewPending(latest.writing.pending, pending));
     const next: ReviewWriting = {draft: latest.writing.draft};
     if (outcome.effect === 'committed' && next.draft.revision === pending.draft && next.draft.body === pending.body)
-      next.draft = {revision: factoryCommandId(), body: ''};
+      next.draft = {revision: factoryCommandId(), body: pending.event === 'draft' ? pending.body : ''};
     const stored = saveReviewWriting(context, latest.raw, next);
     check(stored !== 'conflict');
     this.saved = readReviewWriting(context); this.writing = next;
-    this.message = outcome.effect === 'committed' ? 'Review submitted.' : pending.cancel ? 'Review cancelled; writing preserved.' : 'No review was submitted; writing preserved.';
+    this.message = outcome.effect === 'committed'
+      ? pending.event === 'draft' ? 'Draft review saved. Edit it here or choose a submission action.' : 'Review submitted.'
+      : pending.cancel ? 'Review cancelled; writing preserved.' : 'No review was submitted; writing preserved.';
     if (stored !== 'saved') this.message += ' Local saved state still needs storage.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-review-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));
   }
