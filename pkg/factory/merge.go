@@ -169,8 +169,8 @@ func (m Merge) validateMergeIdentity() error {
 // validateMergeEvidence refuses merges with dependent reviewer,
 // acceptance, ref, commit, observation or time evidence.
 func (m Merge) validateMergeEvidence() error {
-	if m.PRAuthorID <= 0 || m.ReviewerID <= 0 || m.ReviewerID == m.PRAuthorID {
-		return errors.New("merge review evidence needs its independent reviewer")
+	if m.PRAuthorID <= 0 || m.ReviewerID <= 0 {
+		return errors.New("merge review evidence lacks its account identity")
 	}
 	if !project.ValidDecisionID(m.Acceptance) {
 		return errors.New("invalid merge acceptance")

@@ -34,7 +34,10 @@ type ReviewWork struct {
 	NativeRev    int64            `json:"native_revision"`
 	NotAfter     int64            `json:"not_after"`
 	Event        string           `json:"event"`
-	Body         string           `json:"body"`
+	// AgentVerdict separates inspection from provider disposition. It is
+	// explicit when the PR author's account publishes a comment review.
+	AgentVerdict string `json:"agent_verdict,omitempty"`
+	Body         string `json:"body"`
 }
 
 // ReviewOperation retains one review run's exact immutable native work and
@@ -162,10 +165,14 @@ func (op ReviewOperation) WithOutcome(outcome OperationOutcome) (ReviewOperation
 }
 
 // ValidateTarget checks the exact target before findings or operation identity
-// exist. The native actor must be separate from the recorded PR author.
+// exist. The author's account may publish agent inspection as a comment;
+// it cannot submit an approval or request changes on its own PR.
 func (w ReviewWork) ValidateTarget() error {
-	if w.Repository <= 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 || w.ActorID == w.PRAuthorID {
-		return errors.New("invalid independent review target")
+	if w.Repository <= 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 {
+		return errors.New("invalid review target")
+	}
+	if w.ActorID == w.PRAuthorID && (w.Event != "COMMENT" || (w.AgentVerdict != "APPROVED" && w.AgentVerdict != "REQUEST_CHANGES")) {
+		return errors.New("author account inspection requires an explicit agent verdict and comment review")
 	}
 	if !ValidTargetBranch(w.HeadRef) || !ValidTargetBranch(w.BaseRef) || w.HeadRef == w.BaseRef || !ValidCommit(w.HeadOID) || !ValidCommit(w.BaseOID) {
 		return errors.New("invalid exact review candidate")
@@ -182,7 +189,7 @@ func (w ReviewWork) Validate() error {
 	if !ValidPublicationOperationID(w.OperationID) || strings.TrimSpace(w.AuthRevision) == "" || len(w.AuthRevision) > 512 || w.NativeRev < 1 || w.NotAfter <= 0 || len(w.Body) > 65536 {
 		return errors.New("invalid review authorization")
 	}
-	switch w.Event {
+	switch w.Disposition() {
 	case "APPROVED":
 	case "REQUEST_CHANGES":
 		if strings.TrimSpace(w.Body) == "" {
@@ -191,10 +198,26 @@ func (w ReviewWork) Validate() error {
 	default:
 		return errors.New("invalid review disposition")
 	}
+	if w.ActorID == w.PRAuthorID {
+		if strings.TrimSpace(w.Body) == "" {
+			return errors.New("agent inspection comment needs its report")
+		}
+	} else if w.Event != w.Disposition() {
+		return errors.New("provider review differs from its agent verdict")
+	}
 	if err := validateFindingComments(w.Comments); err != nil {
 		return err
 	}
 	return nil
+}
+
+// Disposition is the agent's inspection result, never proof of provider approval.
+// Older records carry it in Event and remain readable without rewriting them.
+func (w ReviewWork) Disposition() string {
+	if w.AgentVerdict != "" {
+		return w.AgentVerdict
+	}
+	return w.Event
 }
 
 // ReviewObservation reports the exact current native target after equal idle
@@ -533,7 +556,7 @@ func ReviewWorkEqual(a, b ReviewWork) bool {
 		a.PRID == b.PRID && a.IssueID == b.IssueID && a.PRAuthorID == b.PRAuthorID &&
 		a.HeadRef == b.HeadRef && a.BaseRef == b.BaseRef && a.HeadOID == b.HeadOID &&
 		a.BaseOID == b.BaseOID && a.NativeRev == b.NativeRev && a.NotAfter == b.NotAfter &&
-		a.Event == b.Event && a.Body == b.Body
+		a.Event == b.Event && a.AgentVerdict == b.AgentVerdict && a.Body == b.Body
 }
 
 // ReviewCommentMapping binds one submitted finding key to its committed

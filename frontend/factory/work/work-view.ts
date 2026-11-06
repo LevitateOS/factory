@@ -175,6 +175,11 @@ function reviewCopy(detail: FactoryIssueDetail): string {
   const latest = publication.reviews[publication.reviews.length - 1];
   if (!latest) return `${publication.reviews_total} recorded reviews; latest entry unavailable.`;
   const effect = latest.effect ? `, effect ${latest.effect}` : '';
+  if (latest.event === 'COMMENT' && latest.agent_verdict) {
+    const verdict = latest.agent_verdict === 'APPROVED' ? 'clear' :
+      latest.agent_verdict === 'REQUEST_CHANGES' ? 'changes requested' : 'unavailable';
+    return `Latest independent agent inspection: ${verdict} on ${latest.head_oid.slice(0, 12)}, published as a comment${effect}.`;
+  }
   return `Latest independent review: ${latest.event} on ${latest.head_oid.slice(0, 12)}${effect}.`;
 }
 

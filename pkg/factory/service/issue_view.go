@@ -151,12 +151,13 @@ type workCorrectionView struct {
 // judged, its disposition and its native outcome. Review prose stays on
 // the native PR; this view carries the disposition and effect only.
 type workReviewView struct {
-	Run        string `json:"run"`
-	HeadOID    string `json:"head_oid"`
-	Event      string `json:"event"`
-	Effect     string `json:"effect,omitempty"`
-	Completion string `json:"completion,omitempty"`
-	Reason     string `json:"reason,omitempty"`
+	Run          string `json:"run"`
+	HeadOID      string `json:"head_oid"`
+	Event        string `json:"event"`
+	AgentVerdict string `json:"agent_verdict,omitempty"`
+	Effect       string `json:"effect,omitempty"`
+	Completion   string `json:"completion,omitempty"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // maxWorkHistoryEntries bounds the rendered correction and review tails.
@@ -211,7 +212,8 @@ func workPublicationDTO(p factory.Publication) *workPublicationView {
 	for _, review := range reviews {
 		view.Reviews = append(view.Reviews, workReviewView{
 			Run: review.RunID, HeadOID: review.Work.HeadOID, Event: review.Work.Event,
-			Effect: review.Outcome.Effect, Completion: review.Outcome.Completion,
+			AgentVerdict: review.Work.AgentVerdict,
+			Effect:       review.Outcome.Effect, Completion: review.Outcome.Completion,
 			Reason: review.Outcome.Reason,
 		})
 	}

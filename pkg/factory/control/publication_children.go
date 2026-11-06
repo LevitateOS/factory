@@ -720,7 +720,7 @@ func (c *Coordinator) resolveCurrentReviewReport(ctx context.Context, p factory.
 	if resolved.Verdict == "request-changes" {
 		wantEvent = "REQUEST_CHANGES"
 	}
-	if op.Work.Event != wantEvent {
+	if op.Work.Disposition() != wantEvent {
 		return empty, false, false, true
 	}
 	if _, _, err := c.bindPhasedReviewVerdict(ctx, p, assignment, p.Candidate, resolved); err != nil {
@@ -729,27 +729,34 @@ func (c *Coordinator) resolveCurrentReviewReport(ctx context.Context, p factory.
 	return resolved, true, false, false
 }
 
-func (c *Coordinator) currentReviewReport(ctx context.Context, p factory.Publication) (ResolvedReviewVerdict, bool, bool, bool) {
-	var empty ResolvedReviewVerdict
+func currentReviewOperation(p factory.Publication) (factory.ReviewOperation, bool) {
 	for i := len(p.ReviewOperations) - 1; i >= 0; i-- {
 		op := p.ReviewOperations[i]
-		if op.Work.HeadOID != p.Candidate {
-			continue
+		if op.Work.HeadOID == p.Candidate {
+			return op, true
 		}
-		settled, pending := currentReviewOpCurrent(p, op)
-		if pending {
-			return empty, false, true, false
-		}
-		if !settled {
-			return empty, false, false, true
-		}
-		assignment, err := c.Store.AssignmentByRun(ctx, op.RunID)
-		if err != nil || !reviewAssignmentMatches(assignment, p) {
-			return empty, false, false, true
-		}
-		return c.resolveCurrentReviewReport(ctx, p, op, assignment)
 	}
-	return empty, false, false, false
+	return factory.ReviewOperation{}, false
+}
+
+func (c *Coordinator) currentReviewReport(ctx context.Context, p factory.Publication) (ResolvedReviewVerdict, bool, bool, bool) {
+	var empty ResolvedReviewVerdict
+	op, found := currentReviewOperation(p)
+	if !found {
+		return empty, false, false, false
+	}
+	settled, pending := currentReviewOpCurrent(p, op)
+	if pending {
+		return empty, false, true, false
+	}
+	if !settled {
+		return empty, false, false, true
+	}
+	assignment, err := c.Store.AssignmentByRun(ctx, op.RunID)
+	if err != nil || !reviewAssignmentMatches(assignment, p) {
+		return empty, false, false, true
+	}
+	return c.resolveCurrentReviewReport(ctx, p, op, assignment)
 }
 
 // currentChildCheckAssessment accepts only the current policy's complete

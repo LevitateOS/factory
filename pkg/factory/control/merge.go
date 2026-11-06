@@ -17,6 +17,9 @@ import (
 // reports its verdict as either an adopted outcome, a terminal
 // PublicationRefusal, a retryable PublicationWait, or a transport
 // error reconciled by a later pass.
+// ObserveMerge and SubmitMerge must honor current provider branch rules. A
+// shared-account COMMENT conveys agent inspection, never a required approval;
+// observation must explicitly report complete, eligible provider evidence.
 type MergeExecutor interface {
 	ObserveMerge(ctx context.Context, work factory.MergeWork) (factory.MergeObservation, error)
 	SubmitMerge(ctx context.Context, work factory.MergeWork) (factory.OperationOutcome, error)

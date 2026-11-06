@@ -32,6 +32,18 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A04 — Go/storage contract verified; native automation pending.** Independent
+  review remains bound to its separate reviewer assignment and exact cycle.
+  When its provider account also authored the PR, the coordinator records an
+  explicit agent verdict and submits a COMMENT. Correction routing consumes the
+  agent verdict; shared UI distinguishes that inspection from provider approval.
+  Merge intents bind the comment event, require the exact adopted review receipt
+  and a canonical clear, and wait for explicit complete/eligible provider rules.
+  Another run cannot manufacture a missing provider approval. Existing PostgreSQL
+  review/correction/merge integration checks passed in
+  `/home/vince/tmp/frev6.u0FQ5M/result.log`; typecheck, builds and boundaries passed.
+  This is not connected automation or branch-protection qualification. Native
+  automated review/merge adapters still need to supply and enforce these facts.
 - **A05 — native source integration verified; workflow qualification pending.**
   Planning assembly and source recheck now use the enrolled execution workspace.
   Completion source/material and priority capture share a transactional recorded

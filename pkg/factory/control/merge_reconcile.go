@@ -116,11 +116,15 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 	}
 	work := c.mergeWork(m, policy)
 	if op.Work == nil {
-		if !c.observeMergeEvidence(ctx, &m, work, policy, revision, report) {
+		if !c.observeMergeEvidence(ctx, p, &m, work, policy, revision, report) {
 			return
 		}
 	}
 	work = op.Work.Apply(work)
+	if work.ReviewerID == work.PRAuthorID && !c.currentPublicationApproved(ctx, p) {
+		mergeWait(report, m.ID, "agent_review_pending")
+		return
+	}
 	// Recheck the local gate after recording. A concurrent withdrawal
 	// cancels this same recorded identity, including a submit delayed
 	// until after cancellation.

@@ -72,14 +72,17 @@ func mergeGateProtected(blocker string) bool {
 // completion/merge joints stay open: this gate never finishes,
 // fences or completes.
 type MergeJudgmentGateInput struct {
-	Publication factory.Publication
-	Admission   CorrectionAdmission
-	Cycle       factory.ReviewCycle
-	Acceptance  JudgmentAcceptance
-	Planned     []AcceptedResolution
-	Confirmed   map[string]bool
-	Generation  factory.MergeGeneration
-	Native      MergeNativeGate
+	// AgentReviewClear must come from the canonical independent review report.
+	// It does not satisfy any approval required by Native.Eligible's branch rules.
+	AgentReviewClear bool
+	Publication      factory.Publication
+	Admission        CorrectionAdmission
+	Cycle            factory.ReviewCycle
+	Acceptance       JudgmentAcceptance
+	Planned          []AcceptedResolution
+	Confirmed        map[string]bool
+	Generation       factory.MergeGeneration
+	Native           MergeNativeGate
 }
 
 // mergeGateBase returns the publication's verified base: the recorded PR
@@ -229,7 +232,7 @@ func checkJudgmentNative(in MergeJudgmentGateInput) error {
 	if in.Native.ChangesRequested {
 		return &factory.PublicationWait{Reason: "changes_requested"}
 	}
-	if !in.Native.Approved {
+	if !in.Native.Approved && !in.AgentReviewClear {
 		return &factory.PublicationWait{Reason: "approval_missing"}
 	}
 	if !in.Native.Eligible {

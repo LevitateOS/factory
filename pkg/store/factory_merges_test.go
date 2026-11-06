@@ -52,6 +52,7 @@ func TestRecordMergeRoundTrip(t *testing.T) {
 	db := publicationStoreFixture(t)
 	ctx := context.Background()
 	m := mergeTestRecord()
+	m.ReviewerID = m.PRAuthorID
 	if err := db.RecordMerge(ctx, m); err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestRecordMergeRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if got.ID != m.ID || got.Stage != factory.MergeOpen {
+	if got.ID != m.ID || got.Stage != factory.MergeOpen || got.ReviewerID != got.PRAuthorID {
 		t.Fatalf("round trip differs: %+v", got)
 	}
 	if err := db.RecordMerge(ctx, m); err == nil {
@@ -67,6 +68,23 @@ func TestRecordMergeRoundTrip(t *testing.T) {
 	}
 	if _, err := db.MergeByPublication(ctx, factory.NewID()); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("absent merge: %v", err)
+	}
+	seedMergeAssignment(t, db, m)
+	intent := mergeTestIntent("soda-x-merge-1")
+	intent.ReviewerID, intent.ReviewEvent = m.ReviewerID, "COMMENT"
+	m.Revision++
+	m.Operation = factory.MergeOperation{Kind: factory.OpMerge, Attempts: 1, OperationID: intent.OperationID, UpdatedUnix: 1200, Work: intent}
+	if err := db.UpdateMerge(ctx, m); err != nil {
+		t.Fatalf("shared-account comment review registration: %v", err)
+	}
+	got, err = db.MergeByPublication(ctx, m.PublicationID)
+	if err != nil || got.Operation.Work == nil || got.Operation.Work.ReviewEvent != "COMMENT" {
+		t.Fatalf("comment review binding lost: %+v %v", got.Operation.Work, err)
+	}
+	got.Operation.Work.ReviewEvent = "APPROVED"
+	got.Revision++
+	if err := db.UpdateMerge(ctx, got); err == nil {
+		t.Fatal("shared-account provider approval invented")
 	}
 }
 

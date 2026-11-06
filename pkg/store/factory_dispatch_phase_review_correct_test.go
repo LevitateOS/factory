@@ -318,22 +318,26 @@ func settleReviewCorrectRun(t *testing.T, ctx context.Context, db *Store, runID 
 	}
 }
 
-func appendCommittedReviewOp(t *testing.T, ctx context.Context, db *Store, p factory.Publication, runID, event string, now time.Time) factory.Publication {
+func appendCommittedReviewOp(t *testing.T, ctx context.Context, db *Store, p factory.Publication, runID, event string, actor int64, now time.Time) factory.Publication {
 	t.Helper()
+	agentVerdict := ""
+	if actor == p.PRCreate.Work.ActorID {
+		agentVerdict, event = event, "COMMENT"
+	}
 	p.ReviewOperations = append(p.ReviewOperations, factory.ReviewOperation{
 		RunID: runID,
 		Work: factory.ReviewWork{
 			OperationID: "review-" + runID, AuthRevision: factory.ReviewAuthRevision(p.AssignmentID, runID),
-			Repository: p.Repository, ActorID: 14,
+			Repository: p.Repository, ActorID: actor,
 			PRNumber: 9, PRID: 8, IssueID: 10, PRAuthorID: 7,
 			HeadRef: "refs/heads/candidate", BaseRef: "refs/heads/main",
 			HeadOID: reviewCorrectCandidate, BaseOID: reviewCorrectBase,
 			NativeRev: 9, NotAfter: now.Add(10 * time.Minute).Unix(),
-			Event: event, Body: "independent review",
+			Event: event, AgentVerdict: agentVerdict, Body: "independent review",
 		},
 		Outcome: factory.OperationOutcome{
 			OperationID: "review-" + runID, InstallationID: "installation-1",
-			Kind: factory.OpReviewSubmit, ActorID: 14, RepositoryID: p.Repository,
+			Kind: factory.OpReviewSubmit, ActorID: actor, RepositoryID: p.Repository,
 			Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete,
 			Receipt: []byte(`{"review_id":31}`),
 		},
@@ -496,7 +500,21 @@ func TestCorrectChildAdmitsThroughCorrectGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored = appendCommittedReviewOp(t, ctx, db, stored, finished.Run, "REQUEST_CHANGES", now)
+	stored = appendCommittedReviewOp(t, ctx, db, stored, finished.Run, "REQUEST_CHANGES", stored.PRCreate.Work.ActorID, now)
+	op := stored.ReviewOperations[len(stored.ReviewOperations)-1]
+	if op.Work.Event != "COMMENT" || op.Work.Disposition() != "REQUEST_CHANGES" || op.Work.AgentVerdict == "" {
+		t.Fatal("shared-account inspection lost its separate agent verdict")
+	}
+	invalid := op.Work
+	invalid.Event = "REQUEST_CHANGES"
+	if invalid.Validate() == nil {
+		t.Fatal("author account submitted a provider request-changes review")
+	}
+	invalid = op.Work
+	invalid.AgentVerdict = "APPROVED"
+	if factory.ReviewWorkEqual(invalid, op.Work) {
+		t.Fatal("agent verdict can change under the same review identity")
+	}
 	if err := recordDispatchTestPacket(t, ctx, db, corrector, correctionReservation, correctionRun, correctionView); err != nil {
 		t.Fatalf("correct child refused: %v", err)
 	}
@@ -544,7 +562,7 @@ func admitReviewCorrectRound(t *testing.T, ctx context.Context, db *Store, owner
 	if err != nil {
 		t.Fatal(err)
 	}
-	appendCommittedReviewOp(t, ctx, db, recorded, finished.Run, "REQUEST_CHANGES", now)
+	appendCommittedReviewOp(t, ctx, db, recorded, finished.Run, "REQUEST_CHANGES", 14, now)
 	if err := recordDispatchTestPacket(t, ctx, db, corrector, correctionReservation, correctionRun, correctionView); err != nil {
 		t.Fatalf("round %d correction refused: %v", round, err)
 	}
@@ -669,7 +687,7 @@ func TestReviewCorrectLineageRefusals(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		published = appendCommittedReviewOp(t, ctx, db, published, finished.Run, "REQUEST_CHANGES", now)
+		published = appendCommittedReviewOp(t, ctx, db, published, finished.Run, "REQUEST_CHANGES", 14, now)
 		corrector, correctionReservation, correctionRun, correctionView := reviewCorrectChild(t, ctx, db, now, owner, project.ExecutionCorrect, project.RoleCoder, finished.ID, owner.Preparation)
 		// The recorded round names another correction identity: this
 		// child answers no recorded round. Cycles stay immutable, so the
@@ -863,7 +881,7 @@ func TestReviewCorrectAllowanceAndFence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		appendCommittedReviewOp(t, ctx, db, round, finished.Run, "REQUEST_CHANGES", now)
+		appendCommittedReviewOp(t, ctx, db, round, finished.Run, "REQUEST_CHANGES", 14, now)
 		err = recordDispatchTestPacket(t, ctx, db, corrector, correctionReservation, correctionRun, correctionView)
 		if err == nil || !errors.Is(err, factory.ErrCorrectionExhausted) {
 			t.Fatalf("fourth correction admitted past exhaustion: %v", err)
@@ -965,7 +983,7 @@ func TestReviewCorrectAllowanceAndFence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		appendCommittedReviewOp(t, ctx, db, round, finished.Run, "REQUEST_CHANGES", now)
+		appendCommittedReviewOp(t, ctx, db, round, finished.Run, "REQUEST_CHANGES", 14, now)
 		if err := recordDispatchTestPacket(t, ctx, db, corrector, correctionReservation, correctionRun, correctionView); err != nil {
 			t.Fatalf("correction refused: %v", err)
 		}

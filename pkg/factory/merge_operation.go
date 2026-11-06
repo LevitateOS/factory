@@ -173,6 +173,7 @@ type MergeWork struct {
 	NotAfter           int64
 	AssessmentRevision int64
 	ReviewID           int64
+	ReviewEvent        string
 }
 
 // MergeIntent contains only the immutable native inputs.
@@ -194,6 +195,7 @@ type MergeIntent struct {
 	NotAfter           int64  `json:"not_after"`
 	AssessmentRevision int64  `json:"assessment_revision"`
 	ReviewID           int64  `json:"review_id"`
+	ReviewEvent        string `json:"review_event,omitempty"`
 }
 
 // Intent takes the credential-free native inputs from an executor call.
@@ -204,7 +206,7 @@ func (w MergeWork) Intent() MergeIntent {
 		Repository: w.Repository, ActorID: w.ActorID, PRNumber: w.PRNumber, PRID: w.PRID,
 		IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, ReviewerID: w.ReviewerID,
 		NativeRev: w.NativeRev, NotAfter: w.NotAfter,
-		AssessmentRevision: w.AssessmentRevision, ReviewID: w.ReviewID,
+		AssessmentRevision: w.AssessmentRevision, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent,
 	}
 }
 
@@ -216,18 +218,19 @@ func (i MergeIntent) Apply(w MergeWork) MergeWork {
 	w.IssueID, w.PRAuthorID, w.ReviewerID = i.IssueID, i.PRAuthorID, i.ReviewerID
 	w.NativeRev, w.NotAfter = i.NativeRev, i.NotAfter
 	w.AssessmentRevision, w.ReviewID = i.AssessmentRevision, i.ReviewID
+	w.ReviewEvent = i.ReviewEvent
 	return w
 }
 
 // ValidateTarget checks the exact merge target before evidence or
-// operation identity exist. The reviewer must be independent of the
-// recorded PR author.
+// operation identity exist. Agent independence belongs to the recorded review
+// assignment; provider account identity alone cannot establish it.
 func (w MergeWork) ValidateTarget() error {
 	if w.Repository <= 0 || w.Issue <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 {
 		return errors.New("invalid merge target scope")
 	}
-	if w.ActorID <= 0 || w.PRAuthorID <= 0 || w.ReviewerID <= 0 || w.ReviewerID == w.PRAuthorID {
-		return errors.New("merge review evidence needs its independent reviewer")
+	if w.ActorID <= 0 || w.PRAuthorID <= 0 || w.ReviewerID <= 0 {
+		return errors.New("merge review evidence lacks its account identity")
 	}
 	if !ValidTargetBranch(w.HeadRef) || !ValidTargetBranch(w.BaseRef) || w.HeadRef == w.BaseRef {
 		return errors.New("invalid merge refs")
@@ -261,13 +264,20 @@ func (i MergeIntent) checkMergeIntentScope() error {
 	if i.Repository <= 0 || i.ActorID <= 0 || i.PRNumber <= 0 || i.PRID <= 0 || i.IssueID <= 0 {
 		return errors.New("invalid merge work scope")
 	}
-	if i.PRAuthorID <= 0 || i.ReviewerID <= 0 || i.ReviewerID == i.PRAuthorID {
-		return errors.New("merge review evidence needs its independent reviewer")
+	if i.PRAuthorID <= 0 || i.ReviewerID <= 0 {
+		return errors.New("merge review evidence lacks its account identity")
 	}
 	return nil
 }
 
 func (i MergeIntent) checkMergeIntentBinding(observed bool) error {
+	if i.ReviewerID == i.PRAuthorID {
+		if i.ReviewEvent != "COMMENT" {
+			return errors.New("shared-account merge requires its comment review receipt")
+		}
+	} else if i.ReviewEvent != "" && i.ReviewEvent != "APPROVED" {
+		return errors.New("merge review is not an approval")
+	}
 	if i.AuthRevision == "" || len(i.AuthRevision) > 512 {
 		return errors.New("invalid merge authorization revision")
 	}

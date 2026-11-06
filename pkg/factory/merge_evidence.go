@@ -54,6 +54,11 @@ type MergeObservation struct {
 	BaseOID      string
 	ReviewerID   int64
 	ReviewID     int64
+	ReviewEvent  string
+	// Required for shared-account inspection. These must describe the fresh
+	// provider merge rules on this exact candidate, including required approvals.
+	ProviderComplete bool
+	ProviderEligible bool
 }
 
 // MergeConfirmation is one observed native completion: the realized

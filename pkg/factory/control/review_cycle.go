@@ -687,6 +687,9 @@ func (c *Coordinator) buildReviewWork(ctx context.Context, p factory.Publication
 		HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: head, BaseOID: p.PRCreate.BaseOID,
 		Event: event, Body: body,
 	}
+	if w.ActorID == w.PRAuthorID {
+		w.AgentVerdict, w.Event = event, "COMMENT"
+	}
 	observed, err := c.Reviews.ObserveReview(ctx, w)
 	if err != nil {
 		return empty, err

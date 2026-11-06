@@ -7,7 +7,9 @@ import (
 )
 
 // ReviewExecutor observes an exact candidate and submits its body and exact
-// inline findings through a separate native actor. Receipt adoption receives
+// inline findings through its admitted provider actor. Agent independence is
+// bound to the reviewer assignment; shared-account inspections use COMMENT,
+// never a provider self-approval. Receipt adoption receives
 // context for scoped identity lookup. It provides no publication capability.
 type ReviewExecutor interface {
 	ObserveReview(ctx context.Context, work factory.ReviewWork) (factory.ReviewObservation, error)

@@ -17,7 +17,7 @@ import (
 // an older pass. Missing evidence and blocking reviews wait for a later
 // pass; permanently refused or misidentified candidates fail. The bound
 // intent is persisted before any submit.
-func (c *Coordinator) observeMergeEvidence(ctx context.Context, m *factory.Merge, work factory.MergeWork, policy factory.RepositoryPolicy, revision int64, report *MergeReport) bool {
+func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Publication, m *factory.Merge, work factory.MergeWork, policy factory.RepositoryPolicy, revision int64, report *MergeReport) bool {
 	observation, err := c.Merges.ObserveMerge(ctx, work)
 	if err != nil {
 		var refused *factory.PublicationRefusal
@@ -33,6 +33,12 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, m *factory.Merge
 	if !checkMergeObservationIdentity(observation, m, revision, report) {
 		return false
 	}
+	if work.ReviewerID == work.PRAuthorID {
+		if err := c.verifySharedAccountMergeReview(ctx, p, work, observation); err != nil {
+			c.mergeCallError(report, m.ID, err)
+			return false
+		}
+	}
 	assessment, ok := c.loadMergeAssessment(ctx, m, report)
 	if !ok {
 		return false
@@ -45,6 +51,30 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, m *factory.Merge
 		return false
 	}
 	return c.persistMergeIntent(ctx, m, work, observation, report)
+}
+
+// A provider comment can carry the independent agent's report. It cannot
+// supply an approval required by branch rules or replace the typed review run.
+func (c *Coordinator) verifySharedAccountMergeReview(ctx context.Context, p factory.Publication, work factory.MergeWork, observation factory.MergeObservation) error {
+	if !observation.ProviderComplete || !observation.ProviderEligible {
+		return &factory.PublicationWait{Reason: "provider_merge_requirements_pending"}
+	}
+	if c.Reviews == nil || !c.currentPublicationApproved(ctx, p) {
+		return &factory.PublicationWait{Reason: "agent_review_pending"}
+	}
+	op, found := currentReviewOperation(p)
+	if !found || op.Work.ActorID != work.ReviewerID || op.Work.Event != "COMMENT" || op.Work.Disposition() != "APPROVED" || observation.ReviewEvent != op.Work.Event {
+		return &factory.PublicationWait{Reason: "review_evidence_mismatch"}
+	}
+	receipt, err := c.Reviews.AdoptReview(ctx, op.Work, op.Outcome)
+	if err != nil {
+		return err
+	}
+	if receipt.ReviewID <= 0 || receipt.ReviewID != observation.ReviewID || receipt.ReviewerID != work.ReviewerID ||
+		receipt.Event != op.Work.Event || receipt.HeadOID != work.HeadOID || receipt.BaseOID != work.BaseOID {
+		return &factory.PublicationWait{Reason: "review_evidence_mismatch"}
+	}
+	return nil
 }
 
 func checkMergeObservationIdentity(observation factory.MergeObservation, m *factory.Merge, revision int64, report *MergeReport) bool {
@@ -179,12 +209,17 @@ func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy
 	if m.Authorization.Bound() {
 		generation = m.Authorization.Generation.Generation
 	}
+	reviewEvent := "APPROVED"
+	if m.ReviewerID == m.PRAuthorID {
+		reviewEvent = "COMMENT"
+	}
 	return factory.MergeWork{
 		MergeID: m.ID, PublicationID: m.PublicationID,
 		OperationID: factory.MergeOperationIDForGeneration(m.PublicationID, generation), AuthRevision: factory.MergeAuthRevision(m.AssignmentID, m.ID, m.Revision),
 		HeadRef: m.HeadRef, BaseRef: m.BaseRef, HeadOID: m.HeadOID, BaseOID: m.BaseOID,
 		Repository: m.Repository, Issue: m.Issue, PRNumber: m.PRNumber, PRID: m.PRID, IssueID: m.IssueID,
 		PRAuthorID: m.PRAuthorID, ReviewerID: m.ReviewerID, ActorID: policy.Merge.ActorID,
+		ReviewEvent: reviewEvent,
 	}
 }
 

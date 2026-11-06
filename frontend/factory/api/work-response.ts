@@ -98,6 +98,7 @@ export interface WorkReview {
   run: string;
   head_oid: string;
   event: string;
+  agent_verdict?: string;
   effect?: string;
   completion?: string;
   reason?: string;
@@ -289,7 +290,9 @@ function workCorrection(value: unknown): WorkCorrection {
 }
 function workReview(value: unknown): WorkReview {
   const raw = record(value);
-  return {run: text(raw.run), head_oid: text(raw.head_oid), event: text(raw.event), ...opFields(raw)};
+  const verdict = nonEmpty(raw.agent_verdict);
+  return {run: text(raw.run), head_oid: text(raw.head_oid), event: text(raw.event),
+    ...(verdict === undefined ? {} : {agent_verdict: verdict}), ...opFields(raw)};
 }
 function workPublication(value: unknown): WorkPublication {
   const raw = record(value);
