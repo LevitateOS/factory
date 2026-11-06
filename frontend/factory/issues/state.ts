@@ -108,6 +108,7 @@ export class SodaFactoryIssueState extends LitElement {
     const context = this.current, signal = this.lifetime.signal;
     if (!context || !this.live(context, signal) || this.busy || this.blocked) return;
     this.busy = true; this.message = ''; this.touch();
+    let settled = false;
     try {
       if (action === 'submit' || action === 'retry') { await this.admit(context, signal); check(this.allowed); }
       else await this.identity(context, signal);
@@ -123,14 +124,19 @@ export class SodaFactoryIssueState extends LitElement {
         check(pending && this.pending && pending.command === this.pending.command && pending.external === context.parent.external_id);
         if (action === 'retry') check(pending.close === (this.state === 'open'));
       }
-      await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
+      settled = await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
       if (this.live(context, signal)) this.message = this.pending
         ? 'No final state outcome was confirmed. Check the saved command before retrying.'
         : 'Issue state admission or saved state changed. Nothing was submitted.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally {
+      if (this.live(context, signal)) {
+        this.busy = false; this.touch();
+        if (settled) void this.refresh();
+      }
+    }
   }
-  private async deliver(context: IssueStateContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
+  private async deliver(context: IssueStateContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel'): Promise<boolean> {
     const pending = this.pending;
     check(pending && this.live(context, signal));
     const base = this.path(context) + '/state', command = base + '/commands/' + pending.command;
@@ -147,13 +153,14 @@ export class SodaFactoryIssueState extends LitElement {
       this.message = outcome.completion === 'needs_intervention' ? 'The saved state change needs attention. Check status.'
         : outcome.effect === 'committed' ? 'State change recorded; completion is pending.'
           : 'The state change is not confirmed. Its original command remains saved.';
-      return;
+      return false;
     }
     check(issueStateRecord(context).settle(pending));
     this.restore(context);
     this.message = outcome.effect === 'committed' ? 'Issue state recorded. Refresh to read the provider state.'
       : action === 'cancel' ? 'State change cancelled before it was committed.' : 'No state change was committed.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('issue-state-saved', {detail: {repository: context.repository, issue: context.issue, command: pending.command}}));
+    return true;
   }
   render() {
     if (!this.current) return html``;
