@@ -395,7 +395,7 @@ export class SodaFactoryDiff extends LitElement {
         </button>
       </div>` : ''}
       ${
-        this.allowDraft && draft
+        draft
           ? html`<section class="composer" aria-label="Review draft">
               <p>
                 ${draft.anchor.side} ·
@@ -405,12 +405,13 @@ export class SodaFactoryDiff extends LitElement {
               <textarea
                 aria-label="Review comment"
                 .value=${draft.body}
+                ?readonly=${!this.allowDraft}
                 @input=${(event: Event) => {
-                  if (event.target instanceof HTMLTextAreaElement)
+                  if (this.allowDraft && event.target instanceof HTMLTextAreaElement)
                     this.changeDraft({...draft, body: event.target.value});
                 }}
               ></textarea>
-              <button @click=${() => this.changeDraft(null)}>Discard draft</button>
+              ${this.allowDraft ? html`<button @click=${() => this.changeDraft(null)}>Discard draft</button>` : ''}
             </section>`
           : ''
       }

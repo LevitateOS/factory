@@ -218,7 +218,11 @@ export class SodaFactoryPullInline extends LitElement {
           .draft=${draft && sameFile(draft.anchor, file) ? {anchor: draft.anchor, body: draft.body} : null}
           .allowDraft=${available} @factory-review-draft-change=${this.changeDraft}></soda-factory-diff>`;
       })}
-      ${draft && !this.files.some(file => sameFile(draft.anchor, file)) ? html`<p>Draft retained at its original diff revision and path. Open that file to edit it.</p>` : ''}
+      ${draft && !this.files.some(file => sameFile(draft.anchor, file)) ? html`<section aria-label="Retained inline draft">
+        <p>Draft retained at its original diff revision and path. Open that file to edit it.</p>
+        <p>${draft.anchor.old_path || draft.anchor.new_path} · ${draft.anchor.diff.head}</p>
+        <textarea aria-label="Retained inline comment" readonly .value=${draft.body}></textarea>
+      </section>` : ''}
       ${draft && !pending ? html`<div class="soda-pull-inline-actions">
         <button type="button" @click=${() => this.act('submit', true)} ?disabled=${!available || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Add to draft review</button>
         <button type="button" @click=${() => this.act('submit', false)} ?disabled=${!available || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Post inline comment</button>
