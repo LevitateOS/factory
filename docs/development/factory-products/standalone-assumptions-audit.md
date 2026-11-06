@@ -3,8 +3,44 @@
 2026-11-06. Source baseline: `aa6b6d9`; the working tree was clean when this
 audit started. Scope: requirements, authority, supported workflows, runtime,
 UI and delivery assumptions across standalone Factory and its shared consumers.
-The implementation goal remains paused. This report does not adopt proposed
-requirements, change product behavior or qualify any security gate.
+The old implementation queue was paused for this audit. Corrections now follow
+the owner decisions below. Audit recommendations alone do not adopt requirements
+or qualify any security gate.
+
+## Owner decisions after the audit
+
+The user started the correction goal and selected these requirements on
+2026-11-06:
+
+- The local computer's owner controls local execution and spending. Provider
+  permissions are checked separately for each remote action (A02/A03).
+- Factory always requires the full automated pipeline. The proposed planning,
+  local-change and PR-only delivery modes were not selected (A07/A10). Preserve
+  required review, CI and merge stages while correcting incompatible contracts.
+- Independent agent inspection works with one GitHub account. A second provider
+  account or bot is optional; submitted approvals and merges must still obey
+  the provider's actual rules (A04). A second personal account is not required
+  for Factory and cannot substitute for independent human approval. The earlier
+  second account was an optional two-user integration fixture.
+- Existing Muse session reuse and a browser link only when authentication is
+  needed remain the earlier explicit instructions (A01).
+
+The original audit and its recommendations below retain their baseline scope.
+They are not all selected requirements. In particular, A07's proposed simpler
+delivery modes are superseded by the full-pipeline decision above. Execution
+corrections are now active; the old feature queue waits for their resolution.
+
+### Verified corrections
+
+- **A06 — local native integration verified.** Saved bound-request overview now
+  reports explicit unavailable setup when a host has no reader. Desktop supplies
+  a native workspace reader; ready requires both approved role preparations in
+  the current runtime. Shared presentation no longer labels unknown setup ready.
+  Actual coder/reviewer preparation, HTTP overview, stale instance/profile,
+  retirement and unchanged draft passed in
+  `/home/vince/tmp/fsov6.BHDkXg/run.log`, followed by the existing admitted local
+  worker/restart journey. Provider authority was declared and credentials dummy;
+  connected UI/installed behavior and broad security gates remain unqualified.
 
 ## Conclusion
 

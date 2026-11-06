@@ -412,14 +412,20 @@ async fn managed_execution(
     let candidate_check = std::env::var("SODA_NATIVE_CHECK_CANDIDATE").as_deref() == Ok("1");
     let source_preparation = {
         command("check-native-preparation", "ready")?;
-        let entries: Vec<_> =
-            fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
-        if entries.len() != 1 {
+        let role =
+            std::env::var("SODA_NATIVE_PREPARATION_ROLE").unwrap_or_else(|_| "soda-coder".into());
+        let mut selected = Vec::new();
+        for entry in fs::read_dir(profile.join("native-preparations"))? {
+            let request: serde_json::Value =
+                serde_json::from_slice(&fs::read(entry?.path().join("request.json"))?)?;
+            if request["input"]["preparation"]["role"].as_str() == Some(role.as_str()) {
+                selected.push(request);
+            }
+        }
+        if selected.len() != 1 {
             return Err("candidate source preparation missing".into());
         }
-        serde_json::from_slice::<serde_json::Value>(&fs::read(
-            entries[0].path().join("request.json"),
-        )?)?
+        selected.remove(0)
     };
     if std::env::var("SODA_NATIVE_CHECK_ADMITTED").as_deref() == Ok("1") {
         let mut random = [0u8; 16];

@@ -472,9 +472,11 @@ are not an atomic transaction or permission to execute agent work.
 recorded work delivery from adopted product-outcome evidence, preserves exact
 mapping/effective-scope facts and never invokes a judge or dispatches work.
 `RequestSetupReader` supplies runtime setup facts after request ownership is
-checked. Unbound requests need no runtime port; bound requests fail on missing,
-invalid or unavailable setup facts rather than fabricating readiness. Native
-Project/preparation queries remain in the Fountain adapter. `WorkItemState`
+checked. Unbound requests need no runtime port; a missing port explicitly reports
+unavailable setup without hiding the saved request. Invalid observations and
+reader failures still refuse rather than fabricating readiness. Native workspace
+observations belong to the desktop runtime; appliance Project/preparation queries
+remain in the Fountain adapter. `WorkItemState`
 also supplies the existing admitted revision-history projection.
 
 `SaveRevision` binds the admitted owner and server timestamp, retains the

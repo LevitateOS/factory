@@ -1700,6 +1700,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if _, err = port.PrepareWorkspace(ctx, request); err != nil {
 		return err
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
+		if err := nativeRequestSetupFixture(ctx, db, port, host.ID, actor.ID, int64(repo.ID), record, request); err != nil {
+			return err
+		}
+	}
 	if os.Getenv("SODA_NATIVE_KEEP_PREPARATION") == "1" {
 		fmt.Println("PASS: retained admitted source preparation with actual build output and private HOME file")
 		return nil
@@ -1807,6 +1812,116 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return errors.New("stopped native preparation restarted")
 	}
 	fmt.Println("PASS: actual Go/native source preparation, real setup/check exits, source digest, observed state CAS, stable replay and exact retirement")
+	return nil
+}
+
+func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, host collaboration.HostID, actor collaboration.ActorID, repository int64, record execution.PreparationRecord, request execution.StandingPreparationRequest) error {
+	requests := factoryservice.Requests{Store: db, Setup: port.RequestSetup,
+		WriteAccess: func(ctx context.Context, selected collaboration.ActorID, repo int64) error {
+			if selected != actor || repo != repository {
+				return errors.New("declared request fixture authority changed")
+			}
+			return ctx.Err()
+		}}
+	revision, err := requests.SaveRevision(ctx, actor, factory.IntentRevision{
+		ID: "d" + factory.NewID()[:24], Intent: "d" + factory.NewID()[:24], Repository: repository,
+		Objective: "Read this saved native request while execution setup is incomplete.", State: "draft", MaxIssues: 1,
+		Ideas: []factory.ProductIdea{}, Tasks: []factory.IntentTask{},
+	})
+	if err != nil {
+		return err
+	}
+	check := func(setup factoryservice.RequestSetupReader, state string) error {
+		service := requests
+		service.Setup = setup
+		product := factoryhttpapi.Product{Store: db, Host: host, Actor: actor,
+			Current:  func(http.ResponseWriter, *http.Request) bool { return true },
+			Requests: factoryhttpapi.Requests{Service: service}}
+		response := httptest.NewRecorder()
+		product.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/factory/intents/"+revision.Intent+"/overview", nil).WithContext(ctx))
+		if response.Code != http.StatusOK {
+			return fmt.Errorf("native request overview HTTP %d: %s", response.Code, response.Body.String())
+		}
+		var view factoryservice.RequestOverview
+		if json.Unmarshal(response.Body.Bytes(), &view) != nil || view.Intent != revision.Intent || view.Revision != revision.ID || view.Setup.State != state {
+			return fmt.Errorf("native request overview setup: %s want %s", view.Setup.State, state)
+		}
+		return nil
+	}
+	if err := check(port.RequestSetup, factoryservice.RequestSetupPreparing); err != nil {
+		return err
+	}
+	if err := check(nil, factoryservice.RequestSetupUnavailable); err != nil {
+		return err
+	}
+	other := record
+	other.State = execution.PreparationState{}
+	other.Preparation.ID = "f" + factory.NewID()[:24]
+	other.Preparation.Revision = 0
+	other.Preparation.Role = project.RoleReviewer
+	if record.Preparation.Role == project.RoleReviewer {
+		other.Preparation.Role = project.RoleCoder
+	}
+	ref := *record.Native
+	ref.WorktreeID = other.Preparation.ID
+	other.Native = &ref
+	other, _, err = db.AdmitStandingPreparation(ctx, other)
+	if err != nil {
+		return err
+	}
+	request.Input.Preparation, request.Native = other.Preparation, other.Native
+	state, err := port.PrepareWorkspace(ctx, request)
+	for err == nil {
+		other, err = db.Preparation(ctx, other.Preparation.ID)
+		if err != nil {
+			break
+		}
+		other.State = state
+		if err = db.ObservePreparation(ctx, other); err != nil || state.Ready {
+			break
+		}
+		if state.Phase != project.PrepareRunning {
+			return errors.New("other pipeline role setup failed")
+		}
+		time.Sleep(30 * time.Millisecond)
+		state, err = port.InspectWorkspacePreparation(ctx, request.Address())
+	}
+	if err != nil {
+		return err
+	}
+	if err := check(port.RequestSetup, factoryservice.RequestSetupReady); err != nil {
+		return err
+	}
+	stale := port
+	stale.Instance = factory.NewID()
+	if err := check(stale.RequestSetup, factoryservice.RequestSetupPreparing); err != nil {
+		return err
+	}
+	foreign := port
+	foreign.Config.Profile = collaboration.ProfileID(factory.NewID())
+	if err := check(foreign.RequestSetup, factoryservice.RequestSetupUnavailable); err != nil {
+		return err
+	}
+	state, err = port.RetireWorkspacePreparation(ctx, request.Address())
+	if err != nil {
+		return err
+	}
+	other, err = db.Preparation(ctx, other.Preparation.ID)
+	if err != nil {
+		return err
+	}
+	other.State = state
+	if err := db.ObservePreparation(ctx, other); err != nil {
+		return err
+	}
+	if err := check(port.RequestSetup, factoryservice.RequestSetupPreparing); err != nil {
+		return err
+	}
+	after, err := requests.Revision(ctx, actor, revision.Intent)
+	if err != nil || !reflect.DeepEqual(after, revision) {
+		return errors.New("setup overview changed the saved request")
+	}
+	fmt.Println("PASS: saved native request HTTP overview remains readable with absent setup port; actual coder/reviewer setup, stale-instance/profile refusal and retirement retain truthful readiness without changing the draft")
 	return nil
 }
 

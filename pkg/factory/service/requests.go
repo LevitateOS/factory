@@ -187,10 +187,11 @@ type RequestGeneration struct {
 
 // requestSetupStates name the environment setup facts for one request.
 const (
-	RequestSetupUnassigned = "repository_unassigned"
-	RequestSetupMissing    = "project_missing"
-	RequestSetupPreparing  = "preparing"
-	RequestSetupReady      = "ready"
+	RequestSetupUnassigned  = "repository_unassigned"
+	RequestSetupMissing     = "project_missing"
+	RequestSetupPreparing   = "preparing"
+	RequestSetupReady       = "ready"
+	RequestSetupUnavailable = "unavailable"
 )
 
 type RequestSetup struct {
@@ -332,14 +333,15 @@ func (s Requests) Overview(ctx context.Context, actor collaboration.ActorID, int
 		view.Setup = RequestSetup{State: RequestSetupUnassigned}
 	} else {
 		if s.Setup == nil {
-			return empty, ErrRequestSetupUnavailable
-		}
-		view.Setup, err = s.Setup(ctx, revision.Repository)
-		if err != nil {
-			return empty, fmt.Errorf("read request setup: %w", err)
+			view.Setup = RequestSetup{State: RequestSetupUnavailable}
+		} else {
+			view.Setup, err = s.Setup(ctx, revision.Repository)
+			if err != nil {
+				return empty, fmt.Errorf("read request setup: %w", err)
+			}
 		}
 		switch view.Setup.State {
-		case RequestSetupMissing, RequestSetupPreparing, RequestSetupReady:
+		case RequestSetupMissing, RequestSetupPreparing, RequestSetupReady, RequestSetupUnavailable:
 		default:
 			return empty, ErrRequestSetupUnavailable
 		}

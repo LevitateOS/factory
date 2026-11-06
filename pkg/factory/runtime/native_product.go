@@ -75,7 +75,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 			return false
 		},
 		Feed:     factoryhttp.Feed{Service: factoryservice.Feed{Store: application.Store}, Posts: posts, Visibility: bound.visibility},
-		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
+		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Work:     factoryhttp.Work{Reads: factoryservice.WorkReads{Store: application.Store, Visibility: bound.visible}, Issues: factoryservice.Issues{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},

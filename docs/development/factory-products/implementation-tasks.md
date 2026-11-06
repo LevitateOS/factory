@@ -20,8 +20,11 @@ verification. Native/installed evidence remains a separate gate from source chec
 assumptions, native composition mismatches and unresolved product decisions.
 Read its affected findings before resuming dependent implementation. Its
 recommendations are not automatically adopted requirements. Existing slice
-statuses/evidence and open security gates remain unchanged; the implementation
-goal remains paused.
+statuses/evidence and open security gates remain unchanged. The active correction
+goal precedes this feature queue. Owner decisions now require local-owner control
+of execution/spending, the full automated pipeline and support for independent
+agent inspection with one GitHub account. The audit records those choices and
+verified corrections, including native request-overview setup readback (A06).
 
 ## Remaining product milestones (2026-11-06)
 

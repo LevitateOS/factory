@@ -411,7 +411,8 @@ function requestSetupText(state: string): string {
   if (state === 'repository_unassigned') return 'No repository assigned to this request.';
   if (state === 'project_missing') return 'Project setup missing: no project prepared.';
   if (state === 'preparing') return 'Project setup preparing.';
-  return 'Project setup ready.';
+  if (state === 'ready') return 'Project setup ready.';
+  return 'Project setup status unavailable.';
 }
 function requestGenerationText(state: string): string {
   if (state === 'refused') return 'Native work generation was refused.';

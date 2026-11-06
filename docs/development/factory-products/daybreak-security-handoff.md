@@ -29,6 +29,15 @@ These are dependencies for the existing gates, not replacement completion
 criteria. Existing entries retain their recorded evidence scope; the audit names
 contracts that need review before dependent implementation resumes.
 
+Owner follow-up selects local-owner resource/spend control, the full automated
+pipeline and one-account independent agent inspection; a second personal GitHub
+account is not required and cannot stand in for independent human approval.
+These choices do not waive current remote permissions or branch protection.
+The A06 setup-reader correction passed actual native preparations and shared HTTP
+readback under declared account admission in `/home/vince/tmp/fsov6.BHDkXg/run.log`.
+Unknown setup is explicit and grants no work. Connected/installed and broad
+security closure remain pending; this check used dummy credentials only.
+
 ## Existing evidence and open gates
 
 Placement update (2026-11-06): `pkg/store/factory_placement.go` now owns local
