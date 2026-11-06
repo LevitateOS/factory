@@ -31014,6 +31014,13 @@ retries only the transient 409 until its existing deadline. Evidence:
 `/home/vince/tmp/fpm-1793963797467/{run.log,host/result.json,host/pull-reader/pull-browser-merge-result.json}`.
 GitHub-connected desktop and final installed qualification remain open.
 
+The next real Fountain browser journey posted a file-scoped inline comment from
+the shared diff and read its new discussion back. The provider also emitted a
+submitted comment-review record, so the draft-to-approval check now verifies
+that submission replaces the pending draft without adding another review. The
+thread, merge, changed-head and revocation checks still passed. Evidence:
+`/home/vince/tmp/fpi-1793964017996/{run.log,host/result.json}`. GitHub desktop remains open.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first

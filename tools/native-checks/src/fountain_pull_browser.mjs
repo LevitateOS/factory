@@ -86,6 +86,18 @@ try {
   await discussion.getByRole('button', {name: 'Manage resolution'}).click();
   await discussion.getByRole('button', {name: 'Reopen discussion'}).click();
   await discussion.filter({hasText: '· unresolved'}).waitFor();
+  stage = 'inline comment';
+  await detail.getByRole('button', {name: 'Files', exact: true}).click();
+  const file = detail.locator('soda-factory-diff').filter({has: page.getByRole('heading', {name: 'alpha.txt', exact: true})});
+  await file.getByRole('button', {name: 'Comment on file'}).click();
+  await file.getByRole('textbox', {name: 'Review comment'}).fill('File discussion from shared browser');
+  const inline = detail.locator('soda-factory-pull-inline');
+  await inline.getByRole('button', {name: 'Post inline comment'}).click();
+  await inline.getByText('Inline comment posted.', {exact: true}).waitFor();
+  await detail.getByRole('button', {name: 'Inline discussions', exact: true}).click();
+  await detail.getByText('File discussion from shared browser', {exact: true}).waitFor();
+  assert(await detail.locator('section[aria-label="Inline discussions"] > ol > li').count() === 3,
+    'new file discussion was not read back');
   stage = 'checks';
   await detail.getByRole('button', {name: 'Checks', exact: true}).click();
   await detail.locator('section[aria-label="Checks"]').waitFor();
@@ -98,6 +110,8 @@ try {
   await detail.getByRole('button', {name: 'Reviews', exact: true}).click();
   await detail.locator('section[aria-label="Reviews"]').waitFor();
   const reviewRows = detail.locator('section[aria-label="Reviews"] li');
+  const countWithDraft = await reviewRows.count();
+  assert(countWithDraft === 3, 'inline review or pending draft missing from the review list');
   const editDraft = detail.getByRole('button', {name: 'Edit saved draft review'});
   await editDraft.waitFor({timeout: 5000}).catch(async () => {
     throw Error('saved draft editor missing: ' + (await reviewRows.allTextContents()).map(row => row.slice(0, 100)).join(' | '));
@@ -108,15 +122,17 @@ try {
   await review.getByRole('button', {name: 'Approve', exact: true}).click();
   await review.getByText('Review submitted.', {exact: true}).waitFor();
   await detail.locator('section[aria-label="Reviews"] li').nth(1).waitFor();
-  assert(await detail.locator('section[aria-label="Reviews"] li').count() === 2, 'draft submission created a second review');
+  assert(await reviewRows.count() === countWithDraft, 'draft submission created a second review');
   await detail.locator('section[aria-label="Reviews"] li').filter({hasText: 'Reviewed and approved after draft'}).waitFor();
   await page.reload();
   await detail.locator('section[aria-label="Reviews"] li').nth(1).waitFor();
+  assert(await reviewRows.count() === countWithDraft, 'review count changed after reload');
   await detail.locator('section[aria-label="Reviews"] li').filter({hasText: 'Reviewed and approved after draft'}).waitFor();
   await save('pull-browser-result.json', {
     result: 'pass', native_header_and_shared_list: true, detail: true,
     markdown_issue_navigation: true,
-    commits: 3, files: 3, checks: true, inline_discussions: 2, thread_resolved_and_reopened: true,
+    commits: 3, files: 3, checks: true, inline_discussions: 3,
+    inline_posted_and_read_back: true, thread_resolved_and_reopened: true,
     pending_review_private: true, draft_reopened_and_submitted: true,
     approval_submitted: true, approval_readback_after_reload: true,
   });
