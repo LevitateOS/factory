@@ -112,7 +112,7 @@ passed (`/home/vince/tmp/fuc.2cFOMm/edit-product-result.json`). The first longer
 scratch path failed local socket setup before the journey; it was rerun with a
 short path. No connected, installed or security qualification is claimed.
 
-### 3. Go coordinator and provider judgments — active
+### 3. Go coordinator and provider judgments — complete
 
 Give progress one explicit pass owner and repair adoption one workflow with
 cause-specific admission/persistence. Give System One one transport owner.
@@ -126,6 +126,24 @@ cause-specific admission/persistence. Give System One one transport owner.
   delivery adapter knows private coordinator material. Preserve distinct bounds.
 - Dormant exported MCP-key/provider/identity helpers need caller/compatibility
   evidence before removal. No internal caller alone proves an export obsolete.
+
+Implemented one repair-adoption procedure and generation validator with closed
+stall/delivery causes. Sponsorship, progress generations, journal checks and atomic
+activation/save remain cause-specific. Only generic recovery resolves the historical
+cause-less `RepairCycle`; changing retained formats is unnecessary for this cut.
+One System One request/default-model owner preserves separate priority/generic
+decoders, bounds and error mapping. Delivery material validates beside its own shape.
+Independent review preserved ordering, wire envelopes and material fingerprints;
+cached production Go build passed. No existing local integration exercises repair
+driver lost replies/freshness/activation or the TypeSafe transport directly, so
+runtime equivalence of those paths is not newly qualified by this checkpoint.
+
+Reassessed progress: startup recovers without dispatching new work; dispatch returns
+its report and advances publication; ticks settle, repair, dispatch then detect stalls.
+Reentrant progress locking, dispatch-recursion suppression and readiness budget
+ownership represent separate requirements. Independent review found no worthwhile
+safe sequence consolidation. Keep them explicit. Inspected SodaOS production
+callers still use `LoadFactoryMCPKey` and `TypeSafeKeyReadable`; retain these APIs.
 
 ### 4. Rust GitHub connector and admitted effects — pending
 

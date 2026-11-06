@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 )
@@ -29,9 +28,6 @@ func (p *TypeSafePriority) Choose(ctx context.Context, request factory.PriorityR
 	return p.Select(ctx, request, request.Rubric, choices)
 }
 
-// Select is shared by narrow product and planning judgments. Code supplies
-// complete state, a single rubric and explicit alternatives; this method grants
-// no authority; its caller checks work scope and any actual work allowance.
 func admitPriorityCandidates(choices map[string]any) (factory.PriorityRequest, error) {
 	request := factory.PriorityRequest{}
 	for id := range choices {
@@ -67,22 +63,12 @@ func readPriorityKeyFile(path string) (string, error) {
 }
 
 func postPriorityRequest(ctx context.Context, client *http.Client, model string, state any, question string, choices map[string]any, key string) (*http.Response, error) {
-	body, err := json.Marshal(map[string]any{"model": model, "state": state, "questions": map[string]any{"priority": map[string]any{"type": "choice", "instructions": question, "criteria": choices}}})
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.typesafe.ai/v1/systemone", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+key)
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	}
-	response, err := client.Do(req)
-	if err != nil {
+	response, err := postSystemOne(ctx, client, model, state, map[string]any{"priority": map[string]any{"type": "choice", "instructions": question, "criteria": choices}}, key)
+	if errors.Is(err, errSystemOneRequestFailed) {
 		return nil, ErrPriorityUnavailable
+	}
+	if err != nil {
+		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
 		_ = response.Body.Close()
@@ -124,6 +110,7 @@ func decodePriorityResponse(response *http.Response, request factory.PriorityReq
 	return answer, answer.Validate(request)
 }
 
+// Select grants no authority; its caller checks work scope and allowances.
 func (p *TypeSafePriority) Select(ctx context.Context, state any, question string, choices map[string]any) (factory.PriorityAnswer, error) {
 	request, err := admitPriorityCandidates(choices)
 	if err != nil {
@@ -133,11 +120,7 @@ func (p *TypeSafePriority) Select(ctx context.Context, state any, question strin
 	if err != nil {
 		return factory.PriorityAnswer{}, err
 	}
-	model := p.Model
-	if model == "" {
-		model = "jev-latest"
-	}
-	response, err := postPriorityRequest(ctx, p.Client, model, state, question, choices, key)
+	response, err := postPriorityRequest(ctx, p.Client, p.Model, state, question, choices, key)
 	if err != nil {
 		return factory.PriorityAnswer{}, err
 	}

@@ -379,7 +379,7 @@ func (c *Coordinator) admitRecordedWalkthroughReview(ctx context.Context, head f
 // a stamped binding fail closed; provenance cannot be attached later.
 func (c *Coordinator) validateGenerationBinding(ctx context.Context, g factory.IntentGeneration) (*DispatchWait, error) {
 	if g.RepairCycle != "" {
-		return c.validateStallRepairGeneration(ctx, g)
+		return c.validateRepairGeneration(ctx, g)
 	}
 	if g.ReassessmentCycle != "" {
 		return c.validateReassessmentGeneration(ctx, g)

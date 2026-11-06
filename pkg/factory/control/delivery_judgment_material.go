@@ -48,6 +48,14 @@ type deliveryJudgmentMaterial struct {
 	Final       *execution.CheckpointReceipt     `json:"native_final"`
 }
 
+func deliveryJudgmentInput(state any, model string) (factory.DeliveryFingerprintInput, error) {
+	material, ok := state.(*deliveryJudgmentMaterial)
+	if !ok || material == nil || material.Input.Model != model {
+		return factory.DeliveryFingerprintInput{}, errors.New("delivery judgment requires complete bound semantic material")
+	}
+	return material.Input, material.validate()
+}
+
 func deliveryContentDigest(value any) string {
 	raw, _ := json.Marshal(value)
 	sum := sha256.Sum256(raw)

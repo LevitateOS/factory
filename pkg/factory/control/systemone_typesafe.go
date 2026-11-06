@@ -1,7 +1,6 @@
 package control
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,7 +8,6 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 )
@@ -27,15 +25,11 @@ func (p *TypeSafeSystemOne) Evaluate(ctx context.Context, kind string, state, in
 	if err != nil {
 		return nil, errors.New("System One provider is not configured")
 	}
-	model := p.Model
-	if model == "" {
-		model = "jev-latest"
-	}
 	q := map[string]any{"type": kind, "instructions": instructions}
 	if criteria != nil {
 		q["criteria"] = criteria
 	}
-	return p.evaluateQuestionMap(ctx, key, model, state, map[string]any{"judgment": q}, func(out map[string]any) (map[string]any, error) {
+	return p.evaluateQuestionMap(ctx, key, p.Model, state, map[string]any{"judgment": q}, func(out map[string]any) (map[string]any, error) {
 		answers, _ := out["answers"].(map[string]any)
 		answer, _ := answers["judgment"].(map[string]any)
 		if answer["type"] != kind {
@@ -76,10 +70,6 @@ func (p *TypeSafeSystemOne) EvaluateQuestions(ctx context.Context, kind string, 
 	if err != nil {
 		return nil, errors.New("System One provider is not configured")
 	}
-	model := p.Model
-	if model == "" {
-		model = "jev-latest"
-	}
 	if len(questions) == 0 || len(questions) > factory.SystemOneMaxBatchQuestions {
 		return nil, errors.New("System One batch needs 1 to 8 questions")
 	}
@@ -97,7 +87,7 @@ func (p *TypeSafeSystemOne) EvaluateQuestions(ctx context.Context, kind string, 
 		}
 		wire[id] = entry
 	}
-	return p.evaluateQuestionMap(ctx, key, model, state, wire, func(out map[string]any) (map[string]any, error) {
+	return p.evaluateQuestionMap(ctx, key, p.Model, state, wire, func(out map[string]any) (map[string]any, error) {
 		answers, _ := out["answers"].(map[string]any)
 		batch := make(map[string]any, len(questions))
 		for id, question := range questions {
@@ -120,23 +110,9 @@ func (p *TypeSafeSystemOne) EvaluateQuestions(ctx context.Context, kind string, 
 // evaluateQuestionMap posts one question envelope and finishes the
 // decoded contract envelope through the caller's answer projection.
 func (p *TypeSafeSystemOne) evaluateQuestionMap(ctx context.Context, key, model string, state any, questions map[string]any, finish func(map[string]any) (map[string]any, error)) (map[string]any, error) {
-	body, err := json.Marshal(map[string]any{"model": model, "state": state, "questions": questions})
+	res, err := postSystemOne(ctx, p.Client, model, state, questions, key)
 	if err != nil {
 		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.typesafe.ai/v1/systemone", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("Content-Type", "application/json")
-	client := p.Client
-	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, errors.New("System One request failed")
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
