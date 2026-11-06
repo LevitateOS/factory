@@ -1031,7 +1031,21 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	}
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 	address := execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}
-	if mode == "recover" || mode == "recover_replay" {
+	if mode == "coordinator" {
+		competitor := control.NewCoordinator(db, port, port)
+		defer competitor.Close()
+		bounded, stop := context.WithTimeout(ctx, 150*time.Millisecond)
+		defer stop()
+		if err := competitor.Start(bounded, filepath.Join(profile, "coordinator.lock")); err == nil {
+			return errors.New("second coordinator acquired the native ledger")
+		}
+		if !run.Reconciled || run.Native == nil || !run.Native.Settled() {
+			return errors.New("native coordinator startup did not settle the actual retired run")
+		}
+		fmt.Println("PASS: explicit native coordinator startup settled the actual local run and excludes a competing controller")
+		return nil
+	}
+	if mode == "recover" || mode == "recover_replay" || mode == "recover_started" {
 		targetID, readErr := os.ReadFile(filepath.Join(profile, "native-recovery-target.id"))
 		if readErr != nil {
 			return readErr
@@ -1041,15 +1055,19 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 			Source: execution.NativeWorkspaceRef{Profile: provenance.Profile, InstanceID: provenance.InstanceID, WorktreeID: provenance.WorktreeID},
 			Target: execution.NativeCheckoutRef{Profile: config.Profile, CheckoutID: string(targetID)},
 		}}
-		if mode == "recover" {
-			if _, err = port.RecoverWork(ctx, request); !errors.Is(err, execution.ErrRecovery) {
-				return errors.New("native work copied before reconciliation")
-			}
+		if mode == "recover" || mode == "recover_started" {
 			coordinator := control.NewCoordinator(db, port, port)
 			defer coordinator.Close()
-			reconciled, reconcileErr := coordinator.Reconcile(ctx)
-			if reconcileErr != nil || !slices.Contains(reconciled.Settled, run.ID) {
-				return fmt.Errorf("local native reconciliation: %+v %v", reconciled, reconcileErr)
+			if mode == "recover" {
+				if _, err = port.RecoverWork(ctx, request); !errors.Is(err, execution.ErrRecovery) {
+					return errors.New("native work copied before reconciliation")
+				}
+				reconciled, reconcileErr := coordinator.Reconcile(ctx)
+				if reconcileErr != nil || !slices.Contains(reconciled.Settled, run.ID) {
+					return fmt.Errorf("local native reconciliation: %+v %v", reconciled, reconcileErr)
+				}
+			} else if !run.Reconciled || !run.Native.Settled() {
+				return errors.New("native coordinator has not reconciled the recovery source")
 			}
 			copied, copyErr := coordinator.RecoverRunWork(ctx, run.ID, request.Target())
 			if copyErr != nil {

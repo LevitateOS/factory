@@ -7,8 +7,11 @@ PG/Go supervisor, OS account credential custody and the complete authenticated
 GitHub connector. The separate headless process primitive lives in
 [`lib/native-process`](../native-process/README.md). The
 production Tauri host is [`cmd/soda-desktop`](../../cmd/soda-desktop/README.md).
-Workspace/Git/custody composition and product execution activation remain later
-slices; no coordinator or selectable native worker is enabled.
+The supervisor supplies native preparation/context/candidate/recovery and scoped
+execution/custody ports. `start_execution_coordinator` explicitly activates the
+single Go coordinator after the callback owner is ready; the desktop calls this
+before reporting ready. Provider/task authority and the complete admitted agent
+journey remain unfinished; process readiness alone grants no execution authority.
 
 `database::NativePostgres::start(payload, profile)` creates or reopens an owned
 private profile, holds its database lock, initializes a fresh cluster, and owns a

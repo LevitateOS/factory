@@ -26,14 +26,19 @@ recovers proved interrupted contribution assessments through the shared
 application, without replaying model calls or inviting agents. Live and unknown
 historical claims remain unchanged; recovery failure prevents readiness. Store
 opening and recovery share a cancellable ten-second startup budget.
-It preserves unobserved execution records and never dispatches retained work.
+It preserves unobserved execution records before explicit host activation.
 Shared product routes use that same application owner and the production
 `BindNativeProduct` resolver. A finite Rust-admitted operation must supply fresh
 verified account/repository observations through semantic callbacks. Go maps
 identities transactionally and supplies shared feed/subscription, request and
 retained-read services. Readiness, a stored mapping or a browser selector cannot
 admit the account or enlarge its resource scope. Missing setup, planning and
-execution dependencies remain unavailable; the coordinator is not started.
+execution dependencies remain unavailable. After Rust's callback owner is ready,
+the desktop explicitly starts the coordinator through its private, instance-bound
+startup route. This takes the profile's canonical coordinator lock, reconciles
+retained execution and starts progress. Repeated startup returns the same result;
+missing provider ports still hold dependent work. Readiness and sign-in do not
+grant execution authority.
 
 Rust owns complete authenticated GitHub requests, device flow, refresh, account
 verification and provider-local decoding. Go receives only bounded nonsecret

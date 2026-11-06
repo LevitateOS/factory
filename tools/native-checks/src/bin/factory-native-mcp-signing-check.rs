@@ -597,7 +597,10 @@ async fn managed_execution(
             DirBuilder::new().mode(0o700).create(&destination)?;
             let target = supervisor.register_recovery_checkout(&destination)?;
             fs::write(profile.join("native-recovery-target.id"), target)?;
-            command("check-owned-execution", "recover")?;
+            supervisor.start_execution_coordinator().await?;
+            supervisor.start_execution_coordinator().await?;
+            command("check-owned-execution", "coordinator")?;
+            command("check-owned-execution", "recover_started")?;
             if fs::read(destination.join("checkout/native-candidate.txt"))?
                 != b"Actual isolated coder candidate\n"
             {

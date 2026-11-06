@@ -223,6 +223,20 @@ confined effects, bounded actual resources and complete owned-process terminatio
 under those conditions; hacking-like checks require user-started Daybreak. Shell
 selection remains an unfinished consumer. No broad D3/custody/IPC gate is closed.
 
+Coordinator activation update: the desktop explicitly calls
+`NativeSupervisor::start_execution_coordinator` after the callback owner is ready.
+`native_server.go` starts the existing application once under the profile ledger
+lock; unavailable provider/task ports still hold dependent work. Retained local
+worker settlement, repeated startup, competing-controller refusal and recovery
+after restart passed in `/home/vince/tmp/fcst6.cX2nqL/run.log`. This proves local
+startup composition with a declared CLI/dummy account, not provider spending or
+installed-host admission. Positive canonical launch/MCP/provider execution and
+interrupted startup/shutdown with admitted work remain unverified dependencies;
+closure needs the exact current grants, observed worker/custody facts and durable
+outcome across those lifecycles. Existing uncertain outcomes and broad gates stay
+open. Relevant files: `native_server.go`, `supervisor.rs`, `product.rs` and
+`cmd/soda-desktop/src/main.rs`.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
 checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy

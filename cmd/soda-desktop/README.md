@@ -72,8 +72,10 @@ Navigation uses canonical local hash routes; a route cannot enlarge native scope
 Drafts use stable profile/provider/actor scope and existing shared repositories and
 subject keys. Switching/disconnect/retirement clears views and pending replies
 without deleting drafts. Empty filtered issue pages retain their continuation.
-Selectors are stable during readiness polling. Missing execution is explicit;
-no coordinator or execution port is activated. Shared PR views remain T08-READ.
+Selectors are stable during readiness polling. The desktop explicitly starts the
+single Go coordinator after Rust's callback owner is ready. Missing task/provider
+dependencies remain unavailable; startup grants no execution authority. Shared PR
+views and human write qualification have their own recorded evidence.
 The old unbound query/mutation and recorded-run polling IPC surface is absent from
 normal builds; its historical control probes exist only with native-check.
 

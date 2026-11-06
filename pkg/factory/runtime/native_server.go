@@ -8,7 +8,9 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -134,6 +136,26 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 	})
 	mux.Handle("/api/factory/", product)
 	mux.Handle("/api/repositories/", product)
+	// Rust starts this only after its callback owner is serving. Health and
+	// account login grant no execution authority. Start owns the existing ledger
+	// lock and admission gate; optional provider ports still hold unavailable work.
+	var startOnce sync.Once
+	var startErr error
+	mux.HandleFunc("/api/native/execution/start", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 ||
+			len(r.Header.Values("X-Soda-Native-Instance")) != 1 || r.Header.Get("X-Soda-Native-Instance") != instance {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_native_start"})
+			return
+		}
+		startOnce.Do(func() {
+			startErr = application.application.Start(lifetime, filepath.Join(config.Directory, "coordinator.lock"))
+		})
+		if startErr != nil || !application.application.Coordinator.Admitting() {
+			nativeResponse(w, 503, map[string]string{"error": "native_coordinator_unavailable"})
+			return
+		}
+		nativeResponse(w, 200, map[string]string{"status": "started", "instance": instance})
+	})
 	// Private retained evidence is readable before execution intake is admitted.
 	// The outer handler still requires the native peer/key and rejects browsers.
 	mux.Handle("/api/native/execution/recovery/", nativeExecutionRecovery(config, instance, db))

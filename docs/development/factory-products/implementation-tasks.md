@@ -31496,3 +31496,12 @@ The native server now supplies actual host/custody ports, but background coordin
 startup, shell directory selection, checkpoint/artifact ports, native account/actor
 binding, positive MCP/provider execution and interrupted settlement remain pending.
 This local fixture does not qualify provider admission or close T09/D3.
+
+The desktop now explicitly activates the same Go coordinator after Rust's callback
+owner is ready. Instance-bound startup reuses its result, takes the profile ledger
+lock and starts reconciliation/progress; account login and health grant no work.
+Actual retained local-worker settlement, repeated startup, competing-controller
+refusal and recovery/restart passed in `/home/vince/tmp/fcst6.cX2nqL/run.log`.
+Missing native task/checkpoint ports, account/sponsor/actor bindings and positive
+MCP/provider execution still prevent the complete admitted journey. This fixture
+does not close T09, D3 or any installed qualification gate.

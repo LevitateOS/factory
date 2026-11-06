@@ -93,7 +93,10 @@ impl Desktop {
                 &state.paths.backend,
                 &state.paths.profile,
             ) {
-                Ok(owner) => match owner.health() {
+                Ok(owner) => match tauri::async_runtime::block_on(async {
+                    owner.start_execution_coordinator().await?;
+                    owner.health()
+                }) {
                     Ok(ready) => {
                         match Credentials::open(&state.paths.profile, &ready.profile) {
                             Ok(store) => *state.credentials.lock().unwrap() = Some(Arc::new(store)),

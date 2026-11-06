@@ -13,6 +13,7 @@ use tokio::task::JoinSet;
 #[derive(Clone, Copy)]
 enum RequestRoute {
     Product,
+    CoordinatorStart,
     Recovery,
     RecoveryObservation,
     RecoveryRetirement,
@@ -153,6 +154,12 @@ impl Products {
         reply: Reply,
     ) -> Result<Cancel> {
         let supported = match route {
+            RequestRoute::CoordinatorStart => {
+                method == "POST"
+                    && target == "/api/native/execution/start"
+                    && body.is_empty()
+                    && operation.is_none()
+            }
             RequestRoute::Product => {
                 (matches!(method, "GET" | "POST") || operation.is_some() && method == "PUT")
                     && (target.starts_with("/api/factory/")
@@ -261,6 +268,15 @@ impl Products {
     }
     pub(crate) fn recovery_context(&self) -> crate::factory_provider::recovery::RecoveryContext {
         self.recovery.clone()
+    }
+    pub(crate) fn start_coordinator(&self) -> impl std::future::Future<Output = Result<Response>> {
+        self.request_scoped(
+            "POST",
+            "/api/native/execution/start",
+            &[],
+            None,
+            RequestRoute::CoordinatorStart,
+        )
     }
     pub(crate) fn record_recovery(
         &self,

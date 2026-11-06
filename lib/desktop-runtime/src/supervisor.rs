@@ -278,6 +278,24 @@ impl NativeSupervisor {
             .ok_or("native runtime is unavailable")?
             .blocking(method, target, body)
     }
+    /// Explicit host composition after the callback owner is ready. This starts
+    /// the one Go coordinator; each effect still needs its recorded admission.
+    /// It is separate from process health and never exposed as a browser route.
+    pub fn start_execution_coordinator(&self) -> impl std::future::Future<Output = Result<()>> {
+        let products = self.products.clone();
+        async move {
+            let response = products
+                .ok_or("native runtime is unavailable")?
+                .start_coordinator()
+                .await?;
+            let body: serde_json::Value = serde_json::from_slice(&response.body)
+                .map_err(|_| "native coordinator startup response invalid")?;
+            if response.status != 200 || body["status"] != "started" {
+                return Err("native coordinator startup requires reconciliation".into());
+            }
+            Ok(())
+        }
+    }
     /// Owns request inputs and never borrows the supervisor while I/O is pending.
     /// Dropping the future cancels its request; retirement joins the request owner.
     pub fn product_request(
