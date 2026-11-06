@@ -31044,6 +31044,12 @@ normal product route. The isolated account was removed. Evidence:
 This one-file fixture does not qualify large/partial/outdated diffs, populated
 check policy, installed products or the remaining T07/T11 dependencies.
 
+The shared diff now renders inline and fallback discussion bodies through the
+same sanitized Markdown and host link opener as the discussion tab. TypeScript,
+desktop UI and Storybook builds passed; a headless browser verified formatted
+inline text, removed unsafe image markup and a link reaching the host callback.
+T08-READ retains its broader diff and host qualification.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first
