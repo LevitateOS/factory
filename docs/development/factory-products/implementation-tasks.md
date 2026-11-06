@@ -30298,3 +30298,83 @@ privacy/notifications, fresh shared UI/installed evidence and all other concrete
 T11/canonical/broad gates remain open. Shared writes remain unavailable;
 T11-WRITES and the full product are unfinished. No Daybreak work ran or was
 marked complete.
+
+### T11-WRITES checkpoint: exact current native inline preparation (2026-11-06)
+
+`github_provider/inline_preparation.rs`, `request.rs`, `reads.rs` and `mod.rs`
+add `InlineAnchor` and `Read::InlinePreparation`. The fixed current-account read
+combines the existing complete own pending-review/comment snapshot with a complete
+bounded PR file catalogue and an exact requested immutable merge-base/head
+selection. The defining diff/file decoder and diffy parser remain in Rust.
+Current base-branch tip and immutable merge base are separate returned facts;
+neither is inferred as the historical base of an existing provider comment.
+
+Each file page is checked against the same repository/PR/merge-base/head scope,
+total and pagination contract. Paths and current catalogue identities are checked
+across pages; duplicate identities and ambiguous old paths of copied files refuse.
+The 3,000-file limit, 8 MiB aggregate normalized-fact bound and existing whole
+eight-second deadline bound traversal. Only the selected file is retained after
+the walk. Old/new paths and added/deleted/renamed/copied facts remain explicit.
+File selections retain metadata without inventing lines. Line selections require
+a complete provider patch, nonoverlapping ordered hunks and every requested
+side/range line; missing lines, gaps and truncated/unavailable patches refuse.
+The native result records file and observed diff-position/content digests. It
+does not claim full blob/newline provenance beyond that provider fragment.
+
+The complete own pending snapshot is reread after the catalogue walk, including
+summary and comment writing/identity digests, then the current diff scope is
+rechecked. Observed account, pending writing, child writing, base/head or scope
+changes refuse. Nullable metadata stays unknown. The result is explicitly a
+bounded observation, not write permission, an atomic condition, a causal receipt
+or a complete original provider thread anchor. No inline effect or Go consumer
+was added, and the schema-91 fence remains required before a future product send.
+
+The existing native executable gained
+`--github-inline-preparation-declared FRESH_PROFILE`. Production provider/transport
+passed 40 declared cases, 18 invalid selectors before I/O and in-flight/stopped
+retirement with zero mutations under
+`/home/vince/tmp/factory-inline-preparation-1106/attempt1/`. Cases include old/new
+line and file selections, rename/copy mapping, added/deleted sides, distinct
+current branch tip/merge base, no pending review, binary file metadata, nullable
+facts, Unicode, 4,096-byte normal/heavily escaped paths, no-newline and control/
+Unicode content; independent expected line position/content digests; stale base/
+head, absent paths/lines, wrong side, gaps, partial/unavailable patches, unknown
+change kind, unsafe/duplicate/ambiguous catalogue paths, changed total/link,
+changed pending summary or child writing, moved base/account, provider refusal,
+file/aggregate bounds and real deadline; and joined owner retirement. The normal
+13-file fixture crosses a page boundary; a positive full 3,000-file live walk
+is not inferred from the limit/refusal cases.
+
+| Artifact under `/home/vince/tmp/factory-inline-preparation-1106/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `0cbd72473abe73a006980bc277c4ec5e68f85c763fbae381fa451f1010538f8c` |
+| `provider` | `38f1c4f6190f555d3602900f5222ff38c1d4b03ad74c6a442e0c157b70e2bec3` |
+| `check-bin` | `aa390012bbc3d113c10a3d0ba4a02ab59fcb866a6b1366ad30b1a40bbfdc81b9` |
+| `run.sh` | `a4b26cd9af24301ba860021ac76fc9568e200a73413c8f5b196879986a56579a` |
+| `session.sh` | `5a5661a1689a29e46382b6df217843c08fe805ee8c8b34398c688c4810324e34` |
+| `attempt1/result.log` | `7292cf32832affb87114a6f8275cc783a6e93b65591e19a88c3f164b8f5a5af1` |
+| `attempt1/inline-preparation-result.json` | `842931b3ab09c6b2e55a24631c0f02f837c9855351a73fe4bb59c336a60f440d` |
+
+Locked/offline native executable and desktop-feature builds, ownership boundaries
+and whitespace checks passed. No dependency/unit-test root/module was added.
+The fixed dummy TLS peer never forwards. This is native provider read evidence,
+not credential/IPC/product/shared UI/installed/freshness or actual GitHub gate
+qualification. In particular the largest escaped selector was exercised directly
+through the native provider client, not the Go/native callback. Ordinary 8 KiB
+RPC cannot represent that maximal escaped path. A narrowly typed bounded read
+envelope and actual composed maximum-path check remain necessary before claiming
+that input through the product; do not widen arbitrary read/mutation admission.
+
+Next: fixed supported native inline effect(s) with explicit new/existing pending
+review identity and draft/publication semantics, causal primary persistence before
+any separate preservation/completion checks, then the admitted Go/native product
+consumer using schema 91. Qualify full writing and selector envelopes, observed
+selection versus unknown historical anchors, preserved existing writing/privacy,
+loss/replay/cancel/original expiry/custody/restart and actual readback. The current
+official [GraphQL review/thread inputs](https://docs.github.com/en/graphql/reference/pulls)
+and [REST review comment inputs](https://docs.github.com/en/rest/pulls/comments)
+were consulted for this next operation choice; no mutation/schema/grant semantics
+were qualified by that documentation or this read. Actual provider permissions,
+pending privacy/notifications, fresh shared UI/installed evidence and all other
+concrete/canonical/broad gates remain open. Shared writes remain unavailable,
+T11-WRITES/the full product remain unfinished, and no Daybreak work ran.

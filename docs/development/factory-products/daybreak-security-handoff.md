@@ -3388,3 +3388,39 @@ permission/privacy/publication/notification, shared UI and installed behavior
 remain unverified. No SQL fixture or source fix closes those actual gates. All
 other canonical/broad gates remain open, shared writes remain unavailable, and
 no Daybreak work ran or was marked complete.
+
+T11-WRITES exact current native inline preparation (2026-11-06):
+`github_provider/{inline_preparation,request,reads,mod}.rs` now join the complete
+current account's pending-review/comment snapshot to a bounded complete PR file
+catalogue and an exact immutable diff selection. Native digests bind observed
+file and side/range/content facts. Nullable metadata and binary/file selections
+do not become line or permission claims. Current merge base and branch tip remain
+separate; unknown historical provider anchors are not inferred. Pending writing,
+child writing and diff scope are rechecked after traversal. No effect or product
+consumer was enabled.
+
+Production provider/transport passed 40 declared cases, 18 invalid selectors,
+zero mutations and joined retirement. Evidence:
+`/home/vince/tmp/factory-inline-preparation-1106/attempt1/inline-preparation-result.json`,
+SHA-256 `842931b3ab09c6b2e55a24631c0f02f837c9855351a73fe4bb59c336a60f440d`;
+log SHA-256 `7292cf32832affb87114a6f8275cc783a6e93b65591e19a88c3f164b8f5a5af1`.
+The plan records exact peer/binaries/runners, independent position/content digest
+assertions and catalogue/patch/change/bounds cases. This proves a dummy-only
+native read, not any actual provider, privacy, IPC or security gate.
+
+Exact next dependencies: supported fixed native inline effects, explicit own
+new/existing pending identity, schema-91 causal-primary persistence, separately
+admitted preservation/completion when needed, and Go/native product composition.
+The largest escaped 4,096-byte selector was tested directly at the provider client;
+its serialized request exceeds ordinary 8 KiB RPC. Qualify a narrowly typed
+bounded read envelope plus full writing/selection envelopes through actual native
+custody/Go HTTP/PG before advertising that input. Arbitrary request admission must
+stay bounded. Qualify supported exact positions, existing summary/comment writing
+and draft privacy, loss/replay/cancel/original expiry/replacement/restart and normal
+readback. A real grant/permission/privacy/publication/notification and shared UI/
+installed journey remain unverified and need fresh specifically scoped owner
+authorization. Complete historical two-commit anchors and full source/newline
+provenance must remain unknown where the provider facts cannot establish them.
+No documentation or source/fixture check closes those gates. All other concrete
+and canonical/broad gates remain open; shared writes remain unavailable. No
+Daybreak work ran or was marked complete.

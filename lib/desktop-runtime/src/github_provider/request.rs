@@ -33,6 +33,11 @@ pub enum Read {
         name: String,
         commit: String,
     },
+    InlinePreparation {
+        repository: String,
+        number: u32,
+        anchor: super::InlineAnchor,
+    },
     FindRepository {
         name: String,
     },
@@ -213,6 +218,9 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::InlinePreparation { anchor, .. } = self {
+            anchor.validate()?
+        }
         if let Self::BranchCreation {
             name, commit: oid, ..
         } = self

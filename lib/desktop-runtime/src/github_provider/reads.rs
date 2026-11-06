@@ -82,6 +82,25 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "inline_preparation" => {
+                            let Read::InlinePreparation { number, anchor, .. } = query else {
+                                return Err(Failure::invalid());
+                            };
+                            (
+                                "preparation",
+                                reader
+                                    .inline_preparation(
+                                        u64::from(*number),
+                                        anchor,
+                                        identity
+                                            .node_id
+                                            .as_deref()
+                                            .ok_or_else(Failure::protocol)?,
+                                        &identity.external_id,
+                                    )
+                                    .await?,
+                            )
+                        }
                         "branch_creation" => (
                             "preparation",
                             reader

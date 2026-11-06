@@ -12,6 +12,310 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::{InlineAnchor, Read};
+    let sha = |s: &str| -> String {
+        Sha256::digest(s.as_bytes())
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    };
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), format!("inline-{name}"))?;
+        Ok(())
+    };
+    let gets = || -> Result<Vec<u8>> { Ok(fs::read(io.join("gets")).unwrap_or_default()) };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let anchor = || InlineAnchor {
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        path: "src/tea.md".into(),
+        side: "new".into(),
+        scope: "lines".into(),
+        start_line: 2,
+        end_line: 3,
+    };
+    let query = |anchor: InlineAnchor| Read::InlinePreparation {
+        repository: "123".into(),
+        number: 7,
+        anchor,
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "new-lines",
+        "old-lines",
+        "new-file",
+        "old-file",
+        "renamed-old",
+        "renamed-new",
+        "deleted-old",
+        "added-new",
+        "copied-new",
+        "merge-base",
+        "no-pending",
+        "binary-file",
+        "unknown-metadata",
+        "unicode-path",
+        "maximum-path",
+        "escaped-path",
+        "no-newline",
+        "control-content",
+    ] {
+        mode(name)?;
+        let mut a = anchor();
+        if matches!(
+            name,
+            "old-lines" | "old-file" | "renamed-old" | "deleted-old"
+        ) {
+            a.side = "old".into()
+        }
+        if matches!(name, "new-file" | "old-file" | "binary-file") {
+            a.scope = "file".into();
+            a.start_line = 0;
+            a.end_line = 0
+        }
+        match name {
+            "renamed-old" => a.path = "src/old.md".into(),
+            "unicode-path" => a.path = "src/茶/π.md".into(),
+            "maximum-path" => a.path = format!("p/{}", "x".repeat(4094)),
+            "escaped-path" => a.path = format!("p/{}", "\u{0001}".repeat(4094)),
+            "no-newline" => {
+                a.start_line = 4;
+                a.end_line = 4
+            }
+            _ => (),
+        }
+        let v = client
+            .observe(token()?, "321", &query(a.clone()))
+            .await
+            .map_err(|f| format!("inline preparation {name}: {} {}", f.status, f.code))?;
+        let p = &v["preparation"];
+        ensure(
+            v["kind"] == "inline_preparation"
+                && v["account"]["external_id"] == "321"
+                && p["repository"] == "123"
+                && p["repository_node_id"] == "R_123"
+                && p["pull"]["external_id"] == "700"
+                && p["selection"] == serde_json::to_value(&a)?
+                && p["diff"]["scope"]["base"] == a.base
+                && p["diff"]["scope"]["head"] == a.head
+                && p["diff"]["catalogue"]["complete"] == true
+                && p["diff"]["catalogue"]["count"] == 13
+                && p["condition"] == "bounded_observation",
+            "inline preparation lost exact account/selection or complete catalogue",
+        )?;
+        if name == "merge-base" {
+            ensure(
+                p["diff"]["scope"]["pull_base"] == "c".repeat(40)
+                    && p["selection"]["base"] == "a".repeat(40),
+                "branch tip was substituted for immutable merge base",
+            )?
+        }
+        if name == "no-pending" {
+            ensure(
+                p["pending"].is_null() && p["comments_snapshot"].is_null(),
+                "absent pending review became adopted",
+            )?
+        } else {
+            ensure(
+                p["pending"]["node_id"] == "REV_owned"
+                    && p["comments_snapshot"]["complete"] == true
+                    && p["comments_snapshot"]["count"] == 3,
+                "current own pending context lost",
+            )?
+        }
+        if name == "unknown-metadata" {
+            ensure(
+                p["archived"].is_null() && p["pull"]["draft"].is_null(),
+                "unknown metadata became permission",
+            )?
+        }
+        let file = &p["diff"]["file"];
+        if name == "renamed-old" {
+            ensure(
+                file["old_path"] == "src/old.md" && file["new_path"] == "src/tea.md",
+                "rename path mapping was inferred from one name",
+            )?
+        }
+        if a.scope == "file" {
+            ensure(
+                p["diff"]["selection"]["scope"] == "file" && p["diff"]["selection"]["count"] == 0,
+                "file selection invented line positions",
+            )?
+        } else {
+            // Explicit fixture positions/text are independent of the production parser.
+            let rows = if name == "no-newline" {
+                json!([{"line":4,"kind":"context","old_line":4,"new_line":4,"text_sha256":sha("four")}])
+            } else if name == "added-new" {
+                json!([{"line":2,"kind":"added","old_line":null,"new_line":2,"text_sha256":sha("new2\n")},{"line":3,"kind":"added","old_line":null,"new_line":3,"text_sha256":sha("three\n")}])
+            } else if name == "deleted-old" {
+                json!([{"line":2,"kind":"deleted","old_line":2,"new_line":null,"text_sha256":sha("old2\n")},{"line":3,"kind":"deleted","old_line":3,"new_line":null,"text_sha256":sha("three\n")}])
+            } else if a.side == "old" {
+                json!([{"line":2,"kind":"deleted","old_line":2,"new_line":null,"text_sha256":sha("old2\n")},{"line":3,"kind":"context","old_line":3,"new_line":3,"text_sha256":sha("three\n")}])
+            } else {
+                json!([{"line":2,"kind":"added","old_line":null,"new_line":2,"text_sha256":sha(if name=="control-content"{"new2 \u{0001}🍵\n"}else{"new2\n"})},{"line":3,"kind":"context","old_line":3,"new_line":3,"text_sha256":sha("three\n")}])
+            };
+            ensure(
+                p["diff"]["selection"]["sha256"] == sha(&serde_json::to_string(&rows)?)
+                    && p["diff"]["selection"]["count"] == a.end_line - a.start_line + 1,
+                "inline selection content/position digest differs from independent facts",
+            )?;
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&v)?)?;
+        cases.push(name.to_owned());
+    }
+    for (name, status) in [
+        ("stale-head", 409),
+        ("stale-base", 409),
+        ("missing-file", 409),
+        ("missing-line", 409),
+        ("wrong-side", 409),
+        ("gap-range", 409),
+        ("truncated-patch", 409),
+        ("unavailable-patch", 409),
+        ("unknown-change", 409),
+        ("unsafe-file-path", 502),
+        ("duplicate-file", 409),
+        ("ambiguous-copy", 409),
+        ("file-count-change", 409),
+        ("pagination-link", 502),
+        ("pending-change", 409),
+        ("comment-change", 409),
+        ("base-moves-after-files", 409),
+        ("account-change", 409),
+        ("query-denied", 403),
+        ("too-many-files", 413),
+        ("aggregate-bytes", 413),
+        ("deadline", 504),
+    ] {
+        mode(name)?;
+        let mut a = anchor();
+        match name {
+            "stale-head" => a.head = "c".repeat(40),
+            "stale-base" => a.base = "c".repeat(40),
+            "missing-file" => a.path = "missing.md".into(),
+            "missing-line" => {
+                a.start_line = 6;
+                a.end_line = 6
+            }
+            "wrong-side" => a.side = "old".into(),
+            "gap-range" => {
+                a.start_line = 3;
+                a.end_line = 10
+            }
+            "ambiguous-copy" => {
+                a.side = "old".into();
+                a.path = "src/source.md".into()
+            }
+            _ => (),
+        }
+        match client.observe(token()?, "321", &query(a)).await {
+            Err(f) if f.status == status => (),
+            Err(f) => {
+                return Err(format!(
+                    "inline {name} expected {status}, got {} {}",
+                    f.status, f.code
+                )
+                .into())
+            }
+            Ok(_) => return Err(format!("unproved inline selection {name} accepted").into()),
+        };
+        cases.push(name.into());
+    }
+    let mut invalid = Vec::new();
+    for path in [
+        "",
+        "/file",
+        "../file",
+        "a/../file",
+        "a//file",
+        "a/./file",
+        "file/",
+        "bad\0path",
+    ] {
+        let mut a = anchor();
+        a.path = path.into();
+        invalid.push(a)
+    }
+    for i in 0..8 {
+        let mut a = anchor();
+        match i {
+            0 => a.base = "invalid".into(),
+            1 => a.head = "B".repeat(40),
+            2 => a.path = "x".repeat(4097),
+            3 => a.side = "unknown".into(),
+            4 => a.scope = "unknown".into(),
+            5 => a.scope = "file".into(),
+            6 => a.start_line = 0,
+            _ => a.end_line = 9_007_199_254_740_992,
+        };
+        invalid.push(a)
+    }
+    let before = gets()?;
+    for a in &invalid {
+        ensure(
+            client
+                .observe(token()?, "321", &query(a.clone()))
+                .await
+                .is_err()
+                && gets()? == before,
+            "invalid inline selector made provider I/O",
+        )?
+    }
+    for q in [
+        Read::InlinePreparation {
+            repository: "0123".into(),
+            number: 7,
+            anchor: anchor(),
+        },
+        Read::InlinePreparation {
+            repository: "123".into(),
+            number: 0,
+            anchor: anchor(),
+        },
+    ] {
+        ensure(
+            client.observe(token()?, "321", &q).await.is_err() && gets()? == before,
+            "invalid inline parent scope made provider I/O",
+        )?
+    }
+    mode("pause")?;
+    let q = query(anchor());
+    let pending = client.observe(token()?, "321", &q);
+    tokio::pin!(pending);
+    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    let started = Instant::now();
+    owner.stop()?;
+    ensure(
+        pending.await.is_err() && started.elapsed() < Duration::from_secs(2),
+        "retired inline reader delivered old facts or failed to join",
+    )?;
+    let before = gets()?;
+    ensure(
+        client.observe(token()?, "321", &q).await.is_err() && gets()? == before,
+        "stopped inline reader performed I/O",
+    )?;
+    ensure(
+        !io.join("writes").exists() && !io.join("unexpected-request").exists(),
+        "inline preparation mutated provider or sent undeclared request",
+    )?;
+    fs::write(
+        root.join("inline-preparation-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"invalid_selectors":invalid.len()+2,"provider_mutations":0,"retirement":true,"actual_provider":false,"product_consumer_connected":false,"original_provider_anchor_inferred":false}),
+        )?,
+    )?;
+    println!("PASS: bounded current inline selection/pending preparation, independent diff position/writing digest, catalogue/change/bounds refusal and retirement; no mutations or original-anchor inference");
+    Ok(())
+}
+
 pub(super) async fn producer(profile: &Path) -> Result<()> {
     prepare(profile)?;
     let root = profile.parent().ok_or("fixture parent absent")?;

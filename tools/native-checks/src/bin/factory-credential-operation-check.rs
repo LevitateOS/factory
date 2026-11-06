@@ -1239,6 +1239,11 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 2 && args[0] == "--github-inline-preparation-declared" {
+            return runtime.block_on(native_github_review_requests::inline_preparation(
+                Path::new(&args[1]),
+            ));
+        }
         if args.len() == 2 && args[0] == "--github-pending-review-snapshot-declared" {
             return runtime.block_on(native_github_review_requests::pending_snapshot(Path::new(
                 &args[1],
