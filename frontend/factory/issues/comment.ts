@@ -1,9 +1,11 @@
 import {LitElement, html} from 'lit';
 import {check, id, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
-import type {IssueRef} from '../api/collaboration.js';
+import type {IssueRef, PullRef} from '../api/collaboration.js';
 import {issueDetail} from '../api/issue-response.js';
 import {issueCommentAllowed} from '../api/comment-response.js';
+import {pullActionAllowed} from '../api/capability-response.js';
+import {pullItem} from '../pulls/response.js';
 import {commandOutcome} from '../api/command-response.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {getJSON} from '../api/read.js';
@@ -20,7 +22,7 @@ import type {CommentAddress, CommentSaved, CommentWriting} from './comment-recor
 
 export interface IssueCommentContext extends CommentAddress {
   readonly transport: FactoryTransport;
-  readonly parent: IssueRef;
+  readonly parent: IssueRef | PullRef;
   /** Fresh host-admitted account custody, matching the captured stable scope. */
   commandScope(signal: AbortSignal): Promise<string>;
 }
@@ -80,10 +82,11 @@ export class SodaFactoryIssueComment extends LitElement {
     if (context) {
       commentRecordKey(context);
       check(
-        context.parent.kind === 'issue' &&
+        (context.parent.kind === 'issue' || context.parent.kind === 'pull') &&
           context.parent.repository === context.repository &&
           context.parent.number === context.issue &&
-          id(context.issue)
+          id(context.issue) &&
+          (context.kind === 'pull') === (context.parent.kind === 'pull')
       );
       check(
         typeof context.parent.external_id === 'string' &&
@@ -132,7 +135,7 @@ export class SodaFactoryIssueComment extends LitElement {
       this.message = 'Comment writing is only saved in this window. Submission waits until it can be saved durably.';
   }
   private path(context: IssueCommentContext) {
-    return `factory/collaboration/repositories/${context.repository}/issues/${context.issue}`;
+    return `factory/collaboration/repositories/${context.repository}/${context.parent.kind === 'pull' ? 'pulls' : 'issues'}/${context.issue}`;
   }
   private async identity(context: IssueCommentContext, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -147,9 +150,15 @@ export class SodaFactoryIssueComment extends LitElement {
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.live(context, signal));
-    const issue = issueDetail(value, context.host, context.repository, context.issue);
-    check(issue.ref.external_id === context.parent.external_id);
-    this.allowed = issueCommentAllowed(capabilities, context.repository, context.actor, context.parent);
+    if (context.parent.kind === 'pull') {
+      const pull = pullItem(value, context.host, context.repository, context.issue);
+      check(pull.ref.external_id === context.parent.external_id);
+      this.allowed = pullActionAllowed(capabilities, context.repository, context.actor, context.parent, pull.head.commit, 'pull.comment');
+    } else {
+      const issue = issueDetail(value, context.host, context.repository, context.issue);
+      check(issue.ref.external_id === context.parent.external_id);
+      this.allowed = issueCommentAllowed(capabilities, context.repository, context.actor, context.parent);
+    }
   }
   private async refresh() {
     const context = this.current,
@@ -325,18 +334,13 @@ export class SodaFactoryIssueComment extends LitElement {
           ? 'Submission cancelled. Your writing was preserved.'
           : 'No comment was posted. Your writing was preserved.';
     if (stored !== 'saved') this.message += ' The local saved state still needs storage.';
-    if (outcome.effect === 'committed')
-      this.dispatchEvent(
-        new CustomEvent('issue-comment-saved', {
-          detail: {
-            host: context.host,
-            actor: context.actor,
-            scope: context.scope,
-            parent: {...context.parent},
-            command: pending.command,
-          },
-        })
-      );
+    if (outcome.effect === 'committed') {
+      const detail = {host: context.host, actor: context.actor, scope: context.scope,
+        parent: {...context.parent}, command: pending.command};
+      this.dispatchEvent(context.parent.kind === 'pull'
+        ? new CustomEvent('pull-comment-saved', {detail})
+        : new CustomEvent('issue-comment-saved', {detail}));
+    }
   }
   private continueWriting() {
     const context = this.current,
@@ -368,7 +372,7 @@ export class SodaFactoryIssueComment extends LitElement {
     const pending = this.writing.pending,
       blocked = this.saved.blocked;
     const body = pending?.body ?? this.writing.draft.body;
-    return html`<section class="soda-issue-comment" aria-label="Write issue comment" aria-busy=${this.busy}>
+    return html`<section class="soda-issue-comment" aria-label=${this.current.parent.kind === 'pull' ? 'Write pull request comment' : 'Write issue comment'} aria-busy=${this.busy}>
       <h3>Comment</h3>
       <label
         >Comment Markdown<textarea

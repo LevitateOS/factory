@@ -78,3 +78,38 @@ export function issueCommentStoryPeer(state: IssueCommentStoryState) {
   }
   return context;
 }
+
+/** The same retained composer with a pull parent and a separate draft key. */
+export function pullCommentStoryPeer(): IssueCommentContext {
+  const repository = '7', issue = '12', host = 'a'.repeat(32), actor = '1';
+  const parent = {kind: 'pull' as const, repository, number: issue, external_id: 'native-pull-12'};
+  const scope = 'storybook:pull-comment';
+  const head = 'a'.repeat(40);
+  const observed = {state: 'available', revision: 'declared-pull-comment', observed_at: '2026-11-03T12:00:00Z'};
+  const context: IssueCommentContext = {
+    host, actor, repository, issue, kind: 'pull', scope, parent,
+    transport: {
+      generation: 'declared-pull-comment', assetBase: '/',
+      async request(path, init) {
+        if (path.endsWith('/capabilities')) return Response.json({
+          repository, actor, issue: null, pull: parent, head, base: head,
+          connection: 'declared', observation: observed, actions: {'pull.comment': {state: 'allowed'}},
+        });
+        if (path.endsWith('/comments')) {
+          const command = (JSON.parse(String(init?.body)) as {command_id: string}).command_id;
+          return Response.json({command_id: command, observation: 'found', effect: 'committed',
+            cancellation: 'none', completion: 'complete', finished: true});
+        }
+        if (path.endsWith('/pulls/' + issue)) return Response.json({
+          ref: parent, observation: observed, title: 'Example pull request', body: '', state: 'open',
+          draft: false, author: null, base: {repository: null, name: 'main', commit: head},
+          head: {repository: null, name: 'review', commit: head},
+          created_at: null, updated_at: null, merged_at: null,
+        });
+        return Response.json({error: 'Not declared'}, {status: 404});
+      },
+    },
+    commandScope: async () => scope,
+  };
+  return context;
+}

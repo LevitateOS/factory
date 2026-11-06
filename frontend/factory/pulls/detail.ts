@@ -10,6 +10,7 @@ import './review.js';
 import './merge.js';
 import './inline.js';
 import './thread-resolution.js';
+import '../issues/comment.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
@@ -222,6 +223,12 @@ export class SodaFactoryPull extends LitElement {
           <button type="button" aria-current=${this.tab === 'files' ? 'page' : 'false'} @click=${() => this.select('files')}>Files</button>
           <button type="button" aria-current=${this.tab === 'checks' ? 'page' : 'false'} @click=${() => this.select('checks')}>Checks</button>
         </nav>
+        ${this.tab === 'conversation' && context.commandScope ? html`<soda-factory-issue-comment
+          .context=${{transport: context.transport, host: context.host, actor: context.actor,
+            repository: context.repository, issue: context.pull, kind: 'pull' as const, scope: context.scope,
+            parent: pull.ref, commandScope: context.commandScope}}
+          @pull-comment-saved=${() => void this.refresh()}
+        ></soda-factory-issue-comment>` : ''}
         ${this.tab === 'files' ? html`<section aria-label="Changed files">
           ${this.view.diff && this.view.diff.head !== pull.head.commit ? html`<p role="status">This diff uses a different head from the pull request summary. Refresh before reviewing.</p>` : ''}
           ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-inline

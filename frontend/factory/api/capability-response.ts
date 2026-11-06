@@ -35,8 +35,8 @@ export function pullActionAllowed(
   repository: string,
   actor: string,
   parent: PullRef,
-  head: string,
-  action: Extract<Action, 'pull.review' | 'pull.review.comment' | 'pull.review.approve' | 'pull.review.request_changes' | 'thread.resolve' | 'pull.merge'>
+  head: string | null,
+  action: Extract<Action, 'pull.comment' | 'pull.review' | 'pull.review.comment' | 'pull.review.approve' | 'pull.review.request_changes' | 'thread.resolve' | 'pull.merge'>
 ): boolean {
   const row = object(value), observation = object(row.observation), pull = object(row.pull);
   check(row.repository === repository && row.actor === actor && row.issue === null);
