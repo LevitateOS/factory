@@ -3,6 +3,11 @@
 //! units to prepare reviewer checkouts. This is not agent execution admission.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use soda_execution_protocol::{
+    AgentExecution as AgentExecutionReply, AgentStarted as AgentStartedReply, MAX_EXECUTABLE,
+    MAX_EXECUTION_REPLY as MAX_AGENT_REPLY, MAX_OUTPUT, MAX_PROMPT, MAX_STAGE_BUNDLE as MAX_BUNDLE,
+    MAX_START_REPLY,
+};
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, RawFd};
@@ -17,12 +22,6 @@ mod preparation_quota;
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
 const MAX_REQUEST: usize = 768;
-const MAX_BUNDLE: usize = 512 * 1024;
-const MAX_PROMPT: usize = 320 * 1024;
-const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
-const MAX_OUTPUT: usize = 16 * 1024 * 1024;
-const MAX_CANDIDATE_BUNDLE: usize = 4 * 1024 * 1024;
-const MAX_AGENT_REPLY: usize = 1536;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
 const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
@@ -289,86 +288,6 @@ struct AgentExecutionRequest<'a> {
     prompt_length: usize,
     placeholder: &'a str,
     duration_ms: u64,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct AgentStartedReply {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    candidate: String,
-    role: String,
-    tool_sha256: String,
-    prompt_sha256: String,
-    worker_uid: u32,
-    peer_uid: u32,
-    invocation: String,
-    system_instance: String,
-    start_identity: String,
-    namespace_pid: u32,
-    started_unix_ms: u64,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct AgentExecutionReply {
-    kind: String,
-    version: u8,
-    run: String,
-    profile: String,
-    candidate: String,
-    role: String,
-    tool_sha256: String,
-    prompt_sha256: String,
-    worker_uid: u32,
-    peer_uid: u32,
-    invocation: String,
-    system_instance: String,
-    start_identity: String,
-    namespace_pid: u32,
-    started_unix_ms: u64,
-    reason: String,
-    exit_code: Option<i32>,
-    exit_signal: Option<i32>,
-    tree_retired: bool,
-    output_complete: bool,
-    output_length: usize,
-    output_sha256: String,
-    candidate_state: String,
-    result_candidate: Option<String>,
-    bundle_length: usize,
-    bundle_sha256: Option<String>,
-}
-
-fn candidate_reply_valid(reply: &AgentExecutionReply) -> bool {
-    if reply.role == "reviewer" {
-        return reply.candidate_state == "not_applicable"
-            && reply.result_candidate.is_none()
-            && reply.bundle_length == 0
-            && reply.bundle_sha256.is_none();
-    }
-    if reply.role != "coder" {
-        return false;
-    }
-    if reply.candidate_state == "captured" {
-        return reply
-            .result_candidate
-            .as_deref()
-            .is_some_and(|commit| id(commit, 40) && commit != reply.candidate)
-            && (1..=MAX_CANDIDATE_BUNDLE).contains(&reply.bundle_length)
-            && reply
-                .bundle_sha256
-                .as_deref()
-                .is_some_and(|digest| id(digest, 64));
-    }
-    matches!(
-        reply.candidate_state.as_str(),
-        "unchanged" | "dirty" | "unavailable"
-    ) && reply.result_candidate.is_none()
-        && reply.bundle_length == 0
-        && reply.bundle_sha256.is_none()
 }
 
 #[derive(Serialize)]
@@ -1478,7 +1397,7 @@ fn execute_agent<R: Read, W: Write>(
         let mut header = [0u8; 4];
         read_worker(&mut worker, &mut header, deadline, &mut queries)?;
         let length = u32::from_le_bytes(header) as usize;
-        if length == 0 || length > 1024 {
+        if length == 0 || length > MAX_START_REPLY {
             return Err(denied("agent start announcement bound invalid"));
         }
         let mut bytes = vec![0u8; length];
@@ -1557,7 +1476,7 @@ fn execute_agent<R: Read, W: Write>(
             || !reply.tree_retired
             || reply.output_length > MAX_OUTPUT
             || !id(&reply.output_sha256, 64)
-            || !candidate_reply_valid(&reply)
+            || !reply.candidate_valid()
             || !matches!(
                 reply.reason.as_str(),
                 "exited"

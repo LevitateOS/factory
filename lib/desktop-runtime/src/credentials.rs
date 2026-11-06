@@ -1,5 +1,5 @@
 //! Linux login-session credential custody. No browser token getter or file fallback.
-use crate::database::{private_dir, private_file};
+use crate::private_fs::{private_dir, private_file};
 use secret_service::{EncryptionType, Item, SecretService};
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};

@@ -173,7 +173,7 @@ not qualify GitHub or stronger provider atomicity. Retain active native-check
 canonical-read APIs and explicit flat callback variants: removing them requires
 caller migration or decoding machinery that would obscure strict admission.
 
-### 5. Native protocol, resources and desktop lifetime — active
+### 5. Native protocol, resources and desktop lifetime — complete
 
 Define nonsecret broker/worker DTOs, bounds and pure validation once. Keep every
 boundary's peer/process/authority checks independent. Give private filesystem
@@ -189,6 +189,22 @@ primitives their own low-level owner and RunOwner one explicit start input.
 - Repeated dependency pins belong in workspace dependencies, preserving features.
 - Keep Linux/SELinux workarounds, retirement uncertainty, independent resource
   facts and actual worker isolation. No cosmetic dissolution of native owners.
+
+Implemented narrow nonsecret execution-protocol ownership for shared started,
+execution and observation DTOs, bounds and pure candidate-result validation.
+Borrowed/owned serialization preserves field order; observation encoding retains
+its previous sorted-map bytes. Every boundary still owns peer/process/scope and
+authority checks. Filesystem and parent-death helpers moved unchanged to private
+resource modules. `RunStart` is the defining preparation input; five existing
+public signatures remain compatibility projections. Feature-only desktop control
+and observation state now lives in its check bridge. Product jobs keep their own
+account/selection lifetime. Workspace pins preserve resolved versions/features.
+
+Independent source reviews, broker/worker builds, normal desktop compile and actual
+check-desktop staging passed. Existing composed edit/inline journeys exercised
+custody/filesystem consumers; explicit edit journal passed real PG write, restart
+and WAL recovery (`/home/vince/tmp/fup.1ntt2U/result.log`). These do not execute the
+changed installed worker/broker admission path or qualify D3. Keep its gate open.
 
 ### 6. Browser retained records and API contracts — complete
 
@@ -245,7 +261,7 @@ transitions. Request no longer temporarily mutates/rolls back four fields to pre
 persisted after-state. Independent source review and ten existing UI/history/repair
 browser journeys passed, plus typecheck/Lit. The historical test that accesses the
 removed private fields no longer applies; actual zero/unique/ambiguous successor
-and persisted-repair journeys cover that behavior. Feed workflow extraction remains.
+and persisted-repair journeys cover that behavior. Feed extraction follows below.
 
 Feed revision writing/command settlement now belongs to `FeedRevisionEditor`, and
 the source-bound change-review transaction to `reviewHandoff`. Timeline reads,
@@ -258,7 +274,7 @@ Removed implementation-narration comments and the one-choice setter parameter;
 preserved lineage, host-lifetime and recovery constraints. No further worthwhile
 UI structural finding remained in the final sweep.
 
-### 8. Integration checks and test cleanup — pending, cleanup last
+### 8. Integration checks and test cleanup — complete
 
 Define shared fixture sessions and explicit case/phase protocols in existing
 check owners. Keep every distinct behavior assertion; remove only proved useless
@@ -274,6 +290,28 @@ or implementation-bound checks after structural replacements work.
   unknown-thread-retained in host list). Put the scenario contract in one owner.
 - No initial audit proved any existing test worthless. Do not delete coverage
   from line count alone. Retain real compositor input and connected boundaries.
+
+Implemented one native fixture helper owner and finite flag/arity dispatch,
+preserving all 69 CLI flags, aliases, errors and distinct scenarios. The shared
+uncertainty assertion now checks all optional causal destination references instead
+of only issue references. Go resolves one explicit case/phase with bounded legacy
+compatibility; ambiguous selection and invalid phase refuse before DB open. The
+existing driver accepts explicit case/input. One JSON contract supplies all 14
+existing browser/native diff assertions, including previously omitted unknown-thread
+retention. Test cleanup retained all tests: none was proved worthless. Historical
+external tests bound to removed private fields/obsolete host URLs were preserved;
+actual UI behavior replacements passed as recorded above. Redundant comments were
+removed while external and retained-format constraints stayed documented.
+
+Existing checker build, one final composed edit journey through the new dispatch
+and helpers (`/home/vince/tmp/fuh.bMAxvr/`), explicit three-lifetime PG check,
+admission refusals, Storybook and native workbench build passed. Independent review
+confirmed all 14 labels and preserved trusted-input assertions. An optional fresh
+WebKit diff run stopped before page launch: first the cached libc loader, then a
+missing matching private DBus ABI in retained runtime libraries. Diagnostics:
+`.artifacts/untangle-diff/` and `/home/vince/tmp/fud.rTufdi/`. No UI failure or new
+native diff qualification is inferred from these setup failures. Chromium behavior
+checks and the earlier native evidence retain only their actual stated scopes.
 
 ### 9. Build, assets and active documentation — complete
 

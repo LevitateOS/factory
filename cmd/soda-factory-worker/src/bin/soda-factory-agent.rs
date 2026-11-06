@@ -3,6 +3,10 @@
 //! agent process. Product admission and credential custody remain separate.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use soda_execution_protocol::{
+    AgentExecution as Execution, AgentStarted as Started, MAX_EXECUTABLE, MAX_EXECUTION_REPLY,
+    MAX_OUTPUT, MAX_PROMPT, MAX_START_REPLY,
+};
 use soda_native_process::{Executable, Invocation, Limits, Processes, StopReason};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -28,9 +32,6 @@ const PRIVATE_MAX_BYTES: u64 = 768 * 1024 * 1024;
 const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
 const MAX_REQUEST: usize = 512;
-const MAX_PROMPT: usize = 320 * 1024;
-const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
-const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
 const PROMPT: &str = "/run/factory-agent-private/run/agent.prompt";
 
@@ -71,55 +72,6 @@ struct Attestation<'a> {
     readonly_source: bool,
     coder_workspace: bool,
     execution_available: bool,
-}
-
-#[derive(Serialize)]
-struct Started<'a> {
-    kind: &'static str,
-    version: u8,
-    run: &'a str,
-    profile: &'a str,
-    candidate: &'a str,
-    role: &'a str,
-    tool_sha256: &'a str,
-    prompt_sha256: &'a str,
-    worker_uid: u32,
-    peer_uid: u32,
-    invocation: &'a str,
-    system_instance: &'a str,
-    start_identity: &'a str,
-    namespace_pid: u32,
-    started_unix_ms: u64,
-}
-
-#[derive(Serialize)]
-struct Execution<'a> {
-    kind: &'static str,
-    version: u8,
-    run: &'a str,
-    profile: &'a str,
-    candidate: &'a str,
-    role: &'a str,
-    tool_sha256: &'a str,
-    prompt_sha256: &'a str,
-    worker_uid: u32,
-    peer_uid: u32,
-    invocation: &'a str,
-    system_instance: &'a str,
-    start_identity: &'a str,
-    namespace_pid: u32,
-    started_unix_ms: u64,
-    reason: &'a str,
-    exit_code: Option<i32>,
-    exit_signal: Option<i32>,
-    tree_retired: bool,
-    output_complete: bool,
-    output_length: usize,
-    output_sha256: &'a str,
-    candidate_state: &'a str,
-    result_candidate: Option<&'a str>,
-    bundle_length: usize,
-    bundle_sha256: Option<&'a str>,
 }
 
 fn refused(message: &'static str) -> io::Error {
@@ -802,7 +754,7 @@ fn execute_agent(
         namespace_pid: started.pid,
         started_unix_ms,
     })?;
-    if announcement.len() > 1024 {
+    if announcement.len() > MAX_START_REPLY {
         return Err(refused("agent start announcement bound invalid"));
     }
     stream.write_all(&(announcement.len() as u32).to_le_bytes())?;
@@ -902,7 +854,7 @@ fn execute_agent(
         bundle_length: bundle.len(),
         bundle_sha256,
     })?;
-    if reply.len() > 1536 {
+    if reply.len() > MAX_EXECUTION_REPLY {
         return Err(refused("agent execution reply bound invalid"));
     }
     drop(prompt_file);

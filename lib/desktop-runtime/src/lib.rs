@@ -9,6 +9,10 @@ pub mod credentials;
 #[cfg(target_os = "linux")]
 pub mod database;
 #[cfg(target_os = "linux")]
+mod child_process;
+#[cfg(target_os = "linux")]
+mod private_fs;
+#[cfg(target_os = "linux")]
 pub mod factory_provider;
 #[cfg(target_os = "linux")]
 pub mod github;

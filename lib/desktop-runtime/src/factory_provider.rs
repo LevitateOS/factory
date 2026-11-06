@@ -27,7 +27,7 @@ pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use recovery::{NativeRecovery, NativeRecoveryEvidence};
-pub use run::RunOwner;
+pub use run::{RunOwner, RunStart};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};

@@ -1,6 +1,7 @@
 //! Private inputs for the Go network server. No provider credentials, socket
 //! listener, account admission or workflow ownership are created here.
-use crate::database::{private_file, NativePostgres};
+use crate::database::NativePostgres;
+use crate::private_fs::private_file;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};

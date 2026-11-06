@@ -9,7 +9,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path};
 use std::time::Duration;
 
-pub(crate) const MAX_BUNDLE: usize = 4 * 1024 * 1024;
+pub(crate) use soda_execution_protocol::MAX_CANDIDATE_BUNDLE as MAX_BUNDLE;
 const MAX_DIRTY_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_STATUS: usize = 4096;
 const MAX_DIRTY_PATHS: usize = 512;

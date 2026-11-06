@@ -1,7 +1,7 @@
 //! Native custody for the desktop worker MCP root key. Product capability
 //! records and current-run admission remain in Go; only one scoped derivation
 //! result may cross the native callback.
-use crate::database::{private_dir, private_file};
+use crate::private_fs::{private_dir, private_file};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 use std::ffi::CString;

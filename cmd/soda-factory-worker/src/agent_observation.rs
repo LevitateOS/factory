@@ -1,4 +1,7 @@
 //! Bounded queries on the one broker-owned execution connection.
+use soda_execution_protocol::{
+    AgentObserved, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER, OBSERVATION_REQUEST_BYTES,
+};
 use soda_native_process::Process;
 use std::io::{self, Write};
 use std::os::fd::AsRawFd;
@@ -7,7 +10,7 @@ use std::time::{Duration, Instant};
 
 #[derive(Default)]
 pub struct Queries {
-    bytes: [u8; 9],
+    bytes: [u8; OBSERVATION_REQUEST_BYTES],
     length: usize,
     partial: Option<Instant>,
     sequence: u64,
@@ -49,7 +52,10 @@ impl Queries {
             return Ok(false);
         }
         let sequence = u64::from_le_bytes(self.bytes[1..].try_into().unwrap());
-        if self.bytes[0] != b'O' || sequence != self.sequence + 1 || sequence > 65_536 {
+        if self.bytes[0] != OBSERVATION_MARKER
+            || sequence != self.sequence + 1
+            || sequence > MAX_OBSERVATION_QUERIES
+        {
             return Err(io::Error::other("agent observation sequence invalid"));
         }
         self.sequence = sequence;
@@ -58,9 +64,12 @@ impl Queries {
         let live = process
             .is_live()
             .map_err(|_| io::Error::other("agent process observation unavailable"))?;
-        let reply = serde_json::to_vec(&serde_json::json!({
-            "kind":"agent_observed", "version":1, "sequence":sequence, "live":live,
-        }))?;
+        let reply = serde_json::to_vec(&serde_json::to_value(AgentObserved {
+            kind: "agent_observed".into(),
+            version: 1,
+            sequence,
+            live,
+        })?)?;
         stream.write_all(&(reply.len() as u32).to_le_bytes())?;
         stream.write_all(&reply)?;
         Ok(false)

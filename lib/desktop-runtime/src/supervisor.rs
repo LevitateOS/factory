@@ -1,6 +1,8 @@
 //! Native children stay on one owner thread. No browser command, connection,
 //! credential or executor authority is provided by process readiness.
-use crate::database::{parent_death, private_dir, private_file, NativePostgres};
+use crate::child_process::parent_death;
+use crate::database::NativePostgres;
+use crate::private_fs::{private_dir, private_file};
 use soda_unix_http::{request_authenticated, Limits};
 use std::fs::{self, File};
 use std::io::Read;

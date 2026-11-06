@@ -13,7 +13,8 @@ path = "src/main.rs"
 required-features = ["native-ui"]
 
 [dependencies]
-tauri = { version = "2.12.5", features = [], optional = true }
+tauri = { workspace = true, features = [], optional = true }
+serde_json.workspace = true
 
 [build-dependencies]
-tauri-build = { version = "2.7.4", features = [], optional = true }
+tauri-build = { workspace = true, features = [], optional = true }

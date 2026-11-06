@@ -408,7 +408,7 @@ pub(super) fn factory_product_request(
     window: WebviewWindow,
     app: tauri::AppHandle,
     session: String,
-    request: super::bridge::ProductRequest,
+    request: soda_desktop_runtime::ProductRequest,
     channel: tauri::ipc::Channel<Completion>,
 ) -> Result<String, String> {
     product_caller(&window)?;

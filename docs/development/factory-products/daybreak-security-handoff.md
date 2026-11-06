@@ -11,6 +11,14 @@ for that work. Do not infer a passed gate from a proposed design, a source build
 fixture, or an earlier component probe. Do not place credentials or private
 profile contents in this file.
 
+Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
+`lib/execution-protocol`; private filesystem and parent-death helpers belong to
+`lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary
+checks remain in the worker, broker and desktop. Structural reviews/builds and
+dummy-provider edit/inline journeys do not qualify installed isolation, admission,
+credential custody or any open gate below. Blockers and closure evidence remain
+as recorded here; refactor scope/results live in [the decision log](../untangle-codebase.md).
+
 Canonical decision scope: D1 gates standing GitHub automation, D2 supported
 Fountain desktop enrollment/revocation, D3 isolated native worker execution,
 D4 packaging/diff selection and D5 Fountain issue-only collaborator admission.

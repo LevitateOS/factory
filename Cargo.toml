@@ -5,9 +5,27 @@ members = [
   "cmd/soda-factory-broker",
   "cmd/soda-factory-worker",
   "lib/desktop-runtime",
+  "lib/execution-protocol",
   "lib/native-process",
   "lib/unix-http",
   "tools/factory-ui",
   "tools/pg-fixture",
   "tools/native-checks",
 ]
+
+[workspace.dependencies]
+libc = "=0.2.191"
+getrandom = "=0.4.3"
+serde = "=1.0.229"
+serde_json = "=1.0.154"
+url = "=2.5.8"
+sha2 = "=0.11.1"
+hmac = "=0.13.0"
+zeroize = "=1.9.1"
+http-body-util = "=0.1.5"
+hyper = { version = "=1.12.0", default-features = false }
+hyper-util = { version = "=0.1.21", default-features = false }
+secret-service = { version = "=5.2.0", default-features = false }
+tokio = { version = "=1.54.1", default-features = false }
+tauri = "=2.12.5"
+tauri-build = "=2.7.4"

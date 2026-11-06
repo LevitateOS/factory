@@ -45,21 +45,9 @@ fn report_diff(
     if !state.enabled || !state.diff || state.reported.swap(true, Ordering::SeqCst) {
         return;
     }
-    let required = [
-        "render",
-        "trusted-keyboard",
-        "old-anchor",
-        "trusted-draft",
-        "layout",
-        "virtualization",
-        "revision-pin",
-        "states",
-        "added-deleted",
-        "new-anchor",
-        "safe-thread",
-        "invalid-patch",
-        "disposal",
-    ];
+    let required: Vec<&str> =
+        serde_json::from_str(include_str!("../../../frontend/storybook/diff-checks.json"))
+            .expect("valid shared diff check contract");
     let passed = error.is_none()
         && required
             .iter()

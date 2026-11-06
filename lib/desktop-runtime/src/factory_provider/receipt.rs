@@ -5,14 +5,15 @@ use super::broker::{AgentProcess, AgentRun, Broker};
 use super::Role;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use soda_execution_protocol::{
+    candidate_result_valid, MAX_CANDIDATE_BUNDLE as MAX_BUNDLE, MAX_OUTPUT,
+};
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 const MAX_HEADER: usize = 2048;
-const MAX_OUTPUT: usize = 16 * 1024 * 1024;
-const MAX_BUNDLE: usize = 4 * 1024 * 1024;
 const MAX_FILE: u64 = 4 + MAX_HEADER as u64 + MAX_OUTPUT as u64 + MAX_BUNDLE as u64;
 
 fn refused(message: &'static str) -> io::Error {
@@ -193,29 +194,14 @@ fn valid(header: &Header, scope: &ReceiptScope<'_>) -> bool {
         Role::Reviewer => "reviewer",
         Role::Coder => "coder",
     };
-    let candidate = if role == "reviewer" {
-        header.candidate_state == "not_applicable"
-            && header.result_candidate.is_none()
-            && header.bundle_length == 0
-            && header.bundle_sha256.is_none()
-    } else if header.candidate_state == "captured" {
-        header
-            .result_candidate
-            .as_deref()
-            .is_some_and(|commit| hex(commit, 40) && commit != header.candidate)
-            && (1..=MAX_BUNDLE).contains(&header.bundle_length)
-            && header
-                .bundle_sha256
-                .as_deref()
-                .is_some_and(|digest| hex(digest, 64))
-    } else {
-        matches!(
-            header.candidate_state.as_str(),
-            "unchanged" | "dirty" | "unavailable"
-        ) && header.result_candidate.is_none()
-            && header.bundle_length == 0
-            && header.bundle_sha256.is_none()
-    };
+    let candidate = candidate_result_valid(
+        role,
+        &header.candidate,
+        &header.candidate_state,
+        header.result_candidate.as_deref(),
+        header.bundle_length,
+        header.bundle_sha256.as_deref(),
+    );
     header.kind == "native_agent_receipt"
         && header.version == 2
         && header.run == scope.run

@@ -7,7 +7,8 @@ publish = false
 description = "Root-owned bounded Factory run bundle and preparation boundary"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = "=0.2.191"
-serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.154"
-sha2 = "=0.11.1"
+libc = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+soda-execution-protocol = { path = "../../lib/execution-protocol" }

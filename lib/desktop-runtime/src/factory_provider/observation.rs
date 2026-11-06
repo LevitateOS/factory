@@ -1,11 +1,12 @@
 //! Single-flight current-process queries on the already bound execution stream.
 use super::AgentStarted;
+use soda_execution_protocol::{
+    MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER, OBSERVATION_REQUEST_BYTES,
+};
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
-
-const MAX_QUERIES: u64 = 65_536;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentObservation {
@@ -74,7 +75,7 @@ impl AgentObserver {
                 "native observation reply pending",
             ));
         }
-        if state.sequence >= MAX_QUERIES {
+        if state.sequence >= MAX_OBSERVATION_QUERIES {
             return Err(io::Error::other("native observation limit reached"));
         }
         let sequence = state.sequence + 1;
@@ -85,8 +86,8 @@ impl AgentObserver {
             )
         })?;
         writer.set_write_timeout(Some(timeout.min(Duration::from_secs(1))))?;
-        let mut request = [0u8; 9];
-        request[0] = b'O';
+        let mut request = [0u8; OBSERVATION_REQUEST_BYTES];
+        request[0] = OBSERVATION_MARKER;
         request[1..].copy_from_slice(&sequence.to_le_bytes());
         writer.write_all(&request)?;
         state.sequence = sequence;

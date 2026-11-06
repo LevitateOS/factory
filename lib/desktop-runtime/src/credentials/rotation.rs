@@ -4,7 +4,7 @@ use super::{
     Account, AccountStatus, Credentials, Error, Grant, Result, Secret, Token, TokenCapability,
     OPERATION,
 };
-use crate::database::private_file;
+use crate::private_fs::private_file;
 use secret_service::{EncryptionType, SecretService};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};

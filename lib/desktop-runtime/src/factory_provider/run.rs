@@ -6,7 +6,7 @@ use super::{
     LaunchIntent, Owner, Policy, ReceiptScope, Role, RunCustody, WorkerMcp,
 };
 use crate::credentials::{Credentials, TokenCapability};
-use crate::database::private_dir;
+use crate::private_fs::private_dir;
 use sha2::{Digest, Sha256};
 use std::fs::OpenOptions;
 use std::io::{self, Read};
@@ -65,6 +65,21 @@ pub struct RunOwner {
     retired: bool,
 }
 
+/// Inputs to one native run preparation. The older start methods project here
+/// for callers that predate explicit cancellation, MCP or intent binding.
+pub struct RunStart<'a> {
+    pub policy: Policy,
+    pub profile_dir: &'a Path,
+    pub credentials: Arc<Credentials>,
+    pub capability: TokenCapability,
+    pub bundle: &'a [u8],
+    pub tool_sha256: &'a str,
+    pub prompt_sha256: &'a str,
+    pub mcp: Option<WorkerMcp>,
+    pub cancellation: AgentCancellation,
+    pub intent: Option<&'a LaunchIntent>,
+}
+
 impl RunOwner {
     /// Bind a private credential owner before staging. The relay and worker
     /// are attested while the owner is still inert, then exact attestation
@@ -78,7 +93,7 @@ impl RunOwner {
         tool_sha256: &str,
         prompt_sha256: &str,
     ) -> io::Result<Self> {
-        Self::start_inner(
+        Self::prepare(RunStart {
             policy,
             profile_dir,
             credentials,
@@ -86,10 +101,10 @@ impl RunOwner {
             bundle,
             tool_sha256,
             prompt_sha256,
-            None,
-            AgentCancellation::default(),
-            None,
-        )
+            mcp: None,
+            cancellation: AgentCancellation::default(),
+            intent: None,
+        })
     }
 
     /// Bind the exact-run Go MCP port before the relay or worker can start.
@@ -103,7 +118,7 @@ impl RunOwner {
         prompt_sha256: &str,
         mcp: WorkerMcp,
     ) -> io::Result<Self> {
-        Self::start_inner(
+        Self::prepare(RunStart {
             policy,
             profile_dir,
             credentials,
@@ -111,10 +126,10 @@ impl RunOwner {
             bundle,
             tool_sha256,
             prompt_sha256,
-            Some(mcp),
-            AgentCancellation::default(),
-            None,
-        )
+            mcp: Some(mcp),
+            cancellation: AgentCancellation::default(),
+            intent: None,
+        })
     }
 
     /// The lifecycle owns this signal before any preparation RPC starts.
@@ -128,7 +143,7 @@ impl RunOwner {
         prompt_sha256: &str,
         cancellation: AgentCancellation,
     ) -> io::Result<Self> {
-        Self::start_inner(
+        Self::prepare(RunStart {
             policy,
             profile_dir,
             credentials,
@@ -136,10 +151,10 @@ impl RunOwner {
             bundle,
             tool_sha256,
             prompt_sha256,
-            None,
+            mcp: None,
             cancellation,
-            None,
-        )
+            intent: None,
+        })
     }
 
     pub fn start_with_mcp_cancellable(
@@ -153,7 +168,7 @@ impl RunOwner {
         mcp: WorkerMcp,
         cancellation: AgentCancellation,
     ) -> io::Result<Self> {
-        Self::start_inner(
+        Self::prepare(RunStart {
             policy,
             profile_dir,
             credentials,
@@ -161,10 +176,10 @@ impl RunOwner {
             bundle,
             tool_sha256,
             prompt_sha256,
-            Some(mcp),
+            mcp: Some(mcp),
             cancellation,
-            None,
-        )
+            intent: None,
+        })
     }
 
     /// The exact nonsecret Go binding is durably retained before custody/staging.
@@ -181,7 +196,7 @@ impl RunOwner {
         cancellation: AgentCancellation,
         intent: &LaunchIntent,
     ) -> io::Result<Self> {
-        Self::start_inner(
+        Self::prepare(RunStart {
             policy,
             profile_dir,
             credentials,
@@ -191,21 +206,25 @@ impl RunOwner {
             prompt_sha256,
             mcp,
             cancellation,
-            Some(intent),
-        )
+            intent: Some(intent),
+        })
     }
-    fn start_inner(
-        mut policy: Policy,
-        profile_dir: &Path,
-        credentials: Arc<Credentials>,
-        capability: TokenCapability,
-        bundle: &[u8],
-        tool_sha256: &str,
-        prompt_sha256: &str,
-        mcp: Option<WorkerMcp>,
-        cancellation: AgentCancellation,
-        intent: Option<&LaunchIntent>,
-    ) -> io::Result<Self> {
+
+    /// Bind an inert credential owner, stage and attest the exact run, then
+    /// activate token use. Failures after staging attempt exact retirement.
+    pub fn prepare(input: RunStart<'_>) -> io::Result<Self> {
+        let RunStart {
+            mut policy,
+            profile_dir,
+            credentials,
+            capability,
+            bundle,
+            tool_sha256,
+            prompt_sha256,
+            mcp,
+            cancellation,
+            intent,
+        } = input;
         if let Some(intent) = intent {
             intent.bind_policy(&mut policy, tool_sha256, prompt_sha256)?;
         }

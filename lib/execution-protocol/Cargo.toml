@@ -1,0 +1,10 @@
+[package]
+name = "soda-execution-protocol"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Nonsecret Factory execution wire contracts and pure validation"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }

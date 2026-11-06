@@ -1,6 +1,7 @@
 // Actual WebKitGTK workbench integration. External compositor input supplies
 // trusted keyboard events; calling the report command cannot grant app powers.
 import {diffFiles} from './diff-fixtures.js';
+import requiredChecks from './diff-checks.json';
 import type {SodaFactoryDiff} from '../factory/review/diff.js';
 
 export async function runNativeDiffCheck() {
@@ -16,6 +17,7 @@ export async function runNativeDiffCheck() {
     }
   };
   const require = (value: unknown, name: string) => {
+    if (!requiredChecks.includes(name)) throw Error('Unknown native diff check: ' + name);
     if (!value) throw Error(name);
     checks.push(name);
   };
@@ -117,6 +119,7 @@ export async function runNativeDiffCheck() {
     await wait(() => code()?.querySelector('[data-line]'));
     component.remove();
     require(component.shadowRoot?.querySelector('diffs-container') === null, 'disposal');
+    if (!requiredChecks.every((name) => checks.includes(name))) throw Error('Incomplete native diff checks');
     await native.invoke('report_diff', {checks, error: null});
   } catch (error) {
     await native.invoke('report_diff', {

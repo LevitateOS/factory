@@ -1,9 +1,10 @@
 //! Owned PostgreSQL child on a private, authenticated Unix socket. Never adopts
 //! or stops another server, overwrites a cluster, or opens a TCP listener.
+use crate::child_process::parent_death;
+use crate::private_fs::{private_dir, private_file};
 use std::error::Error;
-use std::fs::{self, DirBuilder, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::Write;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -247,64 +248,5 @@ fn wait(child: &mut Child, timeout: Duration) -> Result<ExitStatus> {
             return Err("native PostgreSQL command timed out and was killed".into());
         }
         thread::sleep(Duration::from_millis(25));
-    }
-}
-
-pub(crate) fn private_dir(path: &Path) -> Result<()> {
-    match DirBuilder::new().mode(0o700).create(path) {
-        Ok(()) => (),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => (),
-        Err(error) => return Err(error.into()),
-    }
-    let metadata = fs::symlink_metadata(path)?;
-    if !metadata.is_dir()
-        || metadata.uid() != unsafe { libc::geteuid() }
-        || metadata.mode() & 0o077 != 0
-    {
-        return Err("native database directory must be owned, private and not a symlink".into());
-    }
-    if !path.is_absolute() || fs::canonicalize(path)? != path {
-        return Err("native database paths must be absolute with no symlink components".into());
-    }
-    Ok(())
-}
-
-pub(crate) fn private_file(path: &Path, fresh: bool) -> Result<File> {
-    let mut options = OpenOptions::new();
-    options
-        .read(true)
-        .append(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW);
-    if fresh {
-        options.create_new(true);
-    } else {
-        options.create(true);
-    }
-    let file = options.open(path)?;
-    let metadata = file.metadata()?;
-    if !metadata.is_file()
-        || metadata.uid() != unsafe { libc::geteuid() }
-        || metadata.mode() & 0o077 != 0
-    {
-        return Err("native database file must be owned and private".into());
-    }
-    Ok(file)
-}
-
-// Linux parent-death ownership is tied to the spawning thread. The supervisor
-// keeps a dedicated owner thread alive until its children have stopped.
-pub(crate) fn parent_death(command: &mut Command, signal: i32) {
-    let parent = unsafe { libc::getpid() };
-    unsafe {
-        command.pre_exec(move || {
-            if libc::prctl(libc::PR_SET_PDEATHSIG, signal) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::getppid() != parent {
-                return Err(std::io::Error::from_raw_os_error(libc::ESRCH));
-            }
-            Ok(())
-        });
     }
 }

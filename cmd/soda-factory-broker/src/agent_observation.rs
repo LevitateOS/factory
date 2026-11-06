@@ -1,25 +1,19 @@
 //! Only sequenced process queries may follow the admitted execution upload.
-use serde::Deserialize;
+use soda_execution_protocol::{
+    AgentObserved as Observed, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER,
+    OBSERVATION_REQUEST_BYTES,
+};
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
 #[derive(Default)]
 pub struct Queries {
-    bytes: [u8; 9],
+    bytes: [u8; OBSERVATION_REQUEST_BYTES],
     length: usize,
     partial: Option<Instant>,
     sequence: u64,
     pending: Option<u64>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Observed {
-    kind: String,
-    version: u8,
-    sequence: u64,
-    live: bool,
 }
 
 impl Queries {
@@ -58,9 +52,9 @@ impl Queries {
             return Ok(());
         }
         let sequence = u64::from_le_bytes(self.bytes[1..].try_into().unwrap());
-        if self.bytes[0] != b'O'
+        if self.bytes[0] != OBSERVATION_MARKER
             || sequence != self.sequence + 1
-            || sequence > 65_536
+            || sequence > MAX_OBSERVATION_QUERIES
             || self.pending.is_some()
         {
             return Err(io::Error::other("agent observation request invalid"));
