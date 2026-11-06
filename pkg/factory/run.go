@@ -184,6 +184,9 @@ func (r Run) validateAdmission() error {
 	if !ok || r.Model != selection.Model {
 		return errors.New("run does not match admitted role selection")
 	}
+	if selection.Account != "" && selection.Account != a.Authority.SponsorshipConnection {
+		return errors.New("run does not match admitted paying account")
+	}
 	if r.Native != nil {
 		if a.Profile != nil || a.Tool != nil || r.Native.Tool.Harness != selection.Harness {
 			return errors.New("native run does not match admitted role selection")

@@ -12,7 +12,10 @@ use soda_desktop_runtime::ProductRequest;
 use std::sync::Arc;
 use std::{
     fs,
-    os::{fd::AsRawFd, unix::fs::{OpenOptionsExt, PermissionsExt}},
+    os::{
+        fd::AsRawFd,
+        unix::fs::{OpenOptionsExt, PermissionsExt},
+    },
     path::Path,
     time::{Duration, Instant},
 };
@@ -341,61 +344,125 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .to_owned();
     let root_path = format!("/api/factory/collaboration/repositories/{repository}");
     if std::env::var("SODA_NATIVE_CHECK_READ_CAPABILITIES").as_deref() == Ok("1") {
-        let coordinator_refusal = std::env::var("SODA_NATIVE_CHECK_COORDINATOR_REFUSAL").as_deref() == Ok("1");
+        let coordinator_refusal =
+            std::env::var("SODA_NATIVE_CHECK_COORDINATOR_REFUSAL").as_deref() == Ok("1");
         if coordinator_refusal {
-            let lock = fs::OpenOptions::new().read(true).write(true).create(true).mode(0o600)
+            let lock = fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .mode(0o600)
                 .open(profile.join("coordinator.lock"))?;
-            ensure(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
-                "owned coordinator check lock unavailable")?;
-            ensure(runtime.start_execution_coordinator().await.is_err(), "competing controller appeared admitted")?;
-            ensure(runtime.health().is_ok() && runtime.execution_error().is_some(), "coordinator refusal displaced product health")?;
+            ensure(
+                unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
+                "owned coordinator check lock unavailable",
+            )?;
+            ensure(
+                runtime.start_execution_coordinator().await.is_err(),
+                "competing controller appeared admitted",
+            )?;
+            ensure(
+                runtime.health().is_ok() && runtime.execution_error().is_some(),
+                "coordinator refusal displaced product health",
+            )?;
         }
         if std::env::var("SODA_NATIVE_CHECK_NO_EXECUTION").as_deref() == Ok("1") {
-            ensure(runtime.execution_error().is_some(), "missing worker setup appeared execution-ready")?;
+            ensure(
+                runtime.execution_error().is_some(),
+                "missing worker setup appeared execution-ready",
+            )?;
             runtime.start_execution_coordinator().await?;
-            ensure(runtime.health().is_ok() && runtime.execution_error().is_some(), "execution readiness displaced product health")?;
+            ensure(
+                runtime.health().is_ok() && runtime.execution_error().is_some(),
+                "execution readiness displaced product health",
+            )?;
         }
         if runtime.execution_error().is_some() {
             let ready = runtime.health()?;
             let bearer = fs::read_to_string(profile.join("backend.key"))?;
             let reply = soda_unix_http::request_authenticated_async(
-                &profile.join("host.sock"), "POST", "/api/native/preparation", "soda-native",
-                br#"{"operation":"prepare","request":{}}"#, &bearer,
-                &[("X-Soda-Native-Instance", ready.instance.as_str())], Duration::from_secs(5),
-                soda_unix_http::Limits { header_bytes:4096, body_bytes:4096 },
-            ).await.map_err(|_| "owned unavailable preparation request failed")?;
-            let body:serde_json::Value = serde_json::from_slice(&reply.body)?;
-            ensure(reply.status == 503 && body["error"] == "native_execution_unavailable",
-                "unavailable native preparation reached its effect owner")?;
+                &profile.join("host.sock"),
+                "POST",
+                "/api/native/preparation",
+                "soda-native",
+                br#"{"operation":"prepare","request":{}}"#,
+                &bearer,
+                &[("X-Soda-Native-Instance", ready.instance.as_str())],
+                Duration::from_secs(5),
+                soda_unix_http::Limits {
+                    header_bytes: 4096,
+                    body_bytes: 4096,
+                },
+            )
+            .await
+            .map_err(|_| "owned unavailable preparation request failed")?;
+            let body: serde_json::Value = serde_json::from_slice(&reply.body)?;
+            ensure(
+                reply.status == 503 && body["error"] == "native_execution_unavailable",
+                "unavailable native preparation reached its effect owner",
+            )?;
         }
         for mode in ["positive", "own", "locked", "archived"] {
             set_mode(&io, mode)?;
-            let facts = call(&runtime, &store, &connection, "GET",
-                &format!("{root_path}/pulls/7/capabilities"), &[]).await?;
+            let facts = call(
+                &runtime,
+                &store,
+                &connection,
+                "GET",
+                &format!("{root_path}/pulls/7/capabilities"),
+                &[],
+            )
+            .await?;
             ensure(facts.0 == 200, "read-role capabilities unavailable")?;
             let actions = &facts.1["actions"];
             for action in ["pull.comment", "pull.review", "pull.review.comment"] {
-                let expected = if mode == "locked" || mode == "archived" { "denied" } else { "allowed" };
-                ensure(actions[action]["state"] == expected, "read-role comment/review projection differs")?;
+                let expected = if mode == "locked" || mode == "archived" {
+                    "denied"
+                } else {
+                    "allowed"
+                };
+                ensure(
+                    actions[action]["state"] == expected,
+                    "read-role comment/review projection differs",
+                )?;
             }
             for action in ["pull.review.approve", "pull.review.request_changes"] {
-                let expected = if mode == "positive" { "allowed" } else { "denied" };
-                ensure(actions[action]["state"] == expected, "author/lock/archive review restriction differs")?;
+                let expected = if mode == "positive" {
+                    "allowed"
+                } else {
+                    "denied"
+                };
+                ensure(
+                    actions[action]["state"] == expected,
+                    "author/lock/archive review restriction differs",
+                )?;
             }
-            ensure(actions["pull.merge"]["state"] != "allowed", "read-role review granted merge capability")?;
+            ensure(
+                actions["pull.merge"]["state"] != "allowed",
+                "read-role review granted merge capability",
+            )?;
         }
         set_mode(&io, "positive")?;
-        ensure(posts(&io)? == 0 && !io.join("unexpected-request").exists(), "capability read performed a write or unknown request")?;
+        ensure(
+            posts(&io)? == 0 && !io.join("unexpected-request").exists(),
+            "capability read performed a write or unknown request",
+        )?;
         store.withdraw(&connection).await?;
-        ensure(store.status().await?.is_empty(), "capability check left owned grants")?;
+        ensure(
+            store.status().await?.is_empty(),
+            "capability check left owned grants",
+        )?;
         store.retire();
         let execution_unavailable = runtime.execution_error().is_some();
         runtime.stop()?;
-        fs::write(root.join("read-capabilities-result.json"), serde_json::to_vec_pretty(&json!({
-            "read_role_comments_reviews":true,"self_approval_refused":true,"locked_archived_refused":true,
-            "merge_unavailable":true,"provider_mutations":0,"real_github":false,
-            "coordinator_refusal":coordinator_refusal,"execution_unavailable":execution_unavailable
-        }))?)?;
+        fs::write(
+            root.join("read-capabilities-result.json"),
+            serde_json::to_vec_pretty(&json!({
+                "read_role_comments_reviews":true,"self_approval_refused":true,"locked_archived_refused":true,
+                "merge_unavailable":true,"provider_mutations":0,"real_github":false,
+                "coordinator_refusal":coordinator_refusal,"execution_unavailable":execution_unavailable
+            }))?,
+        )?;
         println!("PASS: native Rust/Go/PG read-role comment/review capabilities; self-approval, lock/archive and merge restrictions retained; declared peer, no writes");
         return Ok(());
     }
@@ -406,8 +473,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         let binding = &before.1["native_bindings"][0];
         let actor = json!({"native_profile":binding["native_profile"],
             "native_connection":binding["native_connection"],"actor_id":binding["actor_id"]});
-        let role = json!({"harness":"muse","model":"muse-spark-1.3-contributor",
+        let role = json!({"account":"declared-coder","harness":"muse","model":"muse-spark-1.3-contributor",
             "profile":{"effort":"high","contributor":false}});
+        let mut reviewer = role.clone();
+        reviewer["account"] = json!("declared-reviewer");
         let changes = [
             json!({"kind":"capacity","body":{"expected_revision":0,"max_concurrent_runs":2}}),
             json!({"kind":"repository_setting","repository":repository,"setting":"placement",
@@ -418,7 +487,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 "body":{"expected_revision":0,"active":true,"native":true}}),
             json!({"kind":"repository_setting","repository":repository,"setting":"policy",
                 "body":{"expected_revision":0,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
-                    "roles":{"soda-coder":role,"soda-reviewer":role},"required_checks":["fixture/check"],
+                    "roles":{"soda-coder":role,"soda-reviewer":reviewer},"required_checks":["fixture/check"],
                     "merge_method":"fast-forward-only","publish_actor":actor,"create_actor":actor,
                     "review_actor":actor,"merge_actor":actor}}),
         ];
@@ -440,7 +509,9 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 && after.1["capacity"]["max_concurrent_runs"] == 2
                 && after.1["operator_grant"]["active"] == true
                 && after.1["environment_grant"]["active"] == true
-                && after.1["policy"]["enabled"] == false,
+                && after.1["policy"]["enabled"] == false
+                && after.1["policy"]["roles"]["soda-coder"]["account"] == "declared-coder"
+                && after.1["policy"]["roles"]["soda-reviewer"]["account"] == "declared-reviewer",
             "local resource readback changed permission, limit or disabled automation",
         )?;
         let denied = call(&runtime, &store, &connection, "POST", "/api/factory/intents", &serde_json::to_vec(&json!({
@@ -461,6 +532,14 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             }))?,
         )?;
         println!("PASS: native local-owner capacity/placement/repository/workspace/policy setup and readback without repository admin; provider write stays refused and automation disabled");
+        store.withdraw(&connection).await?;
+        ensure(
+            store.status().await?.is_empty(),
+            "local settings check left owned grants",
+        )?;
+        store.retire();
+        runtime.stop()?;
+        return Ok(());
     }
     let mut cases = Vec::new();
     for (i, (kind, title, body)) in [

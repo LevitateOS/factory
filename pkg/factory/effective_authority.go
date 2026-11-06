@@ -33,6 +33,8 @@ func EvaluateAuthority(in AuthorityInput) EffectiveAuthority {
 		ref.Capacity = in.Appliance.Revision
 	}
 	switch {
+	case in.Policy != nil && in.Role != "" && in.Policy.Roles[in.Role].Account == "":
+		missing = append(missing, MissingSpendingAccount)
 	case in.Sponsorship == nil:
 		missing = append(missing, MissingSponsorship)
 	case !in.Sponsorship.Active:
@@ -42,6 +44,15 @@ func EvaluateAuthority(in AuthorityInput) EffectiveAuthority {
 	default:
 		ref.Sponsorship = in.Sponsorship.Revision
 		ref.SponsorshipConnection = in.Sponsorship.Connection
+	}
+	if in.Sponsorship != nil && in.Role != "" {
+		permitted := false
+		for _, role := range in.Sponsorship.Roles {
+			permitted = permitted || role == in.Role
+		}
+		if !permitted {
+			missing = append(missing, MissingSponsorshipRole)
+		}
 	}
 	switch {
 	case in.Environment == nil:

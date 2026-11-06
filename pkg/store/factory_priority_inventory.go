@@ -13,6 +13,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // This file owns the durable priority-inventory cursor for the D02
@@ -465,7 +466,7 @@ func (c *priorityDigestInputs) batchRepoInputs(ctx context.Context) error {
 	c.repoReqAppr = map[int64]string{}
 	c.repoPreps = map[int64]string{}
 	for repo := range c.repos {
-		in, err := factoryAuthorityInput(ctx, c.tx, repo)
+		in, err := factoryAuthorityInput(ctx, c.tx, repo, project.RoleCoder)
 		if err != nil {
 			return err
 		}

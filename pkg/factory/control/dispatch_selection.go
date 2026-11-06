@@ -13,7 +13,7 @@ import (
 )
 
 // selectSponsorship picks the authority-bound active sponsorship: the
-// first active grant in connection order, at its bound revision, with
+// explicitly selected account at its bound revision, with
 // permission for the requested dispatch role. Any other connection is
 // never a fallback.
 func selectSponsorship(ctx context.Context, deps DispatchDeps, repository int64, effective factory.EffectiveAuthority, role string) (factory.Sponsorship, *planWait, *planWait) {
@@ -22,8 +22,11 @@ func selectSponsorship(ctx context.Context, deps DispatchDeps, repository int64,
 		return factory.Sponsorship{}, nil, waitFor(DispatchErrStore, "sponsorships unreadable")
 	}
 	for _, sponsorship := range sponsorships {
-		if !sponsorship.Active {
+		if sponsorship.Connection != effective.Authority.SponsorshipConnection {
 			continue
+		}
+		if !sponsorship.Active {
+			return factory.Sponsorship{}, waitFor(WaitAuthority, "selected sponsorship is withdrawn"), nil
 		}
 		if sponsorship.Validate() != nil {
 			return factory.Sponsorship{}, waitFor(WaitAuthority, "sponsorship execution identity is unavailable"), nil

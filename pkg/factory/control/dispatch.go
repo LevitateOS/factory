@@ -320,7 +320,7 @@ const (
 
 // DispatchDeps gathers one dispatch pass's dependencies. Authority
 // derives the visible enablement verdict; the coordinator passes its own
-// EffectiveAuthority so dispatch and assessment share one verdict. Queue
+// EffectiveRoleAuthority so each dispatch uses its role's paying account. Queue
 // carries fair-rotation progress across passes; a nil queue visits from
 // the beginning without advancing.
 type DispatchDeps struct {
@@ -332,7 +332,7 @@ type DispatchDeps struct {
 	Host                 DispatchHost
 	Broker               DispatchBroker
 	Reads                DispatchReads
-	Authority            func(ctx context.Context, repository int64) (factory.EffectiveAuthority, error)
+	Authority            func(ctx context.Context, repository int64, role string) (factory.EffectiveAuthority, error)
 	Refresh              func(context.Context, factory.IssueControl) (factory.IssueControl, error)
 	PrepareRetry         func(context.Context, *attemptPlan, string) (bool, error)
 	PrepareSource        func(context.Context, *attemptPlan) (bool, error)
@@ -468,7 +468,7 @@ func DispatchPass(ctx context.Context, deps DispatchDeps) DispatchReport {
 func (c *Coordinator) dispatchDeps() DispatchDeps {
 	return admitDispatchDependencies(DispatchDeps{
 		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, MCPSecret: c.MCPSecret, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,
-		Reads: c.DispatchReads, Authority: c.EffectiveAuthority,
+		Reads: c.DispatchReads, Authority: c.EffectiveRoleAuthority,
 		Refresh: c.refreshReadiness, PrepareRetry: c.prepareRetryCoder, PrepareSource: c.prepareSourceCoder, RetireRetry: c.retireRetryCoder,
 		Queue:           &c.queue,
 		Priority:        c.Priority,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,8 +27,8 @@ func grantTestPolicy() factory.RepositoryPolicy {
 		Repository: 42, GrantedBy: 7, Enabled: true,
 		TargetBranch: "refs/heads/main",
 		Roles: map[string]factory.RoleSelection{
-			project.RoleCoder:    {Harness: project.FactoryHarnessMuse, HarnessVers: "0.157.1", Model: "test"},
-			project.RoleReviewer: {Harness: project.FactoryHarnessMuse, HarnessVers: "0.157.1", Model: "test"},
+			project.RoleCoder:    {Account: "conn", Harness: project.FactoryHarnessMuse, HarnessVers: "0.157.1", Model: "test"},
+			project.RoleReviewer: {Account: "conn", Harness: project.FactoryHarnessMuse, HarnessVers: "0.157.1", Model: "test"},
 		},
 		Checks:              []string{"native-ci/build"},
 		MergeMethod:         factory.MergeFastForward,
@@ -51,6 +52,33 @@ func TestPolicySaveIsCAS(t *testing.T) {
 	stored, err := db.RepositoryPolicy(ctx, 42)
 	if err != nil || stored.Revision != 1 || !stored.Enabled {
 		t.Fatalf("policy: %+v %v", stored, err)
+	}
+	if stored.Roles[project.RoleCoder].Account != supplied.Roles[project.RoleCoder].Account {
+		t.Fatal("selected paying account did not survive policy storage")
+	}
+	unselected := stored
+	unselected.Roles = map[string]factory.RoleSelection{}
+	for role, selection := range stored.Roles {
+		selection.Account = ""
+		unselected.Roles[role] = selection
+	}
+	if err := unselected.Validate(); err != nil {
+		t.Fatal("historical policy must remain readable", err)
+	}
+	if err := db.SaveRepositoryPolicy(ctx, unselected); err == nil {
+		t.Fatal("new policy save omitted paying account choices")
+	}
+	unselected.Enabled = false
+	if err := db.SaveRepositoryPolicy(ctx, unselected); err != nil {
+		t.Fatal("disabling historical policy required new spending choices", err)
+	}
+	input, err := db.FactoryAuthorityInput(ctx, 42)
+	if err != nil || input.Sponsorship != nil || !slices.Contains(factory.EvaluateAuthority(input).Missing, factory.MissingSpendingAccount) {
+		t.Fatal("historical missing account did not remain unavailable", input.Sponsorship, err)
+	}
+	stored, err = db.RepositoryPolicy(ctx, 42)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if stored.Roles[project.RoleCoder].Profile.Effort != factory.DefaultEffort || supplied.Roles[project.RoleCoder].Profile.Effort != "" {
 		t.Fatal("policy did not capture defaults independently of the caller's map")
@@ -126,6 +154,43 @@ func TestSponsorships(t *testing.T) {
 	sp.Active = false
 	if err = db.SaveSponsorship(ctx, sp); !errors.Is(err, ErrStaleRevision) {
 		t.Fatal("stale sponsorship saved", err)
+	}
+	// The first active grant is eligible for both roles but is not selected.
+	other := stored
+	other.Revision, other.Connection = 0, "aaa-unselected"
+	other.Roles = []string{project.RoleCoder, project.RoleReviewer}
+	if err := db.SaveSponsorship(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	reviewer := stored
+	reviewer.Revision, reviewer.Connection = 0, "conn-2"
+	reviewer.Roles = []string{project.RoleReviewer}
+	if err := db.SaveSponsorship(ctx, reviewer); err != nil {
+		t.Fatal(err)
+	}
+	policy := grantTestPolicy()
+	coderChoice, reviewerChoice := policy.Roles[project.RoleCoder], policy.Roles[project.RoleReviewer]
+	coderChoice.Account, reviewerChoice.Account = "conn-1", "conn-2"
+	policy.Roles[project.RoleCoder], policy.Roles[project.RoleReviewer] = coderChoice, reviewerChoice
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	for role, expected := range map[string]string{project.RoleCoder: "conn-1", project.RoleReviewer: "conn-2"} {
+		input, err := db.FactoryRoleAuthorityInput(ctx, 42, role)
+		if err != nil || input.Sponsorship == nil || input.Sponsorship.Connection != expected {
+			t.Fatalf("wrong %s paying account: %+v %v", role, input.Sponsorship, err)
+		}
+		if got := factory.PermittedCompletionRoles(policy.Roles, input.Sponsorships); len(got) != 2 {
+			t.Fatalf("role-specific funding missing from completion: %v", got)
+		}
+	}
+	reviewer.Revision, reviewer.Active = 1, false
+	if err := db.SaveSponsorship(ctx, reviewer); err != nil {
+		t.Fatal(err)
+	}
+	input, err := db.FactoryRoleAuthorityInput(ctx, 42, project.RoleReviewer)
+	if err != nil || input.Sponsorship == nil || input.Sponsorship.Active || input.Sponsorship.Connection != reviewer.Connection {
+		t.Fatalf("withdrawn selection switched accounts: %+v %v", input.Sponsorship, err)
 	}
 }
 

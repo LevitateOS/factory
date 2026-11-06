@@ -126,7 +126,7 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		// Zero remains explicitly unfunded; omission cannot invent intent credit.
 		IntentMinutes: in.IntentMinutes,
 	}
-	if err := policy.Validate(); err != nil {
+	if err := policy.ValidateForWrite(); err != nil {
 		return empty, errors.Join(ErrPolicyInvalid, err)
 	}
 	// Identity/binding reads can outlive current administration or cancellation.

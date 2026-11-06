@@ -227,7 +227,7 @@ func (t *timeOnlyLaunch) admitSubject() (string, bool) {
 // loadGrants loads authority, project, policy and the coder role
 // selection behind one time-only root.
 func (t *timeOnlyLaunch) loadGrants() bool {
-	effective, err := t.deps.Authority(t.ctx, t.repository)
+	effective, err := t.deps.Authority(t.ctx, t.repository, t.role)
 	if err != nil || !effective.Effective {
 		t.report.Waits = append(t.report.Waits, DispatchWait{Repository: t.repository, Reason: WaitAuthority, Detail: "authority ineffective for time-only dispatch"})
 		return false

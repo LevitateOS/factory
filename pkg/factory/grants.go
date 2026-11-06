@@ -123,6 +123,7 @@ func (a ActorBindingRef) Validate() error {
 // omitted profile resolves to the product defaults at policy creation;
 // running snapshots are always explicit.
 type RoleSelection struct {
+	Account     string           `json:"account,omitempty"`
 	Profile     ExecutionProfile `json:"profile,omitempty"`
 	Harness     string           `json:"harness"`
 	HarnessVers string           `json:"harness_version,omitempty"`
@@ -130,6 +131,9 @@ type RoleSelection struct {
 }
 
 func (s RoleSelection) Validate() error {
+	if len(s.Account) > 128 || s.Account != strings.TrimSpace(s.Account) || strings.IndexFunc(s.Account, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return errors.New("invalid role paying account")
+	}
 	if !project.ValidHarnessFamily(s.Harness) || (s.HarnessVers != "" && !project.ValidHarnessVersion(s.HarnessVers)) {
 		return errors.New("invalid role harness selection")
 	}
@@ -238,6 +242,23 @@ func (p RepositoryPolicy) Validate() error {
 	}
 	if err := p.AttemptLimits.Validate(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ValidateForWrite requires explicit spending choices when enabling policy.
+// Historical policies remain readable, but an omitted account cannot dispatch.
+func (p RepositoryPolicy) ValidateForWrite() error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if !p.Enabled || p.Paused {
+		return nil
+	}
+	for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+		if p.Roles[role].Account == "" {
+			return errors.New("policy must select a paying account for each role")
+		}
 	}
 	return nil
 }
@@ -359,6 +380,8 @@ const (
 	MissingCapacity          = "capacity_missing"
 	MissingSponsorship       = "sponsorship_missing"
 	MissingSponsorshipGone   = "sponsorship_withdrawn"
+	MissingSpendingAccount   = "spending_account_unselected"
+	MissingSponsorshipRole   = "sponsorship_role_missing"
 	MissingEnvironment       = "environment_grant_missing"
 	MissingEnvironmentGone   = "environment_grant_withdrawn"
 	MissingPreparation       = "preparation_not_ready"
@@ -391,6 +414,8 @@ type GrantResult struct {
 // record means no grant was ever recorded. PreparationReady applies only
 // when a Project exists for the repository.
 type AuthorityInput struct {
+	Role             string
+	Sponsorships     []Sponsorship
 	Policy           *RepositoryPolicy
 	Operator         *OperatorGrant
 	Appliance        *Capacity

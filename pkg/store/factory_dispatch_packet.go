@@ -1006,7 +1006,7 @@ func selectAdmissionSponsorshipTx(ctx context.Context, t *sql.Tx, repository int
 			_ = rows.Close()
 			return factory.Sponsorship{}, ErrAdmissionChanged
 		}
-		if candidate.Active && !found {
+		if candidate.Active && candidate.Connection == connection {
 			selected, found = candidate, true
 		}
 	}
@@ -1080,6 +1080,9 @@ func checkApplianceRunPreparationTx(ctx context.Context, tx *sql.Tx, a factory.A
 // for this admission. A retry retains its original assignment history while
 // checking the current role grant and the same approved preparation decisions.
 func checkAssignmentAuthorityTx(ctx context.Context, t *sql.Tx, expected factory.AuthorityRef, a factory.Assignment, grants admissionGrants) error {
+	if grants.policy.Roles[a.Role].Account != a.Connection {
+		return ErrAdmissionChanged
+	}
 	if (grants.environment.Native == nil) != (grants.sponsorship.Native == nil) {
 		return ErrAdmissionChanged
 	}

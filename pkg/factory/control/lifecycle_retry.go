@@ -150,7 +150,7 @@ func (c *Coordinator) admitRetryRun(ctx context.Context, runID string) (factory.
 		}
 		return empty, err
 	}
-	effective, err := c.EffectiveAuthority(ctx, view.Repository)
+	effective, err := c.EffectiveRoleAuthority(ctx, view.Repository, run.Role)
 	if err != nil {
 		return empty, err
 	}

@@ -1364,7 +1364,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	roles := map[string]factory.RoleSelection{}
 	for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
-		roles[role] = factory.RoleSelection{Harness: project.FactoryHarnessMuse, Model: "muse-spark-1.3-contributor", Profile: factory.ExecutionProfile{Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor}}
+		roles[role] = factory.RoleSelection{Account: input.Connection, Harness: project.FactoryHarnessMuse, Model: "muse-spark-1.3-contributor", Profile: factory.ExecutionProfile{Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor}}
 	}
 	policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: actor, Enabled: true, TargetBranch: "refs/heads/main", Roles: roles, Checks: []string{"fixture/check"}, MergeMethod: factory.MergeFastForward,
 		Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
@@ -1543,7 +1543,7 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 		selected := factoryservice.PolicyActor{NativeProfile: config.Profile, NativeConnection: binding.Connection.ID, ActorID: int64(actor)}
 		change := factoryservice.PolicyChange{Enabled: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward,
 			RequiredChecks: []string{"fixture/check"}, PublishActor: selected, CreateActor: selected, ReviewActor: selected, MergeActor: selected,
-			Roles: map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: run.Model}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: run.Model}}}
+			Roles: map[string]factory.RoleSelection{project.RoleCoder: {Account: connection, Harness: project.FactoryHarnessMuse, Model: run.Model}, project.RoleReviewer: {Account: connection, Harness: project.FactoryHarnessMuse, Model: run.Model}}}
 		if prior, err := db.RepositoryPolicy(ctx, int64(repository)); err == nil {
 			change.ExpectedRevision = prior.Revision
 		} else if !errors.Is(err, store.ErrNotFound) {
@@ -1939,8 +1939,8 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 		Repository: repository, GrantedBy: int64(actor), TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward,
 		ReassessmentMinutes: factory.EffectiveReassessmentMinutes(0), AttemptLimits: factory.EffectiveAttemptLimits(nil),
 		Checks: []string{"fixture/check"}, Roles: map[string]factory.RoleSelection{
-			project.RoleCoder:    {Harness: project.FactoryHarnessMuse, Model: "fixture"},
-			project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: "fixture"}},
+			project.RoleCoder:    {Account: "fixture-unavailable", Harness: project.FactoryHarnessMuse, Model: "fixture"},
+			project.RoleReviewer: {Account: "fixture-unavailable", Harness: project.FactoryHarnessMuse, Model: "fixture"}},
 		Publish: refFor(factory.OpRefPublish), Create: refFor(factory.OpPRCreate), Review: refFor(factory.OpReviewSubmit), Merge: refFor(factory.OpMerge),
 	}); err != nil {
 		return err

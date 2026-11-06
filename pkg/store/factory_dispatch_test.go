@@ -248,7 +248,7 @@ func dispatchTestPacket(t *testing.T, now time.Time) (factory.Assignment, factor
 }
 
 func TestRecordDispatchPacket(t *testing.T) {
-	for _, mode := range []string{"native_preparation", "missing_preparation", "stopped_preparation"} {
+	for _, mode := range []string{"native_preparation", "missing_preparation", "stopped_preparation", "unselected_paying_account"} {
 		t.Run(mode, func(t *testing.T) {
 			db := dispatchStoreFixture(t)
 			a, reservation, run, view := dispatchTestPacket(t, time.Now())
@@ -257,6 +257,18 @@ func TestRecordDispatchPacket(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch mode {
+			case "unselected_paying_account":
+				policy, err := db.RepositoryPolicy(t.Context(), a.Repository)
+				if err != nil {
+					t.Fatal(err)
+				}
+				selection := policy.Roles[a.Role]
+				selection.Account = "another-account"
+				policy.Roles[a.Role] = selection
+				if err := db.SaveRepositoryPolicy(t.Context(), policy); err != nil {
+					t.Fatal(err)
+				}
+				a.Authority = dispatchCurrentAuthority(t, db, a)
 			case "native_preparation":
 				record.Preparation.ID = "f" + strings.Repeat("a", 24)
 				record.Native = &execution.NativeWorkspaceRef{Profile: collaboration.ProfileID(strings.Repeat("a", 32)), InstanceID: strings.Repeat("b", 32), WorktreeID: "owned-native-checkout"}
@@ -289,6 +301,14 @@ func TestRecordDispatchPacket(t *testing.T) {
 	now := time.Now().UTC()
 	db := dispatchStoreFixture(t)
 	a, r, run, view := dispatchTestPacket(t, now)
+	unselected, err := db.Sponsorship(ctx, a.Repository, a.Connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unselected.Connection, unselected.Revision = "aaa-unselected", 0
+	if err := db.SaveSponsorship(ctx, unselected); err != nil {
+		t.Fatal(err)
+	}
 	if err := recordDispatchTestPacket(t, ctx, db, a, r, run, view); err != nil {
 		t.Fatalf("packet refused: %v", err)
 	}

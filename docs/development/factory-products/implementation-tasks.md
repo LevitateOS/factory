@@ -51,7 +51,10 @@ drafts/history and explicit provider/model/paying-account selection per role.
 The A07 Go contract now preserves method, reviewed candidate and provider result
 separately; PostgreSQL completion/source checks passed. Native automated adapters,
 provider result fetching and connected merge qualification remain pending. A11
-role-specific account selection still needs implementation. See the audit for
+now binds role-specific paying accounts through policy, authority, dispatch/retry
+and atomic admission; PostgreSQL and native settings readback checks passed.
+Existing-session account discovery and the role editor still need implementation.
+See the audit for
 exact evidence; these corrections do not complete any old queue row.
 
 ## Remaining product milestones (2026-11-06)

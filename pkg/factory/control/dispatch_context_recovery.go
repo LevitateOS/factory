@@ -66,7 +66,7 @@ func pendingContextLaunch(ctx context.Context, deps DispatchDeps, a factory.Assi
 	if run.Admission == nil || run.ID != a.Run || run.InputSHA != a.SourceCommit {
 		return launch, waitFor(DispatchErrStore, "pending launch lacks its recorded admission"), false
 	}
-	effective, err := deps.Authority(ctx, a.Repository)
+	effective, err := deps.Authority(ctx, a.Repository, a.Role)
 	if err != nil {
 		return launch, waitFor(DispatchErrStore, "pending launch authority unavailable"), false
 	}

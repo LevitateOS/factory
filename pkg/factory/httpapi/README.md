@@ -541,6 +541,15 @@ and retains owner admission and recorded mapping semantics after store reopen.
 
 `Repositories.Handler` owns repository status/access, activity, policy, runtime
 capacity/operator/environment grants, sponsorship and repair-allowance transport.
+Each policy role records `harness`, `model` and `account`. `account` references
+that role's sponsorship connection, independently of the GitHub publication or
+review actor. Enabling policy requires explicit paying-account choices for both
+roles. Dispatch, retries and atomic admission use the selected role's exact
+grant; missing, withdrawn or role-ineligible grants cannot fall back to another
+account. Historical policies remain readable and can be disabled without making
+new spending choices; they cannot dispatch with an omitted account. This adds
+no provider connector: native execution currently supports Muse only.
+
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and
 current admission before persistence. Existing services retain current

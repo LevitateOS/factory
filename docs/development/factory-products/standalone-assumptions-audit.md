@@ -44,6 +44,23 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A11 — role-specific funding admission verified; native selection UI pending.**
+  Policy role selections now capture an explicit paying `account` beside harness,
+  model and execution profile. Enabling policy requires both account choices;
+  legacy policies remain readable/disableable without inventing a choice.
+  Authority, dispatch/retries, transactional packet admission, run snapshots and
+  completion role permissions use the selected role's exact sponsorship. Missing,
+  withdrawn or role-ineligible grants do not fall back. Existing PostgreSQL checks
+  passed in `/home/vince/tmp/frole-account6.NQJS52/result.log`, including a reviewer
+  child on a distinct paying account; direct wrong-account refusal passed in
+  `/home/vince/tmp/frole-choice-refusal6.830BIu/result.log`. Historical policy
+  disable/readback passed in `/home/vince/tmp/frole-legacy6.nSi7mz/result.log`.
+  The existing native settings route/readback also passed with separate declared
+  role choices in `/home/vince/tmp/frole-native-declared6.yqCIsE/result.log`; policy
+  remained disabled, credentials dummy, no paid call. Go/native builds and
+  boundaries passed. Native existing-session identity/account discovery and the
+  role editor remain pending; other AI provider connectors are still unavailable.
+  No connected billing, custody or installed execution gate is qualified here.
 - **A07 — merge-method contract verified; native automation pending.** Policy now
   accepts merge/squash/rebase as well as retained Fountain methods. Immutable
   merge intents capture the method; historical omitted methods remain

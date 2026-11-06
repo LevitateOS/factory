@@ -390,8 +390,29 @@ func TestReviewChildAdmitsThroughReviewGuard(t *testing.T) {
 	db := dispatchStoreFixture(t)
 	owner := reviewCorrectOwner(t, ctx, db, now)
 	stored := recordReviewCorrectPublication(t, ctx, db, owner, reviewCorrectPublication(t, owner, now))
+	payingAccount, err := db.Sponsorship(ctx, owner.Repository, owner.Connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payingAccount.Connection, payingAccount.Revision = "review-paying-account", 0
+	payingAccount.Roles = []string{project.RoleReviewer}
+	if err := db.SaveSponsorship(ctx, payingAccount); err != nil {
+		t.Fatal(err)
+	}
+	policy, err := db.RepositoryPolicy(ctx, owner.Repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection := policy.Roles[project.RoleReviewer]
+	selection.Account = payingAccount.Connection
+	policy.Roles[project.RoleReviewer] = selection
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
 	reviewerPrep := "f" + strings.Repeat("d", 24)
 	child, reservation, run, view := reviewCorrectChild(t, ctx, db, now, owner, project.ExecutionReview, project.RoleReviewer, owner.ID, reviewerPrep)
+	child.Connection, reservation.Connection = payingAccount.Connection, payingAccount.Connection
+	child.Authority = reviewCorrectAuthority(t, ctx, db, child.ProjectID, child.Repository, child.Connection)
 	cycle := reviewCorrectCycle(t, stored, owner, 1, child.ID, "")
 	stored.ReviewCycles = append(stored.ReviewCycles, cycle)
 	stored.Revision++

@@ -123,14 +123,14 @@ func accessRequiredActions(missing []string) []accessActionView {
 	for _, code := range missing {
 		action := accessActionView{Code: code}
 		switch code {
-		case factory.MissingPolicy, factory.MissingPolicyDisabled, factory.MissingPolicyPaused:
+		case factory.MissingPolicy, factory.MissingPolicyDisabled, factory.MissingPolicyPaused, factory.MissingSpendingAccount:
 			action.ResolveBy, action.Setting = accessResolveOwnerAdmin, "policy"
 		case factory.MissingOperatorGrant, factory.MissingOperatorWithdrawn, factory.MissingCapacity:
 			action.ResolveBy, action.Setting = accessResolveOperator, "operator_grant"
 			if code == factory.MissingCapacity {
 				action.Setting = "capacity"
 			}
-		case factory.MissingSponsorship, factory.MissingSponsorshipGone:
+		case factory.MissingSponsorship, factory.MissingSponsorshipGone, factory.MissingSponsorshipRole:
 			action.ResolveBy, action.Setting = accessResolveConnOwner, "sponsorships"
 		case factory.MissingEnvironment, factory.MissingEnvironmentGone:
 			action.ResolveBy, action.Setting = accessResolveRepoOwner, "environment_grant"

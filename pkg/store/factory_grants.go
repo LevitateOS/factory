@@ -40,7 +40,7 @@ func loadGrantQuery(ctx context.Context, q grantCommandSQL, table, key string, i
 
 // SaveRepositoryPolicy records the owner's policy under CAS revision.
 func (s *Store) SaveRepositoryPolicy(ctx context.Context, p factory.RepositoryPolicy) error {
-	if err := p.Validate(); err != nil {
+	if err := p.ValidateForWrite(); err != nil {
 		return err
 	}
 	next := p

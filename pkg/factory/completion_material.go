@@ -1067,25 +1067,28 @@ type CompletionAuthority struct {
 }
 
 // PermittedCompletionRoles projects the sorted unique permitted roles:
-// the active sponsorship's selected roles restricted to configured
-// valid roles. A missing or withdrawn sponsorship permits nothing: the
+// each configured role's explicitly selected active sponsorship.
+// A missing or withdrawn sponsorship permits nothing: the
 // result is explicit empty, never the configured set. An explicitly
 // empty set is representable and confers no authority.
-func PermittedCompletionRoles(configured map[string]RoleSelection, sponsorship *Sponsorship) []string {
+func PermittedCompletionRoles(configured map[string]RoleSelection, sponsorships []Sponsorship) []string {
 	permitted := []string{}
-	if sponsorship == nil || !sponsorship.Active {
-		return permitted
-	}
-	seen := make(map[string]bool, len(sponsorship.Roles))
-	for _, role := range sponsorship.Roles {
-		if !project.ValidFactoryRole(role) || seen[role] {
+	for role, selection := range configured {
+		if !project.ValidFactoryRole(role) || selection.Account == "" {
 			continue
 		}
-		if _, ok := configured[role]; !ok {
-			continue
+		for _, sponsorship := range sponsorships {
+			if sponsorship.Connection != selection.Account || !sponsorship.Active {
+				continue
+			}
+			for _, allowed := range sponsorship.Roles {
+				if allowed == role {
+					permitted = append(permitted, role)
+					break
+				}
+			}
+			break
 		}
-		seen[role] = true
-		permitted = append(permitted, role)
 	}
 	sort.Strings(permitted)
 	return permitted

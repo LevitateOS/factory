@@ -321,7 +321,7 @@ func admitAttemptParent(lineage attemptLineage, recordedPrompt bool) *planWait {
 
 func loadAttemptPlanBasis(ctx context.Context, deps DispatchDeps, plan *attemptPlan, repository int64, role, head string) (factory.RepositoryPolicy, *planWait, *planWait) {
 	var empty factory.RepositoryPolicy
-	effective, err := deps.Authority(ctx, repository)
+	effective, err := deps.Authority(ctx, repository, role)
 	if err != nil {
 		return empty, nil, waitFor(DispatchErrStore, "authority unreadable")
 	}

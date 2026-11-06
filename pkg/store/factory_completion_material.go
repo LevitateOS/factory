@@ -1061,7 +1061,7 @@ func completionChecksTx(ctx context.Context, tx *sql.Tx, repository int64) ([]fa
 // proves a head-matching prepared checkout, and the existing
 // AuthorityFingerprint still hashes grant revisions only.
 func completionAuthorityTx(ctx context.Context, tx *sql.Tx, repository int64, projectID string) (factory.CompletionAuthority, error) {
-	input, err := factoryAuthorityInput(ctx, tx, repository)
+	input, err := factoryAuthorityInput(ctx, tx, repository, project.RoleCoder)
 	if err != nil {
 		return factory.CompletionAuthority{}, err
 	}
@@ -1088,7 +1088,7 @@ func completionAuthorityTx(ctx context.Context, tx *sql.Tx, repository int64, pr
 		ApprovalReadinessDigest: head.approval.ReadinessDigest,
 		ApprovalVerified:        head.approval.Verified,
 		TargetBranch:            input.Policy.TargetBranch,
-		Roles:                   factory.PermittedCompletionRoles(input.Policy.Roles, input.Sponsorship),
+		Roles:                   factory.PermittedCompletionRoles(input.Policy.Roles, input.Sponsorships),
 		ReassessmentMinutes:     factory.EffectiveReassessmentMinutes(input.Policy.ReassessmentMinutes),
 	}
 	if err = authority.Validate(); err != nil {

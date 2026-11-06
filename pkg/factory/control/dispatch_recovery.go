@@ -335,7 +335,7 @@ func retryOrFinish(ctx context.Context, deps DispatchDeps, a factory.Assignment,
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "acceptance no longer authorizes this attempt", report)
 		return
 	}
-	effective, err := deps.Authority(ctx, a.Repository)
+	effective, err := deps.Authority(ctx, a.Repository, a.Role)
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "authority unreadable"})
 		return

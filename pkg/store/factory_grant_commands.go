@@ -22,7 +22,14 @@ type grantCommandSQL interface {
 // FactoryAuthorityInput returns the current grant and preparation inputs used
 // by both visible authority reads and atomic grant changes.
 func (s *Store) FactoryAuthorityInput(ctx context.Context, repository int64) (factory.AuthorityInput, error) {
-	return factoryAuthorityInput(ctx, s.db, repository)
+	return s.FactoryRoleAuthorityInput(ctx, repository, project.RoleCoder)
+}
+
+func (s *Store) FactoryRoleAuthorityInput(ctx context.Context, repository int64, role string) (factory.AuthorityInput, error) {
+	if !project.ValidFactoryRole(role) {
+		return factory.AuthorityInput{}, errors.New("invalid authority role")
+	}
+	return factoryAuthorityInput(ctx, s.db, repository, role)
 }
 
 // loadAuthorityGrantRows loads the policy, operator and appliance
@@ -50,21 +57,23 @@ func loadAuthorityGrantRows(ctx context.Context, q grantCommandSQL, repository i
 	return nil
 }
 
-// pickAuthoritySponsorship selects the active sponsorship behind one
-// authority evaluation, falling back to the first recorded sponsorship.
+// pickAuthoritySponsorship reads only the policy-selected paying account.
+// A missing or withdrawn selection cannot fall back to another account.
 func pickAuthoritySponsorship(ctx context.Context, q grantCommandSQL, repository int64, in *factory.AuthorityInput) error {
 	sponsorships, err := sponsorshipsQuery(ctx, q, repository)
 	if err != nil {
 		return err
 	}
+	in.Sponsorships = sponsorships
+	if in.Policy == nil {
+		return nil
+	}
+	account := in.Policy.Roles[in.Role].Account
 	for i := range sponsorships {
-		if sponsorships[i].Active {
+		if sponsorships[i].Connection == account {
 			in.Sponsorship = &sponsorships[i]
 			break
 		}
-	}
-	if in.Sponsorship == nil && len(sponsorships) > 0 {
-		in.Sponsorship = &sponsorships[0]
 	}
 	return nil
 }
@@ -176,8 +185,8 @@ func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID str
 	return nil
 }
 
-func factoryAuthorityInput(ctx context.Context, q grantCommandSQL, repository int64) (factory.AuthorityInput, error) {
-	var in factory.AuthorityInput
+func factoryAuthorityInput(ctx context.Context, q grantCommandSQL, repository int64, role string) (factory.AuthorityInput, error) {
+	in := factory.AuthorityInput{Role: role}
 	if err := loadAuthorityGrantRows(ctx, q, repository, &in); err != nil {
 		return in, err
 	}
@@ -315,7 +324,7 @@ func (s *Store) ApplyFactoryGrant(ctx context.Context, principal string, change 
 	if err = settleGrantWithdrawalTx(ctx, tx, scope.repository, withdraw, scope.cause, principal, &result); err != nil {
 		return result, err
 	}
-	input, err := factoryAuthorityInput(ctx, tx, scope.repository)
+	input, err := factoryAuthorityInput(ctx, tx, scope.repository, project.RoleCoder)
 	if err != nil {
 		return result, err
 	}
@@ -326,7 +335,7 @@ func (s *Store) ApplyFactoryGrant(ctx context.Context, principal string, change 
 func saveFactoryGrantChangeTx(ctx context.Context, tx *sql.Tx, change any) error {
 	switch g := change.(type) {
 	case factory.RepositoryPolicy:
-		if err := g.Validate(); err != nil {
+		if err := g.ValidateForWrite(); err != nil {
 			return err
 		}
 		next := g
