@@ -97,6 +97,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.HumanBranchCreates = factoryhttp.HumanBranchCreates{Service: application.HumanBranchCreates(nativeHumanBranchCreates{bound})}
 	product.HumanPullCreates = factoryhttp.HumanPullCreates{Service: application.HumanPullCreates(nativeHumanPullCreates{bound})}
 	product.HumanReviews = factoryhttp.HumanReviews{Service: application.HumanReviews(nativeHumanReviews{bound})}
+	product.HumanInlines = factoryhttp.HumanInlines{Service: application.HumanInlines(nativeHumanInlines{bound})}
 	product.HumanStates = factoryhttp.HumanStates{Service: application.HumanStates(nativeHumanStates{bound})}
 	product.HumanEdits = factoryhttp.HumanEdits{Service: application.HumanEdits(nativeHumanEdits{bound})}
 	product.HumanLocks = factoryhttp.HumanLocks{Service: application.HumanLocks(nativeHumanLocks{bound})}

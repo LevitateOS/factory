@@ -3541,3 +3541,46 @@ Actual provider schema/permissions/rename/original positions/draft privacy/
 notification need fresh specifically scoped authorization and real evidence.
 Shared UI/installed, combined bounds and all other concrete/canonical/broad gates
 remain open; shared writes remain unavailable. No Daybreak work ran or completed.
+
+T11-WRITES durable pending inline consumer (2026-11-06):
+`runtime/native_product_inlines.go` now composes schema-91 capture/reservation,
+fixed native `append_pending_thread` callback and a separate authenticated
+preservation read. Relevant native files are `collaboration.rs`,
+`product_request.rs` and `github_provider/inline_draft.rs`; Go callback/read/HTTP
+admission lives in `native_collaboration.go`, `native_product_observations.go`
+and `native_server.go`. Saved causal primary precedes completion; lost replies
+never gain attribution from current matching writing. Causal summary/count/
+publication discrepancies stay unfinished. Before-send native/product capacity
+refusal now leaves room within the complete 1,000-member observation bound,
+closing that specific component dependency from the prior checkpoint.
+
+Actual production Go HTTP/store, Rust custody/callback and private PostgreSQL
+passed the dummy composed matrix (31 named cases, 24 dummy mutations), including
+loss/replay, two actual reservation/cancel races, concurrency, preservation,
+withdrawal/reconsent/restart and cross-account refusal. Separate genuine original
+expiry waited 287 seconds, then refused without mutation/re-preparation and
+completed local cancellation. Existing native producer capacity matrix also
+passed. Evidence under `/home/vince/tmp/factory-inline-product-1106/`:
+`attempt4/inline-product-result.json` SHA-256
+`e8316ca916bccc5d38e75826b2b54e20ec48b5dfd38ba36a02a322618556fa82`,
+`ex1/inline-expiry-result.json`
+`8c8ba2089690ebffa8cd2cddb3c8595c0e84066ad2b3a34f5cb3ab6881239745`,
+`native-capacity/inline-draft-result.json`
+`2055ec912375f654f1418cc592615ff0c13724710d65bce715dbcdb80c53fce9`.
+The canonical plan records retained inputs and earlier fixture/observer failures.
+No-forwarding owned peers used only dummy tokens; owned accounts were withdrawn.
+
+Exact remaining T11 dependencies: new-pending/immediate-publication/summary/merge
+modes, supported provider condition policy and actual provider qualification.
+Full original two-commit identity and atomic expected head/base/body/comment-set
+conditions are not proved by preflight/causal positions. Existing fixtures do not
+prove actual draft privacy, notification behavior, permissions or live schema.
+Closing those claims requires the corresponding supported API condition and a
+specifically scoped connected journey with causal receipts, separate normal
+readback and appropriate privacy/notification/permission observations; source or
+fixture checks alone cannot close them. Shared public thread/UI readback,
+installed consumers and combined longest identity/receipt bounds remain
+unverified. Shared writes remain unavailable. These concrete T11 limits do not
+rename canonical D5. D1/D2/D3 and all previously open broad security gates remain
+open. Routine implementation remains in the normal queue; no Daybreak work ran
+or was marked complete.

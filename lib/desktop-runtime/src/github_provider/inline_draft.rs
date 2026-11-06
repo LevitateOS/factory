@@ -99,9 +99,28 @@ impl Client {
             }
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
+            let root = reader.review_preparation(q.number, actor, expected).await?;
+            if root["pending"]["node_id"] != q.review_node_id {
+                return Err(Failure::new(
+                    409,
+                    "github_inline_pending_review_unavailable",
+                ));
+            }
+            if root["pending"]["comments_count"]
+                .as_u64()
+                .is_none_or(|n| n >= 1000)
+            {
+                return Err(Failure::new(413, "github_inline_pending_capacity"));
+            }
             let before = reader
                 .inline_preparation(q.number, &q.anchor, actor, expected)
                 .await?;
+            if before["comments_snapshot"]["count"]
+                .as_u64()
+                .is_none_or(|n| n >= 1000)
+            {
+                return Err(Failure::new(413, "github_inline_pending_capacity"));
+            }
             if before["repository_node_id"] != q.repository_node_id
                 || before["pull"]["external_id"] != q.pull_id
                 || before["pull"]["node_id"] != q.pull_node_id

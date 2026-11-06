@@ -212,6 +212,534 @@ pub(super) async fn inline_preparation_port(
     Ok(())
 }
 
+pub(super) async fn inline_product(
+    production: &Path,
+    payload: &Path,
+    helper: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::{call, completed};
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+        ProductRequest,
+    };
+    use std::{os::unix::fs::PermissionsExt, process::Command, sync::Arc};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let mode = |name: &str| -> Result<()> {
+        for key in ["entered", "release", "cancelled", "verification-mode"] {
+            match fs::remove_file(io.join(key)) {
+                Ok(()) => (),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+                Err(e) => return Err(e.into()),
+            }
+        }
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let journal = |id: &str, stage: &str| -> Result<()> {
+        ensure(
+            Command::new(helper)
+                .arg(profile)
+                .arg(id)
+                .arg(stage)
+                .status()?
+                .success(),
+            "owned inline journal assertion failed",
+        )
+    };
+    let primary = |r: &(u16, serde_json::Value)| -> Result<()> {
+        ensure(
+            r.0 == 202
+                && r.1["effect"] == "committed"
+                && r.1["finished"] == false
+                && r.1["completion"] == "needs_intervention",
+            "inline primary was lost or verification preceded durable save",
+        )
+    };
+    mode("inline-product-start")?;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(store.status().await?.is_empty(), "owned custody not empty")?;
+    let account = || Account::new(Provider::Github, "https://github.com", "321");
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let mut connection = store.store(account()?, token()?).await?.connection;
+    let catalogue = call(
+        &runtime,
+        &store,
+        &connection,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "inline catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?
+        .to_owned();
+    let submit =
+        format!("/api/factory/collaboration/repositories/{repository}/pulls/7/inline-comments");
+    let command = |id: &str| format!("{submit}/commands/{id}");
+    let anchor = || json!({"base":"a".repeat(40),"head":"b".repeat(40),"path":"src/tea.md","side":"new","scope":"lines","start_line":2,"end_line":3});
+    let envelope = |id: &str, a: serde_json::Value, body: &str, draft: bool| -> Result<Vec<u8>> {
+        let request: ProductRequest = serde_json::from_value(
+            json!({"kind":"write","path":submit,"body":{"command_id":id,"anchor":a,"body":body,"draft":draft}}),
+        )?;
+        Ok(request.request()?.2)
+    };
+    let mut cases = Vec::new();
+    let mut last_id = String::new();
+    let mut last_body = Vec::new();
+    for (i, name) in [
+        "inline-product-lines",
+        "inline-product-single",
+        "inline-product-file",
+        "inline-binary-file",
+        "inline-renamed-old",
+        "inline-unicode-path",
+        "inline-maximum-path",
+        "inline-escaped-path",
+        "inline-draft-null-comment-id",
+        "inline-draft-big-id",
+        "inline-draft-request-id",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        mode(name)?;
+        let id = format!("{:032x}", 100 + i);
+        let mut a = anchor();
+        match name {
+            "inline-product-single" => a["start_line"] = json!(3),
+            "inline-product-file" | "inline-binary-file" => {
+                a["scope"] = json!("file");
+                a["start_line"] = json!(0);
+                a["end_line"] = json!(0)
+            }
+            "inline-renamed-old" => {
+                a["side"] = json!("old");
+                a["path"] = json!("src/old.md")
+            }
+            "inline-unicode-path" => a["path"] = json!("src/茶/π.md"),
+            "inline-maximum-path" => a["path"] = json!(format!("p/{}", "x".repeat(4094))),
+            "inline-escaped-path" => a["path"] = json!(format!("p/{}", "\u{0001}".repeat(4094))),
+            _ => (),
+        }
+        let body = if name == "inline-escaped-path" {
+            "\u{0001}".repeat(65536)
+        } else {
+            "Exact owned inline writing 🍵\n[link](relative.md)".into()
+        };
+        let bytes = envelope(&id, a, &body, true)?;
+        let before = writes()?;
+        let r = call(&runtime, &store, &connection, "POST", &submit, &bytes).await?;
+        primary(&r)?;
+        journal(&id, "primary")?;
+        let r = call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?;
+        completed(&r, "committed")?;
+        journal(&id, "complete")?;
+        let r = call(&runtime, &store, &connection, "POST", &submit, &bytes).await?;
+        completed(&r, "committed")?;
+        journal(&id, "retained")?;
+        ensure(
+            writes()? == before + 1,
+            "inline replay duplicated native effect",
+        )?;
+        let public = serde_json::to_string(&r.1)?;
+        ensure(
+            !public.contains("sha256")
+                && !public.contains("factory-declared")
+                && !public.contains("C_new")
+                && !public.contains("provider_intent"),
+            "inline HTTP leaked private evidence",
+        )?;
+        cases.push(name.to_owned());
+        last_id = id;
+        last_body = bytes;
+    }
+    // Verification failures retain the known primary and exact private receipt.
+    for (i, verification) in [
+        "summary",
+        "old-writing",
+        "new-writing",
+        "new-identity",
+        "published-child",
+        "missing-new",
+        "review-identity",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        mode(&format!("inline-product-verify-{verification}"))?;
+        let id = format!("{:032x}", 200 + i);
+        let bytes = envelope(&id, anchor(), "Exact inline preservation writing", true)?;
+        let before = writes()?;
+        primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+        journal(&id, "primary")?;
+        fs::write(io.join("verification-mode"), verification)?;
+        let r = call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?;
+        ensure(
+            r.0 == 200 && r.1["effect"] == "committed" && r.1["finished"] == false,
+            "failed inline preservation erased primary or completed",
+        )?;
+        journal(&id, "unfinished")?;
+        fs::remove_file(io.join("verification-mode"))?;
+        completed(
+            &call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?,
+            "committed",
+        )?;
+        journal(&id, "complete")?;
+        ensure(
+            writes()? == before + 1,
+            "preservation retry sent another effect",
+        )?;
+        cases.push(format!("verification-{verification}"));
+    }
+    for (i, name) in [
+        "inline-draft-summary-change",
+        "inline-draft-count-change",
+        "inline-draft-published",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        mode(name)?;
+        let id = format!("{:032x}", 300 + i);
+        let bytes = envelope(&id, anchor(), "Causal discrepancy remains unfinished", true)?;
+        let before = writes()?;
+        primary(&call(&runtime, &store, &connection, "POST", &submit, &bytes).await?)?;
+        journal(&id, "primary")?;
+        let r = call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?;
+        ensure(
+            r.0 == 200 && r.1["effect"] == "committed" && r.1["finished"] == false,
+            "causal discrepancy was erased by current facts",
+        )?;
+        journal(&id, "unfinished")?;
+        ensure(writes()? == before + 1, "causal discrepancy resent")?;
+        cases.push(name.into());
+    }
+    mode("inline-draft-loss")?;
+    let lost_id = "dddddddddddddddddddddddddddddddd";
+    let lost = envelope(
+        lost_id,
+        anchor(),
+        "Lost inline reply cannot be attributed",
+        true,
+    )?;
+    let before = writes()?;
+    let r = call(&runtime, &store, &connection, "POST", &submit, &lost).await?;
+    ensure(
+        r.0 == 202 && r.1["effect"] == "indeterminate" && r.1["finished"] == false,
+        "lost inline reply became known or no-effect",
+    )?;
+    let queries = fs::read(io.join("queries"))?;
+    for action in ["GET", "POST"] {
+        let target = if action == "GET" {
+            command(lost_id)
+        } else {
+            submit.clone()
+        };
+        let body = if action == "GET" { &[][..] } else { &lost };
+        let r = call(&runtime, &store, &connection, action, &target, body).await?;
+        ensure(
+            matches!(r.0, 200 | 202)
+                && r.1["effect"] == "indeterminate"
+                && r.1["finished"] == false,
+            "current matching inline was attributed or replayed",
+        )?;
+    }
+    ensure(
+        writes()? == before + 1 && fs::read(io.join("queries"))? == queries,
+        "unknown inline path searched matching content or resent",
+    )?;
+    cases.push("lost-reply-and-no-current-attribution".into());
+    for (i, name) in ["inline-draft-pause", "inline-product-late-no-effect"]
+        .into_iter()
+        .enumerate()
+    {
+        mode(name)?;
+        let id = format!("{:032x}", 400 + i);
+        let bytes = envelope(
+            &id,
+            anchor(),
+            "Original inline survives a cancellation race",
+            true,
+        )?;
+        let before = writes()?;
+        let request = runtime.admit_product(
+            store.clone(),
+            store.capability(&connection).await?,
+            Some("123".into()),
+        )?;
+        let target = submit.clone();
+        let flight = tokio::spawn(async move { request.request("POST", &target, &bytes).await });
+        let until = Instant::now() + Duration::from_secs(6);
+        while !io.join("entered").exists() {
+            ensure(
+                Instant::now() < until,
+                "inline cancellation race did not reach declared phase",
+            )?;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        journal(&id, "reserved")?;
+        let cancelled = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &format!("{}/cancel", command(&id)),
+            b"{}",
+        )
+        .await?;
+        ensure(
+            cancelled.0 == 202
+                && cancelled.1["cancellation"] == "indeterminate"
+                && cancelled.1["finished"] == false,
+            "reserved inline cancellation invented a tombstone",
+        )?;
+        fs::write(io.join("release"), b"release")?;
+        let raw = flight.await??;
+        let r = (
+            raw.status,
+            serde_json::from_slice::<serde_json::Value>(&raw.body)?,
+        );
+        ensure(
+            r.0 == if i == 0 { 202 } else { 200 }
+                && r.1["cancellation"] == "indeterminate"
+                && r.1["finished"] == (i != 0),
+            "late primary erased cancellation uncertainty",
+        )?;
+        if i == 0 {
+            ensure(
+                r.1["effect"] == "committed",
+                "late causal inline primary lost",
+            )?;
+            journal(&id, "primary")?;
+            let r = call(&runtime, &store, &connection, "GET", &command(&id), &[]).await?;
+            ensure(
+                r.0 == 200
+                    && r.1["effect"] == "committed"
+                    && r.1["completion"] == "complete"
+                    && r.1["cancellation"] == "indeterminate"
+                    && r.1["finished"] == true,
+                "late inline preservation erased primary or cancellation",
+            )?;
+            journal(&id, "cancel-complete")?;
+            ensure(
+                writes()? == before + 1,
+                "cancelled committed inline duplicated",
+            )?;
+        } else {
+            ensure(
+                r.1["effect"] == "not_committed"
+                    && r.1["completion"] == "complete"
+                    && writes()? == before,
+                "late known no-send inline was lost or mutated",
+            )?;
+            journal(&id, "cancel-no-effect")?;
+        }
+        cases.push(format!("late-primary-after-cancel-{i}"));
+    }
+    mode("inline-product-parallel")?;
+    let parallel_id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let bytes = envelope(
+        parallel_id,
+        anchor(),
+        "One immutable concurrent inline",
+        true,
+    )?;
+    let before = writes()?;
+    let (left, right) = tokio::join!(
+        call(&runtime, &store, &connection, "POST", &submit, &bytes),
+        call(&runtime, &store, &connection, "POST", &submit, &bytes)
+    );
+    let left = left?;
+    let right = right?;
+    ensure(
+        matches!(left.0, 200 | 202) && matches!(right.0, 200 | 202) && writes()? == before + 1,
+        "parallel inline lost journal admission or duplicated",
+    )?;
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(parallel_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    cases.push("parallel-one-shot".into());
+    mode("inline-product-conflict")?;
+    let mut changed: serde_json::Value = serde_json::from_slice(&last_body)?;
+    changed["body"] = json!("Conflicting writing");
+    let before = writes()?;
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            &submit,
+            &serde_json::to_vec(&changed)?,
+        )
+        .await?
+        .0 == 409
+            && writes()? == before,
+        "changed inline reused saved command",
+    )?;
+    cases.push("conflicting-writing".into());
+    mode("inline-product-invalid-http")?;
+    for i in 0..6 {
+        let mut bad: serde_json::Value = serde_json::from_slice(&last_body)?;
+        bad["command_id"] = json!(format!("{:032x}", 500 + i));
+        match i {
+            0 => bad["body"] = serde_json::Value::Null,
+            1 => bad["draft"] = serde_json::Value::Null,
+            2 => bad["anchor"]["head"] = serde_json::Value::Null,
+            3 => bad["provider_intent"] = json!("not admitted from HTTP"),
+            4 => bad["anchor"]["path"] = json!("../outside"),
+            _ => bad["anchor"]["start_line"] = json!("2"),
+        }
+        let before = writes()?;
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                &submit,
+                &serde_json::to_vec(&bad)?,
+            )
+            .await?
+            .0 == 400
+                && writes()? == before,
+            "invalid inline HTTP shape reached an effect",
+        )?;
+    }
+    cases.push("six-invalid-http-shapes".into());
+    mode("inline-product-capacity")?;
+    let capacity = envelope(
+        "cccccccccccccccccccccccccccccccc",
+        anchor(),
+        "No room for a complete added-member observation",
+        true,
+    )?;
+    let before = writes()?;
+    ensure(
+        call(&runtime, &store, &connection, "POST", &submit, &capacity)
+            .await?
+            .0
+            == 503
+            && writes()? == before,
+        "full pending review sent an unobservable added member",
+    )?;
+    cases.push("existing-thousand-member-capacity".into());
+    mode("inline-product-unsupported")?;
+    let unsupported = envelope(
+        "ffffffffffffffffffffffffffffffff",
+        anchor(),
+        "Immediate publication remains unavailable",
+        false,
+    )?;
+    let before = writes()?;
+    ensure(
+        call(&runtime, &store, &connection, "POST", &submit, &unsupported)
+            .await?
+            .0
+            == 503
+            && writes()? == before,
+        "unsupported inline mode sent an effect",
+    )?;
+    cases.push("published-mode-unavailable".into());
+    // Withdrawal and native restart retain exact saved capture/outcome bytes.
+    store.withdraw(&connection).await?;
+    store.retire();
+    runtime.stop()?;
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        store.status().await?.is_empty(),
+        "withdrawal did not survive restart",
+    )?;
+    connection = store.store(account()?, token()?).await?.connection;
+    completed(
+        &call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &command(&last_id),
+            &[],
+        )
+        .await?,
+        "committed",
+    )?;
+    journal(&last_id, "retained")?;
+    cases.push("withdrawal-reconsent-restart".into());
+    let other = store
+        .store(
+            Account::new(Provider::Github, "https://github.com", "322")?,
+            Token::new(b"factory-declared-other".to_vec())?,
+        )
+        .await?;
+    let before = writes()?;
+    ensure(
+        call(
+            &runtime,
+            &store,
+            &other.connection,
+            "GET",
+            &command(&last_id),
+            &[],
+        )
+        .await?
+        .0 == 404
+            && call(
+                &runtime,
+                &store,
+                &other.connection,
+                "POST",
+                &submit,
+                &last_body,
+            )
+            .await?
+            .0 == 409
+            && writes()? == before,
+        "other account adopted inline capture",
+    )?;
+    store.withdraw(&other.connection).await?;
+    cases.push("other-account".into());
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "composed inline sent undeclared provider request",
+    )?;
+    store.withdraw(&connection).await?;
+    ensure(store.status().await?.is_empty(), "owned grants remain")?;
+    store.retire();
+    runtime.stop()?;
+    fs::write(
+        root.join("inline-product-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"provider_mutations":writes()?,"actual_native_callback_custody":true,"actual_go_http_store":true,"causal_primary_before_preservation":true,"original_expiry_qualified":false,"dummy_cancellation_races":true,"actual_provider":false,"capabilities_enabled":false,"installed_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: composed journaled inline draft creation retains exact primary before preservation, one-shot replay/uncertainty, full writing/selection and custody/restart; dummy-only provider");
+    Ok(())
+}
+
 pub(super) async fn inline_preservation(profile: &Path) -> Result<()> {
     use sha2::{Digest, Sha256};
     use soda_desktop_runtime::github_provider::Read;
@@ -721,6 +1249,14 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
         )?;
         cases.push(name);
     }
+    mode("comments-maximum")?;
+    let before = writes()?;
+    ensure(
+        matches!(client.append_pending_thread(token()?, "321", &saved).await, CreateOutcome::NotSent(f) if f.status == 413 && f.code == "github_inline_pending_capacity")
+            && writes()? == before,
+        "native full pending review admitted an unobservable added member",
+    )?;
+    cases.push("native-thousand-member-capacity");
     mode("inline-draft-parallel")?;
     let start = Instant::now();
     let before = writes()?;
@@ -3731,6 +4267,7 @@ pub(super) async fn expiry(
     helper: &Path,
     profile: &Path,
     pending: bool,
+    inline: bool,
 ) -> Result<()> {
     use super::native_github_issues::{call, completed};
     use soda_desktop_runtime::{
@@ -3749,7 +4286,13 @@ pub(super) async fn expiry(
     fs::create_dir(&io)?;
     fs::write(
         io.join("mode"),
-        if pending { "submit-expiry" } else { "expiry" },
+        if inline {
+            "inline-product-expiry"
+        } else if pending {
+            "submit-expiry"
+        } else {
+            "expiry"
+        },
     )?;
     let runtime = NativeSupervisor::start(payload, production, profile)?;
     let store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
@@ -3760,7 +4303,7 @@ pub(super) async fn expiry(
     let connection = store
         .store(
             Account::new(Provider::Github, "https://github.com", "321")?,
-            Token::new(if pending {
+            Token::new(if pending || inline {
                 b"factory-declared-review-preparation".to_vec()
             } else {
                 b"factory-declared-review-create".to_vec()
@@ -3781,12 +4324,17 @@ pub(super) async fn expiry(
     let repository = catalogue.1["items"][0]["id"]
         .as_str()
         .ok_or("expiry canonical repository absent")?;
-    let submit = format!("/api/factory/collaboration/repositories/{repository}/pulls/7/reviews");
+    let resource = if inline { "inline-comments" } else { "reviews" };
+    let submit = format!("/api/factory/collaboration/repositories/{repository}/pulls/7/{resource}");
     let id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
     let command = format!("{submit}/commands/{id}");
-    let q: ProductRequest = serde_json::from_value(
-        json!({"kind":"write","path":submit,"body":{"command_id":id,"event":"comment","body":"Exact original retained review 🍵"}}),
-    )?;
+    let input = if inline {
+        json!({"command_id":id,"draft":true,"body":"Exact original retained inline 🍵","anchor":{"base":"a".repeat(40),"head":"b".repeat(40),"path":"src/tea.md","side":"new","scope":"lines","start_line":2,"end_line":3}})
+    } else {
+        json!({"command_id":id,"event":"comment","body":"Exact original retained review 🍵"})
+    };
+    let q: ProductRequest =
+        serde_json::from_value(json!({"kind":"write","path":submit,"body":input}))?;
     let body = q.request()?.2;
     let run_helper = async |action: &str| -> Result<()> {
         let helper = helper.to_path_buf();
@@ -3820,7 +4368,7 @@ pub(super) async fn expiry(
             &json!({"original_not_after":deadline,"wait_seconds":wait,"capture_unclaimed":true,"deadline_rewritten":false}),
         )?,
     )?;
-    println!("original review capture is unclaimed; waiting {wait} real seconds until its saved deadline passes");
+    println!("original {resource} capture is unclaimed; waiting {wait} real seconds until its saved deadline passes");
     tokio::time::sleep(Duration::from_secs(wait)).await;
     let r = call(&runtime, &store, &connection, "POST", &submit, &body).await?;
     ensure(r.0 == 403, "expired original review was admitted")?;
@@ -3861,12 +4409,16 @@ pub(super) async fn expiry(
         "expiry sent undeclared or mutating provider request",
     )?;
     fs::write(
-        root.join("review-expiry-result.json"),
+        root.join(if inline {
+            "inline-expiry-result.json"
+        } else {
+            "review-expiry-result.json"
+        }),
         serde_json::to_vec(
             &json!({"preparation_version":if pending{2}else{1},"actual_product_capture":true,"original_not_after":deadline,"waited_real_seconds":wait,"capture_unclaimed":true,"intent_deadline_unchanged":true,"no_reprepare":true,"provider_mutations":0,"expired_http_status":r.0,"local_cancellation_complete":true,"owned_account_removed":true,"native_go_postgresql":true,"real_github":false}),
         )?,
     )?;
-    println!("PASS: real product review capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
+    println!("PASS: real product {resource} capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
     Ok(())
 }
 

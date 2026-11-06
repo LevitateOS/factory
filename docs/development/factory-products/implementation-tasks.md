@@ -15,6 +15,32 @@ implemented Linux first with Tauri. Slice completion requires the stated result,
 not merely file movement. M = mechanical extraction, C = named behavior correction, V = real
 verification. Native/installed evidence remains a separate gate from source checks.
 
+## Remaining product milestones (2026-11-06)
+
+The canonical table still contains one active and nineteen pending rows. Earlier
+completed component slices do not measure the remaining product effort. There is
+no supported calendar finish estimate; the work below is substantial remaining
+implementation and qualification, not final polish.
+
+1. Finish T11-WRITES: remaining native GitHub review/inline/merge modes, supported
+   provider conditions and connected qualification. The pending-inline consumer
+   checkpoint below does not complete this milestone.
+2. Complete shared editing and PR journeys: T07-EDIT, T08-READ and T08-WRITE,
+   including actual Fountain and desktop consumers and normal public readback.
+3. Compose runtime placement, isolated native execution and the single Go
+   coordinator: T12-PLACEMENT, T09-NATIVE-EXECUTOR and T09-EXECUTION. The completed
+   process producer is a dependency, not a qualified executor. D3 remains open.
+4. Complete Fountain enrollment/publication and both providers' automation and
+   external PR adoption: T10-GATEWAY/PUBLISH/INTAKE, T11-INTAKE and
+   T12-GITHUB-PRS/FOUNTAIN-PRS. D1 and D2 remain open; other relevant decisions
+   retain their canonical scope.
+5. Package and qualify installed products, upgrades and shared UI parity:
+   T14-PACKAGE, T13-FORGE/GITHUB/FOUNTAIN and T14-UPGRADE/PARITY.
+
+This summary groups the existing queue; it neither changes prerequisites nor
+creates additional slices. Routine security engineering remains in that queue.
+Daybreak is required only for user-started work that looks like hacking.
+
 ## Sequential implementation order
 
 The table is the canonical dependency graph and work queue. T00–T14 below are
@@ -30626,3 +30652,91 @@ permissions/rename/original positions/draft privacy/notification, shared UI/
 installed, longest combined bounds and all canonical/broad gates remain open.
 Shared writes remain unavailable, T11-WRITES/the full product remain unfinished,
 and no Daybreak work ran or was marked complete.
+
+### T11-WRITES checkpoint: durable native pending inline consumer (2026-11-06)
+
+Go's `runtime/native_product_inlines.go` now binds the existing HumanInlineWriter
+for appending a draft thread to an explicitly selected own existing pending review
+at the requested current head. Rust remains the defining authenticated connector;
+Go owns canonical admission, the original five-minute capture and schema-91
+reservation/outcome. The fixed typed `append_pending_thread` callback and exact
+inline HTTP writing path admit 512 KiB; generic descriptors remain 8 KiB and
+preparation reads 64 KiB. Preparation digests, full selector/writing, own review,
+actor and original summary/comment set are retained privately. Public HTTP
+responses project operation status without private preparation or receipt data.
+
+Only the committed reservation winner sends. A causal primary is saved before a
+separate native preservation read. Completion compares the authenticated saved
+receipt and capture with the old summary/members, selected new member and continued
+draft state. Lost replies never acquire an effect from matching current content.
+Causal summary/count/publication discrepancies remain unfinished under the same
+capture even if later state appears restored. Current observation discrepancies
+can recover without another mutation. Withdrawal, restart and same-account
+reconsent retain the original command/outcome. Cancellation uncertainty remains
+recorded even when a known primary and its completion make `finished` true.
+
+The native producer and product consumer now refuse an existing 1,000-member
+review before mutation, preserving room within the complete observation bound.
+New-pending creation, immediate publication, draft summary editing, older pending
+commits and unsupported integer ranges remain unavailable. This is bounded
+pending-writing preservation evidence: it does not establish full historical
+original-base identity, atomic expected head/base/body/comment-set conditions,
+actual provider draft privacy or shared public thread readback. Shared write
+capabilities remain unavailable; T11-WRITES remains active.
+
+Evidence under `/home/vince/tmp/factory-inline-product-1106/`:
+
+- `attempt4/inline-product-result.json`: 31 named cases, 24 fixed dummy mutations,
+  actual production Go HTTP/store, Rust owner/custody/callback and private
+  PostgreSQL. Positive writing/selector/identity bounds, durable primary before
+  completion, seven recoverable observation discrepancies, three permanent causal
+  discrepancies, loss without attribution, two actual reservation/cancel races,
+  concurrent one-shot send, conflict and six invalid HTTP shapes, capacity,
+  withdrawal/reconsent/restart and other-account refusal passed. SHA-256
+  `e8316ca916bccc5d38e75826b2b54e20ec48b5dfd38ba36a02a322618556fa82`;
+  log `74f48b56ee8eafc9d9b081c2fd40f55473ae1a07c90a8fa495edfe44e6d5d716`.
+- `native-capacity/inline-draft-result.json`: existing native producer matrix,
+  39 cases, 12 invalid descriptors, 37 dummy mutations, capacity refusal and
+  cloned pacing/joined stop. SHA-256
+  `2055ec912375f654f1418cc592615ff0c13724710d65bce715dbcdb80c53fce9`.
+- `ex1/inline-expiry-result.json`: genuine committed unclaimed capture, unchanged
+  original deadline, 287 real seconds waiting to original expiry, replay 403,
+  zero mutation/re-preparation, exact saved command unchanged and local
+  cancellation complete. SHA-256
+  `8c8ba2089690ebffa8cd2cddb3c8595c0e84066ad2b3a34f5cb3ab6881239745`;
+  log `4c00af8dbd64dd31c9d63d56e8c1b0cd7ce2f8bcaba3386a7f800bea88d0efc4`.
+
+Exact retained composed inputs: `provider.go` SHA-256
+`327e43c3fc3aedddb986038c43f86af262ee5fa079730358f412d648eb60bc4a`,
+`provider` `8a4e751cfa983cd6b476a9a17c119620fc67fb43a55cc023bcec4b3c9e8da3df`,
+`helper.go` `b34a8a21c84741ea984804c858c9dc97b1f75fd83bbffafe036a4f0a3cfa2f47`,
+`helper` `45c6ca039e00880e87061ae7decb05fa25fa96b99e52afc0778b30e6ba9b5717`,
+`server` `dd21910a3a5c7ea57c9107285d4d9d7b9def0daf770e23d75b7cc6d179080429`,
+`check-bin-v4` `7e4a9f171c18d2c1511372bbe2f44d2e905933f66b8b165c293dd425ee92017b`,
+`run-v4.sh` `c8e4cfaaa0a2f239bacb24c94ae6677d96f031ba0d1165a8be80e65832f2fa49`,
+`session-v4.sh` `1474c093419f533b150a64e6488a8e796365dc379956618c625ac5998a00ca9d`.
+Expiry uses retained `expiry-check-bin`, `expiry-provider{,.go}`,
+`expiry-helper{,.go}`, `expiry-run.sh` and `expiry-session.sh`; the provider and
+server are the same inputs. Native capacity uses retained `check-bin-v2`,
+`native-run.sh`, `native-session.sh` and the prior stateless draft peer.
+
+Earlier attempts are retained: attempt1 correctly refused duplicate numeric
+comment identity in the fixture (fixed there, production guard retained);
+attempt2 passed the earlier smaller matrix; attempt3's observer incorrectly
+expected `finished=false` after completed known primary with an indeterminate
+cancellation (observer corrected to the existing canonical contract). No
+production guard was weakened. All peers are owned TLS fixtures that never
+forward; all tokens/writing are dummy. Owned accounts were withdrawn and native
+owners joined. No real GitHub mutations or notifications occurred.
+
+Go production, locked/offline native and desktop-feature builds, boundaries and
+whitespace passed. No dependencies, Python or new test roots/modules were added.
+These retained-input builds and fixture journeys do not qualify freshness,
+installed products, live provider semantics, IPC/security gates or full combined
+longest identity/receipt bounds. No Daybreak work ran or was marked complete.
+
+Next: remaining native review/inline/merge modes and supported-condition policy,
+then connected qualification and shared issue/PR UI under the canonical queue.
+Real schema, permissions, original positions, privacy and notification evidence
+remain required before claiming those behaviors. D1/D2/D3 and all other open
+canonical gates remain open; the whole product is unfinished.

@@ -206,6 +206,8 @@ func nativeHandler(config NativeConfig, instance string, application *NativeAppl
 			limit = factoryhttp.HumanPullCreateRequestLimit
 		} else if factoryhttp.IsHumanReviewSubmission(r) {
 			limit = factoryhttp.HumanReviewRequestLimit
+		} else if factoryhttp.IsHumanInlineSubmission(r) {
+			limit = factoryhttp.HumanInlineRequestLimit
 		} else if factoryhttp.IsHumanEditSubmission(r) {
 			limit = factoryhttp.HumanEditRequestLimit
 		} else if factoryhttp.IsHumanLockSubmission(r) {

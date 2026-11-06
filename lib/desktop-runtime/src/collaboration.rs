@@ -5,8 +5,8 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     BranchCreate, Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState,
-    Failure, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate, ReviewRequestChange,
-    ThreadResolution, WriteOutcome,
+    Failure, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate,
+    ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -346,6 +346,12 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    AppendPendingThread {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        inline: InlineDraft,
+    },
     CreateBranch {
         command_id: String,
         digest: String,
@@ -419,6 +425,15 @@ enum Effect {
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
+        if let Self::AppendPendingThread {
+            command_id,
+            digest,
+            not_after,
+            inline,
+        } = self
+        {
+            return Some((command_id, digest, *not_after, &inline.repository));
+        }
         match self {
             Self::CreateBranch {
                 command_id,
@@ -627,6 +642,7 @@ async fn dispatch(
     if !matches!(
         &call.call,
         Effect::CreateComment { .. }
+            | Effect::AppendPendingThread { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
             | Effect::CreateReview { .. }
@@ -666,6 +682,7 @@ async fn dispatch(
     if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
         match &call.call {
             Effect::CreateComment { comment, .. } => comment.validate()?,
+            Effect::AppendPendingThread { inline, .. } => inline.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
             Effect::CreateBranch { branch, .. } => branch.validate()?,
             Effect::CreatePull { pull, .. } => pull.validate()?,
@@ -704,6 +721,7 @@ async fn dispatch(
                     .await
             }
             Effect::CreateComment { .. }
+            | Effect::AppendPendingThread { .. }
             | Effect::CreateBranch { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
@@ -793,6 +811,11 @@ async fn mutate(
         }
     } else {
         let outcome = match effect {
+            Effect::AppendPendingThread { inline, .. } => {
+                provider
+                    .inline_draft_account(token, account, inline, Some(deadline))
+                    .await
+            }
             Effect::CreateBranch { branch, .. } => {
                 provider
                     .branch_create_account(token, account, branch, Some(deadline))

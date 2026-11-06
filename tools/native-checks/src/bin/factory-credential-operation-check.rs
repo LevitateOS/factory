@@ -1239,6 +1239,24 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 5 && args[0] == "--github-inline-expiry-product-declared" {
+            return runtime.block_on(native_github_review_requests::expiry(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+                Path::new(&args[4]),
+                false,
+                true,
+            ));
+        }
+        if args.len() == 5 && args[0] == "--github-inline-product-declared" {
+            return runtime.block_on(native_github_review_requests::inline_product(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+                Path::new(&args[4]),
+            ));
+        }
         if args.len() == 2 && args[0] == "--github-inline-preservation-declared" {
             return runtime.block_on(native_github_review_requests::inline_preservation(
                 Path::new(&args[1]),
@@ -1304,6 +1322,7 @@ fn main() {
                 Path::new(&args[3]),
                 Path::new(&args[4]),
                 args[0] == "--github-pending-review-expiry-product-declared",
+                false,
             ));
         }
         if args.len() == 2 && args[0] == "--github-pull-branches-declared" {
