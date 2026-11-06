@@ -47,7 +47,7 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
     let accounts = store.status().await.map_err(|e| e.to_string())?;
     let connection = if !accounts.is_empty() {
         ensure(
-            fixture["resume_pending"] == true && accounts.len() == 1,
+            (fixture["resume_pending"] == true || fixture["pull_read_only"] == true) && accounts.len() == 1,
             "unexpected owned check account",
         )?;
         accounts[0].connection.clone()
@@ -111,6 +111,20 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
+            if fixture["pull_read_only"] == true {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "pull_list_detail": true,
+                    "conversation_commits_files_reviews_threads_checks": true,
+                    "provider_writes": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             let reviews = fixture["mode"] != "thread_resolution";
             let evidence = if fixture["issue_only"] == true {
                 serde_json::json!({

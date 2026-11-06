@@ -61,6 +61,59 @@
     await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.pull_read_only) {
+      stage = 'pull-list';
+      location.hash = new URLSearchParams({view: 'pulls', repository: repo});
+      let row;
+      await until(() => {
+        row = [...document.querySelectorAll('soda-factory-pulls li')].find(item =>
+          item.querySelector('.soda-pull-meta')?.textContent.includes('#' + fixture.number + ' ·'));
+        return row?.querySelector('button.soda-pull-title:not([disabled])');
+      }, 'owned PR absent from shared list');
+      row.querySelector('button.soda-pull-title').click();
+      await until(() => document.querySelector('soda-factory-pull')?.context?.pull === String(fixture.number) &&
+        document.querySelector('soda-factory-pull .soda-pull-detail h2')?.textContent === fixture.title &&
+        document.querySelector('soda-factory-pull .soda-pull-detail')?.getAttribute('aria-busy') === 'false',
+      'owned PR detail unavailable');
+      const pull = document.querySelector('soda-factory-pull');
+      const response = await pull.context.transport.request('factory/collaboration/repositories/' + repo + '/pulls/' + fixture.number, {method: 'GET'});
+      assert(response.ok && (await response.json()).head.commit === fixture.head, 'owned PR head changed before read check');
+      const tab = async (label, name) => {
+        await click(document.querySelector('soda-factory-pull nav[aria-label="Pull request sections"]'), label);
+        await until(() => {
+          const current = document.querySelector('soda-factory-pull');
+          return new URLSearchParams(location.hash.slice(1)).get('tab') === name &&
+            current?.context?.initialTab === name && current?.view?.pull?.ref?.number === String(fixture.number) &&
+            current?.view?.busy === false;
+        },
+        'PR section unavailable: ' + name);
+      };
+      stage = 'pull-conversation';
+      assert(pull.querySelector('section[aria-label="Conversation"] ol li'), 'conversation comment missing');
+      stage = 'pull-commits';
+      await tab('Commits', 'commits');
+      assert(document.querySelector('soda-factory-pull section[aria-label="Commits"] ol li'), 'PR commit missing');
+      stage = 'pull-files';
+      await tab('Files', 'files');
+      await until(() => document.querySelector('soda-factory-diff')?.file?.new_path === 'review.txt', 'changed file missing');
+      stage = 'pull-reviews';
+      await tab('Reviews', 'reviews');
+      const reviewView = document.querySelector('soda-factory-pull').view;
+      assert(reviewView.reviews.some(review => review.state === 'commented'),
+        'submitted review missing: ' + JSON.stringify({states: reviewView.reviews.map(review => review.state), message: reviewView.message}));
+      stage = 'pull-threads';
+      await tab('Inline discussions', 'threads');
+      assert(document.querySelector('soda-factory-pull section[aria-label="Inline discussions"] > ol > li'), 'inline discussion missing');
+      stage = 'pull-checks';
+      await tab('Checks', 'checks');
+      const checks = document.querySelector('soda-factory-pull section[aria-label="Checks"]');
+      assert(checks?.textContent.includes('Status gate:') && checks.querySelector('button[aria-current="page"]')?.textContent.trim() === 'Statuses', 'status checks missing');
+      await click(checks, 'Jobs');
+      await until(() => document.querySelector('soda-factory-pull section[aria-label="Checks"] button[aria-current="page"]')?.textContent.trim() === 'Jobs' &&
+        document.querySelector('soda-factory-pull .soda-pull-detail')?.getAttribute('aria-busy') === 'false', 'job checks unavailable');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.issue_only) {
       stage = 'issue-list';
       location.hash = new URLSearchParams({view: 'issues', repository: repo});
@@ -167,7 +220,7 @@
     await navigate('reviews');
     await until(() => document.querySelector('soda-factory-pull-review textarea') && !document.querySelector('soda-factory-pull-review textarea').disabled, 'review editor unavailable');
     let editor = document.querySelector('soda-factory-pull-review');
-    if (fixture.summary_first && !fixture.resume_pending) {
+    if (fixture.summary_first && (!fixture.resume_pending || fixture.edit_summary)) {
       input(editor.querySelector('textarea'), 'Native WebKit summary 🍵');
       await write('soda-factory-pull-review', 'Save draft review', 'Check saved review', 'pull-review-saved');
       assert((await read('/reviews/' + reviewID)).body === 'Native WebKit summary 🍵', 'normal read lost edited summary');
