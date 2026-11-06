@@ -7,7 +7,6 @@
   "ignorePatterns": [
     "node_modules/**",
     ".artifacts/**",
-    ".local/**",
-    "frontend/spaces/fountain-browser-contract.d.ts"
+    ".local/**"
   ]
 }

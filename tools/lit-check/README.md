@@ -1,7 +1,8 @@
 # Required Lit analysis
 
-`bun run typecheck` retains all product TS7 compiler boundaries, checks this tool
-with TS7, then runs `check:lit` and `test:lit-check`. The analysis compiler and
+`bun run typecheck` checks the product compiler boundaries and this tool with TS7.
+Run `bun run check:lit` for product analysis and `bun run check:lit --fixtures`
+for its existing positive/negative fixtures. The analysis compiler and
 analyzer are development dependencies in this workspace and the single root lock.
 Use `bun install --frozen-lockfile --ignore-scripts`; no Node process is required.
 

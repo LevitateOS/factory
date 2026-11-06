@@ -66,6 +66,7 @@ export async function copyNotices(assets: string) {
   }
   await copyFile(source('assets/branding/fonts/sources.json'), resolve(notices, 'font-sources.json'));
   await copyFile(source('system/licenses/lit-LICENSE'), resolve(notices, 'lit.LICENSE'));
+  await copyFile(source('system/licenses/pierre-diffs-LICENSE'), resolve(notices, 'pierre-diffs.LICENSE'));
   await copyFile(source('node_modules/marked/LICENSE'), resolve(notices, 'marked.LICENSE'));
   await copyFile(source('node_modules/dompurify/LICENSE'), resolve(notices, 'dompurify.LICENSE'));
   await copyFile(source('node_modules/dompurify/LICENSE-MPL'), resolve(notices, 'dompurify-MPL.LICENSE'));

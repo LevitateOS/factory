@@ -12,20 +12,5 @@
     "node_modules/**",
     ".artifacts/**",
     ".local/**"
-  ],
-  "overrides": [
-    {
-      "files": [
-        "**/*.test.ts",
-        "tests/**",
-        "scripts/**",
-        "tools/**",
-        "**/fixtures/**",
-        "**/testdata/**"
-      ],
-      "rules": {
-        "complexity": "off"
-      }
-    }
   ]
 }
