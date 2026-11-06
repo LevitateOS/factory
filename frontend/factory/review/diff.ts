@@ -24,9 +24,12 @@ export interface DiffThread {
   comments: {items: readonly {comment: {body: string; author: string; createdAt: string | null}}[] | null; next?: string};
 }
 
-function sameFile(anchor: ReviewAnchor | null, file: ChangedFile): boolean {
-  if (!anchor) return false;
-  const a = anchor.diff,
+function sameFile(
+  previous: Pick<ChangedFile, 'diff' | 'old_path' | 'new_path'> | null | undefined,
+  file: Pick<ChangedFile, 'diff' | 'old_path' | 'new_path'> | null | undefined
+): boolean {
+  if (!previous || !file) return false;
+  const a = previous.diff,
     b = file.diff;
   return (
     a.base === b.base &&
@@ -35,8 +38,8 @@ function sameFile(anchor: ReviewAnchor | null, file: ChangedFile): boolean {
     a.pull.repository === b.pull.repository &&
     a.pull.external_id === b.pull.external_id &&
     a.pull.number === b.pull.number &&
-    anchor.old_path === file.old_path &&
-    anchor.new_path === file.new_path
+    previous.old_path === file.old_path &&
+    previous.new_path === file.new_path
   );
 }
 
@@ -188,9 +191,12 @@ export class SodaFactoryDiff extends LitElement {
   }
 
   protected updated(changed: PropertyValues) {
-    if (changed.has('file')) this.selection = null;
+    const previous = changed.get('file') as ChangedFile | null | undefined;
+    const samePatch = changed.has('file') && sameFile(previous, this.file) &&
+      previous?.patch_state === 'complete' && this.file?.patch_state === 'complete' && previous.patch === this.file.patch;
+    if (changed.has('file') && !samePatch) this.selection = null;
     if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft') || changed.has('resolveLink'))
-      this.mount(!changed.has('file'));
+      this.mount(!changed.has('file') || samePatch);
   }
 
   private dispose() {

@@ -31081,6 +31081,14 @@ The Fountain native edge check above covers large/partial data; this browser
 check covers outdated rendering. Full large/partial browser rendering,
 installed parity and T07/T11 dependencies remain open.
 
+The shared diff now keeps its viewport and selected line across a file refresh
+only when the exact complete patch and immutable file identity still match;
+changed patch/revision clears the selection. TypeScript and Storybook builds
+passed. A local Chromium Storybook check scrolled the 6,000-line diff to the
+bottom, replaced its file object with the same patch, and confirmed the scroll
+position and selected review line remained. Native WebKit scroll/focus and
+installed qualification remain open.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first
