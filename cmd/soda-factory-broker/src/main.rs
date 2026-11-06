@@ -31,6 +31,14 @@ const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    ReadContext {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        candidate: String,
+        length: usize,
+    },
     StagePreparation {
         version: u8,
         run: String,
@@ -808,6 +816,8 @@ fn clean_preparation(preparations: &Path, run: &str) -> io::Result<()> {
     stop_relay(run)?;
     stop_reviewer(run)?;
     manager("stop", "preparer", run)?;
+    manager("stop", "context", run)?;
+    source_binding::clear_context(&directory)?;
     manager("start", "preparation-cleaner", run)?;
     if fs::read_dir(&directory)?.next().is_some() {
         return Err(denied("preparation cleanup incomplete"));
@@ -2101,6 +2111,43 @@ fn serve() -> io::Result<()> {
             serde_json::to_vec(
                 &serde_json::json!({"kind":"preparation_staged","version":1,"run":run,"profile":profile,"sha256":sha256,"setup_sha256":setup_sha256}),
             )?
+        }
+        Request::ReadContext {
+            version,
+            run,
+            profile,
+            sha256,
+            candidate,
+            length,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+                || !(1..=soda_execution_protocol::MAX_CONTEXT_REQUEST).contains(&length)
+            {
+                return Err(denied("context read selector invalid"));
+            }
+            let mut bytes = vec![0; length];
+            read_client_exact(
+                &mut input,
+                &mut bytes,
+                Instant::now() + Duration::from_secs(5),
+            )?;
+            let selection: soda_execution_protocol::ContextSelection =
+                serde_json::from_slice(&bytes).map_err(|_| denied("context selection invalid"))?;
+            if !selection.valid() || selection.source_commit != candidate {
+                return Err(denied("context source differs"));
+            }
+            serde_json::to_vec(&source_binding::context(
+                &run,
+                &profile,
+                &sha256,
+                &candidate,
+                &selection,
+                desktop_uid,
+            )?)?
         }
         Request::ReadSetup {
             version,

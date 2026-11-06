@@ -31428,3 +31428,11 @@ approved environment transfer into the active agent, admitted Go launch,
 credential/policy/funding, positive MCP, coordinator and outcome/restart proof
 remain unfinished. T09 and D3 stay Pending/open; exact security dependencies and
 limitations remain in [the handoff](daybreak-security-handoff.md).
+
+Native `ReadWorkspaceContext` now uses a fixed isolated read-only Git operation
+against the exact prepared source. It returns approved scripts, selected text,
+ancestor instructions and bounded commit diffs through the existing context
+contract. Actual Go/PostgreSQL/native comparison of those bytes, directory and
+deadline refusals, plus retirement/Quit passed in
+`/home/vince/tmp/fctx6.KRKpiS/run.log`. Candidate preparation/export, environment
+transfer, launch/coordinator/provider joins and the open gates above remain pending.

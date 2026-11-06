@@ -1220,6 +1220,40 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if _, err = port.PrepareWorkspace(ctx, request); err != nil {
 		return err
 	}
+	if os.Getenv("SODA_NATIVE_CONTEXT_CHECK") == "1" {
+		base := os.Getenv("SODA_NATIVE_CHECK_BASE")
+		contextRequest := execution.PreparationContextRequest{Native: ref, Role: prep.Role, Input: project.FactoryPreparationContextRequest{
+			Project: prep.Project, ID: prep.ID, SourceCommit: source, ApprovedBase: base, DiffBase: base, Candidate: source,
+			Paths: []string{"docs/note.md"}, NotAfter: time.Now().Add(20 * time.Second),
+		}}
+		material, readErr := port.ReadWorkspaceContext(ctx, contextRequest)
+		if readErr != nil {
+			return readErr
+		}
+		if string(material.Material.Setup) != string(files["setup.sh"]) || string(material.Material.Check) != string(files["check.sh"]) || !strings.Contains(string(material.Material.Diff), "+native-context-change") {
+			return errors.New("native context differs from approved scripts or actual commit diff")
+		}
+		wanted := map[string]string{"AGENTS.md": "Root instructions\n", "docs/AGENTS.md": "Nested instructions\n", "docs/note.md": "native-context-change\n"}
+		for _, file := range material.Material.Files {
+			if string(file.Content) != wanted[file.Path] {
+				return errors.New("native context returned unexpected repository bytes")
+			}
+			delete(wanted, file.Path)
+		}
+		if len(wanted) != 0 {
+			return errors.New("native context missed selected file or ancestor instructions")
+		}
+		contextRequest.Input.Paths = []string{"docs"}
+		if _, err = port.ReadWorkspaceContext(ctx, contextRequest); err == nil {
+			return errors.New("native context accepted directory as file")
+		}
+		contextRequest.Input.Paths = []string{"docs/note.md"}
+		contextRequest.Input.NotAfter = time.Now().Add(-time.Second)
+		if _, err = port.ReadWorkspaceContext(ctx, contextRequest); err == nil {
+			return errors.New("expired native context read succeeded")
+		}
+		fmt.Println("PASS: actual read-only native Git context, exact approved scripts, selected file, ancestor instructions, commit diff and directory/deadline refusals")
+	}
 	state, err = port.RetireWorkspacePreparation(ctx, request.Address())
 	if err != nil {
 		return err

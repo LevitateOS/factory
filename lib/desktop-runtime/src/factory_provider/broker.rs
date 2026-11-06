@@ -529,6 +529,32 @@ impl Broker {
         }
         Ok(receipt)
     }
+    pub(crate) fn read_source_context(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        selection: &soda_execution_protocol::ContextSelection,
+        cancellation: AgentCancellation,
+    ) -> io::Result<soda_execution_protocol::SourceContext> {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(sha256, 64)
+            || !id(candidate, 40)
+            || !selection.valid()
+            || selection.source_commit != candidate
+        {
+            return Err(refused("context selector invalid"));
+        }
+        let bytes = serde_json::to_vec(selection).map_err(io::Error::other)?;
+        exchange_controlled(
+            json!({"kind":"read_context","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"length":bytes.len()}),
+            Some(&bytes),
+            PREPARE_TIME,
+            Some(cancellation),
+            1024 * 1024,
+        )
+    }
     pub fn read_source_setup(
         run: &str,
         profile: &str,

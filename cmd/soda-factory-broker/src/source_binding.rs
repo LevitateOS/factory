@@ -214,3 +214,87 @@ pub(super) fn receipt(
     }
     Ok(receipt)
 }
+
+pub(super) fn clear_context(directory: &Path) -> io::Result<()> {
+    let output = directory.join("context-output");
+    match output.symlink_metadata() {
+        Ok(_) => {
+            private_dir(&output, 0o777)?;
+            match fs::remove_file(output.join("result.json")) {
+                Ok(()) => (),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error),
+            }
+            fs::remove_dir(output)?;
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
+    match fs::remove_file(directory.join("context-request.json")) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+pub(super) fn context(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    selection: &soda_execution_protocol::ContextSelection,
+    desktop_uid: u32,
+) -> io::Result<soda_execution_protocol::SourceContext> {
+    let proof = receipt(run, profile, digest, candidate, desktop_uid)?;
+    if proof.setup_exit != Some(0) || proof.check_exit != Some(0) || !proof.missing.is_empty() {
+        return Err(denied("context preparation is not ready"));
+    }
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    preparation_caller_current()?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("context source missing"));
+    }
+    let directory = preparation_run(&preparations()?, run)?
+        .ok_or_else(|| denied("context preparation missing"))?;
+    if prepared_output(&directory)? != Some(0o555)
+        || read_manifest(&directory.join("manifest.env"))?.as_deref()
+            != Some(manifest(candidate, digest).as_str())
+    {
+        return Err(denied("context preparation changed"));
+    }
+    let request = directory.join("context-request.json");
+    let output = directory.join("context-output");
+    manager("stop", "context", run)?;
+    clear_context(&directory)?;
+    write(&request, &serde_json::to_vec(selection)?)?;
+    DirBuilder::new().mode(0o777).create(&output)?;
+    fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
+    let result = (|| {
+        start_preparation(&format!("soda-factory-context@{run}.service"))?;
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(output.join("result.json"))?;
+        let meta = file.metadata()?;
+        if !meta.is_file()
+            || meta.uid() == 0
+            || meta.uid() == desktop_uid
+            || meta.mode() & 0o022 != 0
+            || meta.len() > 1024 * 1024
+        {
+            return Err(denied("context result metadata invalid"));
+        }
+        let mut bytes = Vec::new();
+        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 != meta.len() {
+            return Err(denied("context result changed"));
+        }
+        serde_json::from_slice(&bytes).map_err(|_| denied("context result invalid"))
+    })();
+    manager("stop", "context", run)?;
+    clear_context(&directory)?;
+    result
+}

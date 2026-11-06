@@ -20,6 +20,61 @@ pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
 pub const MAX_SETUP_FRAME: usize = 600 * 1024;
 pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
 
+pub const MAX_CONTEXT_BYTES: usize = 128 * 1024;
+pub const MAX_CONTEXT_REQUEST: usize = 8192;
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextSelection {
+    pub source_commit: String,
+    pub approved_base: String,
+    pub diff_base: String,
+    pub candidate: String,
+    pub paths: Vec<String>,
+}
+impl ContextSelection {
+    pub fn valid(&self) -> bool {
+        [
+            &self.source_commit,
+            &self.approved_base,
+            &self.diff_base,
+            &self.candidate,
+        ]
+        .into_iter()
+        .all(|value| {
+            value.len() == 40
+                && value
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        }) && self.paths.len() <= 12
+            && self
+                .paths
+                .iter()
+                .enumerate()
+                .all(|(i, path)| Self::valid_path(path) && !self.paths[..i].contains(path))
+    }
+    pub fn valid_path(path: &str) -> bool {
+        !path.is_empty()
+            && path.len() <= 256
+            && !path.contains('\\')
+            && !path.chars().any(char::is_control)
+            && path
+                .split('/')
+                .all(|part| !part.is_empty() && !matches!(part, "." | ".." | ".git" | ".soda-home"))
+    }
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextFile {
+    pub path: String,
+    pub content: Vec<u8>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceContext {
+    pub files: Vec<ContextFile>,
+    pub diff: Vec<u8>,
+}
+
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ApprovedFiles {

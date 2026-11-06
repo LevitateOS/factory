@@ -1,5 +1,12 @@
 # Privileged run bundle staging and reviewer preparation
 
+Native standing preparations also use `soda-factory-context@.service` for bounded
+Git context reads. Install this template with the preparer binary. It mounts only
+the exact prepared repository read-only, a root-owned selection request and a
+separate result directory. The broker stops and removes these transient context
+resources before exact preparation retirement. The desktop returns approved setup
+bytes and the bounded selected files/diff through Go's preparation context port.
+
 `soda-factory-broker` is a narrow, socket-activated system service for the
 first N3 workspace-transfer boundary. The installer must render the socket
 template for the selected desktop account and install the root-owned binary

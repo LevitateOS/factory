@@ -390,6 +390,76 @@ impl Preparations {
         }
         Ok(input.state(completion.as_ref(), retired))
     }
+    pub(crate) fn context(&self, request: &Value) -> io::Result<Value> {
+        let meta = &request["input"];
+        let address =
+            json!({"id":meta["id"],"workspace":meta["project"],"native":request["native"]});
+        if self.inspect(&address)?["ready"] != true {
+            return Err(denied());
+        }
+        let key = self.key(&address)?;
+        let (input, cancellation) = {
+            let entries = self.entries.lock().map_err(|_| denied())?;
+            let entry = entries.get(&key).ok_or_else(denied)?;
+            (entry.input.clone(), entry.cancellation.clone())
+        };
+        let role = match input.role {
+            Role::Coder => "soda-coder",
+            Role::Reviewer => "soda-reviewer",
+        };
+        if meta["source_commit"] != input.source || request["role"] != role {
+            return Err(denied());
+        }
+        let selection: soda_execution_protocol::ContextSelection = serde_json::from_value(json!({
+            "source_commit":meta["source_commit"],"approved_base":meta["approved_base"],
+            "diff_base":meta["diff_base"],"candidate":meta["candidate"],"paths":meta["paths"]
+        }))
+        .map_err(|_| denied())?;
+        if !selection.valid() {
+            return Err(denied());
+        }
+        let context = Broker::read_source_context(
+            &key,
+            &self.profile,
+            &input.bundle_sha,
+            &input.source,
+            &selection,
+            cancellation,
+        )?;
+        let setup = input.approved.files.get("setup.sh").ok_or_else(denied)?;
+        let check = input.approved.files.get("check.sh").ok_or_else(denied)?;
+        let total = setup.len()
+            + check.len()
+            + context.diff.len()
+            + context.files.iter().map(|f| f.content.len()).sum::<usize>();
+        if total > soda_execution_protocol::MAX_CONTEXT_BYTES
+            || context.files.len() > 12
+            || std::str::from_utf8(setup).is_err()
+            || std::str::from_utf8(check).is_err()
+            || std::str::from_utf8(&context.diff).is_err()
+            || context.files.iter().any(|f| {
+                !soda_execution_protocol::ContextSelection::valid_path(&f.path)
+                    || f.content.len() > 32768
+                    || std::str::from_utf8(&f.content).is_err()
+            })
+        {
+            return Err(denied());
+        }
+        if !self.alive.load(Ordering::SeqCst) {
+            return Err(denied());
+        }
+        let encode = |bytes: &[u8]| base64::engine::general_purpose::STANDARD.encode(bytes);
+        let files: Vec<_> = context
+            .files
+            .into_iter()
+            .map(|f| json!({"path":f.path,"content":encode(&f.content)}))
+            .collect();
+        Ok(json!({"native":input.native,"material":{
+            "project":input.workspace,"id":input.id,"role":role,"source_commit":input.source,
+            "approved_base":selection.approved_base,"diff_base":selection.diff_base,"candidate":selection.candidate,
+            "setup":encode(setup),"check":encode(check),"files":files,"diff":encode(&context.diff)
+        }}))
+    }
     pub(crate) fn cancel_all(&self) {
         let entries = self
             .entries

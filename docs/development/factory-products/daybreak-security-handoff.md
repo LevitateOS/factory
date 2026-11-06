@@ -123,7 +123,15 @@ retirement and cancellation/join of an observed live setup passed in
 approvals and retained toolchains are not connected authority or installed release
 qualification; no provider credentials or inference were involved.
 
-Remaining dependencies: context/candidate/Git/artifact operations, admitted Go
+The read-only context service (`prepared_context.rs`, `soda-factory-context@.service`)
+now reads actual Git objects/diffs from the prepared checkout without running Git
+as root or writing to that checkout. Go's current preparation scope and deadline
+bound the callback; approved script bytes come from the retained setup inputs.
+Exact files, ancestor instructions, two-commit diff, directory/deadline refusals
+and subsequent retirement/Quit passed in `/home/vince/tmp/fctx6.KRKpiS/run.log`.
+This is a declared local fixture, not installed or adversarial qualification.
+
+Remaining dependencies: candidate/Git/artifact operations, admitted Go
 launch, current credential/policy/funding and positive MCP activation, followed by
 single-coordinator execution and durable outcome/restart settlement. The active
 agent currently clones bare source without the approved setup artifacts: prove

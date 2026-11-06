@@ -8,6 +8,8 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+#[path = "../prepared_context.rs"]
+mod prepared_context;
 #[path = "../prepared_setup.rs"]
 mod prepared_setup;
 
@@ -499,7 +501,12 @@ fn prepare() -> io::Result<()> {
 }
 
 fn main() {
-    if let Err(error) = prepare() {
+    let result = if std::env::args().nth(1).as_deref() == Some("context") {
+        prepared_context::run()
+    } else {
+        prepare()
+    };
+    if let Err(error) = result {
         eprintln!("Factory reviewer preparation refused: {error}");
         std::process::exit(1);
     }

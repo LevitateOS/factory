@@ -3,11 +3,43 @@ package runtime
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/levitateos/factory/pkg/factory/execution"
 )
 
 var _ execution.PreparationObserver = NativeExecution{}
+var _ execution.PreparationContextReader = NativeExecution{}
+
+func (p NativeExecution) ReadWorkspaceContext(ctx context.Context, request execution.PreparationContextRequest) (execution.PreparationContext, error) {
+	var result execution.PreparationContext
+	if p.Store == nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) || !time.Now().Before(request.Input.NotAfter) {
+		return result, execution.ErrPreparationContext
+	}
+	record, err := p.Store.Preparation(ctx, request.Input.ID)
+	if err != nil {
+		return result, err
+	}
+	if record.Native == nil || *record.Native != *request.Native || record.Preparation.Project != request.Input.Project || record.Preparation.Role != request.Role || record.Preparation.SourceCommit != request.Input.SourceCommit || !record.State.Ready || record.State.Stopped {
+		return result, execution.ErrPreparationContext
+	}
+	bounded, cancel := context.WithDeadline(ctx, request.Input.NotAfter)
+	defer cancel()
+	err = nativeHostCall(bounded, p.Config, p.Instance, "/api/native/preparation", struct {
+		Operation string                              `json:"operation"`
+		Request   execution.PreparationContextRequest `json:"request"`
+	}{"context", request}, &result)
+	if err != nil {
+		return execution.PreparationContext{}, err
+	}
+	if err = bounded.Err(); err != nil {
+		return execution.PreparationContext{}, err
+	}
+	if err = result.ValidateFor(request); err != nil {
+		return execution.PreparationContext{}, err
+	}
+	return result, nil
+}
 
 // Approval and current enrollment stay in Go. The native owner retains the
 // source/setup bytes and reports its real isolated preparation observations.

@@ -700,6 +700,7 @@ async fn dispatch(
         #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
         enum PreparationCall {
             Prepare { request: Value },
+            Context { request: Value },
             Inspect { address: Value },
             Retire { address: Value },
         }
@@ -708,6 +709,7 @@ async fn dispatch(
         let owner = state.preparations.clone();
         return tokio::task::spawn_blocking(move || match call {
             PreparationCall::Prepare { request } => owner.prepare(request),
+            PreparationCall::Context { request } => owner.context(&request),
             PreparationCall::Inspect { address } => owner.inspect(&address),
             PreparationCall::Retire { address } => owner.retire(&address),
         })
