@@ -67,6 +67,20 @@ func TestPolicySaveIsCAS(t *testing.T) {
 	if _, err = db.RepositoryPolicy(ctx, 43); !errors.Is(err, ErrNotFound) {
 		t.Fatal("missing policy reported", err)
 	}
+	for _, method := range []string{"merge", "squash", "rebase"} {
+		stored, err = db.RepositoryPolicy(ctx, 42)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored.MergeMethod = method
+		if err = db.SaveRepositoryPolicy(ctx, stored); err != nil {
+			t.Fatalf("save %s policy: %v", method, err)
+		}
+		got, readErr := db.RepositoryPolicy(ctx, 42)
+		if readErr != nil || got.MergeMethod != method {
+			t.Fatalf("lost selected method %s: %+v %v", method, got, readErr)
+		}
+	}
 }
 
 func TestCapacityAndOperatorGrant(t *testing.T) {

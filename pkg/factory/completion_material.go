@@ -844,6 +844,7 @@ func (p CompletionPublication) Validate() error {
 // issue. No raw operation/authorization payloads, history generations or
 // observation stamps enter.
 type CompletionMerge struct {
+	Method                    string  `json:"merge_method,omitempty"`
 	OriginalClosingOccurrence string  `json:"original_closing_occurrence,omitempty"`
 	MergedCommit              string  `json:"merged_commit,omitempty"`
 	ID                        string  `json:"id"`
@@ -891,8 +892,9 @@ func (m CompletionMerge) validateRefs() error {
 	if !ValidCommit(m.HeadOID) || !ValidCommit(m.BaseOID) || m.HeadOID == m.BaseOID {
 		return errors.New("completion merge candidate is not a fresh exact commit")
 	}
-	if m.MergedCommit != "" && (!ValidCommit(m.MergedCommit) || m.MergedCommit != m.HeadOID) {
-		return errors.New("completion merge realized commit differs from its exact head")
+	intent := MergeIntent{Method: m.Method, HeadOID: m.HeadOID}
+	if !ValidAutomaticMergeMethod(intent.MergeMethod()) || m.MergedCommit != "" && !intent.AcceptsResult(m.MergedCommit) {
+		return errors.New("completion merge realized commit differs from its method")
 	}
 	if m.OriginalClosingOccurrence != "" && !ValidNativeOccurrence(m.OriginalClosingOccurrence) {
 		return errors.New("invalid completion merge closing occurrence")

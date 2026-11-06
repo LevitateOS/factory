@@ -46,6 +46,13 @@ installation inside isolated workspaces (A17). Approved toolchain/dependency
 provisioning, setup network policy and workload-sized limits are prerequisites
 for native executor qualification; the present offline/system-tools preparer
 does not supply them. Preserve isolation and qualify actual cold builds/cleanup.
+Further owner decisions select enabled GitHub merge methods, GitHub-connected
+drafts/history and explicit provider/model/paying-account selection per role.
+The A07 Go contract now preserves method, reviewed candidate and provider result
+separately; PostgreSQL completion/source checks passed. Native automated adapters,
+provider result fetching and connected merge qualification remain pending. A11
+role-specific account selection still needs implementation. See the audit for
+exact evidence; these corrections do not complete any old queue row.
 
 ## Remaining product milestones (2026-11-06)
 

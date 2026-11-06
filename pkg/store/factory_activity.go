@@ -254,6 +254,7 @@ func mergeClosureAdmitted(m factory.Merge) bool {
 func mergeLinkageAdmitted(m factory.Merge, repository int64) bool {
 	return m.Operation.IssueID == m.IssueID && m.IssueID > 0 && m.Repository == repository && m.Stage == factory.MergeMerged &&
 		m.Operation.Effect == factory.OpEffectCommitted && m.Operation.Completion == factory.OpCompletionComplete &&
-		m.Operation.PRNumber == m.PRNumber && m.Operation.PRID == m.PRID && m.MergedCommit != "" && m.MergedCommit == m.HeadOID &&
+		m.Operation.PRNumber == m.PRNumber && m.Operation.PRID == m.PRID && m.Operation.Work != nil &&
+		m.Operation.Work.AcceptsResult(m.MergedCommit) && m.MergedCommit == m.Operation.MergedCommit &&
 		m.PRID > 0 && m.PRNumber > 0 && m.OriginalClosedUnix > 0 && m.MergedUnix > 0
 }

@@ -33,6 +33,11 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 	if !checkMergeObservationIdentity(observation, m, revision, report) {
 		return false
 	}
+	if work.Intent().MergeMethod() != factory.MergeFastForward &&
+		(observation.Method != work.Method || !observation.MethodAvailable || !observation.ProviderComplete || !observation.ProviderEligible) {
+		mergeWait(report, m.ID, "provider_merge_requirements_pending")
+		return false
+	}
 	if work.ReviewerID == work.PRAuthorID {
 		if err := c.verifySharedAccountMergeReview(ctx, p, work, observation); err != nil {
 			c.mergeCallError(report, m.ID, err)
@@ -214,6 +219,7 @@ func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy
 		reviewEvent = "COMMENT"
 	}
 	return factory.MergeWork{
+		Method:  policy.MergeMethod,
 		MergeID: m.ID, PublicationID: m.PublicationID,
 		OperationID: factory.MergeOperationIDForGeneration(m.PublicationID, generation), AuthRevision: factory.MergeAuthRevision(m.AssignmentID, m.ID, m.Revision),
 		HeadRef: m.HeadRef, BaseRef: m.BaseRef, HeadOID: m.HeadOID, BaseOID: m.BaseOID,
@@ -224,8 +230,8 @@ func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy
 }
 
 // completeMerge confirms the native bookkeeping behind a committed,
-// completed merge before finishing: the PR merged to the exact head,
-// the exact base tip equals or ancestrally contains it, and the issue
+// completed merge before finishing: the PR merged to the adopted receipt's
+// result, the exact base tip equals or ancestrally contains it, and the issue
 // closed. Confirmed completion
 // then reassesses dependants so an eligible one becomes runnable.
 func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, report *MergeReport) {
@@ -254,7 +260,7 @@ func (c *Coordinator) completeMerge(ctx context.Context, m *factory.Merge, repor
 		}
 		return
 	}
-	if confirmation.MergedCommit != m.HeadOID || confirmation.BaseTip == "" || confirmation.BaseTip != m.HeadOID && !confirmation.BaseContainsMergedCommit || confirmation.MergerID != work.ActorID || !confirmation.IssueClosed || confirmation.MergedUnix <= 0 || confirmation.ClosedUnix <= 0 {
+	if confirmation.MergedCommit != op.MergedCommit || !op.Work.AcceptsResult(confirmation.MergedCommit) || confirmation.BaseTip == "" || confirmation.BaseTip != confirmation.MergedCommit && !confirmation.BaseContainsMergedCommit || confirmation.MergerID != work.ActorID || !confirmation.IssueClosed || confirmation.MergedUnix <= 0 || confirmation.ClosedUnix <= 0 {
 		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
 		return
 	}

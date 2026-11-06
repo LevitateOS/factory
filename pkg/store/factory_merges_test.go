@@ -71,6 +71,7 @@ func TestRecordMergeRoundTrip(t *testing.T) {
 	}
 	seedMergeAssignment(t, db, m)
 	intent := mergeTestIntent("soda-x-merge-1")
+	intent.Method = "squash"
 	intent.ReviewerID, intent.ReviewEvent = m.ReviewerID, "COMMENT"
 	m.Revision++
 	m.Operation = factory.MergeOperation{Kind: factory.OpMerge, Attempts: 1, OperationID: intent.OperationID, UpdatedUnix: 1200, Work: intent}
@@ -78,13 +79,18 @@ func TestRecordMergeRoundTrip(t *testing.T) {
 		t.Fatalf("shared-account comment review registration: %v", err)
 	}
 	got, err = db.MergeByPublication(ctx, m.PublicationID)
-	if err != nil || got.Operation.Work == nil || got.Operation.Work.ReviewEvent != "COMMENT" {
+	if err != nil || got.Operation.Work == nil || got.Operation.Work.ReviewEvent != "COMMENT" || got.Operation.Work.Method != "squash" {
 		t.Fatalf("comment review binding lost: %+v %v", got.Operation.Work, err)
 	}
 	got.Operation.Work.ReviewEvent = "APPROVED"
 	got.Revision++
 	if err := db.UpdateMerge(ctx, got); err == nil {
 		t.Fatal("shared-account provider approval invented")
+	}
+	got.Operation.Work.ReviewEvent = "COMMENT"
+	got.Operation.Work.Method = "merge"
+	if err := db.UpdateMerge(ctx, got); !errors.Is(err, ErrMergeConflict) {
+		t.Fatalf("registered merge method changed: %v", err)
 	}
 }
 
@@ -315,7 +321,7 @@ func TestMergeListings(t *testing.T) {
 	}
 }
 
-func prepareMergedTestUpdate(t *testing.T, db *Store) factory.Merge {
+func prepareMergedTestUpdate(t *testing.T, db *Store, method string) factory.Merge {
 	t.Helper()
 	ctx := context.Background()
 	m := mergeTestRecord()
@@ -327,6 +333,7 @@ func prepareMergedTestUpdate(t *testing.T, db *Store) factory.Merge {
 	now := time.Now().Unix()
 	operationID := factory.MergeOperationID(m.PublicationID, 1)
 	m.Operation = factory.MergeOperation{Kind: factory.OpMerge, Attempts: 1, OperationID: operationID, UpdatedUnix: now, Work: mergeTestIntent(operationID)}
+	m.Operation.Work.Method = method
 	if err := db.UpdateMerge(ctx, m); err != nil {
 		t.Fatal("register merge intent:", err)
 	}
@@ -335,9 +342,12 @@ func prepareMergedTestUpdate(t *testing.T, db *Store) factory.Merge {
 	m.FinishedUnix, m.MergedUnix, m.ClosedUnix = now, now, now
 	m.OriginalClosingOccurrence, m.OriginalClosedUnix = "901", now
 	m.MergedCommit = m.HeadOID
+	if method != "" && method != factory.MergeFastForward {
+		m.MergedCommit = strings.Repeat("4", 40)
+	}
 	m.Operation.Effect = factory.OpEffectCommitted
 	m.Operation.Completion = factory.OpCompletionComplete
-	m.Operation.MergedCommit = m.HeadOID
+	m.Operation.MergedCommit = m.MergedCommit
 	m.Operation.PRNumber, m.Operation.PRID, m.Operation.IssueID = m.PRNumber, m.PRID, m.IssueID
 	m.Operation.HeadRef, m.Operation.BaseRef = m.HeadRef, m.BaseRef
 	m.Operation.HeadOID, m.Operation.BaseOID = m.HeadOID, m.BaseOID
@@ -346,32 +356,46 @@ func prepareMergedTestUpdate(t *testing.T, db *Store) factory.Merge {
 
 func TestNewlyMergedCompletionEnqueuesReadinessRootAtomically(t *testing.T) {
 	ctx := context.Background()
-	t.Run("success", func(t *testing.T) {
-		db := publicationStoreFixture(t)
-		m := prepareMergedTestUpdate(t, db)
-		before := readinessGeneration(t, db)
-		if err := db.UpdateMerge(ctx, m); err != nil {
-			t.Fatal("finish merge:", err)
-		}
-		completion, readErr := db.IssueMergeCompletion(ctx, m.Repository, m.Issue)
-		if readErr != nil || completion.OriginalClosingOccurrence != "901" || completion.OriginalClosedUnix != m.OriginalClosedUnix {
-			t.Fatal("confirmed original closing occurrence did not survive completion:", completion, readErr)
-		}
-		work, err := db.ReadinessWork(ctx, "root:7/3")
-		if err != nil || work.Root != (factory.DependenceRef{Repository: 7, Issue: 3}) || work.Generation != before || readinessGeneration(t, db) != before+1 {
-			t.Fatal("new merge completion did not coalesce and invalidate prior root:", work, before, readinessGeneration(t, db), err)
-		}
-		resumed, beginErr := db.BeginReadinessWork(ctx, work.ID, time.Now())
-		if beginErr != nil || resumed.Generation != readinessGeneration(t, db) {
-			t.Fatal("new merge evidence did not fence prior root progress:", resumed, beginErr)
-		}
-		if err = db.UpdateMerge(ctx, m); !errors.Is(err, ErrStaleRevision) || readinessGeneration(t, db) != before+1 {
-			t.Fatal("stale terminal merge replay advanced generation:", err, readinessGeneration(t, db))
-		}
-	})
+	for _, method := range []string{"", "merge", "squash", "rebase"} {
+		t.Run("success/"+method, func(t *testing.T) {
+			db := publicationStoreFixture(t)
+			m := prepareMergedTestUpdate(t, db, method)
+			before := readinessGeneration(t, db)
+			if err := db.UpdateMerge(ctx, m); err != nil {
+				t.Fatal("finish merge:", err)
+			}
+			completion, readErr := db.IssueMergeCompletion(ctx, m.Repository, m.Issue)
+			if readErr != nil || completion.OriginalClosingOccurrence != "901" || completion.OriginalClosedUnix != m.OriginalClosedUnix {
+				t.Fatal("confirmed original closing occurrence did not survive completion:", completion, readErr)
+			}
+			stored, readErr := db.MergeByPublication(ctx, m.PublicationID)
+			if readErr != nil || stored.MergedCommit != m.MergedCommit || stored.Operation.Work == nil || stored.Operation.Work.Method != method {
+				t.Fatalf("method/result lost: %+v %v", stored, readErr)
+			}
+			activity, readErr := db.RepositoryActivity(ctx, m.Repository)
+			found := false
+			for _, item := range activity.Items {
+				found = found || item.ID == "merge:"+m.ID && item.Kind == "verified_merge"
+			}
+			if readErr != nil || !found {
+				t.Fatalf("confirmed merge missing from activity: %+v %v", activity, readErr)
+			}
+			work, err := db.ReadinessWork(ctx, "root:7/3")
+			if err != nil || work.Root != (factory.DependenceRef{Repository: 7, Issue: 3}) || work.Generation != before || readinessGeneration(t, db) != before+1 {
+				t.Fatal("new merge completion did not coalesce and invalidate prior root:", work, before, readinessGeneration(t, db), err)
+			}
+			resumed, beginErr := db.BeginReadinessWork(ctx, work.ID, time.Now())
+			if beginErr != nil || resumed.Generation != readinessGeneration(t, db) {
+				t.Fatal("new merge evidence did not fence prior root progress:", resumed, beginErr)
+			}
+			if err = db.UpdateMerge(ctx, m); !errors.Is(err, ErrStaleRevision) || readinessGeneration(t, db) != before+1 {
+				t.Fatal("stale terminal merge replay advanced generation:", err, readinessGeneration(t, db))
+			}
+		})
+	}
 	t.Run("source-capacity-rolls-back-merge", func(t *testing.T) {
 		db := publicationStoreFixture(t)
-		m := prepareMergedTestUpdate(t, db)
+		m := prepareMergedTestUpdate(t, db, "")
 		// Earlier head-event processing is outside this completion fixture.
 		// Remove its task-owned header so completion needs a new source.
 		if _, err := db.db.ExecContext(ctx, `DELETE FROM factory_readiness_sources WHERE id='root:7/3'`); err != nil {

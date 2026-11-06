@@ -389,51 +389,80 @@ func TestCaptureCompletionLocalAtSourceRefusesUnreconciledTip(t *testing.T) {
 // the proof. (A same-repo second project is impossible: projects are
 // unique per repository, so target exactness is the decoy that fits.)
 func TestCaptureCompletionLocalAtSourceMergedCoderTip(t *testing.T) {
-	db, expected, tip := changedTipFixture(t)
-	ctx := context.Background()
-	base := strings.Repeat("3", 40)
-	p := seedSourcePacket(t, db, 3, "d"+strings.Repeat("a", 24), "f"+strings.Repeat("6", 24), tip, base)
-	finishSourceRun(t, db, p.Run, true, factory.Succeeded)
-	seedMergedSourceMerge(t, db, p, tip, base)
-	// One factory session per repository is a product invariant, so the
-	// finished main packet releases its reservation before the decoy
-	// packet admits. The release touches no material or proof binding.
-	if err := db.ReleaseReservation(ctx, p.AssignmentID); err != nil {
-		t.Fatal(err)
-	}
-	seedOffTargetDecoy(t, db, tip, base)
-	local, err := db.CaptureCompletionLocalAtSource(ctx, 7, expected, tip)
-	if err != nil {
-		t.Fatalf("merged coder tip: %v", err)
-	}
-	if err := local.Validate(); err != nil {
-		t.Fatalf("merged local invalid: %v", err)
-	}
-	if local.SourceCommit != tip {
-		t.Fatalf("source=%q, want the proven tip", local.SourceCommit)
-	}
-	if local.Material.Authority.RequirementSourceCommit != base {
-		t.Fatalf("requirement source=%q, want the accepted source to stay distinct", local.Material.Authority.RequirementSourceCommit)
-	}
-	plain, err := db.CaptureCompletionLocal(ctx, 7)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if local.Equal(plain) {
-		t.Fatal("merged seal equals the plain slice instead of binding the tip")
-	}
-	if local.ScopeDigest != plain.ScopeDigest || local.PreparationDigest != plain.PreparationDigest ||
-		local.AuthorityFingerprint != plain.AuthorityFingerprint {
-		t.Fatal("merged seal moved bindings beyond the proven tip")
+	for _, method := range []string{"", "squash"} {
+		t.Run("method/"+method, func(t *testing.T) {
+			db, expected, tip := changedTipFixture(t)
+			ctx := context.Background()
+			base := strings.Repeat("3", 40)
+			p := seedSourcePacket(t, db, 3, "d"+strings.Repeat("a", 24), "f"+strings.Repeat("6", 24), tip, base)
+			finishSourceRun(t, db, p.Run, true, factory.Succeeded)
+			merged := seedMergedSourceMerge(t, db, p, tip, base)
+			if method != "" {
+				merged.Operation.Work.Method = method
+				tip = strings.Repeat("9", 40)
+				merged.MergedCommit, merged.Operation.MergedCommit = tip, tip
+				raw, err := json.Marshal(merged)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = db.db.ExecContext(ctx, `UPDATE factory_merges SET data=$1 WHERE publication=$2`, raw, p.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// One factory session per repository is a product invariant, so the
+			// finished main packet releases its reservation before the decoy
+			// packet admits. The release touches no material or proof binding.
+			if err := db.ReleaseReservation(ctx, p.AssignmentID); err != nil {
+				t.Fatal(err)
+			}
+			seedOffTargetDecoy(t, db, p.Preparation, tip, base)
+			local, err := db.CaptureCompletionLocalAtSource(ctx, 7, expected, tip)
+			if err != nil {
+				t.Fatalf("merged coder tip: %v", err)
+			}
+			if err := local.Validate(); err != nil {
+				t.Fatalf("merged local invalid: %v", err)
+			}
+			if local.SourceCommit != tip {
+				t.Fatalf("source=%q, want the proven tip", local.SourceCommit)
+			}
+			found := false
+			for _, projected := range local.Material.Merges {
+				if projected.ID == merged.ID {
+					found = projected.Method == method && projected.MergedCommit == tip && projected.HeadOID == p.Candidate
+				}
+			}
+			if !found {
+				t.Fatalf("candidate/result/method provenance lost: %+v", local.Material.Merges)
+			}
+			exported, err := db.MergedPreparationSource(ctx, 7, p.ProjectID, merged.BaseRef, tip)
+			if err != nil || exported.Candidate != p.Candidate {
+				t.Fatalf("merged result must not invent a coder export: %+v %v", exported, err)
+			}
+			if local.Material.Authority.RequirementSourceCommit != base {
+				t.Fatalf("requirement source=%q, want the accepted source to stay distinct", local.Material.Authority.RequirementSourceCommit)
+			}
+			plain, err := db.CaptureCompletionLocal(ctx, 7)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if local.Equal(plain) {
+				t.Fatal("merged seal equals the plain slice instead of binding the tip")
+			}
+			if local.ScopeDigest != plain.ScopeDigest || local.PreparationDigest != plain.PreparationDigest ||
+				local.AuthorityFingerprint != plain.AuthorityFingerprint {
+				t.Fatal("merged seal moved bindings beyond the proven tip")
+			}
+		})
 	}
 }
 
 // seedOffTargetDecoy records a same-commit merged publication against
 // another target branch: the exact repo/project/target/tip predicate
 // must never choose it, even though its commit matches.
-func seedOffTargetDecoy(t *testing.T, db *Store, tip, base string) {
+func seedOffTargetDecoy(t *testing.T, db *Store, preparation, tip, base string) {
 	t.Helper()
-	p := seedSourcePacket(t, db, 5, "d"+strings.Repeat("b", 24), "f"+strings.Repeat("7", 24), tip, base)
+	p := seedSourcePacket(t, db, 5, "d"+strings.Repeat("b", 24), preparation, tip, base)
 	now := time.Now().Unix()
 	operationID := factory.MergeOperationID(p.ID, 1)
 	offTarget := "refs/heads/other"

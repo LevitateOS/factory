@@ -642,6 +642,9 @@ func completionMergesTx(ctx context.Context, tx *sql.Tx, repository int64, assig
 			IssueID:                   stored.IssueID,
 			Revision:                  stored.Revision,
 		}
+		if stored.Operation.Work != nil {
+			projected.Method = stored.Operation.Work.Method
+		}
 		if err = projected.Validate(); err != nil {
 			_ = rows.Close()
 			return nil, nil, err

@@ -505,9 +505,11 @@ func seedPublicationAssignment(t *testing.T, db *Store, p factory.Publication) {
 	a.ID, a.Run, a.RunHistory = p.AssignmentID, p.Run, []string{p.Run}
 	a.AttemptRoot, a.PublicationAssignment = a.ID, a.ID
 	a.Repository, a.Issue, a.ProjectID, a.Acceptance, a.Authority = p.Repository, p.Issue, p.ProjectID, p.Acceptance, p.Authority
+	a.Preparation, a.SourceCommit = p.Preparation, p.BaseSHA
 	a.Subject.Issue.Issue, a.Subject.Issue.Acceptance = p.Issue, p.Acceptance
 	reservation.AssignmentID, reservation.Repository = a.ID, a.Repository
 	run.ID, run.ProjectID = a.Run, a.ProjectID
+	run.InputSHA = a.SourceCommit
 	view.RunID, view.Attempt, view.Repository, view.Issue = a.Run, a.ID, a.Repository, a.Issue
 	if err := recordDispatchTestPacket(t, context.Background(), db, a, reservation, run, view); err != nil {
 		t.Fatal(err)

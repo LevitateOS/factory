@@ -44,6 +44,21 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A07 — merge-method contract verified; native automation pending.** Policy now
+  accepts merge/squash/rebase as well as retained Fountain methods. Immutable
+  merge intents capture the method; historical omitted methods remain
+  fast-forward-only. New methods require fresh native method availability and
+  complete/eligible provider rules. Receipt adoption binds the exact method,
+  actor, PR and candidate/base; completion confirms that receipt's resulting
+  commit. Material/activity/source projections retain candidate and result
+  separately. Existing PostgreSQL policy/intent/completion checks passed in
+  `/home/vince/tmp/fmerge-method6.j7C0l6/result.log`; source provenance passed in
+  `/home/vince/tmp/fmerge-provenance6.tYJZeB/result.log`, and failed/unreconciled
+  source refusal in `/home/vince/tmp/fmerge-source-current6.Mlv6gf/result.log`.
+  Go build and boundaries passed. No provider mutation ran. Native automated
+  merge/receipt composition and connected rules/races remain unqualified.
+  A transformed result is not a coder export: subsequent native preparation
+  still needs supported fetching/verification of the provider-created result.
 - **A16 — installed executable discovery verified.** Native startup discovers
   Muse through absolute PATH entries or the normal `~/.local/bin` location,
   resolves its launcher directory and applies the existing official stable

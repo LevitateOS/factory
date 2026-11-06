@@ -18,6 +18,9 @@ func VerifyMergeCheckEvidence(w MergeWork, a CheckAssessment, policy RepositoryP
 	if policy.Repository != w.Repository {
 		return errors.New("merge policy differs from its repository")
 	}
+	if policy.MergeMethod != w.Intent().MergeMethod() {
+		return errors.New("merge method differs from its policy")
+	}
 	if a.Repository != w.Repository || a.PRNumber != w.PRNumber {
 		return errors.New("merge check evidence differs from its PR")
 	}
@@ -41,22 +44,24 @@ func VerifyMergeCheckEvidence(w MergeWork, a CheckAssessment, policy RepositoryP
 // and check evidence behind it. PRAuthorID and ReviewerID are canonical;
 // PR/issue/review IDs remain provider subjects.
 type MergeObservation struct {
-	Checks       ObservedChecks
-	NativeRev    int64
-	ObservedUnix int64
-	PRID         int64
-	PRNumber     int64
-	IssueID      int64
-	PRAuthorID   int64
-	HeadRef      string
-	BaseRef      string
-	HeadOID      string
-	BaseOID      string
-	ReviewerID   int64
-	ReviewID     int64
-	ReviewEvent  string
-	// Required for shared-account inspection. These must describe the fresh
-	// provider merge rules on this exact candidate, including required approvals.
+	Method          string
+	MethodAvailable bool
+	Checks          ObservedChecks
+	NativeRev       int64
+	ObservedUnix    int64
+	PRID            int64
+	PRNumber        int64
+	IssueID         int64
+	PRAuthorID      int64
+	HeadRef         string
+	BaseRef         string
+	HeadOID         string
+	BaseOID         string
+	ReviewerID      int64
+	ReviewID        int64
+	ReviewEvent     string
+	// Required for shared-account inspection and non-fast-forward methods. These
+	// describe fresh provider rules on this exact candidate, including approvals.
 	ProviderComplete bool
 	ProviderEligible bool
 }
@@ -85,6 +90,7 @@ type MergeConfirmation struct {
 // the exact PR identity and realized commit adopted from its own
 // committed receipt.
 type MergeOutcome struct {
+	Method       string
 	Operation    OperationOutcome
 	HeadRef      string
 	BaseRef      string

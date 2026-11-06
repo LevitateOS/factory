@@ -131,8 +131,8 @@ func (o MergeOperation) checkMergeSnapshot() error {
 	if o.PRNumber != 0 && (o.HeadRef == "" || o.BaseRef == "" || o.HeadOID == "" || o.BaseOID == "" || o.MergedCommit == "") {
 		return errors.New("merge PR links lack their snapshot")
 	}
-	if o.MergedCommit != "" && o.HeadOID != "" && o.MergedCommit != o.HeadOID {
-		return errors.New("merge realized commit differs from its exact head")
+	if o.MergedCommit != "" && (o.Work == nil || !o.Work.AcceptsResult(o.MergedCommit)) {
+		return errors.New("merge realized commit differs from its method and intent")
 	}
 	return nil
 }
@@ -153,6 +153,7 @@ func MergeOperationID(publicationID string, attempt int) string {
 // record; secrets travel in restricted files outside it. Repository, ActorID,
 // PRAuthorID and ReviewerID are canonical Factory keys.
 type MergeWork struct {
+	Method             string
 	MergeID            string
 	PublicationID      string
 	OperationID        string
@@ -178,6 +179,7 @@ type MergeWork struct {
 
 // MergeIntent contains only the immutable native inputs.
 type MergeIntent struct {
+	Method             string `json:"merge_method,omitempty"`
 	OperationID        string `json:"operation_id"`
 	AuthRevision       string `json:"authorization_revision"`
 	HeadRef            string `json:"head_ref"`
@@ -201,6 +203,7 @@ type MergeIntent struct {
 // Intent takes the credential-free native inputs from an executor call.
 func (w MergeWork) Intent() MergeIntent {
 	return MergeIntent{
+		Method:      w.Method,
 		OperationID: w.OperationID, AuthRevision: w.AuthRevision,
 		HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID,
 		Repository: w.Repository, ActorID: w.ActorID, PRNumber: w.PRNumber, PRID: w.PRID,
@@ -212,6 +215,7 @@ func (w MergeWork) Intent() MergeIntent {
 
 // Apply restores an exact native intent without changing local inputs.
 func (i MergeIntent) Apply(w MergeWork) MergeWork {
+	w.Method = i.Method
 	w.OperationID, w.AuthRevision = i.OperationID, i.AuthRevision
 	w.HeadRef, w.BaseRef, w.HeadOID, w.BaseOID = i.HeadRef, i.BaseRef, i.HeadOID, i.BaseOID
 	w.Repository, w.ActorID, w.PRNumber, w.PRID = i.Repository, i.ActorID, i.PRNumber, i.PRID
@@ -222,10 +226,29 @@ func (i MergeIntent) Apply(w MergeWork) MergeWork {
 	return w
 }
 
+// MergeMethod preserves the meaning of historical intents without this field.
+// New policy captures always carry the explicitly selected method.
+func (i MergeIntent) MergeMethod() string {
+	if i.Method == "" {
+		return MergeFastForward
+	}
+	return i.Method
+}
+
+// AcceptsResult validates commit identity after adoption of this operation's own
+// native receipt. Non-fast-forward methods can produce a different commit.
+func (i MergeIntent) AcceptsResult(commit string) bool {
+	return ValidAutomaticMergeMethod(i.MergeMethod()) && ValidCommit(commit) &&
+		(i.MergeMethod() != MergeFastForward || commit == i.HeadOID)
+}
+
 // ValidateTarget checks the exact merge target before evidence or
 // operation identity exist. Agent independence belongs to the recorded review
 // assignment; provider account identity alone cannot establish it.
 func (w MergeWork) ValidateTarget() error {
+	if !ValidAutomaticMergeMethod(w.Intent().MergeMethod()) {
+		return errors.New("unsupported merge method")
+	}
 	if w.Repository <= 0 || w.Issue <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 {
 		return errors.New("invalid merge target scope")
 	}
@@ -252,6 +275,9 @@ func (i MergeIntent) validate(observed bool) error {
 }
 
 func (i MergeIntent) checkMergeIntentScope() error {
+	if !ValidAutomaticMergeMethod(i.MergeMethod()) {
+		return errors.New("unsupported merge method")
+	}
 	if !ValidTargetBranch(i.HeadRef) || !ValidTargetBranch(i.BaseRef) || i.HeadRef == i.BaseRef {
 		return errors.New("invalid merge refs")
 	}

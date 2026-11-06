@@ -301,6 +301,16 @@ func (c *Coordinator) adoptMergeReceipt(ctx context.Context, m *factory.Merge, r
 		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
 		return false
 	}
+	method := result.Method
+	if method == "" {
+		method = factory.MergeFastForward
+	}
+	if method != op.Work.MergeMethod() || !op.Work.AcceptsResult(result.MergedCommit) ||
+		result.PRNumber != work.PRNumber || result.PRID != work.PRID || result.IssueID != work.IssueID || result.ActorID != work.ActorID ||
+		result.HeadRef != work.HeadRef || result.BaseRef != work.BaseRef || result.HeadOID != work.HeadOID || result.BaseOID != work.BaseOID {
+		c.finishMerge(ctx, *m, factory.MergeFenced, factory.NeedsHuman, factory.MergeReasonUnattributed, report)
+		return false
+	}
 	op.PRNumber, op.PRID, op.IssueID = result.PRNumber, result.PRID, result.IssueID
 	op.HeadRef, op.BaseRef, op.HeadOID, op.BaseOID, op.MergedCommit = result.HeadRef, result.BaseRef, result.HeadOID, result.BaseOID, result.MergedCommit
 	return c.storeMerge(ctx, m, report)

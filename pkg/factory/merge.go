@@ -181,8 +181,8 @@ func (m Merge) validateMergeEvidence() error {
 	if !ValidCommit(m.HeadOID) || !ValidCommit(m.BaseOID) || m.HeadOID == m.BaseOID {
 		return errors.New("merge candidate is not a fresh exact commit")
 	}
-	if m.MergedCommit != "" && (!ValidCommit(m.MergedCommit) || m.MergedCommit != m.HeadOID) {
-		return errors.New("merge realized commit differs from its exact head")
+	if m.MergedCommit != "" && (m.Operation.Work == nil || !m.Operation.Work.AcceptsResult(m.MergedCommit) || m.MergedCommit != m.Operation.MergedCommit) {
+		return errors.New("merge realized commit differs from its adopted receipt")
 	}
 	return m.validateMergeObservation()
 }
@@ -267,7 +267,7 @@ func validateMergedMerge(m Merge) error {
 	if m.Operation.Effect != OpEffectCommitted || m.Operation.Completion != OpCompletionComplete {
 		return errors.New("merged merge lacks native completion")
 	}
-	if m.Operation.MergedCommit != m.HeadOID || m.MergedCommit != m.HeadOID || m.MergedUnix <= 0 || m.ClosedUnix <= 0 {
+	if m.MergedCommit == "" || m.Operation.MergedCommit != m.MergedCommit || m.MergedUnix <= 0 || m.ClosedUnix <= 0 {
 		return errors.New("merged merge lacks its confirmed completion")
 	}
 	if !ValidNativeOccurrence(m.OriginalClosingOccurrence) || m.OriginalClosedUnix <= 0 {

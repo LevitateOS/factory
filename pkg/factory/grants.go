@@ -35,8 +35,18 @@ func ValidOperationKind(kind string) bool {
 	}
 }
 
-// MergeFastForward is the only supported conditional merge method.
 const MergeFastForward = "fast-forward-only"
+
+// ValidAutomaticMergeMethod describes policy intent. The native provider must
+// separately prove that the selected method is currently enabled and eligible.
+func ValidAutomaticMergeMethod(method string) bool {
+	switch method {
+	case "merge", "squash", "rebase", "rebase-merge", MergeFastForward:
+		return true
+	default:
+		return false
+	}
+}
 
 // Queued actions and finite funding records use the command ledger. Standing
 // settings use their own revisions directly.
@@ -211,7 +221,7 @@ func (p RepositoryPolicy) Validate() error {
 	if err := checkPolicyCheckNames(p); err != nil {
 		return err
 	}
-	if p.MergeMethod != MergeFastForward {
+	if !ValidAutomaticMergeMethod(p.MergeMethod) {
 		return errors.New("unsupported merge method")
 	}
 	if err := checkPolicyBindings(p); err != nil {

@@ -13,7 +13,8 @@ import (
 
 // MergedPreparationSource addresses only an exact successfully completed
 // publication whose attributable merge is the selected current target tip.
-// Export bytes remain owned by the native host, never supplied by its caller.
+// Its export remains the reviewed coder candidate, which can differ from a
+// squash/rebase/merge result. It does not manufacture export bytes for that result.
 func (s *Store) MergedPreparationSource(ctx context.Context, repository int64, projectID, target, tip string) (project.FactoryExport, error) {
 	var publicationData, mergeData, runData []byte
 	err := s.db.QueryRowContext(ctx, `SELECT p.data,m.data,r.data FROM factory_publications p
@@ -31,15 +32,16 @@ func (s *Store) MergedPreparationSource(ctx context.Context, repository int64, p
 func admitMergedSource(m factory.Merge, p factory.Publication, repository int64, projectID, target, tip string) error {
 	if m.Validate() != nil || m.Stage != factory.MergeMerged ||
 		m.PublicationID != p.ID || m.AssignmentID != p.AssignmentID || m.ProjectID != projectID ||
-		m.Repository != repository || m.BaseRef != target || m.MergedCommit != tip {
+		m.Repository != repository || m.BaseRef != target || m.MergedCommit != tip ||
+		m.HeadOID != p.Candidate {
 		return ErrCandidatePreparationConflict
 	}
 	return nil
 }
 
-func admitMergedPublication(p factory.Publication, run factory.Run, repository int64, projectID, tip string) error {
+func admitMergedPublication(p factory.Publication, run factory.Run, repository int64, projectID, candidate string) error {
 	if p.Validate() != nil || p.ProjectID != projectID ||
-		p.Repository != repository || p.Candidate != tip || p.Role != project.RoleCoder {
+		p.Repository != repository || p.Candidate != candidate || p.Role != project.RoleCoder {
 		return ErrCandidatePreparationConflict
 	}
 	if run.Validate() != nil || run.ID != p.Run || run.ProjectID != projectID || run.Role != project.RoleCoder || !run.Reconciled || run.Outcome != factory.Succeeded {
@@ -64,10 +66,10 @@ func mergedPreparationSource(publicationData, mergeData, runData []byte, reposit
 	if err := admitMergedSource(m, p, repository, projectID, target, tip); err != nil {
 		return project.FactoryExport{}, err
 	}
-	if err := admitMergedPublication(p, run, repository, projectID, tip); err != nil {
+	if err := admitMergedPublication(p, run, repository, projectID, m.HeadOID); err != nil {
 		return project.FactoryExport{}, err
 	}
-	return project.FactoryExport{Project: projectID, ID: p.Run, Role: project.RoleCoder, Preparation: p.Preparation, Candidate: tip}, nil
+	return project.FactoryExport{Project: projectID, ID: p.Run, Role: project.RoleCoder, Preparation: p.Preparation, Candidate: p.Candidate}, nil
 }
 
 // mergedPreparationSourceTx runs the existing publication+merged+run

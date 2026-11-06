@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -134,14 +135,14 @@ func TestActivityReportsOnlyCommittedPublishedAndConfirmedClosure(t *testing.T) 
 	p.PRID = 105
 	p.PRCreate.PRID = 105
 	save("pr", "pending", p)
-	m := factory.Merge{ID: "merge-complete", Repository: 7, Issue: 3, IssueID: 103, PRID: 104, PRNumber: 4, Stage: factory.MergeMerged, Outcome: factory.Succeeded, Reason: factory.MergeReasonMerged, HeadOID: "exact-head", MergedCommit: "exact-head", MergedUnix: 20, ClosedUnix: 21, FinishedUnix: 22, OriginalClosingOccurrence: "34", OriginalClosedUnix: 21, Operation: factory.MergeOperation{Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, MergedCommit: "exact-head", PRID: 104, PRNumber: 4, IssueID: 103}}
+	m := factory.Merge{ID: "merge-complete", Repository: 7, Issue: 3, IssueID: 103, PRID: 104, PRNumber: 4, Stage: factory.MergeMerged, Outcome: factory.Succeeded, Reason: factory.MergeReasonMerged, HeadOID: strings.Repeat("2", 40), MergedCommit: strings.Repeat("2", 40), MergedUnix: 20, ClosedUnix: 21, FinishedUnix: 22, OriginalClosingOccurrence: "34", OriginalClosedUnix: 21, Operation: factory.MergeOperation{Work: &factory.MergeIntent{HeadOID: strings.Repeat("2", 40)}, Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete, MergedCommit: strings.Repeat("2", 40), PRID: 104, PRNumber: 4, IssueID: 103}}
 	save("merge", "complete", m)
 	m.ID = "merge-unconfirmed"
 	m.OriginalClosedUnix = 0
 	save("merge", "unconfirmed", m)
 	m.ID = "merge-wrong-head"
 	m.OriginalClosedUnix = 21
-	m.MergedCommit = "another-head"
+	m.MergedCommit = strings.Repeat("3", 40)
 	save("merge", "wrong-head", m)
 	out, err := s.RepositoryActivity(ctx, 7)
 	if err != nil || len(out.Items) != 2 {
