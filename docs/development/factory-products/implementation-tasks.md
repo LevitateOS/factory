@@ -31072,8 +31072,14 @@ discussion tab and the file's original-location fallback. The first run used
 an overly narrow fallback-label assertion; the corrected affected check passed
 and removed its isolated local account. Evidence:
 `/home/vince/tmp/factory-outdated-ui-1106.NsCRNF/{run2.log,github-ui-write-result.json}`.
-Fountain outdated-thread rendering, installed parity and T07/T11 dependencies
-remain open.
+
+The current Fountain host/browser journey then showed outdated discussions
+after a real PR head change in both the shared discussion tab and the original
+file fallback. Its existing merge and reload readback still passed. Evidence:
+`/home/vince/tmp/factory-fountain-outdated-1106.eN3FhC/{run.log,host/result.json,host/pull-reader/pull-browser-merge-result.json}`.
+The Fountain native edge check above covers large/partial data; this browser
+check covers outdated rendering. Full large/partial browser rendering,
+installed parity and T07/T11 dependencies remain open.
 
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 

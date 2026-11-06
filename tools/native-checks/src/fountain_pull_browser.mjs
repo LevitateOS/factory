@@ -30,6 +30,15 @@ try {
     await page.goto(input.origin + detailPath);
     const detail = page.locator('soda-factory-pull');
     await detail.getByRole('heading', {name: 'Native code review', exact: true}).waitFor();
+    stage = 'outdated discussion';
+    await detail.getByRole('button', {name: 'Inline discussions', exact: true}).click();
+    await detail.locator('section[aria-label="Inline discussions"] > ol > li')
+      .filter({hasText: 'actual native inline reply'}).filter({hasText: 'Outdated'}).waitFor();
+    await detail.getByRole('button', {name: 'Files', exact: true}).click();
+    const original = detail.locator('soda-factory-diff')
+      .filter({has: page.getByRole('heading', {name: 'alpha.txt', exact: true})});
+    await original.locator('details.thread').filter({hasText: 'Original thread'}).filter({hasText: 'Outdated'}).first().waitFor();
+    stage = 'merge';
     const control = detail.locator('soda-factory-pull-merge');
     await control.getByRole('combobox', {name: 'Merge method'}).selectOption('merge');
     await control.getByRole('textbox', {name: 'Merge message'}).fill('Merge reviewed native code');
@@ -37,7 +46,8 @@ try {
     await control.getByText('Merge recorded. Refresh to read the provider state.', {exact: true}).waitFor();
     await page.reload();
     await detail.locator('.soda-pull-meta').filter({hasText: '· merged'}).waitFor();
-    await save('pull-browser-merge-result.json', {result: 'pass', merged: true, readback_after_reload: true});
+    await save('pull-browser-merge-result.json', {result: 'pass', outdated_discussion_and_file_fallback: true,
+      merged: true, readback_after_reload: true});
     console.log('PASS: real Fountain shared PR merge and provider readback');
   } else {
   stage = 'navigation';
