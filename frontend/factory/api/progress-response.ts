@@ -263,6 +263,7 @@ export function issuePlan(value: unknown, repository: string, issue: string): Is
 }
 
 export interface AccessViewer {
+  readonly local_owner?: boolean;
   readonly code_write: boolean;
   readonly owner_or_admin: boolean;
   readonly environment_owner: boolean;
@@ -297,6 +298,7 @@ export function factoryAccess(value: unknown, repository: string): FactoryAccess
     repository,
     observed_unix: num(data.observed_unix),
     viewer: {
+      local_owner: flag(viewer.local_owner),
       code_write: flag(viewer.code_write),
       owner_or_admin: flag(viewer.owner_or_admin),
       environment_owner: flag(viewer.environment_owner),

@@ -1,4 +1,5 @@
 import {LitElement, html} from 'lit';
+import {SodaFactoryRoleSettings} from './role-settings.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks} from '../app/navigation.js';
 import {check, id} from '../api/models.js';
@@ -44,6 +45,7 @@ function sameOverview(a: WorkOverviewContext | undefined, b: WorkOverviewContext
 }
 
 export class SodaFactoryWorkOverview extends LitElement {
+  private readonly roleSettings = new SodaFactoryRoleSettings();
   static properties = {model: {state: true}, request: {state: true}, message: {state: true}, busy: {state: true}};
   declare private model: WorkOverviewModel | undefined;
   declare private request: RequestOverviewModel | undefined;
@@ -79,6 +81,7 @@ export class SodaFactoryWorkOverview extends LitElement {
           !!context.transport.generation &&
           (context.intentID === undefined || decisionID(context.intentID))
       );
+    this.roleSettings.context = context;
     if (sameOverview(context, this.current) && context?.transport.generation === this.generation) {
       this.current = context;
       if (this.recordedRequest) this.request = describeRequestOverview(this.recordedRequest, context?.links);
@@ -173,6 +176,7 @@ export class SodaFactoryWorkOverview extends LitElement {
               ? html`<p>Loading work overview…</p>`
               : ''
       }
+      ${this.roleSettings}
     </section>`;
   }
 }

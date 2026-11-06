@@ -26,6 +26,20 @@ func (b *nativeProductAccount) localResourceAccess(ctx context.Context, actor co
 	return b.visible(ctx, actor, repository)
 }
 
+func (b *nativeProductAccount) repositoryViewer(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.RepositoryViewer, error) {
+	if err := b.localOwnerAccess(ctx, actor); err != nil {
+		return factoryservice.RepositoryViewer{}, err
+	}
+	observed, err := b.repositoryObservation(ctx, actor, repository)
+	if err != nil {
+		return factoryservice.RepositoryViewer{}, err
+	}
+	return factoryservice.RepositoryViewer{
+		LocalOwner: true, Operator: true, EnvironmentOwner: true, SessionCurrent: true,
+		CodeWrite: observed.Push != nil && *observed.Push, OwnerOrAdmin: observed.Admin != nil && *observed.Admin,
+	}, nil
+}
+
 func (b *nativeProductAccount) preparationStatus(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*factoryservice.RepositoryPreparation, error) {
 	if actor != b.binding.Actor.ID {
 		return nil, factoryservice.ErrRepositoryHidden

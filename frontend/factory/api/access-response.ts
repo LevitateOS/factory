@@ -2,6 +2,7 @@ import {flag, list, num, object, optionalNum, optionalText, record, text} from '
 
 /** H-R permission/usage DTO v2 (revision f06-20261011). */
 export interface FactoryAccessViewer {
+  local_owner?: boolean;
   code_write: boolean;
   owner_or_admin: boolean;
   environment_owner: boolean;
@@ -89,6 +90,7 @@ export function factoryAccessResponse(value: unknown): FactoryAccess {
   const edit = record(data.editable);
   return {
     viewer: {
+      local_owner: flag(viewer.local_owner),
       code_write: flag(viewer.code_write),
       owner_or_admin: flag(viewer.owner_or_admin),
       environment_owner: flag(viewer.environment_owner),

@@ -26,6 +26,7 @@ const (
 // and session currency. Each boundary stays separate; no power implies
 // another.
 type RepositoryViewer struct {
+	LocalOwner       bool `json:"local_owner,omitempty"`
 	CodeWrite        bool `json:"code_write"`
 	OwnerOrAdmin     bool `json:"owner_or_admin"`
 	EnvironmentOwner bool `json:"environment_owner"`
@@ -76,7 +77,7 @@ func accessEditableDTO(in accessEditableInput) accessEditableView {
 		}
 		return accessEntryView{Editable: true}
 	}
-	view.Policy = gated(in.Viewer.OwnerOrAdmin, accessReasonOwnerAdmin)
+	view.Policy = gated(in.Viewer.LocalOwner || in.Viewer.OwnerOrAdmin, accessReasonOwnerAdmin)
 	view.ActivitySettings = gated(in.Viewer.OwnerOrAdmin, accessReasonOwnerAdmin)
 	view.OperatorGrant = gated(in.Viewer.Operator, accessReasonOperator)
 	view.Capacity = gated(in.Viewer.Operator, accessReasonOperator)

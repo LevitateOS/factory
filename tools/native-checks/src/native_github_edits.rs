@@ -514,6 +514,25 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 && after.1["policy"]["roles"]["soda-reviewer"]["account"] == "declared-reviewer",
             "local resource readback changed permission, limit or disabled automation",
         )?;
+        let access = call(
+            &runtime,
+            &store,
+            &connection,
+            "GET",
+            &format!("{settings_path}/access"),
+            &[],
+        )
+        .await?;
+        ensure(
+            access.0 == 200
+                && access.1["viewer"]["local_owner"] == true
+                && access.1["viewer"]["owner_or_admin"] == false
+                && access.1["viewer"]["code_write"] == false
+                && access.1["editable"]["policy"]["editable"] == true
+                && access.1["editable"]["operator_grant"]["editable"] == true
+                && access.1["editable"]["environment_grant"]["editable"] == true,
+            "native local-owner settings projection unavailable or invented provider permission",
+        )?;
         let denied = call(&runtime, &store, &connection, "POST", "/api/factory/intents", &serde_json::to_vec(&json!({
             "id":format!("d{}","1".repeat(24)),"intent":format!("d{}","2".repeat(24)),
             "repository":repository,"objective":"Do not infer repository write from local ownership",
@@ -527,7 +546,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             root.join("local-resource-result.json"),
             serde_json::to_vec(&json!({
                 "local_owner_controls":true,"run_limit":2,"repository_run_permission":true,
-                "workspace_permission":true,"policy_enabled":false,"provider_write_refused":true,
+                "workspace_permission":true,"policy_enabled":false,"provider_write_refused":true,"access_readback":true,
             "provider_permissions":"declared push=false and no admin observation; no real provider effects"
             }))?,
         )?;

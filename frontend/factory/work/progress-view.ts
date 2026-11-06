@@ -639,10 +639,11 @@ export interface AccessStandingModel {
 
 function standingPowers(access: FactoryAccess): string {
   const held: string[] = [];
+  if (access.viewer.local_owner) held.push('local computer owner');
   if (access.viewer.code_write) held.push('code write');
   if (access.viewer.owner_or_admin) held.push('owner or admin');
   if (access.viewer.environment_owner) held.push('environment owner');
-  if (access.viewer.operator) held.push('appliance operator');
+  if (access.viewer.operator) held.push('execution operator');
   if (access.viewer.member) held.push('project member');
   const session = access.viewer.session_current
     ? 'Session current.'

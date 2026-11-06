@@ -78,6 +78,13 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Work:     factoryhttp.Work{Reads: factoryservice.WorkReads{Store: application.Store, Visibility: bound.visible}, Issues: factoryservice.Issues{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
+			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.visible,
+				Viewer: bound.repositoryViewer, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
+				// Existing-session spending-account identity is not integrated yet.
+				// Do not project local ownership as verified provider-account custody.
+				Connections: func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (map[string]bool, error) {
+					return nil, factoryservice.ErrSponsorshipBrokerUnavailable
+				}},
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
 				Bindings: bound.policyBindings, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},

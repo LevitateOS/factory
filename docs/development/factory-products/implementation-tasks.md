@@ -53,7 +53,10 @@ separately; PostgreSQL completion/source checks passed. Native automated adapter
 provider result fetching and connected merge qualification remain pending. A11
 now binds role-specific paying accounts through policy, authority, dispatch/retry
 and atomic admission; PostgreSQL and native settings readback checks passed.
-Existing-session account discovery and the role editor still need implementation.
+The shared Work view now edits models and eligible saved paying accounts per role;
+native local-owner access readback is composed without inventing provider powers.
+Existing-session account discovery/enrollment and initial policy setup through the
+UI remain unfinished; other provider connectors are unavailable.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

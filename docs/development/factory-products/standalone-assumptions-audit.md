@@ -58,7 +58,7 @@ corrections are now active; the old feature queue waits for their resolution.
   Coordinator/PostgreSQL evidence and remaining connected limitations are recorded
   in the security handoff. This does not close D1 or T11-INTAKE.
 
-- **A11 — role-specific funding admission verified; native selection UI pending.**
+- **A11 — role-specific funding admission and saved-account editor verified.**
   Policy role selections now capture an explicit paying `account` beside harness,
   model and execution profile. Enabling policy requires both account choices;
   legacy policies remain readable/disableable without inventing a choice.
@@ -72,8 +72,16 @@ corrections are now active; the old feature queue waits for their resolution.
   The existing native settings route/readback also passed with separate declared
   role choices in `/home/vince/tmp/frole-native-declared6.yqCIsE/result.log`; policy
   remained disabled, credentials dummy, no paid call. Go/native builds and
-  boundaries passed. Native existing-session identity/account discovery and the
-  role editor remain pending; other AI provider connectors are still unavailable.
+  boundaries passed. The shared Work view now edits models and eligible saved
+  accounts per role through the existing policy command. Chromium interaction
+  checks passed with a declared peer in `/home/vince/tmp/froles-ui7.eFa9EH/result.log`,
+  including explicit choices, profile/policy preservation, readback, conflict,
+  withdrawal without fallback and parent retirement. Native access readback passed
+  in `/home/vince/tmp/froles-native7.xlR4x8/result.log`: local-owner editability
+  remains separate from false provider write/admin powers. Native spending-account
+  ownership/usage is withheld while authenticated identity discovery is unavailable.
+  Existing-Muse-session discovery/enrollment, initial policy setup through the UI
+  and other AI provider connectors remain unfinished; only Muse is offered.
   No connected billing, custody or installed execution gate is qualified here.
 - **A07 — merge-method contract verified; native automation pending.** Policy now
   accepts merge/squash/rebase as well as retained Fountain methods. Immutable

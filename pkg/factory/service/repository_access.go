@@ -78,6 +78,14 @@ func (s RepositoryAccess) Read(ctx context.Context, actor collaboration.ActorID,
 		return nil, err
 	}
 	view.RequiredActs = accessRequiredActions(view.Effective.Missing)
+	if viewer.LocalOwner {
+		for i, action := range view.RequiredActs {
+			switch action.Setting {
+			case "policy", "operator_grant", "capacity", "environment_grant":
+				view.RequiredActs[i].ResolveBy = "local_owner"
+			}
+		}
+	}
 	view.Preparation, err = s.Preparation(ctx, actor, repository)
 	if err != nil {
 		return nil, errors.Join(ErrRepositoryAccessPreparation, err)

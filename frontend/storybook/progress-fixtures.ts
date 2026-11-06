@@ -6,13 +6,51 @@ export type ProgressStoryState = 'ready' | 'loading' | 'missing' | 'denied' | 'o
 export const progressRepository = '9007199254740993';
 export const progressIntent = 'd' + 'a'.repeat(24);
 
-/** Declared read peer only; no backend, credentials, provider, model or worker. */
-export function progressStoryPeer(state: ProgressStoryState, repository = progressRepository) {
+/** Declared UI peer; optional policy edits remain in memory. No backend,
+ * credentials, provider, model or worker. */
+export function progressStoryPeer(state: ProgressStoryState, repository = progressRepository, editRoles = false) {
   let generation = `declared-progress:${state}`;
   let failure = 0;
   let hold = false;
   const pending: {signal: AbortSignal | null | undefined; resolve: () => void}[] = [];
   const calls: string[] = [];
+  const policyChanges: Record<string, unknown>[] = [];
+  let policy = {
+    repository,
+    revision: 1,
+    granted_by: '7',
+    enabled: false,
+    paused: true,
+    target_branch: 'refs/heads/main',
+    merge_method: 'squash',
+    required_checks: ['build'],
+    reassessment_minutes: 30,
+    intent_minutes: 12,
+    attempt_limits: {active_minutes: 30, correction_cycles: 2, review_rounds: 2, max_children: 1},
+    roles: {
+      'soda-coder': {
+        harness: 'muse',
+        model: 'declared-coder',
+        account: '',
+        profile: {effort: 'high', contributor: false},
+      },
+      'soda-reviewer': {
+        harness: 'muse',
+        model: 'declared-reviewer',
+        account: '',
+        profile: {effort: 'high', contributor: true},
+      },
+    },
+    publish_actor: {token_id: '11', actor_id: '7', kind: 'ref_publish'},
+    create_actor: {token_id: '11', actor_id: '7', kind: 'pr_create'},
+    review_actor: {token_id: '11', actor_id: '7', kind: 'review_submit'},
+    merge_actor: {token_id: '11', actor_id: '7', kind: 'merge'},
+  };
+  const accounts = [
+    {repository, connection: 'coding-subscription', active: true, roles: ['soda-coder']},
+    {repository, connection: 'review-subscription', active: true, roles: ['soda-reviewer']},
+    {repository, connection: 'withdrawn-subscription', active: false, roles: ['soda-coder', 'soda-reviewer']},
+  ];
   const transport: FactoryTransport = {
     get generation() {
       return generation;
@@ -21,10 +59,9 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
     async request(path, init) {
       init?.signal?.throwIfAborted();
       calls.push(path);
-      if (init?.method !== 'GET') return Response.json({error: 'read_only'}, {status: 405});
-      if (hold) await new Promise<void>((resolve) => pending.push({signal: init.signal, resolve}));
+      if (hold) await new Promise<void>((resolve) => pending.push({signal: init?.signal, resolve}));
       if (state === 'loading') {
-        const signal = init.signal;
+        const signal = init?.signal;
         if (!signal) throw Error('A read lifetime is required.');
         signal.throwIfAborted();
         return new Promise<Response>((_, reject) =>
@@ -33,6 +70,14 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
       }
       const status = failure || (state === 'missing' ? 404 : state === 'denied' ? 403 : state === 'offline' ? 503 : 0);
       if (status) return Response.json({error: {message: 'Declared progress read unavailable.'}}, {status});
+      if (editRoles && path === `repositories/${repository}/factory/policy` && init?.method === 'PUT') {
+        const change = JSON.parse(String(init.body));
+        if (change.expected_revision !== policy.revision) return Response.json({}, {status: 409});
+        policyChanges.push(change);
+        policy = {...policy, roles: change.roles, revision: policy.revision + 1};
+        return Response.json({state: 'applied'});
+      }
+      if (init?.method !== 'GET') return Response.json({error: 'read_only'}, {status: 405});
       if (path === `factory/intents/${progressIntent}/overview`)
         return Response.json({
           intent: progressIntent,
@@ -62,7 +107,10 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
           intent: progressIntent,
           revisions: [{revision: 'd' + 'b'.repeat(24), repository: repository, state: 'accepted'}],
         });
-      if (path === `repositories/${repository}/factory`) return Response.json({repository: repository});
+      if (path === `repositories/${repository}/factory`)
+        return Response.json({repository, policy: editRoles ? policy : null, sponsorships: editRoles ? accounts : []});
+      if (path === `repositories/${repository}/factory/access`)
+        return Response.json({repository, editable: {policy: {editable: editRoles}}});
       const issuePath = `repositories/${repository}/factory/issues/`;
       if (path.startsWith(issuePath)) {
         if (path.slice(issuePath.length).startsWith('13')) return Response.json({error: 'forbidden'}, {status: 403});
@@ -96,6 +144,14 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
     plan,
     direction,
     calls,
+    policyChanges,
+    get policy() {
+      return structuredClone(policy);
+    },
+    withdrawAccount(connection: string) {
+      const account = accounts.find((entry) => entry.connection === connection);
+      if (account) account.active = false;
+    },
     hold() {
       hold = true;
     },
