@@ -271,6 +271,7 @@ export class SodaFactoryApp extends LitElement {
           () => this.live(context, signal),
           undefined,
           ports.comment,
+          ports.editor,
           ports.editor
         );
         return this.own(screen.element, screen.dispose);

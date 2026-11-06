@@ -7,6 +7,8 @@ import {SodaFactoryIssueComment} from './comment.js';
 import type {IssueCommentPorts} from './comment.js';
 import {SodaFactoryIssueEditor} from './editor.js';
 import type {IssueEditorPorts} from './editor.js';
+import {SodaFactoryIssueState} from './state.js';
+import type {IssueStatePorts} from './state.js';
 
 /** One composition for native-header Fountain pages and the standalone frame.
  * A current primary issue read gates optional Factory facts and host controls. */
@@ -17,7 +19,8 @@ export function mountIssueScreen(
   live: () => boolean,
   availability?: (available: boolean) => void,
   comment?: IssueCommentPorts,
-  editor?: IssueEditorPorts
+  editor?: IssueEditorPorts,
+  state?: IssueStatePorts
 ) {
   if (journey)
     check(
@@ -43,14 +46,25 @@ export function mountIssueScreen(
         editor.scope === context.scope &&
         editor.transport === context.transport
     );
+  if (state)
+    check(
+      state.host === context.host &&
+        state.actor === context.actor &&
+        state.repository === context.repository &&
+        state.issue === context.issue &&
+        state.scope === context.scope &&
+        state.transport === context.transport
+    );
   const element = document.createElement('section'),
     view = new SodaFactoryIssue(),
     facts = new SodaFactoryWorkJourney(),
     composer = new SodaFactoryIssueComment(),
-    edit = new SodaFactoryIssueEditor();
+    edit = new SodaFactoryIssueEditor(),
+    stateControl = new SodaFactoryIssueState();
   element.className = 'soda-issue-screen';
   if (editor) element.append(edit);
   element.append(view);
+  if (state) element.append(stateControl);
   if (comment) element.append(composer);
   if (journey) element.append(facts);
   view.addEventListener('factory-issue-read', (event) => {
@@ -86,6 +100,10 @@ export function mountIssueScreen(
             parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external},
           }
         : undefined;
+    stateControl.context =
+      available && external && state
+        ? {...state, parent: {kind: 'issue', repository: context.repository, number: context.issue, external_id: external}}
+        : undefined;
     availability?.(available);
   });
   composer.addEventListener('issue-comment-saved', (event) => {
@@ -93,6 +111,9 @@ export function mountIssueScreen(
   });
   edit.addEventListener('issue-edit-saved', (event) => {
     if (!signal.aborted && live() && event.target === edit) void view.refresh();
+  });
+  stateControl.addEventListener('issue-state-saved', (event) => {
+    if (!signal.aborted && live() && event.target === stateControl) void view.refresh();
   });
   view.context = {
     ...context,
@@ -112,6 +133,7 @@ export function mountIssueScreen(
       facts.context = undefined;
       composer.context = undefined;
       edit.context = undefined;
+      stateControl.context = undefined;
       availability?.(false);
       element.remove();
     },
