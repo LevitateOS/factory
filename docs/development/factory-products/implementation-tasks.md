@@ -31165,3 +31165,31 @@ grant/review recovery. It does not qualify the broader privilege matrix.
 The owner-deferred other-actor approval/request-changes, reviewer-request and
 organization/team/privacy/notification checks remain pending. Physical input and
 installed release remain separate open gates. T11 and the full product stay open.
+
+### T11-WRITES: two-account review and draft visibility (2026-11-06)
+
+The owner supplied `sodaos` and accepted collaborator access to the disposable
+repository. A separate Factory profile/keyring verified its exact GitHub identity;
+the existing gh login remained `veighnsche`. Actual WebKit passed username lookup
+and reviewer request/removal/request through production UI/Go/PostgreSQL/native
+custody. Evidence: `/home/vince/tmp/factory-reviewer-requests-1106.2yt3u9/`.
+
+Using one Factory device sign-in, sodaos saved a summary and file-comment draft,
+then reloaded that same grant/review and published approval followed by
+request-changes. The four commands have complete causal receipts. Before
+publication, veighnsche's REST and GraphQL reads saw neither writing; afterward,
+both saw the writing and both verdicts. Evidence under
+`/home/vince/tmp/factory-second-account-1106.lTnyTf/`:
+`draft-result.json`, `{before,after}-publication-readback.json`,
+`journal-summary.jsonl` and `verdicts.log`. No captured write was repeated.
+The verdict run reached cleanup and withdrew its owned local account, then
+exited 1 because the draft-stage result file already existed. Acceptance now uses
+distinct draft/verdict filenames; the corrected native build passed. That recorder
+change has not had another connected verdict run, and the exit-1 run is not a
+fully passing acceptance run.
+
+This supersedes the missing-second-account blocker for these operations and
+scoped provider draft visibility. Organization/team authority still needs an
+authorized organization/team fixture; notification delivery/timing lacks receiver
+observations. Broader privileges, physical input and installed qualification stay
+open. T11 and the full product remain unfinished.

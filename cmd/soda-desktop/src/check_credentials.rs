@@ -106,6 +106,9 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .connection
     };
+    if fixture["mode"] == "other_actor" {
+        ensure(fixture["expected_account"].as_str().is_some(), "other-actor fixture account missing")?;
+    }
     if let Some(expected) = fixture["expected_account"].as_str() {
         let accounts = store.status().await.map_err(|e| e.to_string())?;
         ensure(
@@ -135,12 +138,38 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
             let store = state.credentials()?;
             let accounts = store.status().await.map_err(|e| e.to_string())?;
             ensure(accounts.len() == 1, "unexpected owned write-check accounts")?;
-            store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             let root = state.paths.profile.parent().ok_or("owned fixture root missing")?;
             let fixture: serde_json::Value = serde_json::from_slice(
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
+            let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft";
+            if !retained {
+                store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
+            }
+            if fixture["mode"] == "other_actor" || fixture["mode"] == "reviewer_requests" {
+                let oauth = fixture["oauth_source"] == "factory_device";
+                let evidence_name = if fixture["mode"] == "other_actor" {
+                    if retained { "github-draft-result.json" } else { "github-verdict-result.json" }
+                } else { "github-ui-write-result.json" };
+                write_consent_evidence(&app, evidence_name, &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "reviewer_username_lookup_request_remove_request": fixture["mode"] == "reviewer_requests",
+                    "own_pending_summary_file_readback": fixture["mode"] == "other_actor",
+                    "other_actor_approve_request_changes": fixture["review_stage"] == "verdicts",
+                    "account": accounts[0].account,
+                    "owned_account_removed": !retained,
+                    "owned_account_retained_for_cross_account_read": retained,
+                    "oauth_source": if oauth { "factory_device" } else { "user_authorized_gh_grant" },
+                    "factory_device_write_scope_observed": oauth,
+                    "factory_device_scope_qualified": false,
+                    "cross_account_privacy_qualified": false,
+                    "notification_delivery_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["issue_navigation"] == true {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,

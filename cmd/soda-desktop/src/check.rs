@@ -90,7 +90,7 @@ pub fn github_writes_done(app: tauri::AppHandle) {
         .check
         .stage
         .store(2, Ordering::SeqCst);
-    println!("PASS: owned GitHub write journey through actual WebKit and production UI/IPC/Go/PostgreSQL/native custody; see github-ui-write-result.json for exact scope; owned local account removed");
+    println!("PASS: owned GitHub write journey through actual WebKit and production UI/IPC/Go/PostgreSQL/native custody; see github-ui-write-result.json for exact scope and owned account disposition");
     quit(app);
 }
 fn control_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {

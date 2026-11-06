@@ -3755,3 +3755,22 @@ repeated captured creation was needed. This adds same-account scoped write and
 recovery evidence; the explicitly deferred second actor/organization fixtures,
 privacy/notification observations, full privilege matrix and installed gates
 remain required. The fixture result keeps broad scope qualification false.
+
+Second-account update (2026-11-06): the owner authorized `sodaos` as a collaborator
+of the disposable repository. `cmd/soda-desktop/src/{check_credentials.rs,github_writes_check.js}`
+now require its expected identity for the other-actor journey. One isolated
+Factory OAuth grant exercised private summary/file drafts and publication as
+approval, followed by request-changes; primary-account REST/GraphQL observations
+showed the writing absent before publication and present afterward. Exact scoped
+evidence is under `/home/vince/tmp/factory-second-account-1106.lTnyTf/`
+(`draft-result.json`, `{before,after}-publication-readback.json`,
+`journal-summary.jsonl`, `verdicts.log`). All four journal commands are complete
+with causal receipts. The local account was withdrawn; final evidence recording
+then failed on an existing filename. Separate phase filenames fix that collision;
+build passed, but no second connected verdict run qualifies the recorder change.
+This is scoped provider privacy evidence, not completion of the broad privacy or
+installed-host gate. Remaining exact dependencies: an authorized organization/team
+fixture for team/organization permissions; receiver-side before/after observations
+for notification timing/delivery; the existing installed-host and broader privilege
+matrix evidence requirements above. These remain unverified. Primary gh login and
+historical uncertain commands were preserved.
