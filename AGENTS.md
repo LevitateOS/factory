@@ -1,5 +1,18 @@
 # Working on Factory
 
+- Minimize the total work needed to deliver the requested result correctly.
+  Treat tokens, tool calls, builds and the user's attention as costs. Never
+  prolong work to use available context, tokens or runtime; activity and output
+  volume are not progress.
+- Before adding investigation, scaffolding, checks or documentation, identify
+  the concrete requirement, observed failure or unresolved risk it addresses.
+  Omit work without that connection. Reuse established facts until a relevant
+  change or failure gives a reason to revisit them.
+- Define completion from the requested behavior and required verification.
+  Once those are satisfied, commit and move to the next authorized slice or
+  stop. Avoid optional polish, speculative hardening and repeated analysis.
+  Keep explanations and updates brief; do not create extra reporting machinery
+  to demonstrate compliance with these rules.
 - Spend at least 80% of active work on implementing and integrating product
   behavior. Treat planning, test infrastructure, evidence formatting and status
   reporting as support work. This is a working priority, not a claimed progress
