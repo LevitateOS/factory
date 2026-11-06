@@ -17,7 +17,7 @@ verification. Native/installed evidence remains a separate gate from source chec
 
 ## Remaining product milestones (2026-11-06)
 
-The canonical table still contains one active and nineteen pending rows. Earlier
+The canonical table still contains one active and eighteen pending rows. Earlier
 completed component slices do not measure the remaining product effort. There is
 no supported calendar finish estimate; the work below is substantial remaining
 implementation and qualification, not final polish.
