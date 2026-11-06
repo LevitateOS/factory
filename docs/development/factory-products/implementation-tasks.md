@@ -30967,6 +30967,8 @@ collaboration grant became writable, that same account posted a comment and
 edited the issue title through the shared UI; both persisted across a browser
 reload. Revocation then retired the issue body and optional controls in the
 still-live session. Evidence: `/home/vince/tmp/fhi-1793962172406/{run.log,host/result.json,host/issue-browser.log}`.
+That browser check also covered Feed → Issues → issue/comment → Factory section
+→ Back, fragment history and a reloaded deep link.
 A fresh run also edited description Markdown through the shared editor and read
 the rendered body back after reload (`/home/vince/tmp/fie-1793964258926/{run.log,host/issue-browser-result.json}`).
 This proves the Fountain source host journey, not GitHub-connected desktop
@@ -30984,8 +30986,9 @@ issue-scoped Factory detail, returned with Back and retained an unsent Markdown
 edit across Back and a direct issue link. The isolated account was removed;
 evidence: `/home/vince/tmp/factory-issue-nav-1106.xnKhvv/{run.log,github-ui-write-result.json}`.
 This confirms navigation and draft custody, not a recorded Factory work journey
-for that issue. Fountain's matching navigation qualification and the T11-WRITES
-prerequisite remain open.
+for that issue. Fountain's feed-to-issue, Factory section/Back and deep-link
+journey already passed in the native host browser check above; T11-WRITES
+remains the open prerequisite.
 
 ### T08-READ/T08-WRITE: Fountain shared PR browser journey (2026-11-06)
 
