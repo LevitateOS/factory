@@ -232,6 +232,17 @@ func (s nativeHumanThreads) ReadHumanThreadSelection(ctx context.Context, q fact
 	if thread.Resolution != "resolved" && thread.Resolution != "unresolved" {
 		return empty, factoryservice.ErrHumanThreadUnavailable
 	}
-	unavailable := collaboration.Capability{State: collaboration.Unavailable, Reason: "native_github_thread_write_unqualified"}
-	return factory.HumanThreadSelection{Host: q.Host, Repository: q.Repository, Actor: q.Actor, Number: q.Number, ThreadID: q.ThreadID, OriginalAnchor: nil, Resolved: thread.Resolution == "resolved", Resolve: unavailable, Unresolve: unavailable}, nil
+	if thread.Capabilities == nil {
+		return empty, factoryservice.ErrHumanThreadUnavailable
+	}
+	change, ok := thread.Capabilities.Actions[collaboration.ResolveThread]
+	if !ok {
+		return empty, factoryservice.ErrHumanThreadUnavailable
+	}
+	unchanged := collaboration.Capability{State: collaboration.Denied, Reason: "thread_already_desired"}
+	selection := factory.HumanThreadSelection{Host: q.Host, Repository: q.Repository, Actor: q.Actor, Number: q.Number, ThreadID: q.ThreadID, OriginalAnchor: nil, Resolved: thread.Resolution == "resolved", Resolve: change, Unresolve: unchanged}
+	if selection.Resolved {
+		selection.Resolve, selection.Unresolve = unchanged, change
+	}
+	return selection, selection.Validate(q)
 }

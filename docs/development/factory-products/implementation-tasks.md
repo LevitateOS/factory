@@ -30827,3 +30827,21 @@ remain pending because only the author's authorized GitHub account is available.
 Team reviewer requests also need an authorized organization fixture and test team.
 This uses a gh-sourced grant, not fresh Factory OAuth scope qualification. T11,
 shared UI/installed qualification and all previously open broad gates remain open.
+
+### T11-WRITES: expose current thread-resolution actions (2026-11-06)
+
+The native thread reader already returned viewer resolve/unresolve facts, but Go
+discarded them and the desktop selection endpoint always reported unavailable.
+Go now projects the applicable action from that same read: resolve for an
+unresolved thread, reopen for a resolved thread, provider denial when disallowed.
+The already-current state is denied as a new change. The original anchor
+remains unknown; native mutation admission and the existing journal are unchanged.
+
+The existing production HTTP/native/PostgreSQL integration check verifies initial
+selection, both transitions, selection after each transition and recovery: 13
+declared cases, seven dummy writes passed. Go/native builds and dependency
+boundaries passed. Evidence:
+`/home/vince/tmp/factory-thread-selection-1106.tHdIfA/result.log`.
+This is component evidence, not a new connected UI or privilege qualification.
+The user has deferred cross-account checks; that deferral does not block
+independent product integration. T11 and the shared issue/PR journeys remain open.

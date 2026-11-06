@@ -902,8 +902,8 @@ pub(super) async fn resolution_product(
             && selection.1["thread_id"] == "PRRT_declared1"
             && selection.1["resolved"] == false
             && selection.1["original_anchor"].is_null()
-            && selection.1["resolve"]["state"] == "unavailable"
-            && selection.1["unresolve"]["state"] == "unavailable"
+            && selection.1["resolve"]["state"] == "allowed"
+            && selection.1["unresolve"]["state"] == "denied"
             && posts()? == 0,
         "thread selection invented context/state/authority or wrote",
     )?;
@@ -937,8 +937,10 @@ pub(super) async fn resolution_product(
         )?;
         let selected = call(&runtime, &store, &connection, "GET", &selection_target, &[]).await?;
         ensure(
-            selected.0 == 200 && selected.1["resolved"] == resolved,
-            "selection lost current state",
+            selected.0 == 200 && selected.1["resolved"] == resolved
+                && selected.1["resolve"]["state"] == if resolved { "denied" } else { "allowed" }
+                && selected.1["unresolve"]["state"] == if resolved { "allowed" } else { "denied" },
+            "selection lost current state or provider action facts",
         )?;
         completed(
             &call(&runtime, &store, &connection, "POST", &submit, &body).await?,

@@ -225,8 +225,22 @@ func (s nativeCollaborationReads) ReadThreads(ctx context.Context, actor collabo
 		if q.ThreadID == "" {
 			commentCursor.Limit = 10
 		}
+		// ResolveThread describes changing the current resolution in either
+		// direction. These native viewer facts are presentation, not admission.
+		change := collaboration.Capability{State: collaboration.Unknown, Reason: "thread_resolution_unknown"}
+		if thread.Resolution == "resolved" || thread.Resolution == "unresolved" {
+			canChange := *thread.ViewerCanResolve
+			if thread.Resolution == "resolved" {
+				canChange = *thread.ViewerCanUnresolve
+			}
+			change = collaboration.Capability{State: collaboration.Denied, Reason: "provider_cannot_change_resolution"}
+			if canChange {
+				change = collaboration.Capability{State: collaboration.Allowed}
+			}
+		}
+		capabilities := &collaboration.Capabilities{Repository: repo, Actor: actor, Connection: s.binding.Connection.ID, Pull: &pull, Observation: s.observation(thread), Actions: map[collaboration.Action]collaboration.Capability{collaboration.ResolveThread: change}}
 		items = append(items, collaboration.ReviewThread{ExternalID: thread.ExternalID, Pull: pull, Observation: s.observation(thread), RecordedLocation: thread.RecordedLocation, Resolution: thread.Resolution, Outdated: thread.Outdated,
-			Comments: nativePage(obs, comments, cursorEncode(commentCursor, thread.Comments.NextPage))})
+			Comments: nativePage(obs, comments, cursorEncode(commentCursor, thread.Comments.NextPage)), Capabilities: capabilities})
 	}
 	return nativePage(obs, items, cursorEncode(c, raw.NextPage)), nil
 }
