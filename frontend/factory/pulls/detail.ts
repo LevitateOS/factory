@@ -14,6 +14,7 @@ import './inline.js';
 import './thread-resolution.js';
 import './reviewers.js';
 import '../issues/comment.js';
+import '../issues/editor.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
@@ -243,6 +244,12 @@ export class SodaFactoryPull extends LitElement {
       <p role="status">${this.view.busy ? 'Loading pull request…' : this.view.message}</p>
       ${pull ? html`
         <p class="soda-pull-meta">#${pull.ref.number} · ${pull.state}${pull.draft ? ' · Draft' : ''} · ${pull.author?.login || 'Unknown author'} · ${pull.head.name} → ${pull.base.name}</p>
+        ${context.commandScope ? html`<soda-factory-pull-editor
+          .context=${{transport: context.transport, host: context.host, actor: context.actor,
+            repository: context.repository, issue: context.pull, kind: 'pull' as const, scope: context.scope,
+            parent: pull.ref, commandScope: context.commandScope}}
+          @pull-edit-saved=${() => void this.refresh()}
+        ></soda-factory-pull-editor>` : ''}
         <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href), `pull-${pull.ref.external_id}`)) : html`<p>No description provided.</p>`}</article>
         <nav aria-label="Pull request sections">
           <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} @click=${() => this.select('conversation')}>Conversation</button>

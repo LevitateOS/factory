@@ -1,8 +1,10 @@
 import {LitElement, html} from 'lit';
-import {check, id, readSodaJSON} from '../api/models.js';
+import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
-import type {IssueRef} from '../api/collaboration.js';
+import type {IssueRef, PullRef} from '../api/collaboration.js';
+import {pullActionAllowed} from '../api/capability-response.js';
 import {issueDetail} from '../api/issue-response.js';
+import {pullItem} from '../pulls/response.js';
 import {commandOutcome} from '../api/command-response.js';
 import {issueEditAllowed, editBodyDigest, sameEditOriginal, scalarEditText} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
@@ -22,7 +24,7 @@ import type {EditorAddress, EditorSaved, EditorWriting, EditorDraft} from './edi
 
 export interface IssueEditorContext extends EditorAddress {
   readonly transport: FactoryTransport;
-  readonly parent: IssueRef;
+  readonly parent: IssueRef | PullRef;
   commandScope(signal: AbortSignal): Promise<string>;
 }
 export type IssueEditorPorts = Omit<IssueEditorContext, 'parent'>;
@@ -60,6 +62,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       context.actor,
       context.repository,
       context.issue,
+      context.kind,
       context.parent.kind,
       context.parent.repository,
       context.parent.number,
@@ -84,7 +87,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     if (context) {
       editorRecordKey(context);
       check(
-        context.parent.kind === 'issue' &&
+        context.parent.kind === (context.kind === 'pull' ? 'pull' : 'issue') &&
           context.parent.repository === context.repository &&
           context.parent.number === context.issue &&
           id(context.issue)
@@ -109,6 +112,7 @@ export class SodaFactoryIssueEditor extends LitElement {
   private touch() {
     this.version++;
   }
+  private subjectLabel() { return this.current?.kind === 'pull' ? 'pull request' : 'issue'; }
   private live(context: IssueEditorContext, signal: AbortSignal): boolean {
     if (this.current !== context || this.lifetime.signal !== signal || signal.aborted) return false;
     if (this.key(context) !== this.binding) {
@@ -123,12 +127,12 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.opened = !!this.writing.draft || !!this.writing.pending || this.saved.blocked;
     if (this.saved.blocked)
       this.message =
-        'Saved issue edits are unreadable or changed in another window. They were preserved. Reload saved writing to check again.';
+        `Saved ${this.subjectLabel()} edits are unreadable or changed in another window. They were preserved. Reload saved writing to check again.`;
     else if (!this.saved.durable)
-      this.message = 'Issue edits are only saved in this window. Saving waits for durable storage.';
+      this.message = `${this.subjectLabel()} edits are only saved in this window. Saving waits for durable storage.`;
   }
   private path(context: IssueEditorContext) {
-    return `factory/collaboration/repositories/${context.repository}/issues/${context.issue}`;
+    return `factory/collaboration/repositories/${context.repository}/${context.kind === 'pull' ? 'pulls' : 'issues'}/${context.issue}`;
   }
   private async identity(context: IssueEditorContext, signal: AbortSignal) {
     signal.throwIfAborted();
@@ -143,7 +147,9 @@ export class SodaFactoryIssueEditor extends LitElement {
       getJSON(context.transport, this.path(context) + '/capabilities', signal),
     ]);
     check(this.live(context, signal));
-    const issue = issueDetail(value, context.host, context.repository, context.issue);
+    const issue = context.kind === 'pull'
+      ? pullItem(value, context.host, context.repository, context.issue)
+      : issueDetail(value, context.host, context.repository, context.issue);
     check(
       issue.ref.external_id === context.parent.external_id &&
         scalarEditText(issue.title) &&
@@ -152,7 +158,17 @@ export class SodaFactoryIssueEditor extends LitElement {
     const digest = await editBodyDigest(issue.body);
     check(this.live(context, signal));
     this.latest = {external: issue.ref.external_id, title: issue.title, body: issue.body, digest};
-    this.allowed = issueEditAllowed(capabilities, context.repository, context.actor, context.parent);
+    if (context.kind === 'pull') {
+      check(context.parent.kind === 'pull');
+      check('head' in issue);
+      const head = object(capabilities).head;
+      check(head === null || typeof head === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(head));
+      this.allowed = (issue.head.commit === null || issue.head.commit === head) &&
+        pullActionAllowed(capabilities, context.repository, context.actor, context.parent, head as string | null, 'pull.edit');
+    } else {
+      check(context.parent.kind === 'issue');
+      this.allowed = issueEditAllowed(capabilities, context.repository, context.actor, context.parent);
+    }
   }
   private async refresh() {
     const context = this.current,
@@ -174,18 +190,18 @@ export class SodaFactoryIssueEditor extends LitElement {
         await this.readCurrent(context, signal);
         if (!this.saved.blocked)
           this.message = !this.saved.durable
-            ? 'Issue edits are only saved in this window.'
+            ? `${this.subjectLabel()} edits are only saved in this window.`
             : !this.allowed
               ? 'Editing is not available for this account.'
               : this.stale()
-                ? 'The issue changed. Review the current issue before choosing a new base.'
+                ? `The ${this.subjectLabel()} changed. Review the current version before choosing a new base.`
                 : '';
       }
     } catch {
       if (this.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original edit remains saved. Check status before retrying.'
-          : 'Issue edit access could not be checked. Your writing was preserved.';
+          : `${this.subjectLabel()} edit access could not be checked. Your writing was preserved.`;
     } finally {
       if (this.live(context, signal)) {
         this.busy = false;
@@ -205,7 +221,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       this.saved = {...this.saved, blocked: true};
       this.message = 'Saved writing changed. Your text is still shown; reload saved writing before saving.';
     }
-    if (result === 'unavailable') this.message = 'Issue edits are only saved in this window. No edit was submitted.';
+    if (result === 'unavailable') this.message = `${this.subjectLabel()} edits are only saved in this window. No edit was submitted.`;
     return result;
   }
   private async begin() {
@@ -230,7 +246,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       }
     } catch {
       if (this.live(context, signal))
-        this.message = 'The current issue could not be opened for editing. Saved writing was preserved.';
+        this.message = `The current ${this.subjectLabel()} could not be opened for editing. Saved writing was preserved.`;
     } finally {
       if (this.live(context, signal)) {
         this.busy = false;
@@ -274,7 +290,7 @@ export class SodaFactoryIssueEditor extends LitElement {
     };
     if (this.write(context, {draft: next}) === 'saved')
       this.message =
-        'Your changed fields were kept. Unchanged fields now use the current issue. Nothing was submitted.';
+        `Your changed fields were kept. Unchanged fields now use the current ${this.subjectLabel()}. Nothing was submitted.`;
     this.touch();
   }
   private async act(action: 'submit' | 'lookup' | 'cancel') {
@@ -298,7 +314,7 @@ export class SodaFactoryIssueEditor extends LitElement {
         check(this.allowed && (!shown || !shown.cancel));
         if (!shown && this.stale()) {
           this.message =
-            'The issue changed. Your draft was preserved. Review the current issue before choosing a new base.';
+            `The ${this.subjectLabel()} changed. Your draft was preserved. Review the current version before choosing a new base.`;
           return;
         }
         check(shown ? validEditDraft(shown.source) : this.writing.draft && validEditDraft(this.writing.draft));
@@ -333,7 +349,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       if (this.live(context, signal))
         this.message = this.writing.pending
           ? 'No final outcome was confirmed. The original edit remains saved. Check status before retrying.'
-          : 'Issue access or saved writing changed. Nothing was submitted; check access and reload saved writing.';
+          : `${this.subjectLabel()} access or saved writing changed. Nothing was submitted; check access and reload saved writing.`;
     } finally {
       if (this.live(context, signal)) {
         this.busy = false;
@@ -410,23 +426,17 @@ export class SodaFactoryIssueEditor extends LitElement {
     this.opened = !!next.draft;
     this.message =
       outcome.effect === 'committed'
-        ? 'Issue changes saved.'
+        ? `${this.subjectLabel()} changes saved.`
         : pending.cancel
           ? 'Edit submission cancelled. Your draft was preserved.'
-          : 'No changes were saved. Your draft was preserved. Check the current issue before retrying.';
+          : `No changes were saved. Your draft was preserved. Check the current ${this.subjectLabel()} before retrying.`;
     if (stored !== 'saved') this.message += ' The local saved state still needs storage.';
-    if (outcome.effect === 'committed')
-      this.dispatchEvent(
-        new CustomEvent('issue-edit-saved', {
-          detail: {
-            host: context.host,
-            actor: context.actor,
-            scope: context.scope,
-            parent: {...context.parent},
-            command: pending.command,
-          },
-        })
-      );
+    if (outcome.effect === 'committed') {
+      const detail = {host: context.host, actor: context.actor, scope: context.scope,
+        parent: {...context.parent}, command: pending.command};
+      if (context.kind === 'pull') this.dispatchEvent(new CustomEvent('pull-edit-saved', {detail}));
+      else this.dispatchEvent(new CustomEvent('issue-edit-saved', {detail}));
+    }
   }
   private continueWriting() {
     const context = this.current,
@@ -454,21 +464,22 @@ export class SodaFactoryIssueEditor extends LitElement {
   }
   render() {
     if (!this.current) return html``;
+    const subject = this.subjectLabel();
     if (!this.opened)
-      return html`<section class="soda-issue-editor" aria-label="Issue editor" aria-busy=${this.busy}>
-        <button type="button" ?disabled=${this.busy || !this.allowed} @click=${this.begin}>Edit issue</button>
+      return html`<section class="soda-issue-editor" aria-label=${`${subject} editor`} aria-busy=${this.busy}>
+        <button type="button" ?disabled=${this.busy || !this.allowed} @click=${this.begin}>Edit ${subject}</button>
         <p role="status">${this.message}</p>
       </section>`;
     const pending = this.writing.pending,
       draft = pending?.source ?? this.writing.draft,
       blocked = this.saved.blocked;
-    return html`<section class="soda-issue-editor" aria-label="Issue editor" aria-busy=${this.busy}>
-      <h3>Edit issue</h3>
+    return html`<section class="soda-issue-editor" aria-label=${`${subject} editor`} aria-busy=${this.busy}>
+      <h3>Edit ${subject}</h3>
       ${
         draft
           ? html`<label
                 >Title<input
-                  aria-label="Edit issue title"
+                  aria-label=${`Edit ${subject} title`}
                   .value=${draft.title}
                   ?readonly=${!!pending || blocked}
                   ?disabled=${this.busy}
@@ -477,7 +488,7 @@ export class SodaFactoryIssueEditor extends LitElement {
               <p>${new TextEncoder().encode(draft.title).length} / 255 title bytes</p>
               <label
                 >Description Markdown<textarea
-                  aria-label="Edit issue Markdown"
+                  aria-label=${`Edit ${subject} Markdown`}
                   rows="8"
                   .value=${draft.body}
                   ?readonly=${!!pending || blocked}
@@ -513,7 +524,7 @@ export class SodaFactoryIssueEditor extends LitElement {
                 ?disabled=${this.busy || blocked || !this.allowed || !draft || !validEditDraft(draft) || this.stale()}
                 @click=${() => this.act('submit')}
               >
-                Save issue
+                Save ${subject}
               </button>`
       }
       ${
@@ -532,10 +543,10 @@ export class SodaFactoryIssueEditor extends LitElement {
       ${
         !pending && draft && this.latest && this.stale()
           ? html`<details open>
-              <summary>Review current issue</summary>
+              <summary>Review current ${subject}</summary>
               <p>Keep your changed fields and use current values for fields you left unchanged.</p>
-              <input aria-label="Current issue title" readonly .value=${this.latest.title} /><textarea
-                aria-label="Current issue Markdown"
+              <input aria-label=${`Current ${subject} title`} readonly .value=${this.latest.title} /><textarea
+                aria-label=${`Current ${subject} Markdown`}
                 readonly
                 rows="4"
                 .value=${this.latest.body}
@@ -545,12 +556,12 @@ export class SodaFactoryIssueEditor extends LitElement {
                 ?disabled=${this.busy || blocked || !this.allowed || draft.original.external !== this.current.parent.external_id}
                 @click=${this.useCurrent}
               >
-                Use current issue as base
+                Use current ${subject} as base
               </button>
             </details>`
           : ''
       }
-      <button type="button" ?disabled=${this.busy} @click=${this.refresh}>Check issue edit access</button>
+      <button type="button" ?disabled=${this.busy} @click=${this.refresh}>Check ${subject} edit access</button>
       ${
         !pending
           ? html`<button
@@ -584,3 +595,5 @@ export class SodaFactoryIssueEditor extends LitElement {
   }
 }
 customElements.define('soda-factory-issue-editor', SodaFactoryIssueEditor);
+export class SodaFactoryPullEditor extends SodaFactoryIssueEditor {}
+customElements.define('soda-factory-pull-editor', SodaFactoryPullEditor);

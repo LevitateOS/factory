@@ -10,6 +10,8 @@ export interface EditorAddress {
   actor: string;
   repository: string;
   issue: string;
+  /** Pull edits use the PR route number in issue, with a separate record key. */
+  kind?: 'pull';
 }
 export interface EditorDraft {
   revision: string;
@@ -28,17 +30,19 @@ export interface EditorWriting {
 }
 export type EditorSaved = RetainedWriting<EditorWriting>;
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
-const fields = ({scope, host, actor, repository, issue}: EditorAddress): EditorAddress => ({
+const fields = ({scope, host, actor, repository, issue, kind}: EditorAddress): EditorAddress => ({
   scope,
   host,
   actor,
   repository,
   issue,
+  ...(kind === 'pull' ? {kind} : {}),
 });
 export function editorRecordKey(address: EditorAddress): string {
+  check(address.kind === undefined || address.kind === 'pull');
   check(issued(address.host) && id(address.actor) && id(address.repository) && id(address.issue));
   check(!!address.scope.trim() && address.scope.length <= 1024 && !/[\u0000-\u001f\u007f]/.test(address.scope));
-  return `soda-issue-edit:v1:${encodeURIComponent(address.scope)}:${address.host}:${address.actor}:${address.repository}:${address.issue}`;
+  return `soda-${address.kind === 'pull' ? 'pull' : 'issue'}-edit:v1:${encodeURIComponent(address.scope)}:${address.host}:${address.actor}:${address.repository}:${address.issue}`;
 }
 export function editFields(draft: EditorDraft): {title?: string; body?: string} {
   return {
@@ -103,7 +107,7 @@ function decode(raw: string | undefined, address: EditorAddress): EditorWriting 
   try {
     const row = object(JSON.parse(raw)),
       writing = object(row.writing);
-    check(Object.keys(row).length === 6 && Object.entries(fields(address)).every(([key, value]) => row[key] === value));
+    check(Object.keys(row).length === (address.kind === 'pull' ? 7 : 6) && Object.entries(fields(address)).every(([key, value]) => row[key] === value));
     check(Object.keys(writing).every((key) => ['draft', 'pending'].includes(key)));
     const result: EditorWriting = {};
     if (writing.draft !== undefined) result.draft = draft(writing.draft);
