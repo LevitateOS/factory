@@ -3677,3 +3677,11 @@ Closure needs an authorized reviewer and, for teams, an organization fixture/tes
 team, with causal results, normal reviewer-list readback, notification observations
 and replay showing no repeated request. Existing fixture/self-refusal evidence
 does not close that connected permission/notification dependency.
+
+The shared `pulls/reviewers.ts` controls now consume these existing canonical
+read/write routes for observed users/teams. Declared-transport browser recovery
+and cancellation passed in
+`/home/vince/tmp/factory-reviewers-ui-1106.iUi7en/final.log`; no actual request or
+notification was sent. This adds no positive connected permission evidence and
+does not close the second-account/organization dependency above. Arbitrary target
+lookup remains implementation work in the normal queue.

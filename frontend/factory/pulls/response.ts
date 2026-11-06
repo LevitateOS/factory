@@ -144,6 +144,30 @@ export function pullReview(value: unknown, repository: string, number: string) {
     stale: review.stale === true, official: review.official === true, submittedAt: date(review.submitted_at)};
 }
 
+export function pullReviewRequests(value: unknown, host: string, repository: string, number: string) {
+  const snapshot = object(value), parent = pullRef(snapshot.pull, repository, number);
+  available(snapshot.observation);
+  check(Array.isArray(snapshot.items) && snapshot.items.length <= 1000 && typeof snapshot.all_targets_visible === 'boolean');
+  const seen = new Set<string>();
+  const items = snapshot.items.map(value => {
+    const row = object(value), externalID = text(row.external_id, 1024);
+    check(!!externalID && !seen.has(externalID) && typeof row.as_code_owner === 'boolean');
+    seen.add(externalID);
+    if (row.reviewer === null) return {externalID, label: 'Reviewer unavailable', target: null};
+    const reviewer = object(row.reviewer), label = text(reviewer.label, 512);
+    check(['user', 'bot', 'team', 'other'].includes(String(reviewer.kind)) && !!label.trim());
+    const ref = reviewer.kind === 'user' ? reviewer.actor : reviewer.kind === 'team' ? reviewer.team : null;
+    let target: {kind: 'user' | 'team'; id: string; label: string} | null = null;
+    if (ref !== null) {
+      const identity = object(ref);
+      check(id(identity.id) && identity.host === host);
+      target = {kind: reviewer.kind as 'user' | 'team', id: identity.id as string, label};
+    }
+    return {externalID, label, target};
+  });
+  return {pull: parent, items, allTargetsVisible: snapshot.all_targets_visible as boolean};
+}
+
 export interface PullThreadView {
   externalID: string;
   anchor: ReviewAnchor | null;

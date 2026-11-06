@@ -11,6 +11,7 @@ import type {SodaFactoryPullReview} from './review.js';
 import './merge.js';
 import './inline.js';
 import './thread-resolution.js';
+import './reviewers.js';
 import '../issues/comment.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
@@ -296,6 +297,13 @@ export class SodaFactoryPull extends LitElement {
           ${!this.view.threads.length ? html`<p>No inline discussions on this page.</p>` : ''}
         </section>`}
         <nav aria-label="Pull request pages"><button type="button" @click=${this.back} ?disabled=${this.view.busy || !this.previous.length}>Previous page</button><button type="button" @click=${this.next} ?disabled=${this.view.busy || !this.view.next}>Next page</button></nav>
+        ${this.tab === 'reviews' && context.commandScope ? html`<soda-factory-pull-reviewers
+          .context=${{transport: context.transport, host: context.host, actor: context.actor,
+            repository: context.repository, pull: context.pull, scope: context.scope,
+            parent: pull.ref, commandScope: context.commandScope}}
+          .participants=${[...(pull.author ? [{kind: 'user' as const, id: pull.author.id, label: pull.author.login}] : []),
+            ...this.view.reviews.flatMap(review => review.authorID ? [{kind: 'user' as const, id: review.authorID, label: review.author}] : [])]}
+        ></soda-factory-pull-reviewers>` : ''}
         ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-review
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,

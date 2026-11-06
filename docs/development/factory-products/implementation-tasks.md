@@ -30896,3 +30896,23 @@ retention and explicit discard with zero writes:
 `/home/vince/tmp/factory-inline-editor-1106.lpK4tt/final.log`.
 TypeScript, production UI build and whitespace passed; connected desktop and
 installed qualification remain open.
+
+### T11-WRITES: shared reviewer request/removal controls (2026-11-06)
+
+The Reviews tab now reads current requested reviewers and uses the existing
+journaled user/team request, lookup and cancel API. Canonical namespaces remain
+distinct. New requests can select current-page PR participants or previously
+observed reviewer targets; current user/team requests can be removed. One durable
+command survives a remount, lost reply or cancellation without automatic resend.
+Hidden/unmapped targets remain visible without acquiring a writable identity.
+Incomplete reviewer visibility makes changes unavailable. Reviewer requests are
+independent of commit selection; provider admission remains authoritative.
+
+The existing emitted-component Chromium journey passed canonical user/team
+selection/readback, lost-reply recovery after remount, original-command cancellation
+and hidden-snapshot refusal:
+`/home/vince/tmp/factory-reviewers-ui-1106.iUi7en/final.log`.
+TypeScript and the production UI build passed. This is declared-transport
+component evidence. Arbitrary username/team lookup is still unimplemented;
+positive connected requests need the deferred second account/organization fixture.
+Connected desktop/installed qualification and T11 remain open.
