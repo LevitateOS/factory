@@ -131,6 +131,12 @@ impl LaunchIntent {
     pub fn connection(&self) -> &str {
         &self.wire.connection
     }
+    pub(super) fn executable(&self) -> &Path {
+        Path::new(&self.wire.native.tool.executable)
+    }
+    pub(super) fn tool_sha256(&self) -> &str {
+        &self.wire.native.tool.sha256
+    }
     pub(super) fn scope(&self) -> io::Result<ReceiptScope<'_>> {
         let role = match self.wire.role.as_str() {
             "soda-coder" => Role::Coder,

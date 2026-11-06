@@ -13,7 +13,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -57,6 +57,8 @@ pub struct NativeSupervisor {
     products: Option<crate::product::Products>,
     github: Option<crate::github_provider::Client>,
     collaboration: Option<crate::collaboration::Port>,
+    executions: Option<Arc<Mutex<crate::factory_provider::Executions>>>,
+    execution_profile: PathBuf,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
