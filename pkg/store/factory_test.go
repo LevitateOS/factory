@@ -3,6 +3,8 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -120,6 +122,67 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	approval := project.ApprovalDecision{ID: "d223456789012345678901234", Project: grant.Project, Requirement: requirement.ID, Approver: int64(actor.ID), EffectsDigest: strings.Repeat("d", 64), ReadinessDigest: strings.Repeat("e", 64), Verified: true, Native: nativeEnvironment}
 	if err := s.AdmitApprovalDecision(ctx, approval); err != nil {
 		t.Fatal("native approval", err)
+	}
+	// Admit one native packet through the same real grants, queue and allowance
+	// transaction. Tool/process/source bytes here remain declared fixture facts.
+	policy := grantTestPolicy()
+	policy.Repository, policy.GrantedBy = int64(repository.ID), int64(actor.ID)
+	connection := factory.NewID()
+	for _, err := range []error{
+		s.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
+		s.SaveRepositoryPolicy(ctx, policy),
+		s.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), Active: true}),
+		s.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Generation: 1, Connection: connection, GrantID: "native-fixture", Roles: []string{project.RoleCoder}, AllowanceMinutes: 120, Active: true}),
+	} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	assignment, reservation, dispatchRun, view := dispatchTestPacket(t, time.Now().UTC())
+	assignment.Repository, assignment.ActorID, assignment.ProjectID = int64(repository.ID), int64(actor.ID), grant.Project
+	assignment.Connection, assignment.SourceCommit = connection, requirement.SourceCommit
+	assignment.Authority.SponsorshipConnection = connection
+	assignment.Authority.Environment, assignment.Authority.RequirementsID, assignment.Authority.ApprovalID = grant.Revision, requirement.ID, approval.ID
+	preparedOwner := execution.NativeWorkspaceRef{Profile: controller.Profile, InstanceID: factory.NewID(), WorktreeID: assignment.Preparation}
+	prepared := project.Preparation{ID: assignment.Preparation, Project: grant.Project, Role: assignment.Role, SourceCommit: assignment.SourceCommit, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1)}
+	preparedState := execution.PreparationState{ID: prepared.ID, Project: prepared.Project, Role: prepared.Role, SourceCommit: prepared.SourceCommit, SetupDigest: prepared.SetupDigest, Native: &preparedOwner, SourceBundleSHA256: strings.Repeat("f", 64), Phase: project.PrepareReady, Ready: true}
+	if _, _, err := s.AdmitPreparation(ctx, execution.PreparationRecord{Preparation: prepared, State: preparedState, Native: &preparedOwner}); err != nil {
+		t.Fatal(err)
+	}
+	assignment.Prompt, err = factory.BuildDispatchPrompt(factory.PromptInputs{Repository: assignment.Repository, Issue: assignment.Issue, NativeRev: assignment.NativeRev, Phase: assignment.Phase, AcceptanceID: assignment.Acceptance, TargetBranch: policy.TargetBranch, SourceCommit: assignment.SourceCommit, Preparation: assignment.Preparation, Harness: policy.Roles[assignment.Role].Harness, Model: assignment.Model, Role: assignment.Role, ProviderConnection: connection, RequiredChecks: policy.Checks, AttemptLimits: factory.DefaultAttemptLimits(), RequirementsID: requirement.ID, ApprovalID: approval.ID, Title: "Native admission fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	promptSum := sha256.Sum256(assignment.Prompt)
+	assignment.PromptSHA = hex.EncodeToString(promptSum[:])
+	tool := execution.NativeTool{Harness: policy.Roles[assignment.Role].Harness, Version: assignment.HarnessVers, SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}
+	assignment.NativeTool = &tool
+	reservation.Repository, reservation.Connection = assignment.Repository, connection
+	dispatchRun.ProjectID, dispatchRun.InputSHA, dispatchRun.Image = grant.Project, assignment.SourceCommit, ""
+	dispatchRun.Native = &execution.NativeRecord{Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Retirement: execution.NotStarted,
+		Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: controller.Profile, InstanceID: preparedOwner.InstanceID, WorktreeID: preparedOwner.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}
+	view.Repository = assignment.Repository
+	control := dispatchTestControlFor(t, s, assignment)
+	nativeLaunch := execution.NativeLaunch{Workspace: preparedOwner, Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Runtime: controller.ID, PlacementGeneration: placed.Generation, TrustMode: "isolated_system_worker", BrokerRun: dispatchRun.Native.Provenance.BrokerRun}
+	staleLaunch := nativeLaunch
+	staleLaunch.PlacementGeneration--
+	if err := s.RecordNativeDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view, staleLaunch); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("stale native dispatch admitted", err)
+	}
+	assertDispatchPacketAbsent(t, s, assignment)
+	if err := s.RecordDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("native packet used appliance admission", err)
+	}
+	if err := s.RecordNativeDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view, nativeLaunch); err != nil {
+		t.Fatal("native dispatch packet", err)
+	}
+	capturedNative, err := s.FactoryRun(ctx, dispatchRun.ID)
+	if err != nil || capturedNative.Admission == nil || capturedNative.Admission.Native == nil || capturedNative.Native.Intent == "" {
+		t.Fatal("native dispatch lost admission or intent", err)
+	}
+	intent, err := execution.ParseNativeIntent(capturedNative.Native.Intent)
+	if err != nil || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
+		t.Fatal("native intent differs from admitted packet", err)
 	}
 	wrongEnvironment := *nativeEnvironment
 	wrongEnvironment.Generation--

@@ -31,6 +31,9 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 		if r.Admission.Native == nil || r.Admission.Native.TrustMode != "isolated_system_worker" || !r.Admission.Native.MatchesRecord(*r.Native) || r.Native.Sealed || r.Native.Retirement == execution.Retired {
 			return empty, execution.ErrLaunch
 		}
+		if a.NativeTool != nil && *a.NativeTool != r.Admission.Native.Tool {
+			return empty, execution.ErrLaunch
+		}
 		native := *r.Admission.Native
 		request.Native = &native
 	} else {

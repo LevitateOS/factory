@@ -31364,3 +31364,14 @@ affected appliance/MCP checks pass in `/home/vince/tmp/factory-native-enrollment
 TypeScript, desktop/native/Go builds and dependency boundaries pass. No agent or
 provider task ran. T12-PLACEMENT, T09-NATIVE-EXECUTOR, T09-EXECUTION and D3 remain
 open pending native policy/dispatch/port composition and the full execution proof.
+
+The Store now has an explicit native dispatch entry capturing the validated
+intent atomically with assignment/reservation/run. Native tool identity and the
+prepared bundle digest are retained without an appliance image. Current native
+enrollment, preparation and placement must match; the appliance entry remains
+fenced against native packets. PostgreSQL positive capture, stale-placement
+refusal and affected appliance/retry checks passed in
+`/home/vince/tmp/factory-native-dispatch-1106.jOhC26/run2.log`; Go compilation and
+boundaries pass. Preparation/tool facts are declared fixtures. The next consumer
+must connect the Go planner and Rust ports; no worker launch or D3 closure is
+proved by this transaction check.

@@ -58,6 +58,12 @@ func EncodeNativeIntent(request LaunchRequest) (string, error) {
 	intent := NativeIntent{Kind: "factory_native_launch_intent", Version: 1,
 		Run: run.ID, Workspace: run.Project, Role: run.Role, SourceCommit: run.SourceCommit,
 		Connection: run.Connection, Deadline: run.Deadline, Native: *request.Native}
+	return intent.Encode()
+}
+
+// Encode preserves the single defining intent shape for transactional capture
+// and for the semantic launch consumer. Shape validity is not admission.
+func (intent NativeIntent) Encode() (string, error) {
 	if intent.Validate() != nil {
 		return "", ErrNativeIntent
 	}

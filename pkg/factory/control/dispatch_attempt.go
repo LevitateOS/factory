@@ -225,7 +225,7 @@ func admissionWait(err error) *planWait {
 		return waitFor(WaitAllowance, "attempt active-time allowance is exhausted")
 	case errors.Is(err, factory.ErrAttemptClosed):
 		return waitFor(WaitAttemptRecorded, "attempt is terminal; explicit Retry is required")
-	case errors.Is(err, store.ErrAdmissionChanged):
+	case errors.Is(err, store.ErrAdmissionChanged), errors.Is(err, factory.ErrPlacement):
 		return waitFor(WaitAuthority, "grants changed during dispatch")
 	case errors.Is(err, store.ErrCompletionFenced):
 		return waitFor(WaitReassessmentPending, "completion fence holds admissions until the reassessment decision releases")

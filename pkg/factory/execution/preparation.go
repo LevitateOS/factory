@@ -77,25 +77,29 @@ type PreparationLauncher interface {
 // PreparationState preserves the appliance's retained field shape. Native
 // workspaces supply their captured owner reference and no container identity.
 type PreparationState struct {
-	ID           string                 `json:"id"`
-	Project      string                 `json:"project"`
-	Role         string                 `json:"role"`
-	Phase        string                 `json:"phase"`
-	Container    string                 `json:"container"`
-	SourceCommit string                 `json:"source_commit"`
-	SetupDigest  string                 `json:"setup_digest"`
-	Tools        []project.ResolvedTool `json:"tools,omitempty"`
-	Missing      string                 `json:"missing,omitempty"`
-	SetupExit    *int                   `json:"setup_exit,omitempty"`
-	CheckExit    *int                   `json:"check_exit,omitempty"`
-	Output       string                 `json:"output,omitempty"`
-	Ready        bool                   `json:"ready"`
-	Stopped      bool                   `json:"stopped"`
-	Retirement   string                 `json:"retirement,omitempty"`
-	Native       *NativeWorkspaceRef    `json:"native,omitempty"`
+	ID                 string                 `json:"id"`
+	Project            string                 `json:"project"`
+	Role               string                 `json:"role"`
+	Phase              string                 `json:"phase"`
+	Container          string                 `json:"container"`
+	SourceCommit       string                 `json:"source_commit"`
+	SetupDigest        string                 `json:"setup_digest"`
+	Tools              []project.ResolvedTool `json:"tools,omitempty"`
+	Missing            string                 `json:"missing,omitempty"`
+	SetupExit          *int                   `json:"setup_exit,omitempty"`
+	CheckExit          *int                   `json:"check_exit,omitempty"`
+	Output             string                 `json:"output,omitempty"`
+	Ready              bool                   `json:"ready"`
+	Stopped            bool                   `json:"stopped"`
+	Retirement         string                 `json:"retirement,omitempty"`
+	Native             *NativeWorkspaceRef    `json:"native,omitempty"`
+	SourceBundleSHA256 string                 `json:"source_bundle_sha256,omitempty"`
 }
 
 func (s PreparationState) ValidateFor(a PreparationAddress) error {
+	if s.SourceBundleSHA256 != "" && (a.Native == nil || !validDigest(s.SourceBundleSHA256)) {
+		return ErrPreparation
+	}
 	if a.Validate() != nil || s.Project != a.Workspace || s.ID != a.ID ||
 		(s.Phase == "" && !s.Stopped || s.Phase != "" && !project.ValidPreparePhase(s.Phase)) ||
 		(s.Role != "" && !project.ValidFactoryRole(s.Role)) || s.Ready != (s.Phase == project.PrepareReady) || s.Ready && s.Stopped ||

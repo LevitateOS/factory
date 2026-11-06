@@ -35,9 +35,17 @@ withdrawal, reopen and appliance compatibility passed in
 `/home/vince/tmp/factory-native-enrollment-1106.ReaRoJ/run.log`. WebKit enrollment,
 withdrawal and generation renewal passed in
 `/home/vince/tmp/factory-native-enrollment-ui-1106.12xpFp/`; the disposable local
-grant was removed. No checkout preparation or agent ran. Native dispatch still
-refuses; atomic dispatch/intent, native execution ports, current credential/MCP
-composition and actual provider/cancellation/retirement evidence remain required.
+grant was removed. No checkout preparation or agent ran.
+
+The explicit `Store.RecordNativeDispatchPacket` entry now checks current native
+enrollment, preparation/source/tool and placement, then captures intent with the
+assignment, reservation and run in one transaction. The ordinary appliance entry
+continues to refuse native work. Real PostgreSQL positive capture, stale-placement
+refusal and affected appliance/retry compatibility passed in
+`/home/vince/tmp/factory-native-dispatch-1106.jOhC26/run2.log`. Tool/preparation
+facts in this check were declared fixtures. The Go dispatch planner and Rust
+effect ports are not composed; current credential/MCP admission, actual provider
+execution, cancellation, settlement and retirement/restart remain unverified.
 
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to

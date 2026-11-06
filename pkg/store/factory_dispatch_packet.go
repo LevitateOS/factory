@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -52,6 +53,16 @@ var (
 // transaction. Concurrent passes serialize here, so only room that
 // actually exists is admitted; the losers wait instead of launching.
 func (s *Store) RecordDispatchPacket(ctx context.Context, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView) error {
+	return s.recordDispatchPacket(ctx, expected, a, r, run, view, nil)
+}
+
+// RecordNativeDispatchPacket is the native producer's explicit admission entry.
+// Retained native observations cannot enter the appliance packet by accident.
+func (s *Store) RecordNativeDispatchPacket(ctx context.Context, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, native execution.NativeLaunch) error {
+	return s.recordDispatchPacket(ctx, expected, a, r, run, view, &native)
+}
+
+func (s *Store) recordDispatchPacket(ctx context.Context, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, native *execution.NativeLaunch) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -60,7 +71,7 @@ func (s *Store) RecordDispatchPacket(ctx context.Context, expected factory.Issue
 	if err = checkDispatchOpenTx(ctx, tx, a.Repository); err != nil {
 		return err
 	}
-	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, false); err != nil {
+	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, false, native); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -198,7 +209,7 @@ func fundDispatchPacketAttemptTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	return admitAttemptAllowanceTx(ctx, tx, a.Repository, a.Issue, a.AttemptRoot, &grants.policy.AttemptLimits, run.Deadline, now)
 }
 
-func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, freshAttempt bool) error {
+func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, freshAttempt bool, native *execution.NativeLaunch) error {
 	if err := checkDispatchPacketInputs(expected, a, r, run, view); err != nil {
 		return err
 	}
@@ -244,20 +255,27 @@ func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.Is
 	if err = checkAssignmentAuthorityTx(ctx, tx, a.Authority, a, grants); err != nil {
 		return err
 	}
-	if run.Native != nil {
-		return ErrAdmissionChanged
-	}
-	if err = checkApplianceRunPreparationTx(ctx, tx, a, a.AttemptRoot != a.ID); err != nil {
-		return err
+	if native != nil {
+		run, err = admitNativeDispatchTx(ctx, tx, a, run, grants, *native)
+		if err != nil {
+			return err
+		}
+	} else {
+		if run.Native != nil || a.NativeTool != nil || grants.environment.Native != nil {
+			return ErrAdmissionChanged
+		}
+		if err = checkApplianceRunPreparationTx(ctx, tx, a, a.AttemptRoot != a.ID); err != nil {
+			return err
+		}
+		tool, err := factory.AdoptedToolIdentity(a, run.Image)
+		if err != nil {
+			return err
+		}
+		run.Admission = &factory.RunAdmission{Authority: a.Authority, Policy: grants.policy, Profile: grants.environment.Profile, Tool: &tool}
 	}
 	if err = checkCoderPreparationCustodyTx(ctx, tx, a); err != nil {
 		return err
 	}
-	tool, err := factory.AdoptedToolIdentity(a, run.Image)
-	if err != nil {
-		return err
-	}
-	run.Admission = &factory.RunAdmission{Authority: a.Authority, Policy: grants.policy, Profile: grants.environment.Profile, Tool: &tool}
 	if err = run.Validate(); err != nil {
 		return err
 	}
@@ -1075,7 +1093,7 @@ func checkAssignmentAuthorityTx(ctx context.Context, t *sql.Tx, expected factory
 		permitted = permitted || role == a.Role
 	}
 	if !grants.policy.Enabled || grants.policy.Paused || !grants.operator.Active ||
-		!grants.sponsorship.Active || !permitted || !grants.environment.Active || grants.environment.Profile == nil {
+		!grants.sponsorship.Active || !permitted || !grants.environment.Active || grants.environment.Validate() != nil {
 		return ErrAdmissionChanged
 	}
 	if grants.sponsorship.ActorID != a.ActorID || grants.sponsorship.ProjectID != a.ProjectID {

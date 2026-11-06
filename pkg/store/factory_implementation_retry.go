@@ -243,7 +243,7 @@ func (s *Store) RecordImplementationRetryPacket(ctx context.Context, decision fa
 	if err = checkDispatchOpenTx(ctx, tx, a.Repository); err != nil {
 		return err
 	}
-	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, false); err != nil {
+	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, false, nil); err != nil {
 		return err
 	}
 	return tx.Commit()

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -252,6 +253,7 @@ type Assignment struct {
 	Harness               string                    `json:"harness"`
 	HarnessVers           string                    `json:"harness_version"`
 	AdoptedHarness        project.FactoryHarnessPin `json:"adopted_harness,omitempty"`
+	NativeTool            *execution.NativeTool     `json:"native_tool,omitempty"`
 	Model                 string                    `json:"model"`
 	Connection            string                    `json:"connection"`
 	SourceCommit          string                    `json:"source_commit"`
@@ -499,6 +501,10 @@ func checkAssignmentExecution(a Assignment) error {
 		if err := a.AdoptedHarness.Validate(); err != nil {
 			return errors.New("invalid assignment adopted harness: " + err.Error())
 		}
+	}
+	if a.NativeTool != nil && (a.NativeTool.Validate() != nil || a.AdoptedHarness != (project.FactoryHarnessPin{}) ||
+		a.Harness != a.NativeTool.Harness+"-"+a.NativeTool.Version || a.HarnessVers != a.NativeTool.Version) {
+		return errors.New("invalid native assignment tool")
 	}
 	if a.Model == "" || len(a.Model) > 128 {
 		return errors.New("invalid assignment model")
