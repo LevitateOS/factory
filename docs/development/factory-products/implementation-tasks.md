@@ -29,6 +29,10 @@ local-owner capacity/repository/workspace consent and policy settings (A02/A03).
 The latter passed the existing composed native product check with declared
 provider permissions; connected/installed authority and A04 review semantics
 remain open. Exact evidence and limitations live in the audit register.
+Native planning source reads and completion capture now also resolve enrolled
+workspaces (A05); the actual local source/worker/restart integration passed.
+Dependent planning dispatch, delivery/repair and lifecycle journeys still need
+their matching proof before A05 can be considered fully resolved.
 
 ## Remaining product milestones (2026-11-06)
 

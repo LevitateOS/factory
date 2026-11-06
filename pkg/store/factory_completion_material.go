@@ -36,8 +36,8 @@ func completionMaterialTx(ctx context.Context, tx *sql.Tx, repository int64) (*f
 	if repository <= 0 {
 		return nil, errors.New("completion material lacks its repository")
 	}
-	var projectID string
-	if err := tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository).Scan(&projectID); err != nil {
+	projectID, err := recordedExecutionWorkspaceTx(ctx, tx, repository)
+	if err != nil {
 		return nil, errors.New("completion material lacks its project")
 	}
 	needed := make(map[string]bool)

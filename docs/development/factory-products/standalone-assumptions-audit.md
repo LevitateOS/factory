@@ -32,6 +32,18 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A05 — native source integration verified; workflow qualification pending.**
+  Planning assembly and source recheck now use the enrolled execution workspace.
+  Completion source/material and priority capture share a transactional recorded
+  workspace resolver; delivery/verification/repair use the execution resolver.
+  Pause/resume use recorded ownership and retry uses the canonical run view,
+  rather than an appliance Project join. The existing actual native integration
+  passed planning's approved README bytes, source-qualified completion capture,
+  overview and admitted worker/MCP/artifact/restart settlement in
+  `/home/vince/tmp/fwrk6.DHbN7l/run.log`. Go build and boundaries passed.
+  Provider authority/policy were declared fixture inputs; no model call ran.
+  Native planning dispatch/choice, delivery/repair and pause/resume/retry journeys
+  remain unqualified, as do connected/installed and broad security gates.
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.
   Local-owner admission replaces remote-admin admission for local resource and

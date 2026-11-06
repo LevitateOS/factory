@@ -79,6 +79,51 @@ func (s *Store) ExecutionWorkspace(ctx context.Context, repository collaboration
 	return g.Project, g.Native, nil
 }
 
+// recordedExecutionWorkspaceTx resolves the selected logical owner for read
+// projections, including withdrawn environments. Reading historical material
+// does not admit execution; ExecutionWorkspace separately checks live enrollment.
+func recordedExecutionWorkspaceTx(ctx context.Context, tx *sql.Tx, repository int64) (string, error) {
+	var raw []byte
+	err := tx.QueryRowContext(ctx, `SELECT data FROM project_environment_grants WHERE repository=$1`, repository).Scan(&raw)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if err == nil {
+		var grant project.EnvironmentGrant
+		if json.Unmarshal(raw, &grant) != nil || grant.Validate() != nil || grant.Repository != repository {
+			return "", ErrAdmissionChanged
+		}
+		if grant.Native != nil {
+			var workspace string
+			err = tx.QueryRowContext(ctx, `SELECT id FROM factory_native_workspaces
+ WHERE id=$1 AND repository=$2 AND runtime=$3 AND profile=$4`,
+				grant.Project, repository, grant.Native.Runtime, grant.Native.Profile).Scan(&workspace)
+			return workspace, err
+		}
+	}
+	var workspace string
+	err = tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository).Scan(&workspace)
+	return workspace, err
+}
+
+// RecordedExecutionWorkspace supplies the repository owner for observation and
+// shutdown even after grants or placement are withdrawn. It admits no new work.
+func (s *Store) RecordedExecutionWorkspace(ctx context.Context, repository collaboration.RepositoryID) (string, error) {
+	if repository <= 0 {
+		return "", collaboration.ErrIdentityConflict
+	}
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	workspace, err := recordedExecutionWorkspaceTx(ctx, tx, int64(repository))
+	if err != nil {
+		return "", err
+	}
+	return workspace, tx.Commit()
+}
+
 // A native workspace is a stable logical owner for isolated checkouts. It never
 // identifies a user-owned directory, container Project or current live process.
 func bindNativeEnvironmentTx(ctx context.Context, tx *sql.Tx, g project.EnvironmentGrant) (project.EnvironmentGrant, error) {

@@ -22,11 +22,11 @@ func (c *Coordinator) ApprovedProjectCheckCatalog(ctx context.Context, a factory
 	}
 	bounded, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	proj, err := c.Store.NativeProjectForCollaborationRepository(bounded, collaboration.RepositoryID(a.Repository))
+	workspace, _, err := c.Store.ExecutionWorkspace(bounded, collaboration.RepositoryID(a.Repository))
 	if err != nil {
 		return empty, err
 	}
-	if proj.ID != a.ProjectID {
+	if workspace != a.ProjectID {
 		return empty, errors.New("planning catalog project differs from repository")
 	}
 	stored, err := c.Store.Preparation(bounded, a.Preparation)

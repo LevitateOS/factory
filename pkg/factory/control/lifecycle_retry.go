@@ -143,14 +143,14 @@ func (c *Coordinator) admitRetryRun(ctx context.Context, runID string) (factory.
 	if !run.Reconciled {
 		return empty, ErrPendingRuns{Runs: []string{runID}}
 	}
-	repository, err := c.Store.CollaborationRepositoryForNativeProject(ctx, run.ProjectID)
+	view, err := c.Store.FactoryRunView(ctx, run.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return empty, factory.ErrNotFound
 		}
 		return empty, err
 	}
-	effective, err := c.EffectiveAuthority(ctx, int64(repository.ID))
+	effective, err := c.EffectiveAuthority(ctx, view.Repository)
 	if err != nil {
 		return empty, err
 	}

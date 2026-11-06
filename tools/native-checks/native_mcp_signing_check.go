@@ -1368,6 +1368,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: actor, Enabled: true, TargetBranch: "refs/heads/main", Roles: roles, Checks: []string{"fixture/check"}, MergeMethod: factory.MergeFastForward,
 		Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	if prior, err := db.RepositoryPolicy(ctx, repository); err == nil {
+		policy.Revision = prior.Revision
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
 	for _, err := range []error{
 		db.SaveRepositoryPolicy(ctx, policy), db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: actor, MaxConcurrentRuns: 1}),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: repository, GrantedBy: actor, Active: true}),
@@ -1399,7 +1404,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture", SHA256: hex.EncodeToString(toolSum[:]), Executable: input.Executable}
 	now := time.Now().UTC().Truncate(time.Second)
 	aid := factory.NewID()
-	authority := factory.AuthorityRef{Policy: 1, Operator: 1, Capacity: 1, Sponsorship: 1, SponsorshipConnection: input.Connection, Environment: environment.Revision, RequirementsID: p.Requirements.ID, ApprovalID: p.Approval.ID}
+	authority := factory.AuthorityRef{Policy: policy.Revision + 1, Operator: 1, Capacity: 1, Sponsorship: 1, SponsorshipConnection: input.Connection, Environment: environment.Revision, RequirementsID: p.Requirements.ID, ApprovalID: p.Approval.ID}
 	a := factory.Assignment{ID: aid, AttemptRoot: aid, PublicationAssignment: aid, ProjectID: p.Project, Role: project.RoleCoder, ActorID: actor, Repository: repository, Issue: 3, NativeRev: 1, Acceptance: acceptance.ID, Preparation: p.ID,
 		Subject: factory.ExecutionSubject{Kind: factory.SubjectIssue, Issue: &factory.IssueSubject{Issue: 3, Acceptance: acceptance.ID}}, Phase: project.ExecutionInvestigate,
 		Harness: "muse-fixture", HarnessVers: tool.Version, NativeTool: &tool, Model: roles[project.RoleCoder].Model, Connection: input.Connection, SourceCommit: p.SourceCommit, Prompt: prompt, PromptSHA: project.FactoryPromptDigest(prompt),
@@ -1539,6 +1544,11 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 		change := factoryservice.PolicyChange{Enabled: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward,
 			RequiredChecks: []string{"fixture/check"}, PublishActor: selected, CreateActor: selected, ReviewActor: selected, MergeActor: selected,
 			Roles: map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: run.Model}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: run.Model}}}
+		if prior, err := db.RepositoryPolicy(ctx, int64(repository)); err == nil {
+			change.ExpectedRevision = prior.Revision
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
 		policies := factoryservice.Policies{Writer: coordinator,
 			WriteAccess: func(ctx context.Context, viewer collaboration.ActorID, repo int64) error {
 				if viewer != actor || repo != int64(repository) {
@@ -1633,7 +1643,16 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
-	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf([]string{"setup.sh", "check.sh"}, nil, tools), Native: native}
+	var sourceInputs map[string]string
+	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
+		content, err := os.ReadFile(os.Getenv("SODA_NATIVE_CHECK_SOURCE_README"))
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(content)
+		sourceInputs = map[string]string{"README.md": hex.EncodeToString(sum[:])}
+	}
+	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), SourceInputs: sourceInputs, InputsDigest: project.PreparationInputsDigestOf([]string{"setup.sh", "check.sh"}, sourceInputs, tools), Native: native}
 	if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
 		return err
 	}
@@ -1892,6 +1911,48 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 	if err := check(port.RequestSetup, factoryservice.RequestSetupReady); err != nil {
 		return err
 	}
+	coordinator := control.NewCoordinator(db, port, port)
+	planning, preparation, wait, err := coordinator.AssembleIntentPlanningInput(ctx, revision, factory.IntentPlanningPropose)
+	if err != nil || wait != nil || preparation.Project != record.Preparation.Project || len(planning.Inspected) != len(record.Preparation.Requirements.SourceInputs) {
+		return fmt.Errorf("native workspace planning input: wait=%+v err=%v", wait, err)
+	}
+	for _, inspected := range planning.Inspected {
+		sum := sha256.Sum256([]byte(inspected.Evidence))
+		if inspected.Commit != record.Preparation.SourceCommit || hex.EncodeToString(sum[:]) != record.Preparation.Requirements.SourceInputs[inspected.Path] {
+			return errors.New("native planning input differs from actual approved source")
+		}
+	}
+	// Completion material needs an explicit repository policy. This fixture
+	// declares its account authority; it never enables automated dispatch.
+	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{
+		Profile:  collaboration.Profile{ID: port.Config.Profile, Name: "Native source fixture"},
+		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()),
+		Account: "native-source-owner", Login: "native-source-owner",
+	})
+	if err != nil || binding.Actor.ID != actor {
+		return errors.New("completion fixture account mapping changed")
+	}
+	refFor := func(kind string) factory.ActorBindingRef {
+		return factory.ActorBindingRef{Kind: kind, ActorID: int64(actor), NativeProfile: port.Config.Profile, NativeConnection: binding.Connection.ID}
+	}
+	if err := db.SaveRepositoryPolicy(ctx, factory.RepositoryPolicy{
+		Repository: repository, GrantedBy: int64(actor), TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward,
+		ReassessmentMinutes: factory.EffectiveReassessmentMinutes(0), AttemptLimits: factory.EffectiveAttemptLimits(nil),
+		Checks: []string{"fixture/check"}, Roles: map[string]factory.RoleSelection{
+			project.RoleCoder:    {Harness: project.FactoryHarnessMuse, Model: "fixture"},
+			project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: "fixture"}},
+		Publish: refFor(factory.OpRefPublish), Create: refFor(factory.OpPRCreate), Review: refFor(factory.OpReviewSubmit), Merge: refFor(factory.OpMerge),
+	}); err != nil {
+		return err
+	}
+	authority, err := db.CompletionSourceContext(ctx, repository)
+	if err != nil || authority.ProjectID != record.Preparation.Project {
+		return fmt.Errorf("native completion workspace authority: %w", err)
+	}
+	if _, err := db.CaptureCompletionLocalAtSource(ctx, repository, authority, record.Preparation.SourceCommit); err != nil {
+		return fmt.Errorf("native completion source material: %w", err)
+	}
+	fmt.Println("PASS: native draft planning reads actual approved source and completion capture resolves native workspace without appliance Project")
 	stale := port
 	stale.Instance = factory.NewID()
 	if err := check(stale.RequestSetup, factoryservice.RequestSetupPreparing); err != nil {

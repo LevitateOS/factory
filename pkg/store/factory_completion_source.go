@@ -129,8 +129,8 @@ func (s *Store) CompletionSourceContext(ctx context.Context, repository int64) (
 		return factory.CompletionAuthority{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	var projectID string
-	if err = tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository).Scan(&projectID); err != nil {
+	projectID, err := recordedExecutionWorkspaceTx(ctx, tx, repository)
+	if err != nil {
 		return factory.CompletionAuthority{}, errors.New("completion source context lacks its project")
 	}
 	authority, err := completionAuthorityTx(ctx, tx, repository, projectID)
@@ -272,8 +272,8 @@ func (s *Store) CaptureCompletionLocalAtSource(ctx context.Context, repository i
 		return factory.CompletionLocal{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	var projectID string
-	if err = tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository).Scan(&projectID); err != nil {
+	projectID, err := recordedExecutionWorkspaceTx(ctx, tx, repository)
+	if err != nil {
 		return factory.CompletionLocal{}, errors.New("completion source capture lacks its project")
 	}
 	material, preparationDigest, err := completionLocalProjectionTx(ctx, tx, repository)

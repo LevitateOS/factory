@@ -55,15 +55,15 @@ func (c *Coordinator) withdrawAndStopRuns(ctx context.Context, repository int64,
 	withdrawal.Publications = c.cancelRepositoryPublications(ctx, repository)
 	withdrawal.Merges = c.cancelRepositoryMerges(ctx, repository)
 	outcomes := []factory.RunStopOutcome{}
-	p, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(repository))
+	workspace, err := c.Store.RecordedExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return withdrawal, outcomes, nil
 		}
 		return factory.Withdrawal{}, nil, err
 	}
-	preparationErr := c.stopCandidatePreparations(ctx, repository, p.ID)
-	runs, err := c.projectRuns(ctx, p.ID)
+	preparationErr := c.stopCandidatePreparations(ctx, repository, workspace)
+	runs, err := c.projectRuns(ctx, workspace)
 	if err != nil {
 		return factory.Withdrawal{}, nil, err
 	}
@@ -216,8 +216,8 @@ func (c *Coordinator) ResumeRepository(ctx context.Context, repository int64) (f
 	if repository <= 0 {
 		return factory.ResumeResult{}, errors.New("invalid resume target")
 	}
-	if p, err := c.Store.NativeProjectForCollaborationRepository(bounded, collaboration.RepositoryID(repository)); err == nil {
-		runs, err := c.projectRuns(bounded, p.ID)
+	if workspace, err := c.Store.RecordedExecutionWorkspace(bounded, collaboration.RepositoryID(repository)); err == nil {
+		runs, err := c.projectRuns(bounded, workspace)
 		if err != nil {
 			return factory.ResumeResult{}, err
 		}

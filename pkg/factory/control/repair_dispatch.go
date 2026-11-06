@@ -93,11 +93,11 @@ func (c *Coordinator) dispatchStallRepair(ctx context.Context, record store.Stal
 	if err := cycle.ValidateFor(record.StallEvent); err != nil {
 		return err
 	}
-	projectRecord, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(record.Repository))
+	workspace, _, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(record.Repository))
 	if err != nil {
 		return err
 	}
-	preparations, err := c.Store.ProjectPreparations(ctx, projectRecord.ID)
+	preparations, err := c.Store.ProjectPreparations(ctx, workspace)
 	if err != nil {
 		return err
 	}

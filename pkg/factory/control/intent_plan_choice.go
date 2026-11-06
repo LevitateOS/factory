@@ -291,14 +291,14 @@ func settlePlanChoiceStatus(a factory.Assignment) (*factory.SemanticPlannerOutpu
 // waits truthfully; a moved source or a replacement preparation
 // refuses as stale.
 func (c *Coordinator) recheckPlanChoiceSource(ctx context.Context, r factory.IntentRevision, a factory.Assignment, in factory.SemanticPlannerInput) (*DispatchWait, error) {
-	proj, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(r.Repository))
+	workspace, native, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(r.Repository))
 	if errors.Is(err, store.ErrNotFound) {
 		return &DispatchWait{Repository: r.Repository, Reason: WaitAuthority, Detail: "project changed during accepted planning choice"}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: project unreadable", ErrPlanChoiceStore)
 	}
-	plan := &attemptPlan{projectID: proj.ID}
+	plan := &attemptPlan{projectID: workspace, nativeEnvironment: native, policy: factory.RepositoryPolicy{Repository: r.Repository}}
 	first, second := selectPreparationFor(ctx, c.dispatchDeps(), plan, project.RoleCoder, "")
 	if second != nil {
 		return nil, fmt.Errorf("%w: %s", ErrPlanChoiceStore, second.Detail)

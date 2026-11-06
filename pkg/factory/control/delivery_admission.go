@@ -23,7 +23,7 @@ func (c *Coordinator) deliveryAdmission(ctx context.Context, candidate store.Del
 	if err != nil {
 		return none, "", nil, err
 	}
-	proj, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(revision.Repository))
+	workspace, _, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(revision.Repository))
 	if err != nil {
 		return none, "", nil, err
 	}
@@ -34,15 +34,15 @@ func (c *Coordinator) deliveryAdmission(ctx context.Context, candidate store.Del
 	if native.TipRef != policy.TargetBranch || !factory.ValidCommit(native.Tip) {
 		return none, "", nil, errors.New("integrated application source is unavailable")
 	}
-	preparations, err := c.Store.ProjectPreparations(ctx, proj.ID)
+	preparations, err := c.Store.ProjectPreparations(ctx, workspace)
 	if err != nil {
 		return none, "", nil, err
 	}
-	requirements, err := c.Store.RequirementHead(ctx, proj.ID)
+	requirements, err := c.Store.RequirementHead(ctx, workspace)
 	if err != nil {
 		return none, "", nil, err
 	}
-	approval, err := c.Store.ApprovalHead(ctx, proj.ID)
+	approval, err := c.Store.ApprovalHead(ctx, workspace)
 	if err != nil {
 		return none, "", nil, err
 	}
@@ -73,7 +73,7 @@ func (c *Coordinator) deliveryAdmission(ctx context.Context, candidate store.Del
 		execution := factory.ExecutionSubject{Kind: factory.SubjectDelivery, Delivery: &subject}
 		// Repeat the native receipt join used by adoption before spending a worker
 		// session. Missing/failed assertions remain an actionable Factory event.
-		evidence, err := c.ApplicationVerificationEvidence(ctx, factory.Assignment{Repository: revision.Repository, ProjectID: proj.ID, Phase: project.ExecutionVerify, Role: project.RoleReviewer, Subject: execution, SourceCommit: native.Tip, Preparation: p.ID})
+		evidence, err := c.ApplicationVerificationEvidence(ctx, factory.Assignment{Repository: revision.Repository, ProjectID: workspace, Phase: project.ExecutionVerify, Role: project.RoleReviewer, Subject: execution, SourceCommit: native.Tip, Preparation: p.ID})
 		if err != nil {
 			return none, "", nil, err
 		}
@@ -156,11 +156,11 @@ func (c *Coordinator) driveDeliveryVerifications(ctx context.Context) {
 }
 
 func (c *Coordinator) deliveryRetryPrompt(ctx context.Context, candidate store.DeliveredIntentCandidate, subject factory.ExecutionSubject, preparation string) ([]byte, error) {
-	proj, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(candidate.Revision.Repository))
+	workspace, _, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(candidate.Revision.Repository))
 	if err != nil {
 		return nil, err
 	}
-	evidence, err := c.ApplicationVerificationEvidence(ctx, factory.Assignment{Repository: candidate.Revision.Repository, ProjectID: proj.ID, Phase: project.ExecutionVerify, Role: project.RoleReviewer, Subject: subject, SourceCommit: subject.Delivery.SourceCommit, Preparation: preparation})
+	evidence, err := c.ApplicationVerificationEvidence(ctx, factory.Assignment{Repository: candidate.Revision.Repository, ProjectID: workspace, Phase: project.ExecutionVerify, Role: project.RoleReviewer, Subject: subject, SourceCommit: subject.Delivery.SourceCommit, Preparation: preparation})
 	if err != nil {
 		return nil, err
 	}

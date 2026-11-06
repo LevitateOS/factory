@@ -475,8 +475,7 @@ func (c *priorityDigestInputs) batchRepoInputs(ctx context.Context) error {
 			return err
 		}
 		c.repoGate[repo] = fmt.Sprintf("open=%t rev=%d", open, rev)
-		var projectID string
-		err = c.tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repo).Scan(&projectID)
+		projectID, err := recordedExecutionWorkspaceTx(ctx, c.tx, repo)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}

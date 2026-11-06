@@ -101,7 +101,7 @@ func (c *Coordinator) AssembleIntentPlanningInput(ctx context.Context, head fact
 	if c.Store == nil {
 		return empty, project.Preparation{}, nil, errors.New("intent planning store unavailable")
 	}
-	proj, record, paths, planWait, err := c.resolvePlanningPreparation(ctx, head)
+	workspace, record, paths, planWait, err := c.resolvePlanningPreparation(ctx, head)
 	if err != nil || planWait != nil {
 		return empty, project.Preparation{}, planWait, err
 	}
@@ -115,7 +115,7 @@ func (c *Coordinator) AssembleIntentPlanningInput(ctx context.Context, head fact
 	bounded, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	prep := record.Preparation
-	merged, planWait, err := c.readPlanningContext(bounded, proj, record, paths, deadline, head.Repository)
+	merged, planWait, err := c.readPlanningContext(bounded, workspace, record, paths, deadline, head.Repository)
 	if err != nil || planWait != nil {
 		return empty, project.Preparation{}, planWait, err
 	}
@@ -133,20 +133,20 @@ func (c *Coordinator) AssembleIntentPlanningInput(ctx context.Context, head fact
 	return in, prep, nil, nil
 }
 
-func (c *Coordinator) resolvePlanningPreparation(ctx context.Context, head factory.IntentRevision) (store.Project, execution.PreparationRecord, []string, *DispatchWait, error) {
-	proj, err := c.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(head.Repository))
+func (c *Coordinator) resolvePlanningPreparation(ctx context.Context, head factory.IntentRevision) (string, execution.PreparationRecord, []string, *DispatchWait, error) {
+	workspace, native, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(head.Repository))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return store.Project{}, execution.PreparationRecord{}, nil, &DispatchWait{Repository: head.Repository, Reason: WaitAuthority, Detail: "project changed during draft planning"}, nil
+			return "", execution.PreparationRecord{}, nil, &DispatchWait{Repository: head.Repository, Reason: WaitAuthority, Detail: "workspace changed during draft planning"}, nil
 		}
-		return store.Project{}, execution.PreparationRecord{}, nil, nil, err
+		return "", execution.PreparationRecord{}, nil, nil, err
 	}
-	plan := &attemptPlan{projectID: proj.ID}
+	plan := &attemptPlan{projectID: workspace, nativeEnvironment: native, policy: factory.RepositoryPolicy{Repository: head.Repository}}
 	if first, second := selectPreparationFor(ctx, c.dispatchDeps(), plan, project.RoleCoder, ""); second != nil {
-		return store.Project{}, execution.PreparationRecord{}, nil, nil, errors.New(second.Detail)
+		return "", execution.PreparationRecord{}, nil, nil, errors.New(second.Detail)
 	} else if first != nil {
 		wait := timeOnlyWait(head.Repository, first)
-		return store.Project{}, execution.PreparationRecord{}, nil, &wait, nil
+		return "", execution.PreparationRecord{}, nil, &wait, nil
 	}
 	prep := plan.prep.Preparation
 	paths := make([]string, 0, len(prep.Requirements.SourceInputs))
@@ -155,16 +155,16 @@ func (c *Coordinator) resolvePlanningPreparation(ctx context.Context, head facto
 	}
 	sort.Strings(paths)
 	if len(paths) == 0 {
-		return store.Project{}, execution.PreparationRecord{}, nil, &DispatchWait{Repository: head.Repository, Reason: WaitPreparation, Detail: "preparation selects no approved source files"}, nil
+		return "", execution.PreparationRecord{}, nil, &DispatchWait{Repository: head.Repository, Reason: WaitPreparation, Detail: "preparation selects no approved source files"}, nil
 	}
-	return proj, plan.prep, paths, nil, nil
+	return workspace, plan.prep, paths, nil, nil
 }
 
-func (c *Coordinator) readPlanningContext(ctx context.Context, proj store.Project, record execution.PreparationRecord, paths []string, deadline time.Time, repository int64) (map[string][]byte, *DispatchWait, error) {
+func (c *Coordinator) readPlanningContext(ctx context.Context, workspace string, record execution.PreparationRecord, paths []string, deadline time.Time, repository int64) (map[string][]byte, *DispatchWait, error) {
 	bounded, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 	prep := record.Preparation
-	if record.Validate() != nil || proj.ID != prep.Project || prep.Role != project.RoleCoder {
+	if record.Validate() != nil || workspace != prep.Project || prep.Role != project.RoleCoder {
 		return nil, nil, execution.ErrPreparationContext
 	}
 	chunks, err := chunkApprovedSelections(paths)
@@ -173,7 +173,7 @@ func (c *Coordinator) readPlanningContext(ctx context.Context, proj store.Projec
 	}
 	merged := make(map[string][]byte, len(paths))
 	base := project.FactoryPreparationContextRequest{
-		Project: proj.ID, ID: prep.ID, SourceCommit: prep.SourceCommit,
+		Project: workspace, ID: prep.ID, SourceCommit: prep.SourceCommit,
 		ApprovedBase: prep.SourceCommit, DiffBase: prep.SourceCommit, Candidate: prep.SourceCommit,
 		NotAfter: deadline,
 	}
