@@ -62,6 +62,7 @@ struct State {
     finalizations: jobs::Sender<Finalize>,
     executions: Arc<Mutex<crate::factory_provider::Executions>>,
     tools: RwLock<Option<Arc<crate::factory_provider::Tools>>>,
+    preparations: Arc<crate::factory_provider::preparations::Preparations>,
 }
 struct Finalize {
     scope: Arc<Scope>,
@@ -158,6 +159,7 @@ impl Port {
         Ok(())
     }
     pub fn retire(&self) {
+        self.0.preparations.cancel_all();
         self.0.alive.store(false, Ordering::SeqCst);
         self.0.slots.close();
         self.0.retired.send_replace(true);
@@ -241,6 +243,10 @@ impl Owner {
                 .parent()
                 .ok_or("native MCP profile unavailable")?,
         )?;
+        let preparations = Arc::new(
+            crate::factory_provider::preparations::Preparations::new(&channel, alive.clone())
+                .map_err(|error| error.to_string())?,
+        );
         let (retired, mut retirement) = watch::channel(false);
         let (finalizations, mut finalization_jobs) = jobs::channel::<Finalize>(MAX_OPERATIONS);
         let port = Port(Arc::new(State {
@@ -254,6 +260,7 @@ impl Owner {
             finalizations,
             executions,
             tools: RwLock::new(None),
+            preparations,
         }));
         let state = port.0.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -323,12 +330,20 @@ impl Owner {
     }
     pub fn stop(&mut self) -> Result<()> {
         self.port.retire();
+        let mut joined = Ok(());
         if let Some(thread) = self.thread.take() {
-            thread
+            joined = thread
                 .join()
-                .map_err(|_| "native collaboration owner failed")??;
+                .map_err(|_| "native collaboration owner failed".to_owned())
+                .and_then(|result| result);
         }
-        Ok(())
+        let preparations = self
+            .port
+            .0
+            .preparations
+            .retire_all()
+            .map_err(|error| error.to_string());
+        joined.and(preparations)
     }
 }
 impl Drop for Owner {
@@ -647,6 +662,7 @@ async fn dispatch(
     let signing = target == Some("/api/native/mcp-sign");
     let verifying = target == Some("/api/native/mcp-verify");
     let execution = target == Some("/api/native/execution");
+    let preparation = target == Some("/api/native/preparation");
     if request.method() != "POST"
         || !matches!(
             target,
@@ -655,6 +671,7 @@ async fn dispatch(
                     | "/api/native/mcp-sign"
                     | "/api/native/mcp-verify"
                     | "/api/native/execution"
+                    | "/api/native/preparation"
             )
         )
         || request.uri().scheme().is_some()
@@ -664,7 +681,9 @@ async fn dispatch(
     {
         return Err(Failure::invalid());
     }
-    let body_limit = if execution {
+    let body_limit = if preparation {
+        1024 * 1024
+    } else if execution {
         32768
     } else if signing || verifying {
         8192
@@ -676,6 +695,29 @@ async fn dispatch(
         .await
         .map_err(|_| Failure::invalid())?
         .to_bytes();
+    if preparation {
+        #[derive(Deserialize)]
+        #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+        enum PreparationCall {
+            Prepare { request: Value },
+            Inspect { address: Value },
+            Retire { address: Value },
+        }
+        let call: PreparationCall =
+            serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let owner = state.preparations.clone();
+        return tokio::task::spawn_blocking(move || match call {
+            PreparationCall::Prepare { request } => owner.prepare(request),
+            PreparationCall::Inspect { address } => owner.inspect(&address),
+            PreparationCall::Retire { address } => owner.retire(&address),
+        })
+        .await
+        .map_err(|_| Failure::unavailable())?
+        .map_err(|error| {
+            eprintln!("native preparation callback: {error}");
+            Failure::new(503, "native_preparation_unavailable")
+        });
+    }
     if execution {
         let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
         let tools = state

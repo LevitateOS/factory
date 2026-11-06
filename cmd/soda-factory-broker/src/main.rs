@@ -18,6 +18,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 mod agent_observation;
 mod preparation_quota;
+mod source_binding;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
@@ -30,6 +31,23 @@ const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    StagePreparation {
+        version: u8,
+        run: String,
+        profile: String,
+        role: String,
+        length: usize,
+        sha256: String,
+        setup_length: usize,
+        setup_sha256: String,
+    },
+    ReadSetup {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        candidate: String,
+    },
     StageBundle {
         version: u8,
         run: String,
@@ -851,6 +869,9 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     let runs = state()?;
     let _lock = lock(&runs)?;
     let source = runs.join(run);
+    if source.join("owner.setup_sha256").try_exists()? {
+        preparation_caller_current()?;
+    }
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
     if !verified_bundle(&source, digest)? {
@@ -1532,6 +1553,7 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
     if has_bundle {
         fs::remove_file(directory.join("bundle"))?;
     }
+    source_binding::cleanup(directory)?;
     match fs::remove_file(directory.join("owner.role")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -1583,8 +1605,7 @@ fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
     read_role(&source)?;
-    read_digest(&source, "owner.tool_sha256")?;
-    read_digest(&source, "owner.prompt_sha256")?;
+    source_binding::verify(&source)?;
     if !verified_bundle(&source, digest)? {
         return Err(denied("quiesced run source missing"));
     }
@@ -1672,8 +1693,7 @@ fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::R
     }
     verified_profile(&directory, profile)?;
     read_role(&directory)?;
-    read_digest(&directory, "owner.tool_sha256")?;
-    read_digest(&directory, "owner.prompt_sha256")?;
+    source_binding::verify(&directory)?;
     if !verified_bundle(&directory, digest)? {
         return Err(denied("staged bundle missing"));
     }
@@ -1867,8 +1887,7 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, b
                 continue;
             }
             read_role(&path)?;
-            read_digest(&path, "owner.tool_sha256")?;
-            read_digest(&path, "owner.prompt_sha256")?;
+            source_binding::verify(&path)?;
             let digest =
                 staged_digest(&path)?.ok_or_else(|| denied("staged run bundle missing"))?;
             let launched = launched_run(&name)?;
@@ -1879,17 +1898,35 @@ fn next_profile_run(profile: &str) -> io::Result<Option<(String, String, bool, b
     Ok(None)
 }
 
+// Check after acquiring the shared staging lock: cancelled queued preparation
+// work must not appear after a later exact retirement observed its absence.
+fn preparation_caller_current() -> io::Result<()> {
+    let mut descriptor = libc::pollfd {
+        fd: 0,
+        events: 0,
+        revents: 0,
+    };
+    if unsafe { libc::poll(&mut descriptor, 1, 0) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if descriptor.revents & (libc::POLLHUP | libc::POLLERR | libc::POLLNVAL) != 0 {
+        return Err(denied("native preparation caller retired"));
+    }
+    Ok(())
+}
 fn stage(
     run: &str,
     profile: &str,
     role: &str,
-    tool_sha256: &str,
-    prompt_sha256: &str,
+    binding: source_binding::Binding<'_>,
     bytes: &[u8],
     digest: &str,
 ) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
+    if matches!(&binding, source_binding::Binding::Preparation(_)) {
+        preparation_caller_current()?;
+    }
     for entry in fs::read_dir(&runs)? {
         let name = entry?.file_name();
         if retiring_run(&name.to_string_lossy()) == Some(run) {
@@ -1904,8 +1941,7 @@ fn stage(
         }
         verified_profile(&final_dir, profile)?;
         verified_role(&final_dir, role)?;
-        verified_digest(&final_dir, "owner.tool_sha256", tool_sha256)?;
-        verified_digest(&final_dir, "owner.prompt_sha256", prompt_sha256)?;
+        binding.verify(&final_dir)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -1982,24 +2018,7 @@ fn stage(
         role_declaration.write_all(format!("{role}\n").as_bytes())?;
         role_declaration.sync_all()?;
         role_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
-        let mut tool_declaration = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o444)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(temp.join("owner.tool_sha256"))?;
-        tool_declaration.write_all(format!("{tool_sha256}\n").as_bytes())?;
-        tool_declaration.sync_all()?;
-        tool_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
-        let mut prompt_declaration = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o444)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-            .open(temp.join("owner.prompt_sha256"))?;
-        prompt_declaration.write_all(format!("{prompt_sha256}\n").as_bytes())?;
-        prompt_declaration.sync_all()?;
-        prompt_declaration.set_permissions(fs::Permissions::from_mode(0o444))?;
+        binding.write(&temp)?;
         let mut lifecycle = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -2038,6 +2057,74 @@ fn serve() -> io::Result<()> {
     let request: Request =
         serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
     let response = match request {
+        Request::StagePreparation {
+            version,
+            run,
+            profile,
+            role,
+            length,
+            sha256,
+            setup_length,
+            setup_sha256,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !matches!(role.as_str(), "coder" | "reviewer")
+                || !(1..=MAX_BUNDLE).contains(&length)
+                || !id(&sha256, 64)
+                || !id(&setup_sha256, 64)
+                || !(1..=soda_execution_protocol::MAX_SETUP_FRAME).contains(&setup_length)
+            {
+                return Err(denied("source preparation declaration invalid"));
+            }
+            let mut bundle = vec![0; length];
+            let mut setup = vec![0; setup_length];
+            let deadline = Instant::now() + Duration::from_secs(30);
+            read_client_exact(&mut input, &mut bundle, deadline)?;
+            read_client_exact(&mut input, &mut setup, deadline)?;
+            let approved: soda_execution_protocol::ApprovedFiles =
+                serde_json::from_slice(&setup)
+                    .map_err(|_| denied("approved setup shape invalid"))?;
+            if hash(&bundle) != sha256 || !approved.valid() || approved.digest() != setup_sha256 {
+                return Err(denied("approved source or setup differs"));
+            }
+            unsafe { libc::shutdown(0, libc::SHUT_RD) };
+            stage(
+                &run,
+                &profile,
+                &role,
+                source_binding::Binding::Preparation(&approved),
+                &bundle,
+                &sha256,
+            )?;
+            serde_json::to_vec(
+                &serde_json::json!({"kind":"preparation_staged","version":1,"run":run,"profile":profile,"sha256":sha256,"setup_sha256":setup_sha256}),
+            )?
+        }
+        Request::ReadSetup {
+            version,
+            run,
+            profile,
+            sha256,
+            candidate,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+            {
+                return Err(denied("setup read selector invalid"));
+            }
+            serde_json::to_vec(&source_binding::receipt(
+                &run,
+                &profile,
+                &sha256,
+                &candidate,
+                desktop_uid,
+            )?)?
+        }
         Request::StageBundle {
             version,
             run,
@@ -2073,8 +2160,10 @@ fn serve() -> io::Result<()> {
                 &run,
                 &profile,
                 &role,
-                &tool_sha256,
-                &prompt_sha256,
+                source_binding::Binding::Agent {
+                    tool: &tool_sha256,
+                    prompt: &prompt_sha256,
+                },
                 &bundle,
                 &sha256,
             )?;

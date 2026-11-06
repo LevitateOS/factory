@@ -1076,6 +1076,8 @@ func main() {
 		var err error
 		if os.Args[3] == "check-owned-tool" {
 			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-native-preparation" {
+			err = nativePreparationFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-owned-execution" {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
@@ -1101,6 +1103,139 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// Declared Go permissions in a disposable ledger; the native source/setup work
+// and its observation/CAS transactions are real. This is not provider consent.
+func nativePreparationFixture(profile, instance, mode string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err = db.InitializeEmptyCollaborationLedger(ctx); err != nil {
+		return err
+	}
+	host, err := db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+	if err != nil {
+		return err
+	}
+	repo, err := db.ObserveCollaborationRepository(ctx, host.ID, "native-source-fixture", "fixture/native-source")
+	if err != nil {
+		return err
+	}
+	actor, err := db.ObserveCollaborationActor(ctx, host.ID, "native-source-owner", "native-source-owner")
+	if err != nil {
+		return err
+	}
+	if err = db.PutCollaborationProfile(ctx, collaboration.Profile{ID: config.Profile, Name: "Native source fixture"}); err != nil {
+		return err
+	}
+	placement, err := db.SelectPlacement(ctx, host.ID, repo.ID, actor.ID, collaboration.RuntimeRef{ID: collaboration.RuntimeID(config.Profile), Profile: config.Profile, Kind: collaboration.Native, Name: "Native source fixture"}, "", factory.PlacementActive)
+	if err != nil {
+		return err
+	}
+	native := &project.NativeEnvironment{Profile: config.Profile, Runtime: placement.Runtime, Generation: placement.Generation}
+	if _, err = db.ApplyFactoryGrant(ctx, "native-source-fixture", project.EnvironmentGrant{Repository: int64(repo.ID), Owner: int64(actor.ID), Native: native, Active: true}); err != nil {
+		return err
+	}
+	grant, err := db.EnvironmentGrant(ctx, int64(repo.ID))
+	if err != nil {
+		return err
+	}
+	setup := []byte("printf 'prepared-by-native\\n'\n")
+	if mode == "pending" {
+		setup = []byte("sleep 8\n")
+	}
+	files := map[string][]byte{"setup.sh": setup, "check.sh": []byte("printf 'checked-by-native\\n'\n")}
+	tools := []string{"git", "bash"}
+	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
+	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf([]string{"setup.sh", "check.sh"}, nil, tools), Native: native}
+	if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
+		return err
+	}
+	approval := project.ApprovalDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Requirement: requirement.ID, Approver: int64(actor.ID), EffectsDigest: strings.Repeat("b", 64), ReadinessDigest: strings.Repeat("c", 64), Verified: true, Native: native}
+	if err = db.AdmitApprovalDecision(ctx, approval); err != nil {
+		return err
+	}
+	prep := project.Preparation{ID: "f" + factory.NewID()[:24], Project: grant.Project, Role: project.RoleCoder, SourceCommit: source, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1), Tools: tools}
+	ref := &execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: prep.ID}
+	record, _, err := db.AdmitStandingPreparation(ctx, execution.PreparationRecord{Preparation: prep, Native: ref})
+	if err != nil {
+		return err
+	}
+	bundle, err := os.ReadFile(os.Getenv("SODA_NATIVE_CHECK_BUNDLE"))
+	if err != nil {
+		return err
+	}
+	request := execution.StandingPreparationRequest{Input: project.Prepare{Preparation: record.Preparation, Setup: project.ApprovedSetup{Files: files, Bundle: bundle}}, Native: ref}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	state, err := port.PrepareWorkspace(ctx, request)
+	if err != nil {
+		return err
+	}
+	record.State = state
+	if err = db.ObservePreparation(ctx, record); err != nil {
+		return err
+	}
+	if mode == "pending" {
+		if state.Ready {
+			return errors.New("pending setup falsely became ready")
+		}
+		fmt.Println("PASS: Go admitted and recorded a retained pending native setup")
+		return nil
+	}
+	for !state.Ready {
+		if state.Phase != project.PrepareRunning {
+			return fmt.Errorf("native source did not become ready: %s", state.Phase)
+		}
+		time.Sleep(30 * time.Millisecond)
+		state, err = port.InspectWorkspacePreparation(ctx, request.Address())
+		if err != nil {
+			return err
+		}
+		record, err = db.Preparation(ctx, prep.ID)
+		if err != nil {
+			return err
+		}
+		record.State = state
+		if err = db.ObservePreparation(ctx, record); err != nil {
+			return err
+		}
+	}
+	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {
+		return errors.New("native preparation lacks actual setup/check/source facts")
+	}
+	record, err = db.Preparation(ctx, prep.ID)
+	if err != nil {
+		return err
+	}
+	request.Input.Preparation.Revision = record.Preparation.Revision
+	if _, err = port.PrepareWorkspace(ctx, request); err != nil {
+		return err
+	}
+	state, err = port.RetireWorkspacePreparation(ctx, request.Address())
+	if err != nil {
+		return err
+	}
+	if !state.Stopped || state.Ready || state.Retirement != "confirmed" {
+		return errors.New("native preparation retirement unconfirmed")
+	}
+	record.State = state
+	if err = db.ObservePreparation(ctx, record); err != nil {
+		return err
+	}
+	if _, err = port.PrepareWorkspace(ctx, request); err == nil {
+		return errors.New("stopped native preparation restarted")
+	}
+	fmt.Println("PASS: actual Go/native source preparation, real setup/check exits, source digest, observed state CAS, stable replay and exact retirement")
+	return nil
 }
 
 // The existing native integration driver can itself act as the captured local

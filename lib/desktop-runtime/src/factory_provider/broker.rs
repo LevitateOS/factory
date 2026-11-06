@@ -181,7 +181,7 @@ fn exchange<T: DeserializeOwned>(
     bundle: Option<&[u8]>,
     timeout: Duration,
 ) -> io::Result<T> {
-    exchange_controlled(request, bundle, timeout, None)
+    exchange_controlled(request, bundle, timeout, None, MAX_FRAME)
 }
 
 fn exchange_controlled<T: DeserializeOwned>(
@@ -189,6 +189,7 @@ fn exchange_controlled<T: DeserializeOwned>(
     bundle: Option<&[u8]>,
     timeout: Duration,
     cancellation: Option<AgentCancellation>,
+    reply_limit: usize,
 ) -> io::Result<T> {
     let bytes = serde_json::to_vec(&request).map_err(|_| refused("broker request invalid"))?;
     if bytes.is_empty() || bytes.len() > MAX_FRAME {
@@ -207,7 +208,7 @@ fn exchange_controlled<T: DeserializeOwned>(
     let mut length = [0u8; 4];
     stream.read_exact(&mut length)?;
     let length = u32::from_le_bytes(length) as usize;
-    if length == 0 || length > MAX_FRAME {
+    if length == 0 || length > reply_limit {
         return Err(refused("broker reply bound invalid"));
     }
     let mut reply = vec![0u8; length];
@@ -462,6 +463,103 @@ impl RelayAttestation {
 /// admission. No request selects a path, command, unit property or credential.
 pub struct Broker;
 impl Broker {
+    /// A credential-free source/setup job. The caller retains its cancellation
+    /// and exact staged identity until retirement; no model execution is armed.
+    pub fn prepare_source(
+        run: &str,
+        profile: &str,
+        role: Role,
+        bundle: &[u8],
+        approved: &soda_execution_protocol::ApprovedFiles,
+        candidate: &str,
+        cancellation: AgentCancellation,
+    ) -> io::Result<soda_execution_protocol::SetupReceipt> {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(candidate, 40)
+            || bundle.is_empty()
+            || bundle.len() > MAX_BUNDLE
+            || !approved.valid()
+        {
+            return Err(refused("native source preparation invalid"));
+        }
+        let sha256: String = Sha256::digest(bundle)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let setup =
+            serde_json::to_vec(approved).map_err(|_| refused("native approved setup invalid"))?;
+        if setup.len() > soda_execution_protocol::MAX_SETUP_FRAME {
+            return Err(refused("native approved setup exceeds bound"));
+        }
+        let mut payload = Vec::with_capacity(bundle.len() + setup.len());
+        payload.extend_from_slice(bundle);
+        payload.extend_from_slice(&setup);
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct StagedPreparation {
+            kind: String,
+            version: u8,
+            run: String,
+            profile: String,
+            sha256: String,
+            setup_sha256: String,
+        }
+        let staged: StagedPreparation = exchange_controlled(
+            json!({"kind":"stage_preparation","version":1,"run":run,"profile":profile,
+            "role":role.as_str(),"length":bundle.len(),"sha256":sha256,"setup_length":setup.len(),"setup_sha256":approved.digest()}),
+            Some(&payload),
+            PREPARE_TIME,
+            Some(cancellation.clone()),
+            MAX_FRAME,
+        )?;
+        if staged.kind != "preparation_staged"
+            || staged.version != 1
+            || staged.run != run
+            || staged.profile != profile
+            || staged.sha256 != sha256
+            || staged.setup_sha256 != approved.digest()
+        {
+            return Err(refused("native source stage differs"));
+        }
+        Self::preparing(cancellation.clone()).prepare_reviewer(run, profile, &sha256, candidate)?;
+        let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
+        if receipt.setup_sha256 != approved.digest() {
+            return Err(refused("native setup receipt differs"));
+        }
+        Ok(receipt)
+    }
+    pub fn read_source_setup(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        candidate: &str,
+        cancellation: AgentCancellation,
+    ) -> io::Result<soda_execution_protocol::SetupReceipt> {
+        if !id(run, 32) || !id(profile, 32) || !id(sha256, 64) || !id(candidate, 40) {
+            return Err(refused("native setup read scope invalid"));
+        }
+        let receipt: soda_execution_protocol::SetupReceipt = exchange_controlled(
+            json!({"kind":"read_setup","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
+            None,
+            PREPARE_TIME,
+            Some(cancellation),
+            2 * 1024 * 1024,
+        )?;
+        if receipt.worker_uid == 0
+            || receipt.worker_uid == unsafe { libc::geteuid() }
+            || receipt.source_commit != candidate
+            || receipt.output.len() > soda_execution_protocol::MAX_SETUP_OUTPUT
+            || receipt
+                .setup_exit
+                .into_iter()
+                .chain(receipt.check_exit)
+                .any(|code| !(0..=255).contains(&code))
+        {
+            return Err(refused("native setup receipt differs"));
+        }
+        Ok(receipt)
+    }
     /// Inspect one root-owned selector for this exact native profile. The
     /// caller must hold the profile's exclusive supervisor lock before using
     /// this to clean a prior desktop incarnation.
@@ -620,6 +718,7 @@ impl BrokerPreparation {
             Some(bundle),
             PREPARE_TIME,
             self.cancellation.clone(),
+            MAX_FRAME,
         )?;
         if reply.kind != "staged"
             || reply.version != 1
@@ -650,6 +749,7 @@ impl BrokerPreparation {
             None,
             PREPARE_TIME,
             self.cancellation.clone(),
+            MAX_FRAME,
         )?;
         if reply.kind != "prepared"
             || reply.version != 1
@@ -679,6 +779,7 @@ impl BrokerPreparation {
             None,
             ATTEST_TIME,
             self.cancellation.clone(),
+            MAX_FRAME,
         )?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "provider_relay_attested"
@@ -730,6 +831,7 @@ impl BrokerPreparation {
             None,
             ATTEST_TIME,
             self.cancellation.clone(),
+            MAX_FRAME,
         )?;
         if reply.kind != "agent_armed"
             || reply.version != 1
@@ -772,6 +874,7 @@ impl BrokerPreparation {
             None,
             AGENT_TIME,
             self.cancellation.clone(),
+            MAX_FRAME,
         )?;
         let uid = unsafe { libc::geteuid() };
         if reply.kind != "agent_attested"

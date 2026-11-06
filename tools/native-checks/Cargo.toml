@@ -14,6 +14,7 @@ base64 = "=0.22.1"
 libc = { workspace = true }
 url = { workspace = true }
 soda-desktop-runtime = { path = "../../lib/desktop-runtime" }
+soda-execution-protocol = { path = "../../lib/execution-protocol" }
 serde_json = { workspace = true }
 secret-service = { workspace = true, features = ["rt-tokio-crypto-rust"] }
 tokio = { workspace = true, default-features = true, features = ["rt", "sync", "time"] }

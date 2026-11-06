@@ -1118,6 +1118,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "soda-desktop-runtime",
+ "soda-execution-protocol",
  "soda-unix-http",
  "tokio",
  "url",
@@ -3782,6 +3783,7 @@ dependencies = [
 name = "soda-desktop-runtime"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "diffy",
  "getrandom 0.4.3",
  "hmac",
@@ -3807,6 +3809,7 @@ name = "soda-execution-protocol"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "sha2 0.11.1",
 ]
 
 [[package]]

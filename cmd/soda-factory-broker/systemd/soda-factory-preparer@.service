@@ -41,4 +41,5 @@ MemoryMax=128M
 MemorySwapMax=0
 TasksMax=32
 TimeoutStartSec=30s
+TimeoutStopSec=2s
 KillMode=control-group

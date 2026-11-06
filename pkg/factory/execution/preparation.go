@@ -16,9 +16,9 @@ var (
 )
 
 type PreparationAddress struct {
-	Workspace string
-	ID        string
-	Native    *NativeWorkspaceRef
+	Workspace string              `json:"workspace"`
+	ID        string              `json:"id"`
+	Native    *NativeWorkspaceRef `json:"native,omitempty"`
 }
 
 func validWorkspaceRef(n NativeWorkspaceRef) bool {
@@ -38,8 +38,8 @@ type PreparationObserver interface {
 }
 
 type StandingPreparationRequest struct {
-	Input  project.Prepare
-	Native *NativeWorkspaceRef
+	Input  project.Prepare     `json:"input"`
+	Native *NativeWorkspaceRef `json:"native,omitempty"`
 }
 
 type CandidatePreparationRequest struct {

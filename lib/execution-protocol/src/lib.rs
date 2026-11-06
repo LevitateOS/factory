@@ -1,6 +1,8 @@
 //! Nonsecret wire shapes and pure bounds. Callers independently admit peers,
 //! processes and authority before using these observations.
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 
 pub const MAX_STAGE_BUNDLE: usize = 512 * 1024;
 pub const MAX_PROMPT: usize = 320 * 1024;
@@ -14,6 +16,71 @@ pub const MAX_START_REPLY: usize = 1024;
 pub const MAX_OBSERVATION_QUERIES: u64 = 65_536;
 pub const OBSERVATION_REQUEST_BYTES: usize = 9;
 pub const OBSERVATION_MARKER: u8 = b'O';
+pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
+pub const MAX_SETUP_FRAME: usize = 600 * 1024;
+pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovedFiles {
+    pub files: BTreeMap<String, Vec<u8>>,
+    pub tools: Vec<String>,
+}
+impl ApprovedFiles {
+    pub fn valid_name(name: &str) -> bool {
+        !name.is_empty()
+            && name.len() <= 64
+            && name.as_bytes()[0].is_ascii_alphanumeric()
+            && !name.contains("..")
+            && name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+    }
+    pub fn valid(&self) -> bool {
+        (2..=8).contains(&self.files.len())
+            && self.files.contains_key("setup.sh")
+            && self.files.contains_key("check.sh")
+            && self
+                .files
+                .iter()
+                .all(|(name, bytes)| Self::valid_name(name) && (1..=32768).contains(&bytes.len()))
+            && self.files.values().map(Vec::len).sum::<usize>() <= MAX_APPROVED_BYTES
+            && self.tools.len() <= 8
+            && self.tools.iter().all(|name| {
+                !name.is_empty()
+                    && name.len() <= 32
+                    && name.bytes().all(|byte| {
+                        byte.is_ascii_lowercase()
+                            || byte.is_ascii_digit()
+                            || matches!(byte, b'+' | b'_' | b'.' | b'-')
+                    })
+            })
+    }
+    pub fn digest(&self) -> String {
+        let mut hash = Sha256::new();
+        for (name, bytes) in &self.files {
+            hash.update(name.as_bytes());
+            hash.update([0]);
+            hash.update(bytes);
+        }
+        hash.finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+}
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SetupReceipt {
+    pub worker_uid: u32,
+    pub setup_sha256: String,
+    pub source_commit: String,
+    pub setup_exit: Option<i32>,
+    pub check_exit: Option<i32>,
+    pub tools: BTreeMap<String, String>,
+    pub missing: Vec<String>,
+    pub output: String,
+}
 
 /// Captured run choices, never inherited from a CLI home or machine default.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

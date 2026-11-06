@@ -8,6 +8,8 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+#[path = "../prepared_setup.rs"]
+mod prepared_setup;
 
 const SOURCE: &str = "/run/factory-source";
 const BUNDLE: &str = "/run/factory-source/bundle";
@@ -489,6 +491,8 @@ fn prepare() -> io::Result<()> {
     if !clean.success() {
         return Err(refused("reviewer checkout is dirty"));
     }
+    check_tree(Path::new(CHECKOUT))?;
+    prepared_setup::run(&args[2])?;
     check_tree(Path::new(CHECKOUT))?;
     println!("reviewer checkout prepared for run {}", args[1]);
     Ok(())

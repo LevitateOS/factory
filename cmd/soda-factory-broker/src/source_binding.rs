@@ -1,0 +1,216 @@
+//! Root-owned source variants. Preparation inputs never masquerade as an agent
+//! executable/prompt binding; both variants share staging and exact retirement.
+use super::*;
+use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
+
+pub(super) enum Binding<'a> {
+    Agent { tool: &'a str, prompt: &'a str },
+    Preparation(&'a ApprovedFiles),
+}
+fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o444)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    file.set_permissions(fs::Permissions::from_mode(0o444))
+}
+pub(super) fn approved(directory: &Path) -> io::Result<ApprovedFiles> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("approved.json"))?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != 0
+        || meta.mode() & 0o7777 != 0o444
+        || meta.len() > MAX_SETUP_FRAME as u64
+    {
+        return Err(denied("approved setup metadata invalid"));
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_SETUP_FRAME as u64 + 1)
+        .read_to_end(&mut bytes)?;
+    let input: ApprovedFiles =
+        serde_json::from_slice(&bytes).map_err(|_| denied("approved setup shape invalid"))?;
+    if !input.valid()
+        || bytes.len() as u64 != meta.len()
+        || read_digest(directory, "owner.setup_sha256")? != input.digest()
+    {
+        return Err(denied("approved setup identity invalid"));
+    }
+    Ok(input)
+}
+impl Binding<'_> {
+    pub(super) fn verify(&self, directory: &Path) -> io::Result<()> {
+        match self {
+            Self::Agent { tool, prompt } => {
+                if directory.join("owner.setup_sha256").try_exists()? {
+                    return Err(denied("source belongs to preparation"));
+                }
+                verified_digest(directory, "owner.tool_sha256", tool)?;
+                verified_digest(directory, "owner.prompt_sha256", prompt)
+            }
+            Self::Preparation(input) => {
+                if directory.join("owner.tool_sha256").try_exists()?
+                    || directory.join("owner.prompt_sha256").try_exists()?
+                    || approved(directory)? != **input
+                {
+                    return Err(denied("source preparation input differs"));
+                }
+                Ok(())
+            }
+        }
+    }
+    pub(super) fn write(&self, directory: &Path) -> io::Result<()> {
+        match self {
+            Self::Agent { tool, prompt } => {
+                write(
+                    &directory.join("owner.tool_sha256"),
+                    format!("{tool}\n").as_bytes(),
+                )?;
+                write(
+                    &directory.join("owner.prompt_sha256"),
+                    format!("{prompt}\n").as_bytes(),
+                )
+            }
+            Self::Preparation(input) => {
+                if !input.valid() {
+                    return Err(denied("approved setup bounds invalid"));
+                }
+                write(
+                    &directory.join("owner.setup_sha256"),
+                    format!("{}\n", input.digest()).as_bytes(),
+                )?;
+                write(
+                    &directory.join("approved.json"),
+                    &serde_json::to_vec(input)?,
+                )?;
+                let files = directory.join("approved");
+                DirBuilder::new().mode(0o700).create(&files)?;
+                for (name, bytes) in &input.files {
+                    write(&files.join(name), bytes)?;
+                }
+                fs::set_permissions(&files, fs::Permissions::from_mode(0o555))?;
+                File::open(files)?.sync_all()
+            }
+        }
+    }
+}
+pub(super) fn verify(directory: &Path) -> io::Result<()> {
+    if directory.join("owner.setup_sha256").try_exists()? {
+        if directory.join("owner.tool_sha256").try_exists()?
+            || directory.join("owner.prompt_sha256").try_exists()?
+        {
+            return Err(denied("mixed source binding"));
+        }
+        approved(directory).map(|_| ())
+    } else {
+        read_digest(directory, "owner.tool_sha256")?;
+        read_digest(directory, "owner.prompt_sha256").map(|_| ())
+    }
+}
+pub(super) fn cleanup(directory: &Path) -> io::Result<()> {
+    let files = directory.join("approved");
+    match files.symlink_metadata() {
+        Ok(meta) => {
+            if !meta.is_dir() || meta.uid() != 0 || !matches!(meta.mode() & 0o7777, 0o555 | 0o700) {
+                return Err(denied("retiring approved directory invalid"));
+            }
+            fs::set_permissions(&files, fs::Permissions::from_mode(0o700))?;
+            for entry in fs::read_dir(&files)? {
+                let entry = entry?;
+                let name = entry.file_name();
+                let meta = entry.path().symlink_metadata()?;
+                if !name.to_str().is_some_and(ApprovedFiles::valid_name)
+                    || !meta.is_file()
+                    || meta.uid() != 0
+                {
+                    return Err(denied("retiring approved file invalid"));
+                }
+                fs::remove_file(entry.path())?;
+            }
+            fs::remove_dir(files)?;
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
+    for name in ["approved.json", "owner.setup_sha256"] {
+        match fs::remove_file(directory.join(name)) {
+            Ok(()) => (),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+pub(super) fn receipt(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    desktop_uid: u32,
+) -> io::Result<SetupReceipt> {
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let source = runs.join(run);
+    private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
+    if !verified_bundle(&source, digest)? {
+        return Err(denied("preparation bundle missing"));
+    }
+    let input = approved(&source)?;
+    let directory =
+        preparation_run(&preparations()?, run)?.ok_or_else(|| denied("preparation missing"))?;
+    if prepared_output(&directory)? != Some(0o555)
+        || read_manifest(&directory.join("manifest.env"))?.as_deref()
+            != Some(manifest(candidate, digest).as_str())
+    {
+        return Err(denied("preparation not complete"));
+    }
+    let owner = directory.join("output/repo").symlink_metadata()?.uid();
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(directory.join("output/setup-receipt.json"))?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != owner
+        || meta.mode() & 0o022 != 0
+        || meta.len() > 2 * 1024 * 1024
+    {
+        return Err(denied("setup receipt metadata invalid"));
+    }
+    let mut bytes = Vec::new();
+    file.take(2 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+    let receipt: SetupReceipt =
+        serde_json::from_slice(&bytes).map_err(|_| denied("setup receipt invalid"))?;
+    if receipt.worker_uid != owner
+        || receipt.worker_uid == 0
+        || receipt.worker_uid == desktop_uid
+        || bytes.len() as u64 != meta.len()
+        || receipt.setup_sha256 != input.digest()
+        || receipt.source_commit != candidate
+        || receipt.output.len() > MAX_SETUP_OUTPUT
+        || receipt
+            .setup_exit
+            .into_iter()
+            .chain(receipt.check_exit)
+            .any(|code| !(0..=255).contains(&code))
+        || receipt
+            .tools
+            .keys()
+            .chain(receipt.missing.iter())
+            .any(|name| !input.tools.contains(name))
+        || input
+            .tools
+            .iter()
+            .any(|name| !receipt.tools.contains_key(name) && !receipt.missing.contains(name))
+    {
+        return Err(denied("setup receipt scope differs"));
+    }
+    Ok(receipt)
+}

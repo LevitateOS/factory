@@ -70,6 +70,8 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 	case "/api/native/mcp-sign", "/api/native/mcp-verify":
 	case "/api/native/execution":
 		requestLimit, responseLimit = 32768, 512*1024
+	case "/api/native/preparation":
+		requestLimit, responseLimit = 1024*1024, 2*1024*1024
 	default:
 		return errors.New("native callback route unavailable")
 	}

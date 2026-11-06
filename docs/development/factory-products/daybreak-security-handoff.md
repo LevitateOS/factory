@@ -110,6 +110,31 @@ reconciliation transaction are still needed for interrupted-launch closure.
 Native source/setup/context/candidate ports, admitted Go launch and single-
 coordinator composition remain the execution blockers. D3 and broader gates stay open.
 
+Native source preparation update (2026-11-06): Go's `runtime/native_preparation.go`
+now authorizes standing preparation against current Store decisions; Rust's
+`factory_provider/preparations.rs`, broker `source_binding.rs`/`prepared_setup.rs`
+and the isolated preparer own immutable source/setup inputs, actual setup/check
+execution, retained receipts and exact retirement. Shared bounds/receipts live in
+`lib/execution-protocol`; `collaboration.rs` joins preparation lifetime to Quit.
+Actual Go/PostgreSQL/native setup results, observation CAS, stable replay,
+retirement and cancellation/join of an observed live setup passed in
+`/home/vince/tmp/fnp6.nTZsJ0/run.log`. Nonzero check and missing-tool cases passed in
+`/home/vince/tmp/factory-native-preparation-1106.Y4p57Q/run.log`. Declared fixture
+approvals and retained toolchains are not connected authority or installed release
+qualification; no provider credentials or inference were involved.
+
+Remaining dependencies: context/candidate/Git/artifact operations, admitted Go
+launch, current credential/policy/funding and positive MCP activation, followed by
+single-coordinator execution and durable outcome/restart settlement. The active
+agent currently clones bare source without the approved setup artifacts: prove
+the approved environment is transferred or reproduced in its actual workspace/HOME
+before claiming that join. Old-instance preparation re-enrollment and crash/reboot
+reconciliation remain unverified. Adversarial script/receipt/source integrity and
+worst-case stubborn-child teardown are unqualified; `TimeoutStopSec=2s` alone is
+not teardown evidence. Close these with actual admitted environment/worker facts,
+exact lifecycle/receipt evidence and Go reconciliation; use a user-started Daybreak
+session for checks that look like hacking. D3 and all broader open gates remain open.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary

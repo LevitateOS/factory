@@ -31415,3 +31415,16 @@ and finite/cancel/Quit passed in
 positive MCP activation or product outcome settlement is qualified. Native
 source/setup/context/candidate ports, admitted Go launch and coordinator
 composition remain unfinished; T09 and D3 remain Pending/open.
+
+Native standing source preparation now connects current Go admission to the
+isolated Rust preparer, actual approved setup/check execution, retained receipts,
+observation CAS, replay and exact retirement. The supervisor cancels and joins
+preparation jobs before dependencies stop. Actual Go/PostgreSQL/native ready,
+replay, retirement and observed-live-setup Quit passed in
+`/home/vince/tmp/fnp6.nTZsJ0/run.log`; check failure and missing-tool cases passed in
+`/home/vince/tmp/factory-native-preparation-1106.Y4p57Q/run.log`. These use declared
+approvals and no provider credentials. Context/candidate/artifact operations,
+approved environment transfer into the active agent, admitted Go launch,
+credential/policy/funding, positive MCP, coordinator and outcome/restart proof
+remain unfinished. T09 and D3 stay Pending/open; exact security dependencies and
+limitations remain in [the handoff](daybreak-security-handoff.md).

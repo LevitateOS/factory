@@ -15,6 +15,17 @@ use std::time::Duration;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 2 && args[1] == "preparation" {
+        return preparation_check(&root);
+    }
+    if args.len() == 5 && args[4] == "preparation-managed" {
+        return managed_preparations(
+            &root,
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+        );
+    }
     if args.len() == 5 && args[4] == "tool" {
         let supervisor = NativeSupervisor::start(
             Path::new(&args[1]),
@@ -172,6 +183,160 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(&key_path)?;
     assert!(Signer::open(&legacy).is_err());
     println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation, pre-marker adoption, changed-key and missing-key refusal");
+    Ok(())
+}
+
+fn managed_preparations(
+    root: &Path,
+    payload: &Path,
+    backend: &Path,
+    client: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::factory_provider::Broker;
+    let mut roots = Vec::new();
+    for mode in ["ready", "pending"] {
+        let profile = root.join(format!("preparation-{mode}"));
+        let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
+        let ready = supervisor.health()?;
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&ready.instance)
+            .arg("check-native-preparation")
+            .arg(mode)
+            .status()?
+            .success()
+        {
+            return Err("Go native preparation check failed".into());
+        }
+        let entries: Vec<_> =
+            fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
+        if entries.len() != 1 {
+            return Err("native preparation identity missing".into());
+        }
+        let run = entries[0]
+            .file_name()
+            .to_str()
+            .ok_or("native preparation name invalid")?
+            .to_owned();
+        roots.push(run.clone());
+        fs::write(root.join("execution-runs.ids"), roots.join("\n"))?;
+        if mode == "pending" {
+            let until = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                let state = Command::new("systemctl")
+                    .args([
+                        "show",
+                        &format!("soda-factory-preparer@{run}.service"),
+                        "--property=MainPID",
+                        "--value",
+                    ])
+                    .output()?;
+                if state.status.success()
+                    && String::from_utf8_lossy(&state.stdout)
+                        .trim()
+                        .parse::<u32>()
+                        .is_ok_and(|pid| pid > 0)
+                {
+                    break;
+                }
+                if std::time::Instant::now() >= until {
+                    return Err("pending native preparer process was not observed".into());
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            println!("Observed live pending preparer; testing supervisor Quit");
+        }
+        supervisor.stop()?;
+        if Broker::next_profile_run(&ready.profile)?.is_some() {
+            return Err("native supervisor left preparation roots".into());
+        }
+        if !entries[0].path().join("retired.json").is_file() {
+            return Err("native preparation retirement acknowledgement missing".into());
+        }
+    }
+    println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
+    Ok(())
+}
+
+fn preparation_check(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::factory_provider::{AgentCancellation, Broker, Role};
+    use std::collections::BTreeMap;
+    let bundle = fs::read(std::env::var("SODA_NATIVE_CHECK_BUNDLE")?)?;
+    let candidate = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
+    let digest: String = Sha256::digest(&bundle)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let mut random = [0u8; 16];
+    getrandom::fill(&mut random)?;
+    let profile: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+    let mut runs = Vec::new();
+    for mode in ["ready", "failed", "missing"] {
+        getrandom::fill(&mut random)?;
+        let run: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+        runs.push(run.clone());
+        fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
+        let approved = soda_execution_protocol::ApprovedFiles {
+            files: BTreeMap::from([
+                (
+                    "setup.sh".into(),
+                    b"printf prepared > prepared-marker\nprintf setup-complete\\n\n".to_vec(),
+                ),
+                (
+                    "check.sh".into(),
+                    if mode == "failed" {
+                        b"test -f prepared-marker\nprintf check-failed\\n\nexit 17\n".to_vec()
+                    } else {
+                        b"test -f prepared-marker\nprintf check-complete\\n\n".to_vec()
+                    },
+                ),
+            ]),
+            tools: if mode == "missing" {
+                vec!["factory-fixture-missing".into()]
+            } else {
+                vec!["git".into(), "bash".into()]
+            },
+        };
+        let result = Broker::prepare_source(
+            &run,
+            &profile,
+            Role::Coder,
+            &bundle,
+            &approved,
+            &candidate,
+            AgentCancellation::default(),
+        );
+        let retire = Broker::retire_unlaunched(&run, &profile, &digest);
+        let receipt = result?;
+        if !retire? {
+            return Err("native preparation root retirement unconfirmed".into());
+        }
+        match mode {
+            "ready"
+                if receipt.setup_exit == Some(0)
+                    && receipt.check_exit == Some(0)
+                    && receipt.missing.is_empty()
+                    && receipt.tools.len() == 2
+                    && receipt.output.contains("check-complete") =>
+            {
+                ()
+            }
+            "failed" if receipt.setup_exit == Some(0) && receipt.check_exit == Some(17) => (),
+            "missing"
+                if receipt.setup_exit.is_none()
+                    && receipt.check_exit.is_none()
+                    && receipt.missing == ["factory-fixture-missing"] =>
+            {
+                ()
+            }
+            _ => return Err(format!("native setup result differs for {mode}").into()),
+        }
+        println!("PASS: isolated native preparation {mode}: actual setup/check exits, source and approved-file digests, exact root retirement");
+    }
+    if Broker::next_profile_run(&profile)?.is_some() {
+        return Err("native preparation left a staged root".into());
+    }
     Ok(())
 }
 
