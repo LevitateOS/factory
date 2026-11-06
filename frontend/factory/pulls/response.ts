@@ -128,17 +128,20 @@ export function pullChecks(value: unknown, repository: string, number: string, h
 }
 
 export function pullReviews(value: unknown, repository: string, number: string, cursor = '') {
-  return pullPage(value, 20, (value) => {
-    const review = object(value);
-    pullRef(review.pull, repository, number);
-    available(review.observation);
-    const state = review.state;
-    check(['pending', 'approved', 'changes_requested', 'commented', 'dismissed', 'unknown'].includes(String(state)));
-    const author = review.author === null ? null : object(review.author);
-    return {externalID: text(review.external_id, 512), state: state as string,
-      author: author ? text(author.login, 256) : 'Unknown author', body: text(review.body, 4 * 1024 * 1024),
-      stale: review.stale === true, official: review.official === true, submittedAt: date(review.submitted_at)};
-  }, cursor);
+  return pullPage(value, 20, value => pullReview(value, repository, number), cursor);
+}
+
+export function pullReview(value: unknown, repository: string, number: string) {
+  const review = object(value), parent = pullRef(review.pull, repository, number);
+  available(review.observation);
+  const state = review.state;
+  check(['pending', 'approved', 'changes_requested', 'commented', 'dismissed', 'unknown'].includes(String(state)));
+  const author = review.author === null ? null : object(review.author);
+  check(!author || id(author.id));
+  return {externalID: text(review.external_id, 512), pull: parent, state: state as string,
+    authorID: author ? author.id as string : null,
+    author: author ? text(author.login, 256) : 'Unknown author', body: text(review.body, 4 * 1024 * 1024),
+    stale: review.stale === true, official: review.official === true, submittedAt: date(review.submitted_at)};
 }
 
 export interface PullThreadView {

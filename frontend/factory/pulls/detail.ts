@@ -7,6 +7,7 @@ import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 import '../review/diff.js';
 import './review.js';
+import type {SodaFactoryPullReview} from './review.js';
 import './merge.js';
 import './inline.js';
 import './thread-resolution.js';
@@ -273,7 +274,10 @@ export class SodaFactoryPull extends LitElement {
           <ol>${this.view.comments.map(comment => html`<li><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([comment.externalID, comment.body, context.resolveLink], () => issueMarkdown(comment.body, href => context.resolveLink(href), `pull-comment-${comment.externalID}`))}</div></li>`)}</ol>
           ${!this.view.comments.length ? html`<p>No comments on this page.</p>` : ''}
         </section>` : this.tab === 'reviews' ? html`<section aria-label="Reviews">
-          <ul>${this.view.reviews.map(review => html`<li>${review.author} · ${review.state}${review.stale ? ' · Stale' : ''}<div class="soda-markdown">${guard([review.externalID, review.body, context.resolveLink], () => issueMarkdown(review.body, href => context.resolveLink(href), `pull-review-${review.externalID}`))}</div></li>`)}</ul>
+          <ul>${this.view.reviews.map(review => html`<li>${review.author} · ${review.state}${review.stale ? ' · Stale' : ''}<div class="soda-markdown">${guard([review.externalID, review.body, context.resolveLink], () => issueMarkdown(review.body, href => context.resolveLink(href), `pull-review-${review.externalID}`))}</div>
+            ${context.commandScope && review.state === 'pending' && review.authorID === context.actor ? html`<button type="button"
+              @click=${() => void this.querySelector<SodaFactoryPullReview>('soda-factory-pull-review')?.loadDraft(review.externalID)}>Edit saved draft review</button>` : ''}
+          </li>`)}</ul>
           ${!this.view.reviews.length ? html`<p>No reviews on this page.</p>` : ''}
         </section>` : html`<section aria-label="Inline discussions"><ol>${this.view.threads.map(thread => html`<li>
             <strong>${thread.currentAnchor?.new_path || thread.currentAnchor?.old_path || thread.anchor?.new_path || thread.anchor?.old_path || 'Location unavailable'}</strong>

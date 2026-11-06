@@ -30867,3 +30867,20 @@ helper was rebuilt against the updated contract; earlier failures are retained.
 Go/native builds, TypeScript checking, boundaries and whitespace passed. This
 does not qualify connected UI, cross-account behavior, fresh OAuth or installed
 products. Those gates and T11 remain open.
+
+### T11-WRITES: reopen a saved pending review in the editor (2026-11-06)
+
+The shared PR review list now offers “Edit saved draft review” for the current
+canonical actor's pending reviews. The editor rereads the exact review through
+the normal endpoint, checks parent/actor/pending state and copies exact Markdown
+into the existing durable writing record. Different local writing and unresolved
+commands are preserved. Loading never sends a mutation; existing draft editing
+and submission keep their journaled owners.
+
+The emitted production detail/editor components passed a real Chromium journey
+with declared transport fixtures: exact Unicode/Markdown restoration, local-writing
+preservation, submitted/other-actor refusal and zero writes. The check caught and
+fixed an erased type-only import that omitted editor registration. Evidence:
+`/home/vince/tmp/factory-review-editor-1106.gdCmhn/final.log`. TypeScript and the
+production UI build passed. This is component integration evidence; actual
+GitHub draft privacy, connected desktop UI and installed qualification stay open.

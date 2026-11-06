@@ -6,7 +6,7 @@ import {pullActionAllowed} from '../api/capability-response.js';
 import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {pullItem, pullRef} from './response.js';
+import {pullItem, pullRef, pullReview} from './response.js';
 import {
   emptyReviewWriting, readReviewWriting, reloadReviewWriting, reviewRecordKey,
   sameReviewPending, saveReviewWriting, validReviewBody,
@@ -213,6 +213,27 @@ export class SodaFactoryPullReview extends LitElement {
     const context = this.current;
     if (!context || this.busy) return;
     this.restore(context, true); this.touch(); void this.refresh();
+  }
+  async loadDraft(externalID: string) {
+    const context = this.current, signal = this.lifetime.signal;
+    if (!context || this.busy || this.writing.pending || this.saved.blocked || !this.live(context, signal)) return;
+    this.busy = true; this.message = ''; this.touch();
+    try {
+      await this.admit(context, signal);
+      const raw = await getJSON(context.transport, this.path(context) + '/reviews/' + encodeURIComponent(externalID), signal);
+      check(this.live(context, signal));
+      const review = pullReview(raw, context.repository, context.pull);
+      check(review.externalID === externalID && review.pull.external_id === context.parent.external_id &&
+        review.authorID === context.actor && review.state === 'pending' && validReviewBody(review.body));
+      if (this.writing.draft.body && this.writing.draft.body !== review.body) {
+        this.message = 'Your local review writing was kept. Copy or clear it before loading the saved draft.';
+        return;
+      }
+      if (this.write(context, {draft: {revision: factoryCommandId(), body: review.body}}) === 'saved')
+        this.message = 'Saved provider draft loaded. Edit it or choose a submission action.';
+    } catch {
+      if (this.live(context, signal)) this.message = 'The saved draft could not be loaded. Your local writing was preserved.';
+    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
   }
   render() {
     const context = this.current;
