@@ -34,6 +34,9 @@ pub(crate) enum Call {
     Inspect {
         intent: String,
     },
+    InspectRetained {
+        intent: String,
+    },
     Cancel {
         intent: String,
     },
@@ -62,6 +65,44 @@ pub(crate) async fn call(
             return Err(io::Error::other("native work recovery owner required"))
         }
         Call::Launch { .. } => return Err(io::Error::other("native launch owner required")),
+        Call::InspectRetained { intent } => {
+            return tokio::task::spawn_blocking(move || {
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                let intent = LaunchIntent::from_go(&intent)?;
+                let scope = intent.scope()?;
+                if scope.profile != profile_id
+                    || super::read_intent(&profile, &scope)?
+                        .is_none_or(|saved| saved.raw() != intent.raw())
+                {
+                    return Err(io::Error::other("native retained intent differs"));
+                }
+                let result = super::read_retained(&profile, &scope)?
+                    .ok_or_else(|| io::Error::other("native terminal receipt missing"))?;
+                let custody = super::read_custody(&profile, &scope, intent.connection())?
+                    .filter(|custody| custody.sealed && custody.state == CustodyState::Released)
+                    .ok_or_else(|| io::Error::other("native credential release unconfirmed"))?;
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                // This read cannot prove root retirement. Go must already have
+                // the exact durable retirement acknowledgement before using it.
+                Ok(observation(
+                    &intent,
+                    Some(super::AgentStarted {
+                        worker_uid: result.worker_uid,
+                        process: result.process.clone(),
+                    }),
+                    Some(&result),
+                    Some(&custody),
+                    Some(false),
+                    false,
+                ))
+            })
+            .await
+            .map_err(|_| io::Error::other("native retained observation failed"))?;
+        }
         Call::Export { intent, candidate } => {
             return tokio::task::spawn_blocking(move || {
                 if !alive.load(Ordering::SeqCst) {
@@ -125,11 +166,6 @@ fn snapshot(
     };
     let attempt = ticket.observe();
     let custody = ticket.custody().ok();
-    let custody_json = custody.as_ref().map(|custody| json!({
-        "state":match custody.state { CustodyState::Held=>"held", CustodyState::Released=>"released", CustodyState::Uncertain=>"uncertain" },
-        "acquisition_id":custody.acquisition_id,"connection":custody.connection,
-        "generation":custody.generation.to_string(),"sealed":custody.sealed,
-    }));
     let (started, live, terminal) = match &outcome {
         ExecutionOutcome::Complete(result) => (
             Some(super::AgentStarted {
@@ -144,6 +180,37 @@ fn snapshot(
             Err(_) => (attempt.started.clone(), None, None),
         },
     };
+    let retired = terminal.is_some()
+        && attempt.phase == AttemptPhase::Retired
+        && custody
+            .as_ref()
+            .is_some_and(|custody| custody.sealed && custody.state == CustodyState::Released);
+    if !alive.load(Ordering::SeqCst) {
+        return Err(refused());
+    }
+    Ok(observation(
+        &intent,
+        started,
+        terminal.map(AsRef::as_ref),
+        custody.as_ref(),
+        live,
+        retired,
+    ))
+}
+
+fn observation(
+    intent: &LaunchIntent,
+    started: Option<super::AgentStarted>,
+    terminal: Option<&super::AgentRun>,
+    custody: Option<&super::CustodyObservation>,
+    live: Option<bool>,
+    retired: bool,
+) -> Value {
+    let custody_json = custody.map(|custody| json!({
+        "state":match custody.state { CustodyState::Held=>"held", CustodyState::Released=>"released", CustodyState::Uncertain=>"uncertain" },
+        "acquisition_id":custody.acquisition_id,"connection":custody.connection,
+        "generation":custody.generation.to_string(),"sealed":custody.sealed,
+    }));
     let receipt = started.map(|started| json!({
         "worker_uid":started.worker_uid,"invocation":started.process.invocation,
         "system_instance":started.process.system_instance,"start_identity":started.process.start_identity,
@@ -151,11 +218,6 @@ fn snapshot(
         "exit_code":terminal.and_then(|result| result.exit_code),
         "exit_signal":terminal.and_then(|result| result.exit_signal),
     }));
-    let retired = terminal.is_some()
-        && attempt.phase == AttemptPhase::Retired
-        && custody
-            .as_ref()
-            .is_some_and(|custody| custody.sealed && custody.state == CustodyState::Released);
     // Product output is text with its existing 64 KiB limit. Larger or binary
     // native receipts remain retained, but cannot qualify a product result.
     let output = terminal.and_then(|result| {
@@ -163,15 +225,10 @@ fn snapshot(
             .then(|| std::str::from_utf8(&result.output).ok())
             .flatten()
     });
-    if !alive.load(Ordering::SeqCst) {
-        return Err(refused());
-    }
-    Ok(
-        json!({"intent_digest":intent.digest(),"receipt":receipt,"custody":custody_json,
-            "live":live,"retired":retired,"reason":terminal.map(|result| result.reason.as_str()),
-            "candidate_state":terminal.map(|result|result.candidate_state.as_str()),
-            "candidate":terminal.and_then(|result|result.result_candidate.as_deref()),
-            "output":output,"output_complete":terminal.is_some_and(|result| result.output_complete) && output.is_some(),
-        }),
-    )
+    json!({"intent_digest":intent.digest(),"receipt":receipt,"custody":custody_json,
+        "live":live,"retired":retired,"reason":terminal.map(|result| result.reason.as_str()),
+        "candidate_state":terminal.map(|result|result.candidate_state.as_str()),
+        "candidate":terminal.and_then(|result|result.result_candidate.as_deref()),
+        "output":output,"output_complete":terminal.is_some_and(|result| result.output_complete) && output.is_some(),
+    })
 }

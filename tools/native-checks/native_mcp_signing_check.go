@@ -1200,7 +1200,7 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	if mode == "running" {
 		stale := port
 		stale.Instance = factory.NewID()
-		if _, err := stale.InspectRun(ctx, address); !errors.Is(err, execution.ErrRunChanged) {
+		if _, err := stale.InspectRun(ctx, address); !errors.Is(err, execution.ErrRunNotObserved) {
 			return errors.New("stale native owner selected a process")
 		}
 		changed := address

@@ -31569,3 +31569,12 @@ were declared fixture facts and credentials were dummy; real provider inference,
 connected authority, native task/checkpoint execution and installed gates remain
 unfinished. Earlier failed/check-only profiles remain retained for exact
 reconciliation as recorded in the security handoff.
+
+Retained native observation now supports a new runtime instance after Go has
+recorded the exact original root retirement. Rust reads the unchanged saved
+intent, terminal receipt and sealed released custody; no live owner is adopted.
+The actual admitted local worker journey restarts before coordinator settlement
+and passed in `/home/vince/tmp/frto6.exbBgd/run.log`. This closes that local
+restart-observation gap. Earlier profiles still need their own reconciliation;
+crash/reboot and real provider qualification remain open. The user selected Muse
+subscription browser sign-in for the pending real-provider journey.

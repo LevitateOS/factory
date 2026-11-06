@@ -104,8 +104,18 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 		return empty, err
 	}
 	if run.ProjectID != address.Workspace || run.Native == nil || run.Native.Intent == "" ||
-		run.Native.Provenance.Profile != p.Config.Profile || run.Native.Provenance.InstanceID != p.Instance {
+		run.Native.Provenance.Profile != p.Config.Profile {
 		return empty, execution.ErrRunChanged
+	}
+	retained := run.Native.Provenance.InstanceID != p.Instance
+	if retained {
+		// Startup recovery owns root retirement. An old instance grants no
+		// live ownership or cancellation; only its acknowledged terminal facts
+		// can be read through the current authenticated native channel.
+		if run.Native.Retirement != execution.Retired || !run.Native.Sealed || run.Native.Provenance.Custody.State != execution.Released {
+			return empty, execution.ErrRunNotObserved
+		}
+		operation = "inspect_retained"
 	}
 	intent := run.Native.Intent
 	var snapshot nativeExecutionSnapshot
@@ -120,6 +130,9 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 		return empty, execution.ErrRunNotObserved
 	}
 	if snapshot.Retired && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {
+		return empty, execution.ErrObservation
+	}
+	if retained && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {
 		return empty, execution.ErrObservation
 	}
 	if err = p.Store.ObserveNativeRecovery(ctx, p.Config.Profile, intent, *snapshot.Receipt, snapshot.Custody, os.Geteuid()); err != nil {
@@ -142,7 +155,7 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	native := *run.Native
 	live := snapshot.Live != nil && *snapshot.Live
 	phase := project.FactoryUncertain
-	if snapshot.Retired {
+	if snapshot.Retired || retained && native.Retirement == execution.Retired {
 		phase = project.FactoryFailed
 		candidateValid := run.Role != project.RoleCoder || snapshot.CandidateState != nil && (*snapshot.CandidateState == "unchanged" && snapshot.Candidate == nil ||
 			*snapshot.CandidateState == "captured" && snapshot.Candidate != nil && project.ValidCommit(*snapshot.Candidate) && *snapshot.Candidate != run.InputSHA)

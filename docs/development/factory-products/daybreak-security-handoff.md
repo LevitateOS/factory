@@ -326,16 +326,28 @@ Retained joined-check attempts: `fglv6.HLwIVr` and `fglv6.Lgz5Vu` under
 `fglv6.dw9E7j` contains the earlier successful composition before explicit terminal
 proposal/settlement was added. Their `execution-profile/admitted-native-fixture.json`
 names the exact canonical run; native terminal/custody evidence is retained there.
-Canonical settlement of those original rows has not been verified. Blocker:
-old-instance retained output/owner reconciliation, independently of the later
-successful profile. Closure needs original exact receipt/custody/root evidence
+Canonical settlement of those original rows has not been verified. The retained
+observation path below is now available, but each original profile still needs
+its exact receipt/custody/root evidence
 and canonical Go reconciliation of each row; do not substitute the later pass or
 invent a typed result. Earlier uncertain profiles elsewhere in this handoff stay
 unchanged.
 
+Retained-run update: `factory_provider/port.rs` now reads the exact saved intent,
+terminal receipt and sealed released custody after restart. Go's
+`runtime/native_execution.go` requires its existing durable root-retirement
+acknowledgement before selecting that read; it grants no live adoption or old-run
+cancellation. The admitted local worker journey now restarts the actual runtime
+before canonical settlement and passed in `/home/vince/tmp/frto6.exbBgd/run.log`.
+The original instance/intent/process remain unchanged. This proves local retained
+observation and reconciliation, not crash/reboot recovery, provider execution or
+settlement of any earlier profile. Missing terminal or retirement evidence remains
+pending; broad gates stay open.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout
 selection, native task/checkpoint and filesystem artifact capture, verified Muse
-account enrollment/selection, cross-account policy enrollment and background
+account enrollment/selection (the user selected subscription browser sign-in),
+cross-account policy enrollment and background
 publication/review/merge actor resolution, current connected provider authority
 and the real finite provider task with typed outcome, cancellation and durable
 retirement/restart settlement. Old-instance preparation re-enrollment and crash/reboot

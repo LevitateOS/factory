@@ -467,14 +467,31 @@ async fn managed_execution(
             "check-admitted-native",
             fixture.to_str().ok_or("fixture path invalid")?,
         )?;
-        supervisor.start_execution_coordinator().await?;
-        command(
-            "settled-admitted-native",
-            fixture.to_str().ok_or("fixture path invalid")?,
-        )?;
         supervisor.stop()?;
+        let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+        let current = restarted.health()?;
+        if current.instance == ready.instance {
+            return Err("native restart reused the original instance".into());
+        }
+        for operation in ["check-admitted-native", "settled-admitted-native"] {
+            if operation == "settled-admitted-native" {
+                restarted.start_execution_coordinator().await?;
+            }
+            if !Command::new(client)
+                .arg(&profile)
+                .arg(&current.instance)
+                .arg(operation)
+                .arg(&fixture)
+                .status()?
+                .success()
+            {
+                return Err("retained admitted execution after restart failed".into());
+            }
+        }
+        restarted.stop()?;
         credentials.withdraw(&account.connection).await?;
         Broker::retire_bundle(&run, &ready.profile, &digest(&source))?;
+        println!("PASS: a new native instance reads exact retired run output and settles its original admitted row without relaunch or live adoption");
         return Ok(());
     }
     let mut quit_ticket = None;
