@@ -39,6 +39,47 @@ func postgresFixture(t *testing.T) (*Store, string) {
 	return s, dsn
 }
 
+// Journal upgrade fixtures start from a current private database. Versions before
+// 81 had neither dispatch_state nor the guard that references it. Restore both
+// before applying their historical payload rule; Open must perform the real
+// dispatch migration, preserving every retained command and immutable guard.
+func restorePreDispatchCommandFixture(t *testing.T, db interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}) {
+	t.Helper()
+	for _, statement := range []string{
+		`CREATE OR REPLACE FUNCTION soda_guard_command() RETURNS trigger AS $$
+BEGIN
+  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.type IS DISTINCT FROM OLD.type
+    OR NEW.target IS DISTINCT FROM OLD.target OR NEW.principal IS DISTINCT FROM OLD.principal
+    OR NEW.digest IS DISTINCT FROM OLD.digest OR NEW.payload IS DISTINCT FROM OLD.payload
+    OR NEW.created IS DISTINCT FROM OLD.created
+    OR (OLD.finished!='' AND (NEW.finished IS DISTINCT FROM OLD.finished OR NEW.outcome IS DISTINCT FROM OLD.outcome))
+  THEN
+    RAISE EXCEPTION 'factory command is immutable';
+  END IF;
+  RETURN NEW;
+END $$ LANGUAGE plpgsql`,
+		`ALTER TABLE factory_commands DROP COLUMN dispatch_state`,
+	} {
+		if _, err := db.ExecContext(t.Context(), statement); err != nil {
+			t.Fatal("restore pre-dispatch command fixture", err)
+		}
+	}
+}
+
+// Storage preserves provider preparation as opaque bytes. Provider codecs and
+// authenticated receipts are exercised by their native integration checks.
+func opaqueHumanPreparationFixture(t *testing.T, size int) []byte {
+	t.Helper()
+	prefix, suffix := "{ \"opaque\":\"", "\\n完整 🌋\" }\n "
+	raw := []byte(prefix + strings.Repeat("x", size-len(prefix)-len(suffix)) + suffix)
+	if len(raw) != size || !json.Valid(raw) {
+		t.Fatal("invalid opaque preparation fixture")
+	}
+	return raw
+}
+
 // Driven by soda-native-pg-check across three actual server lifetimes. Each
 // phase opens the same private native cluster, rather than cloning a fixture DB.
 func TestNativePostgresRetainedTransaction(t *testing.T) {
@@ -517,8 +558,8 @@ func checkNativeHumanCommentJournal(t *testing.T, s *Store, dsn, phase, identity
 		if err := s.InitializeEmptyCollaborationLedger(ctx); err != nil {
 			t.Fatal(err)
 		}
-		// Reconstitute the exact prior payload bound; all other schema-70 objects
-		// already match. Keep an existing immutable settings command through Open.
+		// Keep an existing immutable settings command through the historical
+		// command-shape and payload-bound upgrade.
 		legacy := factory.Command{ID: factory.NewID(), Type: factory.CommandRetry, Target: "retained", Principal: "42", Payload: `{"retained":"原文"}`}
 		legacy.Digest = factory.SettingsDigest(legacy.Type, legacy.Target, legacy.Payload)
 		tx, err := s.db.BeginTx(ctx, nil)
@@ -528,6 +569,7 @@ func checkNativeHumanCommentJournal(t *testing.T, s *Store, dsn, phase, identity
 		if _, _, err = recordFactoryCommandTx(ctx, tx, legacy, time.Now()); err != nil {
 			t.Fatal(err)
 		}
+		restorePreDispatchCommandFixture(t, tx)
 		for _, statement := range []string{
 			`ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check`,
 			`ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK(char_length(payload)<=8192)`,
@@ -748,6 +790,7 @@ func checkNativeHumanReviewDevelopmentSchema(t *testing.T, s *Store, dsn, path s
 	if pull {
 		previousDDL = HumanMergeJournalUpgradeDDL
 	}
+	restorePreDispatchCommandFixture(t, development.db)
 	for _, statement := range previousDDL {
 		if _, err := development.db.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)
@@ -1615,6 +1658,7 @@ func checkNativeHumanPullCreateJournal(t *testing.T, s *Store, dsn, phase, path 
 			t.Fatal(err)
 		}
 		// Restore the actual preceding payload format before any new PR row.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, ddl := range HumanMergeJournalUpgradeDDL {
 			if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 				t.Fatal(err)
@@ -1885,6 +1929,7 @@ func checkNativeHumanMergeJournal(t *testing.T, s *Store, dsn, phase, path strin
 			t.Fatal(err)
 		}
 		// Restore the actual prior format before any large merge command exists.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, ddl := range HumanReviewRequestJournalUpgradeDDL {
 			if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 				t.Fatal(err)
@@ -2191,6 +2236,7 @@ func checkNativeHumanReviewRequestJournal(t *testing.T, s *Store, dsn, phase, pa
 		}
 		// Restore the exact former bound in this disposable native cluster, then
 		// qualify the real schema-77 upgrade without rewriting the retained command.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, ddl := range HumanThreadJournalUpgradeDDL {
 			if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 				t.Fatal(err)
@@ -2208,10 +2254,7 @@ func checkNativeHumanReviewRequestJournal(t *testing.T, s *Store, dsn, phase, pa
 		if err := s.db.QueryRowContext(ctx, "SELECT version FROM schema_version").Scan(&version); err != nil || version != SchemaVersion() {
 			t.Fatal("reviewer upgrade marker", version, err)
 		}
-		preparation, err := os.ReadFile(os.Getenv("SODA_NATIVE_HUMAN_REVIEW_REQUEST_PREPARATION_FILE"))
-		if err != nil || !json.Valid(preparation) || len(preparation) <= 8192 || len(preparation) > factory.MaxHumanReviewRequestProviderIntentBytes {
-			t.Fatal("SDK reviewer preparation unavailable", err)
-		}
+		preparation := opaqueHumanPreparationFixture(t, factory.MaxHumanReviewRequestProviderIntentBytes)
 		capture := factory.HumanReviewRequestCapture{Request: factory.HumanReviewRequestCommand{ID: factory.NewID(), Host: host.ID, Repository: repo.ID, Actor: actor.ID, Number: 9007199254740993, Reviewer: reviewer.ID, Requested: true}, Authority: "reviewer-original-installation", OperationID: "reviewer-original-operation", ProviderIntent: preparation}
 		if _, err := s.HumanReviewRequestCapture(ctx, capture.Request); !errors.Is(err, ErrNotFound) {
 			t.Fatal("absent reviewer capture invented", err)
@@ -2750,6 +2793,7 @@ func checkNativeHumanThreadJournal(t *testing.T, s *Store, dsn, phase, identityF
 			t.Fatal(err)
 		}
 		// Restore schema 76's exact bound only in this new private fixture.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, statement := range HumanInlineJournalUpgradeDDL {
 			if _, err := s.db.ExecContext(ctx, statement); err != nil {
 				t.Fatal(err)
@@ -2767,12 +2811,7 @@ func checkNativeHumanThreadJournal(t *testing.T, s *Store, dsn, phase, identityF
 		if err := s.db.QueryRowContext(ctx, "SELECT version FROM schema_version").Scan(&version); err != nil || version != SchemaVersion() {
 			t.Fatal("thread upgrade marker", version, err)
 		}
-		// Produced by the actual SDK codec with maximal integer IDs and the
-		// worst JSON escaping of its bounded reasons. The store remains opaque.
-		preparation, err := os.ReadFile(os.Getenv("SODA_NATIVE_HUMAN_THREAD_PREPARATION_FILE"))
-		if err != nil || len(preparation) <= 8192 || len(preparation) > factory.MaxHumanThreadProviderIntentBytes || !json.Valid(preparation) {
-			t.Fatal("SDK thread preparation shape unavailable", err)
-		}
+		preparation := opaqueHumanPreparationFixture(t, factory.MaxHumanThreadProviderIntentBytes)
 		selection := factory.ReviewThreadAnchor{Base: strings.Repeat("c", 40), Head: strings.Repeat("a", 40), Path: strings.Repeat("<", 4096), Side: "new", Scope: "lines", StartLine: 1, EndLine: 9007199254740991}
 		capture := factory.HumanThreadCapture{Request: factory.HumanThreadCommand{ID: factory.NewID(), Host: host.ID, Repository: repo.ID, Actor: actor.ID, Number: 1, ThreadID: strings.Repeat("<", 1024), Anchor: &selection, Resolved: true}, Authority: "thread-installation-retained", OperationID: "thread-operation-retained", ProviderIntent: preparation}
 
@@ -2974,7 +3013,7 @@ func checkNativeHumanThreadJournal(t *testing.T, s *Store, dsn, phase, identityF
 	if err != nil || legacy.Payload != saved.Legacy.Payload || legacy.Digest != saved.Legacy.Digest {
 		t.Fatal("review journal changed retained settings", err)
 	}
-	t.Logf("%s: exact resolve/unresolve full/unknown file/side/range/tree anchors and opaque thread identity; SDK-produced/full 64 KiB proof, schema-76 upgrade, immutable 128 KiB thread captures, concurrent winner, exact replay/conflicts and unchanged prior commands; no provider dispatch", phase)
+	t.Logf("%s: exact resolve/unresolve full/unknown file/side/range/tree anchors and opaque thread identity; full 64 KiB proof, schema-76 upgrade, immutable 128 KiB thread captures, concurrent winner, exact replay/conflicts and unchanged prior commands; no provider dispatch", phase)
 }
 
 func checkNativeHumanInlineJournal(t *testing.T, s *Store, dsn, phase, identityFile string) {
@@ -3057,6 +3096,7 @@ func checkNativeHumanInlineJournal(t *testing.T, s *Store, dsn, phase, identityF
 			t.Fatal(err)
 		}
 		// Restore schema 75's exact bound only in this new private fixture.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, statement := range HumanReviewJournalUpgradeDDL {
 			if _, err := s.db.ExecContext(ctx, statement); err != nil {
 				t.Fatal(err)
@@ -3074,12 +3114,7 @@ func checkNativeHumanInlineJournal(t *testing.T, s *Store, dsn, phase, identityF
 		if err := s.db.QueryRowContext(ctx, "SELECT version FROM schema_version").Scan(&version); err != nil || version != SchemaVersion() {
 			t.Fatal("inline upgrade marker", version, err)
 		}
-		// Produced by the actual SDK codec with maximal integer IDs and the
-		// worst JSON escaping of its bounded reasons. The store remains opaque.
-		preparation, err := os.ReadFile(os.Getenv("SODA_NATIVE_HUMAN_INLINE_PREPARATION_FILE"))
-		if err != nil || len(preparation) < 64<<10 || !json.Valid(preparation) {
-			t.Fatal("SDK inline preparation shape unavailable", err)
-		}
+		preparation := opaqueHumanPreparationFixture(t, factory.MaxHumanInlineProviderIntentBytes)
 		selection := factory.ReviewThreadAnchor{Base: strings.Repeat("c", 40), Head: strings.Repeat("a", 40), Path: strings.Repeat("<", 4096), Side: "new", Scope: "lines", StartLine: 1, EndLine: 9007199254740991}
 		capture := factory.HumanInlineCapture{Request: factory.HumanInlineCommand{ID: factory.NewID(), Host: host.ID, Repository: repo.ID, Actor: actor.ID, Number: 1, Anchor: selection, Draft: true, Body: strings.Repeat("<", factory.MaxHumanInlineBytes-len("完整 🌋\r\n")) + "完整 🌋\r\n"}, Authority: "inline-installation-retained", OperationID: "inline-operation-retained", ProviderIntent: preparation}
 
@@ -3289,7 +3324,7 @@ func checkNativeHumanInlineJournal(t *testing.T, s *Store, dsn, phase, identityF
 	if err != nil || legacy.Payload != saved.Legacy.Payload || legacy.Digest != saved.Legacy.Digest {
 		t.Fatal("review journal changed retained settings", err)
 	}
-	t.Logf("%s: exact draft/immediate full file/side/range/tree anchors, 64 KiB prose and SDK-produced/full 512 KiB opaque proof; schema-75 upgrade, immutable 2 MiB inline captures, concurrent winner, exact replay/conflicts and unchanged prior commands; no provider dispatch", phase)
+	t.Logf("%s: exact draft/immediate full file/side/range/tree anchors, 64 KiB prose and full 512 KiB opaque proof; schema-75 upgrade, immutable 2 MiB inline captures, concurrent winner, exact replay/conflicts and unchanged prior commands; no provider dispatch", phase)
 }
 
 func checkNativeHumanReviewJournal(t *testing.T, s *Store, dsn, phase, identityFile string) {
@@ -3367,6 +3402,7 @@ func checkNativeHumanReviewJournal(t *testing.T, s *Store, dsn, phase, identityF
 			t.Fatal(err)
 		}
 		// Restore the exact schema-74 payload rule in this owned fixture only.
+		restorePreDispatchCommandFixture(t, s.db)
 		for _, statement := range []string{
 			"ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check",
 			"ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply') AND octet_length(payload)<=2097152) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create','discussion.lock.apply') AND char_length(payload)<=8192))",
@@ -3388,12 +3424,7 @@ func checkNativeHumanReviewJournal(t *testing.T, s *Store, dsn, phase, identityF
 		if err := s.db.QueryRowContext(ctx, "SELECT version FROM schema_version").Scan(&version); err != nil || version != SchemaVersion() {
 			t.Fatal("review upgrade marker", version, err)
 		}
-		// Produced by the actual SDK codec with maximal integer IDs and the
-		// worst JSON escaping of its bounded reasons. The store remains opaque.
-		preparation, err := os.ReadFile(os.Getenv("SODA_NATIVE_HUMAN_REVIEW_PREPARATION_FILE"))
-		if err != nil || len(preparation) < 64<<10 || !json.Valid(preparation) {
-			t.Fatal("SDK review preparation shape unavailable", err)
-		}
+		preparation := opaqueHumanPreparationFixture(t, factory.MaxHumanReviewProviderIntentBytes)
 		capture := factory.HumanReviewCapture{Request: factory.HumanReviewCommand{ID: factory.NewID(), Host: host.ID, Repository: repo.ID, Actor: actor.ID, Number: 1, Event: factory.HumanReviewDraft, Body: strings.Repeat("<", factory.MaxHumanReviewBytes-len("完整 🌋\r\n")) + "完整 🌋\r\n"}, Authority: "review-installation-retained", OperationID: "review-operation-retained", ProviderIntent: preparation}
 		if _, err := s.HumanReviewCapture(ctx, capture.Request); !errors.Is(err, ErrNotFound) {
 			t.Fatal("absent review capture invented", err)
@@ -3585,7 +3616,7 @@ func checkNativeHumanReviewJournal(t *testing.T, s *Store, dsn, phase, identityF
 	if err != nil || legacy.Payload != saved.Legacy.Payload || legacy.Digest != saved.Legacy.Digest {
 		t.Fatal("review journal changed retained settings", err)
 	}
-	t.Logf("%s: exact draft/comment/approve/request-changes, 64 KiB escaped prose, SDK-produced shape and full 512 KiB opaque preparation; schema-74 upgrade, original replay, concurrent winner, immutable 2 MiB review and unchanged ordinary limits; scope/kind conflicts and retained state/lock/comment/edit/create/settings; no provider dispatch", phase)
+	t.Logf("%s: exact draft/comment/approve/request-changes, 64 KiB escaped prose, full 512 KiB opaque preparation; schema-74 upgrade, original replay, concurrent winner, immutable 2 MiB review and unchanged ordinary limits; scope/kind conflicts and retained state/lock/comment/edit/create/settings; no provider dispatch", phase)
 }
 
 func checkNativeHumanStateJournal(t *testing.T, s *Store, phase, identityFile string) {
@@ -3657,12 +3688,7 @@ func checkNativeHumanStateJournal(t *testing.T, s *Store, phase, identityFile st
 		if err := tx.Commit(); err != nil {
 			t.Fatal(err)
 		}
-		// Produced by the actual SDK codec with maximal integer IDs and the
-		// worst JSON escaping of its bounded reasons. The store remains opaque.
-		preparation, err := os.ReadFile(os.Getenv("SODA_NATIVE_HUMAN_STATE_PREPARATION_FILE"))
-		if err != nil || len(preparation) < 3000 || !json.Valid(preparation) {
-			t.Fatal("SDK state preparation shape unavailable", err)
-		}
+		preparation := opaqueHumanPreparationFixture(t, factory.MaxHumanStateProviderIntentBytes)
 		capture := factory.HumanStateCapture{Request: factory.HumanStateCommand{ID: factory.NewID(), Host: host.ID, Repository: repo.ID, Actor: actor.ID, Subject: "pull", Number: 1, Close: true}, Authority: "state-installation-retained", OperationID: "state-operation-retained", ProviderIntent: preparation}
 		if _, err := s.HumanStateCapture(ctx, capture.Request); !errors.Is(err, ErrNotFound) {
 			t.Fatal("absent state capture invented", err)
@@ -3838,7 +3864,7 @@ func checkNativeHumanStateJournal(t *testing.T, s *Store, phase, identityFile st
 	if err != nil || legacy.Payload != saved.Legacy.Payload || legacy.Digest != saved.Legacy.Digest {
 		t.Fatal("state journal changed retained settings", err)
 	}
-	t.Logf("%s: exact issue/PR close/reopen, SDK-produced maximal shape and full 4 KiB opaque preparation; original replay, concurrent winner, immutable ordinary 8192-byte command, scope/kind conflicts; retained lock/comment/edit/create/settings; no schema change or provider dispatch", phase)
+	t.Logf("%s: exact issue/PR close/reopen, full 4 KiB opaque preparation; original replay, concurrent winner, immutable ordinary 8192-byte command, scope/kind conflicts; retained lock/comment/edit/create/settings; no schema change or provider dispatch", phase)
 }
 
 func checkNativeHumanLockJournal(t *testing.T, s *Store, dsn, phase, identityFile string) {
@@ -3902,6 +3928,7 @@ func checkNativeHumanLockJournal(t *testing.T, s *Store, dsn, phase, identityFil
 			t.Fatal(err)
 		}
 		// Restore the exact preceding payload rule only in this owned fixture.
+		restorePreDispatchCommandFixture(t, tx)
 		for _, statement := range []string{
 			"ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check",
 			"ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit','issue.create') AND octet_length(payload)<=2097152) OR (type NOT IN ('discussion.comment.create','discussion.edit','issue.create') AND char_length(payload)<=8192))",
@@ -4169,6 +4196,7 @@ func checkNativeHumanIssueCreateJournal(t *testing.T, s *Store, dsn, phase, iden
 			t.Fatal(err)
 		}
 		// Restore the exact preceding payload rule only in this owned fixture.
+		restorePreDispatchCommandFixture(t, tx)
 		for _, statement := range []string{
 			"ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check",
 			"ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK((type IN ('discussion.comment.create','discussion.edit') AND octet_length(payload)<=2097152) OR (type NOT IN ('discussion.comment.create','discussion.edit') AND char_length(payload)<=8192))",
@@ -4409,6 +4437,7 @@ func checkNativeHumanEditJournal(t *testing.T, s *Store, dsn, phase, identityFil
 		if _, _, err = recordFactoryCommandTx(ctx, tx, saved.Legacy, time.Now()); err != nil {
 			t.Fatal(err)
 		}
+		restorePreDispatchCommandFixture(t, tx)
 		for _, statement := range []string{
 			"ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check",
 			"ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK((type='discussion.comment.create' AND octet_length(payload)<=2097152) OR (type<>'discussion.comment.create' AND char_length(payload)<=8192))",

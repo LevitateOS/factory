@@ -7,12 +7,51 @@ import (
 	"github.com/levitateos/factory/pkg/collaboration"
 )
 
-// Shared ordering for the existing atomic human command journals.
-// Typed entry points validate each capture before entering this state reducer.
 var errHumanCommandObservation = errors.New("human command observation conflicts")
 
-// humanCommandFinished excludes pending/unknown effects and unresolved
-// completion. Needs-intervention remains open for an explicit later resolution.
+// Provider authenticity belongs to the admitted adapter. This binding checks
+// only that an atomic observation belongs to the captured product command.
+type humanCommandObservation struct {
+	host      collaboration.HostID
+	authority string
+	operation string
+	binding   collaboration.OperationBinding
+}
+
+func (c humanCommandObservation) valid(o collaboration.OperationLookup) bool {
+	if o.Validate() != nil || o.Host != c.host || o.Authority != c.authority || o.OperationID != c.operation {
+		return false
+	}
+	if o.Record == nil {
+		return true
+	}
+	r := o.Record
+	if len(r.Checkpoints) != 0 || r.Effect == collaboration.EffectPartial {
+		return false
+	}
+	if r.Binding == nil {
+		return r.Effect == collaboration.EffectNotCommitted && r.Cancellation == collaboration.CancellationCancelled && r.Completion == collaboration.CompletionComplete && r.Receipt == nil
+	}
+	if *r.Binding != c.binding {
+		return false
+	}
+	if r.Effect == collaboration.EffectCommitted {
+		// The receipt pins provider intent; the binding pins the product command.
+		if r.Receipt == nil || r.Receipt.Authority != c.authority || r.Receipt.Reference != c.operation || len(r.Receipt.IntentDigest) != 64 {
+			return false
+		}
+		for _, b := range r.Receipt.IntentDigest {
+			if !(b >= '0' && b <= '9' || b >= 'a' && b <= 'f') {
+				return false
+			}
+		}
+	} else if r.Receipt != nil || r.Effect == collaboration.EffectNotCommitted && r.Completion != collaboration.CompletionComplete {
+		return false
+	}
+	return true
+}
+
+// Needs-intervention remains open for an explicit later resolution.
 func humanCommandFinished(o collaboration.OperationLookup) bool {
 	return o.State == collaboration.LookupFound && o.Record != nil &&
 		(o.Record.Effect == collaboration.EffectCommitted || o.Record.Effect == collaboration.EffectNotCommitted) && o.Record.Completion == collaboration.CompletionComplete
@@ -71,8 +110,7 @@ func retainHumanCancellationUncertainty(old, next collaboration.OperationLookup)
 	// A local cancellation can race the causal provider reply. Preserve the
 	// cancellation uncertainty without discarding a proved terminal primary
 	// effect, including one whose separate completion is unfinished. A later
-	// completion reply must retain that uncertainty too. Copy the record so the
-	// caller's observation is never mutated.
+	// completion reply must retain that uncertainty too.
 	if old.Record != nil && next.Record != nil &&
 		old.Record.Cancellation == collaboration.CancellationIndeterminate &&
 		(next.Record.Effect == collaboration.EffectCommitted || next.Record.Effect == collaboration.EffectNotCommitted) &&

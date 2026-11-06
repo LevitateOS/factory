@@ -31,7 +31,6 @@ type HumanEditWriter interface {
 	CancelHumanEdit(context.Context, factory.HumanEditCapture) (collaboration.OperationRecord, error)
 }
 
-// HumanEdits runs admitted human commands on the application's single store.
 // Provider evidence stays internal; HTTP owns the safe public projection.
 type HumanEdits struct {
 	Store  *store.Store
@@ -91,113 +90,60 @@ func (s HumanEdits) capture(ctx context.Context, q factory.HumanEditCommand, pre
 	if s.Store == nil || s.Writer == nil {
 		return empty, ErrHumanEditUnavailable
 	}
-	c, err := s.Store.HumanEditCapture(ctx, q)
-	if err == nil || !errors.Is(err, store.ErrNotFound) || !prepare {
-		return c, err
+	capture, fresh, err := loadOrPrepareHumanCapture(ctx, prepare,
+		func(ctx context.Context) (factory.HumanEditCapture, error) { return s.Store.HumanEditCapture(ctx, q) },
+		func(ctx context.Context) (factory.HumanEditCapture, error) { return s.Writer.PrepareHumanEdit(ctx, q) })
+	if err != nil || !fresh {
+		return capture, err
 	}
-	c, err = s.Writer.PrepareHumanEdit(ctx, q)
-	if err != nil {
-		// Another caller may have committed this capture while our initial
-		// lookup/preparation was in flight. Recover its exact winner rather
-		// than report a conflict for an otherwise identical concurrent retry.
-		raced, lookupErr := s.Store.HumanEditCapture(ctx, q)
-		if lookupErr == nil {
-			return raced, nil
-		}
-		if !errors.Is(lookupErr, store.ErrNotFound) {
-			return empty, lookupErr
-		}
-		return empty, err
-	}
-	if !c.Request.SameRequest(q) {
+	if !capture.Request.SameRequest(q) {
 		return empty, ErrHumanEditConflict
 	}
-	c, _, err = s.Store.CaptureHumanEdit(ctx, c)
-	return c, err
+	capture, _, err = s.Store.CaptureHumanEdit(ctx, capture)
+	return capture, err
 }
 
-func (s HumanEdits) observe(ctx context.Context, c factory.HumanEditCapture) (collaboration.OperationLookup, error) {
-	o, err := s.Writer.LookupHumanEdit(ctx, c)
-	if err != nil {
-		s.unknown(ctx, c)
-		return collaboration.OperationLookup{}, err
+func (s HumanEdits) effect(capture factory.HumanEditCapture) humanEffect {
+	return humanEffect{
+		binding: collaboration.OperationLookup{Host: capture.Request.Host, Authority: capture.Authority, OperationID: capture.OperationID},
+		lookup: func(ctx context.Context) (collaboration.OperationLookup, error) {
+			return s.Writer.LookupHumanEdit(ctx, capture)
+		},
+		persist: func(ctx context.Context, observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+			return s.Store.ObserveHumanEdit(ctx, capture, observation)
+		},
 	}
-	return s.Store.ObserveHumanEdit(ctx, c, o)
 }
 
-// A failed/lost reply is not a submitted record or no-effect proof. Retain a
-// scoped local unknown observation when the request is still alive; if cancelled,
-// the already committed capture remains sufficient for subsequent reconciliation.
-func (s HumanEdits) unknown(ctx context.Context, c factory.HumanEditCapture) {
-	if ctx.Err() != nil {
-		return
-	}
-	_, _ = s.Store.ObserveHumanEdit(ctx, c, collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupUnknown, Reason: "provider_reply_unavailable"})
-}
-
-func (s HumanEdits) save(ctx context.Context, c factory.HumanEditCapture, r collaboration.OperationRecord, err error) (collaboration.OperationLookup, error) {
-	if err != nil {
-		s.unknown(ctx, c)
-		return collaboration.OperationLookup{}, err
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupFound, Record: &r}
-	return s.Store.ObserveHumanEdit(ctx, c, o)
-}
-
-// Submit always reconciles this exact saved capture under current provider
-// admission before deciding whether dispatch is needed. A known record is never
-// submitted again; only admitted not-observed can dispatch the saved intent.
 func (s HumanEdits) Submit(ctx context.Context, q factory.HumanEditCommand) (collaboration.OperationLookup, error) {
-	c, err := s.capture(ctx, q, true)
+	capture, err := s.capture(ctx, q, true)
 	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
-	o, err := s.observe(ctx, c)
-	if err != nil {
-		return collaboration.OperationLookup{}, err
-	}
-	if o.Record != nil || o.State != collaboration.LookupNotObserved {
-		return o, nil
-	}
-	if !c.ExpectedCurrent() {
-		// Persist first, then obtain a real provider cancellation tombstone. A
-		// stale save must remain reconcilable and fence delayed original submits;
-		// neither HTTP refusal nor a missing local command is no-effect proof.
-		r, err := s.Writer.CancelHumanEdit(ctx, c)
-		return s.save(ctx, c, r, err)
-	}
-	r, err := s.Writer.SubmitHumanEdit(ctx, c)
-	return s.save(ctx, c, r, err)
+	return s.effect(capture).submit(ctx, func(ctx context.Context) (collaboration.OperationRecord, error) {
+		// A stale captured edit obtains a real cancellation tombstone after
+		// reconciliation; a refused edit alone cannot prove no effect.
+		if !capture.ExpectedCurrent() {
+			return s.Writer.CancelHumanEdit(ctx, capture)
+		}
+		return s.Writer.SubmitHumanEdit(ctx, capture)
+	})
 }
 
-// Lookup does not prepare another provider snapshot or interpret an absent local
-// command as remote absence. Every returned receipt first faces live admission.
 func (s HumanEdits) Lookup(ctx context.Context, q factory.HumanEditCommand) (collaboration.OperationLookup, error) {
-	c, err := s.capture(ctx, q, false)
+	capture, err := s.capture(ctx, q, false)
 	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
-	return s.observe(ctx, c)
+	return s.effect(capture).reconcile(ctx)
 }
 
-// Cancel can win before submit, committing the capture then a real native
-// tombstone. A terminal primary needs no cancellation; its original outcome is
-// immutable. Pending/uncertain operations use the saved provider cancellation.
 func (s HumanEdits) Cancel(ctx context.Context, q factory.HumanEditCommand) (collaboration.OperationLookup, error) {
-	c, err := s.capture(ctx, q, true)
+	capture, err := s.capture(ctx, q, true)
 	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
-	o, err := s.observe(ctx, c)
-	if err != nil {
-		return collaboration.OperationLookup{}, err
-	}
-	if o.Record != nil && (o.Record.Effect == collaboration.EffectCommitted || o.Record.Effect == collaboration.EffectNotCommitted) {
-		return o, nil
-	}
-	if o.Record == nil && o.State != collaboration.LookupNotObserved {
-		return o, nil
-	}
-	r, err := s.Writer.CancelHumanEdit(ctx, c)
-	return s.save(ctx, c, r, err)
+	return s.effect(capture).cancel(ctx, func(ctx context.Context) (collaboration.OperationRecord, error) {
+		return s.Writer.CancelHumanEdit(ctx, capture)
+	})
 }

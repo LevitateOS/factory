@@ -14,141 +14,11 @@ var ErrCommandDispatchNotReady = errors.New("command dispatch requires a saved n
 
 const humanDispatchQuery = `SELECT id,type,target,principal,digest,payload,outcome,created,finished,dispatch_state FROM factory_commands WHERE id=$1`
 
-// Typed captures retain their own validation and reducers. This is the single
-// row-lock/reservation protocol for one-shot native human effects, not
-// a second command journal or authority inferred from retained SQL.
-type humanDispatch struct {
-	host                 collaboration.HostID
-	repository           collaboration.RepositoryID
-	actor                collaboration.ActorID
-	authority, operation string
-	invalid              error
-	validate             func(collaboration.OperationLookup) error
-	finished             func(collaboration.OperationLookup) bool
-	ready                func() bool
-	save                 func(context.Context, *sql.Tx, factory.Command, collaboration.OperationLookup) (collaboration.OperationLookup, error)
-}
-
-func humanDispatchCommand(cmd factory.Command) (humanDispatch, error) {
-	var s humanDispatch
-	switch cmd.Type {
-	case factory.CommandHumanComment:
-		c, err := factory.DecodeHumanCommentCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanCommentObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanCommentObservation(c, o) }, finished: factory.HumanCommentFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanCommentObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanIssueCreate:
-		c, err := factory.DecodeHumanIssueCreateCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanIssueCreateObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanIssueCreateObservation(c, o) }, finished: factory.HumanIssueCreateFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanIssueCreateObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanState:
-		c, err := factory.DecodeHumanStateCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanStateObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanStateObservation(c, o) }, finished: factory.HumanStateFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanStateObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanEdit:
-		c, err := factory.DecodeHumanEditCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanEditObservation,
-			ready:    c.ExpectedCurrent,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanEditObservation(c, o) }, finished: factory.HumanEditFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanEditObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanLock:
-		c, err := factory.DecodeHumanLockCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanLockObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanLockObservation(c, o) }, finished: factory.HumanLockFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanLockObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanThread:
-		c, err := factory.DecodeHumanThreadCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanThreadObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanThreadObservation(c, o) }, finished: factory.HumanThreadFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanThreadObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanReviewRequest:
-		c, err := factory.DecodeHumanReviewRequestCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanReviewRequestObservation,
-			validate: func(o collaboration.OperationLookup) error {
-				return factory.ValidateHumanReviewRequestObservation(c, o)
-			}, finished: factory.HumanReviewRequestFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanReviewRequestObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanPullCreate:
-		c, err := factory.DecodeHumanPullCreateCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanPullCreateObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanPullCreateObservation(c, o) }, finished: factory.HumanPullCreateFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanPullCreateObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanReview:
-		c, err := factory.DecodeHumanReviewCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanReviewObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanReviewObservation(c, o) }, finished: factory.HumanReviewFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanReviewObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanBranchCreate:
-		c, err := factory.DecodeHumanBranchCreateCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanBranchCreateObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanBranchCreateObservation(c, o) }, finished: factory.HumanBranchCreateFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanBranchCreateObservation(ctx, tx, saved, c, o)
-			}}
-	case factory.CommandHumanInline:
-		c, err := factory.DecodeHumanInlineCapture(cmd)
-		if err != nil {
-			return s, err
-		}
-		s = humanDispatch{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrHumanInlineObservation,
-			validate: func(o collaboration.OperationLookup) error { return factory.ValidateHumanInlineObservation(c, o) }, finished: factory.HumanInlineFinished,
-			save: func(ctx context.Context, tx *sql.Tx, saved factory.Command, o collaboration.OperationLookup) (collaboration.OperationLookup, error) {
-				return saveHumanInlineObservation(ctx, tx, saved, c, o)
-			}}
-	default:
-		return s, ErrCommandConflict
+func humanDispatchCommand(cmd factory.Command) (humanJournal, error) {
+	if cmd.Type == factory.CommandHumanMerge {
+		return humanJournal{}, ErrCommandConflict
 	}
-	return s, nil
+	return humanJournalCommand(cmd)
 }
 func scanHumanDispatch(row *sql.Row, want factory.Command) (factory.Command, factory.CommandDispatchState, error) {
 	var saved factory.Command
@@ -157,7 +27,7 @@ func scanHumanDispatch(row *sql.Row, want factory.Command) (factory.Command, fac
 	if err != nil {
 		return saved, "", err
 	}
-	if saved.ID != want.ID || saved.Type != want.Type || saved.Target != want.Target || saved.Principal != want.Principal || saved.Digest != want.Digest || saved.Payload != want.Payload {
+	if !sameHumanCommand(saved, want) {
 		return saved, "", ErrCommandConflict
 	}
 	if _, err := humanDispatchCommand(saved); err != nil {
@@ -255,7 +125,7 @@ func (s *Store) cancelHumanDispatch(ctx context.Context, cmd factory.Command) (c
 			lookup = prior
 		}
 	}
-	lookup, err = spec.save(ctx, tx, saved, lookup)
+	lookup, err = spec.saveObservation(ctx, tx, saved, lookup)
 	if err != nil {
 		return empty, err
 	}
