@@ -1,5 +1,6 @@
 import {check, id} from '../api/models.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface CompletionRetryAddress {
   readonly scope: string;
@@ -34,57 +35,36 @@ export function sameCompletionRetry(a: PendingCompletionRetry, b: PendingComplet
   return a.command === b.command && a.event === b.event && a.cycle === b.cycle;
 }
 
-/** Unknown bytes remain untouched; unavailable storage is never mistaken for absence. */
-export function readCompletionRetry(address: CompletionRetryAddress): {
-  pending: PendingCompletionRetry | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 4096) {
-    try {
-      const value: unknown = JSON.parse(stored.value);
-      if (valid(value)) {
-        const row = value as PendingCompletionRetry & Record<string, unknown>;
-        if (
-          Object.keys(row).length === 6 &&
-          row.scope === address.scope &&
-          row.repository === address.repository &&
-          row.issue === address.issue
-        )
-          return {
-            pending: {command: row.command, event: row.event, cycle: row.cycle},
-            blocked: false,
-            durable: stored.durable,
-          };
-      }
-    } catch {
-      /* Preserve the original record. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+function record(address: CompletionRetryAddress): PendingRecord<PendingCompletionRetry> {
+  return new PendingRecord<PendingCompletionRetry>(
+    key(address),
+    4096,
+    (raw) => {
+      const value: unknown = JSON.parse(raw);
+      if (!valid(value)) return;
+      const row = value as PendingCompletionRetry & Record<string, unknown>;
+      if (
+        Object.keys(row).length === 6 &&
+        row.scope === address.scope &&
+        row.repository === address.repository &&
+        row.issue === address.issue
+      )
+        return {command: row.command, event: row.event, cycle: row.cycle};
+    },
+    (pending) => JSON.stringify({...address, command: pending.command, event: pending.event, cycle: pending.cycle}),
+    sameCompletionRetry
+  );
 }
-
+export function readCompletionRetry(address: CompletionRetryAddress): RetainedPending<PendingCompletionRetry> {
+  return record(address).read();
+}
 export function retainCompletionRetry(
   address: CompletionRetryAddress,
   pending: PendingCompletionRetry
 ): 'saved' | 'unavailable' | 'conflict' {
   check(valid(pending));
-  const current = readCompletionRetry(address);
-  if (current.blocked || (current.pending && !sameCompletionRetry(current.pending, pending))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(
-    key(address),
-    JSON.stringify({...address, command: pending.command, event: pending.event, cycle: pending.cycle})
-  )
-    ? 'saved'
-    : 'unavailable';
+  return record(address).retain(pending);
 }
-/** Only the exact issued record may be settled by a recorded receipt. */
 export function settleCompletionRetry(address: CompletionRetryAddress, pending: PendingCompletionRetry): boolean {
-  const current = readCompletionRetry(address);
-  if (current.blocked || !current.pending || !sameCompletionRetry(current.pending, pending)) return false;
-  writeStored(key(address), '');
-  return true;
+  return record(address).settle(pending);
 }

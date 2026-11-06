@@ -1,6 +1,7 @@
 import {check, id, object} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface ReviewAddress {
   readonly scope: string;
@@ -40,16 +41,12 @@ function parse(value: unknown): PendingReview {
 export function sameReview(a: PendingReview, b: PendingReview): boolean {
   return a.revision === b.revision && a.intent === b.intent && a.acceptedRevision === b.acceptedRevision;
 }
-export function readReview(address: ReviewAddress): {
-  pending: PendingReview | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 8192) {
-    try {
-      const row = object(JSON.parse(stored.value));
+function record(address: ReviewAddress): PendingRecord<PendingReview> {
+  return new PendingRecord<PendingReview>(
+    key(address),
+    8192,
+    (raw) => {
+      const row = object(JSON.parse(raw));
       check(
         Object.keys(row).length === 5 &&
           row.scope === address.scope &&
@@ -57,23 +54,19 @@ export function readReview(address: ReviewAddress): {
           row.post === address.post &&
           row.actor === address.actor
       );
-      return {pending: parse(row.pending), blocked: false, durable: stored.durable};
-    } catch {
-      /* Preserve unknown and foreign bytes. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+      return parse(row.pending);
+    },
+    (pending) => JSON.stringify({...address, pending}),
+    sameReview
+  );
+}
+export function readReview(address: ReviewAddress): RetainedPending<PendingReview> {
+  return record(address).read();
 }
 export function retainReview(address: ReviewAddress, pending: PendingReview): 'saved' | 'unavailable' | 'conflict' {
   parse(pending);
-  const current = readReview(address);
-  if (current.blocked || (current.pending && !sameReview(current.pending, pending))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, pending})) ? 'saved' : 'unavailable';
+  return record(address).retain(pending);
 }
 export function settleReview(address: ReviewAddress, pending: PendingReview): boolean {
-  const current = readReview(address);
-  if (current.blocked || !current.pending || !sameReview(current.pending, pending)) return false;
-  writeStored(key(address), '');
-  return true;
+  return record(address).settle(pending);
 }

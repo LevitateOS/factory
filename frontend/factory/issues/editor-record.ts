@@ -1,5 +1,6 @@
 import {check, id, object} from '../api/models.js';
-import {inspectPersisted, writeStored} from '../shared/drafts.js';
+import {WritingRecord} from '../shared/retained-record.js';
+import type {RetainedWriting} from '../shared/retained-record.js';
 import {scalarEditText, sameEditOriginal} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
 
@@ -25,12 +26,7 @@ export interface EditorWriting {
   draft?: EditorDraft;
   pending?: PendingEdit;
 }
-export interface EditorSaved {
-  raw: string | undefined;
-  writing: EditorWriting | undefined;
-  blocked: boolean;
-  durable: boolean;
-}
+export type EditorSaved = RetainedWriting<EditorWriting>;
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 const fields = ({scope, host, actor, repository, issue}: EditorAddress): EditorAddress => ({
   scope,
@@ -39,7 +35,6 @@ const fields = ({scope, host, actor, repository, issue}: EditorAddress): EditorA
   repository,
   issue,
 });
-const unsaved = new Map<string, {raw: string; baseline: string | undefined}>();
 export function editorRecordKey(address: EditorAddress): string {
   check(issued(address.host) && id(address.actor) && id(address.repository) && id(address.issue));
   check(!!address.scope.trim() && address.scope.length <= 1024 && !/[\u0000-\u001f\u007f]/.test(address.scope));
@@ -128,52 +123,31 @@ function decode(raw: string | undefined, address: EditorAddress): EditorWriting 
     return;
   }
 }
+function record(address: EditorAddress): WritingRecord<EditorWriting> {
+  return new WritingRecord(
+    editorRecordKey(address),
+    (raw) => decode(raw, address),
+    (writing) => JSON.stringify({...fields(address), writing})
+  );
+}
 export function readEditorWriting(address: EditorAddress): EditorSaved {
-  const key = editorRecordKey(address),
-    persisted = inspectPersisted(key),
-    local = unsaved.get(key),
-    raw = local?.raw ?? persisted.value,
-    writing = decode(raw, address);
-  return {
-    raw,
-    writing,
-    durable: !local && persisted.durable,
-    blocked: (raw !== '' && !writing) || (!!local && persisted.value !== local.baseline),
-  };
+  return record(address).read();
 }
 export function saveEditorWriting(
   address: EditorAddress,
   expected: string | undefined,
   writing: EditorWriting
 ): 'saved' | 'unavailable' | 'conflict' {
-  const key = editorRecordKey(address),
-    current = readEditorWriting(address);
-  if (current.blocked || current.raw !== expected) return 'conflict';
-  const raw = JSON.stringify({...fields(address), writing});
-  check(decode(raw, address) !== undefined);
-  const persisted = inspectPersisted(key),
-    baseline = unsaved.get(key)?.baseline ?? expected;
-  if (persisted.value !== baseline) return 'conflict';
-  unsaved.set(key, {raw, baseline});
-  if (persisted.value === undefined || !writeStored(key, raw)) return 'unavailable';
-  unsaved.delete(key);
-  return 'saved';
+  return record(address).save(expected, writing);
 }
 export function reloadEditorWriting(address: EditorAddress): EditorSaved {
-  const key = editorRecordKey(address),
-    persisted = inspectPersisted(key),
-    local = unsaved.get(key);
-  if (!local || persisted.value === undefined) return readEditorWriting(address);
-  const saved = decode(persisted.value, address),
-    pending = decode(local.raw, address)?.pending;
-  if (persisted.value !== '' && !saved) return readEditorWriting(address);
-  if (pending) {
-    if (saved?.pending && !samePendingEdit(pending, saved.pending)) return readEditorWriting(address);
-    const writing: EditorWriting = {
+  return record(address).reload((ours, saved) => {
+    const pending = ours?.pending;
+    if (!pending) return 'persisted';
+    if (saved?.pending && !samePendingEdit(pending, saved.pending)) return 'conflict';
+    return {
       ...(saved?.draft ? {draft: saved.draft} : {}),
       pending: {...pending, cancel: pending.cancel || !!saved?.pending?.cancel},
     };
-    unsaved.set(key, {raw: JSON.stringify({...fields(address), writing}), baseline: persisted.value});
-  } else unsaved.delete(key);
-  return readEditorWriting(address);
+  });
 }

@@ -4,7 +4,7 @@ import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef} from '../api/collaboration.js';
 import {issueCreateAllowed, issueCreateOutcome} from '../api/issue-create-response.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {getJSON} from '../work/read.js';
+import {getJSON} from '../api/read.js';
 import {
   issueCreateRecordKey,
   emptyIssueCreation,

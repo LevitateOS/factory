@@ -3,11 +3,11 @@ import {check, id, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef} from '../api/collaboration.js';
 import {issueDetail} from '../api/issue-response.js';
-import {commentOutcome} from '../api/comment-response.js';
+import {commandOutcome} from '../api/command-response.js';
 import {issueEditAllowed, editBodyDigest, sameEditOriginal, scalarEditText} from '../api/issue-edit-response.js';
 import type {EditOriginal} from '../api/issue-edit-response.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {getJSON} from '../work/read.js';
+import {getJSON} from '../api/read.js';
 import {
   editorRecordKey,
   readEditorWriting,
@@ -370,7 +370,7 @@ export class SodaFactoryIssueEditor extends LitElement {
       }
     );
     check(this.live(context, signal) && response.ok);
-    const outcome = commentOutcome(await readSodaJSON(response), pending.command);
+    const outcome = commandOutcome(await readSodaJSON(response), pending.command);
     check(this.live(context, signal));
     if (!outcome.finished) {
       this.message =

@@ -159,7 +159,7 @@ primitives their own low-level owner and RunOwner one explicit start input.
 - Keep Linux/SELinux workarounds, retirement uncertainty, independent resource
   facts and actual worker isolation. No cosmetic dissolution of native owners.
 
-### 6. Browser retained records and API contracts — active
+### 6. Browser retained records and API contracts — complete
 
 One small retained-record owner handles exact-byte storage/conflicts; workflows
 own schemas and settlement. Put shared command outcomes and reads in API owners.
@@ -172,7 +172,24 @@ own schemas and settlement. Put shared command outcomes and reads in API owners.
 - Preserve edit original-writing conditions, cancellation uncertainty, creation
   navigation, scoped collections, reload recovery and generation retirement.
 
-### 7. Browser workflow/lifecycle owners — pending
+Implemented shared writing and single-pending-record owners, retaining each
+workflow's codec, key, byte order, bounds, matcher and reload/settlement rules.
+Writing owners use direct persisted writes instead of stacking a second cache.
+General command outcomes, capability reads and bounded API/error handling now
+live in API owners; old exported names remain aliases. Request Web Locks/archive,
+protected drafts, activity writing and context-choice collections retain their
+distinct protocols. Independent source review found no behavior change.
+
+Typecheck and Lit passed. Existing Chromium issue editor/create/comment recovery
+cases and feed revision/review recovery passed. The existing unconfirmed acceptance
+case also ran completion-decision, allowance, repair and activity recovery helpers.
+Commands used the retained `factory-fountain-read-1105/soda/tests/frontend/`
+drivers with `bun test --timeout 120000 --test-name-pattern ...`. Two broader work
+cases stopped on stale host-link expectations before run-retry/verification helper
+chains; those full journeys remain unverified here. No assertions were weakened
+and no test source added. Their unchanged codecs use the exercised shared owner.
+
+### 7. Browser workflow/lifecycle owners — active
 
 Replace callback bags with semantic lifecycle owners; compose visible snapshots
 in Lit elements. Extract workflows with their retained state, not loose methods.

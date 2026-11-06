@@ -1,5 +1,6 @@
 import {check, id, object} from '../api/models.js';
-import {inspectPersisted, writeStored} from '../shared/drafts.js';
+import {WritingRecord} from '../shared/retained-record.js';
+import type {RetainedWriting} from '../shared/retained-record.js';
 import {factoryCommandId} from '../api/run-response.js';
 
 export interface CommentAddress {
@@ -20,14 +21,8 @@ export interface CommentWriting {
   draft: {revision: string; body: string};
   pending?: PendingComment;
 }
-export interface CommentSaved {
-  raw: string | undefined;
-  writing: CommentWriting | undefined;
-  blocked: boolean;
-  durable: boolean;
-}
+export type CommentSaved = RetainedWriting<CommentWriting>;
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
-const unsaved = new Map<string, {raw: string; baseline: string | undefined}>();
 const fields = ({scope, host, actor, repository, issue}: CommentAddress): CommentAddress => ({
   scope,
   host,
@@ -88,62 +83,35 @@ function decode(raw: string | undefined, address: CommentAddress): CommentWritin
     return;
   }
 }
-export function readCommentWriting(address: CommentAddress): CommentSaved {
-  const key = commentRecordKey(address),
-    persisted = inspectPersisted(key),
-    local = unsaved.get(key);
-  const raw = local?.raw ?? persisted.value,
-    writing = decode(raw, address);
-  return {
-    raw,
-    writing,
-    durable: !local && persisted.durable,
-    blocked: (raw !== '' && !writing) || (!!local && persisted.value !== local.baseline),
-  };
+function record(address: CommentAddress): WritingRecord<CommentWriting> {
+  return new WritingRecord(
+    commentRecordKey(address),
+    (raw) => decode(raw, address),
+    (writing) => JSON.stringify({...fields(address), writing})
+  );
 }
-/** Compare the exact observed bytes, retaining a failed write's persisted
- * baseline across remounts, as the request draft owner does. Never overwrite a
- * newer document's writing, unknown bytes or a submission with another intent. */
+export function readCommentWriting(address: CommentAddress): CommentSaved {
+  return record(address).read();
+}
 export function saveCommentWriting(
   address: CommentAddress,
   expected: string | undefined,
   writing: CommentWriting
 ): 'saved' | 'unavailable' | 'conflict' {
-  const key = commentRecordKey(address),
-    current = readCommentWriting(address);
-  if (current.blocked || current.raw !== expected) return 'conflict';
-  const raw = JSON.stringify({...fields(address), writing});
-  check(decode(raw, address) !== undefined);
-  const persisted = inspectPersisted(key),
-    baseline = unsaved.get(key)?.baseline ?? expected;
-  if (persisted.value !== baseline) return 'conflict';
-  unsaved.set(key, {raw, baseline});
-  // An unreadable persisted baseline cannot authorize overwriting unknown data.
-  if (persisted.value === undefined || !writeStored(key, raw)) return 'unavailable';
-  unsaved.delete(key);
-  return 'saved';
+  return record(address).save(expected, writing);
 }
 export function emptyCommentWriting(): CommentWriting {
   return {draft: {revision: factoryCommandId(), body: ''}};
 }
 
-/** Explicitly recover the persisted draft while retaining this document's
- * unresolved submission. Two different submissions must never replace each other. */
 export function reloadCommentWriting(address: CommentAddress): CommentSaved {
-  const key = commentRecordKey(address),
-    persisted = inspectPersisted(key),
-    local = unsaved.get(key);
-  if (!local || persisted.value === undefined) return readCommentWriting(address);
-  const saved = decode(persisted.value, address),
-    pending = decode(local.raw, address)?.pending;
-  if (persisted.value !== '' && !saved) return readCommentWriting(address);
-  if (pending) {
-    if (saved?.pending && !samePendingComment(pending, saved.pending)) return readCommentWriting(address);
-    const writing: CommentWriting = {
+  return record(address).reload((ours, saved) => {
+    const pending = ours?.pending;
+    if (!pending) return 'persisted';
+    if (saved?.pending && !samePendingComment(pending, saved.pending)) return 'conflict';
+    return {
       draft: saved?.draft ?? emptyCommentWriting().draft,
       pending: {...pending, cancel: pending.cancel || !!saved?.pending?.cancel},
     };
-    unsaved.set(key, {raw: JSON.stringify({...fields(address), writing}), baseline: persisted.value});
-  } else unsaved.delete(key);
-  return readCommentWriting(address);
+  });
 }

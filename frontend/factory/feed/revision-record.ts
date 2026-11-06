@@ -1,5 +1,6 @@
 import {check, id, object} from '../api/models.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface RevisionAddress {
   readonly scope: string;
@@ -70,17 +71,12 @@ function parse(value: unknown): PendingRevision {
   check(revisionBody(result.writing) === result.body);
   return result;
 }
-/** Unknown, foreign or unreadable bytes are never treated as an empty slot. */
-export function readRevision(address: RevisionAddress): {
-  pending: PendingRevision | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 128 * 1024) {
-    try {
-      const row = object(JSON.parse(stored.value));
+function record(address: RevisionAddress): PendingRecord<PendingRevision> {
+  return new PendingRecord<PendingRevision>(
+    key(address),
+    131072,
+    (raw) => {
+      const row = object(JSON.parse(raw));
       check(
         Object.keys(row).length === 5 &&
           row.scope === address.scope &&
@@ -88,28 +84,22 @@ export function readRevision(address: RevisionAddress): {
           row.post === address.post &&
           row.author === address.author
       );
-      return {pending: parse(row.pending), blocked: false, durable: stored.durable};
-    } catch {
-      /* Preserve the exact record. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+      return parse(row.pending);
+    },
+    (pending) => JSON.stringify({...address, pending}),
+    samePendingRevision
+  );
 }
-/** No new effect is dispatched before its exact intent is durably retained. */
+export function readRevision(address: RevisionAddress): RetainedPending<PendingRevision> {
+  return record(address).read();
+}
 export function retainRevision(
   address: RevisionAddress,
   pending: PendingRevision
 ): 'saved' | 'unavailable' | 'conflict' {
   parse(pending);
-  const current = readRevision(address);
-  if (current.blocked || (current.pending && !samePendingRevision(current.pending, pending))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, pending})) ? 'saved' : 'unavailable';
+  return record(address).retain(pending);
 }
-/** A late receipt cannot remove a replacement or an unknown record. */
 export function settleRevision(address: RevisionAddress, pending: PendingRevision): boolean {
-  const current = readRevision(address);
-  if (current.blocked || !current.pending || !samePendingRevision(current.pending, pending)) return false;
-  writeStored(key(address), '');
-  return true;
+  return record(address).settle(pending);
 }

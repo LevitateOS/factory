@@ -4,7 +4,7 @@ import {check, id} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {libraryID, libraryPage, libraryRead} from '../api/library-response.js';
 import type {LibraryItem, LibraryHistory} from '../api/library-response.js';
-import {getJSON, WorkReadError} from '../work/read.js';
+import {getJSON, FactoryReadError} from '../api/read.js';
 
 export interface LibraryContext {
   readonly transport: FactoryTransport;
@@ -103,7 +103,7 @@ export class SodaFactoryLibrary extends LitElement {
   }
   private failed(error: unknown, serial: number, context: LibraryContext) {
     if (!this.live(serial, context)) return;
-    const privateUnavailable = error instanceof WorkReadError && [401, 403, 404].includes(error.status);
+    const privateUnavailable = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
     if (privateUnavailable) this.view = empty();
     const retained = this.view.items.length || this.view.item ? ' Last confirmed library items are shown.' : '';
     this.view = {

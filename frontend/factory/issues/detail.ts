@@ -6,7 +6,7 @@ import {issueDetail, issueCommentPage} from '../api/issue-response.js';
 import type {IssueDetail} from '../api/issue-response.js';
 import type {IssueComment} from '../api/collaboration.js';
 import type {IssueListContext} from './issues.js';
-import {getJSON, WorkReadError} from '../work/read.js';
+import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 
 export interface IssueDetailContext extends Omit<IssueListContext, 'openIssue'> {
@@ -162,7 +162,7 @@ export class SodaFactoryIssue extends LitElement {
       this.notify(true);
     } catch (error) {
       if (!this.live(context, serial)) return;
-      const hidden = error instanceof WorkReadError && [401, 403, 404].includes(error.status);
+      const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
       this.view = {
         ...empty(),
         message: hidden

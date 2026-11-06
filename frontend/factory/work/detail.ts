@@ -1,5 +1,5 @@
 import {LitElement, html} from 'lit';
-import {getJSON, failureInput, readFailureText} from './read.js';
+import {getJSON, failureInput, readFailureText} from '../api/read.js';
 import {readRunRetry, retainRunRetry, settleRunRetry} from './retry-record.js';
 import type {PendingRunRetry, RunRetryAddress} from './retry-record.js';
 import './acceptance.js';

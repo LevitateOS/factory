@@ -1,7 +1,7 @@
 import {check, id} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import type {IntentTask, ProductIdea} from '../api/request-response.js';
-import {inspectPersisted, writeStored} from '../shared/drafts.js';
+import {inspectPersisted, writePersisted} from '../shared/drafts.js';
 
 export interface RequestDraftAddress {
   scope: string;
@@ -231,7 +231,7 @@ export function retainRequestDraft(
     pending.set(key, {raw, baseline, protected: protectedCopy});
     return {status: conflict ? 'conflict' : 'unavailable', raw};
   }
-  if (writeStored(key, raw)) {
+  if (writePersisted(key, raw)) {
     pending.delete(key);
     return {status: 'saved', raw};
   }

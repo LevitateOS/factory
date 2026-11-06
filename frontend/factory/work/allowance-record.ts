@@ -2,7 +2,8 @@ import {check, id, object} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import {factoryRunID} from '../api/run-response.js';
 import type {VerificationAllowanceChange} from '../api/verification-allowance.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 export interface AllowanceAddress {
   readonly scope: string;
   readonly repository: string;
@@ -39,16 +40,12 @@ export function sameAllowanceChange(a: VerificationAllowanceChange, b: Verificat
     a.limits.active_minutes === b.limits.active_minutes
   );
 }
-export function readAllowanceChange(address: AllowanceAddress): {
-  pending: VerificationAllowanceChange | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 4096) {
-    try {
-      const row = object(JSON.parse(stored.value));
+function record(address: AllowanceAddress): PendingRecord<VerificationAllowanceChange> {
+  return new PendingRecord<VerificationAllowanceChange>(
+    key(address),
+    4096,
+    (raw) => {
+      const row = object(JSON.parse(raw));
       check(
         Object.keys(row).length === 4 &&
           row.scope === address.scope &&
@@ -56,26 +53,22 @@ export function readAllowanceChange(address: AllowanceAddress): {
           row.intent === address.intent
       );
       valid(row.change);
-      return {pending: row.change, blocked: false, durable: stored.durable};
-    } catch {
-      /* Preserve the unsupported or foreign record. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+      return row.change;
+    },
+    (pending) => JSON.stringify({...address, change: pending}),
+    sameAllowanceChange
+  );
+}
+export function readAllowanceChange(address: AllowanceAddress): RetainedPending<VerificationAllowanceChange> {
+  return record(address).read();
 }
 export function retainAllowanceChange(
   address: AllowanceAddress,
-  change: VerificationAllowanceChange
+  pending: VerificationAllowanceChange
 ): 'saved' | 'unavailable' | 'conflict' {
-  valid(change);
-  const stored = readAllowanceChange(address);
-  if (stored.blocked || (stored.pending && !sameAllowanceChange(stored.pending, change))) return 'conflict';
-  if (stored.pending && stored.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, change})) ? 'saved' : 'unavailable';
+  valid(pending);
+  return record(address).retain(pending);
 }
-export function settleAllowanceChange(address: AllowanceAddress, change: VerificationAllowanceChange): boolean {
-  const stored = readAllowanceChange(address);
-  if (stored.blocked || !stored.pending || !sameAllowanceChange(stored.pending, change)) return false;
-  writeStored(key(address), '');
-  return true;
+export function settleAllowanceChange(address: AllowanceAddress, pending: VerificationAllowanceChange): boolean {
+  return record(address).settle(pending);
 }

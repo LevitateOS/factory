@@ -24,13 +24,18 @@ export function inspectPersisted(key: string): {value: string | undefined; durab
 
 export function writeStored(key: string, value: string): boolean {
   unwritten.set(key, value);
+  if (!writePersisted(key, value)) return false;
+  unwritten.delete(key);
+  return true;
+}
+
+/** For owners that retain their own failed writes and persisted baseline. */
+export function writePersisted(key: string, value: string): boolean {
   try {
     if (value === '') window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, value);
-    unwritten.delete(key);
     return true;
   } catch {
-    /* Keep the exact value or removal until a later successful write. */
     return false;
   }
 }

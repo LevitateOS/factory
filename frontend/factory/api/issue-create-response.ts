@@ -1,18 +1,11 @@
 import {check, id, object} from './models.js';
-import {commentOutcome} from './comment-response.js';
-import type {CommentOutcome} from './comment-response.js';
+import {issueActionAllowed} from './capability-response.js';
+import {commandOutcome} from './command-response.js';
+import type {CommandOutcome} from './command-response.js';
 import type {IssueRef} from './collaboration.js';
 
 export function issueCreateAllowed(value: unknown, repository: string, actor: string): boolean {
-  const row = object(value),
-    observation = object(row.observation);
-  check(row.repository === repository && row.actor === actor);
-  check(row.issue === null && row.pull === null && row.head === null && row.base === null);
-  check(observation.state === 'available' && typeof observation.revision === 'string' && !!observation.revision.trim());
-  check(typeof observation.observed_at === 'string' && Number.isFinite(Date.parse(observation.observed_at)));
-  const action = object(object(row.actions)['issue.create']);
-  check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(action.state)));
-  return action.state === 'allowed';
+  return issueActionAllowed(value, repository, actor, null, 'issue.create');
 }
 
 export function createdIssueRef(value: unknown, repository: string): IssueRef {
@@ -31,11 +24,11 @@ export function issueCreateOutcome(
   value: unknown,
   command: string,
   repository: string
-): CommentOutcome & {issue: IssueRef | null} {
+): CommandOutcome & {issue: IssueRef | null} {
   const row = object(value),
     {issue, ...outcome} = row;
   check(Object.hasOwn(row, 'issue'));
-  const result = commentOutcome(outcome, command);
+  const result = commandOutcome(outcome, command);
   check(issue === null || result.effect === 'committed');
   return {...result, issue: issue === null ? null : createdIssueRef(issue, repository)};
 }

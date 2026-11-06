@@ -556,21 +556,8 @@ export function projectStopResult(value: unknown, projectID: string): ProjectSto
     runs: list(control.runs).map(runStopOutcome),
   };
 }
-export interface SodaErrorDetail {
-  code?: string;
-  message?: string;
-}
-// sodaErrorDetail reads the shared `{error: {code, message}}` refusal
-// envelope. Unknown shapes yield no detail, never a guessed reason.
-export function sodaErrorDetail(value: unknown): SodaErrorDetail {
-  const error = record(record(value).error);
-  const code = nonEmpty(error.code);
-  const message = nonEmpty(error.message);
-  return {
-    ...(code === undefined ? {} : {code}),
-    ...(message === undefined ? {} : {message}),
-  };
-}
+export {sodaErrorDetail} from './error-response.js';
+export type {SodaErrorDetail} from './error-response.js';
 export interface PendingRuns {
   runs: string[];
   message: string;

@@ -5,7 +5,7 @@ import type {IssueRef} from '../api/collaboration.js';
 import {issueListPage} from '../api/issue-response.js';
 import type {IssueFilter, IssueListItem} from '../api/issue-response.js';
 import type {FactoryTransport} from '../api/transport.js';
-import {getJSON, WorkReadError} from '../work/read.js';
+import {getJSON, FactoryReadError} from '../api/read.js';
 
 export interface IssueListContext {
   readonly transport: FactoryTransport;
@@ -118,7 +118,7 @@ export class SodaFactoryIssues extends LitElement {
       this.view = {...empty(), items: page.items ?? [], next: page.next};
     } catch (error) {
       if (!this.live(context, serial)) return;
-      const hidden = error instanceof WorkReadError && [401, 403, 404].includes(error.status);
+      const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
       this.view = {
         ...empty(),
         message: hidden ? 'Issues are not available to this account.' : 'Issues could not be loaded. Try again.',

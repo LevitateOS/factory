@@ -1,7 +1,8 @@
 import {check, id, object} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import type {AcceptanceSource} from '../api/acceptance-response.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface AcceptanceAddress {
   readonly scope: string;
@@ -109,40 +110,31 @@ function key(address: AcceptanceAddress): string {
 export function sameAcceptance(a: AcceptanceDecision, b: AcceptanceDecision): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
-export function readAcceptance(address: AcceptanceAddress): {
-  pending: AcceptanceDecision | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 65536) {
-    try {
-      const row = object(JSON.parse(stored.value));
+function record(address: AcceptanceAddress): PendingRecord<AcceptanceDecision> {
+  return new PendingRecord<AcceptanceDecision>(
+    key(address),
+    65536,
+    (raw) => {
+      const row = object(JSON.parse(raw));
       fields(row, ['scope', 'repository', 'issue', 'decision']);
       check(row.scope === address.scope && row.repository === address.repository && row.issue === address.issue);
       validDecision(row.decision);
-      return {pending: row.decision, blocked: false, durable: stored.durable};
-    } catch {
-      /* Preserve unsupported or foreign records. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+      return row.decision;
+    },
+    (pending) => JSON.stringify({...address, decision: pending}),
+    sameAcceptance
+  );
+}
+export function readAcceptance(address: AcceptanceAddress): RetainedPending<AcceptanceDecision> {
+  return record(address).read();
 }
 export function retainAcceptance(
   address: AcceptanceAddress,
-  decision: AcceptanceDecision
+  pending: AcceptanceDecision
 ): 'saved' | 'unavailable' | 'conflict' {
-  validDecision(decision);
-  const current = readAcceptance(address);
-  if (current.blocked || (current.pending && !sameAcceptance(current.pending, decision))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, decision})) ? 'saved' : 'unavailable';
+  validDecision(pending);
+  return record(address).retain(pending);
 }
-/** A recorded receipt (or first known pre-admission refusal) settles only its issued decision. */
-export function settleAcceptance(address: AcceptanceAddress, decision: AcceptanceDecision): boolean {
-  const current = readAcceptance(address);
-  if (current.blocked || !current.pending || !sameAcceptance(current.pending, decision)) return false;
-  writeStored(key(address), '');
-  return true;
+export function settleAcceptance(address: AcceptanceAddress, pending: AcceptanceDecision): boolean {
+  return record(address).settle(pending);
 }

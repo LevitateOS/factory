@@ -1,4 +1,5 @@
-import {check, object} from './models.js';
+import {check} from './models.js';
+import {issueActionAllowed} from './capability-response.js';
 import type {IssueRef} from './collaboration.js';
 
 export interface EditOriginal {
@@ -8,24 +9,9 @@ export interface EditOriginal {
   digest: string;
 }
 export function issueEditAllowed(value: unknown, repository: string, actor: string, parent: IssueRef): boolean {
-  const row = object(value),
-    issue = object(row.issue),
-    observation = object(row.observation);
-  check(
-    row.repository === repository && row.actor === actor && row.pull === null && row.head === null && row.base === null
-  );
-  check(
-    issue.kind === 'issue' &&
-      issue.repository === parent.repository &&
-      issue.number === parent.number &&
-      issue.external_id === parent.external_id
-  );
-  check(observation.state === 'available' && typeof observation.revision === 'string' && !!observation.revision.trim());
-  check(typeof observation.observed_at === 'string' && Number.isFinite(Date.parse(observation.observed_at)));
-  const action = object(object(row.actions)['issue.edit']);
-  check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(action.state)));
-  return action.state === 'allowed';
+  return issueActionAllowed(value, repository, actor, parent, 'issue.edit');
 }
+
 export function scalarEditText(value: string): boolean {
   return (
     !value.includes('\0') &&

@@ -6,7 +6,7 @@ import {decisionID, intentRevision} from '../api/request-response.js';
 import type {IntentRevision} from '../api/request-response.js';
 import {factoryIssueDetail, factoryRepositorySummary} from '../api/work-response.js';
 import type {FactoryIssueDetail, FactoryRepositorySummary} from '../api/work-response.js';
-import {getJSON, failureInput, WorkReadError} from './read.js';
+import {getJSON, failureInput, FactoryReadError} from '../api/read.js';
 import {
   describePrerequisites,
   describeRecordedChoice,
@@ -145,7 +145,7 @@ export class SodaFactoryWorkOverview extends LitElement {
       }
     } catch (error) {
       if (this.live(serial, context)) {
-        if (error instanceof WorkReadError && (error.status === 401 || error.status === 403)) {
+        if (error instanceof FactoryReadError && (error.status === 401 || error.status === 403)) {
           this.model = undefined;
           this.request = undefined;
           this.recordedRequest = undefined;

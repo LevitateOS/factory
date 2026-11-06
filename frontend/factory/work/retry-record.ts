@@ -1,6 +1,7 @@
 import {check, id} from '../api/models.js';
 import {factoryRunID} from '../api/run-response.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface RunRetryAddress {
   readonly scope: string;
@@ -32,46 +33,36 @@ function same(a: PendingRunRetry, b: PendingRunRetry): boolean {
   return a.command === b.command && a.run === b.run;
 }
 
-/** Refuse unknown bytes without deleting or replacing them. */
-export function readRunRetry(address: RunRetryAddress): {
-  pending: PendingRunRetry | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 4096) {
-    try {
-      const value: unknown = JSON.parse(stored.value);
-      if (valid(value)) {
-        const record = value as PendingRunRetry & Record<string, unknown>;
-        if (
-          Object.keys(record).length === 5 &&
-          record.scope === address.scope &&
-          record.repository === address.repository &&
-          record.issue === address.issue
-        )
-          return {pending: {command: record.command, run: record.run}, blocked: false, durable: stored.durable};
-      }
-    } catch {
-      /* Keep the original record. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+function record(address: RunRetryAddress): PendingRecord<PendingRunRetry> {
+  return new PendingRecord<PendingRunRetry>(
+    key(address),
+    4096,
+    (raw) => {
+      const value: unknown = JSON.parse(raw);
+      if (!valid(value)) return;
+      const row = value as PendingRunRetry & Record<string, unknown>;
+      if (
+        Object.keys(row).length === 5 &&
+        row.scope === address.scope &&
+        row.repository === address.repository &&
+        row.issue === address.issue
+      )
+        return {command: row.command, run: row.run};
+    },
+    (pending) => JSON.stringify({...address, ...pending}),
+    same
+  );
 }
-
-/** A new effect is sent only after its exact identity reaches durable storage. */
+export function readRunRetry(address: RunRetryAddress): RetainedPending<PendingRunRetry> {
+  return record(address).read();
+}
 export function retainRunRetry(
   address: RunRetryAddress,
   pending: PendingRunRetry
 ): 'saved' | 'unavailable' | 'conflict' {
   check(valid(pending));
-  const current = readRunRetry(address);
-  if (current.blocked || (current.pending && !same(current.pending, pending))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, ...pending})) ? 'saved' : 'unavailable';
+  return record(address).retain(pending);
 }
 export function settleRunRetry(address: RunRetryAddress, pending: PendingRunRetry): void {
-  const current = readRunRetry(address);
-  if (!current.blocked && current.pending && same(current.pending, pending)) writeStored(key(address), '');
+  record(address).settle(pending);
 }

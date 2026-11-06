@@ -2,7 +2,8 @@ import {check, id, object} from '../api/models.js';
 import type {IssueRef} from '../api/collaboration.js';
 import {createdIssueRef} from '../api/issue-create-response.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {inspectPersisted, writeStored} from '../shared/drafts.js';
+import {WritingRecord} from '../shared/retained-record.js';
+import type {RetainedWriting} from '../shared/retained-record.js';
 
 export interface IssueCreateAddress {
   scope: string;
@@ -27,14 +28,8 @@ export interface IssueCreation {
   pending?: PendingIssue;
   created?: {command: string; issue: IssueRef};
 }
-export interface IssueCreationSaved {
-  raw: string | undefined;
-  writing: IssueCreation | undefined;
-  blocked: boolean;
-  durable: boolean;
-}
+export type IssueCreationSaved = RetainedWriting<IssueCreation>;
 const issued = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
-const unsaved = new Map<string, {raw: string; baseline: string | undefined}>();
 const fields = ({scope, host, actor, repository}: IssueCreateAddress): IssueCreateAddress => ({
   scope,
   host,
@@ -118,61 +113,40 @@ function decode(raw: string | undefined, address: IssueCreateAddress): IssueCrea
     return;
   }
 }
+function record(address: IssueCreateAddress): WritingRecord<IssueCreation> {
+  return new WritingRecord(
+    issueCreateRecordKey(address),
+    (raw) => decode(raw, address),
+    (writing) => JSON.stringify({...fields(address), writing})
+  );
+}
 export function readIssueCreation(address: IssueCreateAddress): IssueCreationSaved {
-  const persisted = inspectPersisted(issueCreateRecordKey(address)),
-    local = unsaved.get(issueCreateRecordKey(address));
-  const raw = local?.raw ?? persisted.value,
-    writing = decode(raw, address);
-  return {
-    raw,
-    writing,
-    durable: !local && persisted.durable,
-    blocked: (raw !== '' && !writing) || (!!local && persisted.value !== local.baseline),
-  };
+  return record(address).read();
 }
 export function saveIssueCreation(
   address: IssueCreateAddress,
   expected: string | undefined,
   writing: IssueCreation
 ): 'saved' | 'unavailable' | 'conflict' {
-  const key = issueCreateRecordKey(address),
-    current = readIssueCreation(address);
-  if (current.blocked || current.raw !== expected) return 'conflict';
-  const raw = JSON.stringify({...fields(address), writing});
-  check(decode(raw, address) !== undefined);
-  const persisted = inspectPersisted(key),
-    baseline = unsaved.get(key)?.baseline ?? expected;
-  if (persisted.value !== baseline) return 'conflict';
-  unsaved.set(key, {raw, baseline});
-  if (persisted.value === undefined || !writeStored(key, raw)) return 'unavailable';
-  unsaved.delete(key);
-  return 'saved';
+  return record(address).save(expected, writing);
 }
 export function reloadIssueCreation(address: IssueCreateAddress): IssueCreationSaved {
-  const key = issueCreateRecordKey(address),
-    persisted = inspectPersisted(key),
-    local = unsaved.get(key);
-  if (!local || persisted.value === undefined) return readIssueCreation(address);
-  const saved = decode(persisted.value, address),
-    ours = decode(local.raw, address);
-  if (persisted.value !== '' && !saved) return readIssueCreation(address);
-  if (ours?.pending) {
-    if (saved?.created || (saved?.pending && !samePendingIssue(ours.pending, saved.pending)))
-      return readIssueCreation(address);
-    const writing: IssueCreation = {
-      draft: saved?.draft ?? emptyIssueCreation().draft,
-      pending: {...ours.pending, cancel: ours.pending.cancel || !!saved?.pending?.cancel},
-    };
-    unsaved.set(key, {raw: JSON.stringify({...fields(address), writing}), baseline: persisted.value});
-  } else if (ours?.created) {
-    // An unsaved successful result cannot disappear behind newer writing.
-    if (
-      (saved?.pending && saved.pending.command !== ours.created.command) ||
-      (saved?.created && saved.created.command !== ours.created.command)
-    )
-      return readIssueCreation(address);
-    const writing: IssueCreation = {draft: saved?.draft ?? ours.draft, created: ours.created};
-    unsaved.set(key, {raw: JSON.stringify({...fields(address), writing}), baseline: persisted.value});
-  } else unsaved.delete(key);
-  return readIssueCreation(address);
+  return record(address).reload((ours, saved) => {
+    if (ours?.pending) {
+      if (saved?.created || (saved?.pending && !samePendingIssue(ours.pending, saved.pending))) return 'conflict';
+      return {
+        draft: saved?.draft ?? emptyIssueCreation().draft,
+        pending: {...ours.pending, cancel: ours.pending.cancel || !!saved?.pending?.cancel},
+      };
+    }
+    if (ours?.created) {
+      if (
+        (saved?.pending && saved.pending.command !== ours.created.command) ||
+        (saved?.created && saved.created.command !== ours.created.command)
+      )
+        return 'conflict';
+      return {draft: saved?.draft ?? ours.draft, created: ours.created};
+    }
+    return 'persisted';
+  });
 }

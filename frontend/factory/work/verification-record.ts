@@ -1,6 +1,7 @@
 import {check, id} from '../api/models.js';
 import {factoryRunID} from '../api/run-response.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 
 export interface VerificationRequestAddress {
   readonly scope: string;
@@ -34,55 +35,36 @@ export function sameVerificationRequest(a: PendingVerificationRequest, b: Pendin
   return a.command === b.command && a.run === b.run && a.action === b.action;
 }
 
-/** Unknown bytes remain untouched; unavailable storage is never mistaken for absence. */
-export function readVerificationRequest(address: VerificationRequestAddress): {
-  pending: PendingVerificationRequest | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 4096) {
-    try {
-      const value: unknown = JSON.parse(stored.value);
-      if (valid(value)) {
-        const row = value as PendingVerificationRequest & Record<string, unknown>;
-        if (Object.keys(row).length === 5 && row.scope === address.scope && row.repository === address.repository)
-          return {
-            pending: {run: row.run, command: row.command, action: row.action},
-            blocked: false,
-            durable: stored.durable,
-          };
-      }
-    } catch {
-      /* Preserve the original record. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+function record(address: VerificationRequestAddress): PendingRecord<PendingVerificationRequest> {
+  return new PendingRecord<PendingVerificationRequest>(
+    key(address),
+    4096,
+    (raw) => {
+      const value: unknown = JSON.parse(raw);
+      if (!valid(value)) return;
+      const row = value as PendingVerificationRequest & Record<string, unknown>;
+      if (Object.keys(row).length === 5 && row.scope === address.scope && row.repository === address.repository)
+        return {run: row.run, command: row.command, action: row.action};
+    },
+    (pending) => JSON.stringify({...address, run: pending.run, command: pending.command, action: pending.action}),
+    sameVerificationRequest
+  );
 }
-
+export function readVerificationRequest(
+  address: VerificationRequestAddress
+): RetainedPending<PendingVerificationRequest> {
+  return record(address).read();
+}
 export function retainVerificationRequest(
   address: VerificationRequestAddress,
   pending: PendingVerificationRequest
 ): 'saved' | 'unavailable' | 'conflict' {
   check(valid(pending));
-  const current = readVerificationRequest(address);
-  if (current.blocked || (current.pending && !sameVerificationRequest(current.pending, pending))) return 'conflict';
-  if (current.pending && current.durable) return 'saved';
-  return writeStored(
-    key(address),
-    JSON.stringify({...address, run: pending.run, command: pending.command, action: pending.action})
-  )
-    ? 'saved'
-    : 'unavailable';
+  return record(address).retain(pending);
 }
-/** Only the exact issued record may be settled by a recorded receipt. */
 export function settleVerificationRequest(
   address: VerificationRequestAddress,
   pending: PendingVerificationRequest
 ): boolean {
-  const current = readVerificationRequest(address);
-  if (current.blocked || !current.pending || !sameVerificationRequest(current.pending, pending)) return false;
-  writeStored(key(address), '');
-  return true;
+  return record(address).settle(pending);
 }

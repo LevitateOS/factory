@@ -1,7 +1,8 @@
 import {check, id, object} from '../api/models.js';
 import {factoryRunID} from '../api/run-response.js';
 import type {RepairChange} from '../api/repair-response.js';
-import {inspectStored, writeStored} from '../shared/drafts.js';
+import {PendingRecord} from '../shared/retained-record.js';
+import type {RetainedPending} from '../shared/retained-record.js';
 export interface RepairAddress {
   readonly scope: string;
   readonly repository: string;
@@ -47,35 +48,30 @@ export function sameRepairChange(a: RepairChange, b: RepairChange): boolean {
     a.active_minutes === b.active_minutes
   );
 }
-export function readRepairChange(address: RepairAddress): {
-  pending: RepairChange | undefined;
-  blocked: boolean;
-  durable: boolean;
-} {
-  const stored = inspectStored(key(address));
-  if (stored.value === '') return {pending: undefined, blocked: false, durable: stored.durable};
-  if (stored.value !== undefined && stored.value.length <= 32768) {
-    try {
-      const row = object(JSON.parse(stored.value));
+function record(address: RepairAddress): PendingRecord<RepairChange> {
+  return new PendingRecord<RepairChange>(
+    key(address),
+    32768,
+    (raw) => {
+      const row = object(JSON.parse(raw));
       check(Object.keys(row).length === 3 && row.scope === address.scope && row.repository === address.repository);
       validRepairChange(row.change);
-      return {pending: row.change, blocked: false, durable: stored.durable};
-    } catch {
-      /* Preserve unsupported/foreign bytes. */
-    }
-  }
-  return {pending: undefined, blocked: true, durable: stored.durable};
+      return row.change;
+    },
+    (pending) => JSON.stringify({...address, change: pending}),
+    sameRepairChange
+  );
 }
-export function retainRepairChange(address: RepairAddress, change: RepairChange): 'saved' | 'unavailable' | 'conflict' {
-  validRepairChange(change);
-  const stored = readRepairChange(address);
-  if (stored.blocked || (stored.pending && !sameRepairChange(stored.pending, change))) return 'conflict';
-  if (stored.pending && stored.durable) return 'saved';
-  return writeStored(key(address), JSON.stringify({...address, change})) ? 'saved' : 'unavailable';
+export function readRepairChange(address: RepairAddress): RetainedPending<RepairChange> {
+  return record(address).read();
 }
-export function settleRepairChange(address: RepairAddress, change: RepairChange): boolean {
-  const stored = readRepairChange(address);
-  if (stored.blocked || !stored.pending || !sameRepairChange(stored.pending, change)) return false;
-  writeStored(key(address), '');
-  return true;
+export function retainRepairChange(
+  address: RepairAddress,
+  pending: RepairChange
+): 'saved' | 'unavailable' | 'conflict' {
+  validRepairChange(pending);
+  return record(address).retain(pending);
+}
+export function settleRepairChange(address: RepairAddress, pending: RepairChange): boolean {
+  return record(address).settle(pending);
 }
