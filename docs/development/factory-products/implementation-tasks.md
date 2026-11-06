@@ -17,24 +17,21 @@ verification. Native/installed evidence remains a separate gate from source chec
 
 ## Remaining product milestones (2026-11-06)
 
-The canonical table still contains one active and eighteen pending rows. Earlier
+T11-WRITES is complete for connected human mutations; eighteen rows remain pending. Earlier
 completed component slices do not measure the remaining product effort. There is
 no supported calendar finish estimate; the work below is substantial remaining
 implementation and qualification, not final polish.
 
-1. Finish T11-WRITES: remaining native GitHub review/inline/merge modes, supported
-   provider conditions and connected qualification. The pending-inline consumer
-   checkpoint below does not complete this milestone.
-2. Complete shared editing and PR journeys: T07-EDIT, T08-READ and T08-WRITE,
+1. Complete shared editing and PR journeys: T07-EDIT, T08-READ and T08-WRITE,
    including actual Fountain and desktop consumers and normal public readback.
-3. Compose runtime placement, isolated native execution and the single Go
+2. Compose runtime placement, isolated native execution and the single Go
    coordinator: T12-PLACEMENT, T09-NATIVE-EXECUTOR and T09-EXECUTION. The completed
    process producer is a dependency, not a qualified executor. D3 remains open.
-4. Complete Fountain enrollment/publication and both providers' automation and
+3. Complete Fountain enrollment/publication and both providers' automation and
    external PR adoption: T10-GATEWAY/PUBLISH/INTAKE, T11-INTAKE and
    T12-GITHUB-PRS/FOUNTAIN-PRS. D1 and D2 remain open; other relevant decisions
    retain their canonical scope.
-5. Package and qualify installed products, upgrades and shared UI parity:
+4. Package and qualify installed products, upgrades and shared UI parity:
    T14-PACKAGE, T13-FORGE/GITHUB/FOUNTAIN and T14-UPGRADE/PARITY.
 
 This summary groups the existing queue; it neither changes prerequisites nor
@@ -746,7 +743,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 324 | T04-REPO-GO | T03-APP, T04-UI, T05-LIFECYCLE | Switch all Forge Go consumers to the public Factory module at its published source revision; remove duplicate core/store/application/identity owners, preserve the appliance service/SDK boundary and qualify builds plus an existing real native edit/recovery journey. | Complete |
 | 325 | T04-REPO-UI | T04-REPO-GO, T04-UI | Switch Forge shared component/build/asset consumers to the Factory repository, remove duplicate UI owners and verify both production bundles use the same defining sources; installed parity remains T14-PARITY. | Complete |
 | 326 | T04-REPO-NATIVE | T04-REPO-UI, T05-LIFECYCLE | Remove the remaining duplicate Factory desktop/runtime/workbench and shared Unix transport Rust owners from Forge; point its retained native acceptance/PG consumers at the defining Factory crates and verify the real managed native lifecycle before distribution. Preserve the original source and unrelated workspace changes. | Complete |
-| 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Active |
+| 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Complete |
 | 328 | T07-EDIT | T07-READ, T07-ISSUE-COMMENT, T07-ISSUE-CREATE, T07-ISSUE-EDIT-BASE, T07-ISSUE-EDITOR, T10-WRITES, T11-WRITES | Shared issue editor/comment mutations, draft recovery and Fountain normal-navigation route cutover; verify real writes in Fountain and the GitHub-connected desktop. Do not claim the later Fountain desktop journey. | Pending |
 | 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Pending |
 | 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
@@ -31237,3 +31234,48 @@ TypeScript, desktop assets and native build passed. This completes the missing
 source-built desktop method observations alongside prior ordinary-merge and API
 recovery evidence. Organization/team, notification and installed/physical-input
 qualification remain separate open requirements; T11 stays active.
+
+### T11-WRITES completion: provider plan limits, teams and notifications (2026-11-06)
+
+GitHub Free does not support team review requests in private repositories. Factory
+now consumes the native `Repository.planFeatures` observation, including team
+support and the manual-reviewer limit. Go refuses new unsupported commands before
+capture; Rust independently checks before dispatch. The shared UI disables those
+requests, preserves removal controls and shows uncertain saved requests as needing
+attention. Factory sign-in now requests the required `read:org` scope.
+
+Actual WebKit passed private-repository UI refusal plus direct product POST 403 /
+lookup 404 (no capture), under
+`/home/vince/tmp/factory-team-plan-refusal-1106.uwH76l/`. With a new Factory grant
+(`read:org,read:user,repo`), sodaos passed team slug lookup and request/removal/request
+in the separately authorized public four-line fixture
+`LevitateOS/factory-team-public-check-20261106#1`. Private content was not published.
+Evidence under `/home/vince/tmp/factory-team-oauth-1106.iWTrMb/`:
+`public-team.log`, `public-team-result.json`, `draft.log`, `github-draft-result.json`,
+`publication.log`, `github-verdict-result.json` and
+`{baseline,pending,published}-observation.json`.
+
+The same grant survived the team/draft restarts. Its private summary/file comment
+were hidden from the other actor's REST/GraphQL reads; that actor's provider inbox
+was unchanged while pending and updated after publication. Both actors then read
+the published writing. Publication exited 0, including the separate phase result
+files and local grant withdrawal. This is provider-inbox evidence, not email or
+installed-host qualification. Two earlier private-team commands remain uncertain,
+with no resend or attribution from current state: `3563790745944bdba7991a168752a014`
+in this profile and `a7ed6e3aa27448539b46b515477e8546` under
+`/home/vince/tmp/factory-team-author-1106.yhdQSW/`.
+
+Completion audit reused the retained actual-provider API/readback/replay/restart
+results under `/home/vince/tmp/fgw-1106.cqnVjg/{general1,reviews2,inlines5,live2}/`,
+the personal-account WebKit/Factory OAuth checkpoints above, and the real original
+capture expiry records for new reviews, pending reviews and inline comments.
+Together these cover the named human mutations, review/draft/inline modes, user
+and team requests, thread resolution and three supported merge methods. Partial
+effects remain visible; unsupported atomic conditions are not invented. TypeScript,
+desktop assets, Go/native builds, boundaries and whitespace passed. T11-WRITES is
+Complete; the active GitHub-write implementation goal is satisfied.
+
+T07-EDIT/T08-READ/T08-WRITE still own the complete shared host journeys and physical
+interaction. T13/T14 own installed/distribution qualification. Broader permission,
+custody/IPC and D1/D2/D3/D5 gates remain open in the security handoff; automation
+and the full Factory product are not complete.

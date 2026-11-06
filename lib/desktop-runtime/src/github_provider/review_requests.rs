@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
-const REQUESTS: &str = "query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
+const REQUESTS: &str = "query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id planFeatures{teamReviewRequests maximumManualReviewRequests}} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
 const TEAM: &str = "query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
 const TEAM_NAME: &str = "query FactoryReviewTeamName($organization:String!,$slug:String!){organization(login:$organization){id team(slug:$slug){__typename id databaseId name slug organization{id login}}}}";
 
@@ -186,6 +186,7 @@ impl Reader<'_> {
         let mut actor_ids = HashMap::new();
         let mut items = Vec::new();
         let mut total = None;
+        let mut limits = None;
         let mut bytes = 0;
         let mut visible = true;
         loop {
@@ -212,6 +213,15 @@ impl Reader<'_> {
                 return Err(Failure::new(409, "github_review_requests_changed"));
             }
             let connection = &raw["reviewRequests"];
+            let features = &raw["repository"]["planFeatures"];
+            let current_limits = json!({
+                "teams": r::boolean(features, "teamReviewRequests")?,
+                "maximum": features["maximumManualReviewRequests"].as_u64()
+                    .filter(|limit| *limit <= 1000).ok_or_else(Failure::protocol)?,
+            });
+            if limits.replace(current_limits.clone()).is_some_and(|old| old != current_limits) {
+                return Err(Failure::new(409, "github_review_requests_changed"));
+            }
             let count = connection["totalCount"]
                 .as_u64()
                 .ok_or_else(Failure::protocol)?;
@@ -350,7 +360,7 @@ impl Reader<'_> {
         }
         self.client.current()?;
         Ok(
-            json!({"repository":q.repository,"name":self.name,"repository_node_id":repo_node,"owner_node_id":owner_node,
+            json!({"repository":q.repository,"name":self.name,"repository_node_id":repo_node,"owner_node_id":owner_node,"limits":limits,
             "pull":{"kind":"pull","external_id":pull_id,"node_id":pull_node,"number":q.number},"items":items,"all_targets_visible":visible,"selected_target":selected,"requested":requested}),
         )
     }

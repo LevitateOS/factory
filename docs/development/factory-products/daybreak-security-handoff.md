@@ -3774,3 +3774,41 @@ fixture for team/organization permissions; receiver-side before/after observatio
 for notification timing/delivery; the existing installed-host and broader privilege
 matrix evidence requirements above. These remain unverified. Primary gh login and
 historical uncertain commands were preserved.
+
+Organization update (2026-11-06): sodaos joined the authorized disposable team.
+Private Free-plan team requests produced no lasting target and left two commands
+uncertain: `3563790745944bdba7991a168752a014` under
+`/home/vince/tmp/factory-team-oauth-1106.iWTrMb/` and
+`a7ed6e3aa27448539b46b515477e8546` under
+`/home/vince/tmp/factory-team-author-1106.yhdQSW/`. Their `team-journal-summary.jsonl`
+records show `github_review_request_readback_changed`, no causal receipt and
+`finished:false`. Keep them fenced; current absence/presence is not evidence of
+their original effects. Settlement would need causal evidence tied to the exact
+original command; otherwise retain the explicit uncertain outcome.
+
+`github_provider/review_requests.rs` now observes GitHub's explicit plan features.
+`review_request_effect.rs` checks them before dispatch; Go's defining reviewer
+preparer checks the native facts before capture; the shared reviewer UI consumes
+the same limits and surfaces saved uncertainty. Real WebKit plus POST 403 / lookup
+404 proved unsupported private requests are refused before capture under
+`/home/vince/tmp/factory-team-plan-refusal-1106.uwH76l/`. No previous command was
+replayed, rewritten or marked complete by this correction.
+
+The owner separately authorized a public four-line fixture. A fresh Factory grant
+with `read:org,read:user,repo` passed team lookup/request/removal/request there;
+the same grant survived restart and a private draft/publication journey. Evidence
+under `factory-team-oauth-1106.iWTrMb/`: `public-team-result.json`,
+`github-draft-result.json`, `github-verdict-result.json`, their corresponding logs,
+and `{baseline,pending,published}-observation.json`. The other actor saw no pending
+writing or provider-inbox change, then saw the writing and an updated notification
+after publication. The uncertain reviewer command remained visible. The final
+publication run exited 0 and withdrew its owned local grant.
+
+These close the missing actor/team and scoped provider-inbox observations for
+T11 human writes. They do not qualify email delivery, the broader role/permission
+matrix, paid private-organization variants, custody/IPC, installed hosts or D1/D2/
+D3/D5. Those gates retain their exact dependencies and closure evidence above;
+additional permission variants require authorized fixtures and matching actual
+actor/grant observations. Source checks and this two-account journey do not close
+them. Primary terminal gh configuration and all historical uncertain commands
+were preserved.

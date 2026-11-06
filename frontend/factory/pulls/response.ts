@@ -164,12 +164,16 @@ export function pullReviewRequests(value: unknown, host: string, repository: str
   const snapshot = object(value), parent = pullRef(snapshot.pull, repository, number);
   available(snapshot.observation);
   check(Array.isArray(snapshot.items) && snapshot.items.length <= 1000 && typeof snapshot.all_targets_visible === 'boolean');
+  const rawLimits = snapshot.limits == null ? null : object(snapshot.limits);
+  if (rawLimits) check(typeof rawLimits.teams === 'boolean' && Number.isSafeInteger(rawLimits.maximum) &&
+    (rawLimits.maximum as number) >= 0 && (rawLimits.maximum as number) <= 1000);
+  const limits = rawLimits ? {teams: rawLimits.teams as boolean, maximum: rawLimits.maximum as number} : null;
   const seen = new Set<string>();
   const items = snapshot.items.map(value => {
     const row = object(value), externalID = text(row.external_id, 1024);
     check(!!externalID && !seen.has(externalID) && typeof row.as_code_owner === 'boolean');
     seen.add(externalID);
-    if (row.reviewer === null) return {externalID, label: 'Reviewer unavailable', target: null};
+    if (row.reviewer === null) return {externalID, label: 'Reviewer unavailable', target: null, asCodeOwner: row.as_code_owner};
     const reviewer = object(row.reviewer), label = text(reviewer.label, 512);
     check(['user', 'bot', 'team', 'other'].includes(String(reviewer.kind)) && !!label.trim());
     const ref = reviewer.kind === 'user' ? reviewer.actor : reviewer.kind === 'team' ? reviewer.team : null;
@@ -179,9 +183,9 @@ export function pullReviewRequests(value: unknown, host: string, repository: str
       check(id(identity.id) && identity.host === host);
       target = {kind: reviewer.kind as 'user' | 'team', id: identity.id as string, label};
     }
-    return {externalID, label, target};
+    return {externalID, label, target, asCodeOwner: row.as_code_owner};
   });
-  return {pull: parent, items, allTargetsVisible: snapshot.all_targets_visible as boolean};
+  return {pull: parent, items, allTargetsVisible: snapshot.all_targets_visible as boolean, limits};
 }
 
 export function pullReviewerLookup(value: unknown, host: string, repository: string, number: string, kind: 'user' | 'team') {

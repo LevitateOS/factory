@@ -125,6 +125,21 @@ func (s nativeHumanReviewRequests) PrepareHumanReviewRequest(ctx context.Context
 	if err != nil {
 		return empty, err
 	}
+	if q.Requested {
+		requests, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadReviewRequests(ctx, q.Actor, q.Repository, q.Number)
+		if err != nil {
+			return empty, err
+		}
+		manual := 0
+		for _, request := range requests.Items {
+			if !request.AsCodeOwner {
+				manual++
+			}
+		}
+		if requests.Limits == nil || target.Kind == "team" && !requests.Limits.Teams || manual >= requests.Limits.Maximum {
+			return empty, factoryservice.ErrHumanReviewRequestAdmission
+		}
+	}
 	page, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadPulls(ctx, q.Actor, q.Repository, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
 	if err != nil {
 		return empty, err

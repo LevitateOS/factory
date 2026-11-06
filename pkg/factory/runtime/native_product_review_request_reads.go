@@ -41,6 +41,10 @@ type nativeReviewRequestsSnapshot struct {
 	AllTargetsVisible *bool           `json:"all_targets_visible"`
 	SelectedTarget    json.RawMessage `json:"selected_target"`
 	Requested         json.RawMessage `json:"requested"`
+	Limits            *struct {
+		Teams   *bool `json:"teams"`
+		Maximum *int  `json:"maximum"`
+	} `json:"limits"`
 }
 
 func nativeReviewNode(value string, bound int) bool {
@@ -121,6 +125,9 @@ func (s nativeCollaborationReads) ReadReviewRequests(ctx context.Context, actor 
 	var raw nativeReviewRequestsSnapshot
 	if err := s.read(ctx, nativeRead{Kind: "pull_review_requests", Repository: s.repository.ExternalID, Number: uint32(number)}, &raw); err != nil {
 		return empty, nativeMissing(err, factoryservice.ErrReviewRequestReadMissing)
+	}
+	if raw.Limits == nil || raw.Limits.Teams == nil || raw.Limits.Maximum == nil || *raw.Limits.Maximum < 0 || *raw.Limits.Maximum > 1000 {
+		return empty, errNativeRead
 	}
 	if raw.Repository != s.repository.ExternalID || !nativeObservedText(raw.Name, 512, false) || !nativeReviewNode(raw.RepositoryNodeID, 1024) || !nativeReviewNode(raw.OwnerNodeID, 1024) || raw.Pull.Kind != "pull" || raw.Pull.Number != number || !nativeRemoteID(raw.Pull.ExternalID) || !nativeReviewNode(raw.Pull.NodeID, 1024) || raw.Items == nil || len(raw.Items) > 1000 || raw.AllTargetsVisible == nil || string(raw.SelectedTarget) != "null" || string(raw.Requested) != "null" {
 		return empty, errNativeRead
@@ -208,5 +215,6 @@ func (s nativeCollaborationReads) ReadReviewRequests(ctx context.Context, actor 
 			t.Actor = &ref
 		}
 	}
-	return collaboration.PullReviewRequests{Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Observation: s.observation(raw), Items: items, AllTargetsVisible: *raw.AllTargetsVisible}, nil
+	return collaboration.PullReviewRequests{Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Observation: s.observation(raw), Items: items, AllTargetsVisible: *raw.AllTargetsVisible,
+		Limits: &collaboration.ReviewRequestLimits{Teams: *raw.Limits.Teams, Maximum: *raw.Limits.Maximum}}, nil
 }

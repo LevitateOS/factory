@@ -31,6 +31,7 @@ export class SodaFactoryPullReviewers extends LitElement {
   private allowed = false;
   private message = '';
   private items: ReturnType<typeof pullReviewRequests>['items'] = [];
+  private limits: ReturnType<typeof pullReviewRequests>['limits'] = null;
   private known = new Map<string, ReviewerTarget>();
 
   constructor() { super(); this.version = 0; this.participants = []; }
@@ -41,7 +42,7 @@ export class SodaFactoryPullReviewers extends LitElement {
       context.parent.external_id, context.transport.generation]);
     if (context && key === this.binding) return;
     this.lifetime.abort(); this.lifetime = new AbortController();
-    this.current = undefined; this.binding = ''; this.pending = undefined; this.items = []; this.known.clear();
+    this.current = undefined; this.binding = ''; this.pending = undefined; this.items = []; this.limits = null; this.known.clear();
     this.blocked = false; this.durable = true; this.busy = false; this.allowed = false; this.message = '';
     if (context) {
       reviewerRecord(context);
@@ -80,6 +81,7 @@ export class SodaFactoryPullReviewers extends LitElement {
     const snapshot = pullReviewRequests(requested, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id && snapshot.pull.external_id === context.parent.external_id);
     this.items = snapshot.items;
+    this.limits = snapshot.limits;
     for (const item of this.items) if (item.target) this.known.set(targetKey(item.target), item.target);
     const head = object(caps).head;
     check(head === null || typeof head === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(head));
@@ -110,6 +112,7 @@ export class SodaFactoryPullReviewers extends LitElement {
       let pending = saved.pending;
       if (action === 'submit') {
         check(!pending && target && requested !== undefined && !(requested && target.kind === 'user' && target.id === context.actor));
+        check(!requested || this.requestSupported(target));
         check(this.targets().some(item => targetKey(item) === targetKey(target)));
         check(this.items.some(item => item.target && targetKey(item.target) === targetKey(target)) !== requested);
         pending = {command: factoryCommandId(), target, requested, external: context.parent.external_id, cancel: false};
@@ -141,7 +144,11 @@ export class SodaFactoryPullReviewers extends LitElement {
       check(found.pull.external_id === context.parent.external_id);
       this.known.set(targetKey(found.target), found.target);
       this.message = kind === 'user' && found.target.id === context.actor
-        ? 'You cannot request your own review.' : `Found ${found.target.label}. Choose Request review to send a request.`;
+        ? 'You cannot request your own review.'
+        : kind === 'team' && this.limits && !this.limits.teams
+          ? 'Team review requests are unavailable for this repository.'
+          : !this.requestSupported(found.target) ? 'This repository’s reviewer limit has been reached.'
+            : `Found ${found.target.label}. Choose Request review to send a request.`;
     } catch { if (this.live(context, signal)) this.message = 'The reviewer could not be found with this account. No request was sent.'; }
     finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
   }
@@ -159,7 +166,9 @@ export class SodaFactoryPullReviewers extends LitElement {
     const outcome = commandOutcome(await readSodaJSON(response), pending.command);
     check(this.live(context, signal));
     if (!outcome.finished) {
-      this.message = 'The reviewer change is not complete. Its original command remains saved.';
+      this.message = outcome.completion === 'needs_intervention'
+        ? 'The saved reviewer change needs attention. Its original command remains saved.'
+        : 'The reviewer change is not complete. Its original command remains saved.';
       return;
     }
     check(reviewerRecord(context).settle(pending));
@@ -171,6 +180,10 @@ export class SodaFactoryPullReviewers extends LitElement {
     const targets = new Map(this.known);
     for (const target of this.participants) targets.set(targetKey(target), target);
     return [...targets.values()];
+  }
+  private requestSupported(target: ReviewerTarget) {
+    return !this.limits || (target.kind !== 'team' || this.limits.teams) &&
+      this.items.filter(item => !item.asCodeOwner).length < this.limits.maximum;
   }
   render() {
     if (!this.current) return html``;
@@ -190,7 +203,7 @@ export class SodaFactoryPullReviewers extends LitElement {
         <button type="button" ?disabled=${unavailable || pending.cancel} @click=${() => this.act('retry')}>Retry original reviewer change</button>
         <button type="button" ?disabled=${this.busy || this.blocked || pending.cancel} @click=${() => this.act('cancel')}>Cancel saved reviewer change</button>`
         : this.targets().filter(target => !requested.has(targetKey(target)) && !(target.kind === 'user' && target.id === this.current?.actor)).map(target => html`<button type="button"
-          ?disabled=${unavailable} @click=${() => this.act('submit', target, true)}>Request review from ${target.label}</button>`)}
+          ?disabled=${unavailable || !this.requestSupported(target)} @click=${() => this.act('submit', target, true)}>Request review from ${target.label}</button>`)}
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh reviewers</button>
     </section>`;
   }

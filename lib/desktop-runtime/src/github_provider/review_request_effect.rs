@@ -116,6 +116,16 @@ impl Client {
             let target = &before["selected_target"];
             let target_node = r::text(target, "node_id")?;
             let team = matches!(q.target, ReviewerTarget::Team { .. });
+            if q.requested {
+                let limits = &before["limits"];
+                let manual = before["items"].as_array().ok_or_else(Failure::protocol)?
+                    .iter().filter(|item| item["as_code_owner"] != true).count() as u64;
+                if team && limits["teams"] != true
+                    || manual >= limits["maximum"].as_u64().ok_or_else(Failure::protocol)?
+                {
+                    return Err(Failure::new(403, "github_review_request_plan_limit"));
+                }
+            }
             let selector = r::text(target, if team { "slug" } else { "login" })?;
             permit.dispatch("github_review_request_expired")?;
             let response = if q.requested {

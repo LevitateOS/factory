@@ -34,6 +34,7 @@
       const pending = button(component, lookup), busy = component.querySelector('[aria-busy]')?.getAttribute('aria-busy') === 'true';
       if (busy) return false;
       if (pending) {
+        assert(!component.querySelector('[role=status]')?.textContent.includes('needs attention'), 'saved command needs attention: ' + tag);
         if (!pending.disabled && Date.now() - last > 5000) { last = Date.now(); pending.click(); }
         return false;
       }
@@ -283,16 +284,34 @@
       await navigate('reviews');
       const control = () => document.querySelector('soda-factory-pull-reviewers');
       await until(() => control()?.querySelector('input[name=name]'), 'reviewer lookup unavailable');
+      const kind = fixture.reviewer_kind || 'user';
+      assert(kind === 'user' || kind === 'team', 'invalid fixture reviewer kind');
+      control().querySelector('select[name=kind]').value = kind;
       input(control().querySelector('input[name=name]'), fixture.reviewer);
       await click(control(), 'Find reviewer');
       const request = 'Request review from ' + fixture.reviewer;
       await until(() => button(control(), request), 'reviewer lookup did not return the second account');
+      if (fixture.expect_unavailable) {
+        assert(kind === 'team' && button(control(), request).disabled &&
+          control().querySelector('[role=status]').textContent === 'Team review requests are unavailable for this repository.', 'unsupported team request was offered');
+        const target = await read('/review-requests/lookup?kind=team&name=' + encodeURIComponent(fixture.reviewer));
+        const command = crypto.randomUUID().replaceAll('-', '');
+        const path = 'factory/collaboration/repositories/' + repo + '/pulls/' + fixture.number + '/review-requests';
+        const refused = await control().context.transport.request(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({command_id: command, reviewer_kind: 'team', reviewer_id: target.team.id, requested: true})});
+        assert(refused.status === 403, 'unsupported team request admitted');
+        const lookup = await control().context.transport.request(path + '/commands/' + command, {method: 'GET'});
+        assert(lookup.status === 404, 'unsupported team request captured a command');
+        await invoke('report', {stage: 'github-writes-complete', error: null});
+        return;
+      }
       const change = async (label, requested) => {
         await click(control(), label);
         await settled('soda-factory-pull-reviewers', 'Check saved reviewer change');
         assert(control().querySelector('[role=status]').textContent === 'Reviewer request changed.', 'reviewer command did not commit');
         const result = await read('/review-requests');
-        assert(result.items.some(item => item.reviewer?.label === fixture.reviewer && item.reviewer?.kind === 'user' && item.reviewer.actor) === requested,
+        assert(result.items.some(item => item.reviewer?.label === fixture.reviewer && item.reviewer?.kind === kind &&
+          (kind === 'user' ? item.reviewer.actor : item.reviewer.team)) === requested,
           'reviewer change readback failed');
       };
       await change(request, true);
@@ -304,6 +323,10 @@
     if (fixture.mode === 'other_actor') {
       stage = 'other-actor-review';
       await navigate('reviews');
+      if (fixture.expect_saved_reviewer) {
+        await until(() => document.querySelector('soda-factory-pull-reviewers [role=status]')?.textContent.includes('needs attention'), 'uncertain reviewer outcome was hidden');
+        assert(button(document.querySelector('soda-factory-pull-reviewers'), 'Check saved reviewer change'), 'uncertain reviewer command lost');
+      }
       const pull = await read('');
       const actor = document.querySelector('soda-factory-pull').context.actor;
       assert(pull.ref.external_id === fixture.pull_id && pull.head.commit === fixture.head && pull.author && pull.author.id !== actor,
@@ -321,22 +344,25 @@
         await until(() => diff.shadowRoot.querySelector('textarea'), 'file comment editor unavailable');
         input(diff.shadowRoot.querySelector('textarea'), inline);
         await write('soda-factory-pull-inline', 'Add to draft review', 'Check saved inline comment', 'pull-inline-saved');
-      } else assert(fixture.review_stage === 'verdicts', 'unknown other-actor review stage');
+      } else assert(['verdicts', 'publication'].includes(fixture.review_stage), 'unknown other-actor review stage');
       const pending = (await read('/reviews?limit=20')).items.find(row => row.state === 'pending' && row.author?.id === actor);
       assert(pending?.body === body, 'own private summary missing');
       const pendingThreads = await read('/threads?limit=20');
       assert(pendingThreads.items.some(thread => thread.comments.items.some(row => row.comment.body === inline)), 'own private file comment missing');
-      if (fixture.review_stage === 'verdicts') {
+      if (fixture.review_stage !== 'draft') {
         await navigate('reviews');
         await until(() => document.querySelector('soda-factory-pull-review textarea:not([disabled])'), 'retained review editor unavailable');
         input(document.querySelector('soda-factory-pull-review textarea'), body);
-        await write('soda-factory-pull-review', 'Approve', 'Check saved review', 'pull-review-saved');
+        const comment = fixture.review_stage === 'publication';
+        await write('soda-factory-pull-review', comment ? 'Submit comment' : 'Approve', 'Check saved review', 'pull-review-saved');
         const approved = await read('/reviews/' + pending.external_id);
-        assert(approved.state === 'approved' && approved.author.id === actor && approved.body === body, 'approval readback failed');
-        input(document.querySelector('soda-factory-pull-review textarea'), 'Factory second-account changes requested 茶');
-        await write('soda-factory-pull-review', 'Request changes', 'Check saved review', 'pull-review-saved');
-        assert((await read('/reviews?limit=20')).items.some(row => row.state === 'changes_requested' && row.author?.id === actor &&
-          row.body === 'Factory second-account changes requested 茶'), 'request-changes readback failed');
+        assert(approved.state === (comment ? 'commented' : 'approved') && approved.author.id === actor && approved.body === body, 'publication readback failed');
+        if (!comment) {
+          input(document.querySelector('soda-factory-pull-review textarea'), 'Factory second-account changes requested 茶');
+          await write('soda-factory-pull-review', 'Request changes', 'Check saved review', 'pull-review-saved');
+          assert((await read('/reviews?limit=20')).items.some(row => row.state === 'changes_requested' && row.author?.id === actor &&
+            row.body === 'Factory second-account changes requested 茶'), 'request-changes readback failed');
+        }
       }
       await invoke('report', {stage: 'github-writes-complete', error: null});
       return;

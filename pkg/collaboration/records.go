@@ -175,10 +175,16 @@ type ReviewRequest struct {
 // PullReviewRequests is a complete bounded traversal, not an atomic snapshot,
 // event history or action grant. Null reviewer slots remain present.
 type PullReviewRequests struct {
-	Pull              PullRef         `json:"pull"`
-	Observation       Observation     `json:"observation"`
-	Items             []ReviewRequest `json:"items"`
-	AllTargetsVisible bool            `json:"all_targets_visible"`
+	Pull              PullRef              `json:"pull"`
+	Observation       Observation          `json:"observation"`
+	Items             []ReviewRequest      `json:"items"`
+	AllTargetsVisible bool                 `json:"all_targets_visible"`
+	Limits            *ReviewRequestLimits `json:"limits,omitempty"`
+}
+
+type ReviewRequestLimits struct {
+	Teams   bool `json:"teams"`
+	Maximum int  `json:"maximum"`
 }
 
 // ReviewerLookup is an observed identity, not permission to request a review.

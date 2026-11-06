@@ -143,7 +143,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
-            let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft";
+            let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft"
+                || fixture["mode"] == "reviewer_requests" && fixture["retain_account"] == true;
             if !retained {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             }
@@ -171,14 +172,19 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "real_github": true,
                     "webkit": true,
                     "production_ui_ipc_go_pg_native": true,
-                    "reviewer_username_lookup_request_remove_request": fixture["mode"] == "reviewer_requests",
+                    "reviewer_username_lookup_request_remove_request": fixture["mode"] == "reviewer_requests" && fixture["reviewer_kind"] != "team",
+                    "reviewer_team_slug_lookup_request_remove_request": fixture["mode"] == "reviewer_requests" && fixture["reviewer_kind"] == "team" && fixture["expect_unavailable"] != true,
+                    "unsupported_team_request_refused_before_capture": fixture["expect_unavailable"] == true,
+                    "uncertain_reviewer_command_visible": fixture["expect_saved_reviewer"] == true,
                     "own_pending_summary_file_readback": fixture["mode"] == "other_actor",
                     "other_actor_approve_request_changes": fixture["review_stage"] == "verdicts",
+                    "pending_comment_publication": fixture["review_stage"] == "publication",
                     "account": accounts[0].account,
                     "owned_account_removed": !retained,
                     "owned_account_retained_for_cross_account_read": retained,
                     "oauth_source": if oauth { "factory_device" } else { "user_authorized_gh_grant" },
                     "factory_device_write_scope_observed": oauth,
+                    "granted_scope": accounts[0].grant.as_ref().map(|grant| &grant.scope),
                     "factory_device_scope_qualified": false,
                     "cross_account_privacy_qualified": false,
                     "notification_delivery_qualified": false,
