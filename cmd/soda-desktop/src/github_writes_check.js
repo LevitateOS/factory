@@ -62,6 +62,25 @@
     await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.checks_read_only) {
+      stage = 'populated-checks';
+      location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'checks'});
+      const detail = () => document.querySelector('soda-factory-pull');
+      await until(() => detail()?.view?.pull?.head?.commit === fixture.head && detail()?.view?.busy === false,
+        'public PR checks unavailable').catch(() => { throw Error('public PR checks unavailable: ' + JSON.stringify({
+          route: location.hash, head: detail()?.view?.pull?.head?.commit, message: detail()?.view?.message,
+          busy: detail()?.view?.busy, tab: detail()?.context?.initialTab,
+        })); });
+      await click(detail().querySelector('nav[aria-label="Check types"]'), 'Jobs');
+      await until(() => detail()?.view?.busy === false && detail()?.view?.checks?.length > 0 &&
+        detail()?.querySelector('section[aria-label="Checks"] button[aria-current="page"]')?.textContent.trim() === 'Jobs',
+      'populated job checks unavailable');
+      assert(detail().view.checks.every(row => row.name && row.state && row.conclusion) &&
+        detail().querySelectorAll('section[aria-label="Checks"] li').length === detail().view.checks.length,
+      'job checks did not render');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.issue_navigation) {
       stage = 'issue-navigation';
       assert(document.querySelector('soda-factory-feed'), 'connected feed unavailable');

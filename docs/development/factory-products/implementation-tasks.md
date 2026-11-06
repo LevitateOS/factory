@@ -31093,6 +31093,15 @@ bottom, replaced its file object with the same patch, and confirmed the scroll
 position and selected review line remained. Native WebKit scroll/focus and
 installed qualification remain open.
 
+A read-only desktop/WebKit check opened public `cli/cli#14927` with 26 current
+GitHub check runs and rendered a populated Jobs tab through the shared UI and
+production IPC/Go/PostgreSQL/native path. The first cold-profile attempt timed
+out before confirming the PR detail; the retained grant retry passed and removed
+its disposable local account. Evidence:
+`/home/vince/tmp/factory-checks-ui-1106.L5kzLv/{run2.log,github-ui-write-result.json}`.
+This proves populated job rendering, not a positive branch-protection merge gate
+or installed qualification.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first

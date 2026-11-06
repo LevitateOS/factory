@@ -237,6 +237,18 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 }))?;
                 return Ok::<(), String>(());
             }
+            if fixture["checks_read_only"] == true {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "populated_pr_jobs_rendered": true,
+                    "provider_writes": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["pull_read_only"] == true {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,
