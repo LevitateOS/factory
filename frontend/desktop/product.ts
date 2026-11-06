@@ -71,8 +71,7 @@ export class DesktopProduct {
       feed: (post) => routeURL({kind: 'feed', repository, ...(post ? {post} : {})}),
       request: (intent) => routeURL({kind: 'request', intent}),
       issue: (issue) => (id(String(issue)) ? routeURL({kind: 'issue', repository, issue: String(issue)}) : undefined),
-      pull: (pull) =>
-        id(String(pull)) ? `https://github.com/${this.selected.repository!.name}/pull/${pull}` : undefined,
+      pull: (pull) => id(String(pull)) ? routeURL({kind: 'pull', repository, pull: String(pull)}) : undefined,
       factoryStatus: (issue) =>
         issue
           ? routeURL({kind: 'work-detail', repository, issue: String(issue)})
@@ -100,28 +99,25 @@ export class DesktopProduct {
         !target.search &&
         path.length === 5 &&
         path.slice(1, 3).join('/').toLowerCase() === repository.name.toLowerCase() &&
-        path[3] === 'issues' &&
+        (path[3] === 'issues' || path[3] === 'pull') &&
         id(path[4])
       ) {
         const fragment = target.hash ? decodeURIComponent(target.hash.slice(1)) : undefined;
-        const route: FactoryRoute = {
-          kind: 'issue',
-          repository: repository.id,
-          issue: path[4],
-          ...(fragment ? {fragment} : {}),
-        };
+        const route: FactoryRoute = path[3] === 'pull'
+          ? {kind: 'pull', repository: repository.id, pull: path[4]}
+          : {kind: 'issue', repository: repository.id, issue: path[4], ...(fragment ? {fragment} : {})};
         admitFactoryRoute(route);
         this.navigate(route);
       } else await this.core.invoke('factory_open_link', {session: this.selected.session, url});
     }
     joined.throwIfAborted();
   };
-  private resolveLink(href: string, issue: string): string | undefined {
+  private resolveLink(href: string, number: string, kind: 'issues' | 'pull' = 'issues'): string | undefined {
     const repository = this.selected.repository;
     if (!repository || !href || /[\\\u0000-\u001f\u007f]/.test(href)) return;
     try {
       const base = `https://github.com/${repository.name}/`;
-      if (href.startsWith('#') || href.startsWith('?')) return new URL(href, base + 'issues/' + issue).href;
+      if (href.startsWith('#') || href.startsWith('?')) return new URL(href, base + kind + '/' + number).href;
       let url: URL;
       if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('/')) url = new URL(href, base);
       else {
@@ -207,6 +203,11 @@ export class DesktopProduct {
       }
       case 'issues':
         return {kind: 'issues', context: {...common, repository: route.repository}};
+      case 'pulls':
+        return {kind: 'pulls', context: {...common, repository: route.repository}};
+      case 'pull':
+        return {kind: 'pull', context: {...common, repository: route.repository, pull: route.pull,
+          resolveLink: (href) => this.resolveLink(href, route.pull, 'pull'), openLink: this.openLink}};
       case 'issue-new':
         return {kind: 'issue-new', context: {...common, repository: route.repository, commandScope}};
       case 'issue': {

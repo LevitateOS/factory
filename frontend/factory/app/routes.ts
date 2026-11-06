@@ -9,6 +9,8 @@ export type FactoryRoute =
   | {readonly kind: 'request'; readonly intent?: string}
   | {readonly kind: 'work'; readonly repository: string; readonly intent?: string}
   | {readonly kind: 'issues'; readonly repository: string}
+  | {readonly kind: 'pulls'; readonly repository: string}
+  | {readonly kind: 'pull'; readonly repository: string; readonly pull: string}
   | {readonly kind: 'issue-new'; readonly repository: string}
   | {readonly kind: 'issue'; readonly repository: string; readonly issue: string; readonly fragment?: string}
   | {readonly kind: 'work-detail'; readonly repository: string; readonly issue: string}
@@ -39,6 +41,7 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       check(id(route.repository) && (route.intent === undefined || decisionID(route.intent)));
       return;
     case 'issues':
+    case 'pulls':
     case 'issue-new':
       check(id(route.repository));
       return;
@@ -51,6 +54,9 @@ export function admitFactoryRoute(route: FactoryRoute): void {
             !/[\\\u0000-\u001f\u007f]/.test(route.fragment))
       );
       check(id(route.repository) && id(route.issue));
+      return;
+    case 'pull':
+      check(id(route.repository) && id(route.pull));
       return;
     case 'work-detail':
       check(id(route.repository) && id(route.issue));
@@ -77,6 +83,8 @@ export function factoryRouteTitle(route: FactoryRoute): string {
     request: 'Request',
     work: 'Work',
     issues: 'Issues',
+    pulls: 'Pull requests',
+    pull: 'Pull request',
     'issue-new': 'New issue',
     issue: 'Issue',
     'work-detail': 'Work detail',

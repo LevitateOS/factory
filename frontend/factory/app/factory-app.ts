@@ -11,6 +11,10 @@ import {SodaFactoryWorkDetail} from '../work/detail.js';
 import type {WorkDetailContext} from '../work/detail.js';
 import {SodaFactoryIssues} from '../issues/issues.js';
 import type {IssueListContext} from '../issues/issues.js';
+import {SodaFactoryPulls} from '../pulls/list.js';
+import type {PullListContext} from '../pulls/list.js';
+import {SodaFactoryPull} from '../pulls/detail.js';
+import type {PullDetailContext} from '../pulls/detail.js';
 import {mountIssueScreen} from '../issues/screen.js';
 import type {IssueDetailContext} from '../issues/detail.js';
 import type {IssueCommentPorts} from '../issues/comment.js';
@@ -31,6 +35,8 @@ export type FactoryScreen =
   | {readonly kind: 'request'; readonly api: IntentAPI; readonly blocked: boolean}
   | {readonly kind: 'work'; readonly context: WorkOverviewContext}
   | {readonly kind: 'issues'; readonly context: Omit<IssueListContext, 'openIssue'>}
+  | {readonly kind: 'pulls'; readonly context: Omit<PullListContext, 'openPull'>}
+  | {readonly kind: 'pull'; readonly context: PullDetailContext}
   | {readonly kind: 'issue-new'; readonly context: IssueCreatePorts}
   | {
       readonly kind: 'issue';
@@ -224,6 +230,28 @@ export class SodaFactoryApp extends LitElement {
             this.navigate({kind: 'issue', repository: route.repository, issue: issue.number});
           },
         };
+        return view;
+      }
+      case 'pulls': {
+        check(route.kind === 'pulls' && ports.context.repository === route.repository);
+        check(ports.context.host === context.host && ports.context.actor === context.actor && ports.context.scope === context.scope);
+        const view = new SodaFactoryPulls();
+        this.own(view, () => { view.context = undefined; });
+        view.context = {
+          ...ports.context,
+          openPull: (pull, childSignal) => {
+            check(this.live(context, signal) && !childSignal.aborted && pull.kind === 'pull' && pull.repository === route.repository && id(pull.number));
+            this.navigate({kind: 'pull', repository: route.repository, pull: pull.number});
+          },
+        };
+        return view;
+      }
+      case 'pull': {
+        check(route.kind === 'pull' && ports.context.repository === route.repository && ports.context.pull === route.pull);
+        check(ports.context.host === context.host && ports.context.actor === context.actor && ports.context.scope === context.scope);
+        const view = new SodaFactoryPull();
+        this.own(view, () => { view.context = undefined; });
+        view.context = ports.context;
         return view;
       }
       case 'issue': {
@@ -420,6 +448,7 @@ export class SodaFactoryApp extends LitElement {
         ? [
             {label: 'Work', route: {kind: 'work' as const, repository}},
             {label: 'Issues', route: {kind: 'issues' as const, repository}},
+            {label: 'Pull requests', route: {kind: 'pulls' as const, repository}},
             {label: 'New issue', route: {kind: 'issue-new' as const, repository}},
             {label: 'Knowledge', route: {kind: 'library' as const, repository}},
           ]
@@ -434,7 +463,7 @@ export class SodaFactoryApp extends LitElement {
         ${links.map(
           (link) => html`<button
             type="button"
-            aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'work' && (context?.route.kind === 'work-detail' || context?.route.kind === 'plan')) ? 'page' : 'false'}
+            aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && (context?.route.kind === 'work-detail' || context?.route.kind === 'plan')) ? 'page' : 'false'}
             ?disabled=${!context}
             @click=${() => this.navigate(link.route)}
           >

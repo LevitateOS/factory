@@ -3,6 +3,10 @@
 export {SodaFactoryApp} from './factory-app.js';
 export {SodaFactoryIssues} from '../issues/issues.js';
 export type {IssueListContext} from '../issues/issues.js';
+export {SodaFactoryPulls} from '../pulls/list.js';
+export type {PullListContext} from '../pulls/list.js';
+export {SodaFactoryPull} from '../pulls/detail.js';
+export type {PullDetailContext} from '../pulls/detail.js';
 export {SodaFactoryIssue} from '../issues/detail.js';
 export type {IssueDetailContext} from '../issues/detail.js';
 export {SodaFactoryIssueComment} from '../issues/comment.js';

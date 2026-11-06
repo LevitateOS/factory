@@ -159,6 +159,16 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
               scope: bindingMismatch === 'scope' ? 'foreign' : scope,
             },
           };
+        case 'pulls':
+          return {kind: 'pulls', context: {
+            ...issueList.context, transport: supplied, repository: appRepository,
+            host: 'a'.repeat(32), actor: '1', scope,
+          }};
+        case 'pull':
+          return {kind: 'pull', context: {
+            ...issuePeer(selected.pull).context, transport: supplied, repository: appRepository,
+            pull: selected.pull, host: 'a'.repeat(32), actor: '1', scope,
+          }};
         case 'issue-new': {
           const peer = issueCreateStoryPeer();
           return {

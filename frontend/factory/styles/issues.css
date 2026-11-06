@@ -122,6 +122,46 @@
   flex-wrap: wrap;
   gap: 12px;
 }
+.soda-pull-list,
+.soda-pull-detail {
+  max-width: 960px;
+  overflow-wrap: anywhere;
+}
+.soda-pull-list > header,
+.soda-pull-detail > header,
+.soda-pull-detail > nav,
+.soda-pull-detail > section > nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.soda-pull-list > header h2,
+.soda-pull-detail > header h2 {
+  margin-right: auto;
+}
+.soda-pull-list > ul {
+  list-style: none;
+  padding: 0;
+}
+.soda-pull-list > ul > li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--soda-page-muted);
+}
+.soda-pull-title {
+  color: var(--soda-page-link);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font-weight: bold;
+}
+.soda-pull-state { margin-right: 12px; }
+.soda-pull-meta { color: var(--soda-page-muted); margin: 8px 0; }
+.soda-pull-detail .soda-markdown { padding: 16px 0; }
+.soda-pull-detail > section { margin-block: 16px; }
+.soda-pull-detail > section > ol > li,
+.soda-pull-detail > section > ul > li { padding: 12px 0; border-top: 1px solid var(--soda-page-muted); }
 
 .soda-issue-create,
 .soda-issue-editor {

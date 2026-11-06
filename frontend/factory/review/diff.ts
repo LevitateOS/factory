@@ -37,6 +37,7 @@ export class SodaFactoryDiff extends LitElement {
     file: {attribute: false},
     threads: {attribute: false},
     draft: {attribute: false},
+    allowDraft: {type: Boolean},
     scheme: {type: String},
     layout: {state: true},
     selection: {state: true},
@@ -45,6 +46,7 @@ export class SodaFactoryDiff extends LitElement {
   declare file: ChangedFile | null;
   declare threads: readonly ReviewThread[];
   declare draft: ReviewDraft | null;
+  declare allowDraft: boolean;
   declare scheme: 'light' | 'dark';
   declare private layout: 'split' | 'unified';
   declare private selection: ReviewAnchor | null;
@@ -58,6 +60,7 @@ export class SodaFactoryDiff extends LitElement {
     this.file = null;
     this.threads = [];
     this.draft = null;
+    this.allowDraft = true;
     this.scheme = 'light';
     this.layout = 'split';
     this.selection = null;
@@ -161,7 +164,7 @@ export class SodaFactoryDiff extends LitElement {
 
   protected updated(changed: PropertyValues) {
     if (changed.has('file')) this.selection = null;
-    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme')) this.mount();
+    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft')) this.mount();
   }
 
   private dispose() {
@@ -209,7 +212,7 @@ export class SodaFactoryDiff extends LitElement {
           preferredHighlighter: 'shiki-js',
           disableFileHeader: true,
           disableErrorHandling: true,
-          enableLineSelection: true,
+          enableLineSelection: this.allowDraft,
           onLineSelected: (range) => {
             if (this.metadata !== metadata) return;
             if (range) this.selectRange(range);
@@ -351,7 +354,7 @@ export class SodaFactoryDiff extends LitElement {
       ${
         complete
           ? html`
-              <form @submit=${this.keyboardSelection} aria-label="Select diff lines">
+              ${this.allowDraft ? html`<form @submit=${this.keyboardSelection} aria-label="Select diff lines">
                 <label
                   >Side
                   <select name="side">
@@ -362,7 +365,7 @@ export class SodaFactoryDiff extends LitElement {
                 <label>First line <input name="start" type="number" min="1" value="1" required /></label>
                 <label>Last line <input name="end" type="number" min="1" value="1" required /></label>
                 <button type="submit">Select lines</button>
-              </form>
+              </form>` : ''}
               <div class="viewport" tabindex="0" aria-label="File diff"><div class="content"></div></div>
             `
           : html`<p role="status">
@@ -370,7 +373,7 @@ export class SodaFactoryDiff extends LitElement {
             </p>`
       }
       <p role="status">${this.message}</p>
-      <div class="tools">
+      ${this.allowDraft ? html`<div class="tools">
         <button ?disabled=${!this.selection} @click=${() => this.startDraft(this.selection)}>
           Comment on selection
         </button>
@@ -379,9 +382,9 @@ export class SodaFactoryDiff extends LitElement {
         >
           Comment on file
         </button>
-      </div>
+      </div>` : ''}
       ${
-        draft
+        this.allowDraft && draft
           ? html`<section class="composer" aria-label="Review draft">
               <p>
                 ${draft.anchor.side} ·
