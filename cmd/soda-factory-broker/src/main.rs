@@ -31,6 +31,16 @@ const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    CompleteCandidate {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        base: String,
+        candidate: String,
+        length: usize,
+        delta_sha256: String,
+    },
     ReadContext {
         version: u8,
         run: String,
@@ -2112,6 +2122,51 @@ fn serve() -> io::Result<()> {
                 &serde_json::json!({"kind":"preparation_staged","version":1,"run":run,"profile":profile,"sha256":sha256,"setup_sha256":setup_sha256}),
             )?
         }
+        Request::CompleteCandidate {
+            version,
+            run,
+            profile,
+            sha256,
+            base,
+            candidate,
+            length,
+            delta_sha256,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&base, 40)
+                || !id(&candidate, 40)
+                || !id(&delta_sha256, 64)
+                || !(1..=MAX_BUNDLE).contains(&length)
+            {
+                return Err(denied("candidate import selector invalid"));
+            }
+            let mut delta = vec![0; length];
+            read_client_exact(
+                &mut input,
+                &mut delta,
+                Instant::now() + Duration::from_secs(30),
+            )?;
+            if hash(&delta) != delta_sha256 {
+                return Err(denied("candidate input differs"));
+            }
+            serde_json::to_vec(&source_binding::read(
+                &run,
+                &profile,
+                &sha256,
+                &base,
+                &soda_execution_protocol::PreparedSourceOperation::Candidate {
+                    base: base.clone(),
+                    candidate,
+                    delta_length: length,
+                    delta_sha256,
+                },
+                &delta,
+                desktop_uid,
+            )?)?
+        }
         Request::ReadContext {
             version,
             run,
@@ -2140,12 +2195,13 @@ fn serve() -> io::Result<()> {
             if !selection.valid() || selection.source_commit != candidate {
                 return Err(denied("context source differs"));
             }
-            serde_json::to_vec(&source_binding::context(
+            serde_json::to_vec(&source_binding::read(
                 &run,
                 &profile,
                 &sha256,
                 &candidate,
-                &selection,
+                &soda_execution_protocol::PreparedSourceOperation::Context { selection },
+                &[],
                 desktop_uid,
             )?)?
         }

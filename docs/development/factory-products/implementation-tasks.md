@@ -31446,3 +31446,15 @@ not prove provider inference or coordinator admission. Candidate preparation,
 checkpoint/artifact operations, environment transfer, admitted launch/coordinator,
 provider credentials/policy/funding and interrupted-run settlement remain pending.
 T09 and D3 stay open; [the handoff](daybreak-security-handoff.md) records limits.
+
+Native candidate preparation now imports an incremental result against the
+protected base in the existing isolated Git service and retains complete bounded
+source before approved setup/check. The Go port checks current recorded candidate
+admission, exact source/decision references and deadline; refreshed coder source
+comes from the recorded run export. Actual native import, setup/check on the new
+HEAD, replay, context/diff and retirement passed in
+`/home/vince/tmp/fprep6.pWKzb0/run.log`, with native candidate admission declared
+and Go absent-admission refusal verified. Successful canonical Go retry/reviewer
+admission through the coordinator, live candidate deadline expiry and restart
+adoption remain unverified. Environment transfer, checkpoint/artifact operations,
+admitted launch/coordinator/provider joins and all open gates remain pending.

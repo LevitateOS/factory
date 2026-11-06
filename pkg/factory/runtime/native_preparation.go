@@ -3,13 +3,80 @@ package runtime
 import (
 	"context"
 	"errors"
+	"reflect"
+	"slices"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 var _ execution.PreparationObserver = NativeExecution{}
 var _ execution.PreparationContextReader = NativeExecution{}
+var _ execution.PreparationLauncher = NativeExecution{}
+
+func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request execution.CandidatePreparationRequest) (execution.PreparationState, error) {
+	var empty execution.PreparationState
+	if p.Store == nil || request.Validate() != nil || !p.currentPreparationAddress(request.Address()) || request.Input.Preparation.Credential != "" || !time.Now().Before(request.Input.Deadline) {
+		return empty, execution.ErrPreparation
+	}
+	stored, err := p.Store.CandidatePreparation(ctx, request.Input.Preparation.ID)
+	if err != nil {
+		return empty, err
+	}
+	actual, wanted := request.Input.Preparation, stored.Preparation.Preparation
+	actual.Revision, wanted.Revision = 0, 0
+	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) {
+		return empty, execution.ErrPreparation
+	}
+	source, err := p.Store.Preparation(ctx, request.Input.SourcePreparation)
+	if err != nil {
+		return empty, err
+	}
+	base := source.Preparation
+	if source.Native == nil || !p.currentPreparationAddress(source.Address()) || base.Project != wanted.Project || base.SetupDigest != wanted.SetupDigest || !base.Requirements.Equal(wanted.Requirements) || base.Approval != wanted.Approval || !slices.Equal(base.Tools, wanted.Tools) || !source.State.Ready || source.State.Stopped {
+		return empty, execution.ErrPreparation
+	}
+	notAfter, err := p.Store.AuthorizeCandidatePreparation(ctx, wanted.ID)
+	if err != nil {
+		return empty, err
+	}
+	if request.Input.Deadline.After(time.Unix(notAfter, 0)) {
+		return empty, execution.ErrPreparation
+	}
+	if request.Input.SourceRun != nil {
+		ref := request.Input.SourceRun
+		exported, exportErr := p.ExportCandidate(ctx, execution.CandidateRequest{Address: execution.RunAddress{Workspace: ref.Project, Run: ref.ID}, Role: ref.Role, Preparation: ref.Preparation, Candidate: ref.Candidate})
+		if exportErr != nil {
+			return empty, exportErr
+		}
+		request.Input.Bundle = exported.Bundle
+	} else if wanted.Role == project.RoleCoder && wanted.SourceCommit != base.SourceCommit {
+		return empty, execution.ErrPreparation
+	}
+	request.Input.Preparation.Revision = 0
+	bounded, cancel := context.WithDeadline(ctx, request.Input.Deadline)
+	defer cancel()
+	var state execution.PreparationState
+	err = nativeHostCall(bounded, p.Config, p.Instance, "/api/native/preparation", struct {
+		Operation string                                `json:"operation"`
+		Request   execution.CandidatePreparationRequest `json:"request"`
+		Source    execution.PreparationAddress          `json:"source"`
+	}{"candidate", request, source.Address()}, &state)
+	if err != nil {
+		return empty, err
+	}
+	if _, err = p.Store.AuthorizeCandidatePreparation(ctx, wanted.ID); err != nil {
+		return empty, err
+	}
+	if err = state.ValidateFor(request.Address()); err != nil {
+		return empty, err
+	}
+	if state.Role != wanted.Role || state.SourceCommit != wanted.SourceCommit || state.SetupDigest != wanted.SetupDigest {
+		return empty, execution.ErrPreparation
+	}
+	return state, nil
+}
 
 func (p NativeExecution) ReadWorkspaceContext(ctx context.Context, request execution.PreparationContextRequest) (execution.PreparationContext, error) {
 	var result execution.PreparationContext

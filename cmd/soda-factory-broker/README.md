@@ -1,9 +1,11 @@
 # Privileged run bundle staging and reviewer preparation
 
 Native standing preparations also use `soda-factory-context@.service` for bounded
-Git context reads. Install this template with the preparer binary. It mounts only
-the exact prepared repository read-only, a root-owned selection request and a
-separate result directory. The broker stops and removes these transient context
+Git context reads and candidate import. Install this template with the preparer
+binary. It mounts the exact prepared repository, base bundle and staged incremental
+bundle read-only, a root-owned operation request and a separate result directory.
+Candidate import uses private bounded tmpfs and produces a complete bundle for
+fresh setup; it never updates the protected base. The broker removes transient context
 resources before exact preparation retirement. The desktop returns approved setup
 bytes and the bounded selected files/diff through Go's preparation context port.
 

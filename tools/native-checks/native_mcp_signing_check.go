@@ -1190,7 +1190,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if mode == "pending" {
 		setup = []byte("sleep 8\n")
 	}
-	files := map[string][]byte{"setup.sh": setup, "check.sh": []byte("printf 'checked-by-native\\n'\n")}
+	check := []byte("printf 'checked-by-native\\n'\n")
+	if os.Getenv("SODA_NATIVE_PREPARE_CANDIDATE") == "1" {
+		check = []byte("printf 'checked-by-native\\n'\ngit rev-parse --verify HEAD\ncat docs/note.md\n")
+	}
+	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
 	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf([]string{"setup.sh", "check.sh"}, nil, tools), Native: native}
@@ -1291,6 +1295,60 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		}
 		fmt.Println("PASS: actual read-only native Git context, exact approved scripts, selected file, ancestor instructions, commit diff and directory/deadline refusals")
 	}
+	if os.Getenv("SODA_NATIVE_PREPARE_CANDIDATE") == "1" {
+		delta, readErr := os.ReadFile(os.Getenv("SODA_NATIVE_CANDIDATE_BUNDLE"))
+		if readErr != nil {
+			return readErr
+		}
+		candidate := record.Preparation
+		candidate.ID, candidate.Revision, candidate.Role, candidate.SourceCommit = "f"+factory.NewID()[:24], 0, project.RoleReviewer, os.Getenv("SODA_NATIVE_CANDIDATE_COMMIT")
+		owner := *ref
+		owner.WorktreeID = candidate.ID
+		derived := execution.CandidatePreparationRequest{Native: &owner, Input: project.FactoryCandidate{Preparation: candidate, SourcePreparation: prep.ID, Bundle: delta, Deadline: time.Now().Add(15 * time.Second)}}
+		if _, err = port.PrepareWorkspaceCandidate(ctx, derived); err == nil {
+			return errors.New("Go prepared a candidate without recorded admission")
+		}
+		// Declare native-side admission to exercise the producer. This does not
+		// prove Go retry/publication authority; its normal missing-row refusal ran above.
+		payload := map[string]any{"operation": "candidate", "request": derived, "source": request.Address()}
+		var observed execution.PreparationState
+		if err = declaredNativePreparation(ctx, config, instance, payload, &observed); err != nil {
+			return err
+		}
+		for !observed.Ready {
+			if observed.Phase != project.PrepareRunning {
+				return fmt.Errorf("native candidate preparation: %s %s", observed.Phase, observed.Output)
+			}
+			time.Sleep(30 * time.Millisecond)
+			if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "inspect", "address": derived.Address()}, &observed); err != nil {
+				return err
+			}
+		}
+		if observed.SourceCommit != candidate.SourceCommit || observed.SetupDigest != candidate.SetupDigest || observed.SourceBundleSHA256 == state.SourceBundleSHA256 || !strings.Contains(observed.Output, candidate.SourceCommit) || !strings.Contains(observed.Output, "native-context-change") {
+			return errors.New("candidate setup/check did not observe the imported source")
+		}
+		if err = declaredNativePreparation(ctx, config, instance, payload, &observed); err != nil {
+			return err
+		}
+		contextRequest := execution.PreparationContextRequest{Native: &owner, Role: candidate.Role, Input: project.FactoryPreparationContextRequest{Project: candidate.Project, ID: candidate.ID, SourceCommit: candidate.SourceCommit, ApprovedBase: source, DiffBase: source, Candidate: candidate.SourceCommit, Paths: []string{"docs/note.md"}, NotAfter: time.Now().Add(10 * time.Second)}}
+		var material execution.PreparationContext
+		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "context", "request": contextRequest}, &material); err != nil {
+			return err
+		}
+		if err = material.ValidateFor(contextRequest); err != nil {
+			return err
+		}
+		if !strings.Contains(string(material.Material.Diff), "+native-context-change") {
+			return errors.New("prepared candidate context lost its real diff")
+		}
+		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "retire", "address": derived.Address()}, &observed); err != nil {
+			return err
+		}
+		if !observed.Stopped || observed.Retirement != "confirmed" {
+			return errors.New("candidate retirement was not confirmed")
+		}
+		fmt.Println("PASS: isolated incremental candidate import, approved setup/check on exact new HEAD, replay, actual context/diff and exact retirement; Go refuses absent candidate admission")
+	}
 	state, err = port.RetireWorkspacePreparation(ctx, request.Address())
 	if err != nil {
 		return err
@@ -1307,6 +1365,33 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	fmt.Println("PASS: actual Go/native source preparation, real setup/check exits, source digest, observed state CAS, stable replay and exact retirement")
 	return nil
+}
+
+func declaredNativePreparation(ctx context.Context, config factoryruntime.NativeConfig, instance string, payload, result any) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(config.Directory, "host.sock"))
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	request, err := http.NewRequestWithContext(ctx, "POST", "http://soda-native/api/native/preparation", strings.NewReader(string(body)))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
+	request.Header.Set("X-Soda-Native-Instance", instance)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := (&http.Client{Transport: transport}).Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("declared native preparation callback status %d", response.StatusCode)
+	}
+	return json.NewDecoder(io.LimitReader(response.Body, 2*1024*1024)).Decode(result)
 }
 
 // The existing native integration driver can itself act as the captured local

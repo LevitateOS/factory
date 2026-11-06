@@ -230,20 +230,24 @@ pub(super) fn clear_context(directory: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    match fs::remove_file(directory.join("context-request.json")) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
+    for name in ["context-request.json", "context-candidate.bundle"] {
+        match fs::remove_file(directory.join(name)) {
+            Ok(()) => (),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error),
+        }
     }
+    Ok(())
 }
-pub(super) fn context(
+pub(super) fn read(
     run: &str,
     profile: &str,
     digest: &str,
     candidate: &str,
-    selection: &soda_execution_protocol::ContextSelection,
+    operation: &soda_execution_protocol::PreparedSourceOperation,
+    delta: &[u8],
     desktop_uid: u32,
-) -> io::Result<soda_execution_protocol::SourceContext> {
+) -> io::Result<soda_execution_protocol::PreparedSourceResult> {
     let proof = receipt(run, profile, digest, candidate, desktop_uid)?;
     if proof.setup_exit != Some(0) || proof.check_exit != Some(0) || !proof.missing.is_empty() {
         return Err(denied("context preparation is not ready"));
@@ -269,7 +273,8 @@ pub(super) fn context(
     let output = directory.join("context-output");
     manager("stop", "context", run)?;
     clear_context(&directory)?;
-    write(&request, &serde_json::to_vec(selection)?)?;
+    write(&request, &serde_json::to_vec(operation)?)?;
+    write(&directory.join("context-candidate.bundle"), delta)?;
     DirBuilder::new().mode(0o777).create(&output)?;
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     let result = (|| {
@@ -283,12 +288,12 @@ pub(super) fn context(
             || meta.uid() == 0
             || meta.uid() == desktop_uid
             || meta.mode() & 0o022 != 0
-            || meta.len() > 1024 * 1024
+            || meta.len() > 3 * 1024 * 1024
         {
             return Err(denied("context result metadata invalid"));
         }
         let mut bytes = Vec::new();
-        file.take(1024 * 1024 + 1).read_to_end(&mut bytes)?;
+        file.take(3 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
         if bytes.len() as u64 != meta.len() {
             return Err(denied("context result changed"));
         }

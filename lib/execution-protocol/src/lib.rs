@@ -22,6 +22,31 @@ pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
 
 pub const MAX_CONTEXT_BYTES: usize = 128 * 1024;
 pub const MAX_CONTEXT_REQUEST: usize = 8192;
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PreparedSourceOperation {
+    Context {
+        selection: ContextSelection,
+    },
+    Candidate {
+        base: String,
+        candidate: String,
+        delta_length: usize,
+        delta_sha256: String,
+    },
+}
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum PreparedSourceResult {
+    Context {
+        context: SourceContext,
+    },
+    Candidate {
+        source_commit: String,
+        bundle: Vec<u8>,
+        sha256: String,
+    },
+}
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContextSelection {

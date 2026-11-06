@@ -43,8 +43,8 @@ type StandingPreparationRequest struct {
 }
 
 type CandidatePreparationRequest struct {
-	Input  project.FactoryCandidate
-	Native *NativeWorkspaceRef
+	Input  project.FactoryCandidate `json:"input"`
+	Native *NativeWorkspaceRef      `json:"native,omitempty"`
 }
 
 func (r StandingPreparationRequest) Address() PreparationAddress {

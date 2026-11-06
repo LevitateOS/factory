@@ -145,7 +145,24 @@ parent correctly refused restart for cancelled runs without terminal receipts;
 those Go outcomes remain unresolved. Closing interrupted-run recovery still needs
 exact process/custody/resource evidence and the actual Go reconciliation transaction.
 
-Remaining dependencies: candidate preparation and checkpoint/artifact operations, admitted Go
+Candidate preparation (`prepared_candidate.rs`, the existing context service,
+`factory_provider/preparations.rs` and `runtime/native_preparation.go`) now combines
+an incremental candidate with the protected base in private tmpfs, checks the exact
+head/ancestry and retains a bounded complete source bundle before setup effects.
+Fresh native jobs reuse the protected approved files, have cancellation/deadline
+ownership, and use the effective source digest for observation and retirement.
+Go checks the stored candidate identity, source decisions, current admission and
+deadline; coder refreshes export their recorded source run rather than accepting
+caller-supplied bundle bytes. Actual incremental import, setup/check on the new
+HEAD, replay, context/diff and exact retirement passed in
+`/home/vince/tmp/fprep6.pWKzb0/run.log`. Native candidate admission was declared for
+this producer check; Go's absent-admission refusal also passed. A successful
+canonical Go retry/publication-to-candidate journey, candidate deadline expiry
+during live setup, restart adoption and adversarial import checks remain unverified.
+Close those with the actual admitted coordinator journey and exact native/Go
+lifecycle facts; checks that look like hacking require a user-started Daybreak.
+
+Remaining dependencies: admitted retry/reviewer integration, checkpoint/artifact operations, admitted Go
 launch, current credential/policy/funding and positive MCP activation, followed by
 single-coordinator execution and durable outcome/restart settlement. The active
 agent currently clones bare source without the approved setup artifacts: prove

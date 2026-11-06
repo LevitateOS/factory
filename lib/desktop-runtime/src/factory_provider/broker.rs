@@ -339,7 +339,7 @@ pub struct AgentRun {
 /// thread. Closing that client connection makes the broker stop the exact agent
 /// service; it is not a claim that the worker has already retired.
 #[derive(Clone, Default)]
-pub struct AgentCancellation(Arc<AtomicBool>);
+pub struct AgentCancellation(Arc<AtomicBool>, Option<Instant>);
 
 impl AgentCancellation {
     pub fn cancel(&self) {
@@ -347,7 +347,10 @@ impl AgentCancellation {
     }
 
     pub fn cancelled(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
+        self.0.load(Ordering::SeqCst) || self.1.is_some_and(|deadline| Instant::now() >= deadline)
+    }
+    pub(super) fn with_deadline(&self, deadline: Instant) -> Self {
+        Self(self.0.clone(), Some(deadline))
     }
 
     pub(super) fn same(&self, other: &Self) -> bool {
@@ -547,13 +550,64 @@ impl Broker {
             return Err(refused("context selector invalid"));
         }
         let bytes = serde_json::to_vec(selection).map_err(io::Error::other)?;
-        exchange_controlled(
+        let result: soda_execution_protocol::PreparedSourceResult = exchange_controlled(
             json!({"kind":"read_context","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate,"length":bytes.len()}),
             Some(&bytes),
             PREPARE_TIME,
             Some(cancellation),
             1024 * 1024,
-        )
+        )?;
+        match result {
+            soda_execution_protocol::PreparedSourceResult::Context { context } => Ok(context),
+            _ => Err(refused("context result kind differs")),
+        }
+    }
+    pub(crate) fn complete_candidate(
+        run: &str,
+        profile: &str,
+        sha256: &str,
+        base: &str,
+        candidate: &str,
+        delta: &[u8],
+        cancellation: AgentCancellation,
+    ) -> io::Result<Vec<u8>> {
+        if !id(run, 32)
+            || !id(profile, 32)
+            || !id(sha256, 64)
+            || !id(base, 40)
+            || !id(candidate, 40)
+            || delta.is_empty()
+            || delta.len() > MAX_BUNDLE
+        {
+            return Err(refused("candidate source selector invalid"));
+        }
+        let hash = |bytes: &[u8]| {
+            Sha256::digest(bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>()
+        };
+        let result: soda_execution_protocol::PreparedSourceResult = exchange_controlled(
+            json!({"kind":"complete_candidate","version":1,"run":run,"profile":profile,"sha256":sha256,"base":base,"candidate":candidate,"length":delta.len(),"delta_sha256":hash(delta)}),
+            Some(delta),
+            PREPARE_TIME,
+            Some(cancellation),
+            3 * 1024 * 1024,
+        )?;
+        match result {
+            soda_execution_protocol::PreparedSourceResult::Candidate {
+                source_commit,
+                bundle,
+                sha256,
+            } if source_commit == candidate
+                && !bundle.is_empty()
+                && bundle.len() <= MAX_BUNDLE
+                && hash(&bundle) == sha256 =>
+            {
+                Ok(bundle)
+            }
+            _ => Err(refused("candidate source result differs")),
+        }
     }
     pub fn read_source_setup(
         run: &str,

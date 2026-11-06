@@ -1,7 +1,8 @@
 //! Read Git objects only in the isolated, read-only context service.
 use super::{git, private_process, refused, CHECKOUT};
 use soda_execution_protocol::{
-    ContextFile, ContextSelection, SourceContext, MAX_CONTEXT_BYTES, MAX_CONTEXT_REQUEST,
+    ContextFile, ContextSelection, PreparedSourceOperation, PreparedSourceResult, SourceContext,
+    MAX_CONTEXT_BYTES, MAX_CONTEXT_REQUEST,
 };
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
@@ -10,6 +11,9 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::process::Stdio;
 
 fn query(args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
+    query_at(CHECKOUT, args, limit)
+}
+pub(super) fn query_at(repository: &str, args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
     let mut command = git(&[
         "-c",
         "safe.directory=/run/factory-output/repo",
@@ -20,7 +24,7 @@ fn query(args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
         "-c",
         "diff.external=",
         "-C",
-        CHECKOUT,
+        repository,
     ]);
     let mut child = command
         .args(args)
@@ -89,8 +93,30 @@ pub(super) fn run() -> io::Result<()> {
     input
         .take(MAX_CONTEXT_REQUEST as u64 + 1)
         .read_to_end(&mut bytes)?;
-    let request: ContextSelection =
+    let request: PreparedSourceOperation =
         serde_json::from_slice(&bytes).map_err(|_| refused("context request invalid"))?;
+    let result = match request {
+        PreparedSourceOperation::Context { selection } => PreparedSourceResult::Context {
+            context: read(selection)?,
+        },
+        PreparedSourceOperation::Candidate {
+            base,
+            candidate,
+            delta_length,
+            delta_sha256,
+        } => super::prepared_candidate::run(&base, &candidate, delta_length, &delta_sha256)?,
+    };
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o644)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open("/run/factory-context-output/result.json")?;
+    output.write_all(&serde_json::to_vec(&result).map_err(io::Error::other)?)?;
+    output.sync_all()?;
+    File::open("/run/factory-context-output")?.sync_all()
+}
+fn read(request: ContextSelection) -> io::Result<SourceContext> {
     if !request.valid() {
         return Err(refused("context selection invalid"));
     }
@@ -157,14 +183,5 @@ pub(super) fn run() -> io::Result<()> {
     if std::str::from_utf8(&diff).is_err() {
         return Err(refused("context diff is not text"));
     }
-    let result = SourceContext { files, diff };
-    let mut output = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o644)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open("/run/factory-context-output/result.json")?;
-    output.write_all(&serde_json::to_vec(&result).map_err(io::Error::other)?)?;
-    output.sync_all()?;
-    File::open("/run/factory-context-output")?.sync_all()
+    Ok(SourceContext { files, diff })
 }

@@ -1,5 +1,5 @@
 [Unit]
-Description=Factory read-only prepared source context for %i
+Description=Factory prepared source Git operations for %i
 
 [Service]
 Type=oneshot
@@ -7,7 +7,10 @@ DynamicUser=yes
 ExecStart=/usr/libexec/soda-factory-preparer context
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output/repo:/run/factory-output/repo
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/context-request.json:/run/factory-context-request
+BindReadOnlyPaths=/run/soda-factory-broker/runs/%i/bundle:/run/factory-context-base.bundle
+BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/context-candidate.bundle:/run/factory-context-candidate.bundle
 BindPaths=/run/soda-factory-broker/preparations/%i/context-output:/run/factory-context-output
+TemporaryFileSystem=/run/factory-context-private:rw,size=96M,mode=0777
 UMask=0022
 ProtectHome=yes
 PrivateTmp=yes

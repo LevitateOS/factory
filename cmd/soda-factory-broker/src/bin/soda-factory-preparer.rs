@@ -8,6 +8,8 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+#[path = "../prepared_candidate.rs"]
+mod prepared_candidate;
 #[path = "../prepared_context.rs"]
 mod prepared_context;
 #[path = "../prepared_setup.rs"]

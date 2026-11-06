@@ -18,6 +18,8 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 fn denied() -> io::Error {
     io::Error::new(
@@ -42,17 +44,23 @@ fn text<'a>(value: &'a Value, name: &str, max: usize) -> io::Result<&'a str> {
 }
 fn save(path: &Path, value: &impl Serialize) -> io::Result<()> {
     let bytes = serde_json::to_vec(value).map_err(io::Error::other)?;
+    save_bytes(path, &bytes)
+}
+fn save_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)?;
-    file.write_all(&bytes)?;
+    file.write_all(bytes)?;
     file.sync_all()?;
     File::open(path.parent().ok_or_else(denied)?)?.sync_all()
 }
 fn load<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
+    serde_json::from_slice(&load_bytes(path, 2 * 1024 * 1024)?).map_err(io::Error::other)
+}
+fn load_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     let file = OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -61,16 +69,23 @@ fn load<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
     if !meta.is_file()
         || meta.uid() != unsafe { libc::geteuid() }
         || meta.mode() & 0o077 != 0
-        || meta.len() > 2 * 1024 * 1024
+        || meta.len() > limit as u64
     {
         return Err(denied());
     }
     let mut bytes = Vec::new();
-    file.take(2 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+    file.take(limit as u64 + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 != meta.len() {
         return Err(denied());
     }
-    serde_json::from_slice(&bytes).map_err(io::Error::other)
+    Ok(bytes)
+}
+struct DerivedSource {
+    key: String,
+    sha256: String,
+    base: String,
+    delta: Vec<u8>,
+    not_after: OffsetDateTime,
 }
 struct Input {
     request: Value,
@@ -84,8 +99,19 @@ struct Input {
     bundle: Vec<u8>,
     bundle_sha: String,
     approved: ApprovedFiles,
+    derived: Option<DerivedSource>,
 }
 impl Input {
+    fn effective_bundle(&self, directory: &Path) -> io::Result<Vec<u8>> {
+        if self.derived.is_some() {
+            match load_bytes(&directory.join("source.bundle"), MAX_STAGE_BUNDLE) {
+                Ok(bytes) if !bytes.is_empty() => return Ok(bytes),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                _ => return Err(denied()),
+            }
+        }
+        Ok(self.bundle.clone())
+    }
     fn decode(request: Value, profile: &str, instance: &str) -> io::Result<Self> {
         let native = request.get("native").ok_or_else(denied)?.clone();
         if text(&native, "profile", 32)? != profile || text(&native, "instance_id", 32)? != instance
@@ -143,6 +169,37 @@ impl Input {
         }
         let key = digest(&serde_json::to_vec(&native).map_err(io::Error::other)?)[..32].to_owned();
         let bundle_sha = digest(&bundle);
+        let derived = if let Some(origin) = request.get("candidate_origin") {
+            let binding = request.get("candidate_source").ok_or_else(denied)?;
+            let key = text(binding, "key", 32)?.to_owned();
+            let sha256 = text(binding, "sha256", 64)?.to_owned();
+            let base = text(binding, "base", 40)?.to_owned();
+            let delta = match &origin["input"]["bundle"] {
+                Value::Null => Vec::new(),
+                value => decode(value)?,
+            };
+            let not_after =
+                OffsetDateTime::parse(text(&origin["input"], "deadline", 64)?, &Rfc3339)
+                    .map_err(|_| denied())?;
+            if !super::hex(&key, 32)
+                || !super::hex(&sha256, 64)
+                || !super::hex(&base, 40)
+                || sha256 != bundle_sha
+                || delta.len() > MAX_STAGE_BUNDLE
+                || delta.is_empty() && base != source
+            {
+                return Err(denied());
+            }
+            Some(DerivedSource {
+                key,
+                sha256,
+                base,
+                delta,
+                not_after,
+            })
+        } else {
+            None
+        };
         Ok(Self {
             request,
             key,
@@ -155,6 +212,7 @@ impl Input {
             bundle,
             bundle_sha,
             approved,
+            derived,
         })
     }
     fn state(&self, completion: Option<&Completion>, retired: bool) -> Value {
@@ -179,8 +237,15 @@ impl Input {
             .flat_map(|value| value.tools.iter())
             .map(|(name, path)| json!({"name":name,"path":path}))
             .collect();
+        let source_sha = completion
+            .and_then(|value| value.source_sha256.as_deref())
+            .unwrap_or(if self.derived.is_none() {
+                &self.bundle_sha
+            } else {
+                ""
+            });
         json!({"id":self.id,"project":self.workspace,"role":match self.role {Role::Coder=>"soda-coder",Role::Reviewer=>"soda-reviewer"},
-            "source_commit":self.source,"setup_digest":self.setup,"source_bundle_sha256":self.bundle_sha,"native":self.native,
+            "source_commit":self.source,"setup_digest":self.setup,"source_bundle_sha256":source_sha,"native":self.native,
             "phase":phase,"ready":phase=="ready","stopped":retired,"retirement":if retired {"confirmed"} else {""},
             "setup_exit":receipt.and_then(|value|value.setup_exit),"check_exit":receipt.and_then(|value|value.check_exit),"tools":tools,
             "missing":receipt.map(|value|value.missing.join(", ")).unwrap_or_default(),
@@ -191,6 +256,8 @@ impl Input {
 struct Completion {
     receipt: Option<SetupReceipt>,
     error: Option<String>,
+    #[serde(default)]
+    source_sha256: Option<String>,
 }
 struct Entry {
     input: Arc<Input>,
@@ -256,7 +323,9 @@ impl Preparations {
             retired = directory.join("retired.json").try_exists()?;
             if retired {
                 let marker: Value = load(&directory.join("retired.json"))?;
-                if marker["root"] != input.key || marker["bundle"] != input.bundle_sha {
+                if marker["root"] != input.key
+                    || marker["bundle"] != digest(&input.effective_bundle(&directory)?)
+                {
                     return Err(denied());
                 }
             }
@@ -265,6 +334,7 @@ impl Preparations {
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Completion {
                     receipt: None,
                     error: Some("interrupted native preparation requires a fresh identity".into()),
+                    source_sha256: None,
                 },
                 Err(error) => return Err(error),
             })
@@ -290,31 +360,72 @@ impl Preparations {
                             if !alive.load(Ordering::SeqCst) || cancellation.cancelled() {
                                 return Err(denied());
                             }
-                            Broker::prepare_source(
+                            let (bundle, cancellation) = if let Some(derived) = &input.derived {
+                                let remaining = derived.not_after - OffsetDateTime::now_utc();
+                                let milliseconds = u64::try_from(remaining.whole_milliseconds())
+                                    .map_err(|_| denied())?;
+                                let cancellation = cancellation.with_deadline(
+                                    Instant::now()
+                                        + Duration::from_millis(
+                                            milliseconds.min(4 * 60 * 60 * 1000),
+                                        ),
+                                );
+                                if cancellation.cancelled() {
+                                    return Err(denied());
+                                }
+                                let bundle = if derived.delta.is_empty() {
+                                    input.bundle.clone()
+                                } else {
+                                    Broker::complete_candidate(
+                                        &derived.key,
+                                        &profile,
+                                        &derived.sha256,
+                                        &derived.base,
+                                        &input.source,
+                                        &derived.delta,
+                                        cancellation.clone(),
+                                    )?
+                                };
+                                save_bytes(&directory.join("source.bundle"), &bundle)?;
+                                (bundle, cancellation)
+                            } else {
+                                (input.bundle.clone(), cancellation)
+                            };
+                            if cancellation.cancelled() {
+                                return Err(denied());
+                            }
+                            let receipt = Broker::prepare_source(
                                 &input.key,
                                 &profile,
                                 input.role,
-                                &input.bundle,
+                                &bundle,
                                 &input.approved,
                                 &input.source,
-                                cancellation,
-                            )
+                                cancellation.clone(),
+                            )?;
+                            if cancellation.cancelled() {
+                                return Err(denied());
+                            }
+                            Ok((receipt, digest(&bundle)))
                         }))
                         .unwrap_or_else(|_| Err(io::Error::other("native setup job failed")));
                         let mut result = match result {
-                            Ok(receipt) => Completion {
+                            Ok((receipt, sha256)) => Completion {
                                 receipt: Some(receipt),
                                 error: None,
+                                source_sha256: Some(sha256),
                             },
                             Err(error) => Completion {
                                 receipt: None,
                                 error: Some(error.to_string()),
+                                source_sha256: None,
                             },
                         };
                         if save(&directory.join("completion.json"), &result).is_err() {
                             result = Completion {
                                 receipt: None,
                                 error: Some("native setup receipt was not durable".into()),
+                                source_sha256: None,
                             };
                         }
                         *completion.lock().unwrap_or_else(|error| error.into_inner()) =
@@ -346,6 +457,53 @@ impl Preparations {
         text(native, "worktree_id", 128)?;
         Ok(digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].into())
     }
+    pub(crate) fn prepare_candidate(&self, request: Value, source: &Value) -> io::Result<Value> {
+        let address = json!({"id":request["input"]["preparation"]["id"],"workspace":request["input"]["preparation"]["project"],"native":request["native"]});
+        let key = self.key(&address)?;
+        {
+            let entries = self.entries.lock().map_err(|_| denied())?;
+            if let Some(entry) = entries.get(&key) {
+                if entry.input.request["candidate_origin"] != request
+                    || entry.input.request["candidate_source"]["address"] != *source
+                {
+                    return Err(denied());
+                }
+                drop(entries);
+                return self.inspect(&address);
+            }
+        }
+        if self.inspect(source)?["ready"] != true {
+            return Err(denied());
+        }
+        let source_key = self.key(source)?;
+        let base = {
+            let entries = self.entries.lock().map_err(|_| denied())?;
+            entries.get(&source_key).ok_or_else(denied)?.input.clone()
+        };
+        let target = &request["input"]["preparation"];
+        let approved = &base.request["input"]["preparation"];
+        if request["input"]["source_preparation"] != base.id
+            || target["project"] != base.workspace
+            || target["id"] == base.id
+            || target["setup_digest"] != approved["setup_digest"]
+            || target["requirements"] != approved["requirements"]
+            || target["approval"] != approved["approval"]
+            || target["tools"] != approved["tools"]
+        {
+            return Err(denied());
+        }
+        let bundle = base.effective_bundle(&self.directory.join(&source_key))?;
+        let encode = |bytes: &[u8]| base64::engine::general_purpose::STANDARD.encode(bytes);
+        let files: BTreeMap<_, _> = base
+            .approved
+            .files
+            .iter()
+            .map(|(name, bytes)| (name.clone(), encode(bytes)))
+            .collect();
+        let standing = json!({"native":request["native"],"input":{"preparation":target,"setup":{"files":files,"bundle":encode(&bundle)}},
+            "candidate_origin":request,"candidate_source":{"key":source_key,"base":base.source,"sha256":digest(&bundle),"address":source}});
+        self.prepare(standing)
+    }
     pub(crate) fn inspect(&self, address: &Value) -> io::Result<Value> {
         let key = self.key(address)?;
         let (input, completion, cancel, retired) = {
@@ -375,7 +533,7 @@ impl Preparations {
             let receipt = Broker::read_source_setup(
                 &key,
                 &self.profile,
-                &input.bundle_sha,
+                &digest(&input.effective_bundle(&self.directory.join(&key))?),
                 &input.source,
                 cancel,
             )?;
@@ -421,7 +579,7 @@ impl Preparations {
         let context = Broker::read_source_context(
             &key,
             &self.profile,
-            &input.bundle_sha,
+            &digest(&input.effective_bundle(&self.directory.join(&key))?),
             &input.source,
             &selection,
             cancellation,
@@ -483,10 +641,11 @@ impl Preparations {
         if let Some(job) = job {
             job.join().map_err(|_| denied())?;
         }
-        Broker::retire_unlaunched(&key, &self.profile, &input.bundle_sha)?;
+        let sha256 = digest(&input.effective_bundle(&self.directory.join(&key))?);
+        Broker::retire_unlaunched(&key, &self.profile, &sha256)?;
         let marker = self.directory.join(&key).join("retired.json");
         if !marker.try_exists()? {
-            save(&marker, &json!({"root":key,"bundle":input.bundle_sha}))?;
+            save(&marker, &json!({"root":key,"bundle":sha256}))?;
         }
         let mut entries = self.entries.lock().map_err(|_| denied())?;
         let entry = entries.get_mut(&key).ok_or_else(denied)?;

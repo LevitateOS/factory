@@ -210,7 +210,7 @@ fn managed_preparations(
         }
         let entries: Vec<_> =
             fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
-        if entries.len() != 1 {
+        if entries.is_empty() || mode == "pending" && entries.len() != 1 {
             return Err("native preparation identity missing".into());
         }
         let run = entries[0]
@@ -218,7 +218,15 @@ fn managed_preparations(
             .to_str()
             .ok_or("native preparation name invalid")?
             .to_owned();
-        roots.push(run.clone());
+        for entry in &entries {
+            roots.push(
+                entry
+                    .file_name()
+                    .to_str()
+                    .ok_or("native preparation name invalid")?
+                    .to_owned(),
+            );
+        }
         fs::write(root.join("execution-runs.ids"), roots.join("\n"))?;
         if mode == "pending" {
             let until = std::time::Instant::now() + Duration::from_secs(5);
@@ -250,7 +258,10 @@ fn managed_preparations(
         if Broker::next_profile_run(&ready.profile)?.is_some() {
             return Err("native supervisor left preparation roots".into());
         }
-        if !entries[0].path().join("retired.json").is_file() {
+        if entries
+            .iter()
+            .any(|entry| !entry.path().join("retired.json").is_file())
+        {
             return Err("native preparation retirement acknowledgement missing".into());
         }
     }
