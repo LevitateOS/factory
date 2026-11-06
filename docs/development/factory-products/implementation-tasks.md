@@ -30845,3 +30845,25 @@ boundaries passed. Evidence:
 This is component evidence, not a new connected UI or privilege qualification.
 The user has deferred cross-account checks; that deferral does not block
 independent product integration. T11 and the shared issue/PR journeys remain open.
+
+### T11-WRITES: preserve the user's selected review/merge head (2026-11-06)
+
+New shared review/merge commands send their saved `expected_head`. Go validates
+the selected commit, refuses a different preparation head before capture, and
+retains it through dispatch, lookup, cancellation and restart. Replay cannot
+change it. Historical captures and browser commands keep their original shape;
+the additive field does not rewrite old journals. Native review conditions remain
+bounded preflights; merges retain GitHub's actual `expectedHeadOid` condition.
+
+Live stale review/merge refusal (409 with no capture), invalid-field refusal,
+exact selected-head review writing/commit, immutable replay and restart passed in
+`/home/vince/tmp/fgw-1106.cqnVjg/general1/selected-head-final.log`.
+Disposable PR 11 passed selected-head merge, readback, replay conflict and restart
+in `/home/vince/tmp/factory-merge-head-1106.tXTIgV/connected-merge-result.json`.
+The affected existing pending-review integration passed stale-head refusal and
+the full primary/preservation, cancellation, custody and restart journey under
+`/home/vince/tmp/factory-review-head-1106.LwhVp6/`. The check's read-only journal
+helper was rebuilt against the updated contract; earlier failures are retained.
+Go/native builds, TypeScript checking, boundaries and whitespace passed. This
+does not qualify connected UI, cross-account behavior, fresh OAuth or installed
+products. Those gates and T11 remain open.

@@ -3639,6 +3639,23 @@ passed in `general1/direct-review.log`. The affected different-author pending
 journal/recovery fixture passed in `pending-author-regression/`. This does not
 qualify real other-actor approval/request-changes or broader privilege boundaries.
 
+Selected-head follow-up: the shared review/merge UI now retains and sends
+`expected_head` for new commands. The Go HTTP/domain/service/native adapters bind
+it to the original journal and refuse a different preparation head before capture.
+Older commands retain their original shape. This closes the UI-to-preparation
+selection gap; it does not prove an atomic review head condition at GitHub.
+Merge retains its existing provider-enforced `expectedHeadOid`; base and review
+conditions retain their documented bounded-preflight limits. Relevant files are
+`frontend/factory/pulls/{review,merge}{,-record}.ts`, Go `human_{review,merge}.go`,
+the corresponding HTTP/services and `native_product_{review_creates,pending_reviews,merges}.go`.
+Connected refusal/readback/replay/restart evidence is in
+`/home/vince/tmp/fgw-1106.cqnVjg/general1/selected-head-final.log` and
+`/home/vince/tmp/factory-merge-head-1106.tXTIgV/connected-merge-result.json`;
+pending preservation/cancellation/restart passed in
+`/home/vince/tmp/factory-review-head-1106.LwhVp6/pending-review-product-result.json`.
+Closure of the remaining provider race claims still needs supported conditional
+API semantics and real concurrent-change evidence; this fix alone cannot close them.
+
 Remaining privacy/permission dependency: only the author's `gh` account is
 authorized. A second authorized account with access to the disposable private
 fixture is needed to observe pending-draft invisibility, submitted visibility,

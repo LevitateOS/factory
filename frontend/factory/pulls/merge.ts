@@ -136,7 +136,7 @@ export class SodaFactoryPullMerge extends LitElement {
       if (action === 'submit') {
         check(!pending && this.methods.includes(this.method) && validMergeMessage(this.method, noMergeMessage(this.method) ? '' : this.message));
         pending = {command: factoryCommandId(), method: this.method, message: noMergeMessage(this.method) ? '' : this.message,
-          external: context.parent.external_id, head: context.head};
+          external: context.parent.external_id, head: context.head, expectedHead: true};
         check(mergeRecord(context).retain(pending) === 'saved');
         this.pending = pending;
       } else {
@@ -159,7 +159,7 @@ export class SodaFactoryPullMerge extends LitElement {
       method: action === 'lookup' ? 'GET' : 'POST', headers: {'Content-Type': 'application/json'},
       signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
       ...(action === 'lookup' ? {} : {body: JSON.stringify(action === 'submit'
-        ? {command_id: pending.command, method: pending.method, message: pending.message} : {})}),
+        ? {command_id: pending.command, method: pending.method, message: pending.message, ...(pending.expectedHead ? {expected_head: pending.head} : {})} : {})}),
     });
     check(this.live(context, signal) && response.ok);
     const outcome = commandOutcome(await readSodaJSON(response), pending.command);

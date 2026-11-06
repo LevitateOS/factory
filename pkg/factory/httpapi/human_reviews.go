@@ -89,7 +89,7 @@ func (s HumanReviews) handle(w http.ResponseWriter, r *http.Request, kind, actio
 		}
 		if action == "submit" {
 			for field := range input {
-				if field != "command_id" && field != "event" && field != "body" {
+				if field != "command_id" && field != "event" && field != "body" && field != "expected_head" {
 					writeError(w, 400, "invalid_request", "Invalid review JSON fields or values.")
 					return
 				}
@@ -104,6 +104,14 @@ func (s HumanReviews) handle(w http.ResponseWriter, r *http.Request, kind, actio
 				return
 			}
 			q.Event, q.Body = factory.HumanReviewEvent(*event), *body
+			if raw, present := input["expected_head"]; present {
+				var head *collaboration.CommitID
+				if json.Unmarshal(raw, &head) != nil || head == nil || !collaboration.ValidCommitID(*head) {
+					writeError(w, 400, "invalid_request", "Expected head must be a commit identity.")
+					return
+				}
+				q.ExpectedHead = *head
+			}
 
 		}
 	}
@@ -143,6 +151,7 @@ func (s HumanReviews) handle(w http.ResponseWriter, r *http.Request, kind, actio
 		if o.Record.Effect == collaboration.EffectCommitted {
 			scope := q
 			scope.Event, scope.Body = "", ""
+			scope.ExpectedHead = ""
 			if ref, readErr := s.Service.CreatedReview(ctx, scope, o); readErr == nil {
 				response.Review = &ref
 			}

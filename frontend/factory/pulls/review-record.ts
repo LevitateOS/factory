@@ -12,6 +12,7 @@ export interface ReviewPending {
   head: string;
   draft: string;
   cancel: boolean;
+  expectedHead?: true;
 }
 export interface ReviewWriting {
   draft: {revision: string; body: string};
@@ -40,7 +41,8 @@ function decode(raw: string | undefined, address: ReviewAddress): ReviewWriting 
     const result: ReviewWriting = {draft: {revision: draft.revision, body: draft.body}};
     if (writing.pending !== undefined) {
       const pending = object(writing.pending);
-      check(Object.keys(pending).length === 7 && issued(pending.command) && issued(pending.draft));
+      check(Object.keys(pending).length === (pending.expectedHead === undefined ? 7 : 8) && issued(pending.command) && issued(pending.draft));
+      check(pending.expectedHead === undefined || pending.expectedHead === true);
       check(['draft', 'comment', 'approve', 'request_changes'].includes(String(pending.event)));
       check(typeof pending.body === 'string' && validReviewBody(pending.body));
       check(pending.event !== 'request_changes' || !!pending.body.trim());
@@ -50,6 +52,7 @@ function decode(raw: string | undefined, address: ReviewAddress): ReviewWriting 
       result.pending = {
         command: pending.command, event: pending.event as ReviewEvent, body: pending.body,
         external: pending.external, head: pending.head, draft: pending.draft, cancel: pending.cancel,
+        ...(pending.expectedHead === true ? {expectedHead: true as const} : {}),
       };
     }
     return result;
@@ -66,4 +69,4 @@ export const reloadReviewWriting = (address: ReviewAddress): ReviewSaved => reco
   return {draft: saved?.draft ?? emptyReviewWriting().draft, pending: {...ours.pending, cancel: ours.pending.cancel || !!saved?.pending?.cancel}};
 });
 export const sameReviewPending = (a: ReviewPending, b: ReviewPending) =>
-  a.command === b.command && a.event === b.event && a.body === b.body && a.external === b.external && a.head === b.head && a.draft === b.draft;
+  a.command === b.command && a.event === b.event && a.body === b.body && a.external === b.external && a.head === b.head && a.draft === b.draft && a.expectedHead === b.expectedHead;

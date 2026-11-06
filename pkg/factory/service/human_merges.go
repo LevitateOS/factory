@@ -41,7 +41,7 @@ func (a Application) HumanMerges(writer HumanMergeWriter) HumanMerges {
 // command resolves the original method/message or selected commit only within
 // its admitted host/actor/repository/parent. Lookup accepts no provider preparation.
 func (s HumanMerges) command(ctx context.Context, scope factory.HumanMergeCommand) (factory.HumanMergeCommand, error) {
-	if scope.ValidateScope() != nil || scope.Method != "" || scope.Message != "" || scope.CommitOID != "" {
+	if scope.ValidateScope() != nil || scope.Method != "" || scope.Message != "" || scope.CommitOID != "" || scope.ExpectedHead != "" {
 		return factory.HumanMergeCommand{}, ErrHumanMergeQuery
 	}
 	if s.Store == nil || s.Writer == nil {
@@ -57,6 +57,7 @@ func (s HumanMerges) command(ctx context.Context, scope factory.HumanMergeComman
 	}
 	actual := c.Request
 	actual.Method, actual.Message, actual.CommitOID = "", "", ""
+	actual.ExpectedHead = ""
 	if !actual.SameRequest(scope) {
 		return factory.HumanMergeCommand{}, store.ErrNotFound
 	}

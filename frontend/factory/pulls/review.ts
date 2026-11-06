@@ -154,7 +154,7 @@ export class SodaFactoryPullReview extends LitElement {
         check(!pending && event && validReviewBody(this.writing.draft.body));
         check(event !== 'request_changes' || !!this.writing.draft.body.trim());
         pending = {command: factoryCommandId(), event, body: this.writing.draft.body,
-          external: context.parent.external_id, head: context.head, draft: this.writing.draft.revision, cancel: false};
+          external: context.parent.external_id, head: context.head, draft: this.writing.draft.revision, cancel: false, expectedHead: true};
       } else check(pending);
       check(pending.external === context.parent.external_id);
       if (action === 'submit' || action === 'retry') check(pending.head === context.head);
@@ -177,7 +177,7 @@ export class SodaFactoryPullReview extends LitElement {
       method: action === 'lookup' ? 'GET' : 'POST', headers: {'Content-Type': 'application/json'},
       signal: AbortSignal.any([signal, AbortSignal.timeout(35000)]),
       ...(action === 'lookup' ? {} : {body: JSON.stringify(action === 'submit'
-        ? {command_id: pending.command, event: pending.event, body: pending.body} : {})}),
+        ? {command_id: pending.command, event: pending.event, body: pending.body, ...(pending.expectedHead ? {expected_head: pending.head} : {})} : {})}),
     });
     check(this.live(context, signal) && response.ok);
     const raw = object(await readSodaJSON(response));

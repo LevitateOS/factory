@@ -29,18 +29,19 @@ const (
 // HumanReviewCommand is human intent after current caller admission. Canonical
 // identities never contain provider numbers. This record grants no permission.
 type HumanReviewCommand struct {
-	ID         string                     `json:"id"`
-	Host       collaboration.HostID       `json:"host"`
-	Repository collaboration.RepositoryID `json:"repository,string"`
-	Actor      collaboration.ActorID      `json:"actor,string"`
-	Event      HumanReviewEvent           `json:"event"`
-	Number     int64                      `json:"number,string"`
-	Body       string                     `json:"body"`
+	ID           string                     `json:"id"`
+	Host         collaboration.HostID       `json:"host"`
+	Repository   collaboration.RepositoryID `json:"repository,string"`
+	Actor        collaboration.ActorID      `json:"actor,string"`
+	Event        HumanReviewEvent           `json:"event"`
+	Number       int64                      `json:"number,string"`
+	Body         string                     `json:"body"`
+	ExpectedHead collaboration.CommitID     `json:"expected_head,omitempty"`
 }
 
 func (q HumanReviewCommand) Validate() error {
 	if q.ValidateScope() != nil || len(q.Body) > MaxHumanReviewBytes ||
-		!utf8.ValidString(q.Body) || strings.ContainsRune(q.Body, 0) {
+		!utf8.ValidString(q.Body) || strings.ContainsRune(q.Body, 0) || q.ExpectedHead != "" && !collaboration.ValidCommitID(q.ExpectedHead) {
 		return errors.New("invalid human review command")
 	}
 	switch q.Event {

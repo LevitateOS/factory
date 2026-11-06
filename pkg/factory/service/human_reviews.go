@@ -76,7 +76,7 @@ func (s HumanReviews) CreatedReview(ctx context.Context, scope factory.HumanRevi
 // command resolves original server-retained review event/prose only within its
 // admitted host/actor/repository/parent. Lookup accepts no provider preparation.
 func (s HumanReviews) command(ctx context.Context, scope factory.HumanReviewCommand) (factory.HumanReviewCommand, error) {
-	if scope.ValidateScope() != nil || scope.Event != "" || scope.Body != "" {
+	if scope.ValidateScope() != nil || scope.Event != "" || scope.Body != "" || scope.ExpectedHead != "" {
 		return factory.HumanReviewCommand{}, ErrHumanReviewQuery
 	}
 	if s.Store == nil || s.Writer == nil {
@@ -92,6 +92,7 @@ func (s HumanReviews) command(ctx context.Context, scope factory.HumanReviewComm
 	}
 	actual := c.Request
 	actual.Event, actual.Body = "", ""
+	actual.ExpectedHead = ""
 	if !actual.SameRequest(scope) {
 		return factory.HumanReviewCommand{}, store.ErrNotFound
 	}

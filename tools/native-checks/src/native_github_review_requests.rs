@@ -3877,7 +3877,7 @@ pub(super) async fn pending_product(
     let command = |id: &str| format!("{submit}/commands/{id}");
     let envelope = |id: &str, event: &str, body: &str| -> Result<Vec<u8>> {
         let request: ProductRequest = serde_json::from_value(
-            json!({"kind":"write","path":submit,"body":{"command_id":id,"event":event,"body":body}}),
+            json!({"kind":"write","path":submit,"body":{"command_id":id,"event":event,"body":body,"expected_head":"b".repeat(40)}}),
         )?;
         Ok(request.request()?.2)
     };
@@ -3900,6 +3900,15 @@ pub(super) async fn pending_product(
     .enumerate()
     {
         mode(&format!("submit-{name}"))?;
+        if i == 0 {
+            let stale_id = format!("{:032x}", 9900);
+            let stale = serde_json::to_vec(&json!({"command_id":stale_id,"event":event,"body":body,"expected_head":"f".repeat(40)}))?;
+            let before = writes()?;
+            ensure(call(&runtime,&store,&connection,"POST",&submit,&stale).await?.0 == 409
+                && call(&runtime,&store,&connection,"GET",&command(&stale_id),&[]).await?.0 == 404
+                && writes()? == before, "pending review stale head was captured or dispatched")?;
+            cases.push("selected-head-conflict-before-capture".into());
+        }
         let id = format!("{:032x}", 100 + i);
         let bytes = envelope(&id, event, &body)?;
         let before = writes()?;

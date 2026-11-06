@@ -84,7 +84,7 @@ func (s HumanMerges) handle(w http.ResponseWriter, r *http.Request, kind, action
 		}
 		if action == "submit" {
 			for field := range input {
-				if field != "command_id" && field != "method" && field != "message" && field != "commit_oid" {
+				if field != "command_id" && field != "method" && field != "message" && field != "commit_oid" && field != "expected_head" {
 					writeError(w, 400, "invalid_request", "Invalid merge JSON fields or values.")
 					return
 				}
@@ -95,6 +95,14 @@ func (s HumanMerges) handle(w http.ResponseWriter, r *http.Request, kind, action
 				return
 			}
 			q.Method = *method
+			if raw, present := input["expected_head"]; present {
+				var head *collaboration.CommitID
+				if json.Unmarshal(raw, &head) != nil || head == nil || !collaboration.ValidCommitID(*head) {
+					writeError(w, 400, "invalid_request", "Expected head must be a commit identity.")
+					return
+				}
+				q.ExpectedHead = *head
+			}
 			selected, forbidden := "message", "commit_oid"
 			if q.Method == "manual" {
 				selected, forbidden = "commit_oid", "message"

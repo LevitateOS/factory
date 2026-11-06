@@ -108,6 +108,9 @@ func (s nativeHumanMerges) PrepareHumanMerge(ctx context.Context, q factory.Huma
 	if f.State != "open" || f.Draft == nil || *f.Draft || f.Merged == nil || *f.Merged || f.Archived == nil || *f.Archived || f.Disabled == nil || *f.Disabled || f.Push == nil || !*f.Push || !f.Methods[q.Method] {
 		return empty, factoryservice.ErrHumanMergeUnavailable
 	}
+	if q.ExpectedHead != "" && string(q.ExpectedHead) != f.Head {
+		return empty, factoryservice.ErrHumanMergeConflict
+	}
 	if _, err := s.mapRead(ctx, f.Repository, f.Name, nil, nil); err != nil {
 		return empty, err
 	}
@@ -132,6 +135,9 @@ func (s nativeHumanMerges) decode(ctx context.Context, c factory.HumanMergeCaptu
 		return p, factoryservice.ErrHumanMergeNamespace
 	}
 	if nativeDecode(c.ProviderIntent, &p) != nil || p.Version != 1 || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || c.OperationID != c.Request.ID || !nativeMergeSupported(c.Request) || p.Merge.Repository != s.repository.ExternalID || !nativeRemoteID(p.Merge.PullID) || !nativeReviewNode(p.Merge.RepositoryNodeID, 1024) || !nativeReviewNode(p.Merge.PullNodeID, 1024) || p.Merge.Number != uint32(c.Request.Number) || !collaboration.ValidCommitID(collaboration.CommitID(p.Merge.Head)) || !collaboration.ValidCommitID(collaboration.CommitID(p.Merge.Base)) || p.Merge.Method != c.Request.Method || p.Merge.Message != c.Request.Message {
+		return p, factoryservice.ErrHumanMergeConflict
+	}
+	if c.Request.ExpectedHead != "" && string(c.Request.ExpectedHead) != p.Merge.Head {
 		return p, factoryservice.ErrHumanMergeConflict
 	}
 	return p, nil

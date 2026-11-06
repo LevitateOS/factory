@@ -111,6 +111,9 @@ func (s nativeHumanNewReviews) PrepareHumanReview(ctx context.Context, q factory
 	if (q.Event == factory.HumanReviewApprove || q.Event == factory.HumanReviewRequestChanges) && (observed.ViewerIsAuthor == nil || *observed.ViewerIsAuthor) {
 		return empty, factoryservice.ErrHumanReviewUnavailable
 	}
+	if q.ExpectedHead != "" && string(q.ExpectedHead) != observed.Pull.Head {
+		return empty, factoryservice.ErrHumanReviewConflict
+	}
 	// This adapter creates a new review. Existing pending records require their
 	// dedicated submission path and cannot be adopted or overwritten here.
 	if string(observed.Pending) != "null" {
@@ -144,6 +147,9 @@ func (s nativeHumanNewReviews) decode(ctx context.Context, c factory.HumanReview
 		return p, factoryservice.ErrHumanReviewConflict
 	}
 
+	if c.Request.ExpectedHead != "" && string(c.Request.ExpectedHead) != p.Review.Head {
+		return p, factoryservice.ErrHumanReviewConflict
+	}
 	return p, nil
 }
 func nativeReviewCreateRecord(c factory.HumanReviewCapture) collaboration.OperationRecord {

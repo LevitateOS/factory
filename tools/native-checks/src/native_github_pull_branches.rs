@@ -2372,9 +2372,11 @@ pub(super) async fn connected_writes(
         let id = format!("{number:032x}");
         let path =
             format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/merges");
-        let body = serde_json::to_vec(
-            &json!({"command_id":id,"method":method,"message":if method=="rebase"{""}else{"Factory connected merge\n\nPreserve Unicode writing: 茶."}}),
-        )?;
+        let mut writing = json!({"command_id":id,"method":method,"message":if method=="rebase"{""}else{"Factory connected merge\n\nPreserve Unicode writing: 茶."}});
+        if case["expected_head"] == true {
+            writing["expected_head"] = case["head"].clone();
+        }
+        let body = serde_json::to_vec(&writing)?;
         let lookup = format!("{path}/commands/{id}");
         let result = match call(&runtime, "POST", &path, &body).await {
             Ok(result) => result,
@@ -2392,6 +2394,11 @@ pub(super) async fn connected_writes(
         }
         let replay = call(&runtime, "POST", &path, &body).await?;
         ensure(replay == result, "connected merge replay changed result")?;
+        if case["expected_head"] == true {
+            writing["expected_head"] = json!("f".repeat(40));
+            ensure(call(&runtime,"POST",&path,&serde_json::to_vec(&writing)?).await?.0 == 409,
+                "merge replay changed selected head")?;
+        }
         ensure(
             call(&runtime, "GET", &lookup, &[]).await? == result,
             "connected merge lookup changed result",
@@ -2977,6 +2984,38 @@ pub(super) async fn connected_writes(
             "direct review normal readback lost writing",
         )?;
         saved.push(result);
+        // Bind the head selected by the caller, rather than silently preparing
+        // today's different head after a UI read/submit race.
+        let head = config["reviews"]["head"].as_str().ok_or("review head absent")?;
+        for (index, operation, fields) in [
+            (11, "reviews", json!({"event":"comment","body":"Stale review must not send"})),
+            (12, "merges", json!({"method":"merge","message":"Stale merge must not send"})),
+        ] {
+            let path = format!("{root_path}/pulls/{number}/{operation}");
+            let id = format!("{:032x}", 28000 + index);
+            let mut writing = fields;
+            writing["command_id"] = json!(id);
+            writing["expected_head"] = json!("f".repeat(40));
+            let refused = call(&runtime, "POST", &path, &serde_json::to_vec(&writing)?).await?;
+            ensure(refused.0 == 409 && call(&runtime,"GET",&format!("{path}/commands/{id}"),&[]).await?.0 == 404,
+                "stale selected head was not refused before capture")?;
+            for invalid in [serde_json::Value::Null, json!("not-a-commit")] {
+                writing["expected_head"] = invalid;
+                ensure(call(&runtime,"POST",&path,&serde_json::to_vec(&writing)?).await?.0 == 400,
+                    "invalid expected head was accepted")?;
+            }
+            println!("PASS: {operation} selected-head conflict before capture and invalid-head refusal");
+        }
+        let id = format!("{:032x}", 28010);
+        let result = submit(&reviews_path, &format!("{reviews_path}/commands/{id}"),
+            json!({"command_id":id,"event":"comment","body":"Review the selected head 茶","expected_head":head})).await?;
+        let review = result.1 .1["review"]["external_id"].as_str().ok_or("bound review destination absent")?;
+        let read = call(&runtime,"GET",&format!("{reviews_path}/{review}"),&[]).await?;
+        ensure(read.0 == 200 && read.1["body"] == "Review the selected head 茶" && read.1["commit"] == head,
+            "selected-head review readback lost commit/writing")?;
+        let changed = call(&runtime,"POST",&reviews_path,&serde_json::to_vec(&json!({"command_id":id,"event":"comment","body":"Review the selected head 茶","expected_head":"f".repeat(40)}))?).await?;
+        ensure(changed.0 == 409,"replay changed original selected head")?;
+        saved.push(result);
         for (index, event) in [(1, "approve"), (2, "request_changes")] {
             let id = format!("{:032x}", 28000 + index);
             let refused=call(&runtime,"POST",&reviews_path,&serde_json::to_vec(&json!({"command_id":id,"event":event,"body":"A self-review must be refused before capture"}))?).await?;
@@ -2998,10 +3037,12 @@ pub(super) async fn connected_writes(
     runtime.stop()?;
     runtime = NativeSupervisor::start(payload, production, profile)?;
     for (lookup, result) in &saved {
-        ensure(
-            call(&runtime, "GET", lookup, &[]).await? == *result,
-            "restart changed connected merge record",
-        )?;
+        let observed = call(&runtime, "GET", lookup, &[]).await?;
+        if observed != *result {
+            fs::write(root.join("connected-restart-discrepancy.json"),
+                serde_json::to_vec_pretty(&json!({"path":lookup,"expected":result,"observed":observed}))?)?;
+            return Err(format!("restart changed connected write record at {lookup}").into());
+        }
     }
     credentials.withdraw(&connection).await?;
     runtime.stop()?;
@@ -3016,7 +3057,7 @@ pub(super) async fn connected_writes(
             "connected-merge-result.json"
         }),
         serde_json::to_vec_pretty(
-            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if general{json!(["issue_create","issue_edit_comment_state_lock","branch_create","pull_create","pull_edit_comment_state_lock","direct_comment_review","own_verdict_refusal"])}else if inlines{json!(["new_inline_draft","append_draft","publish_line_after_submission","publish_file_after_submission","submit_pending_inline","new_file_draft"])}else if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false,"unfinished_commands":incomplete}),
+            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if general{json!(["issue_create","issue_edit_comment_state_lock","branch_create","pull_create","pull_edit_comment_state_lock","direct_comment_review","selected_head_review","stale_head_refusal","own_verdict_refusal"])}else if inlines{json!(["new_inline_draft","append_draft","publish_line_after_submission","publish_file_after_submission","submit_pending_inline","new_file_draft"])}else if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(cases.iter().map(|case|case["method"].clone()).collect::<Vec<_>>())},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false,"unfinished_commands":incomplete}),
         )?,
     )?;
     println!("PASS: connected merge records survived native restart; owned local account removed");

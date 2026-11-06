@@ -166,6 +166,9 @@ func (s nativeHumanPendingReviews) decode(ctx context.Context, c factory.HumanRe
 		return p, factoryservice.ErrHumanReviewConflict
 	}
 	w := p.Review
+	if c.Request.ExpectedHead != "" && string(c.Request.ExpectedHead) != w.Head {
+		return p, factoryservice.ErrHumanReviewConflict
+	}
 	if w.Repository != s.repository.ExternalID || !nativeReviewNode(w.RepositoryNodeID, 1024) || !nativeRemoteID(w.PullID) || !nativeReviewNode(w.PullNodeID, 1024) || w.Number != uint64(c.Request.Number) || !collaboration.ValidCommitID(collaboration.CommitID(w.Head)) || w.ReviewID != nil && !nativeRemoteID(*w.ReviewID) || !nativeReviewNode(w.ReviewNodeID, 1024) || !collaboration.ValidCommitID(collaboration.CommitID(w.ReviewCommit)) || !nativeCreationDigest(w.PendingSHA256) || !nativeCreationDigest(w.CommentsSHA256) || w.CommentsCount > 1000 || w.Event != string(c.Request.Event) || (w.Body == nil) != (c.Request.Body == "" && c.Request.Event != factory.HumanReviewDraft) || w.Body != nil && (*w.Body != c.Request.Body || p.EffectiveBodySHA256 != nativeCreationSHA([]byte(*w.Body))) {
 		return p, factoryservice.ErrHumanReviewConflict
 	}

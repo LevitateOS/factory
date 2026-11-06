@@ -257,7 +257,7 @@ Direct close/reopen does not combine comment posting or PR ref synchronization.
 
 | Method | Path suffix | Request |
 | --- | --- | --- |
-| POST | Base path above | Required `command_id`, `event` and string `body`. |
+| POST | Base path above | Required `command_id`, `event` and string `body`; optional full commit `expected_head`. |
 | GET | `/commands/{command}` | No query or replacement intent. |
 | POST | `/commands/{command}/cancel` | `{}`; resolves the original saved capture. |
 
@@ -269,6 +269,14 @@ the exact POST collection through the frontend and both private host wrappers.
 Cancellation retains its ordinary 64 KiB bound. Null/missing/non-string,
 unknown/duplicate fields, invalid UTF-8/NUL, invalid events and oversized prose
 refuse. Existing review-list/detail reads keep their read owner.
+
+For review and merge submissions, `expected_head` retains the caller's selected
+commit in the original command. Native preparation refuses a different current
+head before capture; replay cannot change the selection. Lookup and cancellation
+recover the saved selection without accepting replacement intent. New shared UI
+commands send this field. Older saved commands retain their original request
+shape and are not silently upgraded. This does not add an atomic provider head
+condition to review APIs; merge retains GitHub's existing `expectedHeadOid`.
 
 Responses use only the safe command-result fields above. Preparation, receipts,
 namespace, digests, native aliases and admissions stay server-side. The same
@@ -287,7 +295,7 @@ desktop HTTPS access remain subsequent work. New inline creation is separate.
 
 | Method | Path suffix | Request |
 | --- | --- | --- |
-| POST | Base path above | Required `command_id`, `method`, and either `message` for ordinary methods or `commit_oid` for `manual`. |
+| POST | Base path above | Required `command_id`, `method`, and either `message` for ordinary methods or `commit_oid` for `manual`; optional full commit `expected_head`. |
 | GET | `/commands/{command}` | No query or replacement intent. |
 | POST | `/commands/{command}/cancel` | `{}`; recovers original method/message or selected commit. |
 

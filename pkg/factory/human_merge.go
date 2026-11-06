@@ -19,14 +19,15 @@ const MaxHumanMergeCaptureBytes = 2 << 20
 // Manual marking selects an existing commit and has no new commit message.
 // A provider must explicitly support the selected method before preparing it.
 type HumanMergeCommand struct {
-	ID         string                     `json:"id"`
-	Host       collaboration.HostID       `json:"host"`
-	Repository collaboration.RepositoryID `json:"repository,string"`
-	Actor      collaboration.ActorID      `json:"actor,string"`
-	Number     int64                      `json:"number,string"`
-	Method     string                     `json:"method"`
-	Message    string                     `json:"message"`
-	CommitOID  string                     `json:"commit_oid"`
+	ID           string                     `json:"id"`
+	Host         collaboration.HostID       `json:"host"`
+	Repository   collaboration.RepositoryID `json:"repository,string"`
+	Actor        collaboration.ActorID      `json:"actor,string"`
+	Number       int64                      `json:"number,string"`
+	Method       string                     `json:"method"`
+	Message      string                     `json:"message"`
+	CommitOID    string                     `json:"commit_oid"`
+	ExpectedHead collaboration.CommitID     `json:"expected_head,omitempty"`
 }
 
 func (q HumanMergeCommand) ValidateScope() error {
@@ -37,7 +38,7 @@ func (q HumanMergeCommand) ValidateScope() error {
 }
 
 func (q HumanMergeCommand) Validate() error {
-	if q.ValidateScope() != nil || !utf8.ValidString(q.Message) || len(q.Message) > MaxHumanMergeMessageBytes || strings.ContainsRune(q.Message, 0) {
+	if q.ValidateScope() != nil || !utf8.ValidString(q.Message) || len(q.Message) > MaxHumanMergeMessageBytes || strings.ContainsRune(q.Message, 0) || q.ExpectedHead != "" && !collaboration.ValidCommitID(q.ExpectedHead) {
 		return errors.New("invalid human merge request")
 	}
 	if q.Method == "manual" {
