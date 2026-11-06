@@ -11,6 +11,21 @@ for that work. Do not infer a passed gate from a proposed design, a source build
 fixture, or an earlier component probe. Do not place credentials or private
 profile contents in this file.
 
+Placement update (2026-11-06): `pkg/store/factory_placement.go` now owns local
+GitHub controller CAS, generations and retirement, under the existing repository
+dispatch gate. Desktop controls use current provider administration, never a
+browser-supplied runtime. Actual WebKit selection/retirement/readback passed in
+`/home/vince/tmp/factory-placement-controls-1106.0R7m8F/`; PostgreSQL controller
+competition, stale revisions, unfinished-run refusal and reopen passed in
+`/home/vince/tmp/factory-placement-1106.kUZUJM/run2.log`. Native MCP admission now
+checks the captured placement via `factory_mcp_live.go`; its real-worker join is
+still unverified. This is local ledger exclusion, not a cross-machine lease.
+Remaining dependencies: native environment/policy enrollment, atomic native
+dispatch and intent capture, Rust execution ports and coordinator composition.
+Close those only with an admitted finite provider run, exact current placement/
+custody/MCP facts, cancellation, settlement and retirement/restart evidence.
+D3 and the broader custody/IPC gates remain open; no hacking-like check ran.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary

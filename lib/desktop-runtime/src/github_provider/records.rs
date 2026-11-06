@@ -96,7 +96,7 @@ fn labels(v: &Value) -> Result<Value> {
 pub(super) fn repository(v: &Value) -> Result<Value> {
     id(&v["owner"]["id"])?;
     Ok(
-        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?,"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?}),
+        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?,"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?,"admin":boolean(&v["permissions"],"admin")?}),
     )
 }
 pub(super) fn issue(v: &Value) -> Result<Value> {

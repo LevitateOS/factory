@@ -59,9 +59,60 @@
     await until(() => !name.disabled, 'repository discovery unavailable');
     name.value = fixture.name;
     document.querySelector('#repository-find').requestSubmit();
-    await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
+    await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to') ||
+      /could not|unavailable/i.test(document.querySelector('#connection-status').textContent), 'fixture repository not connected');
+    if (document.querySelector('#factory-repository').value !== fixture.repository || !document.querySelector('#connection-status').textContent.includes('Connected to')) {
+      const session = await invoke('factory_prepare_connection', {connection: __CONNECTION__, repository: fixture.repository});
+      let detail = 'unexpected direct connection';
+      try { await invoke('factory_connect', {session}); } catch (error) { detail = String(error).slice(0, 240); }
+      throw Error('fixture repository not connected: ' + detail);
+    }
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.mode === 'placement') {
+      stage = 'runtime-placement';
+      location.hash = new URLSearchParams({view: 'issue', repository: repo, issue: String(fixture.issue_number)});
+      await until(() => document.querySelector('soda-factory-issue')?.context?.issue === String(fixture.issue_number), 'placement fixture issue unavailable');
+      const transport = document.querySelector('soda-factory-issue').context.transport;
+      const path = 'repositories/' + repo + '/factory/placement';
+      const get = async () => {
+        const response = await transport.request(path, {method: 'GET'});
+        assert(response.ok, 'placement read refused');
+        return (await response.json()).placement;
+      };
+      assert(await get() === null, 'fresh fixture already has placement');
+      const change = async (state, revision, expected = 200) => {
+        const response = await transport.request(path, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({state, expected_revision: revision})});
+        assert(response.status === expected, 'placement change status: ' + response.status);
+        return response.ok ? (await response.json()).placement : undefined;
+      };
+      const controls = document.querySelector('#runtime-placement');
+      await click(controls, 'Use this computer');
+      await until(() => controls.textContent.includes('This computer · active · generation 1') && !button(controls, 'Retire controller')?.disabled, 'selected controller UI unavailable');
+      let p = await get();
+      assert(p.coordination === 'local_single_controller' && p.repository === repo && p.generation === '1', 'placement binding differs');
+      await change('inactive', p.revision, 409);
+      await click(controls, 'Retire controller');
+      await until(() => controls.textContent.includes('This computer · retiring · generation 1'), 'retiring controller UI unavailable');
+      await click(controls, 'Finish retirement');
+      await until(() => controls.textContent.includes('No active controller.'), 'controller retirement did not finish');
+      p = await get();
+      const stale = p.revision;
+      await click(controls, 'Use this computer');
+      await until(() => controls.textContent.includes('This computer · active · generation 2'), 'new controller generation UI unavailable');
+      p = await get();
+      assert(p.generation === '2', 'placement generation did not advance');
+      await change('retiring', stale, 409);
+      await click(controls, 'Retire controller');
+      await until(() => controls.textContent.includes('This computer · retiring · generation 2'), 'second controller retirement unavailable');
+      await click(controls, 'Finish retirement');
+      await until(() => controls.textContent.includes('No active controller.'), 'second controller retirement did not finish');
+      p = await get();
+      assert(JSON.stringify(await get()) === JSON.stringify(p), 'placement normal readback differs');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.checks_read_only) {
       stage = 'populated-checks';
       location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'checks'});

@@ -108,6 +108,21 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.HumanThreads = factoryhttp.HumanThreads{Service: threads}
 	product.HumanReviewRequests = factoryhttp.HumanReviewRequests{Service: application.HumanReviewRequests(nativeHumanReviewRequests{bound})}
 	product.ReviewRequestReads = factoryhttp.CollaborationReviewRequests{Service: factoryservice.CollaborationReviewRequests{Source: reads}}
+	product.Repositories.Placements = factoryservice.Placements{Store: application.Store, Host: bound.binding.Host.ID,
+		Runtime: collaboration.RuntimeRef{ID: collaboration.RuntimeID(port.operation.config.Profile), Profile: port.operation.config.Profile, Kind: collaboration.Native, Name: "This computer"},
+		AdminAccess: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+			observed, err := bound.repositoryObservation(ctx, actor, repository)
+			if err != nil {
+				return err
+			}
+			if observed.Admin == nil {
+				return factoryservice.ErrPlacementUnavailable
+			}
+			if !*observed.Admin {
+				return factoryservice.ErrPlacementAdminRequired
+			}
+			return ctx.Err()
+		}}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started

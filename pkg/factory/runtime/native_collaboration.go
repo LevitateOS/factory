@@ -60,7 +60,8 @@ type NativeRepository struct {
 	Private       *bool  `json:"private"`
 	DefaultBranch string `json:"default_branch"`
 	// Push is a provider observation, not Factory execution or spending authority.
-	Push *bool `json:"push"`
+	Push  *bool `json:"push"`
+	Admin *bool `json:"admin"`
 }
 type NativeRepositoryObservation struct {
 	NativeIdentity

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"strings"
 	"testing"
@@ -21,6 +22,84 @@ import (
 func TestNativeCheckpointRetentionPG(t *testing.T) {
 	s, dsn := postgresFixture(t)
 	ctx := t.Context()
+	if err := s.InitializeEmptyCollaborationLedger(ctx); err != nil {
+		t.Fatal(err)
+	}
+	host, err := s.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repository, err := s.ObserveCollaborationRepository(ctx, host.ID, "placement-fixture", "fixture/placement")
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor, err := s.ObserveCollaborationActor(ctx, host.ID, "placement-admin", "placement-admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	controllers := []collaboration.RuntimeRef{}
+	for range 2 {
+		id := collaboration.ProfileID(factory.NewID())
+		if err := s.PutCollaborationProfile(ctx, collaboration.Profile{ID: id, Name: "Placement fixture"}); err != nil {
+			t.Fatal(err)
+		}
+		controllers = append(controllers, collaboration.RuntimeRef{ID: collaboration.RuntimeID(id), Profile: id, Kind: collaboration.Native, Name: "Placement fixture"})
+	}
+	type selection struct {
+		placement factory.Placement
+		err       error
+	}
+	selected := make(chan selection, 2)
+	for _, controller := range controllers {
+		go func() {
+			p, err := s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, "", factory.PlacementActive)
+			selected <- selection{p, err}
+		}()
+	}
+	var placed factory.Placement
+	winners := 0
+	for range 2 {
+		result := <-selected
+		if result.err == nil {
+			placed = result.placement
+			winners++
+		} else if !errors.Is(result.err, factory.ErrPlacement) {
+			t.Fatal(result.err)
+		}
+	}
+	if winners != 1 {
+		t.Fatal("concurrent controllers both selected", winners)
+	}
+	controller := controllers[0]
+	if controller.ID == placed.Runtime {
+		controller = controllers[1]
+	}
+	if _, err := s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, placed.Revision, factory.PlacementActive); !errors.Is(err, factory.ErrPlacement) {
+		t.Fatal("active placement changed controller", err)
+	}
+	priorController := controllers[0]
+	if priorController.ID != placed.Runtime {
+		priorController = controllers[1]
+	}
+	placed, err = s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, priorController, placed.Revision, factory.PlacementRetiring)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if placed.RequireDispatch(host.ID, repository.ID, placed.Runtime, placed.Generation) == nil {
+		t.Fatal("retiring placement admitted dispatch")
+	}
+	placed, err = s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, priorController, placed.Revision, factory.PlacementInactive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleRevision := placed.Revision
+	placed, err = s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, placed.Revision, factory.PlacementActive)
+	if err != nil || placed.Generation != 2 {
+		t.Fatal("new controller generation", err)
+	}
+	if _, err := s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, staleRevision, factory.PlacementRetiring); !errors.Is(err, factory.ErrPlacement) {
+		t.Fatal("stale placement revision admitted", err)
+	}
 	r := factoryRun(time.Now().UTC())
 	r.Image, r.Harness, r.Role = "", "muse-fixture-1", project.RoleCoder
 	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("e", 64), PromptSHA256: strings.Repeat("f", 64), Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
@@ -36,6 +115,16 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	}
 	if err := s.RecordFactoryRun(ctx, r); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO factory_run_views(run,repository,issue,attempt) VALUES($1,$2,1,$3)`, r.ID, repository.ID, factory.NewID()); err != nil {
+		t.Fatal(err)
+	}
+	placed, err = s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, placed.Revision, factory.PlacementRetiring)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, placed.Revision, factory.PlacementInactive); !errors.Is(err, factory.ErrPlacement) {
+		t.Fatal("unsettled native work released its controller", err)
 	}
 	anchor, err := execution.NativeCheckpoint(r.Native.Provenance)
 	if err != nil {
@@ -93,6 +182,10 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	retainedPlacement, err := s.Placement(ctx, repository.ID)
+	if err != nil || retainedPlacement != placed {
+		t.Fatal("placement did not survive reopen", err)
+	}
 	saved, err := s.FactoryRun(ctx, r.ID)
 	if err != nil || saved.FinalCheckpoint == nil || !saved.FinalCheckpoint.Request.Equal(request) || saved.Validate() != nil {
 		t.Fatal("native pending receipt did not survive reopen", saved.FinalCheckpoint, err)

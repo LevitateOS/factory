@@ -83,8 +83,12 @@ export class DesktopTransport implements FactoryTransport {
       check(typeof init.body === 'string' && new TextEncoder().encode(init.body).byteLength <= 65536);
       const body = object(JSON.parse(init.body));
       if (method === 'PUT') {
-        check(path === '/api/factory/feed/subscription');
-        request = {kind: 'subscription', body};
+        if (path === '/api/factory/feed/subscription') request = {kind: 'subscription', body};
+        else {
+          const placement = /^\/api\/repositories\/([1-9][0-9]*)\/factory\/placement$/.exec(path);
+          check(placement && id(placement[1]));
+          request = {kind: 'placement', repository: placement[1], body};
+        }
       } else {
         check(method === 'POST');
         request = {kind: 'write', path, body};

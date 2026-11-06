@@ -31326,3 +31326,25 @@ The same shared components define both current host journeys. T07-EDIT, T08-READ
 and T08-WRITE are Complete. This is source-host collaboration qualification;
 T10-GATEWAY desktop Fountain enrollment, T13/T14 installed products and the
 security handoff gates remain open.
+
+### T12-PLACEMENT: local controller selection and retirement (2026-11-06)
+
+Added the canonical placement store and admitted API, desktop controller controls,
+current GitHub admin observations and a bounded placement PUT bridge. CAS changes
+serialize with dispatch; retirement precedes a higher generation and refuses
+unsettled work, unresolved publication and unretired native preparation. Current
+native MCP admission checks the captured runtime/profile/generation. A local
+ledger lock is not represented as a cross-machine GitHub lease.
+
+Actual WebKit controls selected this computer, retired it, selected generation 2
+and retired again; normal reads matched and stale/invalid transitions refused.
+Evidence: `/home/vince/tmp/factory-placement-controls-1106.0R7m8F/{run.log,github-ui-write-result.json}`.
+The earlier API check found the missing desktop PUT shape; the bounded typed
+operation corrected it before the controls check. PostgreSQL controller races,
+CAS/generation, unfinished-run refusal and reopen passed alongside existing MCP
+integration checks: `/home/vince/tmp/factory-placement-1106.kUZUJM/run2.log`.
+TypeScript, desktop UI/native, Go builds and dependency boundaries pass.
+
+T12-PLACEMENT remains Pending until native environment/policy enrollment and its
+dispatch join are qualified. T09-NATIVE-EXECUTOR/T09-EXECUTION and D3 remain open;
+no provider task or coordinator launch is claimed by this checkpoint.

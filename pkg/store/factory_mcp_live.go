@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 )
 
@@ -95,6 +96,26 @@ func checkMCPWorkActiveTx(ctx context.Context, tx *sql.Tx, capability factory.MC
 	}
 	if stage != factory.AssignmentAssigned || assignment.Run != capability.RunID || assignment.ProjectID != capability.Project || assignment.Repository != capability.Repository || factory.MCPProfileOfAssignment(assignment) != capability.Profile {
 		return errors.New("factory assignment is no longer the admitted work")
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_runs WHERE id=$1 FOR SHARE`, capability.RunID).Scan(&raw); err != nil {
+		return err
+	}
+	var run factory.Run
+	if err := json.Unmarshal(raw, &run); err != nil {
+		return err
+	}
+	if run.Native != nil {
+		if run.Validate() != nil || run.Admission == nil || run.Admission.Native == nil {
+			return ErrAdmissionChanged
+		}
+		var host collaboration.HostID
+		if err := tx.QueryRowContext(ctx, `SELECT host FROM collaboration_repositories WHERE id=$1`, capability.Repository).Scan(&host); err != nil {
+			return err
+		}
+		native := run.Admission.Native
+		if err := requirePlacementTx(ctx, tx, host, collaboration.RepositoryID(capability.Repository), native.Runtime, native.PlacementGeneration, native.Workspace.Profile); err != nil {
+			return err
+		}
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM project_preparations WHERE id=$1 FOR SHARE`, assignment.Preparation).Scan(&raw); err != nil {
 		return err

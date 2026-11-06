@@ -4,6 +4,7 @@ import type {Account} from './accounts.js';
 import {binding} from './transport.js';
 import type {Binding, Core, NativeReply} from './transport.js';
 import {DesktopProduct, readRoute, routeURL} from './product.js';
+import {mountPlacement} from './placement.js';
 
 interface Repository {
   external_id: string;
@@ -23,6 +24,7 @@ function repository(value: unknown): Repository {
   return {external_id: row.external_id, name: row.name, private: row.private, default_branch: row.default_branch};
 }
 export function mountConnections(core: Core, app: SodaFactoryApp) {
+  const placement = mountPlacement(document.querySelector<HTMLElement>('#runtime-placement')!);
   const accounts = document.querySelector<HTMLSelectElement>('#factory-account')!;
   const repositories = document.querySelector<HTMLSelectElement>('#factory-repository')!;
   const status = document.querySelector<HTMLElement>('#connection-status')!;
@@ -86,6 +88,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     status.textContent = message;
   }
   function clear() {
+    placement();
     fragmentObserver?.disconnect();
     fragmentObserver = undefined;
     const old = selected?.session ?? pending;
@@ -188,6 +191,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, metadata?.default_branch);
+      placement(product.transport,value.repository?.id);
       const route = readRoute();
       navigate(
         route &&

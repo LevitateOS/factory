@@ -149,6 +149,16 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
             if !retained {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             }
+            if fixture["mode"] == "placement" {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github_admin_observation": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "placement_cas_generation_retirement_readback": true,
+                    "automation_started": false,
+                    "owned_account_removed": true,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["mode"] == "merge_only" {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,
