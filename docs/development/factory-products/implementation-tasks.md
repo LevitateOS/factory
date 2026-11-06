@@ -30969,3 +30969,18 @@ reload. Revocation then retired the issue body and optional controls in the
 still-live session. Evidence: `/home/vince/tmp/fhi-1793962172406/{run.log,host/result.json,host/issue-browser.log}`.
 This proves the Fountain source host journey, not GitHub-connected desktop
 writes or a final installed release. T07-EDIT remains pending.
+
+### T08-READ/T08-WRITE: Fountain shared PR browser journey (2026-11-06)
+
+The Fountain repository header now opens the shared PR route. A fresh real
+host/browser journey rendered the private PR list, detail, three commits,
+three changed files, checks section, submitted review and two visible inline
+discussions while preserving the author's pending-review privacy. The
+non-author reviewer submitted an approval through the shared review control;
+the host API and a browser reload read it back. The original PR host check
+still verified changed-head refusal and grant revocation. Evidence:
+`/home/vince/tmp/fpb-1793962601297/{run.log,host/result.json,host/pull-reader/pull-browser.log}`.
+This is a source-stage Fountain browser journey, not final appliance packaging
+or GitHub-connected desktop qualification. Draft review editing, other verdicts,
+thread resolution and merge controls remain to be exercised through both hosts;
+T08-READ/T08-WRITE stay pending.

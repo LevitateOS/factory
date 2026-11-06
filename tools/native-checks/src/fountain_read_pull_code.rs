@@ -1,10 +1,11 @@
 //! Actual local Git/PR/review fixtures, read through installed human admission.
 use super::fountain_read_issues::{available, curl_string, login, read, Seed};
-use super::{checked, form, private_file, require, Browser, Result};
+use super::{checked, form, private_file, require, Browser, OwnedChild, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -75,7 +76,34 @@ fn file(
     )
 }
 
-pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) -> Result<Value> {
+fn browser_review(b: &Browser, password: &str) -> Result<Value> {
+    let module = PathBuf::from(
+        std::env::var_os("FACTORY_CHECK_BROWSER_MODULE")
+            .ok_or("explicit owned Playwright module required for --pull-code-browser")?,
+    );
+    require(module.is_absolute() && module.starts_with("/home") && module.is_file(), "owned browser module unavailable")?;
+    private_file(&b.root.join("pull-browser-password"), password.as_bytes())?;
+    private_file(&b.root.join("pull-browser-input.json"), &serde_json::to_vec(&json!({"module":module,"origin":b.origin}))?)?;
+    private_file(&b.root.join("pull-browser.mjs"), include_bytes!("fountain_pull_browser.mjs"))?;
+    let mut browser = OwnedChild::spawn(
+        Command::new("bun").arg(b.root.join("pull-browser.mjs")).arg(&b.root),
+        &b.root.join("pull-browser.log"),
+    )?;
+    let until = Instant::now() + Duration::from_secs(120);
+    loop {
+        if let Some(status) = browser.child.try_wait()? {
+            require(status.success(), "native PR browser failed; inspect private stage/log")?;
+            break;
+        }
+        require(Instant::now() < until, "native PR browser deadline")?;
+        thread::sleep(Duration::from_millis(25));
+    }
+    let result: Value = serde_json::from_slice(&fs::read(b.root.join("pull-browser-result.json"))?)?;
+    require(result["result"] == "pass" && result["approval_submitted"] == true, "native PR browser proof incomplete")?;
+    Ok(result)
+}
+
+pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, pull_browser: bool) -> Result<Value> {
     private_file(
         &b.root.join("seed.curl"),
         format!("user = \"factory-check:{}\"\n", curl_string(password)).as_bytes(),
@@ -505,16 +533,23 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
             && reader_caps["actions"]["pull.comment"]["state"] == "allowed",
         "native reader/author capability distinction lost",
     )?;
-    let approval = Seed {
-        browser: &mut reader,
-    }
-    .json(
-        "POST",
-        &format!("{repo}/pulls/2/reviews"),
-        Some(json!({"event":"APPROVED","body":"actual non-author approval","commit_id":head})),
-        200,
-    )?;
-    let approval_id = native_id(&approval)?;
+    let browser_result = if pull_browser { Some(browser_review(&reader, &reader_password)?) } else { None };
+    let approval_id = if pull_browser {
+        pages(b, &format!("{prefix}/reviews"), generation, "external_id")?
+            .iter()
+            .find(|review| review["state"] == "approved")
+            .and_then(|review| review["external_id"].as_str())
+            .ok_or("browser approval absent from normal PR reviews")?
+            .to_owned()
+    } else {
+        let approval = Seed { browser: &mut reader }.json(
+            "POST",
+            &format!("{repo}/pulls/2/reviews"),
+            Some(json!({"event":"APPROVED","body":"actual non-author approval","commit_id":head})),
+            200,
+        )?;
+        native_id(&approval)?
+    };
     require(
         read(
             b,
@@ -624,6 +659,6 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
     )?;
     println!("PASS: real private native PR metadata/files/reviews/threads/discussion, immutable anchors and changed-head refusal, pending privacy, non-author approval and access revocation");
     Ok(
-        json!({"result":"pass","pulls":3,"files":3,"reviews":3,"threads":3,"full_body_runes":body.chars().count(),"pending_privacy":true,"changed_head":true,"access_revocation":true}),
+        json!({"result":"pass","pulls":3,"files":3,"reviews":3,"threads":3,"full_body_runes":body.chars().count(),"pending_privacy":true,"changed_head":true,"access_revocation":true,"browser":browser_result}),
     )
 }
