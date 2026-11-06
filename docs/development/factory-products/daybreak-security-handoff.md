@@ -3859,3 +3859,21 @@ write admission and credential isolation still require T14-PACKAGE and a real
 installed-host journey. D1 automation still requires T09-EXECUTION, admitted
 T12 placement dispatch and D3 execution. The two private Free-plan team commands
 listed above still lack original causal evidence and remain indeterminate.
+
+Read-only role check pending (2026-11-06): staged changes in
+`pkg/factory/runtime/native_product_review_requests.go`,
+`lib/desktop-runtime/src/github_provider/review_request_effect.rs`,
+`frontend/factory/{api/capability-response.ts,pulls/reviewers.ts}` and
+`cmd/soda-desktop/src/{github_writes_check.js,check_credentials.rs}` make
+reviewer requests require current repository write permission before capture,
+native dispatch and UI presentation. TypeScript, Go, desktop and native builds
+passed. The existing no-forwarding native reviewer check passed 61 declared
+cases under `/home/vince/tmp/factory-reviewer-role-declared-v2-1106.MvieLj/`,
+but it does not prove a real read-only role denial. A matching private desktop
+fixture is staged at `/home/vince/tmp/factory-readonly-role-1106.fuKsMs/`; no
+device challenge has started and the authorized public test team's permission
+is still write. Close this scoped case only after fresh sodaos Factory consent,
+temporarily changing that team's permission to read, proving the effective
+read-only role, real WebKit merge/reviewer UI and POST 403 plus exact-command
+GET 404 with normal PR readback and local account withdrawal, then restoring
+the original write permission. Keep the staged code unverified until that run.
