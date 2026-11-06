@@ -30543,3 +30543,86 @@ gates remain open. The current official [review/thread schema](https://docs.gith
 was consulted; documentation and dummy replies do not qualify live semantics.
 Shared writes remain unavailable; T11-WRITES/the whole product remain unfinished.
 No Daybreak work ran or was marked complete.
+
+### T11-WRITES checkpoint: current pending inline preservation reader (2026-11-06)
+
+`github_provider/{review_preparation,request,reads}.rs` adds fixed
+`Read::InlinePreservation` for one repository/PR, exact own pending review Node
+and selected comment Node. The defining complete pending-comment walker is
+extended with optional exclusion; existing pending/publication callers retain
+its original complete-set/count/identity-writing digests. No second reader,
+provider client or comment parser was introduced.
+
+The new reader discovers the current own pending review, requires its exact
+selected identity, walks every bounded comment with pending state and existing
+parent/owner/identity/count/pagination/body/aggregate checks, then rereads the
+pending root. It returns the complete current snapshot plus the remaining
+identity/writing digest with only the selected Node excluded, remaining count,
+and selected member's observed writing hash/identity/author/commit/original/date
+facts. An absent member remains explicitly absent; nullable numeric identity,
+author or original commit remains unknown. No raw selected-member writing is
+added to that member projection. Current summary and exact reviewed commit remain
+separate from today's head and never invent a historical two-commit anchor.
+
+These are bounded current facts. The product must authenticate a saved causal
+receipt before using the selector for completion, compare old members/summary
+and the known new member, and retain known primary if preservation fails. This
+read never attributes current matching content to a lost mutation. Publication,
+review replacement, changed roots/counts, malformed pagination or incomplete
+walks refuse. No atomic body/comment-set condition or draft privacy is inferred.
+The ordinary 8 KiB descriptor, whole eight-second deadline, 1,000-member/8 MiB
+aggregate traversal and joined retirement bounds apply. No Go writer was bound.
+
+The existing native executable's
+`--github-inline-preservation-declared FRESH_PROFILE` passed 37 declared cases,
+five invalid selectors before I/O and in-flight/stopped joined retirement with
+zero mutations under `/home/vince/tmp/factory-inline-preservation-1106/attempt1/`.
+Positive cases include reordered pages, missing member, empty review, a complete
+1,000-member walk, full Unicode/control writing, nullable/big numeric IDs,
+unknown author/node/commit and historical original commit. Independent exact
+fixture members and writing hashes establish the remaining-set digest. Refusal
+cases cover absent/replaced/wrong-owner/submitted roots, parent/head/count changes,
+bounds, duplicate IDs, cyclic/empty pagination, wrong child parents, published
+child, changed summary, provider/partial failure, aggregate limit and real deadline.
+
+Because the shared walker changed, its existing pending-snapshot native matrix
+was rerun under `pending-regression/`: 48 declared cases, two invalid selectors,
+maximum members/writing, original complete-set/identity-writing digest semantics
+and retirement passed with zero mutations. This is the same defining production
+reader, explicit dummy token and retained no-forwarding TLS peer. The isolated
+keyring guard remains; no custody callback, command journal, real provider,
+security gate, privacy/permission/notification or installed qualification follows.
+
+| Artifact under `/home/vince/tmp/factory-inline-preservation-1106/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `0cbd72473abe73a006980bc277c4ec5e68f85c763fbae381fa451f1010538f8c` |
+| `provider` | `38f1c4f6190f555d3602900f5222ff38c1d4b03ad74c6a442e0c157b70e2bec3` |
+| `check-bin` | `b45c0a8b91bb74deb51d76cbac8ae8ad6c27c4fcbce2ddb6ca48f161748b08da` |
+| `run.sh` | `b5d2ad9a0ecb66440eddb25fc71eff045312069cc58ae7bfda1c9d80b22e4388` |
+| `session.sh` | `44ee5a947d0de0bcb28de0d213289e6347d284c3746a67da962555febb93a122` |
+| `regression-run.sh` | `e2612b093bf7de6c435121b8b86b7673acb5a61428ff58263a3deed1f01f53e4` |
+| `regression-session.sh` | `afe28236a2449c35c48880872e44f27213f160ba41d6da4d10a2c86cc236bdff` |
+| `attempt1/result.log` | `f5cc21539532f12d6cc1d55c7156778545ea755b48a099dff22e5ba8def96c4c` |
+| `attempt1/inline-preservation-result.json` | `0d93128cdc9a49e24bfe7f0a814ddca372388ca4e3a14d16634252b212f92af2` |
+| `pending-regression/result.log` | `3f3d94d1ae3029a93428ad65b0adce6d51b67655f49e9c951da63b1cfa997d6f` |
+| `pending-regression/pending-review-snapshot-result.json` | `a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2` |
+
+Locked/offline native executable/desktop-feature builds, boundaries and whitespace
+passed. No dependency, Python, new unit-test root/module was added. Historical
+cached-input builds are not fresh or installed qualification.
+
+Next dependency: the fixed mutation callback and Go/schema-91 inline consumer,
+with primary persistence before separate preservation read and full effect/HTTP
+writing/selector envelopes. Enforce room for the added member within the complete
+observation bound before product send: a 1,000-member existing review would become
+1,001 and is outside the current completion reader. This exact product/native
+capacity refusal remains unverified; do not treat the proposed admission as proved.
+Persist actual causal summary/count/publication discrepancies as permanently
+unfinished under that capture even if today's state later appears restored.
+Prove loss/replay/cancel/original expiry/current custody/replacement/restart and
+normal readback; new-pending/published modes and existing concrete limitations
+remain unfinished. Fresh specifically authorized actual provider schema/
+permissions/rename/original positions/draft privacy/notification, shared UI/
+installed, longest combined bounds and all canonical/broad gates remain open.
+Shared writes remain unavailable, T11-WRITES/the full product remain unfinished,
+and no Daybreak work ran or was marked complete.

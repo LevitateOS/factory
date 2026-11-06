@@ -212,6 +212,250 @@ pub(super) async fn inline_preparation_port(
     Ok(())
 }
 
+pub(super) async fn inline_preservation(profile: &Path) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    use soda_desktop_runtime::github_provider::Read;
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), format!("comments-{name}"))?;
+        Ok(())
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let query = |member: &str| Read::InlinePreservation {
+        repository: "123".into(),
+        number: 7,
+        review_node_id: "REV_owned".into(),
+        comment_node_id: member.into(),
+    };
+    let sha = |s: &[u8]| -> String {
+        Sha256::digest(s)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "three",
+        "reordered",
+        "missing",
+        "empty",
+        "maximum",
+        "max-control",
+        "max-unicode",
+        "unknown-id",
+        "null-author",
+        "null-author-node",
+        "null-commits",
+        "old-original",
+        "big-ids",
+    ] {
+        mode(if name == "missing" { "three" } else { name })?;
+        let member = if name == "missing" {
+            "PC_absent"
+        } else {
+            "PC_1"
+        };
+        let v = client
+            .observe(token()?, "321", &query(member))
+            .await
+            .map_err(|f| format!("preservation {name}: {} {}", f.status, f.code))?;
+        let p = &v["preservation"];
+        let snapshot = &p["comments_snapshot"];
+        let excluding = &snapshot["excluding"];
+        let count = if name == "maximum" {
+            1000
+        } else if name == "empty" {
+            0
+        } else {
+            3
+        };
+        let found = name != "missing" && count > 0;
+        let body = |i: u64| match name {
+            "max-control" => "\u{0001}".repeat(65536),
+            "max-unicode" => "🍵".repeat(16384),
+            "maximum" => "x".into(),
+            _ => format!("Exact pending comment {i} 🍵\n[link](relative.md)"),
+        };
+        let mut expected = Vec::new();
+        for i in 0..count {
+            if !found || i != 1 {
+                expected.push(
+                    json!({"node_id":format!("PC_{i}"),"body_sha256":sha(body(i).as_bytes())}),
+                );
+            }
+        }
+        expected.sort_by(|a, b| a["node_id"].as_str().cmp(&b["node_id"].as_str()));
+        ensure(
+            v["kind"] == "inline_preservation"
+                && v["account"]["external_id"] == "321"
+                && p["repository"] == "123"
+                && p["pending"]["node_id"] == "REV_owned"
+                && p["condition"] == "bounded_observation"
+                && snapshot["complete"] == true
+                && snapshot["count"] == count
+                && excluding["found"] == found
+                && excluding["remaining_count"] == expected.len()
+                && excluding["identity_writing_sha256"] == sha(&serde_json::to_vec(&expected)?),
+            "current pending exclusion/writing facts differ from independent members",
+        )?;
+        if found {
+            let m = &excluding["member"];
+            ensure(
+                m["node_id"] == member
+                    && m["body_sha256"] == sha(body(1).as_bytes())
+                    && m.get("body").is_none(),
+                "selected member body digest lost or raw writing exposed",
+            )?;
+            if name == "unknown-id" {
+                ensure(
+                    m["external_id"].is_null(),
+                    "unknown numeric member ID invented",
+                )?;
+            }
+            if name == "null-author" {
+                ensure(m["author"].is_null(), "unknown member author invented")?;
+            }
+            if name == "null-commits" {
+                ensure(
+                    m["commit"].is_null() && m["original_commit"].is_null(),
+                    "unknown original/member commits invented",
+                )?;
+            }
+            if name == "old-original" {
+                ensure(
+                    m["original_commit"] == "c".repeat(40),
+                    "historical member commit replaced by current head",
+                )?;
+            }
+        } else {
+            ensure(
+                excluding["member"].is_null(),
+                "absent selected member invented",
+            )?;
+        }
+        fs::write(root.join(format!("{name}.json")), serde_json::to_vec(&v)?)?;
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("absent", 409),
+        ("root-gone", 409),
+        ("wrong-root", 409),
+        ("wrong-owner", 409),
+        ("submitted", 409),
+        ("wrong-pull", 409),
+        ("wrong-repo", 409),
+        ("wrong-head", 409),
+        ("count-change", 409),
+        ("count-mismatch", 409),
+        ("too-many", 413),
+        ("duplicate-node", 502),
+        ("duplicate-id", 502),
+        ("cursor-cycle", 502),
+        ("empty-continuation", 502),
+        ("wrong-comment-review", 502),
+        ("wrong-comment-pull", 502),
+        ("wrong-comment-repo", 502),
+        ("published-comment", 502),
+        ("pending-changed", 409),
+        ("partial-errors", 502),
+        ("aggregate-bytes", 413),
+        ("denied", 403),
+        ("deadline", 504),
+    ] {
+        mode(name)?;
+        match client.observe(token()?, "321", &query("PC_1")).await {
+            Err(f) if f.status == status => (),
+            Err(f) => {
+                return Err(format!(
+                    "preservation {name}: expected {status}, got {} {}",
+                    f.status, f.code
+                )
+                .into())
+            }
+            Ok(_) => return Err(format!("unproved pending preservation {name} accepted").into()),
+        };
+        cases.push(name);
+    }
+    mode("three")?;
+    for i in 0..5 {
+        let mut q = query("PC_1");
+        if let Read::InlinePreservation {
+            repository,
+            number,
+            review_node_id,
+            comment_node_id,
+        } = &mut q
+        {
+            match i {
+                0 => repository.push('x'),
+                1 => *number = 0,
+                2 => review_node_id.clear(),
+                3 => comment_node_id.clear(),
+                _ => *comment_node_id = review_node_id.clone(),
+            }
+        }
+        let before = fs::read(io.join("gets"))?;
+        ensure(
+            matches!(client.observe(token()?,"321",&q).await,Err(f)if f.status==400)
+                && fs::read(io.join("gets"))? == before,
+            "invalid preservation selector made I/O",
+        )?;
+    }
+    mode("pause")?;
+    let task_client = client.clone();
+    let q = query("PC_1");
+    let task = tokio::spawn(async move {
+        task_client
+            .observe(
+                Token::new(b"factory-declared-review-preparation".to_vec()).unwrap(),
+                "321",
+                &q,
+            )
+            .await
+    });
+    let until = Instant::now() + Duration::from_secs(5);
+    while !io.join("entered").exists() {
+        ensure(
+            Instant::now() < until,
+            "preservation retirement did not enter reader",
+        )?;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let stopped = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        stopped.elapsed() < Duration::from_secs(3) && task.await?.is_err(),
+        "preservation retirement failed to join",
+    )?;
+    let before = fs::read(io.join("gets"))?;
+    ensure(
+        client
+            .observe(token()?, "321", &query("PC_1"))
+            .await
+            .is_err()
+            && fs::read(io.join("gets"))? == before,
+        "stopped preservation reader made I/O",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists()
+            && fs::read_to_string(io.join("writes")).unwrap_or_else(|_| "0".into()) == "0",
+        "preservation reader mutated or sent undeclared request",
+    )?;
+    fs::write(
+        root.join("inline-preservation-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"invalid_selectors":5,"maximum_members":1000,"aggregate_bytes":8*1024*1024,"joined_retirement":true,"provider_mutations":0,"current_observation_only":true,"causal_attribution":false,"product_consumer_connected":false,"real_github":false}),
+        )?,
+    )?;
+    println!("PASS: bounded exact own pending/member exclusion, independent remaining-writing digest, nullable/original facts and joined retirement; current facts grant no causal attribution or completed preservation");
+    Ok(())
+}
+
 pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
     use soda_desktop_runtime::github_provider::{CreateOutcome, InlineAnchor, InlineDraft, Read};
     prepare(profile)?;

@@ -3503,3 +3503,41 @@ rename/original positions/draft privacy/publication/notification require fresh
 specifically scoped owner authorization and real evidence. Shared UI/installed,
 combined longest bounds and all other concrete/canonical/broad gates remain open.
 Shared writes remain unavailable; no Daybreak work ran or was marked complete.
+
+T11-WRITES current pending inline preservation reader (2026-11-06):
+`github_provider/{review_preparation,request,reads}.rs` now exposes fixed current
+facts for an exact own pending review/comment Node. The defining complete walker
+computes the old identity/writing set with that selected Node excluded and reports
+whether the selected member is present, with its sanitized writing/identity/
+author/original facts. Pending state, root reread, complete count/pagination,
+aggregate bounds and current-account checks remain. Missing/nullable facts stay
+unknown; no matching current content attributes a lost mutation reply.
+
+The existing native executable passed 37 declared cases, five invalid selectors,
+a complete 1,000-member walk, remaining-set digest assertions and joined retirement
+with zero mutations. Its existing shared pending-snapshot regression also passed
+48 cases, two invalid selectors and retirement, retaining original full-set and
+writing digest semantics. Evidence:
+`/home/vince/tmp/factory-inline-preservation-1106/attempt1/inline-preservation-result.json`,
+SHA-256 `0d93128cdc9a49e24bfe7f0a814ddca372388ca4e3a14d16634252b212f92af2`;
+log SHA-256 `f5cc21539532f12d6cc1d55c7156778545ea755b48a099dff22e5ba8def96c4c`;
+regression result SHA-256
+`a167ad14a6da107db5eec69274caf6de96ce8da4c46a9e91ec41d5024d9299f2`.
+The plan records exact retained peer/binary/runners. These explicit-token dummy
+component observations are not custody callback, product journal, live provider,
+privacy/permission/notification, IPC/security gate or installed qualification.
+
+Next: authenticate the saved causal primary before this separate completion read
+in the admitted Go/schema-91 consumer; preserve original old summary/members,
+known new identity/writing and continued draft state. A causal summary/count/
+publication discrepancy must remain unfinished even if later state looks restored.
+Full effect/HTTP envelopes, loss/replay/cancel/original expiry/custody/replacement/
+restart/readback remain unverified. Exact capacity blocker: an existing 1,000-member
+review leaves no room for one added member within this 1,000-member complete walk.
+A before-send supported-capacity admission (or a newly qualified expanded bound)
+is still required and unverified; no proposed fix closes it. New-pending/published
+modes and old-commit/integer/original-anchor limitations remain as recorded above.
+Actual provider schema/permissions/rename/original positions/draft privacy/
+notification need fresh specifically scoped authorization and real evidence.
+Shared UI/installed, combined bounds and all other concrete/canonical/broad gates
+remain open; shared writes remain unavailable. No Daybreak work ran or completed.

@@ -82,6 +82,32 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "inline_preservation" => {
+                            let Read::InlinePreservation {
+                                number,
+                                review_node_id,
+                                comment_node_id,
+                                ..
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            (
+                                "preservation",
+                                reader
+                                    .inline_preservation(
+                                        u64::from(*number),
+                                        review_node_id,
+                                        comment_node_id,
+                                        identity
+                                            .node_id
+                                            .as_deref()
+                                            .ok_or_else(Failure::protocol)?,
+                                        &identity.external_id,
+                                    )
+                                    .await?,
+                            )
+                        }
                         "inline_preparation" => {
                             let Read::InlinePreparation { number, anchor, .. } = query else {
                                 return Err(Failure::invalid());

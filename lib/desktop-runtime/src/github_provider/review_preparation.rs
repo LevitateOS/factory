@@ -47,6 +47,7 @@ fn opaque<'a>(raw: &'a Value, key: &str) -> Result<&'a str> {
 const COMMENTS:&str="query FactoryPendingReviewComments($review:ID!,$after:String){node(id:$review){__typename ... on PullRequestReview{id state author{__typename ... on User{id}} pullRequest{id repository{id} headRefOid} repository{id} comments(first:2,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId state body author{__typename login ... on Node{id}} pullRequestReview{id} pullRequest{id} repository{id} commit{oid} originalCommit{oid} createdAt updatedAt}}}}}";
 
 struct CommentScope<'a> {
+    exclude: Option<&'a str>,
     review: &'a str,
     pull: &'a str,
     repo: &'a str,
@@ -73,6 +74,7 @@ impl Reader<'_> {
         let repo = r::text(&before, "repository_node_id")?;
         let snapshot = self
             .review_comment_snapshot(CommentScope {
+                exclude: None,
                 review,
                 pull,
                 repo,
@@ -107,6 +109,7 @@ impl Reader<'_> {
 
     async fn review_comment_snapshot(&self, scope: CommentScope<'_>) -> Result<Value> {
         let CommentScope {
+            exclude,
             review,
             pull,
             repo,
@@ -257,9 +260,54 @@ impl Reader<'_> {
         for item in &items {
             writing.push(json!({"node_id":item["node_id"],"body_sha256":super::transport::sha256(r::text(item,"body")?.as_bytes())}));
         }
-        Ok(
-            json!({"count":items.len(),"sha256":super::transport::sha256(&serde_json::to_vec(&items).map_err(|_|Failure::protocol())?),"identity_writing_sha256":super::transport::sha256(&serde_json::to_vec(&writing).map_err(|_|Failure::protocol())?),"complete":true,"condition":"bounded_observation"}),
-        )
+        let mut result = json!({"count":items.len(),"sha256":super::transport::sha256(&serde_json::to_vec(&items).map_err(|_|Failure::protocol())?),"identity_writing_sha256":super::transport::sha256(&serde_json::to_vec(&writing).map_err(|_|Failure::protocol())?),"complete":true,"condition":"bounded_observation"});
+        if let Some(node) = exclude {
+            let member = items.iter().find(|item| item["node_id"] == node);
+            let remaining: Vec<_> = writing
+                .iter()
+                .filter(|item| item["node_id"] != node)
+                .collect();
+            result["excluding"] = json!({"node_id":node,"found":member.is_some(),"remaining_count":remaining.len(),"identity_writing_sha256":super::transport::sha256(&serde_json::to_vec(&remaining).map_err(|_|Failure::protocol())?),"member":member.map(|item|json!({"node_id":item["node_id"],"external_id":item["external_id"],"body_sha256":super::transport::sha256(item["body"].as_str().unwrap_or_default().as_bytes()),"author":item["author"],"commit":item["commit"],"original_commit":item["original_commit"],"created_at":item["created_at"],"updated_at":item["updated_at"]}))});
+        }
+        Ok(result)
+    }
+
+    // A current bounded observation only. The product must authenticate its
+    // saved causal receipt before using this selector for completion; this read
+    // never attributes a matching current comment to a lost mutation reply.
+    pub(super) async fn inline_preservation(
+        &self,
+        number: u64,
+        review: &str,
+        comment: &str,
+        actor: &str,
+        account: &str,
+    ) -> Result<Value> {
+        let mut before = self.review_preparation(number, actor, account).await?;
+        if before["pending"]["node_id"] != review {
+            return Err(Failure::new(409, "github_inline_pending_review_changed"));
+        }
+        let snapshot = self
+            .review_comment_snapshot(CommentScope {
+                exclude: Some(comment),
+                review,
+                pull: r::text(&before["pull"], "node_id")?,
+                repo: r::text(&before, "repository_node_id")?,
+                actor,
+                head: Some(r::text(&before["pull"], "head")?),
+                pending: true,
+                expected_count: before["pending"]["comments_count"]
+                    .as_u64()
+                    .ok_or_else(Failure::protocol)?,
+            })
+            .await?;
+        let current = self.review_preparation(number, actor, account).await?;
+        if current != before {
+            return Err(Failure::new(409, "github_inline_preservation_changed"));
+        }
+        before["comments_snapshot"] = snapshot;
+        before["condition"] = json!("bounded_observation");
+        Ok(before)
     }
 
     pub(super) async fn review_publication(
@@ -296,6 +344,7 @@ impl Reader<'_> {
         )?;
         let snapshot = self
             .review_comment_snapshot(CommentScope {
+                exclude: None,
                 review: review_node,
                 pull,
                 repo,

@@ -38,6 +38,12 @@ pub enum Read {
         number: u32,
         anchor: super::InlineAnchor,
     },
+    InlinePreservation {
+        repository: String,
+        number: u32,
+        review_node_id: String,
+        comment_node_id: String,
+    },
     FindRepository {
         name: String,
     },
@@ -218,6 +224,19 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::InlinePreservation {
+            review_node_id,
+            comment_node_id,
+            ..
+        } = self
+        {
+            if !node_id(review_node_id)
+                || !node_id(comment_node_id)
+                || review_node_id == comment_node_id
+            {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::InlinePreparation { anchor, .. } = self {
             anchor.validate()?
         }

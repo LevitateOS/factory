@@ -1239,6 +1239,11 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 2 && args[0] == "--github-inline-preservation-declared" {
+            return runtime.block_on(native_github_review_requests::inline_preservation(
+                Path::new(&args[1]),
+            ));
+        }
         if args.len() == 2 && args[0] == "--github-inline-draft-declared" {
             return runtime.block_on(native_github_review_requests::inline_draft(Path::new(
                 &args[1],
