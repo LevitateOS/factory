@@ -1,0 +1,46 @@
+//! Export only a retained, scoped worker receipt; Go selects the product result.
+use super::{read_intent, read_retained, LaunchIntent};
+use base64::Engine;
+use serde_json::{json, Value};
+use std::io;
+use std::path::Path;
+
+pub(super) fn export(
+    profile: &Path,
+    profile_id: &str,
+    raw: &str,
+    candidate: &str,
+) -> io::Result<Value> {
+    let denied = || {
+        io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "native candidate unavailable",
+        )
+    };
+    let intent = LaunchIntent::from_go(raw)?;
+    let scope = intent.scope()?;
+    if scope.profile != profile_id
+        || !super::hex(candidate, 40)
+        || !matches!(scope.role, super::Role::Coder)
+    {
+        return Err(denied());
+    }
+    let saved = read_intent(profile, &scope)?.ok_or_else(denied)?;
+    if saved.raw() != raw {
+        return Err(denied());
+    }
+    let receipt = read_retained(profile, &scope)?.ok_or_else(denied)?;
+    if receipt.candidate_state != "captured"
+        || receipt.result_candidate.as_deref() != Some(candidate)
+    {
+        return Ok(json!({"intent_digest":intent.digest(),"status":"candidate_mismatch"}));
+    }
+    let sha256 = receipt.bundle_sha256.as_deref().ok_or_else(denied)?;
+    if receipt.candidate_bundle.is_empty() {
+        return Err(denied());
+    }
+    Ok(
+        json!({"intent_digest":intent.digest(),"status":"exported","candidate":candidate,"sha256":sha256,
+        "bundle":base64::engine::general_purpose::STANDARD.encode(&receipt.candidate_bundle)}),
+    )
+}

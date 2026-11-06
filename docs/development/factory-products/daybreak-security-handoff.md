@@ -131,7 +131,21 @@ Exact files, ancestor instructions, two-commit diff, directory/deadline refusals
 and subsequent retirement/Quit passed in `/home/vince/tmp/fctx6.KRKpiS/run.log`.
 This is a declared local fixture, not installed or adversarial qualification.
 
-Remaining dependencies: candidate/Git/artifact operations, admitted Go
+Native candidate export (`factory_provider/candidate.rs`, `port.rs` and
+`runtime/native_candidate.go`) now returns only the exact retained coder receipt's
+incremental Git bundle after Go verifies settled native resources and the captured
+preparation/source. Coder completion also requires a valid captured/unchanged
+candidate state. Actual isolated file edit/commit, byte-exact Go export, changed
+candidate/preparation refusals and export after a completed-run restart passed in
+`/home/vince/tmp/fcan6.BtvEYT/run.log`. The source preparation was real; execution
+intent/permissions, local CLI and credential were declared fixture inputs. No
+provider inference, production coordinator, installed qualification or D3 closure
+is proved. The earlier combined fixture in `fcan6.W329Lq/run.log` under the same
+parent correctly refused restart for cancelled runs without terminal receipts;
+those Go outcomes remain unresolved. Closing interrupted-run recovery still needs
+exact process/custody/resource evidence and the actual Go reconciliation transaction.
+
+Remaining dependencies: candidate preparation and checkpoint/artifact operations, admitted Go
 launch, current credential/policy/funding and positive MCP activation, followed by
 single-coordinator execution and durable outcome/restart settlement. The active
 agent currently clones bare source without the approved setup artifacts: prove

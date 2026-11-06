@@ -391,9 +391,29 @@ async fn managed_execution(
         }
         Ok(())
     };
+    let candidate_check = std::env::var("SODA_NATIVE_CHECK_CANDIDATE").as_deref() == Ok("1");
+    let source_preparation = if candidate_check {
+        command("check-native-preparation", "ready")?;
+        let entries: Vec<_> =
+            fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
+        if entries.len() != 1 {
+            return Err("candidate source preparation missing".into());
+        }
+        Some(serde_json::from_slice::<serde_json::Value>(&fs::read(
+            entries[0].path().join("request.json"),
+        )?)?)
+    } else {
+        None
+    };
     let mut quit_ticket = None;
     let mut runs = Vec::new();
-    for mode in ["finite", "cancel", "quit"] {
+    let modes: &[&str] = if candidate_check {
+        &["finite"]
+    } else {
+        &["finite", "cancel", "quit"]
+    };
+    for &mode in modes {
+        let coder = mode == "finite" && candidate_check;
         let executable = PathBuf::from(std::env::var(if mode == "finite" {
             "SODA_NATIVE_CHECK_FINITE"
         } else {
@@ -406,13 +426,27 @@ async fn managed_execution(
         runs.push(run.clone());
         fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
         let fixture = profile.join("native-recovery-fixture.json");
+        let project = if coder {
+            source_preparation.as_ref().unwrap()["input"]["preparation"]["project"]
+                .as_str()
+                .ok_or("preparation workspace missing")?
+        } else {
+            "p123456789012345678901234"
+        };
+        let worktree = if coder {
+            source_preparation.as_ref().unwrap()["native"]["worktree_id"]
+                .as_str()
+                .ok_or("preparation worktree missing")?
+        } else {
+            "fixture-worktree"
+        };
         let input = serde_json::json!({"Connection":account.connection,"Prompt":std::str::from_utf8(prompt)?,"Run":{
-            "id":run,"project_id":"p123456789012345678901234","role":"soda-reviewer","input_sha":commit,
+            "id":run,"project_id":project,"role":if coder {"soda-coder"} else {"soda-reviewer"},"input_sha":commit,
             "model":"muse-spark-1.3-contributor","harness":"muse-fixture","native":{
                 "tool":{"harness":"muse","version":"fixture","sha256":tool,"executable":executable},
                 "bundle_sha256":digest(&source),"prompt_sha256":digest(prompt),"retirement":"not_started","sealed":false,
                 "provenance":{"trust_mode":"isolated_system_worker","profile":ready.profile,"instance_id":ready.instance,
-                    "worktree_id":"fixture-worktree","broker_run":run,"process":null,"custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0"}}
+                    "worktree_id":worktree,"broker_run":run,"process":null,"custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0"}}
             }
         }});
         fs::write(&fixture, serde_json::to_vec(&input)?)?;
@@ -429,7 +463,7 @@ async fn managed_execution(
             &digest(&source),
             &commit,
             &account.connection,
-            Role::Reviewer,
+            if coder { Role::Coder } else { Role::Reviewer },
             Duration::from_secs(60),
             Budget::new(2, 256 * 1024, 8192)?,
         )?;
@@ -474,7 +508,27 @@ async fn managed_execution(
                 ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {
                     tokio::time::sleep(Duration::from_millis(20)).await
                 }
-                ExecutionOutcome::Complete(_) if mode == "finite" => break,
+                ExecutionOutcome::Complete(result) if mode == "finite" => {
+                    if coder {
+                        if result.candidate_state != "captured"
+                            || result.result_candidate.is_none()
+                            || result.candidate_bundle.is_empty()
+                        {
+                            return Err("native coder did not capture a real Git candidate".into());
+                        }
+                        fs::write(
+                            profile.join("native-candidate-fixture.json"),
+                            serde_json::to_vec(&serde_json::json!({
+                                "candidate":result.result_candidate,"bundle":result.candidate_bundle
+                            }))?,
+                        )?;
+                        fs::copy(
+                            profile.join("native-recovery-canonical.id"),
+                            profile.join("native-candidate-canonical.id"),
+                        )?;
+                    }
+                    break;
+                }
                 ExecutionOutcome::Uncertain if mode == "cancel" => break,
                 _ => return Err("owned execution result differs".into()),
             }
@@ -487,17 +541,24 @@ async fn managed_execution(
                 "uncertain"
             },
         )?;
+        if coder {
+            command("check-owned-execution", "export")?;
+        }
     }
-    // Cancelled local fixtures do not yield a terminal receipt. Quit must join
-    // them and report reconciliation, rather than claim a qualified result.
-    assert!(supervisor.stop().is_err());
-    let ticket = quit_ticket.ok_or("quit fixture missing")?;
-    assert!(ticket.inspect(Duration::from_secs(1)).is_err());
-    assert!(ticket.custody()?.sealed);
-    assert_eq!(
-        ticket.custody()?.state,
-        soda_desktop_runtime::factory_provider::CustodyState::Released
-    );
+    if candidate_check {
+        supervisor.stop()?;
+    } else {
+        // Cancelled local fixtures do not yield a terminal receipt. Quit joins
+        // them and reports the remaining reconciliation.
+        assert!(supervisor.stop().is_err());
+        let ticket = quit_ticket.ok_or("quit fixture missing")?;
+        assert!(ticket.inspect(Duration::from_secs(1)).is_err());
+        assert!(ticket.custody()?.sealed);
+        assert_eq!(
+            ticket.custody()?.state,
+            soda_desktop_runtime::factory_provider::CustodyState::Released
+        );
+    }
     credentials.withdraw(&account.connection).await?;
     assert!(!profile.join("host.sock").exists());
     // Fixture cleanup is separate from outcome verification: uncertain staging
@@ -505,7 +566,25 @@ async fn managed_execution(
     for run in runs {
         Broker::retire_bundle(&run, &ready.profile, &digest(&source))?;
     }
-    println!("PASS: actual supervisor owns finite/cancel/Quit executions; Go callbacks record exact native facts; cancelled results remain uncertain; shutdown joins workers before child dependencies stop");
+    if candidate_check {
+        let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+        let health = restarted.health()?;
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&health.instance)
+            .arg("check-owned-execution")
+            .arg("export")
+            .status()?
+            .success()
+        {
+            return Err("native candidate export after restart failed".into());
+        }
+        restarted.stop()?;
+        println!("PASS: exact candidate bundle remains exportable after native restart without the execution registry");
+    }
+    if !candidate_check {
+        println!("PASS: actual supervisor owns finite/cancel/Quit executions; Go callbacks record exact native facts; cancelled results remain uncertain; shutdown joins workers before child dependencies stop");
+    }
     Ok(())
 }
 

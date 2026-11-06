@@ -59,6 +59,8 @@ type nativeExecutionSnapshot struct {
 	Reason         *string                             `json:"reason"`
 	Output         *string                             `json:"output"`
 	OutputComplete bool                                `json:"output_complete"`
+	CandidateState *string                             `json:"candidate_state"`
+	Candidate      *string                             `json:"candidate"`
 }
 
 func (p NativeExecution) InspectRun(ctx context.Context, address execution.RunAddress) (execution.RunObservation, error) {
@@ -142,7 +144,9 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	phase := project.FactoryUncertain
 	if snapshot.Retired {
 		phase = project.FactoryFailed
-		if snapshot.Reason != nil && *snapshot.Reason == "exited" && snapshot.Receipt.ExitCode != nil && *snapshot.Receipt.ExitCode == 0 && snapshot.OutputComplete {
+		candidateValid := run.Role != project.RoleCoder || snapshot.CandidateState != nil && (*snapshot.CandidateState == "unchanged" && snapshot.Candidate == nil ||
+			*snapshot.CandidateState == "captured" && snapshot.Candidate != nil && project.ValidCommit(*snapshot.Candidate) && *snapshot.Candidate != run.InputSHA)
+		if snapshot.Reason != nil && *snapshot.Reason == "exited" && snapshot.Receipt.ExitCode != nil && *snapshot.Receipt.ExitCode == 0 && snapshot.OutputComplete && candidateValid {
 			phase = project.FactoryCompleted
 		} else if snapshot.Reason != nil && *snapshot.Reason == "cancelled" {
 			phase = project.FactoryStopped

@@ -102,7 +102,7 @@ pub struct ReceiptScope<'a> {
     pub(super) profile: &'a str,
     source_sha256: &'a str,
     candidate: &'a str,
-    role: Role,
+    pub(super) role: Role,
     tool_sha256: &'a str,
     prompt_sha256: &'a str,
 }

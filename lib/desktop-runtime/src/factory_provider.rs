@@ -3,6 +3,7 @@
 //! no worker-supplied URL, model, tool namespace or spend limit is authority.
 mod attempt;
 mod broker;
+mod candidate;
 mod custody;
 mod executions;
 mod intent;

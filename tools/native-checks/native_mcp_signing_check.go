@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -1016,7 +1017,11 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		return err
 	}
 	defer db.Close()
-	id, err := os.ReadFile(filepath.Join(profile, "native-recovery-canonical.id"))
+	marker := "native-recovery-canonical.id"
+	if mode == "export" {
+		marker = "native-candidate-canonical.id"
+	}
+	id, err := os.ReadFile(filepath.Join(profile, marker))
 	if err != nil {
 		return err
 	}
@@ -1026,6 +1031,38 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	}
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 	address := execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}
+	if mode == "export" {
+		var expected struct {
+			Candidate string `json:"candidate"`
+			Bundle    []byte `json:"bundle"`
+		}
+		raw, readErr := os.ReadFile(filepath.Join(profile, "native-candidate-fixture.json"))
+		if readErr != nil {
+			return readErr
+		}
+		if json.Unmarshal(raw, &expected) != nil || len(expected.Bundle) == 0 {
+			return errors.New("native candidate fixture missing")
+		}
+		request := execution.CandidateRequest{Address: address, Role: run.Role, Preparation: run.Native.Provenance.WorktreeID, Candidate: expected.Candidate}
+		exported, exportErr := port.ExportCandidate(ctx, request)
+		if exportErr != nil {
+			return exportErr
+		}
+		if exported.Address != address || exported.Candidate != expected.Candidate || !slices.Equal(exported.Bundle, expected.Bundle) {
+			return errors.New("native export differs from actual worker bundle")
+		}
+		request.Candidate = run.InputSHA
+		if _, err = port.ExportCandidate(ctx, request); !errors.Is(err, execution.ErrCandidateInvalid) {
+			return errors.New("native export accepted a different candidate")
+		}
+		request.Candidate = expected.Candidate
+		request.Preparation = "f" + strings.Repeat("9", 24)
+		if _, err = port.ExportCandidate(ctx, request); err == nil {
+			return errors.New("native export accepted a different preparation")
+		}
+		fmt.Println("PASS: Go exports exact isolated coder commit/bundle; different candidate and preparation refuse")
+		return nil
+	}
 	var observed execution.RunObservation
 	if mode == "cancel" {
 		observed, err = port.RetireRun(ctx, address)
@@ -1303,6 +1340,19 @@ func workerProfileFixture() error {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusForbidden {
 		return errors.New("native worker without a current Go capability was not refused")
+	}
+	if _, err := os.Stat(".git"); err == nil {
+		if err = os.WriteFile("native-candidate.txt", []byte("Actual isolated coder candidate\n"), 0600); err != nil {
+			return err
+		}
+		for _, args := range [][]string{
+			{"add", "--", "native-candidate.txt"},
+			{"-c", "user.name=Native fixture", "-c", "user.email=fixture@example.invalid", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "commit", "-qm", "Capture actual native fixture candidate"},
+		} {
+			if output, gitErr := exec.Command("/usr/bin/git", args...).CombinedOutput(); gitErr != nil {
+				return fmt.Errorf("native fixture Git commit failed: %s", output)
+			}
+		}
 	}
 	fmt.Println("captured-profile-low-off; native-worker-MCP-missing-capability-refused")
 	time.Sleep(4 * time.Second)

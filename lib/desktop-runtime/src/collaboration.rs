@@ -731,6 +731,13 @@ async fn dispatch(
             state.executions.clone(),
             state.alive.clone(),
             tools,
+            state
+                .channel
+                .socket
+                .parent()
+                .ok_or_else(Failure::unavailable)?
+                .to_path_buf(),
+            state.channel.profile.clone(),
             call,
         )
         .await

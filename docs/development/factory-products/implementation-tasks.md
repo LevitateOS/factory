@@ -31436,3 +31436,13 @@ contract. Actual Go/PostgreSQL/native comparison of those bytes, directory and
 deadline refusals, plus retirement/Quit passed in
 `/home/vince/tmp/fctx6.KRKpiS/run.log`. Candidate preparation/export, environment
 transfer, launch/coordinator/provider joins and the open gates above remain pending.
+
+Native `ExportCandidate` now connects a settled Go run/preparation to the exact
+retained isolated coder receipt and incremental Git bundle. Coder completion
+requires captured/unchanged candidate evidence. Actual file edit/commit, byte-exact
+export, candidate/preparation refusals and export after completed-run restart passed
+in `/home/vince/tmp/fcan6.BtvEYT/run.log`; declared intent/CLI/dummy credentials do
+not prove provider inference or coordinator admission. Candidate preparation,
+checkpoint/artifact operations, environment transfer, admitted launch/coordinator,
+provider credentials/policy/funding and interrupted-run settlement remain pending.
+T09 and D3 stay open; [the handoff](daybreak-security-handoff.md) records limits.

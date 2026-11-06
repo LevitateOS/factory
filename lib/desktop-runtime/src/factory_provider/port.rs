@@ -6,6 +6,7 @@ use super::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::io;
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -18,15 +19,32 @@ pub(crate) enum Call {
     Inspect { intent: String },
     Cancel { intent: String },
     InspectTool { harness: String },
+    Export { intent: String, candidate: String },
 }
 
 pub(crate) async fn call(
     executions: Arc<Mutex<Executions>>,
     alive: Arc<AtomicBool>,
     tools: Option<Arc<super::Tools>>,
+    profile: PathBuf,
+    profile_id: String,
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::Export { intent, candidate } => {
+            return tokio::task::spawn_blocking(move || {
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                let result = super::candidate::export(&profile, &profile_id, &intent, &candidate)?;
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                Ok(result)
+            })
+            .await
+            .map_err(|_| io::Error::other("native export failed"))?;
+        }
         Call::InspectTool { harness } => {
             if harness != "muse" || !alive.load(Ordering::SeqCst) {
                 return Err(io::Error::other("native tool unavailable"));
@@ -120,6 +138,8 @@ fn snapshot(
     Ok(
         json!({"intent_digest":intent.digest(),"receipt":receipt,"custody":custody_json,
             "live":live,"retired":retired,"reason":terminal.map(|result| result.reason.as_str()),
+            "candidate_state":terminal.map(|result|result.candidate_state.as_str()),
+            "candidate":terminal.and_then(|result|result.result_candidate.as_deref()),
             "output":output,"output_complete":terminal.is_some_and(|result| result.output_complete) && output.is_some(),
         }),
     )
