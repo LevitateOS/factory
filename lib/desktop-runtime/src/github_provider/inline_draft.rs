@@ -152,10 +152,19 @@ impl Client {
             } else {
                 "LINE"
             };
+            // GitHub can give a FILE thread a display line (currently 1),
+            // while its root comment correctly has no line anchor. That hint
+            // is not part of the requested file-level selection.
+            let thread_line_matches = if q.anchor.scope == "file" {
+                thread["line"].is_null()
+                    || thread["line"].as_u64().is_some_and(|n| n > 0 && n <= i64::MAX as u64)
+            } else {
+                thread["line"] == line
+            };
             if !r::text(thread, "id").is_ok_and(node_id)
                 || thread["path"] != path
                 || thread["diffSide"] != side
-                || thread["line"] != line
+                || !thread_line_matches
                 || thread["startLine"] != start
                     && !(start.is_null()
                         && q.anchor.scope == "lines"

@@ -29,21 +29,22 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 		Squash       bool   `json:"squash"`
 		Rebase       bool   `json:"rebase"`
 		Subject      *struct {
-			Kind        string                  `json:"kind"`
-			ExternalID  string                  `json:"external_id"`
-			Number      int64                   `json:"number"`
-			State       string                  `json:"state"`
-			Locked      bool                    `json:"locked"`
-			CanUpdate   bool                    `json:"can_update"`
-			CanClose    bool                    `json:"can_close"`
-			CanReopen   bool                    `json:"can_reopen"`
-			Own         bool                    `json:"own"`
-			Draft       bool                    `json:"draft"`
-			Merged      bool                    `json:"merged"`
-			Head        *collaboration.CommitID `json:"head"`
-			Base        *collaboration.CommitID `json:"base"`
-			DraftReview *bool                   `json:"draft_review"`
-			MergeReady  bool                    `json:"merge_ready"`
+			Kind          string                  `json:"kind"`
+			ExternalID    string                  `json:"external_id"`
+			Number        int64                   `json:"number"`
+			State         string                  `json:"state"`
+			Locked        bool                    `json:"locked"`
+			CanUpdate     bool                    `json:"can_update"`
+			CanClose      bool                    `json:"can_close"`
+			CanReopen     bool                    `json:"can_reopen"`
+			Own           bool                    `json:"own"`
+			Draft         bool                    `json:"draft"`
+			Merged        bool                    `json:"merged"`
+			Head          *collaboration.CommitID `json:"head"`
+			Base          *collaboration.CommitID `json:"base"`
+			InlinePublish *bool                   `json:"inline_publish"`
+			DraftReview   *bool                   `json:"draft_review"`
+			MergeReady    bool                    `json:"merge_ready"`
 		} `json:"subject"`
 	}
 	pull := q.Subject == "pull"
@@ -127,6 +128,15 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 			}
 		}
 		result.ReviewDraft = &fact
+		publish := result.Actions[collaboration.CommentReview]
+		if publish.State == collaboration.Allowed {
+			if target.InlinePublish == nil {
+				publish = collaboration.Capability{State: collaboration.Unknown, Reason: "pending_review_unobserved"}
+			} else if !*target.InlinePublish {
+				publish = collaboration.Capability{State: collaboration.Unavailable, Reason: "pending_review_exists"}
+			}
+		}
+		result.InlinePublish = &publish
 	}
 	if target := facts.Subject; target != nil {
 		result.StateActions = map[string]collaboration.Capability{}

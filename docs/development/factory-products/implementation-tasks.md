@@ -31023,6 +31023,10 @@ that submission replaces the pending draft without adding another review. The
 thread, merge, changed-head and revocation checks still passed. Evidence:
 `/home/vince/tmp/fpi-1793964017996/{run.log,host/result.json}`. GitHub desktop remains open.
 
+A subsequent real browser run submitted an ordinary comment review and read its
+record back before the existing draft-to-approval, inline, merge and revocation
+journey; all passed (`/home/vince/tmp/fpc-1793964809654/{run.log,host/result.json}`).
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first
@@ -31042,3 +31046,23 @@ its prior durable recovery cases:
 Actual WebKit continuation is still in progress; this checkpoint does not qualify
 it. The prior indeterminate draft-edit commands remain fenced in their original
 private profiles. T11 and connected/installed/permission gates remain open.
+
+### T11-WRITES: inline publication modes and file-thread replies (2026-11-06)
+
+The shared inline editor now distinguishes direct publication from adding a
+comment to a pending review, using the same bounded native capability read.
+It withholds direct publication while a draft exists; append and retained writing
+remain available. Review and inline controls can explicitly refresh their current
+actions without resending. The existing emitted-component browser check passed
+mode changes, draft retention and zero unintended sends in
+`/home/vince/tmp/factory-inline-mode-1106.xgQP5z/result.log`.
+
+GitHub gives some FILE threads a display line while the root comment has no line
+anchor. Rust now accepts that display hint without weakening the exact root
+comment/file/scope checks. Actual WebKit append command
+`32a36835d51c4b91b117c33766290a01` saved a causal receipt and completed separate
+pending-writing preservation; its read-only journal summary is under
+`/home/vince/tmp/factory-webkit-inline-continue-1106.v978BG/`.
+The earlier decoder-refused command remains uncertain and fenced. Go/native
+builds, TypeScript and emitted UI passed; the full WebKit continuation and all
+previously open connected/installed/cross-account gates remain open.

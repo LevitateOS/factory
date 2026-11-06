@@ -3715,3 +3715,13 @@ GraphQL and REST refusals are retained under
 dummy recovery check `factory-pending-summary-1106.WZdpIV`, do not close the
 cross-account draft-privacy/notification or installed admission dependencies
 above. Closure still requires those exact authorized actor/host observations.
+
+The actual summary-first WebKit fixture added a file-level draft comment before
+its old decoder refused GitHub's display-line hint. Command
+`3b5ec89874e044b5a176430d31cbd56b` remains uncertain/fenced in
+`/home/vince/tmp/factory-webkit-summary-first-1106.yhf0pG/`; the matching provider
+comment does not supply a lost causal result. The corrected decoder completed a
+distinct append (`32a36835d51c4b91b117c33766290a01`) and verified pending-writing
+preservation in `factory-webkit-inline-continue-1106.v978BG`. This does not settle
+the old command or prove cross-account draft privacy/notification behavior.
+Those actor/organization and installed-host dependencies above remain open.

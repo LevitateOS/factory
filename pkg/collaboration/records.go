@@ -79,18 +79,19 @@ type Capability struct {
 // Missing actions mean unknown. Even allowed never grants execution, spending or
 // permission to mutate: application admission rechecks current provider facts.
 type Capabilities struct {
-	Head         *CommitID             `json:"head"`
-	Base         *CommitID             `json:"base"` // current target branch tip, not diff merge base
-	Issue        *IssueRef             `json:"issue"`
-	Pull         *PullRef              `json:"pull"`
-	Repository   RepositoryID          `json:"repository,string"`
-	Actor        ActorID               `json:"actor,string"`
-	Connection   ConnectionID          `json:"connection"`
-	Observation  Observation           `json:"observation"`
-	Actions      map[Action]Capability `json:"actions"`
-	ReviewDraft  *Capability           `json:"review_draft,omitempty"`
-	MergeMethods map[string]Capability `json:"merge_methods,omitempty"`
-	StateActions map[string]Capability `json:"state_actions,omitempty"`
+	Head          *CommitID             `json:"head"`
+	Base          *CommitID             `json:"base"` // current target branch tip, not diff merge base
+	Issue         *IssueRef             `json:"issue"`
+	Pull          *PullRef              `json:"pull"`
+	Repository    RepositoryID          `json:"repository,string"`
+	Actor         ActorID               `json:"actor,string"`
+	Connection    ConnectionID          `json:"connection"`
+	Observation   Observation           `json:"observation"`
+	Actions       map[Action]Capability `json:"actions"`
+	InlinePublish *Capability           `json:"inline_publish,omitempty"`
+	ReviewDraft   *Capability           `json:"review_draft,omitempty"`
+	MergeMethods  map[string]Capability `json:"merge_methods,omitempty"`
+	StateActions  map[string]Capability `json:"state_actions,omitempty"`
 }
 
 // External IDs identify records; Number is the display/route index in this repo.

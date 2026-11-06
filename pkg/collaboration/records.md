@@ -96,6 +96,13 @@ review behavior is retained. `thread.resolve` reuses CanMarkConversation for the
 PR poster, writer or official reviewer; it does not establish that an arbitrary
 thread/draft is readable or a supplied thread belongs to this PR.
 
+Optional `review_draft` and `inline_publish` facts narrow summary saving and
+direct inline publication separately from comment-review submission. GitHub
+withholds summary edits when the saved summary is empty, and direct publication
+while a pending review exists. Local writing and adding comments to the draft
+remain available. Hosts omitting these refinements retain their existing review
+capability semantics. Every mutation still prepares and checks its own target.
+
 `pull.merge` reuses CheckPullMergeable in its ordinary immediate mode with
 protection bypass disabled. Enabled normal merge policy, current native
 permission/allowlists, draft/closed/merged/checking/conflict state, required

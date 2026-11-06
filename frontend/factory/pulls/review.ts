@@ -248,6 +248,7 @@ export class SodaFactoryPullReview extends LitElement {
     const pending = this.writing.pending;
     return html`<section class="soda-pull-review" aria-label="Write pull request review" aria-busy=${this.busy}>
       <h3>Review</h3><p role="status">${this.message}</p>
+      <button type="button" @click=${this.refresh} ?disabled=${this.busy}>Refresh review actions</button>
       ${this.saved.blocked ? html`<button type="button" @click=${this.reload}>Reload saved review writing</button>` : ''}
       <label>Review Markdown <textarea aria-label="Review Markdown" .value=${this.writing.draft.body} @input=${this.input} ?disabled=${this.busy || !!pending || this.saved.blocked}></textarea></label>
       ${!this.allowed.draft && this.allowed.comment ? html`<p>Your summary is saved on this device. Submit it with your pending comments when ready.</p>` : ''}

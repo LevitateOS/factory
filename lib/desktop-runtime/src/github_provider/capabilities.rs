@@ -77,7 +77,7 @@ impl Reader<'_> {
                     _ => Value::Null,
                 }
             } else { Value::Null };
-            json!({"draft_review":draft_review,"kind":if pull{"pull"}else{"issue"},"external_id":r::big_id(&target["fullDatabaseId"])?,"number":number,"state":r::text(target,"state")?.to_ascii_lowercase(),"locked":r::boolean(target,"locked")?,"can_update":r::boolean(target,"viewerCanUpdate")?,"can_close":r::boolean(target,"viewerCanClose")?,"can_reopen":r::boolean(target,"viewerCanReopen")?,"own":r::boolean(target,"viewerDidAuthor")?,"draft":target["isDraft"],"merged":target["merged"],"head":target["headRefOid"],"base":target["baseRefOid"],"merge_ready":target["mergeStateStatus"]=="CLEAN"})
+            json!({"draft_review":draft_review,"inline_publish":if pull { target["reviews"]["totalCount"].as_u64().map(|n| n == 0) } else { None },"kind":if pull{"pull"}else{"issue"},"external_id":r::big_id(&target["fullDatabaseId"])?,"number":number,"state":r::text(target,"state")?.to_ascii_lowercase(),"locked":r::boolean(target,"locked")?,"can_update":r::boolean(target,"viewerCanUpdate")?,"can_close":r::boolean(target,"viewerCanClose")?,"can_reopen":r::boolean(target,"viewerCanReopen")?,"own":r::boolean(target,"viewerDidAuthor")?,"draft":target["isDraft"],"merged":target["merged"],"head":target["headRefOid"],"base":target["baseRefOid"],"merge_ready":target["mergeStateStatus"]=="CLEAN"})
         } else {
             Value::Null
         };

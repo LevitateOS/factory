@@ -76,7 +76,10 @@ func (s CollaborationCapabilities) Read(ctx context.Context, actor collaboration
 			return empty, ErrCapabilitiesUnavailable
 		}
 	}
-	if fact := r.ReviewDraft; fact != nil {
+	for _, fact := range []*collaboration.Capability{r.ReviewDraft, r.InlinePublish} {
+		if fact == nil {
+			continue
+		}
 		if q.Subject != "pull" || fact.Reason != "" && !collaboration.ValidText(fact.Reason, 256) {
 			return empty, ErrCapabilitiesUnavailable
 		}

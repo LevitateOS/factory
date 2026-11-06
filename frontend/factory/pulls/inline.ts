@@ -1,5 +1,5 @@
 import {LitElement, html} from 'lit';
-import {check, readSodaJSON} from '../api/models.js';
+import {check, object, readSodaJSON} from '../api/models.js';
 import type {ChangedFile, PullRef, ReviewAnchor} from '../api/collaboration.js';
 import type {FactoryTransport} from '../api/transport.js';
 import {pullActionAllowed} from '../api/capability-response.js';
@@ -38,6 +38,7 @@ export class SodaFactoryPullInline extends LitElement {
   private saved: InlineSaved = {raw: '', writing: undefined, durable: true, blocked: false};
   private writing: InlineWriting = {};
   private allowed = false;
+  private publishAllowed = false;
   private busy = false;
   private message = '';
 
@@ -52,7 +53,7 @@ export class SodaFactoryPullInline extends LitElement {
     const key = context && this.key(context);
     if (context && key === this.binding && this.current) return;
     this.lifetime.abort(); this.lifetime = new AbortController();
-    this.current = undefined; this.binding = ''; this.allowed = false; this.busy = false; this.message = ''; this.writing = {};
+    this.current = undefined; this.binding = ''; this.allowed = false; this.publishAllowed = false; this.busy = false; this.message = ''; this.writing = {};
     if (context) {
       inlineRecordKey(context);
       check(!!context.parent.external_id.trim() && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(context.head));
@@ -83,7 +84,7 @@ export class SodaFactoryPullInline extends LitElement {
     check(this.live(context, signal) && scope === context.scope);
   }
   private async admit(context: PullInlineContext, signal: AbortSignal) {
-    this.allowed = false;
+    this.allowed = false; this.publishAllowed = false;
     await this.identity(context, signal);
     const [raw, caps] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
@@ -94,6 +95,13 @@ export class SodaFactoryPullInline extends LitElement {
     check(pull.ref.external_id === context.parent.external_id);
     this.allowed = pull.state === 'open' && (pull.head.commit === null || pull.head.commit === context.head) &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.review.comment');
+    this.publishAllowed = this.allowed;
+    const publish = object(caps).inline_publish;
+    if (publish !== undefined) {
+      const fact = object(publish);
+      check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(fact.state)));
+      this.publishAllowed &&= fact.state === 'allowed';
+    }
   }
   private async refresh() {
     const context = this.current, signal = this.lifetime.signal;
@@ -145,7 +153,10 @@ export class SodaFactoryPullInline extends LitElement {
     if (!context || !this.live(context, signal) || this.busy || this.saved.blocked) return;
     this.busy = true; this.message = ''; this.touch();
     try {
-      if (action === 'submit' || action === 'retry') { await this.admit(context, signal); check(this.allowed); }
+      if (action === 'submit' || action === 'retry') {
+        await this.admit(context, signal);
+        check(this.allowed && ((action === 'retry' ? this.writing.pending?.draft : draft) || this.publishAllowed));
+      }
       else await this.identity(context, signal);
       const latest = readInlineWriting(context), shown = this.writing.pending;
       check(!latest.blocked && latest.raw === this.saved.raw);
@@ -217,6 +228,7 @@ export class SodaFactoryPullInline extends LitElement {
     const available = this.allowed && !this.busy && !pending && !this.saved.blocked && this.saved.durable;
     return html`<section class="soda-pull-inline" aria-label="Changed files and inline comments" aria-busy=${this.busy}>
       <p role="status">${this.message}</p>
+      <button type="button" @click=${this.refresh} ?disabled=${this.busy}>Refresh inline actions</button>
       ${this.saved.blocked ? html`<button type="button" @click=${this.reload}>Reload saved inline writing</button>` : ''}
       ${this.files.map(file => {
         const threads: DiffThread[] = this.threads.filter(thread => {
@@ -237,13 +249,14 @@ export class SodaFactoryPullInline extends LitElement {
         ${!pending ? html`<button type="button" @click=${this.discardDraft}
           ?disabled=${this.busy || this.saved.blocked || !this.saved.durable}>Discard unsent inline draft</button>` : ''}
       </section>` : ''}
+      ${draft && !pending && this.allowed && !this.publishAllowed ? html`<p>Add this comment to a draft review. Direct publication is currently unavailable.</p>` : ''}
       ${draft && !pending ? html`<div class="soda-pull-inline-actions">
         <button type="button" @click=${() => this.act('submit', true)} ?disabled=${!available || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Add to draft review</button>
-        <button type="button" @click=${() => this.act('submit', false)} ?disabled=${!available || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Post inline comment</button>
+        <button type="button" @click=${() => this.act('submit', false)} ?disabled=${!available || !this.publishAllowed || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Post inline comment</button>
       </div>` : ''}
       ${pending ? html`<p>Saved inline comment command. Check its outcome before another comment.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.saved.blocked}>Check saved inline comment</button>
-        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.saved.blocked || pending.cancel || !this.allowed}>Retry original inline comment</button>
+        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.saved.blocked || pending.cancel || !this.allowed || (!pending.draft && !this.publishAllowed)}>Retry original inline comment</button>
         <button type="button" @click=${() => this.act('cancel')} ?disabled=${this.busy || this.saved.blocked}>Cancel saved inline comment</button>` : ''}
     </section>`;
   }
