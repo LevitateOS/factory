@@ -30950,6 +30950,10 @@ assets: its real private PR read three commits one per page, refused the old
 head after a native update, read the new head and denied reads after grant
 removal. The populated PR files/reviews/threads and host login/logout checks
 also passed (`/home/vince/tmp/fhp-1793961998465/{run.log,host/result.json}`).
+The current Fountain host edge journey also passed six actual files including
+a 7,000-line Unicode change, truncated patch, binary, rename and deletion,
+plus same-number repository isolation and stale/cross-repository cursor
+refusal (`/home/vince/tmp/fhe-1793962268806/{run.log,host/result.json}`).
 Rendered PR browser controls, GitHub-connected desktop use and final packaged
 products remain unverified. T08-READ and its T07-EDIT/T11 prerequisites stay
 pending/active as recorded in the table.
