@@ -11,6 +11,26 @@ for that work. Do not infer a passed gate from a proposed design, a source build
 fixture, or an earlier component probe. Do not place credentials or private
 profile contents in this file.
 
+## Standalone requirements audit dependencies — 2026-11-06
+
+The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
+security probes, sign-ins, keyring operations or model calls and closes no gate.
+Its proposed corrections are not adopted policy or verified fixes. Retain all
+existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
+
+| Remaining responsibility | Exact blocker/dependency and relevant files | Already established | Still unverified; evidence needed to close |
+| --- | --- | --- | --- |
+| Supported existing Muse session reuse with scoped native custody | A01/A16/A19: execution accepts Factory-scoped `Credentials`/`TokenCapability`; supported delegation/discovery of the existing Muse session is missing. Files: `lib/desktop-runtime/src/credentials.rs`, `factory_provider/{launch,owner,tool}.rs`, `factory_provider.rs`. User selected reuse and browser-link fallback, not a mandatory new sign-in/unlock journey. | Source establishes the current custody/layout restrictions and isolated placeholder path. The attempted fresh-login additions were removed before this audit baseline. | Supported provider integration; correct account/billing lane; actual authenticated finite work; renewal/withdrawal/restart behavior; secrets remain outside workers and Go/browser DTOs. A successful CLI usage response or a proposed adapter alone cannot close this. |
+| Local resource authority and reachable standalone consent | A02/A03: desktop omits operator/capacity admission ports but effective authority still requires their grants; environment/placement currently require remote repository admin. Decide local-owner versus remote-authority contracts. Files: `pkg/factory/runtime/native_product{,_environment}.go`, `service/runtime_grants.go`, `effective_authority.go`. | Source traces refusal and fixture-only direct seeding; no production user bootstrap path was found. | Implement the selected reachable consent path, then prove actual admission and denial for the local owner, other profiles/accounts and remote effects. Do not synthesize grants or weaken remote authorization to make dispatch pass. |
+| Review identity and permission projection | A04/A14: native policy admits one account for author/reviewer while automatic merge requires distinct identities; human UI review capability uses repository Writer. Decide review/delivery identity and use action-specific authority. Files: `runtime/native_policies.go`, `runtime/native_product_capabilities.go`, `factory/merge.go`, `github_provider/capabilities.rs`. | Source establishes both mismatches; official GitHub role documentation permits Read-role PR reviews. Human mutation admission is separate from UI capability projection. | Actual selected account/grant/subject checks, required branch-protection behavior and denial/readback evidence for the corrected path. No broader privilege matrix or automation merge is qualified here. |
+| Isolated environment, installed support and degraded recovery | A15/A17/A18: decide supported project/tool provisioning, bounds, installed Linux/user model and safe browsing after execution-start/recovery failures. Files: `supervisor.rs`, `prepared_setup.rs`, `agent_environment.rs`, broker/worker systemd templates and `lib/native-process/src/scope.rs`. | Source establishes startup coupling, system-path/network restrictions, per-tree/script/file-size limits and user-specific templates. Earlier actual worker evidence remains at its recorded scope. | Qualify the selected supported real workloads and installed path with exact source/process/resource/custody/retirement facts. Preserve uncertain runs; any changed boundary needs matching evidence. D3, custody/authentication/IPC and all other broad gates remain open. Hacking-like probes still require a user-started Daybreak session. |
+
+These are dependencies for the existing gates, not replacement completion
+criteria. Existing entries retain their recorded evidence scope; the audit names
+contracts that need review before dependent implementation resumes.
+
+## Existing evidence and open gates
+
 Placement update (2026-11-06): `pkg/store/factory_placement.go` now owns local
 GitHub controller CAS, generations and retirement, under the existing repository
 dispatch gate. Desktop controls use current provider administration, never a

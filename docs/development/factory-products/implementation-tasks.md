@@ -15,6 +15,14 @@ implemented Linux first with Tauri. Slice completion requires the stated result,
 not merely file movement. M = mechanical extraction, C = named behavior correction, V = real
 verification. Native/installed evidence remains a separate gate from source checks.
 
+**Standalone requirements review (2026-11-06):** the
+[assumptions audit](standalone-assumptions-audit.md) identifies active appliance
+assumptions, native composition mismatches and unresolved product decisions.
+Read its affected findings before resuming dependent implementation. Its
+recommendations are not automatically adopted requirements. Existing slice
+statuses/evidence and open security gates remain unchanged; the implementation
+goal remains paused.
+
 ## Remaining product milestones (2026-11-06)
 
 T11-WRITES is complete for connected human mutations; eighteen rows remain pending. Earlier
