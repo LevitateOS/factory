@@ -352,7 +352,7 @@ async fn run(mut job: Job, channel: NativeChannel, alive: Arc<AtomicBool>) {
             biased;
             _ = job.cancelled.changed() => Err("native product request cancelled".into()),
             reply = request_authenticated_async(&channel.socket, &job.method, &job.target, "soda-native", &job.body, &channel.key,
-                &headers, Duration::from_secs(15), Limits {header_bytes:16384,body_bytes:2*1024*1024}) =>
+                &headers, WAIT, Limits {header_bytes:16384,body_bytes:2*1024*1024}) =>
                 reply.map_err(|_| "native product response is unavailable".into()),
         }
     };

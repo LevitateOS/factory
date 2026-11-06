@@ -124,21 +124,9 @@ func (s nativeHumanPendingReviews) PrepareHumanReview(ctx context.Context, q fac
 }
 func (s nativeHumanPendingReviews) prepare(ctx context.Context, q factory.HumanReviewCommand, hint nativeReviewPreparationFacts) (factory.HumanReviewCapture, error) {
 	var empty factory.HumanReviewCapture
-	// Draft summary editing needs its own explicit semantics. Submission never
-	// silently edits a draft or creates a replacement for the observed record.
-	if q.Event == factory.HumanReviewDraft {
-		return empty, factoryservice.ErrHumanReviewUnavailable
-	}
-	var first nativePendingReviewFacts
-	if nativeDecode(hint.Pending, &first) != nil {
-		return empty, errNativeRead
-	}
-	var observed nativeReviewPreparationFacts
-	if err := s.read(ctx, nativeRead{Kind: "pull_pending_review_snapshot", Repository: s.repository.ExternalID, Number: uint32(q.Number)}, &observed); err != nil {
-		return empty, err
-	}
+	observed := hint
 	var pending nativePendingReviewFacts
-	if observed.Repository != hint.Repository || observed.RepositoryNodeID != hint.RepositoryNodeID || observed.ActorNodeID != hint.ActorNodeID || observed.Pull.ExternalID != hint.Pull.ExternalID || observed.Pull.NodeID != hint.Pull.NodeID || observed.Pull.Number != uint64(q.Number) || observed.Pull.Head != hint.Pull.Head || nativeDecode(observed.Pending, &pending) != nil || pending.NodeID != first.NodeID || !nativeReviewNode(pending.NodeID, 1024) || pending.ExternalID != nil && !nativeRemoteID(*pending.ExternalID) || pending.State != "pending" || len(pending.Body) > 65536 || !utf8.ValidString(pending.Body) || strings.ContainsRune(pending.Body, '\x00') || pending.Commit == nil || !collaboration.ValidCommitID(collaboration.CommitID(*pending.Commit)) || pending.CommentsCount == nil || observed.PendingSHA256 == nil || !nativeCreationDigest(*observed.PendingSHA256) || observed.CommentsSnapshot == nil || !observed.CommentsSnapshot.valid() || observed.CommentsSnapshot.Count != *pending.CommentsCount {
+	if observed.Pull.Number != uint64(q.Number) || nativeDecode(observed.Pending, &pending) != nil || !nativeReviewNode(pending.NodeID, 1024) || pending.ExternalID != nil && !nativeRemoteID(*pending.ExternalID) || pending.State != "pending" || len(pending.Body) > 65536 || !utf8.ValidString(pending.Body) || strings.ContainsRune(pending.Body, '\x00') || pending.Commit == nil || !collaboration.ValidCommitID(collaboration.CommitID(*pending.Commit)) || pending.CommentsCount == nil || observed.PendingSHA256 == nil || !nativeCreationDigest(*observed.PendingSHA256) || observed.CommentsSnapshot == nil || !observed.CommentsSnapshot.valid() || observed.CommentsSnapshot.Count != *pending.CommentsCount {
 		return empty, errNativeRead
 	}
 	if _, err := s.mapRead(ctx, observed.Repository, observed.Name, nil, nil); err != nil {
@@ -146,12 +134,15 @@ func (s nativeHumanPendingReviews) prepare(ctx context.Context, q factory.HumanR
 	}
 	body, hash := (*string)(nil), nativeCreationSHA([]byte(pending.Body))
 	// The canonical empty summary means preserve the saved pending writing.
-	// A future explicit-clear UI command must carry that distinct intent.
-	if q.Body != "" {
+	// Draft editing supplies explicit writing, including an empty clear.
+	if q.Body != "" || q.Event == factory.HumanReviewDraft {
 		text := q.Body
 		body, hash = &text, nativeCreationSHA([]byte(text))
 	}
 	p := nativePendingReviewPreparation{Version: 2, Account: s.identity.Account.ExternalID, NotAfter: time.Now().Add(5 * time.Minute).Unix(), ActorNodeID: observed.ActorNodeID, EffectiveBodySHA256: hash, Review: nativePendingReviewWrite{Repository: observed.Repository, RepositoryNodeID: observed.RepositoryNodeID, PullID: observed.Pull.ExternalID, PullNodeID: observed.Pull.NodeID, Number: uint64(q.Number), Head: observed.Pull.Head, ReviewID: pending.ExternalID, ReviewNodeID: pending.NodeID, ReviewCommit: *pending.Commit, PendingSHA256: *observed.PendingSHA256, CommentsSHA256: observed.CommentsSnapshot.IdentityWritingSHA256, CommentsCount: *pending.CommentsCount, Event: string(q.Event), Body: body}}
+	if q.Event == factory.HumanReviewDraft {
+		p.Version = 3
+	}
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return empty, err
@@ -171,11 +162,11 @@ func (s nativeHumanPendingReviews) decode(ctx context.Context, c factory.HumanRe
 	if c.Authority != s.humanAuthority() {
 		return p, factoryservice.ErrHumanReviewNamespace
 	}
-	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || p.Version != 2 || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || !nativeReviewNode(p.ActorNodeID, 1024) || !nativeCreationDigest(p.EffectiveBodySHA256) {
+	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || (p.Version != 2 && p.Version != 3) || (p.Version == 3) != (c.Request.Event == factory.HumanReviewDraft) || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || !nativeReviewNode(p.ActorNodeID, 1024) || !nativeCreationDigest(p.EffectiveBodySHA256) {
 		return p, factoryservice.ErrHumanReviewConflict
 	}
 	w := p.Review
-	if w.Repository != s.repository.ExternalID || !nativeReviewNode(w.RepositoryNodeID, 1024) || !nativeRemoteID(w.PullID) || !nativeReviewNode(w.PullNodeID, 1024) || w.Number != uint64(c.Request.Number) || !collaboration.ValidCommitID(collaboration.CommitID(w.Head)) || w.ReviewID != nil && !nativeRemoteID(*w.ReviewID) || !nativeReviewNode(w.ReviewNodeID, 1024) || !collaboration.ValidCommitID(collaboration.CommitID(w.ReviewCommit)) || !nativeCreationDigest(w.PendingSHA256) || !nativeCreationDigest(w.CommentsSHA256) || w.CommentsCount > 1000 || w.Event != string(c.Request.Event) || c.Request.Event == factory.HumanReviewDraft || (w.Body == nil) != (c.Request.Body == "") || w.Body != nil && (*w.Body != c.Request.Body || p.EffectiveBodySHA256 != nativeCreationSHA([]byte(*w.Body))) {
+	if w.Repository != s.repository.ExternalID || !nativeReviewNode(w.RepositoryNodeID, 1024) || !nativeRemoteID(w.PullID) || !nativeReviewNode(w.PullNodeID, 1024) || w.Number != uint64(c.Request.Number) || !collaboration.ValidCommitID(collaboration.CommitID(w.Head)) || w.ReviewID != nil && !nativeRemoteID(*w.ReviewID) || !nativeReviewNode(w.ReviewNodeID, 1024) || !collaboration.ValidCommitID(collaboration.CommitID(w.ReviewCommit)) || !nativeCreationDigest(w.PendingSHA256) || !nativeCreationDigest(w.CommentsSHA256) || w.CommentsCount > 1000 || w.Event != string(c.Request.Event) || (w.Body == nil) != (c.Request.Body == "" && c.Request.Event != factory.HumanReviewDraft) || w.Body != nil && (*w.Body != c.Request.Body || p.EffectiveBodySHA256 != nativeCreationSHA([]byte(*w.Body))) {
 		return p, factoryservice.ErrHumanReviewConflict
 	}
 	return p, nil
@@ -191,7 +182,16 @@ func validateNativePendingReviewReceipt(c factory.HumanReviewCapture, p nativePe
 	if w.Body != nil {
 		source = "explicit"
 	}
-	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != w.Repository || r.RepositoryNodeID != w.RepositoryNodeID || r.PullID != w.PullID || r.PullNodeID != w.PullNodeID || r.Number != w.Number || r.Head != w.Head || r.HeadCondition != "preflight_and_causal_reply" || r.Event != w.Event || r.BodySource != source || !sameNativeReviewID(r.Pending.ExternalID, w.ReviewID) || r.Pending.NodeID != w.ReviewNodeID || r.Pending.SHA256 != w.PendingSHA256 || r.ExpectedComments.Count == nil || *r.ExpectedComments.Count != w.CommentsCount || r.ExpectedComments.IdentityWritingSHA256 != w.CommentsSHA256 || !nativeRemoteID(r.Review.ExternalID) || w.ReviewID != nil && r.Review.ExternalID != *w.ReviewID || r.Review.NodeID != w.ReviewNodeID || r.Review.State != state || r.Review.BodySHA256 != p.EffectiveBodySHA256 || r.Review.Commit == nil || *r.Review.Commit != w.ReviewCommit || r.Review.CommentsCount == nil || r.Review.AuthorNodeID != p.ActorNodeID || r.Review.SubmittedAt == nil || r.PublicationVerification != "required" || r.ProviderResponse.Protocol != "github_graphql_submit_review" || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) || r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {
+	if len(raw) > 4096 || nativeDecode(raw, &r) != nil {
+		return r, factoryservice.ErrHumanReviewConflict
+	}
+	protocol := "github_graphql_submit_review"
+	validState := r.Review.State == state
+	if p.Version == 3 {
+		protocol = "github_graphql_update_pending_review"
+		validState = r.Review.State == "pending" || r.Review.State == "commented" || r.Review.State == "approved" || r.Review.State == "changes_requested" || r.Review.State == "dismissed"
+	}
+	if !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != w.Repository || r.RepositoryNodeID != w.RepositoryNodeID || r.PullID != w.PullID || r.PullNodeID != w.PullNodeID || r.Number != w.Number || r.Head != w.Head || r.HeadCondition != "preflight_and_causal_reply" || r.Event != w.Event || r.BodySource != source || !sameNativeReviewID(r.Pending.ExternalID, w.ReviewID) || r.Pending.NodeID != w.ReviewNodeID || r.Pending.SHA256 != w.PendingSHA256 || r.ExpectedComments.Count == nil || *r.ExpectedComments.Count != w.CommentsCount || r.ExpectedComments.IdentityWritingSHA256 != w.CommentsSHA256 || !nativeRemoteID(r.Review.ExternalID) || w.ReviewID != nil && r.Review.ExternalID != *w.ReviewID || r.Review.NodeID != w.ReviewNodeID || !validState || r.Review.BodySHA256 != p.EffectiveBodySHA256 || r.Review.Commit == nil || *r.Review.Commit != w.ReviewCommit || r.Review.CommentsCount == nil || r.Review.AuthorNodeID != p.ActorNodeID || (r.Review.SubmittedAt == nil) != (p.Version == 3 && r.Review.State == "pending") || r.PublicationVerification != "required" || r.ProviderResponse.Protocol != protocol || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) || r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {
 		return r, factoryservice.ErrHumanReviewConflict
 	}
 	return r, nil
@@ -215,6 +215,24 @@ func (s nativeHumanPendingReviews) LookupHumanReview(ctx context.Context, c fact
 		return collaboration.OperationLookup{}, err
 	}
 	if o.Record.Completion == collaboration.CompletionComplete || *r.Review.CommentsCount != p.Review.CommentsCount {
+		return o, nil
+	}
+	if p.Version == 3 {
+		if r.Review.State != "pending" {
+			return o, nil
+		}
+		var current nativeReviewPreparationFacts
+		if s.read(ctx, nativeRead{Kind: "pull_pending_review_snapshot", Repository: p.Review.Repository, Number: uint32(p.Review.Number)}, &current) != nil {
+			return o, nil
+		}
+		var pending nativePendingReviewFacts
+		w := p.Review
+		if current.Repository != w.Repository || current.RepositoryNodeID != w.RepositoryNodeID || current.ActorNodeID != p.ActorNodeID || current.Pull.ExternalID != w.PullID || current.Pull.NodeID != w.PullNodeID || current.Pull.Number != w.Number || nativeDecode(current.Pending, &pending) != nil || pending.NodeID != w.ReviewNodeID || !nativeInlineObservedID(&r.Review.ExternalID, pending.ExternalID) || pending.State != "pending" || nativeCreationSHA([]byte(pending.Body)) != p.EffectiveBodySHA256 || pending.Commit == nil || *pending.Commit != w.ReviewCommit || pending.CommentsCount == nil || *pending.CommentsCount != w.CommentsCount || current.CommentsSnapshot == nil || !current.CommentsSnapshot.valid() || current.CommentsSnapshot.Count != w.CommentsCount || current.CommentsSnapshot.IdentityWritingSHA256 != w.CommentsSHA256 {
+			return o, nil
+		}
+		next := *o.Record
+		next.Completion, next.Reason = collaboration.CompletionComplete, "native_pending_review_edit_verified"
+		o.Record = &next
 		return o, nil
 	}
 	var published nativeReviewPublication

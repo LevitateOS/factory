@@ -2261,11 +2261,12 @@ pub(super) async fn branch_expiry(
 
 // This explicit connected mode uses the user's gh grant only inside the native
 // checker/custody owner. Fixture JSON contains repository/PR IDs, never a token.
-pub(super) async fn connected_merges(
+pub(super) async fn connected_writes(
     production: &Path,
     payload: &Path,
     config: &Path,
     profile: &Path,
+    reviews: bool,
 ) -> Result<()> {
     use soda_desktop_runtime::{
         credentials::{Credentials, Token},
@@ -2335,7 +2336,7 @@ pub(super) async fn connected_merges(
         .ok_or("canonical repository absent")?;
     let cases = config["cases"].as_array().ok_or("fixture cases absent")?;
     let mut saved = Vec::new();
-    for case in cases {
+    for case in cases.iter().filter(|_| !reviews) {
         let method = case["method"].as_str().ok_or("method absent")?;
         let number = case["number"].as_u64().ok_or("number absent")?;
         let id = format!("{number:032x}");
@@ -2347,7 +2348,10 @@ pub(super) async fn connected_merges(
         let lookup = format!("{path}/commands/{id}");
         let result = match call(&runtime, "POST", &path, &body).await {
             Ok(result) => result,
-            Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            Err(error) => {
+                println!("Connected write transport: {error}");
+                call(&runtime, "GET", &lookup, &[]).await?
+            }
         };
         if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true {
             fs::write(
@@ -2376,6 +2380,82 @@ pub(super) async fn connected_merges(
         saved.push((lookup, result));
         println!("PASS: connected {method} merge, replay and normal readback");
     }
+    if reviews {
+        let number = config["reviews"]["number"]
+            .as_u64()
+            .ok_or("review fixture absent")?;
+        let path =
+            format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/reviews");
+        let mut review_id = None;
+        for (index, event, body) in [
+            (0, "draft", "Initial draft 茶"),
+            (1, "draft", "Edited draft 🌋"),
+            (2, "draft", ""),
+            (3, "comment", "Publish reviewed writing 茶"),
+        ] {
+            let id = format!("{:032x}", 9000 + index);
+            let writing = serde_json::to_vec(&json!({"command_id":id,"event":event,"body":body}))?;
+            let lookup = format!("{path}/commands/{id}");
+            let started = Instant::now();
+            let mut result = match call(&runtime, "POST", &path, &writing).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            };
+            println!(
+                "Connected review stage {index}: {} ms before completion read",
+                started.elapsed().as_millis()
+            );
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true
+            {
+                fs::write(
+                    root.join("review-failed-projection.json"),
+                    serde_json::to_vec_pretty(&result.1)?,
+                )?;
+                return Err(format!(
+                    "connected review stage {index} failed with HTTP {}",
+                    result.0
+                )
+                .into());
+            }
+            let selected = result.1["review"]["external_id"]
+                .as_str()
+                .ok_or("review destination absent")?
+                .to_owned();
+            if let Some(previous) = &review_id {
+                ensure(
+                    previous == &selected,
+                    "draft edit/publication changed review identity",
+                )?;
+            } else {
+                review_id = Some(selected.clone());
+            }
+            let read = call(&runtime, "GET", &format!("{path}/{selected}"), &[]).await?;
+            if read.0 != 200
+                || read.1["body"] != body
+                || read.1["state"]
+                    != if event == "draft" {
+                        "pending"
+                    } else {
+                        "commented"
+                    }
+            {
+                fs::write(
+                    root.join("review-readback-failed.json"),
+                    serde_json::to_vec_pretty(&read.1)?,
+                )?;
+                return Err("connected review normal readback differs".into());
+            }
+            ensure(
+                call(&runtime, "POST", &path, &writing).await? == result,
+                "review replay changed the outcome",
+            )?;
+            saved.push((lookup, result));
+            println!("PASS: connected review stage {index}, exact writing/readback/replay");
+        }
+    }
     runtime.stop()?;
     runtime = NativeSupervisor::start(payload, production, profile)?;
     for (lookup, result) in &saved {
@@ -2387,9 +2467,13 @@ pub(super) async fn connected_merges(
     credentials.withdraw(&connection).await?;
     runtime.stop()?;
     fs::write(
-        root.join("connected-merge-result.json"),
+        root.join(if reviews {
+            "connected-review-result.json"
+        } else {
+            "connected-merge-result.json"
+        }),
         serde_json::to_vec_pretty(
-            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":["merge","squash","rebase"],"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false}),
+            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false}),
         )?,
     )?;
     println!("PASS: connected merge records survived native restart; owned local account removed");

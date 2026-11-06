@@ -30766,3 +30766,24 @@ and `/home/vince/tmp/fgw-1106.cqnVjg/pg-merge.log`. Earlier fixture assertion fa
 remain in that owned evidence root. Remaining T11 work is review/inline modes,
 provider condition/capability projection and their connected write/recovery checks;
 shared UI, installed and broader security gates remain open.
+
+### T11-WRITES: pending review summary editing (2026-11-06)
+
+Review capture version 3 edits the exact own pending review, including explicit
+empty-body clearing; version 2 keeps its existing submission semantics. Both use
+the same dispatch fence. A saved causal edit precedes separate current draft/
+summary/comment-set verification. Unexpected publication stays unfinished; no
+atomic pending-state/body condition is claimed. Preparation now reuses one
+complete native snapshot, and product HTTP uses its owner's existing wait bound.
+
+Connected creation, edit, clear and publication preserved one review ID and exact
+Unicode/empty writing through normal reads, replay and native restart. Existing
+dummy-provider pending submission/recovery regression, Go/native builds,
+boundaries and whitespace passed. Results:
+`/home/vince/tmp/fgw-1106.cqnVjg/reviews2/connected-review-result.json` and
+`pending-regression/pending-review-product-result.json` under that same root.
+The earlier indeterminate edit remains fenced in its original owned profile;
+matching current text never supplies a causal result. A rejected direct diagnostic
+mutation was not run; subsequent writes used Factory's fenced native path.
+Remaining: new inline reviews, immediate inline publication, supported capability
+projection and remaining connected write/permission/recovery evidence. T11 stays active.

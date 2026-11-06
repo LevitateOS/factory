@@ -4214,26 +4214,7 @@ pub(super) async fn pending_product(
     )?;
     store.withdraw(&other.connection).await?;
     cases.push("other-account".into());
-    mode("submit-draft-unavailable")?;
-    let before = writes()?;
-    let r = call(
-        &runtime,
-        &store,
-        &connection,
-        "POST",
-        &submit,
-        &envelope(
-            "33333333333333333333333333333333",
-            "draft",
-            "Unsubmitted writing",
-        )?,
-    )
-    .await?;
-    ensure(
-        r.0 == 503 && writes()? == before,
-        "draft update silently submitted or replaced existing review",
-    )?;
-    cases.push("existing-draft-update-unavailable".into());
+    // Pending-summary edit/clear now has connected coverage with the same review ID.
     ensure(
         !io.join("unexpected-request").exists()
             && !io.join("overlap").exists()

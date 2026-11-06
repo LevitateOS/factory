@@ -36,7 +36,7 @@ func (s nativeHumanReviews) writer(ctx context.Context, c factory.HumanReviewCap
 	switch header.Version {
 	case 1:
 		return nativeHumanNewReviews{s.nativeProductAccount}, nil
-	case 2:
+	case 2, 3:
 		return nativeHumanPendingReviews{s.nativeProductAccount}, nil
 	default:
 		return nil, factoryservice.ErrHumanReviewConflict

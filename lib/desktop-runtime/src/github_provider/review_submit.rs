@@ -13,6 +13,7 @@ use serde_json::json;
 use std::time::Instant;
 
 pub(super) const SUBMIT:&str="mutation FactorySubmitPendingReview($input:SubmitPullRequestReviewInput!){submitPullRequestReview(input:$input){pullRequestReview{id fullDatabaseId state body author{__typename login ... on User{id}} repository{id} pullRequest{id fullDatabaseId number headRefOid repository{id}} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
+const UPDATE:&str="mutation FactoryEditPendingReview($input:UpdatePullRequestReviewInput!){updatePullRequestReview(input:$input){pullRequestReview{id fullDatabaseId state body author{__typename login ... on User{id}} repository{id} pullRequest{id fullDatabaseId number headRefOid repository{id}} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PendingReviewSubmit {
@@ -51,8 +52,9 @@ impl PendingReviewSubmit {
             || self.comments_count > 1000
             || !matches!(
                 self.event.as_str(),
-                "comment" | "approve" | "request_changes"
+                "draft" | "comment" | "approve" | "request_changes"
             )
+            || self.event == "draft" && self.body.is_none()
             || self
                 .body
                 .as_ref()
@@ -71,6 +73,7 @@ impl PendingReviewSubmit {
     }
     fn state(&self) -> &'static str {
         match self.event.as_str() {
+            "draft" => "PENDING",
             "comment" => "COMMENTED",
             "approve" => "APPROVED",
             _ => "CHANGES_REQUESTED",
@@ -146,13 +149,13 @@ impl Client {
             }
             permit.dispatch("github_review_submission_expired")?;
             let response = self.post_pending_review(q, token).await?;
-            let raw = &response.value["data"]["submitPullRequestReview"]["pullRequestReview"];
+            let raw = &response.value["data"][if q.event == "draft" { "updatePullRequestReview" } else { "submitPullRequestReview" }]["pullRequestReview"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
             if raw["id"] != q.review_node_id
                 || q.review_id
                     .as_deref()
                     .is_some_and(|expected| expected != id)
-                || raw["state"] != q.state()
+                || if q.event == "draft" { !matches!(raw["state"].as_str(), Some("PENDING" | "COMMENTED" | "APPROVED" | "CHANGES_REQUESTED" | "DISMISSED")) } else { raw["state"] != q.state() }
                 || raw["body"] != body
                 || raw["author"]["__typename"] != "User"
                 || raw["author"]["id"] != actor
@@ -173,10 +176,10 @@ impl Client {
                 .ok_or_else(Failure::protocol)?;
             let dates = json!({"created_at":raw["createdAt"],"updated_at":raw["updatedAt"],"submitted_at":raw["submittedAt"]});
             let submitted = r::date(&dates, "submitted_at")?;
-            if submitted.is_null() {
+            if q.event != "draft" && submitted.is_null() || (raw["state"] == "PENDING") != submitted.is_null() {
                 return Err(Failure::protocol());
             }
-            let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"head_condition":"preflight_and_causal_reply","event":q.event,"body_source":if q.body.is_some(){"explicit"}else{"unchanged_pending"},"pending":{"external_id":q.review_id,"node_id":q.review_node_id,"sha256":q.pending_sha256},"expected_comments":{"count":q.comments_count,"identity_writing_sha256":q.comments_sha256},"review":{"external_id":id,"node_id":raw["id"],"state":q.state().to_ascii_lowercase(),"body_sha256":super::transport::sha256(body.as_bytes()),"commit":q.review_commit,"comments_count":comments,"author_node_id":actor,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted},"publication_verification":"required","provider_response":{"protocol":"github_graphql_submit_review","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
+            let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"head_condition":"preflight_and_causal_reply","event":q.event,"body_source":if q.body.is_some(){"explicit"}else{"unchanged_pending"},"pending":{"external_id":q.review_id,"node_id":q.review_node_id,"sha256":q.pending_sha256},"expected_comments":{"count":q.comments_count,"identity_writing_sha256":q.comments_sha256},"review":{"external_id":id,"node_id":raw["id"],"state":r::text(raw,"state")?.to_ascii_lowercase(),"body_sha256":super::transport::sha256(body.as_bytes()),"commit":q.review_commit,"comments_count":comments,"author_node_id":actor,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted},"publication_verification":"required","provider_response":{"protocol":if q.event=="draft"{"github_graphql_update_pending_review"}else{"github_graphql_submit_review"},"status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
             super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
@@ -192,13 +195,16 @@ impl Client {
     ) -> super::Result<super::transport::MutationResponse> {
         let review = q.review_node_id.clone();
         let event = q.wire_event();
+        let draft = q.event == "draft";
         let body = q.body.clone();
         let token = zeroize::Zeroizing::new(token.to_vec());
         self.provider_request(
             move |http| {
                 let mut input = serde_json::Map::new();
                 input.insert("pullRequestReviewId".into(), serde_json::json!(review));
-                input.insert("event".into(), serde_json::json!(event));
+                if !draft {
+                    input.insert("event".into(), serde_json::json!(event));
+                }
                 if let Some(body) = body {
                     input.insert("body".into(), serde_json::json!(body));
                 }
@@ -206,7 +212,7 @@ impl Client {
                     super::transport::graphql(
                         http,
                         &token,
-                        SUBMIT,
+                        if draft { UPDATE } else { SUBMIT },
                         serde_json::json!({"input":input}),
                     )?,
                     1024 * 1024,

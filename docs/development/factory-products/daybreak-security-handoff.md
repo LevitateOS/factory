@@ -3607,3 +3607,13 @@ This closes the merge implementation dependency, with the stated supported API
 conditions. Fresh Factory OAuth scope, remaining review/inline behavior,
 capability/UI/installed qualification and all previously open broad gates remain
 unverified. No Daybreak work or security gate completion is claimed.
+
+Pending-summary update (2026-11-06): native `review_submit.rs` and Go
+`native_product_pending_reviews.go` support exact pending-summary editing/clearing
+with version-3 captures and separate preservation verification. Real same-account
+create/edit/clear/publish, writing readback, replay and restart passed under
+`/home/vince/tmp/fgw-1106.cqnVjg/reviews2/`; the existing pending regression passed.
+The provider has no atomic pending-state/body condition; unexpected publication
+remains unfinished. Cross-account draft visibility, privilege matrices, fresh
+Factory OAuth scope and installed admission remain unverified. The gh grant was
+withdrawn from owned local custody after the successful check. Broader gates stay open.

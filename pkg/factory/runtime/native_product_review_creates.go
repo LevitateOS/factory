@@ -101,7 +101,7 @@ func (s nativeHumanNewReviews) PrepareHumanReview(ctx context.Context, q factory
 		return empty, err
 	}
 	var observed nativeReviewPreparationFacts
-	if err := s.read(ctx, nativeRead{Kind: "pull_review_preparation", Repository: s.repository.ExternalID, Number: uint32(q.Number)}, &observed); err != nil {
+	if err := s.read(ctx, nativeRead{Kind: "pull_pending_review_snapshot", Repository: s.repository.ExternalID, Number: uint32(q.Number)}, &observed); err != nil {
 		return empty, err
 	}
 	if observed.Repository != s.repository.ExternalID || !nativeReviewNode(observed.RepositoryNodeID, 1024) || !nativeReviewNode(observed.ActorNodeID, 1024) || !nativeRemoteID(observed.Pull.ExternalID) || !nativeReviewNode(observed.Pull.NodeID, 1024) || observed.Pull.Number != uint64(q.Number) || !collaboration.ValidCommitID(collaboration.CommitID(observed.Pull.Head)) || observed.VisiblePendingCount == nil || *observed.VisiblePendingCount > 1000 || len(observed.Pending) == 0 {
