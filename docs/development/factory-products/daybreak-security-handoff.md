@@ -3833,13 +3833,25 @@ Protected-branch write check (2026-11-06): the authorized public disposable
 four-line head into `check-base-branch-rule-1106`; that base branch requires one
 approval and enforces the rule for admins. A coherent source-built WebKit,
 native, Go and PostgreSQL run in
-`/home/vince/tmp/factory-branch-rule-coherent-1106.3M3UEV/` exited 0. The
-shared merge UI disabled its action; a direct production-path merge attempt did
-not report a committed effect, and the normal product read kept the same open
-PR/head. The owned local test account was withdrawn. This proves the scoped
-protected-branch refusal for that fixture, not the full branch-rule or permission
-matrix. The observer did not retain the attempt's command ID, HTTP class or
-causal provider receipt, so it does not close exact-command recovery. Installed
+`/home/vince/tmp/factory-branch-rule-coherent-1106.3M3UEV/` exited 0, but its
+observer accepted an unfinished command as a refusal. The shared merge UI
+disabled its action and the PR stayed open, but the original stopped PostgreSQL
+journal shows command `3023a7d539af47ac9a7253d51165c186` was reserved with
+`effect=indeterminate`, `completion=needs_intervention`,
+`reason=invalid_github_response` and no causal receipt. Preserve that profile
+and command; current PR state cannot settle it. The owned local test account was
+withdrawn. The producer now checks mergeable state before Go capture and native
+dispatch; the acceptance check requires POST 403 and exact-command GET 404.
+The first corrected run under
+`/home/vince/tmp/factory-branch-rule-fixed-1106.NoMAlQ/` found zero merge
+commands in its original stopped journal, but its 503 response exposed a wrong
+product error class. Go now returns HTTP 403 for current provider merge-rule
+denial. A fresh coherent source-built WebKit/native/Go/PostgreSQL run under
+`/home/vince/tmp/factory-branch-rule-admitted-1106.XTR8go/` exited 0: the
+shared UI disabled merge; direct POST returned 403; GET for the exact new command
+returned 404; normal product read kept the same open PR/head; the owned account
+was removed. This closes only this public protected-branch pre-capture case.
+It does not close the full branch-rule or permission matrix. Installed
 write admission and credential isolation still require T14-PACKAGE and a real
 installed-host journey. D1 automation still requires T09-EXECUTION, admitted
 T12 placement dispatch and D3 execution. The two private Free-plan team commands

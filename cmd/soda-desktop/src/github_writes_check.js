@@ -347,11 +347,9 @@
       const path = 'factory/collaboration/repositories/' + repo + '/pulls/' + fixture.number + '/merges';
       const response = await merge().context.transport.request(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({command_id: command, method: 'merge', message: 'Protected branch refusal fixture', expected_head: fixture.head})});
-      assert(response.status === 403 || response.status === 409 || response.ok, 'protected merge returned an unexpected status');
-      if (response.ok) {
-        const result = await response.json();
-        assert(result.command_id === command && result.effect !== 'committed', 'protected merge reported a committed effect');
-      }
+      assert(response.status === 403, 'protected merge was captured or returned an unexpected status');
+      const lookup = await merge().context.transport.request(path + '/commands/' + command, {method: 'GET'});
+      assert(lookup.status === 404, 'protected merge captured a command');
       const after = await read('');
       assert(after.ref.external_id === fixture.pull_id && after.state === 'open' && after.head.commit === fixture.head,
         'protected pull changed after denied merge');

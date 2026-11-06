@@ -83,6 +83,7 @@ impl Reader<'_> {
                 "pull_id":r::id(&pull["id"])?,"pull_node_id":pull["node_id"],"number":number,
                 "head":pull["head"]["sha"],"base":pull["base"]["sha"],"state":r::text(&pull,"state")?,
                 "draft":r::boolean(&pull,"draft")?,"merged":r::boolean(&pull,"merged")?,
+                "mergeable":r::boolean(&pull,"mergeable")?,"mergeable_state":r::string(&pull,"mergeable_state")?,
                 "archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,
                 "push":r::boolean(&repository["permissions"],"push")?,
                 "methods":{"merge":r::boolean(&repository,"allow_merge_commit")?,"squash":r::boolean(&repository,"allow_squash_merge")?,"rebase":r::boolean(&repository,"allow_rebase_merge")?},
@@ -119,6 +120,7 @@ impl Client {
                 || facts["pull_node_id"] != q.pull_node_id || facts["head"] != q.head || facts["base"] != q.base
             { return Err(Failure::new(409,"github_merge_inputs_changed")); }
             if facts["state"] != "open" || facts["draft"] != false || facts["merged"] != false
+                || facts["mergeable"] != true || !matches!(facts["mergeable_state"].as_str(), Some("clean" | "unstable"))
                 || facts["archived"] != false || facts["disabled"] != false || facts["push"] != true
                 || facts["methods"][&q.method] != true
             { return Err(Failure::new(403,"github_merge_unavailable")); }

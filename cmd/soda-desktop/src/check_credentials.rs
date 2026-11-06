@@ -179,7 +179,7 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "real_github": true,
                     "webkit": true,
                     "production_ui_ipc_go_pg_native": true,
-                    "protected_branch_merge_refused": true,
+                    "protected_branch_merge_refused_before_capture": true,
                     "owned_account_removed": true,
                     "oauth_source": "user_authorized_gh_grant",
                     "installed_qualified": false,
