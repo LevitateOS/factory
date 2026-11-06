@@ -30972,6 +30972,15 @@ the rendered body back after reload (`/home/vince/tmp/fie-1793964258926/{run.log
 This proves the Fountain source host journey, not GitHub-connected desktop
 writes or a final installed release. T07-EDIT remains pending.
 
+The connected GitHub desktop/WebKit check then opened owned issue #9 from the
+shared list, saved its title and Markdown description through the shared editor,
+posted an ordinary comment, and read both writes back through normal Factory
+routes. The edit remained visible after navigation; the isolated local account
+was removed. Evidence:
+`/home/vince/tmp/factory-issue-ui-1106.dV0tHg/{run2.log,github-ui-write-result.json}`.
+The complete connected feed/Factory-detail/Back and retained-draft journey still
+needs qualification before T07-EDIT can close; installed desktop remains T13.
+
 ### T08-READ/T08-WRITE: Fountain shared PR browser journey (2026-11-06)
 
 The Fountain repository header now opens the shared PR route. A fresh real
