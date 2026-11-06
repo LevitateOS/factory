@@ -3725,3 +3725,13 @@ distinct append (`32a36835d51c4b91b117c33766290a01`) and verified pending-writin
 preservation in `factory-webkit-inline-continue-1106.v978BG`. This does not settle
 the old command or prove cross-account draft privacy/notification behavior.
 Those actor/organization and installed-host dependencies above remain open.
+
+The actual source-built WebKit PR13 continuation passed summary edit/clear,
+publication with retained inline writing, direct range publication and ordinary
+merge, with committed UI outcomes and normal readback. Evidence is
+`/home/vince/tmp/factory-webkit-inline-continue-1106.v978BG/{final.log,github-ui-write-result.json}`;
+its owned local account was withdrawn. This uses the authorized gh grant and
+proves neither fresh Factory OAuth scope nor other-actor privacy/notifications,
+organization authority, physical input or installed admission. Existing scoped
+closure evidence requirements above remain unchanged; no broad security gate
+or earlier uncertain command is closed by this successful continuation.

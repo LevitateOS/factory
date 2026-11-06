@@ -419,6 +419,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
         #[cfg(feature = "native-check")]
+        if arg == "--check-github-writes" {
+            checking = true;
+            continue;
+        }
+        #[cfg(feature = "native-check")]
         if arg == "--check-issue-read" {
             issue_read_check = true;
             continue;

@@ -3,6 +3,139 @@ use super::*;
 use soda_desktop_runtime::credentials::{Account, CredentialState, Error, Provider, Token};
 use std::io::Read;
 
+pub fn start_github_writes(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = github_writes(&app).await {
+            eprintln!("Native GitHub UI write check failed: {error}");
+            app.exit(1);
+        }
+    });
+}
+async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
+    use soda_desktop_runtime::github_provider::Owner;
+    let state = app.state::<Desktop>();
+    let root = state
+        .paths
+        .profile
+        .parent()
+        .ok_or("owned fixture root missing")?;
+    let fixture: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(root.join("github-write-fixture.json"))
+            .map_err(|_| "owned write fixture missing")?,
+    )
+    .map_err(|_| "invalid owned write fixture")?;
+    ensure(
+        std::fs::read_to_string(root.join("connected-fixture-repository"))
+            .map_err(|_| "owned fixture marker missing")?
+            == fixture["repository"]
+                .as_str()
+                .ok_or("fixture repository missing")?,
+        "owned fixture mismatch",
+    )?;
+    ensure(
+        fixture["name"]
+            .as_str()
+            .is_some_and(|s| s.split('/').count() == 2)
+            && fixture["number"].as_u64().is_some_and(|n| n > 0),
+        "fixture PR missing",
+    )?;
+    let store = state.credentials()?;
+    let accounts = store.status().await.map_err(|e| e.to_string())?;
+    let connection = if !accounts.is_empty() {
+        ensure(
+            fixture["resume_pending"] == true && accounts.len() == 1,
+            "unexpected owned check account",
+        )?;
+        accounts[0].connection.clone()
+    } else {
+        let mut authorization = std::process::Command::new("gh")
+            .args(["auth", "token", "--hostname", "github.com"])
+            .output()
+            .map_err(|_| "authorized gh grant unavailable")?;
+        ensure(
+            authorization.status.success(),
+            "authorized gh grant unavailable",
+        )?;
+        while authorization
+            .stdout
+            .last()
+            .is_some_and(u8::is_ascii_whitespace)
+        {
+            authorization.stdout.pop();
+        }
+        let token = Token::new(authorization.stdout).map_err(|e| e.to_string())?;
+        let mut owner = tokio::task::spawn_blocking(Owner::start)
+            .await
+            .map_err(|_| "native provider unavailable")?
+            .map_err(|e| e.to_string())?;
+        let (account, token) = owner
+            .client()
+            .verify(token)
+            .await
+            .map_err(|e| e.to_string())?;
+        tokio::task::spawn_blocking(move || owner.stop())
+            .await
+            .map_err(|_| "native provider did not join")?
+            .map_err(|e| e.to_string())?;
+        store
+            .store(account, token)
+            .await
+            .map_err(|e| e.to_string())?
+            .connection
+    };
+    let script = include_str!("github_writes_check.js")
+        .replace(
+            "__CONNECTION__",
+            &serde_json::to_string(&connection).unwrap(),
+        )
+        .replace("__FIXTURE__", &serde_json::to_string(&fixture).unwrap());
+    app.get_webview_window("main")
+        .ok_or("main window missing")?
+        .eval(&script)
+        .map_err(|_| "native write observer unavailable".into())
+}
+pub fn finish_github_writes(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let result = async {
+            let state = app.state::<Desktop>();
+            let store = state.credentials()?;
+            let accounts = store.status().await.map_err(|e| e.to_string())?;
+            ensure(accounts.len() == 1, "unexpected owned write-check accounts")?;
+            store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
+            let root = state.paths.profile.parent().ok_or("owned fixture root missing")?;
+            let fixture: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(root.join("github-write-fixture.json"))
+                    .map_err(|_| "owned fixture missing")?,
+            ).map_err(|_| "invalid fixture")?;
+            write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                "real_github": true,
+                "webkit": true,
+                "production_ui_ipc_go_pg_native": true,
+                "inline_draft_created": fixture["resume_pending"] != true || fixture["append_pending"] == true,
+                "summary_first_created": fixture["summary_first"] == true && fixture["resume_pending"] != true,
+                "pending_inline_readback": true,
+                "pending_summary_edit_clear": fixture["summary_first"] == true && fixture["resume_pending"] != true,
+                "inline_only_local_summary": fixture["summary_first"] != true || fixture["resume_pending"] == true,
+                "submit_pending_review": true,
+                "immediate_range": true,
+                "ordinary_merge": true,
+                "readback": true,
+                "owned_account_removed": true,
+                "oauth_source": "user_authorized_gh_grant",
+                "factory_device_scope_qualified": false,
+            }))?;
+            Ok::<(), String>(())
+        }.await;
+        match result {
+            Ok(()) => check::github_writes_done(app),
+            Err(error) => {
+                eprintln!("Native write-check cleanup failed: {error}");
+                app.exit(1);
+            }
+        }
+    });
+}
+
 /// Publish only the same public prompt already rendered by the production UI.
 /// The device code and grants never enter the observer's files or JS arguments.
 pub fn publish_consent_prompt(app: &tauri::AppHandle) -> Result<(), String> {

@@ -51,7 +51,9 @@ pub fn timeout(app: &tauri::AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(
-            if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
+            if std::env::args_os().any(|arg| arg == "--check-github-writes") {
+                600
+            } else if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
                 1000
             } else if std::env::args_os().any(|arg| arg == "--check-issue-read") {
                 180
@@ -82,6 +84,14 @@ pub fn consent_done(app: &tauri::AppHandle) {
         println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
     }
     quit(app.clone());
+}
+pub fn github_writes_done(app: tauri::AppHandle) {
+    app.state::<Desktop>()
+        .check
+        .stage
+        .store(2, Ordering::SeqCst);
+    println!("PASS: owned GitHub write journey through actual WebKit and production UI/IPC/Go/PostgreSQL/native custody; see github-ui-write-result.json for exact scope; owned local account removed");
+    quit(app);
 }
 fn control_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.state::<Desktop>()
@@ -419,6 +429,12 @@ pub fn report(
         app.exit(1);
         return Ok(());
     }
+    if std::env::args_os().any(|arg| arg == "--check-github-writes")
+        && stage == "github-writes-complete"
+    {
+        crate::check_credentials::finish_github_writes(app);
+        return Ok(());
+    }
     if state.check.control && stage.starts_with("control-") {
         return control(&app, &stage);
     }
@@ -504,6 +520,10 @@ pub fn report(
     println!(
         "Native desktop mounted: shared UI, private bridge refusals, stream and multiple windows"
     );
+    if std::env::args_os().any(|arg| arg == "--check-github-writes") {
+        crate::check_credentials::start_github_writes(app);
+        return Ok(());
+    }
     if state.check.credentials {
         crate::check_credentials::start(app);
         return Ok(());

@@ -31066,3 +31066,29 @@ pending-writing preservation; its read-only journal summary is under
 The earlier decoder-refused command remains uncertain and fenced. Go/native
 builds, TypeScript and emitted UI passed; the full WebKit continuation and all
 previously open connected/installed/cross-account gates remain open.
+
+### T11-WRITES: actual WebKit review/inline/merge continuation (2026-11-06)
+
+The opt-in native desktop owner now drives the production shared UI through
+normal account/repository selection, saved review commands and ordinary reads.
+The owned PR13 continuation passed remote summary edit/explicit clear, pending
+review publication with both file comments preserved, direct multiline inline
+publication and ordinary merge. Each mutation required the UI's committed event
+and normal provider readback; only lookup/read refresh was repeated. Result:
+`/home/vince/tmp/factory-webkit-inline-continue-1106.v978BG/{final.log,github-ui-write-result.json}`.
+Its prior corrected append and causal-summary journal records remain in that
+same root. The final run resumed an existing review; it did not create another
+initial review or draft inline comment. The owned local account was withdrawn.
+
+PR12's earlier WebKit continuation also preserved locally typed inline-only
+summary writing across navigation and published the existing draft before its
+line-selection observer stopped:
+`/home/vince/tmp/factory-webkit-local-summary-1106.aZiQ6p/current.log`.
+That is partial evidence, not a completed journey. Uncertain earlier commands
+remain fenced in their original profiles.
+
+This is source-built Linux WebKit plus real GitHub/Go/PostgreSQL/native custody
+using the authorized gh grant. Physical keyboard/focus, fresh Factory OAuth scope,
+installed release and cross-account/team/privacy/notification qualification remain
+open. Earlier API/recovery evidence is reused; T11 and the full product remain
+unfinished.
