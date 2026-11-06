@@ -4,26 +4,28 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/project"
 )
 
 // Sponsorship authorizes factory use of one provider connection for one
 // repository and its assigned roles within an explicit allowance. It
-// references the canonical broker grant, connection and credential
-// generation and records its execution actor and Project; it never copies
+// records either an appliance broker grant or an exact native credential
+// binding, together with its execution actor and workspace. It never copies
 // credential custody. GrantedBy remains the policy sponsor.
 type Sponsorship struct {
-	Roles            []string `json:"roles"`
-	Repository       int64    `json:"repository,string"`
-	Revision         int64    `json:"revision"`
-	GrantedBy        int64    `json:"granted_by,string"`
-	ActorID          int64    `json:"actor_id,string"`
-	Generation       int64    `json:"generation"`
-	Connection       string   `json:"connection"`
-	GrantID          string   `json:"grant_id"`
-	ProjectID        string   `json:"project_id"`
-	AllowanceMinutes int      `json:"allowance_minutes"`
-	Active           bool     `json:"active"`
+	Native           *NativeSponsorship `json:"native,omitempty"`
+	Roles            []string           `json:"roles"`
+	Repository       int64              `json:"repository,string"`
+	Revision         int64              `json:"revision"`
+	GrantedBy        int64              `json:"granted_by,string"`
+	ActorID          int64              `json:"actor_id,string"`
+	Generation       int64              `json:"generation"`
+	Connection       string             `json:"connection"`
+	GrantID          string             `json:"grant_id"`
+	ProjectID        string             `json:"project_id"`
+	AllowanceMinutes int                `json:"allowance_minutes"`
+	Active           bool               `json:"active"`
 	// Sources admits declared research source refs on this connection
 	// (R10.2). A research subject may only name granted sources; an
 	// empty grant leaves repo-only inquiry.
@@ -33,16 +35,38 @@ type Sponsorship struct {
 	Collections []string `json:"collections,omitempty"`
 }
 
+// NativeSponsorship binds a desktop account's exact credential revision. The
+// connection and canonical sponsor live on Sponsorship; no appliance grant or
+// execution actor is invented for a local keyring account.
+type NativeSponsorship struct {
+	Profile          collaboration.ProfileID `json:"profile"`
+	CredentialSHA256 string                  `json:"credential_sha256"`
+}
+
+func (n NativeSponsorship) Validate() error {
+	if !collaboration.ValidID(string(n.Profile)) || !ValidDigest(n.CredentialSHA256) {
+		return errors.New("invalid native sponsorship credential binding")
+	}
+	return nil
+}
+
 // MaxGrantEntries bounds one sponsorship source/collection allowlist:
 // an initial explicit grant set, not a corpus limit.
 const MaxGrantEntries = 8
 
 func (s Sponsorship) Validate() error {
-	if s.Repository <= 0 || s.Revision < 0 || s.GrantedBy <= 0 || s.ActorID <= 0 || s.Generation <= 0 {
+	if s.Repository <= 0 || s.Revision < 0 || s.GrantedBy <= 0 || s.ActorID <= 0 {
 		return errors.New("invalid sponsorship identity")
 	}
-	if s.Connection == "" || len(s.Connection) > 128 || s.GrantID == "" || len(s.GrantID) > 128 || !project.ValidID(s.ProjectID) {
+	if s.Connection == "" || len(s.Connection) > 128 || !project.ValidID(s.ProjectID) {
 		return errors.New("invalid sponsorship connection reference")
+	}
+	if s.Native != nil {
+		if s.Native.Validate() != nil || !collaboration.ValidID(s.Connection) || s.ActorID != s.GrantedBy || s.Generation != 0 || s.GrantID != "" {
+			return errors.New("native sponsorship has conflicting credential authority")
+		}
+	} else if s.Generation <= 0 || s.GrantID == "" || len(s.GrantID) > 128 {
+		return errors.New("invalid sponsorship broker grant")
 	}
 	if len(s.Roles) == 0 || len(s.Roles) > 2 {
 		return errors.New("sponsorship must permit one or both factory roles")

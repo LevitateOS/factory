@@ -254,6 +254,27 @@ death and lost-reply teardown still need exact process/custody/root observations
 and durable Go settlement under those conditions. Hacking-like checks require a
 user-started Daybreak session. No broad D3, credential or IPC gate is closed.
 
+Native sponsorship update: `credentials.rs` derives a nonsecret digest from the
+exact profile/connection/key revision after capability renewal. The enrolled
+account owner exposes that digest through `factory_provider/launch.rs` and
+`collaboration.rs`; provider tokens and raw keyring revision markers stay native.
+`service/sponsorships.go` and `runtime/native_sponsorship.go` bind the allowance to
+the current canonical sponsor and native workspace. Store dispatch/preflight and
+version-3 intents capture the digest; Rust checks it before execution. Versions
+1/2 remain retained evidence, without acquiring public Go launch authority.
+The PostgreSQL packet/preflight case passed in
+`/home/vince/tmp/fspg6.3Vvaf6/run.log`. Actual dummy-keyring binding, canonical
+sponsorship save, different-digest launch refusal before worker creation,
+finite execution/recovery and withdrawal after key removal passed in
+`/home/vince/tmp/fspt6.fM3B3A/run.log`. Visibility and native producer authority were
+declared, so this does not prove provider ownership/spending, connected settings
+admission, actual key replacement or a positive canonical Go launch. Closing those
+tasks needs a verified model account enrolled by the shell, current authenticated
+repository/sponsor observations, exact captured grant/worker facts, real credential
+replacement/withdrawal observations and durable Go settlement. Native account
+selection and policy/publication actor bindings remain implementation blockers.
+No existing uncertain run or broad custody/IPC/D3 gate is closed.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
 checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy

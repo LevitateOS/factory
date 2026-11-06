@@ -31516,3 +31516,20 @@ resources), and Quit with the exact retained cancelled-process receipt passed in
 Earlier cancelled/interrupted profiles remain unresolved; this does not settle
 their missing receipts. Connected provider cancellation, dirty coder recovery,
 adversarial teardown and the complete admitted coordinator journey remain open.
+
+Native sponsorship now uses the enrolled desktop account's exact profile/key
+revision digest and the canonical sponsor actor, without appliance broker grant
+IDs or generations. The shared sponsorship service and native product binding
+save the allowance through the existing coordinator transaction; withdrawal of
+one's saved allowance works after credential removal. Dispatch captures that
+digest in version-3 launch intents; current Go admission and Rust launch require
+it to match the selected credential. Versions 1/2 remain readable for retained
+evidence; the public Go launcher cannot newly launch an unbound historical intent.
+The affected PostgreSQL packet/preflight case passed in
+`/home/vince/tmp/fspg6.3Vvaf6/run.log`. Actual native keyring observation,
+sponsorship save, wrong-digest launch refusal, finite coder execution/recovery and
+allowance withdrawal after key removal passed in `fspt6.fM3B3A/run.log` under the
+same parent. Repository visibility/launch authority remained declared fixtures;
+no provider inference or positive end-to-end Go launch is claimed. Shell model
+account enrollment/selection, native policy/publication actor bindings, task and
+checkpoint ports and the real admitted provider journey remain unfinished.

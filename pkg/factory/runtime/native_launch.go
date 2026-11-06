@@ -17,7 +17,7 @@ var _ execution.RunLauncher = NativeExecution{}
 
 func (p NativeExecution) LaunchRun(ctx context.Context, request execution.LaunchRequest) (execution.RunObservation, error) {
 	var empty execution.RunObservation
-	if p.Store == nil || request.Validate() != nil || request.Kind != collaboration.Native || request.Native.Workspace.Profile != p.Config.Profile || request.Native.Workspace.InstanceID != p.Instance {
+	if p.Store == nil || request.Validate() != nil || request.Kind != collaboration.Native || request.Native.CredentialSHA256 == "" || request.Native.Workspace.Profile != p.Config.Profile || request.Native.Workspace.InstanceID != p.Instance {
 		return empty, execution.ErrLaunch
 	}
 	cap, err := p.Store.AuthorizeNativeLaunch(ctx, request)

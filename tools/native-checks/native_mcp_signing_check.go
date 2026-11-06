@@ -30,6 +30,7 @@ import (
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
 	factoryruntime "github.com/levitateos/factory/pkg/factory/runtime"
+	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
@@ -638,6 +639,11 @@ func nativeIntentFixture(profile, instance, operation, argument string) error {
 			return errors.New("native intent fixture scope differs")
 		}
 		launch := execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: run.Native.Provenance.WorktreeID}, Tool: run.Native.Tool, BundleSHA256: run.Native.BundleSHA256, PromptSHA256: run.Native.PromptSHA256, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: run.Native.Provenance.BrokerRun}
+		account, err := (factoryruntime.NativeExecution{Config: config, Instance: instance}).ExecutionAccount(ctx, input.Connection)
+		if err != nil {
+			return err
+		}
+		launch.CredentialSHA256 = account.CredentialSHA256
 		request := execution.LaunchRequest{Kind: collaboration.Native, Native: &launch, Input: project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: run.ProjectID, Role: run.Role, Preparation: "f" + strings.Repeat("0", 24), Harness: run.Native.Tool.Harness, HarnessVers: run.Native.Tool.Version, Model: run.Model, Assignment: run.Native.PromptSHA256, SourceCommit: run.InputSHA, Connection: input.Connection, Actor: 1, Deadline: run.Deadline, ExecutionPhase: project.ExecutionReview}, Prompt: []byte(input.Prompt), HarnessSHA256: run.Native.Tool.SHA256}}
 		request.Input.Run.Effort = factory.DefaultEffort
 		request.Input.Run.Contributor = factory.DefaultContributor
@@ -1204,6 +1210,8 @@ func main() {
 			err = nativePreparationFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-owned-execution" {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
+			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 		} else if os.Args[3] == "check-native-observation" {
@@ -1227,6 +1235,89 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// Declared repository visibility; actual native keyring/owner observation,
+// canonical grant transaction and withdrawal after key removal.
+func nativeSponsorshipFixture(profile, instance, connection string, active bool) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	id, err := os.ReadFile(filepath.Join(profile, "native-recovery-canonical.id"))
+	if err != nil {
+		return err
+	}
+	run, err := db.FactoryRun(ctx, string(id))
+	if err != nil {
+		return err
+	}
+	intent, err := execution.ParseNativeIntent(run.Native.Intent)
+	if err != nil || intent.Version != 3 || intent.Connection != connection {
+		return errors.New("native sponsorship fixture lacks exact credential binding")
+	}
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	var repository collaboration.RepositoryID
+	if err = rawDB.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, run.ProjectID).Scan(&repository); err != nil {
+		return err
+	}
+	environment, err := db.EnvironmentGrant(ctx, int64(repository))
+	if err != nil {
+		return err
+	}
+	actor := collaboration.ActorID(environment.Owner)
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	coordinator := control.NewCoordinator(db, port, port)
+	defer coordinator.Close()
+	read := 0
+	service := factoryservice.Sponsorships{Store: db, Writer: coordinator,
+		Visibility: func(ctx context.Context, selected collaboration.ActorID, repo collaboration.RepositoryID) error {
+			if selected != actor || repo != repository {
+				return errors.New("declared fixture visibility changed")
+			}
+			return ctx.Err()
+		}, Custody: func(ctx context.Context, _ collaboration.ActorID, _ collaboration.RepositoryID, selected string) (factoryservice.SponsorshipCustody, error) {
+			read++
+			account, err := port.ExecutionAccount(ctx, selected)
+			if err != nil {
+				return factoryservice.SponsorshipCustody{}, err
+			}
+			return factoryservice.SponsorshipCustody{Repository: repository, Connection: selected, Project: run.ProjectID, Native: &account}, nil
+		}}
+	in := factoryservice.SponsorshipChange{Roles: []string{run.Role}, AllowanceMinutes: 5, Active: active}
+	if !active {
+		prior, err := db.Sponsorship(ctx, int64(repository), connection)
+		if err != nil {
+			return err
+		}
+		in.ExpectedRevision = prior.Revision
+		if _, err := port.ExecutionAccount(ctx, connection); err == nil {
+			return errors.New("removed native credential remained available")
+		}
+	}
+	if _, err := service.Apply(ctx, actor, "native-source-fixture", repository, connection, in); err != nil {
+		return err
+	}
+	saved, err := db.Sponsorship(ctx, int64(repository), connection)
+	if err != nil {
+		return err
+	}
+	if saved.Validate() != nil || saved.Native == nil || saved.Native.Profile != config.Profile || saved.Native.CredentialSHA256 != intent.Native.CredentialSHA256 || saved.ActorID != int64(actor) || saved.Generation != 0 || saved.GrantID != "" || saved.Active != active || active && read != 1 || !active && read != 0 {
+		return errors.New("native sponsorship lost credential identity or invented a broker grant")
+	}
+	fmt.Println("PASS: actual native credential binding and canonical sponsorship; active:", active, "; withdrawal needs no removed key")
+	return nil
 }
 
 // Declared Go permissions in a disposable ledger; the native source/setup work

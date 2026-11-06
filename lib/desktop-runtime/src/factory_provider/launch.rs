@@ -33,6 +33,18 @@ impl Account {
     pub(crate) fn connection(&self) -> &str {
         &self.capability.account().connection
     }
+    pub(crate) async fn observe(&self, profile: &str) -> io::Result<Value> {
+        let current = self
+            .credentials
+            .renew_capability(&self.capability)
+            .await
+            .map_err(|_| denied())?;
+        let binding = self
+            .credentials
+            .credential_fingerprint(&current)
+            .map_err(|_| denied())?;
+        Ok(json!({"profile":profile,"connection":self.connection(),"credential_sha256":binding}))
+    }
 }
 fn denied() -> io::Error {
     io::Error::new(
@@ -87,6 +99,16 @@ pub(crate) async fn launch(
         .renew_capability(&account.capability)
         .await
         .map_err(|_| denied())?;
+    if let Some(expected) = intent.credential_sha256() {
+        if account
+            .credentials
+            .credential_fingerprint(&capability)
+            .map_err(|_| denied())?
+            != expected
+        {
+            return Err(denied());
+        }
+    }
     let mcp = WorkerMcp::connected(
         channel.clone(),
         &intent,

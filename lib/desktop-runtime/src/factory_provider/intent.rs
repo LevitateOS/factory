@@ -47,6 +47,8 @@ struct Wire {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Native {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    credential_sha256: String,
     workspace: Workspace,
     tool: Tool,
     bundle_sha256: String,
@@ -89,7 +91,7 @@ impl LaunchIntent {
             serde_json::from_str(raw).map_err(|_| refused("native intent shape invalid"))?;
         let n = &wire.native;
         if wire.kind != "factory_native_launch_intent"
-            || !matches!(wire.version, 1 | 2)
+            || !matches!(wire.version, 1 | 2 | 3)
             || !hex(&wire.run, 32)
             || !text(&wire.workspace, 128)
             || !hex(&wire.connection, 32)
@@ -108,7 +110,7 @@ impl LaunchIntent {
         }
         if wire.version == 1
             && (!wire.model.is_empty() || !wire.effort.is_empty() || wire.contributor)
-            || wire.version == 2
+            || wire.version >= 2
                 && (wire.model.is_empty()
                     || !matches!(
                         wire.effort.as_str(),
@@ -116,6 +118,11 @@ impl LaunchIntent {
                     ))
         {
             return Err(refused("native intent harness profile invalid"));
+        }
+        if wire.version < 3 && !n.credential_sha256.is_empty()
+            || wire.version == 3 && !hex(&n.credential_sha256, 64)
+        {
+            return Err(refused("native intent credential binding invalid"));
         }
         let intent = Self {
             raw: raw.into(),
@@ -148,6 +155,9 @@ impl LaunchIntent {
     pub fn connection(&self) -> &str {
         &self.wire.connection
     }
+    pub(super) fn credential_sha256(&self) -> Option<&str> {
+        (self.wire.version == 3).then_some(self.wire.native.credential_sha256.as_str())
+    }
     pub(super) fn executable(&self) -> &Path {
         Path::new(&self.wire.native.tool.executable)
     }
@@ -155,7 +165,7 @@ impl LaunchIntent {
         &self.wire.native.tool.sha256
     }
     pub(super) fn current_profile(&self) -> io::Result<soda_execution_protocol::HarnessProfile> {
-        if self.wire.version != 2 {
+        if self.wire.version < 2 {
             return Err(refused("historical native intent cannot start new work"));
         }
         let profile = soda_execution_protocol::HarnessProfile {
@@ -213,7 +223,7 @@ impl LaunchIntent {
             return Err(refused("native intent deadline expired"));
         }
         policy.deadline = policy.deadline.min(Instant::now() + remaining);
-        if self.wire.version == 2 {
+        if self.wire.version >= 2 {
             policy.harness_profile = Some(self.current_profile()?);
         }
         Ok(())

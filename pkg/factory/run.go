@@ -243,10 +243,10 @@ func (r Run) validateProvenance() error {
 			intent, err := execution.ParseNativeIntent(r.Native.Intent)
 			if err != nil || intent.Run != r.ID || intent.Workspace != r.ProjectID ||
 				intent.Role != r.Role || intent.SourceCommit != r.InputSHA || !intent.Deadline.Equal(r.Deadline) ||
-				intent.Version == 2 && intent.Model != r.Model ||
+				intent.Version >= 2 && intent.Model != r.Model ||
 				r.Admission != nil && (r.Admission.Native != nil && intent.Native != *r.Admission.Native ||
 					r.Admission.Authority.SponsorshipConnection != "" && intent.Connection != r.Admission.Authority.SponsorshipConnection ||
-					intent.Version == 2 && (intent.Effort != r.Admission.Policy.Roles[r.Role].Profile.Effort || intent.Contributor != r.Admission.Policy.Roles[r.Role].Profile.Contributor)) {
+					intent.Version >= 2 && (intent.Effort != r.Admission.Policy.Roles[r.Role].Profile.Effort || intent.Contributor != r.Admission.Policy.Roles[r.Role].Profile.Contributor)) {
 				return execution.ErrNativeIntent
 			}
 		}

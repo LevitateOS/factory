@@ -33,14 +33,15 @@ type NativeIntent struct {
 var ErrNativeIntent = errors.New("native launch intent differs from its captured binding")
 
 func (i NativeIntent) Validate() error {
-	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2) ||
+	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2 && i.Version != 3) ||
 		!project.ValidFactoryRunID(i.Run) || !project.ValidID(i.Workspace) ||
 		!project.ValidFactoryRole(i.Role) || !project.ValidCommit(i.SourceCommit) ||
 		!collaboration.ValidText(i.Connection, 128) || i.Deadline.IsZero() ||
 		i.Native.Validate() != nil || i.Native.TrustMode != "isolated_system_worker" {
 		return ErrNativeIntent
 	}
-	if i.Version == 1 && (i.Model != "" || i.Effort != "" || i.Contributor) || i.Version == 2 && (i.Model == "" || !project.ValidTaskEffort(i.Effort)) {
+	if i.Version == 1 && (i.Model != "" || i.Effort != "" || i.Contributor) || i.Version >= 2 && (i.Model == "" || !project.ValidTaskEffort(i.Effort)) ||
+		i.Version < 3 && i.Native.CredentialSHA256 != "" || i.Version == 3 && !validDigest(i.Native.CredentialSHA256) {
 		return ErrNativeIntent
 	}
 	return nil
@@ -65,6 +66,9 @@ func EncodeNativeIntent(request LaunchRequest) (string, error) {
 		Run: run.ID, Workspace: run.Project, Role: run.Role, SourceCommit: run.SourceCommit,
 		Connection: run.Connection, Deadline: run.Deadline, Native: *request.Native,
 		Model: run.Model, Effort: run.Effort, Contributor: run.Contributor}
+	if request.Native.CredentialSHA256 != "" {
+		intent.Version = 3
+	}
 	return intent.Encode()
 }
 

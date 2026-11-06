@@ -471,6 +471,9 @@ async fn managed_execution(
         let intent = LaunchIntent::from_go(&fs::read_to_string(
             profile.join("native-recovery-intent.json"),
         )?)?;
+        if candidate_check {
+            command("check-native-sponsorship", &account.connection)?;
+        }
         command("check-owned-execution", "launch_refused")?;
         if supervisor.execution_ticket(&intent).is_ok() {
             return Err("unadmitted Go launch reached native effects".into());
@@ -485,6 +488,38 @@ async fn managed_execution(
             "scope_digest":scope_digest,"secret":secret,"tools":["factory.context"]}),
         )?;
         let bearer = fs::read_to_string(profile.join("backend.key"))?;
+        if candidate_check {
+            let mut wrong: serde_json::Value = serde_json::from_str(intent.raw())?;
+            let actual = wrong["native"]["credential_sha256"]
+                .as_str()
+                .ok_or("credential binding missing")?;
+            wrong["native"]["credential_sha256"] = serde_json::json!(if actual == "0".repeat(64) {
+                "1".repeat(64)
+            } else {
+                "0".repeat(64)
+            });
+            let mut rejected: serde_json::Value = serde_json::from_slice(&body)?;
+            rejected["intent"] = serde_json::json!(serde_json::to_string(&wrong)?);
+            let response = request_authenticated_async(
+                &profile.join("host.sock"),
+                "POST",
+                "/api/native/execution",
+                "soda-native",
+                &serde_json::to_vec(&rejected)?,
+                &bearer,
+                &[("X-Soda-Native-Instance", ready.instance.as_str())],
+                Duration::from_secs(5),
+                Limits {
+                    header_bytes: 4096,
+                    body_bytes: 512 * 1024,
+                },
+            )
+            .await
+            .map_err(|_| "credential-bound launch refusal unavailable")?;
+            if response.status != 503 || supervisor.execution_ticket(&intent).is_ok() {
+                return Err("native launch used a different sponsored credential".into());
+            }
+        }
         let response = request_authenticated_async(
             &profile.join("host.sock"),
             "POST",
@@ -701,6 +736,16 @@ async fn managed_execution(
             != b"Human edit retained on recovery retry\n"
         {
             return Err("restarted recovery changed human work".into());
+        }
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&health.instance)
+            .arg("withdraw-native-sponsorship")
+            .arg(&account.connection)
+            .status()?
+            .success()
+        {
+            return Err("native sponsorship withdrawal after key removal failed".into());
         }
         restarted.stop()?;
         println!("PASS: exact candidate bundle remains exportable after native restart without the execution registry");

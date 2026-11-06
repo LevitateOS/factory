@@ -786,6 +786,23 @@ async fn dispatch(
     if execution {
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if let crate::factory_provider::port::Call::InspectAccount { connection } = call {
+            let account = state
+                .execution_accounts
+                .read()
+                .map_err(|_| Failure::unavailable())?
+                .get(&connection)
+                .cloned()
+                .ok_or_else(Failure::unavailable)?;
+            let observed = account
+                .observe(&state.channel.profile)
+                .await
+                .map_err(|_| Failure::unavailable())?;
+            if !state.alive.load(Ordering::SeqCst) {
+                return Err(Failure::unavailable());
+            }
+            return Ok(observed);
+        }
         if let crate::factory_provider::port::Call::Recover {
             intent,
             checkout_id,

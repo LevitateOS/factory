@@ -1080,6 +1080,12 @@ func checkApplianceRunPreparationTx(ctx context.Context, tx *sql.Tx, a factory.A
 // for this admission. A retry retains its original assignment history while
 // checking the current role grant and the same approved preparation decisions.
 func checkAssignmentAuthorityTx(ctx context.Context, t *sql.Tx, expected factory.AuthorityRef, a factory.Assignment, grants admissionGrants) error {
+	if (grants.environment.Native == nil) != (grants.sponsorship.Native == nil) {
+		return ErrAdmissionChanged
+	}
+	if account := grants.sponsorship.Native; account != nil && (account.Validate() != nil || account.Profile != grants.environment.Native.Profile) {
+		return ErrAdmissionChanged
+	}
 	var requirement, approval string
 	if err := t.QueryRowContext(ctx, `SELECT decision FROM project_requirement_heads WHERE project_id=$1 FOR UPDATE`, a.ProjectID).Scan(&requirement); err != nil {
 		return admissionChanged(err)

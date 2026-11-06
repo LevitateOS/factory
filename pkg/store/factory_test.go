@@ -133,7 +133,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		s.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
 		s.SaveRepositoryPolicy(ctx, policy),
 		s.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), Active: true}),
-		s.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Generation: 1, Connection: connection, GrantID: "native-fixture", Roles: []string{project.RoleCoder}, AllowanceMinutes: 120, Active: true}),
+		s.SaveSponsorship(ctx, factory.Sponsorship{Repository: int64(repository.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), ProjectID: grant.Project, Native: &factory.NativeSponsorship{Profile: controller.Profile, CredentialSHA256: strings.Repeat("a", 64)}, Connection: connection, Roles: []string{project.RoleCoder}, AllowanceMinutes: 120, Active: true}),
 	} {
 		if err != nil {
 			t.Fatal(err)
@@ -171,13 +171,18 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	dispatchRun.Native = &execution.NativeRecord{Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Retirement: execution.NotStarted,
 		Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: controller.Profile, InstanceID: preparedOwner.InstanceID, WorktreeID: preparedOwner.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}
 	view.Repository = assignment.Repository
-	nativeLaunch := execution.NativeLaunch{Workspace: preparedOwner, Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Runtime: controller.ID, PlacementGeneration: placed.Generation, TrustMode: "isolated_system_worker", BrokerRun: dispatchRun.Native.Provenance.BrokerRun}
+	nativeLaunch := execution.NativeLaunch{CredentialSHA256: strings.Repeat("a", 64), Workspace: preparedOwner, Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Runtime: controller.ID, PlacementGeneration: placed.Generation, TrustMode: "isolated_system_worker", BrokerRun: dispatchRun.Native.Provenance.BrokerRun}
 	staleLaunch := nativeLaunch
 	staleLaunch.PlacementGeneration--
 	if err := s.RecordNativeDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view, staleLaunch); !errors.Is(err, ErrAdmissionChanged) {
 		t.Fatal("stale native dispatch admitted", err)
 	}
 	assertDispatchPacketAbsent(t, s, assignment)
+	wrongCredential := nativeLaunch
+	wrongCredential.CredentialSHA256 = strings.Repeat("b", 64)
+	if err := s.RecordNativeDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view, wrongCredential); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("native dispatch used a different sponsored credential", err)
+	}
 	if err := s.RecordDispatchPacket(ctx, control, assignment, reservation, dispatchRun, view); !errors.Is(err, ErrAdmissionChanged) {
 		t.Fatal("native packet used appliance admission", err)
 	}
@@ -189,7 +194,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		t.Fatal("native dispatch lost admission or intent", err)
 	}
 	intent, err := execution.ParseNativeIntent(capturedNative.Native.Intent)
-	if err != nil || intent.Version != 2 || intent.Model != assignment.Model || intent.Effort != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Effort || intent.Contributor != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Contributor || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
+	if err != nil || intent.Version != 3 || intent.Model != assignment.Model || intent.Effort != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Effort || intent.Contributor != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Contributor || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
 		t.Fatal("native intent differs from admitted packet", err)
 	}
 	// Exercise the native effect preflight against the actual admitted packet.

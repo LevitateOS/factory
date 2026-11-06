@@ -18,11 +18,12 @@ type SponsorshipChange struct {
 	Active           bool     `json:"active"`
 }
 
-// SponsorshipCustody contains nonsecret broker facts for one currently owned
-// connection and this repository's runtime. Grant.UserID is the broker's execution
-// actor, not the canonical sponsor. Project retains the existing opaque runtime
-// reference; the host alone resolves its native binding and connection ownership.
+// SponsorshipCustody contains current nonsecret custody facts. Appliance grants
+// retain the broker execution actor and generation. Native binds an enrolled
+// desktop credential revision and uses the admitted canonical sponsor as actor.
+// Project is the repository's exact workspace; the host resolves account ownership.
 type SponsorshipCustody struct {
+	Native     *factory.NativeSponsorship
 	Repository collaboration.RepositoryID
 	Connection string
 	Project    string
@@ -82,33 +83,59 @@ func (s Sponsorships) Apply(ctx context.Context, actor collaboration.ActorID, pr
 		// Unknown continuity cannot be treated as absence and select a new grant.
 		return empty, err
 	}
-	custody, err := s.Custody(ctx, actor, repository, connection)
-	if err != nil {
-		return empty, err
+	var custody SponsorshipCustody
+	if !in.Active && stored.Native != nil {
+		// Withdrawing one's recorded allowance must not need a still-usable key.
+		if stored.GrantedBy != int64(actor) {
+			return empty, ErrSponsorshipOwnerRequired
+		}
+		custody = SponsorshipCustody{Repository: repository, Connection: connection, Project: stored.ProjectID, Native: stored.Native}
+	} else {
+		custody, err = s.Custody(ctx, actor, repository, connection)
+		if err != nil {
+			return empty, err
+		}
 	}
-	if custody.Repository != repository || custody.Connection != connection || custody.Generation < 1 || !project.ValidID(custody.Project) {
+	if custody.Repository != repository || custody.Connection != connection || !project.ValidID(custody.Project) {
 		return empty, ErrSponsorshipBrokerUnavailable
 	}
 	var selected identity.Grant
-	for _, grant := range custody.Grants {
-		if grant.ConnectionID != connection || grant.ProjectID != custody.Project || grant.Revoked || grant.UserID < 1 || grant.Revision < 0 || grant.ID == "" || len(grant.ID) > 128 {
-			continue
+	if custody.Native != nil {
+		if custody.Native.Validate() != nil || custody.Generation != 0 || len(custody.Grants) != 0 {
+			return empty, ErrSponsorshipBrokerUnavailable
 		}
-		if grant.ID == previous {
-			selected = grant
-			break
+		if in.Active {
+			workspace, native, err := s.Store.ExecutionWorkspace(ctx, repository)
+			if err != nil || native == nil || workspace != custody.Project || native.Profile != custody.Native.Profile {
+				return empty, ErrSponsorshipGrantUnavailable
+			}
 		}
-		if selected.ID == "" || grant.Revision > selected.Revision {
-			selected = grant
+		selected.UserID = int64(actor)
+	} else {
+		if custody.Generation < 1 {
+			return empty, ErrSponsorshipBrokerUnavailable
 		}
-	}
-	if selected.ID == "" {
-		return empty, ErrSponsorshipGrantUnavailable
+		for _, grant := range custody.Grants {
+			if grant.ConnectionID != connection || grant.ProjectID != custody.Project || grant.Revoked || grant.UserID < 1 || grant.Revision < 0 || grant.ID == "" || len(grant.ID) > 128 {
+				continue
+			}
+			if grant.ID == previous {
+				selected = grant
+				break
+			}
+			if selected.ID == "" || grant.Revision > selected.Revision {
+				selected = grant
+			}
+		}
+		if selected.ID == "" {
+			return empty, ErrSponsorshipGrantUnavailable
+		}
 	}
 	sponsorship := factory.Sponsorship{
+		Native:     custody.Native,
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
 		Connection: connection, Roles: in.Roles, AllowanceMinutes: in.AllowanceMinutes, Active: in.Active,
-		GrantID: selected.ID, Generation: custody.Generation, ActorID: selected.UserID, ProjectID: selected.ProjectID,
+		GrantID: selected.ID, Generation: custody.Generation, ActorID: selected.UserID, ProjectID: custody.Project,
 	}
 	if err := sponsorship.Validate(); err != nil {
 		return empty, errors.Join(ErrSponsorshipInvalid, err)

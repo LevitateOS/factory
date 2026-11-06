@@ -197,6 +197,23 @@ pub struct Credentials {
     gate: tokio::sync::Mutex<()>,
 }
 impl Credentials {
+    // Nonsecret identity of this exact profile/connection/key revision. Renew
+    // the capability first; the digest grants no token access and is not a key.
+    pub(crate) fn credential_fingerprint(&self, cap: &TokenCapability) -> Result<String> {
+        use sha2::{Digest, Sha256};
+        if cap.owner != self.owner
+            || cap.expires <= Instant::now()
+            || self.blocked(&cap.connection)?
+        {
+            return Err(Error::Retired);
+        }
+        let mut hash = Sha256::new();
+        for value in [&self.profile, &cap.connection, &cap.revision] {
+            hash.update(value.as_bytes());
+            hash.update([0]);
+        }
+        Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+    }
     pub(crate) fn is_profile(&self, profile: &str) -> bool {
         self.profile == profile
     }

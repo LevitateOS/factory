@@ -18,6 +18,7 @@ type ApplianceLaunch struct {
 // An unplaced NativeRecord cannot synthesize these fields or gain authority by
 // being observed. The admitting store/gateway owns the placement exclusion gate.
 type NativeLaunch struct {
+	CredentialSHA256    string                  `json:"credential_sha256,omitempty"`
 	Workspace           NativeWorkspaceRef      `json:"workspace"`
 	Tool                NativeTool              `json:"tool"`
 	BundleSHA256        string                  `json:"bundle_sha256,omitempty"`
@@ -29,6 +30,9 @@ type NativeLaunch struct {
 }
 
 func (n NativeLaunch) Validate() error {
+	if n.CredentialSHA256 != "" && !validDigest(n.CredentialSHA256) {
+		return ErrLaunch
+	}
 	if !validWorkspaceRef(n.Workspace) || n.Tool.Validate() != nil || !collaboration.ValidID(string(n.Runtime)) || n.PlacementGeneration <= 0 {
 		return ErrLaunch
 	}

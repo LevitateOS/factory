@@ -41,6 +41,9 @@ func (p *attemptPlan) captureRuntime(a *factory.Assignment, run *factory.Run) *e
 	n := execution.NativeLaunch{Workspace: *p.prep.Native, Tool: *p.tool.proof.Native, BundleSHA256: p.prep.State.SourceBundleSHA256,
 		PromptSHA256: a.PromptSHA, Runtime: p.nativeEnvironment.Runtime, PlacementGeneration: p.nativeEnvironment.Generation,
 		TrustMode: "isolated_system_worker", BrokerRun: run.ID}
+	if p.sponsorship.Native != nil {
+		n.CredentialSHA256 = p.sponsorship.Native.CredentialSHA256
+	}
 	a.NativeTool = &n.Tool
 	run.Native = &execution.NativeRecord{Tool: n.Tool, BundleSHA256: n.BundleSHA256, PromptSHA256: n.PromptSHA256, Retirement: execution.NotStarted,
 		Provenance: execution.NativeProvenance{TrustMode: n.TrustMode, Profile: n.Workspace.Profile, InstanceID: n.Workspace.InstanceID, WorktreeID: n.Workspace.WorktreeID, BrokerRun: n.BrokerRun, Custody: execution.NativeCustody{State: execution.NotAcquired}}}

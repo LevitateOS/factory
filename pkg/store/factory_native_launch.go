@@ -64,6 +64,10 @@ func (s *Store) AuthorizeNativeLaunch(ctx context.Context, request execution.Lau
 	if err != nil {
 		return empty, err
 	}
+	account := grants.sponsorship.Native
+	if account == nil || account.Validate() != nil || account.Profile != request.Native.Workspace.Profile || account.CredentialSHA256 != request.Native.CredentialSHA256 {
+		return empty, ErrAdmissionChanged
+	}
 	if err = checkAssignmentAuthorityTx(ctx, tx, assignment.Authority, assignment, grants); err != nil {
 		return empty, err
 	}

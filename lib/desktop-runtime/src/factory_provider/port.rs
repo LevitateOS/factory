@@ -16,6 +16,9 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    InspectAccount {
+        connection: String,
+    },
     Recover {
         intent: String,
         checkout_id: String,
@@ -52,6 +55,9 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::InspectAccount { .. } => {
+            return Err(io::Error::other("native account owner required"))
+        }
         Call::Recover { .. } => {
             return Err(io::Error::other("native work recovery owner required"))
         }

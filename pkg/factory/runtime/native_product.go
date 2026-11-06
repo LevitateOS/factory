@@ -112,6 +112,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Runtime:     collaboration.RuntimeRef{ID: collaboration.RuntimeID(port.operation.config.Profile), Profile: port.operation.config.Profile, Kind: collaboration.Native, Name: "This computer"},
 		AdminAccess: bound.adminAccess}
 	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, EnvironmentAccess: bound.adminAccess, NativeEnvironment: bound.nativeEnvironment}
+	product.Repositories.Sponsorships = factoryservice.Sponsorships{Store: application.Store, Writer: application.Coordinator, Visibility: bound.visible, Custody: bound.sponsorship}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started
