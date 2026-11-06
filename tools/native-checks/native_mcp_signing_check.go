@@ -1770,6 +1770,14 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
+	if os.Getenv("SODA_NATIVE_CHECK_NODE_SETUP") == "1" {
+		tools = append(tools, "node")
+		files["setup.sh"] = []byte("node build.cjs\n")
+		files["check.sh"] = []byte("test \"$(wc -c < dist/app.cjs)\" -gt 262144\ntest \"$(node dist/app.cjs)\" = 'native-node-build'\nprintf 'checked-by-native Node artifact larger than log ceiling\\n'\n")
+		if mode == "output-limit" {
+			files["setup.sh"] = []byte("node -e 'process.stdout.write(\"x\".repeat(262145))'\n")
+		}
+	}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
 	var sourceInputs map[string]string
 	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
@@ -1820,6 +1828,28 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	for !state.Ready {
 		if state.Phase != project.PrepareRunning {
+			if mode == "output-limit" && state.Phase == project.PrepareFailed {
+				if !strings.Contains(state.Output, "setup diagnostic output limit exceeded") {
+					return fmt.Errorf("preparation failed without diagnostic-limit evidence: %s", state.Output)
+				}
+				state, err = port.RetireWorkspacePreparation(ctx, request.Address())
+				if err != nil {
+					return err
+				}
+				if !state.Stopped || state.Ready || state.Retirement != "confirmed" {
+					return errors.New("output-limited preparation retirement unconfirmed")
+				}
+				record, err = db.Preparation(ctx, prep.ID)
+				if err != nil {
+					return err
+				}
+				record.State = state
+				if err = db.ObservePreparation(ctx, record); err != nil {
+					return err
+				}
+				fmt.Println("PASS: setup diagnostic overflow refused readiness and actual preparation resources retired")
+				return nil
+			}
 			return fmt.Errorf("native source did not become ready: %s", state.Phase)
 		}
 		time.Sleep(30 * time.Millisecond)
@@ -1835,6 +1865,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if err = db.ObservePreparation(ctx, record); err != nil {
 			return err
 		}
+	}
+	if mode == "output-limit" {
+		return errors.New("diagnostic overflow falsely became ready")
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {
 		return errors.New("native preparation lacks actual setup/check/source facts")

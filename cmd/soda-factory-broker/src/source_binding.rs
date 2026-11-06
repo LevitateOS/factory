@@ -147,7 +147,11 @@ pub(super) fn agent_setup(
         return Err(denied("agent preparation selector invalid"));
     }
     let proof = receipt(&source.run, profile, digest, &source.candidate, desktop_uid)?;
-    if proof.setup_exit != Some(0) || proof.check_exit != Some(0) || !proof.missing.is_empty() {
+    if proof.output_truncated
+        || proof.setup_exit != Some(0)
+        || proof.check_exit != Some(0)
+        || !proof.missing.is_empty()
+    {
         return Err(denied("agent preparation is not ready"));
     }
     let runs = state()?;
@@ -297,7 +301,11 @@ pub(super) fn read(
     desktop_uid: u32,
 ) -> io::Result<soda_execution_protocol::PreparedSourceResult> {
     let proof = receipt(run, profile, digest, candidate, desktop_uid)?;
-    if proof.setup_exit != Some(0) || proof.check_exit != Some(0) || !proof.missing.is_empty() {
+    if proof.output_truncated
+        || proof.setup_exit != Some(0)
+        || proof.check_exit != Some(0)
+        || !proof.missing.is_empty()
+    {
         return Err(denied("context preparation is not ready"));
     }
     let runs = state()?;

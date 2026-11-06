@@ -197,7 +197,12 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    for mode in ["ready", "pending"] {
+    let modes = if std::env::var("SODA_NATIVE_CHECK_NODE_SETUP").as_deref() == Ok("1") {
+        ["ready", "output-limit"]
+    } else {
+        ["ready", "pending"]
+    };
+    for mode in modes {
         let profile = root.join(format!("preparation-{mode}"));
         let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
         let ready = supervisor.health()?;
@@ -268,7 +273,11 @@ fn managed_preparations(
             return Err("native preparation retirement acknowledgement missing".into());
         }
     }
-    println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
+    if modes.contains(&"pending") {
+        println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
+    } else {
+        println!("PASS: isolated Node artifact build and bounded diagnostic refusal retain exact scoped retirement evidence");
+    }
     Ok(())
 }
 

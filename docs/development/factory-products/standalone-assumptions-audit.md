@@ -49,6 +49,21 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A17 — artifact/log coupling corrected; normal dependency setup pending.**
+  Setup/check diagnostics now use a separate bounded collector. Regular build
+  files use the existing 64 MiB checkout envelope instead of the 256 KiB log cap.
+  A truthful `output_truncated` receipt refuses readiness and dependent native
+  launch/context use, even when the script exits zero; normal historical receipts
+  keep their existing wire shape. The actual Go/Rust/PostgreSQL/systemd preparation
+  check built and ran a captured Node v22.23.2 project with a larger artifact,
+  refused diagnostic overflow and confirmed both retirements in
+  `/home/vince/tmp/fsetup-node7.JzWINh/result.log`. This was offline with system
+  tools and no provider call. The log's inherited final cancellation summary was
+  corrected in the check source; this run supplies no new live-cancellation proof.
+  Toolchain/dependency provisioning, setup network policy, larger source/storage
+  handling and suitable owner-approved budgets remain unfinished. A17 and D3 stay
+  open.
+
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write
   requirements. Account equality with automation actors no longer excludes human
@@ -535,7 +550,8 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 | Candidate/result bundle | 4 MiB | `lib/execution-protocol/src/lib.rs:13` |
 | Each copied prepared tree: coder repository or HOME | 64 MiB / 20,000 entries independently | `cmd/soda-factory-worker/src/agent_environment.rs:56` |
 | Each approved setup/check script | 10 seconds, then kill delay | `cmd/soda-factory-broker/src/prepared_setup.rs:33` |
-| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 256 KiB, using the output constant | `cmd/soda-factory-broker/src/prepared_setup.rs:59` |
+| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 64 MiB, using the existing checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
+| Combined setup/check diagnostics | 256 KiB; truncation refuses readiness independently of process exit | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Retained preparation material | 512 MiB | `cmd/soda-factory-broker/src/preparation_quota.rs:9` |
 | Agent tmpfs | 768 MiB | `cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in:17` |
 

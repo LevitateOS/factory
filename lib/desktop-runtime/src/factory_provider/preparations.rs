@@ -191,7 +191,10 @@ impl Input {
         } else if let Some(receipt) = receipt {
             if !receipt.missing.is_empty() {
                 "waiting"
-            } else if receipt.setup_exit == Some(0) && receipt.check_exit == Some(0) {
+            } else if !receipt.output_truncated
+                && receipt.setup_exit == Some(0)
+                && receipt.check_exit == Some(0)
+            {
                 "ready"
             } else {
                 "failed"

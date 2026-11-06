@@ -168,6 +168,8 @@ pub struct SetupReceipt {
     pub tools: BTreeMap<String, String>,
     pub missing: Vec<String>,
     pub output: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub output_truncated: bool,
 }
 
 /// Captured run choices, never inherited from a CLI home or machine default.

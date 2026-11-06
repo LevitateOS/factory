@@ -343,7 +343,8 @@ impl RunOwner {
                     &candidate,
                     cancellation.with_deadline(deadline),
                 )?;
-                if setup.setup_exit != Some(0)
+                if setup.output_truncated
+                    || setup.setup_exit != Some(0)
                     || setup.check_exit != Some(0)
                     || !setup.missing.is_empty()
                 {

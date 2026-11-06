@@ -1,11 +1,13 @@
 //! Execute only the approved, root-owned entrypoints inside preparer@.service.
 //! No provider account, desktop home, network grant or arbitrary command enters.
-use super::{git, refused, CHECKOUT, OUTPUT, SOURCE};
+use super::{git, refused, CHECKOUT, MAX_CHECKOUT_BYTES, OUTPUT, SOURCE};
 use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::os::fd::OwnedFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::net::UnixStream;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -30,7 +32,9 @@ fn root_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
-fn entry(name: &str, output: &File) -> io::Result<i32> {
+fn entry(name: &str, output: &File) -> io::Result<(i32, bool)> {
+    let (mut reader, writer) = UnixStream::pair()?;
+    let mut retained = output.try_clone()?;
     let mut command = Command::new("/usr/bin/timeout");
     command
         .env_clear()
@@ -54,15 +58,15 @@ fn entry(name: &str, output: &File) -> io::Result<i32> {
         ])
         .arg(format!("{SOURCE}/approved/{name}"))
         .stdin(Stdio::null())
-        .stdout(Stdio::from(output.try_clone()?))
-        .stderr(Stdio::from(output.try_clone()?));
-    // Apply the display-output ceiling to the script and its descendants, not
-    // to Git's preceding source import. The unit bounds memory/tree lifetime.
+        .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
+        .stderr(Stdio::from(OwnedFd::from(writer)));
+    // Build artifacts use the existing checkout envelope. Captured diagnostics
+    // have their own smaller ceiling; they must not limit compiler output files.
     unsafe {
         command.pre_exec(|| {
             let limit = libc::rlimit {
-                rlim_cur: MAX_SETUP_OUTPUT as libc::rlim_t,
-                rlim_max: MAX_SETUP_OUTPUT as libc::rlim_t,
+                rlim_cur: MAX_CHECKOUT_BYTES as libc::rlim_t,
+                rlim_max: MAX_CHECKOUT_BYTES as libc::rlim_t,
             };
             if libc::setrlimit(libc::RLIMIT_FSIZE, &limit) != 0 {
                 return Err(io::Error::last_os_error());
@@ -70,10 +74,47 @@ fn entry(name: &str, output: &File) -> io::Result<i32> {
             Ok(())
         });
     }
-    let status = command.status()?;
-    Ok(status
-        .code()
-        .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)))
+    let mut child = command.spawn()?;
+    // Command retains its configured descriptors across spawn. Close those copies
+    // so the collector can observe EOF when the script's process tree exits.
+    drop(command);
+    let capture = std::thread::spawn(move || -> io::Result<bool> {
+        let mut used = retained.metadata()?.len() as usize;
+        let mut bytes = [0u8; 8192];
+        loop {
+            let count = match reader.read(&mut bytes) {
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                result => result?,
+            };
+            if count == 0 {
+                retained.flush()?;
+                return Ok(false);
+            }
+            let available = MAX_SETUP_OUTPUT.saturating_sub(used);
+            retained.write_all(&bytes[..count.min(available)])?;
+            if count > available {
+                let marker = b"\n[Factory: setup diagnostic output limit exceeded]\n";
+                let prefix = (MAX_SETUP_OUTPUT - marker.len()) as u64;
+                retained.set_len(prefix)?;
+                retained.seek(SeekFrom::Start(prefix))?;
+                retained.write_all(marker)?;
+                retained.flush()?;
+                return Ok(true);
+            }
+            used += count;
+        }
+    });
+    let status = child.wait();
+    let truncated = capture
+        .join()
+        .map_err(|_| io::Error::other("setup output collector failed"))??;
+    let status = status?;
+    Ok((
+        status
+            .code()
+            .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)),
+        truncated,
+    ))
 }
 pub(super) fn run(candidate: &str) -> io::Result<()> {
     let input = Path::new(SOURCE).join("approved.json");
@@ -137,12 +178,16 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
         tools,
         missing,
         output: String::new(),
+        output_truncated: false,
     };
     if receipt.missing.is_empty() {
-        let setup = entry("setup.sh", &output)?;
+        let (setup, truncated) = entry("setup.sh", &output)?;
         receipt.setup_exit = Some(setup);
-        if setup == 0 {
-            receipt.check_exit = Some(entry("check.sh", &output)?);
+        receipt.output_truncated = truncated;
+        if setup == 0 && !truncated {
+            let (check, truncated) = entry("check.sh", &output)?;
+            receipt.check_exit = Some(check);
+            receipt.output_truncated = truncated;
         }
     }
     output.flush()?;

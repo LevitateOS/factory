@@ -46,6 +46,11 @@ installation inside isolated workspaces (A17). Approved toolchain/dependency
 provisioning, setup network policy and workload-sized limits are prerequisites
 for native executor qualification; the present offline/system-tools preparer
 does not supply them. Preserve isolation and qualify actual cold builds/cleanup.
+The A17 artifact/log coupling is corrected: an actual isolated Node build can
+write an artifact above the diagnostic ceiling, while diagnostic overflow refuses
+readiness and both preparation paths retire. This does not qualify dependency
+downloads, other toolchains, larger workloads or D3; see the audit's retained
+evidence and limitations.
 Further owner decisions select enabled GitHub merge methods, GitHub-connected
 drafts/history and explicit provider/model/paying-account selection per role.
 The A07 Go contract now preserves method, reviewed candidate and provider result
