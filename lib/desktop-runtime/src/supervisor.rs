@@ -86,6 +86,7 @@ pub struct NativeSupervisor {
     collaboration: Option<crate::collaboration::Port>,
     executions: Option<Arc<Mutex<crate::factory_provider::Executions>>>,
     execution_profile: Option<PathBuf>,
+    execution_error: Arc<Mutex<Option<String>>>,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -96,6 +97,8 @@ impl NativeSupervisor {
         let profile = profile.to_path_buf();
         let alive = Arc::new(AtomicBool::new(true));
         let owner_alive = alive.clone();
+        let execution_error = Arc::new(Mutex::new(Some("Native execution is starting.".into())));
+        let owner_execution_error = execution_error.clone();
         let owner = thread::Builder::new()
             .name("factory-native-owner".into())
             .spawn(move || {
@@ -128,6 +131,13 @@ impl NativeSupervisor {
                             return children.stop();
                         }
                     };
+                *owner_execution_error
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) =
+                    children.broker_error.clone().or_else(|| {
+                        (!children.broker)
+                            .then(|| "Native worker isolation is not installed.".into())
+                    });
                 if children.broker {
                     let recovery = (|| {
                         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -145,10 +155,9 @@ impl NativeSupervisor {
                         children.health().map(|_| ())
                     })();
                     if let Err(error) = recovery {
-                        let _ = started.send(Err(error.clone()));
-                        let _ = products.stop();
-                        let _ = children.stop();
-                        return Err(error);
+                        *owner_execution_error
+                            .lock()
+                            .unwrap_or_else(|error| error.into_inner()) = Some(error);
                     }
                 }
                 let mut github =
@@ -179,6 +188,7 @@ impl NativeSupervisor {
                     github.client(),
                     owner_alive.clone(),
                     executions.clone(),
+                    owner_execution_error,
                 ) {
                     Ok(owner) => owner,
                     Err(error) => {
@@ -235,6 +245,7 @@ impl NativeSupervisor {
             collaboration: None,
             executions: None,
             execution_profile: None,
+            execution_error,
         };
         match ready.recv() {
             Ok(Ok((products, github, collaboration, executions, profile))) => {
@@ -283,18 +294,36 @@ impl NativeSupervisor {
     /// It is separate from process health and never exposed as a browser route.
     pub fn start_execution_coordinator(&self) -> impl std::future::Future<Output = Result<()>> {
         let products = self.products.clone();
+        let execution_error = self.execution_error.clone();
         async move {
-            let response = products
-                .ok_or("native runtime is unavailable")?
-                .start_coordinator()
-                .await?;
-            let body: serde_json::Value = serde_json::from_slice(&response.body)
-                .map_err(|_| "native coordinator startup response invalid")?;
-            if response.status != 200 || body["status"] != "started" {
-                return Err("native coordinator startup requires reconciliation".into());
+            let result: Result<()> = async {
+                let response = products
+                    .ok_or("native runtime is unavailable")?
+                    .start_coordinator()
+                    .await?;
+                let body: serde_json::Value = serde_json::from_slice(&response.body)
+                    .map_err(|_| "native coordinator startup response invalid")?;
+                if response.status != 200 || body["status"] != "started" {
+                    return Err("native coordinator startup requires reconciliation".into());
+                }
+                Ok(())
             }
-            Ok(())
+            .await;
+            if let Err(error) = &result {
+                *execution_error
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = Some(error.clone());
+            }
+            result
         }
+    }
+    /// Execution readiness is separate from database/product health. Unknown
+    /// recovery disables new native effects while retained observations remain.
+    pub fn execution_error(&self) -> Option<String> {
+        self.execution_error
+            .lock()
+            .map(|error| error.clone())
+            .unwrap_or_else(|_| Some("Native execution readiness is unavailable.".into()))
     }
     /// Owns request inputs and never borrows the supervisor while I/O is pending.
     /// Dropping the future cancels its request; retirement joins the request owner.
@@ -551,6 +580,7 @@ struct Children {
     instance: Option<String>,
     _lock: File,
     broker: bool,
+    broker_error: Option<String>,
 }
 impl Children {
     fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -576,8 +606,8 @@ impl Children {
         // The supervisor lock excludes another live owner of this profile.
         // Inspect installation before starting Go. Exact recovery follows
         // Store readiness, before product/provider startup is published.
-        let broker = match fs::symlink_metadata("/run/soda-factory/broker.sock") {
-            Ok(_) => true,
+        let broker: Result<bool> = (|| match fs::symlink_metadata("/run/soda-factory/broker.sock") {
+            Ok(_) => Ok(true),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 for unit in [
                     "/etc/systemd/system/soda-factory-broker.socket",
@@ -592,9 +622,13 @@ impl Children {
                         }
                     }
                 }
-                false
+                Ok(false)
             }
             Err(_) => return Err("native broker inspection unavailable".into()),
+        })();
+        let (broker, broker_error) = match broker {
+            Ok(available) => (available, None),
+            Err(error) => (false, Some(error)),
         };
         let key = read_private(&profile.join("backend.key"), 64)?;
         let log = private_file(&profile.join("backend.log"), false)
@@ -627,6 +661,7 @@ impl Children {
             instance: None,
             _lock: lock,
             broker,
+            broker_error,
         };
         let deadline = Instant::now() + START_TIMEOUT;
         loop {

@@ -7,6 +7,7 @@ interface RuntimeStatus {
   profile: string | null;
   instance: string | null;
   generation: number;
+  execution_error?: string | null;
 }
 const core = (window as unknown as {__TAURI__: {core: Core}}).__TAURI__.core;
 const app = new SodaFactoryApp();
@@ -28,13 +29,14 @@ async function refresh() {
     }
     status.textContent =
       value.phase === 'ready'
-        ? 'Ready'
+        ? value.execution_error ? 'Ready for browsing. Agent execution is unavailable.' : 'Ready'
         : value.phase === 'starting'
           ? 'Opening Factory…'
           : value.phase === 'stopping'
             ? 'Closing Factory…'
             : 'Factory could not start. Retry when the local runtime is available.';
-    retry.hidden = value.phase !== 'failed';
+    retry.hidden = value.phase !== 'failed' && !(value.phase === 'ready' && value.execution_error);
+    retry.textContent = value.phase === 'ready' ? 'Retry execution' : 'Retry startup';
     connections.refresh(value.phase === 'ready', value.generation, value.profile);
     await refreshAccounts(value.phase === 'ready', value.generation);
   } catch {

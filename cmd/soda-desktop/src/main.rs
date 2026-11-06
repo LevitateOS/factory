@@ -39,6 +39,7 @@ struct Status {
     profile: Option<String>,
     instance: Option<String>,
     generation: u64,
+    execution_error: Option<String>,
 }
 #[derive(Clone, Serialize)]
 struct Reply {
@@ -74,6 +75,7 @@ impl Desktop {
         {
             let mut status = state.status.lock().unwrap();
             status.phase = "starting".into();
+            status.execution_error = None;
             status.instance = None;
             status.generation = generation;
         }
@@ -94,7 +96,9 @@ impl Desktop {
                 &state.paths.profile,
             ) {
                 Ok(owner) => match tauri::async_runtime::block_on(async {
-                    owner.start_execution_coordinator().await?;
+                    if let Err(error) = owner.start_execution_coordinator().await {
+                        eprintln!("native execution startup: {error}");
+                    }
                     owner.health()
                 }) {
                     Ok(ready) => {
@@ -107,6 +111,7 @@ impl Desktop {
                             profile: Some(ready.profile),
                             instance: Some(ready.instance),
                             generation: state.generation.load(Ordering::SeqCst),
+                            execution_error: owner.execution_error(),
                         };
                         *runtime = Some(owner);
                     }
@@ -249,8 +254,13 @@ fn runtime_retry(
     state: tauri::State<'_, Desktop>,
 ) -> Result<(), String> {
     caller(&window)?;
-    if state.status.lock().unwrap().phase != "failed" {
-        return Err("Factory is not awaiting restart".into());
+    {
+        let status = state.status.lock().unwrap();
+        if status.phase != "failed"
+            && !(status.phase == "ready" && status.execution_error.is_some())
+        {
+            return Err("Factory is not awaiting restart".into());
+        }
     }
     Desktop::start(app);
     Ok(())
@@ -555,6 +565,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             profile: None,
             instance: None,
             generation: 0,
+            execution_error: None,
         }),
         starting: AtomicBool::new(false),
         quitting: AtomicBool::new(false),

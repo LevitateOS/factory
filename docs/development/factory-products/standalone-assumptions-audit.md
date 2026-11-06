@@ -34,6 +34,19 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A15 — native degraded startup and healthy execution verified.** Product
+  health is now separate from execution availability. Missing worker installation,
+  an installed missing socket or failed coordinator startup keeps browsing alive;
+  new preparation/launch effects refuse while inspection and retained recovery
+  remain available. Desktop reports execution unavailable and offers explicit
+  retry. Actual native product reads and preparation refusal passed with isolation
+  absent in `/home/vince/tmp/fdeg6.cXjzVR/result.log`, an installed missing socket
+  in `/home/vince/tmp/fdeg-owned6.KIZ1xh/missing-socket/result.log`, and owned
+  controller lock refusal in `/home/vince/tmp/fdeg-coordinator6.6gkvTX/result.log`.
+  The healthy admitted worker/MCP/artifact/retirement/restart journey also passed
+  in `/home/vince/tmp/fdeg-execution6.4F2QOX/run.log`. Provider facts were declared
+  and credentials dummy. Native UI compile, typecheck and UI build passed;
+  physical UI retry and unresolved-root recovery failures remain unqualified.
 - **A12 — selected behavior implemented; UI build verified.** Hidden windows
   retire their obsolete UI binding while retaining connection intent. Fresh
   runtime/account status on return restores the selected account/repository;
@@ -176,6 +189,13 @@ stored browser sessions and API-key precedence; subscription onboarding keys and
 additional billed API keys are different lanes. Preserve the selected lane.
 Sources: [Muse authentication](https://dev.meta.ai/docs/muse-code/auth),
 [Muse subscriptions](https://dev.meta.ai/docs/muse-code/subscriptions).
+
+Follow-up inspection: the installed CLI exposes `muse serve` and an offline
+stable MSP schema export; `auth --help` exposes credential storage, not a token
+export interface. Public MSP provides session/turn control and model/usage reads.
+These establish a supported integration surface, not authenticated inference,
+account/billing proof or an implemented isolated delegation path. No sign-in,
+personal keyring operation or model call ran during this inspection.
 
 ### A02 — Desktop authority requires grants its product routes cannot issue
 

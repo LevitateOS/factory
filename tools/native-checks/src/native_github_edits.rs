@@ -12,7 +12,7 @@ use soda_desktop_runtime::ProductRequest;
 use std::sync::Arc;
 use std::{
     fs,
-    os::unix::fs::PermissionsExt,
+    os::{fd::AsRawFd, unix::fs::{OpenOptionsExt, PermissionsExt}},
     path::Path,
     time::{Duration, Instant},
 };
@@ -341,6 +341,33 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .to_owned();
     let root_path = format!("/api/factory/collaboration/repositories/{repository}");
     if std::env::var("SODA_NATIVE_CHECK_READ_CAPABILITIES").as_deref() == Ok("1") {
+        let coordinator_refusal = std::env::var("SODA_NATIVE_CHECK_COORDINATOR_REFUSAL").as_deref() == Ok("1");
+        if coordinator_refusal {
+            let lock = fs::OpenOptions::new().read(true).write(true).create(true).mode(0o600)
+                .open(profile.join("coordinator.lock"))?;
+            ensure(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
+                "owned coordinator check lock unavailable")?;
+            ensure(runtime.start_execution_coordinator().await.is_err(), "competing controller appeared admitted")?;
+            ensure(runtime.health().is_ok() && runtime.execution_error().is_some(), "coordinator refusal displaced product health")?;
+        }
+        if std::env::var("SODA_NATIVE_CHECK_NO_EXECUTION").as_deref() == Ok("1") {
+            ensure(runtime.execution_error().is_some(), "missing worker setup appeared execution-ready")?;
+            runtime.start_execution_coordinator().await?;
+            ensure(runtime.health().is_ok() && runtime.execution_error().is_some(), "execution readiness displaced product health")?;
+        }
+        if runtime.execution_error().is_some() {
+            let ready = runtime.health()?;
+            let bearer = fs::read_to_string(profile.join("backend.key"))?;
+            let reply = soda_unix_http::request_authenticated_async(
+                &profile.join("host.sock"), "POST", "/api/native/preparation", "soda-native",
+                br#"{"operation":"prepare","request":{}}"#, &bearer,
+                &[("X-Soda-Native-Instance", ready.instance.as_str())], Duration::from_secs(5),
+                soda_unix_http::Limits { header_bytes:4096, body_bytes:4096 },
+            ).await.map_err(|_| "owned unavailable preparation request failed")?;
+            let body:serde_json::Value = serde_json::from_slice(&reply.body)?;
+            ensure(reply.status == 503 && body["error"] == "native_execution_unavailable",
+                "unavailable native preparation reached its effect owner")?;
+        }
         for mode in ["positive", "own", "locked", "archived"] {
             set_mode(&io, mode)?;
             let facts = call(&runtime, &store, &connection, "GET",
@@ -362,10 +389,12 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         store.withdraw(&connection).await?;
         ensure(store.status().await?.is_empty(), "capability check left owned grants")?;
         store.retire();
+        let execution_unavailable = runtime.execution_error().is_some();
         runtime.stop()?;
         fs::write(root.join("read-capabilities-result.json"), serde_json::to_vec_pretty(&json!({
             "read_role_comments_reviews":true,"self_approval_refused":true,"locked_archived_refused":true,
-            "merge_unavailable":true,"provider_mutations":0,"real_github":false
+            "merge_unavailable":true,"provider_mutations":0,"real_github":false,
+            "coordinator_refusal":coordinator_refusal,"execution_unavailable":execution_unavailable
         }))?)?;
         println!("PASS: native Rust/Go/PG read-role comment/review capabilities; self-approval, lock/archive and merge restrictions retained; declared peer, no writes");
         return Ok(());

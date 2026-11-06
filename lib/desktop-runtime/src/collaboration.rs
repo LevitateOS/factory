@@ -56,6 +56,7 @@ struct State {
     signer: Signer,
     provider: Client,
     alive: Arc<AtomicBool>,
+    execution_error: Arc<Mutex<Option<String>>>,
     retired: watch::Sender<bool>,
     scopes: Mutex<BTreeMap<String, Weak<Scope>>>,
     slots: Arc<Semaphore>,
@@ -119,6 +120,18 @@ impl Drop for NativeRequest {
     }
 }
 impl Port {
+    fn require_execution(&self) -> Result<()> {
+        match self
+            .0
+            .execution_error
+            .lock()
+            .map_err(|_| "native execution readiness unavailable")?
+            .as_ref()
+        {
+            Some(error) => Err(error.clone()),
+            None => Ok(()),
+        }
+    }
     pub(crate) fn register_recovery_checkout(&self, path: &Path) -> Result<String> {
         self.0
             .work
@@ -130,6 +143,7 @@ impl Port {
         intent: &crate::factory_provider::LaunchIntent,
         bundle: &[u8],
     ) -> Result<soda_execution_protocol::PreparedSourceRef> {
+        self.require_execution()?;
         let (captured, source) = self
             .0
             .preparations
@@ -282,6 +296,7 @@ impl Owner {
         provider: Client,
         alive: Arc<AtomicBool>,
         executions: Arc<Mutex<crate::factory_provider::Executions>>,
+        execution_error: Arc<Mutex<Option<String>>>,
     ) -> Result<Self> {
         let signer = Signer::open(
             channel
@@ -311,6 +326,7 @@ impl Owner {
             signer,
             provider,
             alive,
+            execution_error,
             retired,
             scopes: Mutex::new(BTreeMap::new()),
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
@@ -766,6 +782,16 @@ async fn dispatch(
         }
         let call: PreparationCall =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if matches!(
+            &call,
+            PreparationCall::Prepare { .. } | PreparationCall::Candidate { .. }
+        ) && state
+            .execution_error
+            .lock()
+            .map_or(true, |error| error.is_some())
+        {
+            return Err(Failure::new(503, "native_execution_unavailable"));
+        }
         let owner = state.preparations.clone();
         return tokio::task::spawn_blocking(move || match call {
             PreparationCall::Prepare { request } => owner.prepare(request),
@@ -786,6 +812,14 @@ async fn dispatch(
     if execution {
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
+            && state
+                .execution_error
+                .lock()
+                .map_or(true, |error| error.is_some())
+        {
+            return Err(Failure::new(503, "native_execution_unavailable"));
+        }
         if let crate::factory_provider::port::Call::InspectAccount { connection } = call {
             let account = state
                 .execution_accounts
