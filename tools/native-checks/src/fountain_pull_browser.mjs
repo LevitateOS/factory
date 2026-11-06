@@ -101,8 +101,15 @@ try {
   stage = 'checks';
   await detail.getByRole('button', {name: 'Checks', exact: true}).click();
   await detail.locator('section[aria-label="Checks"]').waitFor();
-  stage = 'draft review';
+  stage = 'comment review';
   const review = detail.locator('soda-factory-pull-review');
+  await review.getByRole('textbox', {name: 'Review Markdown'}).fill('Submitted comment review from shared browser');
+  await review.getByRole('button', {name: 'Submit comment'}).click();
+  await review.getByText('Review submitted.', {exact: true}).waitFor();
+  await detail.getByRole('button', {name: 'Reviews', exact: true}).click();
+  await detail.locator('section[aria-label="Reviews"] li')
+    .filter({hasText: 'Submitted comment review from shared browser'}).waitFor();
+  stage = 'draft review';
   await review.getByRole('textbox', {name: 'Review Markdown'}).fill('Initial draft review');
   await review.getByRole('button', {name: 'Save draft review'}).click();
   await review.getByText('Draft review saved. Edit it here or choose a submission action.', {exact: true}).waitFor();
@@ -111,7 +118,7 @@ try {
   await detail.locator('section[aria-label="Reviews"]').waitFor();
   const reviewRows = detail.locator('section[aria-label="Reviews"] li');
   const countWithDraft = await reviewRows.count();
-  assert(countWithDraft === 3, 'inline review or pending draft missing from the review list');
+  assert(countWithDraft === 4, 'submitted comment or pending draft missing from the review list');
   const editDraft = detail.getByRole('button', {name: 'Edit saved draft review'});
   await editDraft.waitFor({timeout: 5000}).catch(async () => {
     throw Error('saved draft editor missing: ' + (await reviewRows.allTextContents()).map(row => row.slice(0, 100)).join(' | '));
@@ -133,7 +140,8 @@ try {
     markdown_issue_navigation: true,
     commits: 3, files: 3, checks: true, inline_discussions: 3,
     inline_posted_and_read_back: true, thread_resolved_and_reopened: true,
-    pending_review_private: true, draft_reopened_and_submitted: true,
+    pending_review_private: true, comment_review_submitted: true,
+    draft_reopened_and_submitted: true,
     approval_submitted: true, approval_readback_after_reload: true,
   });
   console.log('PASS: real Fountain shared PR reads and draft review reopening/submission');
