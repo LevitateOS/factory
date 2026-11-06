@@ -197,7 +197,9 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes = if std::env::var("SODA_NATIVE_CHECK_NODE_SETUP").as_deref() == Ok("1") {
+    let modes = if std::env::var("SODA_NATIVE_CHECK_SETUP_BUDGET").as_deref() == Ok("1") {
+        ["ready", "time-limit"]
+    } else if std::env::var("SODA_NATIVE_CHECK_NODE_SETUP").as_deref() == Ok("1") {
         ["ready", "output-limit"]
     } else {
         ["ready", "pending"]
@@ -275,6 +277,8 @@ fn managed_preparations(
     }
     if modes.contains(&"pending") {
         println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
+    } else if modes.contains(&"time-limit") {
+        println!("PASS: approved setup time budget exceeds the old entry/service deadlines; shorter budget refuses readiness; exact preparation resources retired");
     } else {
         println!("PASS: isolated Node artifact build and bounded diagnostic refusal retain exact scoped retirement evidence");
     }
@@ -633,7 +637,13 @@ async fn managed_execution(
             return Err("declared native launch callback did not accept the owned job".into());
         }
         let ticket = supervisor.execution_ticket(&intent)?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(12);
+        let start_seconds =
+            if std::env::var("SODA_NATIVE_CHECK_WORKER_BUDGET").as_deref() == Ok("1") {
+                45
+            } else {
+                12
+            };
+        let deadline = std::time::Instant::now() + Duration::from_secs(start_seconds);
         loop {
             match ticket.observe().phase {
                 AttemptPhase::Executing => break,

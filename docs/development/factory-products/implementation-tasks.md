@@ -51,6 +51,11 @@ write an artifact above the diagnostic ceiling, while diagnostic overflow refuse
 readiness and both preparation paths retire. This does not qualify dependency
 downloads, other toolchains, larger workloads or D3; see the audit's retained
 evidence and limitations.
+Reviewed setup/check time budgets now use an optional approved `setup-limits.json`
+file, including the worker's environment check. Actual long-setup, timeout/refusal,
+worker-check and retirement/restart evidence is in A17. Memory/storage budgets,
+dependency provisioning and concurrent long-preparation qualification remain open;
+the existing broker state lock still serializes preparation. No old row is closed.
 Further owner decisions select enabled GitHub merge methods, GitHub-connected
 drafts/history and explicit provider/model/paying-account selection per role.
 The A07 Go contract now preserves method, reviewed candidate and provider result

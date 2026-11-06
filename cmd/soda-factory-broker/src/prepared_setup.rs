@@ -32,7 +32,7 @@ fn root_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
-fn entry(name: &str, output: &File) -> io::Result<(i32, bool)> {
+fn entry(name: &str, seconds: u32, output: &File) -> io::Result<(i32, bool)> {
     let (mut reader, writer) = UnixStream::pair()?;
     let mut retained = output.try_clone()?;
     let mut command = Command::new("/usr/bin/timeout");
@@ -46,16 +46,9 @@ fn entry(name: &str, output: &File) -> io::Result<(i32, bool)> {
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_TERMINAL_PROMPT", "0")
         .current_dir(CHECKOUT)
-        .args([
-            "-k",
-            "1s",
-            "10s",
-            "/usr/bin/bash",
-            "--noprofile",
-            "--norc",
-            "-e",
-            "-u",
-        ])
+        .args(["-k", "1s"])
+        .arg(format!("{seconds}s"))
+        .args(["/usr/bin/bash", "--noprofile", "--norc", "-e", "-u"])
         .arg(format!("{SOURCE}/approved/{name}"))
         .stdin(Stdio::null())
         .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
@@ -137,6 +130,9 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
             return Err(refused("approved entrypoint differs"));
         }
     }
+    let limits = approved
+        .limits()
+        .ok_or_else(|| refused("approved setup time limits invalid"))?;
     if unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) } != 0 {
         return Err(io::Error::last_os_error());
     }
@@ -181,11 +177,11 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
         output_truncated: false,
     };
     if receipt.missing.is_empty() {
-        let (setup, truncated) = entry("setup.sh", &output)?;
+        let (setup, truncated) = entry("setup.sh", limits.setup_seconds, &output)?;
         receipt.setup_exit = Some(setup);
         receipt.output_truncated = truncated;
         if setup == 0 && !truncated {
-            let (check, truncated) = entry("check.sh", &output)?;
+            let (check, truncated) = entry("check.sh", limits.check_seconds, &output)?;
             receipt.check_exit = Some(check);
             receipt.output_truncated = truncated;
         }

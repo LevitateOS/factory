@@ -8,6 +8,17 @@ HOME and runs the approved check in the actual worker environment before CLI
 startup. Legacy component entry points without a preparation remain component
 paths and do not qualify product execution.
 
+Approved setup inputs may include `setup-limits.json`, for example
+`{"setup_seconds":300,"check_seconds":120}`. Both values must be integer seconds
+from 1 through 1800; unknown fields and malformed limits are refused. Include
+this file in the reviewed setup file selection: its exact bytes participate in
+the existing setup digest and source approval. Without it, each entry keeps the
+historical ten-second limit. The preparer enforces the selected setup/check
+deadlines, and the agent uses the same check deadline when verifying its copied
+environment. Outer native waits accommodate those limits and still observe
+cancellation. This changes time budgets only; the existing offline tools,
+memory, output and workspace bounds still apply.
+
 Native standing preparations also use `soda-factory-context@.service` for bounded
 Git context reads and candidate import. Install this template with the preparer
 binary. It mounts the exact prepared repository, base bundle and staged incremental

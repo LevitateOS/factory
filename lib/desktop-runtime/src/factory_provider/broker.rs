@@ -27,7 +27,8 @@ const SOCKET: &str = "/run/soda-factory/broker.sock";
 const MAX_FRAME: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
-const AGENT_TIME: Duration = Duration::from_secs(60);
+const AGENT_TIME: Duration =
+    Duration::from_secs(soda_execution_protocol::SetupLimits::MAX_ENTRY_SECONDS as u64 + 90);
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -851,7 +852,7 @@ impl BrokerPreparation {
         let reply: Prepared = exchange_controlled(
             json!({"kind":"prepare_reviewer","version":1,"run":run,"profile":profile,"sha256":sha256,"candidate":candidate}),
             None,
-            PREPARE_TIME,
+            Duration::from_secs(soda_execution_protocol::SetupLimits::MAX_PREPARATION_SECONDS),
             self.cancellation.clone(),
             MAX_FRAME,
         )?;

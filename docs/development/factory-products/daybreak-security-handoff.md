@@ -44,6 +44,27 @@ support decision; packaging and actual installed isolation, controller/session,
 restart/retirement and degraded-browsing evidence are still required for the
 existing D3/installed gates.
 
+**A17 time budgets / D3:** approved `setup-limits.json` now controls preparer and
+worker-check deadlines. The audit's A17 correction records the actual long-setup,
+timeout/refusal and worker/restart evidence; no provider inference or installed
+gate is qualified. Relevant owners: `lib/execution-protocol/src/lib.rs`,
+`cmd/soda-factory-broker/src/{main,prepared_setup}.rs`, the preparer service and
+`cmd/soda-factory-worker/src/agent_environment.rs`. Concurrent long preparation
+and cross-run cancellation remain unverified: `prepare()` still holds the global
+broker state lock while waiting. Closing this requires scoped serialization and
+actual overlapping preparation/cancellation evidence without losing exact-run
+retirement or the existing capacity exclusion.
+
+The first worker-budget fixture, `/home/vince/tmp/fworker-budget7.zndC19`, expired
+its twelve-second observer during initialization. Broker run
+`7e50a00fc4c08a6da0409d1970c8eeca` has an acquisition record but no durable terminal
+run/release acknowledgement in its `execution-profile`; supervisor retirement
+reported reconciliation required. Later readback found both exact `/run` roots
+absent and the agent unit failed/not-found, not a completed native receipt. Keep
+that profile and fence; closing its original outcome needs matching retained
+intent, terminal/custody-release and retirement evidence. The successful fresh
+fixture does not settle this earlier attempt.
+
 **A17 preparation output update:** `cmd/soda-factory-broker/src/prepared_setup.rs`
 separates bounded diagnostics from regular artifact writes. `SetupReceipt` in
 `lib/execution-protocol/src/lib.rs` records actual diagnostic truncation; native

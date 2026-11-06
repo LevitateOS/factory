@@ -693,7 +693,7 @@ fn preparation_client() -> io::Result<()> {
     }
 }
 
-fn start_preparation(unit: &str) -> io::Result<()> {
+fn start_preparation(unit: &str, seconds: u64) -> io::Result<()> {
     preparation_client()?;
     let mut child = Command::new("/usr/bin/systemctl")
         .env_clear()
@@ -702,7 +702,7 @@ fn start_preparation(unit: &str) -> io::Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()?;
-    let deadline = Instant::now() + Duration::from_secs(90);
+    let deadline = Instant::now() + Duration::from_secs(seconds);
     let result = (|| loop {
         preparation_client()?;
         if Instant::now() >= deadline {
@@ -899,6 +899,14 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     if !verified_bundle(&source, digest)? {
         return Err(denied("reviewer source bundle missing"));
     }
+    let seconds = if source.join("owner.setup_sha256").try_exists()? {
+        source_binding::approved(&source)?
+            .limits()
+            .ok_or_else(|| denied("approved setup time limits invalid"))?
+            .preparation_seconds()
+    } else {
+        90
+    };
     let preparations = preparations()?;
     let expected = manifest(candidate, digest);
     if let Some(directory) = preparation_run(&preparations, run)? {
@@ -935,7 +943,7 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     File::open(&directory)?.sync_all()?;
     let result = (|| {
-        start_preparation(&format!("soda-factory-preparer@{run}.service"))?;
+        start_preparation(&format!("soda-factory-preparer@{run}.service"), seconds)?;
         prepared_checkout(&directory)?;
         private_dir(&output, 0o777)?;
         runtime_capacity(0)?;
@@ -976,7 +984,7 @@ fn attest_reviewer(
     }
     prepared_checkout(&directory)?;
     let socket_unit = format!("soda-factory-reviewer@{run}.socket");
-    start_preparation(&socket_unit)?;
+    start_preparation(&socket_unit, 90)?;
     let socket_path = directory.join("reviewer.sock");
     let metadata = socket_path.symlink_metadata()?;
     if !metadata.file_type().is_socket() || metadata.uid() != 0 || metadata.mode() & 0o7777 != 0o600
@@ -1046,7 +1054,8 @@ fn attest_provider_relay(
         return Err(denied("provider relay preparation identity invalid"));
     }
     prepared_checkout(&directory)?;
-    if let Err(error) = start_preparation(&format!("soda-factory-provider-relay@{run}.service")) {
+    if let Err(error) = start_preparation(&format!("soda-factory-provider-relay@{run}.service"), 90)
+    {
         manager("stop", "provider-relay", run)?;
         return Err(error);
     }
@@ -1176,7 +1185,7 @@ fn arm_agent(
         socket_attempted = true;
         let unit = format!("soda-factory-agent@{run}.socket");
         if cancellable {
-            start_preparation(&unit)?;
+            start_preparation(&unit, 90)?;
         } else {
             manager_unit("start", &unit)?;
         }
@@ -1201,6 +1210,19 @@ fn arm_agent(
         }
     }
     checked.map(|()| (tool, prompt))
+}
+
+fn agent_start_time(run: &str) -> io::Result<Duration> {
+    let source = PathBuf::from(STATE).join("runs").join(run);
+    let seconds = if source.join("owner.setup_sha256").try_exists()? {
+        source_binding::approved(&source)?
+            .limits()
+            .ok_or_else(|| denied("approved worker check time limit invalid"))?
+            .check_seconds as u64
+    } else {
+        0
+    };
+    Ok(Duration::from_secs(seconds + 60))
 }
 
 fn attest_agent(
@@ -1230,8 +1252,9 @@ fn attest_agent(
         return Err(denied("agent socket identity invalid"));
     }
     let mut stream = UnixStream::connect(&socket)?;
-    let deadline = Instant::now() + Duration::from_secs(60);
-    stream.set_read_timeout(Some(Duration::from_secs(60)))?;
+    let duration = agent_start_time(run)?;
+    let deadline = Instant::now() + duration;
+    stream.set_read_timeout(Some(duration))?;
     stream.set_write_timeout(Some(Duration::from_secs(60)))?;
     let mut ready = [0u8; 1];
     read_preparation(&mut stream, &mut ready, deadline)?;
@@ -1398,7 +1421,7 @@ fn execute_agent<R: Read, W: Write>(
         private_dir(&directory, 0o700)?;
         let path = PathBuf::from(format!("/run/soda-factory/agents/{run}.sock"));
         let mut worker = UnixStream::connect(&path)?;
-        worker.set_read_timeout(Some(Duration::from_secs(60)))?;
+        worker.set_read_timeout(Some(agent_start_time(run)?))?;
         worker.set_write_timeout(Some(Duration::from_secs(120)))?;
         let mut ready = [0u8; 1];
         worker.read_exact(&mut ready)?;

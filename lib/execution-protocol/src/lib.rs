@@ -114,7 +114,41 @@ pub struct ApprovedFiles {
     pub files: BTreeMap<String, Vec<u8>>,
     pub tools: Vec<String>,
 }
+
+/// Optional reviewed `setup-limits.json` is part of the existing approved-file
+/// digest. Absence preserves historical preparation limits.
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SetupLimits {
+    pub setup_seconds: u32,
+    pub check_seconds: u32,
+}
+impl Default for SetupLimits {
+    fn default() -> Self {
+        Self {
+            setup_seconds: 10,
+            check_seconds: 10,
+        }
+    }
+}
+impl SetupLimits {
+    pub const MAX_ENTRY_SECONDS: u32 = 1800;
+    pub const MAX_PREPARATION_SECONDS: u64 = 2 * Self::MAX_ENTRY_SECONDS as u64 + 90;
+
+    pub fn preparation_seconds(self) -> u64 {
+        self.setup_seconds as u64 + self.check_seconds as u64 + 30
+    }
+}
 impl ApprovedFiles {
+    pub fn limits(&self) -> Option<SetupLimits> {
+        let limits = match self.files.get("setup-limits.json") {
+            Some(bytes) => serde_json::from_slice::<SetupLimits>(bytes).ok()?,
+            None => SetupLimits::default(),
+        };
+        ((1..=SetupLimits::MAX_ENTRY_SECONDS).contains(&limits.setup_seconds)
+            && (1..=SetupLimits::MAX_ENTRY_SECONDS).contains(&limits.check_seconds))
+        .then_some(limits)
+    }
     pub fn valid_name(name: &str) -> bool {
         !name.is_empty()
             && name.len() <= 64
@@ -128,6 +162,7 @@ impl ApprovedFiles {
         (2..=8).contains(&self.files.len())
             && self.files.contains_key("setup.sh")
             && self.files.contains_key("check.sh")
+            && self.limits().is_some()
             && self
                 .files
                 .iter()

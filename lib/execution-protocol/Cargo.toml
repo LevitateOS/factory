@@ -8,4 +8,5 @@ description = "Nonsecret Factory execution wire contracts and pure validation"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 sha2 = { workspace = true }

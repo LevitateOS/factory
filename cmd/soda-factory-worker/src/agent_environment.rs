@@ -113,7 +113,11 @@ pub(super) fn copy(source: &Path, target: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-pub(super) fn check(processes: &mut Processes, workspace: &Path) -> io::Result<()> {
+pub(super) fn check(
+    processes: &mut Processes,
+    workspace: &Path,
+    approved: &ApprovedFiles,
+) -> io::Result<()> {
     copy(
         Path::new("/run/factory-prepared/home"),
         Path::new(PRIVATE_HOME),
@@ -135,7 +139,12 @@ pub(super) fn check(processes: &mut Processes, workspace: &Path) -> io::Result<(
     .into_iter()
     .map(|(key, value)| (OsString::from(key), OsString::from(value)))
     .collect();
-    let duration = Duration::from_secs(10);
+    let duration = Duration::from_secs(
+        approved
+            .limits()
+            .ok_or_else(|| refused("worker setup time limits invalid"))?
+            .check_seconds as u64,
+    );
     let process = processes
         .launch(Invocation {
             executable: &executable,

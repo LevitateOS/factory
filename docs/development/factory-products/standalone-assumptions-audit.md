@@ -66,8 +66,24 @@ corrections are now active; the old feature queue waits for their resolution.
   tools and no provider call. The log's inherited final cancellation summary was
   corrected in the check source; this run supplies no new live-cancellation proof.
   Toolchain/dependency provisioning, setup network policy, larger source/storage
-  handling and suitable owner-approved budgets remain unfinished. A17 and D3 stay
+  handling and suitable owner-approved memory/storage budgets remain unfinished. A17 and D3 stay
   open.
+
+- **A17 — approved setup/check time budgets implemented.** Optional reviewed
+  `setup-limits.json` uses the existing approved-file digest; each deadline is
+  1–1800 seconds, with historical ten-second defaults when absent. The preparer,
+  worker environment check and native waits use those bounds. Actual composed
+  Go/Rust/PostgreSQL/systemd checks passed: a 31-second setup and a one-second
+  timeout with check skipped and readiness refused
+  (`/home/vince/tmp/fsetup-budget7.UK05cw/result.log`); an eleven-second check in
+  the preparation and isolated worker, finite fixture execution, retirement and
+  restart export (`/home/vince/tmp/fworker-budget7.MdfKLo/result.log`). No model
+  call ran; the worker check used only an owned dummy credential. The earlier
+  fixture observer expired at twelve seconds; its preserved uncertainty is in
+  the security handoff. Network/toolchain provisioning, memory/storage budgets,
+  representative cold builds and concurrent long-preparation qualification remain
+  unfinished. Longer setup still holds the existing broker state lock; this
+  check does not qualify parallel preparation or cancellation of another run.
 
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write
@@ -584,7 +600,7 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 | Staged source Git bundle, not raw repository size | 512 KiB | `lib/execution-protocol/src/lib.rs:7` |
 | Candidate/result bundle | 4 MiB | `lib/execution-protocol/src/lib.rs:13` |
 | Each copied prepared tree: coder repository or HOME | 64 MiB / 20,000 entries independently | `cmd/soda-factory-worker/src/agent_environment.rs:56` |
-| Each approved setup/check script | 10 seconds, then kill delay | `cmd/soda-factory-broker/src/prepared_setup.rs:33` |
+| Each approved setup/check script | Reviewed `setup-limits.json`: 1–1800 seconds each; absent file retains 10 seconds | `lib/execution-protocol/src/lib.rs`, `cmd/soda-factory-broker/src/prepared_setup.rs`, `cmd/soda-factory-worker/src/agent_environment.rs` |
 | Regular file written by setup descendants (`RLIMIT_FSIZE`) | 64 MiB, using the existing checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Combined setup/check diagnostics | 256 KiB; truncation refuses readiness independently of process exit | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Retained preparation material | 512 MiB | `cmd/soda-factory-broker/src/preparation_quota.rs:9` |

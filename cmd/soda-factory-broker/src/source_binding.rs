@@ -334,7 +334,7 @@ pub(super) fn read(
     DirBuilder::new().mode(0o777).create(&output)?;
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     let result = (|| {
-        start_preparation(&format!("soda-factory-context@{run}.service"))?;
+        start_preparation(&format!("soda-factory-context@{run}.service"), 90)?;
         let file = OpenOptions::new()
             .read(true)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)

@@ -916,9 +916,9 @@ fn serve() -> io::Result<()> {
     if role == "coder" {
         coder_workspace(&candidate, worker_uid, &mut processes, approved.is_some())?;
     }
-    if approved.is_some() {
+    if let Some(approved) = &approved {
         let workspace = if role == "coder" { WORKSPACE } else { SOURCE };
-        agent_environment::check(&mut processes, Path::new(workspace))?;
+        agent_environment::check(&mut processes, Path::new(workspace), approved)?;
         head(workspace, &candidate, &mut processes)?;
         let safe = format!("safe.directory={workspace}");
         git(

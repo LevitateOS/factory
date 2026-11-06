@@ -1719,7 +1719,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	duration := 25 * time.Second
+	if os.Getenv("SODA_NATIVE_CHECK_SETUP_BUDGET") == "1" {
+		duration = 50 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	db, err := store.OpenContext(ctx, config.DatabaseDSN())
 	if err != nil {
@@ -1778,6 +1782,18 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			files["setup.sh"] = []byte("node -e 'process.stdout.write(\"x\".repeat(262145))'\n")
 		}
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_BUDGET") == "1" {
+		files["setup-limits.json"] = []byte(`{"setup_seconds":10,"check_seconds":20}`)
+		files["check.sh"] = append([]byte("sleep 11\n"), files["check.sh"]...)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_SETUP_BUDGET") == "1" {
+		files["setup.sh"] = []byte("sleep 31\nprintf 'prepared-after-old-deadlines\\n'\n")
+		files["setup-limits.json"] = []byte(`{"setup_seconds":40,"check_seconds":5}`)
+		if mode == "time-limit" {
+			files["setup.sh"] = []byte("sleep 3\nprintf 'must-not-finish\\n'\n")
+			files["setup-limits.json"] = []byte(`{"setup_seconds":1,"check_seconds":5}`)
+		}
+	}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
 	var sourceInputs map[string]string
 	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
@@ -1788,7 +1804,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		sum := sha256.Sum256(content)
 		sourceInputs = map[string]string{"README.md": hex.EncodeToString(sum[:])}
 	}
-	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), SourceInputs: sourceInputs, InputsDigest: project.PreparationInputsDigestOf([]string{"setup.sh", "check.sh"}, sourceInputs, tools), Native: native}
+	setupFiles := make([]string, 0, len(files))
+	for name := range files {
+		setupFiles = append(setupFiles, name)
+	}
+	requirement := project.RequirementDecision{ID: "d" + factory.NewID()[:24], Project: grant.Project, Approver: int64(actor.ID), SourceCommit: source, SetupDigest: project.SetupDigestOf(files), SourceInputs: sourceInputs, InputsDigest: project.PreparationInputsDigestOf(setupFiles, sourceInputs, tools), Native: native}
 	if err = db.AdmitRequirementDecision(ctx, requirement); err != nil {
 		return err
 	}
@@ -1828,8 +1848,11 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	for !state.Ready {
 		if state.Phase != project.PrepareRunning {
-			if mode == "output-limit" && state.Phase == project.PrepareFailed {
-				if !strings.Contains(state.Output, "setup diagnostic output limit exceeded") {
+			if (mode == "output-limit" || mode == "time-limit") && state.Phase == project.PrepareFailed {
+				if mode == "time-limit" && (state.SetupExit == nil || *state.SetupExit != 124 || state.CheckExit != nil || strings.Contains(state.Output, "must-not-finish")) {
+					return errors.New("setup deadline did not retain timeout status and skip check")
+				}
+				if mode == "output-limit" && !strings.Contains(state.Output, "setup diagnostic output limit exceeded") {
 					return fmt.Errorf("preparation failed without diagnostic-limit evidence: %s", state.Output)
 				}
 				state, err = port.RetireWorkspacePreparation(ctx, request.Address())
@@ -1847,7 +1870,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 				if err = db.ObservePreparation(ctx, record); err != nil {
 					return err
 				}
-				fmt.Println("PASS: setup diagnostic overflow refused readiness and actual preparation resources retired")
+				fmt.Println("PASS: setup", mode, "refused readiness and actual preparation resources retired")
 				return nil
 			}
 			return fmt.Errorf("native source did not become ready: %s", state.Phase)
@@ -1866,8 +1889,8 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			return err
 		}
 	}
-	if mode == "output-limit" {
-		return errors.New("diagnostic overflow falsely became ready")
+	if mode == "output-limit" || mode == "time-limit" {
+		return errors.New("limited setup falsely became ready")
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {
 		return errors.New("native preparation lacks actual setup/check/source facts")
