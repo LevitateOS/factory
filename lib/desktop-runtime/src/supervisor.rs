@@ -47,6 +47,33 @@ impl Drop for Retire {
         self.0.store(false, Ordering::SeqCst);
     }
 }
+struct RetireExecutions(Option<Arc<Mutex<crate::factory_provider::Executions>>>);
+impl RetireExecutions {
+    fn finish(&mut self) -> Result<()> {
+        use crate::factory_provider::{CustodyState, ExecutionOutcome};
+        let Some(executions) = self.0.take() else {
+            return Ok(());
+        };
+        let reports = executions
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .retire();
+        if reports.iter().any(|report| {
+            !matches!(report.outcome, ExecutionOutcome::Complete(_))
+                || !matches!(&report.custody, Ok(custody) if custody.sealed && custody.state == CustodyState::Released)
+        }) {
+            return Err("native execution retirement requires reconciliation".into());
+        }
+        Ok(())
+    }
+}
+impl Drop for RetireExecutions {
+    fn drop(&mut self) {
+        if let Err(error) = self.finish() {
+            eprintln!("native execution retirement: {error}");
+        }
+    }
+}
 /// Owns this profile's children and admitted native ports. Private channel
 /// material stays behind the native host API.
 /// Window closure must retain this object; explicit Quit consumes it with stop.
@@ -58,7 +85,7 @@ pub struct NativeSupervisor {
     github: Option<crate::github_provider::Client>,
     collaboration: Option<crate::collaboration::Port>,
     executions: Option<Arc<Mutex<crate::factory_provider::Executions>>>,
-    execution_profile: PathBuf,
+    execution_profile: Option<PathBuf>,
 }
 impl NativeSupervisor {
     pub fn start(payload: &Path, backend: &Path, profile: &Path) -> Result<Self> {
@@ -133,10 +160,25 @@ impl NativeSupervisor {
                             return children.stop();
                         }
                     };
+                let executions = match crate::factory_provider::Executions::new(
+                    &channel.profile,
+                    &channel.instance,
+                    8,
+                ) {
+                    Ok(executions) => Arc::new(Mutex::new(executions)),
+                    Err(error) => {
+                        let _ = started.send(Err(error.to_string()));
+                        let _ = github.stop();
+                        let _ = products.stop();
+                        let _ = children.stop();
+                        return Err(error.to_string());
+                    }
+                };
                 let mut collaboration = match crate::collaboration::Owner::start(
-                    channel,
+                    channel.clone(),
                     github.client(),
                     owner_alive.clone(),
+                    executions.clone(),
                 ) {
                     Ok(owner) => owner,
                     Err(error) => {
@@ -146,22 +188,30 @@ impl NativeSupervisor {
                         return children.stop();
                     }
                 };
+                // This guard also joins executions if the owner unwinds. It is
+                // declared after their dependencies so it retires first.
+                let mut execution_owner = RetireExecutions(Some(executions.clone()));
                 if started
                     .send(Ok((
                         products.handle.clone(),
                         github.client(),
                         collaboration.port.clone(),
+                        executions,
+                        children.profile.clone(),
                     )))
                     .is_err()
                 {
+                    owner_alive.store(false, Ordering::SeqCst);
+                    let executions_stopped = execution_owner.finish();
                     let _ = collaboration.stop();
-                    github.stop().map_err(|error| error.to_string())?;
-                    products.stop()?;
-                    return children.stop();
+                    let _ = github.stop();
+                    let _ = products.stop();
+                    return executions_stopped.and(children.stop());
                 }
                 let failure =
                     run_owner(&mut children, &products, &github, &collaboration, commands);
                 owner_alive.store(false, Ordering::SeqCst);
+                let executions_stopped = execution_owner.finish();
                 let collaboration_stopped = collaboration.stop();
                 let provider_stopped = github.stop().map_err(|error| error.to_string());
                 let requests_stopped = products.stop();
@@ -169,6 +219,7 @@ impl NativeSupervisor {
                 match (failure, stopped) {
                     (Some(error), _) => Err(error),
                     (None, stopped) => collaboration_stopped
+                        .and(executions_stopped)
                         .and(provider_stopped)
                         .and(requests_stopped)
                         .and(stopped),
@@ -182,12 +233,16 @@ impl NativeSupervisor {
             products: None,
             github: None,
             collaboration: None,
+            executions: None,
+            execution_profile: None,
         };
         match ready.recv() {
-            Ok(Ok((products, github, collaboration))) => {
+            Ok(Ok((products, github, collaboration, executions, profile))) => {
                 supervisor.products = Some(products);
                 supervisor.github = Some(github);
                 supervisor.collaboration = Some(collaboration);
+                supervisor.executions = Some(executions);
+                supervisor.execution_profile = Some(profile);
                 Ok(supervisor)
             }
             Ok(Err(error)) => {
@@ -251,6 +306,54 @@ impl NativeSupervisor {
                 products.ok_or_else(|| std::io::Error::other("native runtime unavailable"))?;
             crate::factory_provider::NativeRecovery::read(products, &broker_run).await
         }
+    }
+    /// Trusted native composition only: Go must have captured current admission
+    /// before this call. Neither this API nor an intent's shape admits product work.
+    pub fn launch_admitted_execution(
+        &self,
+        start: crate::factory_provider::ExecutionStart,
+    ) -> Result<crate::factory_provider::ExecutionTicket> {
+        let profile = self
+            .execution_profile
+            .as_ref()
+            .ok_or("native execution unavailable")?;
+        self.with_executions(|executions| executions.launch(profile.clone(), start))
+    }
+    pub fn execution_ticket(
+        &self,
+        intent: &crate::factory_provider::LaunchIntent,
+    ) -> Result<crate::factory_provider::ExecutionTicket> {
+        let binding = crate::factory_provider::ExecutionBinding::from_intent(intent)
+            .map_err(|error| error.to_string())?;
+        self.with_executions(|executions| executions.ticket(&binding))
+    }
+    pub fn execution_outcome(
+        &self,
+        intent: &crate::factory_provider::LaunchIntent,
+    ) -> Result<crate::factory_provider::ExecutionOutcome> {
+        let binding = crate::factory_provider::ExecutionBinding::from_intent(intent)
+            .map_err(|error| error.to_string())?;
+        self.with_executions(|executions| executions.outcome(&binding))
+    }
+    pub fn cancel_execution(&self, intent: &crate::factory_provider::LaunchIntent) -> Result<()> {
+        let binding = crate::factory_provider::ExecutionBinding::from_intent(intent)
+            .map_err(|error| error.to_string())?;
+        self.with_executions(|executions| executions.cancel(&binding))
+    }
+    fn with_executions<T>(
+        &self,
+        effect: impl FnOnce(&mut crate::factory_provider::Executions) -> std::io::Result<T>,
+    ) -> Result<T> {
+        let mut executions = self
+            .executions
+            .as_ref()
+            .ok_or("native execution unavailable")?
+            .lock()
+            .map_err(|_| "native execution owner failed")?;
+        if !self.alive.load(Ordering::SeqCst) {
+            return Err("native execution owner retired".into());
+        }
+        effect(&mut executions).map_err(|error| error.to_string())
     }
     /// Native host admission only; the shell must first admit its window and
     /// selection. The capability is finite and account verification still occurs

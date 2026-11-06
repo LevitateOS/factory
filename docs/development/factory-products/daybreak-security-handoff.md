@@ -57,6 +57,25 @@ admits the native packet. This does not prove the planner-to-Rust effect journey
 Remaining work is the Rust snapshot/execution callbacks, coordinator composition,
 current provider/MCP custody and the full finite-task/retirement evidence above.
 
+Supervisor/callback update (2026-11-06): `supervisor.rs` now retains the execution
+registry and cancels/joins it before its Go/PG dependencies stop. The private
+`factory_provider/port.rs` callback serves exact-intent process/custody reads and
+cancellation; `pkg/factory/runtime/native_execution.go` records those facts through
+the existing Go transactions. First-process admission reloads the row after I/O.
+Preparation now consumes the captured deadline rather than causing a full-duration
+launch to fail. Actual local isolated finite/cancel/Quit checks passed in
+`/home/vince/tmp/factory-native-supervisor-1106.Xqp9r1/run.log`; the initial failed
+deadline check remains in `factory-native-supervisor-1106.HRvybr/run.log`.
+Cancellation released custody and joined workers but deliberately retained unknown
+terminal outcomes and staging until separate exact fixture cleanup. These checks
+used dummy credentials, local ELFs and declared Go intents, without dispatch,
+MCP activation, provider inference or product outcome/accounting settlement.
+Exact remaining dependencies are native source/preparation/Git/artifact ports,
+Go launch and worker MCP transport, credential/policy/funding enrollment and
+single-coordinator composition. Close these only with admitted finite provider
+work, current placement/process/custody/tool facts, cancellation and durable
+outcome/restart evidence. D3 and broader custody/IPC gates remain open.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary
@@ -466,9 +485,9 @@ This used retained inputs and declared unplaced Go metadata with a synthetic
 runtime/placement generation, not admitted dispatch or actual provider inference.
 The observation transaction proves neither root retirement nor ledger outcome,
 reservation/accounting settlement, interrupted-owner recovery or installed Quit.
-Production dispatch still explicitly rejects native packets pending its owning
-placement/execution gates. Keep that fence while composing output/candidate
-handling and the existing Go settlement
+The Store now admits placement-bound native packets, while production native
+launch remains unavailable pending its execution ports and coordinator composition.
+Keep that launch fence while composing output/candidate handling and the existing Go settlement
 owner. Prove actual interrupted launch/write/commit replies, worker/owner death,
 restart/reboot, admitted finite provider work and installed retirement. No N3/N4
 or D3 gate closes here; facts-only recording must not become an intake bypass.

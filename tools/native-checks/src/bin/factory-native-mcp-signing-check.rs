@@ -15,6 +15,17 @@ use std::time::Duration;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 5 && args[4] == "execution" {
+        return tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(managed_execution(
+                &root,
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+    }
     if args.len() == 3 || args.len() == 4 {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -125,6 +136,173 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(&key_path)?;
     assert!(Signer::open(&legacy).is_err());
     println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation, pre-marker adoption, changed-key and missing-key refusal");
+    Ok(())
+}
+
+// Uses the established isolated local ELF/keyring fixture. The Go row is a
+// declared intent, not a dispatch admission or a connected provider proof.
+async fn managed_execution(
+    root: &Path,
+    payload: &Path,
+    backend: &Path,
+    client: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
+    use soda_desktop_runtime::factory_provider::{
+        AttemptPhase, Broker, Budget, ExecutionOutcome, ExecutionStart, LaunchIntent, Policy, Role,
+        WorkerMcp, WorkerMcpReply,
+    };
+    use std::sync::Arc;
+    let digest = |bytes: &[u8]| -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    };
+    let source = fs::read(std::env::var("SODA_NATIVE_CHECK_BUNDLE")?)?;
+    let commit = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
+    let prompt = b"Observe one finite local fixture process.\n";
+    let profile = root.join("execution-profile");
+    let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
+    let ready = supervisor.health()?;
+    let credentials = Arc::new(Credentials::open(&profile, &ready.profile)?);
+    credentials.storage_ready().await?;
+    let account = credentials
+        .store(
+            Account::new(
+                Provider::Muse,
+                "https://api.meta.ai",
+                "owned-local-execution-fixture",
+            )?,
+            Token::new(b"dummy-local-fixture-only".to_vec())?,
+        )
+        .await?;
+    let command = |operation: &str, argument: &str| -> Result<(), Box<dyn std::error::Error>> {
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&ready.instance)
+            .arg(operation)
+            .arg(argument)
+            .status()?
+            .success()
+        {
+            return Err(format!("owned execution fixture {operation}/{argument} failed").into());
+        }
+        Ok(())
+    };
+    let mut quit_ticket = None;
+    let mut runs = Vec::new();
+    for mode in ["finite", "cancel", "quit"] {
+        let executable = PathBuf::from(std::env::var(if mode == "finite" {
+            "SODA_NATIVE_CHECK_FINITE"
+        } else {
+            "SODA_NATIVE_CHECK_IDLE"
+        })?);
+        let tool = digest(&fs::read(&executable)?);
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random)?;
+        let run: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+        runs.push(run.clone());
+        fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
+        let fixture = profile.join("native-recovery-fixture.json");
+        let input = serde_json::json!({"Connection":account.connection,"Prompt":std::str::from_utf8(prompt)?,"Run":{
+            "id":run,"project_id":"p123456789012345678901234","role":"soda-reviewer","input_sha":commit,
+            "model":"muse-spark-1.3-contributor","harness":"muse-fixture","native":{
+                "tool":{"harness":"muse","version":"fixture","sha256":tool,"executable":executable},
+                "bundle_sha256":digest(&source),"prompt_sha256":digest(prompt),"retirement":"not_started","sealed":false,
+                "provenance":{"trust_mode":"isolated_system_worker","profile":ready.profile,"instance_id":ready.instance,
+                    "worktree_id":"fixture-worktree","broker_run":run,"process":null,"custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0"}}
+            }
+        }});
+        fs::write(&fixture, serde_json::to_vec(&input)?)?;
+        command(
+            "create-native-intent",
+            fixture.to_str().ok_or("fixture path invalid")?,
+        )?;
+        let intent = LaunchIntent::from_go(&fs::read_to_string(
+            profile.join("native-recovery-intent.json"),
+        )?)?;
+        let policy = Policy::new(
+            &run,
+            &ready.profile,
+            &digest(&source),
+            &commit,
+            &account.connection,
+            Role::Reviewer,
+            Duration::from_secs(60),
+            Budget::new(2, 256 * 1024, 8192)?,
+        )?;
+        let ticket = supervisor.launch_admitted_execution(ExecutionStart {
+            intent: intent.clone(),
+            policy,
+            credentials: credentials.clone(),
+            capability: credentials.capability(&account.connection).await?,
+            bundle: source.clone(),
+            prompt: prompt.to_vec(),
+            executable,
+            mcp: WorkerMcp::new(&run, &["factory.context".into()], |_| async {
+                Ok(WorkerMcpReply {
+                    status: 200,
+                    body: b"{}".to_vec(),
+                })
+            })?,
+        })?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(12);
+        loop {
+            match ticket.observe().phase {
+                AttemptPhase::Executing => break,
+                AttemptPhase::Starting if std::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(20)).await
+                }
+                _ => return Err("owned execution did not start".into()),
+            }
+        }
+        command("check-owned-execution", "running")?;
+        if mode == "quit" {
+            quit_ticket = Some(ticket);
+            break;
+        }
+        if mode == "cancel" {
+            command("check-owned-execution", "cancel")?;
+        }
+        loop {
+            match supervisor.execution_outcome(&intent)? {
+                ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(20)).await
+                }
+                ExecutionOutcome::Complete(_) if mode == "finite" => break,
+                ExecutionOutcome::Uncertain if mode == "cancel" => break,
+                _ => return Err("owned execution result differs".into()),
+            }
+        }
+        command(
+            "check-owned-execution",
+            if mode == "finite" {
+                "complete"
+            } else {
+                "uncertain"
+            },
+        )?;
+    }
+    // Cancelled local fixtures do not yield a terminal receipt. Quit must join
+    // them and report reconciliation, rather than claim a qualified result.
+    assert!(supervisor.stop().is_err());
+    let ticket = quit_ticket.ok_or("quit fixture missing")?;
+    assert!(ticket.inspect(Duration::from_secs(1)).is_err());
+    assert!(ticket.custody()?.sealed);
+    assert_eq!(
+        ticket.custody()?.state,
+        soda_desktop_runtime::factory_provider::CustodyState::Released
+    );
+    credentials.withdraw(&account.connection).await?;
+    assert!(!profile.join("host.sock").exists());
+    // Fixture cleanup is separate from outcome verification: uncertain staging
+    // remains intact until the check explicitly removes its exact owned roots.
+    for run in runs {
+        Broker::retire_bundle(&run, &ready.profile, &digest(&source))?;
+    }
+    println!("PASS: actual supervisor owns finite/cancel/Quit executions; Go callbacks record exact native facts; cancelled results remain uncertain; shutdown joins workers before child dependencies stop");
     Ok(())
 }
 

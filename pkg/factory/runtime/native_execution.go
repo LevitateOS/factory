@@ -1,0 +1,140 @@
+package runtime
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+
+	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
+	"github.com/levitateos/factory/pkg/store"
+)
+
+// NativeExecution observes the supervisor's retained native execution owner.
+// It never launches from an address, recovers a missing owner, or treats an
+// unavailable observation as process retirement. Go retains product settlement.
+type NativeExecution struct {
+	Config   NativeConfig
+	Instance string
+	Store    *store.Store
+}
+
+var _ execution.RunObserver = NativeExecution{}
+var _ execution.CustodyObserver = NativeExecution{}
+
+type nativeExecutionSnapshot struct {
+	IntentDigest   string                              `json:"intent_digest"`
+	Receipt        *execution.NativeReceiptObservation `json:"receipt"`
+	Custody        *execution.NativeCustodyObservation `json:"custody"`
+	Live           *bool                               `json:"live"`
+	Retired        bool                                `json:"retired"`
+	Reason         *string                             `json:"reason"`
+	Output         *string                             `json:"output"`
+	OutputComplete bool                                `json:"output_complete"`
+}
+
+func (p NativeExecution) InspectRun(ctx context.Context, address execution.RunAddress) (execution.RunObservation, error) {
+	return p.observe(ctx, address, "inspect")
+}
+func (p NativeExecution) RetireRun(ctx context.Context, address execution.RunAddress) (execution.RunObservation, error) {
+	return p.observe(ctx, address, "cancel")
+}
+func (p NativeExecution) ReadCustody(ctx context.Context, address execution.RunAddress) (execution.CustodyObservation, error) {
+	observed, err := p.InspectRun(ctx, address)
+	if err != nil {
+		return execution.CustodyObservation{}, err
+	}
+	run, err := p.Store.FactoryRun(ctx, address.Run)
+	if err != nil || run.Native == nil {
+		return execution.CustodyObservation{}, execution.ErrCustodyNotObserved
+	}
+	custody := observed.Native.Custody
+	result := execution.CustodyObservation{Run: address.Run, Workspace: address.Workspace,
+		Kind: collaboration.Native, Sealed: run.Native.Sealed, Native: &custody}
+	return result, result.ValidateFor(address)
+}
+func (p NativeExecution) SealCustody(ctx context.Context, address execution.RunAddress) error {
+	if _, err := p.RetireRun(ctx, address); err != nil {
+		return err
+	}
+	run, err := p.Store.FactoryRun(ctx, address.Run)
+	if err != nil || run.Native == nil || !run.Native.Sealed {
+		return execution.ErrCustodyNotObserved
+	}
+	return nil
+}
+
+func (p NativeExecution) observe(ctx context.Context, address execution.RunAddress, operation string) (execution.RunObservation, error) {
+	var empty execution.RunObservation
+	if p.Store == nil || address.Validate() != nil {
+		return empty, execution.ErrRunNotObserved
+	}
+	run, err := p.Store.FactoryRun(ctx, address.Run)
+	if err != nil {
+		return empty, err
+	}
+	if run.ProjectID != address.Workspace || run.Native == nil || run.Native.Intent == "" ||
+		run.Native.Provenance.Profile != p.Config.Profile || run.Native.Provenance.InstanceID != p.Instance {
+		return empty, execution.ErrRunChanged
+	}
+	intent := run.Native.Intent
+	var snapshot nativeExecutionSnapshot
+	if err = nativeHostCall(ctx, p.Config, p.Instance, "/api/native/execution", struct {
+		Intent    string `json:"intent"`
+		Operation string `json:"operation"`
+	}{intent, operation}, &snapshot); err != nil {
+		return empty, execution.ErrRunNotObserved
+	}
+	digest := sha256.Sum256([]byte(intent))
+	if snapshot.IntentDigest != hex.EncodeToString(digest[:]) || snapshot.Receipt == nil || snapshot.Custody == nil {
+		return empty, execution.ErrRunNotObserved
+	}
+	if snapshot.Retired && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {
+		return empty, execution.ErrObservation
+	}
+	if err = p.Store.ObserveNativeRecovery(ctx, p.Config.Profile, intent, *snapshot.Receipt, snapshot.Custody, os.Geteuid()); err != nil {
+		return empty, err
+	}
+	if snapshot.Retired {
+		if err = p.Store.RecordNativeRootRetirement(ctx, p.Config.Profile, intent, snapshot.Receipt.Invocation, snapshot.Custody.AcquisitionID); err != nil {
+			return empty, err
+		}
+	}
+	// Reload after callback I/O and fact recording. A changed/reconciled run
+	// cannot inherit an earlier process or credential observation.
+	run, err = p.Store.FactoryRun(ctx, address.Run)
+	if err != nil {
+		return empty, err
+	}
+	if run.Native == nil || run.Native.Intent != intent || run.Reconciled {
+		return empty, execution.ErrRunChanged
+	}
+	native := *run.Native
+	live := snapshot.Live != nil && *snapshot.Live
+	phase := project.FactoryUncertain
+	if snapshot.Retired {
+		phase = project.FactoryFailed
+		if snapshot.Reason != nil && *snapshot.Reason == "exited" && snapshot.Receipt.ExitCode != nil && *snapshot.Receipt.ExitCode == 0 && snapshot.OutputComplete {
+			phase = project.FactoryCompleted
+		} else if snapshot.Reason != nil && *snapshot.Reason == "cancelled" {
+			phase = project.FactoryStopped
+		}
+	} else if live {
+		if native.Sealed || native.Provenance.Process.ExitCode != nil || native.Provenance.Process.ExitSignal != nil {
+			return empty, execution.ErrRunChanged
+		}
+		native.Retirement, phase = execution.Running, project.FactoryRunning
+	}
+	observed := execution.RunObservation{Run: run.ID, Workspace: run.ProjectID, Role: run.Role, Kind: collaboration.Native,
+		Phase: phase, Live: live, Retirement: native.Retirement, Native: &native.Provenance,
+		ExitCode: native.Provenance.Process.ExitCode, OutputComplete: snapshot.OutputComplete}
+	if snapshot.Output != nil {
+		observed.Output = *snapshot.Output
+	}
+	if snapshot.Reason != nil {
+		observed.Reason = *snapshot.Reason
+	}
+	return observed, observed.ValidateFor(address)
+}

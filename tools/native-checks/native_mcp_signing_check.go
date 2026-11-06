@@ -1000,10 +1000,72 @@ func startupRetirementFixture(profile, instance, operation, argument string) err
 	return nil
 }
 
+func ownedExecutionFixture(profile, instance, mode string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	id, err := os.ReadFile(filepath.Join(profile, "native-recovery-canonical.id"))
+	if err != nil {
+		return err
+	}
+	run, err := db.FactoryRun(ctx, string(id))
+	if err != nil {
+		return err
+	}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	address := execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}
+	var observed execution.RunObservation
+	if mode == "cancel" {
+		observed, err = port.RetireRun(ctx, address)
+	} else {
+		observed, err = port.InspectRun(ctx, address)
+	}
+	if err != nil {
+		return err
+	}
+	latest, err := db.FactoryRun(ctx, run.ID)
+	if err != nil || latest.Native == nil || latest.Native.Provenance.Process == nil || latest.Reconciled || latest.Outcome != "" || latest.Native.Intent != run.Native.Intent {
+		return errors.New("native callback changed outcome or lost process/intent")
+	}
+	if mode == "running" && (!observed.Live || observed.Retirement != execution.Running || observed.Phase != project.FactoryRunning || observed.Native.Custody.State != execution.Held) {
+		return errors.New("native callback did not observe the live owned process")
+	}
+	if mode == "complete" && (observed.Live || observed.Retirement != execution.Retired || observed.Phase != project.FactoryCompleted || !observed.OutputComplete || !latest.Native.Settled()) {
+		return errors.New("native callback did not retain exact terminal/custody/root facts")
+	}
+	if mode == "uncertain" && (observed.Phase != project.FactoryUncertain || observed.Retirement == execution.Retired || observed.OutputComplete) {
+		return errors.New("cancelled native callback invented a complete result")
+	}
+	if mode == "running" {
+		stale := port
+		stale.Instance = factory.NewID()
+		if _, err := stale.InspectRun(ctx, address); !errors.Is(err, execution.ErrRunChanged) {
+			return errors.New("stale native owner selected a process")
+		}
+		changed := address
+		changed.Workspace = "p" + strings.Repeat("9", 24)
+		if _, err := port.InspectRun(ctx, changed); !errors.Is(err, execution.ErrRunChanged) {
+			return errors.New("wrong workspace selected a process")
+		}
+	}
+	fmt.Println("PASS: native Go callback", mode, "retains exact process/custody facts without product settlement")
+	return nil
+}
+
 func main() {
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
+		if os.Args[3] == "check-owned-execution" {
+			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 		} else if os.Args[3] == "check-native-observation" {
 			err = checkNativeObservation(os.Args[1], os.Args[2], os.Args[4])

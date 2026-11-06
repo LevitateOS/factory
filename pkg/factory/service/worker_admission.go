@@ -114,9 +114,8 @@ func (s WorkerAdmission) Prepare(ctx context.Context, admitted factory.MCPCapabi
 	if err != nil {
 		return empty, errors.Join(ErrWorkerObservation, err)
 	}
-	if err := workerObservation(run, observation); err != nil {
-		return empty, err
-	}
+	// A native inspector records its first exact process observation before
+	// activation. Validate against the reloaded row, including that first fact.
 	cap, _, latest, err := s.current(bounded, admitted)
 	if err != nil {
 		return empty, err

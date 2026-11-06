@@ -31384,3 +31384,15 @@ guards pass: `/home/vince/tmp/factory-native-planner-1106.18AHwZ/{run.log,run3.l
 The native preparation fixture preserves missing-retry refusal and uses standing
 preparation facts for the positive packet. No planner-to-Rust callback or actual
 worker/provider execution is qualified yet; the execution rows remain Pending.
+
+The native supervisor now owns the execution registry through Quit/failure;
+private Go callbacks observe/cancel exact retained intents and record process,
+custody and separate root-retirement facts. The existing native integration root
+passed actual isolated local finite/cancel/Quit checks:
+`/home/vince/tmp/factory-native-supervisor-1106.Xqp9r1/run.log`. The check exposed
+and fixed preparation consuming the captured execution deadline. Cancellation
+remains uncertain without a terminal receipt; exact fixture cleanup does not
+settle it. Inputs were declared Go intents, local ELFs and dummy credentials.
+Native source/preparation/Git/artifact ports, Go launch/MCP transport, native
+policy/funding and coordinator composition, actual provider work and durable
+outcome/restart proof remain unfinished. T09 and D3 remain Pending/open.

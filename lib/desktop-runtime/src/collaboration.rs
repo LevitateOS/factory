@@ -60,6 +60,7 @@ struct State {
     scopes: Mutex<BTreeMap<String, Weak<Scope>>>,
     slots: Arc<Semaphore>,
     finalizations: jobs::Sender<Finalize>,
+    executions: Arc<Mutex<crate::factory_provider::Executions>>,
 }
 struct Finalize {
     scope: Arc<Scope>,
@@ -205,7 +206,12 @@ pub(crate) struct Owner {
 }
 impl Owner {
     /// The supervisor holds its exclusive profile lock until this owner joins.
-    pub fn start(channel: NativeChannel, provider: Client, alive: Arc<AtomicBool>) -> Result<Self> {
+    pub fn start(
+        channel: NativeChannel,
+        provider: Client,
+        alive: Arc<AtomicBool>,
+        executions: Arc<Mutex<crate::factory_provider::Executions>>,
+    ) -> Result<Self> {
         let signer = Signer::open(
             channel
                 .socket
@@ -223,6 +229,7 @@ impl Owner {
             scopes: Mutex::new(BTreeMap::new()),
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
+            executions,
         }));
         let state = port.0.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -615,10 +622,16 @@ async fn dispatch(
     let target = request.uri().path_and_query().map(|target| target.as_str());
     let signing = target == Some("/api/native/mcp-sign");
     let verifying = target == Some("/api/native/mcp-verify");
+    let execution = target == Some("/api/native/execution");
     if request.method() != "POST"
         || !matches!(
             target,
-            Some("/api/native/collaboration" | "/api/native/mcp-sign" | "/api/native/mcp-verify")
+            Some(
+                "/api/native/collaboration"
+                    | "/api/native/mcp-sign"
+                    | "/api/native/mcp-verify"
+                    | "/api/native/execution"
+            )
         )
         || request.uri().scheme().is_some()
         || request.uri().authority().is_some()
@@ -627,7 +640,9 @@ async fn dispatch(
     {
         return Err(Failure::invalid());
     }
-    let body_limit = if signing || verifying {
+    let body_limit = if execution {
+        32768
+    } else if signing || verifying {
         8192
     } else {
         512 * 1024
@@ -637,6 +652,16 @@ async fn dispatch(
         .await
         .map_err(|_| Failure::invalid())?
         .to_bytes();
+    if execution {
+        let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        return crate::factory_provider::port::call(
+            state.executions.clone(),
+            state.alive.clone(),
+            call,
+        )
+        .await
+        .map_err(|_| Failure::new(503, "native_execution_unavailable"));
+    }
     if signing {
         let call: SignCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
         let secret = state

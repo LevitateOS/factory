@@ -444,10 +444,13 @@ impl RunOwner {
             return Err(refused("provider run already consumed"));
         }
         let remaining = self.deadline.saturating_duration_since(Instant::now());
-        if duration.is_zero() || duration > remaining || !self.owner.running() {
+        if duration.is_zero() || remaining.is_zero() || !self.owner.running() {
             let _ = self.retire();
             return Err(refused("provider run deadline or owner unavailable"));
         }
+        // Preparation and scheduling consume the already captured deadline.
+        // The requested maximum never grants a fresh execution window.
+        let duration = duration.min(remaining);
         self.attempted = true;
         let result = Broker::execute_agent_controlled(
             &self.run,

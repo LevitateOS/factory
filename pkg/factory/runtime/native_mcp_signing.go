@@ -27,7 +27,7 @@ func NativeMCPSecretDeriver(config NativeConfig, instance string) factory.MCPSec
 		var result struct {
 			Secret string `json:"secret"`
 		}
-		err := nativeMCPCall(ctx, config, instance, "/api/native/mcp-sign", struct {
+		err := nativeHostCall(ctx, config, instance, "/api/native/mcp-sign", struct {
 			CapabilityID string `json:"capability_id"`
 			ScopeDigest  string `json:"scope_digest"`
 		}{capability.ID, capability.ScopeDigest()}, &result)
@@ -52,7 +52,7 @@ func NativeMCPSecretVerifier(config NativeConfig, instance string) factory.MCPSe
 		var result struct {
 			Valid *bool `json:"valid"`
 		}
-		err := nativeMCPCall(ctx, config, instance, "/api/native/mcp-verify", struct {
+		err := nativeHostCall(ctx, config, instance, "/api/native/mcp-verify", struct {
 			CapabilityID string `json:"capability_id"`
 			ScopeDigest  string `json:"scope_digest"`
 			Secret       string `json:"secret"`
@@ -64,14 +64,22 @@ func NativeMCPSecretVerifier(config NativeConfig, instance string) factory.MCPSe
 	}
 }
 
-func nativeMCPCall(ctx context.Context, config NativeConfig, instance, route string, payload, result any) error {
-	if ctx.Err() != nil || !collaboration.ValidID(instance) || (route != "/api/native/mcp-sign" && route != "/api/native/mcp-verify") {
+func nativeHostCall(ctx context.Context, config NativeConfig, instance, route string, payload, result any) error {
+	requestLimit, responseLimit := 8192, 256
+	switch route {
+	case "/api/native/mcp-sign", "/api/native/mcp-verify":
+	case "/api/native/execution":
+		requestLimit, responseLimit = 32768, 512*1024
+	default:
+		return errors.New("native callback route unavailable")
+	}
+	if ctx.Err() != nil || !collaboration.ValidID(instance) {
 		return errors.New("native MCP callback unavailable")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	body, err := json.Marshal(payload)
-	if err != nil {
+	if err != nil || len(body) > requestLimit {
 		return errors.New("native MCP callback unavailable")
 	}
 	transport := &http.Transport{
@@ -94,8 +102,8 @@ func nativeMCPCall(ctx context.Context, config NativeConfig, instance, route str
 		return errors.New("native MCP callback unavailable")
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, 257))
-	if err != nil || len(raw) > 256 || response.StatusCode != http.StatusOK || ctx.Err() != nil || nativeDecode(raw, result) != nil {
+	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(responseLimit+1)))
+	if err != nil || len(raw) > responseLimit || response.StatusCode != http.StatusOK || ctx.Err() != nil || nativeDecode(raw, result) != nil {
 		return errors.New("native MCP callback unavailable")
 	}
 	return nil

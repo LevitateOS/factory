@@ -9,6 +9,7 @@ mod intent;
 mod mcp;
 mod observation;
 mod owner;
+pub(crate) mod port;
 mod receipt;
 pub(crate) mod recovery;
 mod response;
