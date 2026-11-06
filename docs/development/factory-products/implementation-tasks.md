@@ -30378,3 +30378,72 @@ were qualified by that documentation or this read. Actual provider permissions,
 pending privacy/notifications, fresh shared UI/installed evidence and all other
 concrete/canonical/broad gates remain open. Shared writes remain unavailable,
 T11-WRITES/the full product remain unfinished, and no Daybreak work ran.
+
+### T11-WRITES checkpoint: admitted inline preparation envelope (2026-11-06)
+
+The exact current selection reader now has a narrowly typed Go/native callback
+path. `NativeCollaboration.InlinePreparation` validates the canonical selector,
+uses a dedicated read envelope and verifies the normal single-field response and
+account/repository binding. Its returned preparation remains private native facts,
+not a browser projection, write grant or causal receipt. Rust remains the defining
+provider traversal/decoder; Go adds no provider client or duplicate diff parser.
+
+Only the typed `Read::InlinePreparation` descriptor admits 64 KiB, sufficient for
+JSON escaping of the 4,096-byte canonical path. Ordinary reads and other small
+descriptors retain 8 KiB; existing typed writing bounds remain unchanged. The
+Rust operation/repository/custody admission and whole-call deadlines still apply.
+No generic request forwarding or new public product route was added. The full
+inline writer remains unavailable pending its fixed native effect and consumer.
+
+The existing native executable's
+`--github-inline-preparation-port-declared GO_OBSERVER PG_PAYLOAD FRESH_PROFILE`
+passed 20 declared cases through the production Go port, native callback,
+actual isolated keyring custody and actual Rust-owned PostgreSQL startup/stop.
+The external Go observer uses `RunNativeWithBinding` and the defining production
+preparation method. It writes only owned private evidence and deliberately returns
+the canonical unavailable HTTP response; this does not stand in for an enabled
+product writer, durable command journey or shared UI projection.
+
+Nine positive cases cover new/old lines, file scope, rename, Unicode, maximum
+normal and heavily escaped paths, distinct merge base/base tip and no pending
+review. Exact selector/account/catalogue facts survived the callback; the maximal
+escaped request exceeded 8 KiB. Eight refusal cases cover invalid path/number/
+repository, outside admitted repository, stale head, changed summary/child writing
+and unavailable patch. Invalid and outside selectors caused zero provider I/O.
+Three declared raw envelopes sent only to this owned authenticated callback proved
+oversized ordinary reads, inline descriptors over 64 KiB and extra fields refuse
+with 400 before provider I/O. These use a deliberately absent operation; they
+prove descriptor refusal, not admitted effect or hostile caller qualification.
+The dummy account was withdrawn, custody became empty and joined stop passed.
+There were zero mutations or undeclared provider requests. The TLS fixture never
+forwards and contains only fixed dummy credentials.
+
+Evidence under `/home/vince/tmp/factory-inline-port-1106/`:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `server.go` | `e7bf1ad74e61afd0be038d4dae8c4f49094712b31ee2c480a19799200b00ba95` |
+| `server` | `0cde734cca74167abcf7c3d4a24fd2b2ff5ef5512fb4336f11c88c26367a1006` |
+| `provider.go` | `0cbd72473abe73a006980bc277c4ec5e68f85c763fbae381fa451f1010538f8c` |
+| `provider` | `78ad188c605d09f0340c88b12ac95e98a95dcfd415dcb16ae00f425ceda7083d` |
+| `check-bin` | `884163e0c6b6cd9c64de1194576dabec2d2a4cf8e746219a31fe4f140c65c76f` |
+| `run.sh` | `a0aa1e85324052771b95b81515ef0857b31d8fadde740e6eb926baf806439e4b` |
+| `session.sh` | `ac385bb747e8958741191cb49ce4245b35b2555dca17038102549c0b54ed7f44` |
+| `attempt1/result.log` | `f81c6b737ebebdd44167ac5e731e1dae2673017208b6bc5158548e47d9434f5d` |
+| `attempt1/inline-preparation-port-result.json` | `49bce137fb632a98b29cbc7bf56b23d4e9c96c9c7940073bb895dd5001c6ad41` |
+
+Production Go observer and locked/offline native executable/desktop-feature
+builds, ownership boundaries and whitespace passed. The initial native check
+build used a nonexistent observer cleanup method; it was corrected to the
+existing withdrawal API before any run. No production custody/admission guard
+was weakened. No dependency, authored Python, unit-test root or module was added.
+Historical cached-input builds are not freshness or installed qualification.
+
+This closes the maximal escaped selector callback gap recorded in the preceding
+checkpoint. Fixed supported inline effects, complete writing/selection effect
+and HTTP envelopes, schema-91 causal-primary persistence, existing pending identity
+and preservation/privacy, loss/replay/cancel/original expiry/custody/restart and
+normal readback remain dependencies. Actual provider permissions/notifications,
+shared UI/installed and all other concrete/canonical/broad gates remain open.
+Shared writes remain unavailable; T11-WRITES/the full product remain unfinished.
+No Daybreak work ran or was marked complete.

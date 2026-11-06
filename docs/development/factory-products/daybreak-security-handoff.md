@@ -3424,3 +3424,39 @@ provenance must remain unknown where the provider facts cannot establish them.
 No documentation or source/fixture check closes those gates. All other concrete
 and canonical/broad gates remain open; shared writes remain unavailable. No
 Daybreak work ran or was marked complete.
+
+T11-WRITES admitted inline preparation envelope (2026-11-06):
+`runtime/{native_inline_preparation,native_collaboration,native_product_observations}.go`
+and `desktop-runtime/src/collaboration.rs` now admit only the exact typed inline
+preparation read at 64 KiB. Ordinary small descriptors remain 8 KiB. The
+canonical selector/account/repository and single-field observation checks remain;
+private native facts are not permission, receipt or browser projection. No inline
+writer or public product route was activated.
+
+The existing native executable passed 20 declared cases through the production
+Go port and native callback with actual isolated keyring custody and PostgreSQL
+startup/stop. The largest escaped 4,096-byte selector crossed 8 KiB and survived
+exactly; ordinary oversized, over-64-KiB inline and extra-field envelopes refused
+before provider I/O. Invalid/outside selectors, stale head and changed pending/
+child writing refused. These are owned dummy observations, including deliberately
+absent-operation malformed descriptors, not hostile caller or security-gate
+qualification. Dummy custody was withdrawn and joined stop passed with zero
+mutations. Evidence:
+`/home/vince/tmp/factory-inline-port-1106/attempt1/inline-preparation-port-result.json`,
+SHA-256 `49bce137fb632a98b29cbc7bf56b23d4e9c96c9c7940073bb895dd5001c6ad41`;
+log SHA-256 `f81c6b737ebebdd44167ac5e731e1dae2673017208b6bc5158548e47d9434f5d`.
+The plan records exact observer/fixture/binaries/runners and the unavailable
+HTTP response; there is no enabled product writer or durable inline command
+journey. This closes only the preceding maximal escaped preparation-read callback
+gap. The initial check cleanup API typo was corrected before running; production
+guards were unchanged.
+
+Next dependencies remain the supported fixed native effect and Go/native inline
+consumer, full effect/HTTP writing envelopes, schema-91 causal-primary persistence,
+new/existing pending identity, preserved summary/comments and draft privacy,
+loss/replay/cancel/original expiry/replacement/restart and normal readback. Fresh
+specifically authorized actual grant/permission/privacy/publication/notification,
+shared UI/installed and all other concrete/canonical/broad gates remain unverified.
+Do not infer original historical anchors or full source provenance from current
+diff fragments. Shared writes remain unavailable; no source or dummy observation
+closes the actual gates. No Daybreak work ran or was marked complete.
