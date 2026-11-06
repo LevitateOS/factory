@@ -45,9 +45,28 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
     )?;
     let store = state.credentials()?;
     let accounts = store.status().await.map_err(|e| e.to_string())?;
+    let factory_oauth = fixture["oauth_source"] == "factory_device";
+    if factory_oauth {
+        ensure(
+            std::env::args_os().any(|arg| arg == "--check-signin-consent"),
+            "Factory OAuth check requires the consent observer",
+        )?;
+        let view = serde_json::to_value(state.signin.view()).map_err(|_| "sign-in status unavailable")?;
+        if accounts.is_empty() {
+            ensure(view["phase"] == "idle", "owned sign-in already started")?;
+            start_signin(app.clone(), check::SignInMode::Consent);
+            return Ok(());
+        }
+        ensure(
+            (view["phase"] == "complete" || fixture["resume_pending"] == true)
+                && accounts.len() == 1 && accounts[0].grant.is_some(),
+            "fresh Factory OAuth grant not observed",
+        )?;
+    }
     let connection = if !accounts.is_empty() {
         ensure(
-            (fixture["resume_pending"] == true || fixture["pull_read_only"] == true) && accounts.len() == 1,
+            (factory_oauth || fixture["resume_pending"] == true || fixture["pull_read_only"] == true)
+                && accounts.len() == 1,
             "unexpected owned check account",
         )?;
         accounts[0].connection.clone()
@@ -87,6 +106,9 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .connection
     };
+    if fixture["mode"] == "inspect" {
+        return Ok(());
+    }
     let script = include_str!("github_writes_check.js")
         .replace(
             "__CONNECTION__",
@@ -126,7 +148,7 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 return Ok::<(), String>(());
             }
             let reviews = fixture["mode"] != "thread_resolution";
-            let evidence = if fixture["issue_only"] == true {
+            let mut evidence = if fixture["issue_only"] == true {
                 serde_json::json!({
                     "real_github": true,
                     "webkit": true,
@@ -145,8 +167,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 "inline_draft_created": reviews && (fixture["resume_pending"] != true || fixture["append_pending"] == true),
                 "summary_first_created": reviews && fixture["summary_first"] == true && fixture["resume_pending"] != true,
                 "pending_inline_readback": reviews,
-                "pending_summary_edit_clear": reviews && fixture["summary_first"] == true && fixture["resume_pending"] != true,
-                "inline_only_local_summary": reviews && (fixture["summary_first"] != true || fixture["resume_pending"] == true),
+                "pending_summary_edit_clear": reviews && fixture["summary_first"] == true && (fixture["resume_pending"] != true || fixture["edit_summary"] == true),
+                "inline_only_local_summary": reviews && (fixture["summary_first"] != true || (fixture["resume_pending"] == true && fixture["edit_summary"] != true)),
                 "submit_pending_review": reviews,
                 "immediate_range": reviews,
                 "ordinary_merge": reviews,
@@ -156,6 +178,11 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 "oauth_source": "user_authorized_gh_grant",
                 "factory_device_scope_qualified": false,
             }) };
+            if fixture["oauth_source"] == "factory_device" {
+                evidence["oauth_source"] = serde_json::json!("factory_device");
+                evidence["factory_device_write_scope_observed"] = serde_json::json!(true);
+                evidence["granted_scope"] = serde_json::json!(accounts[0].grant.as_ref().ok_or("OAuth grant metadata missing")?.scope);
+            }
             write_consent_evidence(&app, "github-ui-write-result.json", &evidence)?;
             Ok::<(), String>(())
         }.await;
@@ -1716,6 +1743,18 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
       const begin=async()=>{await until(()=>!document.querySelector('#github-sign-in').disabled);document.querySelector('#github-sign-in').click();await until(async()=>{const s=await view();return s.phase==='waiting'&&!document.querySelector('#github-prompt').hidden;});return view();};
       const cancel=async()=>{document.querySelector('#github-cancel').click();await until(async()=>(await view()).phase==='cancelled');};
       try{
+        if(__WRITE_JOURNEY__){
+          await begin();await report('signin-consent-prompt');
+          const deadline=Date.now()+950000;
+          for(;;){
+            document.querySelector('#refresh').click();const state=await view();
+            if(state.phase==='complete')break;
+            assert(state.phase==='waiting'||state.phase==='verifying'||state.phase==='saving','Factory sign-in failed: '+String(state.error));
+            assert(Date.now()<deadline,'Factory consent deadline');
+            await new Promise(resolve=>setTimeout(resolve,250));
+          }
+          await report('signin-consent-complete');return;
+        }
         if(consent&&(await invoke('credential_status')).length===1){await report('signin-consent-complete');return;}
         if(!live)await mode('pause-wait');
         const first=await begin();
@@ -1781,6 +1820,7 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
         await report('signin-done');
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#.replace("__LIVE__",if mode != check::SignInMode::Declared {"true"} else {"false"})
+    .replace("__WRITE_JOURNEY__",if std::env::args_os().any(|arg| arg == "--check-github-writes") {"true"} else {"false"})
     .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"})
     .replace("__ISSUE_READ__",if std::env::args_os().any(|arg| arg == "--check-issue-read") {"true"} else {"false"});
     if mode == check::SignInMode::Consent {

@@ -466,6 +466,10 @@ pub fn report(
         return crate::check_credentials::publish_consent_prompt(&app);
     }
     if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-complete" {
+        if std::env::args_os().any(|arg| arg == "--check-github-writes") {
+            crate::check_credentials::start_github_writes(app);
+            return Ok(());
+        }
         crate::check_credentials::start_consent_checks(app);
         return Ok(());
     }

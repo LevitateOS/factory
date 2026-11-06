@@ -31121,3 +31121,25 @@ after merge, requiring committed outcomes and normal readback. Result:
 The owned local account was withdrawn. TypeScript, desktop assets and native
 build passed. Existing cross-account/team, fresh OAuth, physical-input and
 installed qualification dependencies remain open; T11 remains active.
+
+### T11-WRITES: Factory device OAuth writes and retained-grant recovery (2026-11-06)
+
+The existing native write check now uses the ordinary Factory device sign-in
+flow as well as the separately identified gh-sourced grant. The user approved
+one new Factory grant (`read:user,repo`), which created the initial draft review.
+An exit-135 stop occurred before any inline command was captured. The read-only
+journal proved that only the initial draft was complete; the same encrypted OAuth
+grant and review were retained across restart. The continuation used private
+fixed executable copies and did not repeat the captured creation or request a
+second sign-in. The cause of the first stop was not established.
+
+Actual WebKit then passed file-level append, summary edit/clear, pending review
+publication, direct range publication and ordinary merge through production
+UI/IPC/Go/PostgreSQL/native custody. All required committed outcomes and normal
+readback; the owned local account was withdrawn. Evidence:
+`/home/vince/tmp/factory-webkit-device-writes-1106.zZ8gy0/{recovery-journal-summary.jsonl,continuation.log,github-ui-write-result.json}`.
+This proves the listed writes with the fresh Factory grant, including retained
+grant/review recovery. It does not qualify the broader privilege matrix.
+The owner-deferred other-actor approval/request-changes, reviewer-request and
+organization/team/privacy/notification checks remain pending. Physical input and
+installed release remain separate open gates. T11 and the full product stay open.

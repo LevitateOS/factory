@@ -3656,7 +3656,7 @@ pending preservation/cancellation/restart passed in
 Closure of the remaining provider race claims still needs supported conditional
 API semantics and real concurrent-change evidence; this fix alone cannot close them.
 
-Remaining privacy/permission dependency: only the author's `gh` account is
+Remaining privacy/permission dependency: only the PR author's account is
 authorized. A second authorized account with access to the disposable private
 fixture is needed to observe pending-draft invisibility, submitted visibility,
 notification timing and positive approval/request-changes. Same-account receipts
@@ -3664,8 +3664,8 @@ and reads do not prove those properties. Relevant files are the native review/
 inline owners above, `native_product_capabilities.go`, and
 `tools/native-checks/src/native_github_pull_branches.rs`. Closure needs a scoped
 connected journey with both actors and actual provider observations; proposed
-behavior, fixtures and source checks are insufficient. Fresh Factory OAuth scope,
-privilege matrices, installed admission and existing broad security gates remain
+behavior, fixtures and source checks are insufficient. Remaining privilege
+matrices, installed admission and existing broad security gates remain
 unverified. Routine product work remains in the normal queue; no Daybreak or broad
 security gate completion is claimed.
 
@@ -3741,3 +3741,17 @@ The owned same-account WebKit resolve/reopen check passed in
 `/home/vince/tmp/factory-webkit-merged-thread-1106.BNnCXa/`; current provider facts,
 causal UI outcomes and readback were checked, and its local account withdrawn.
 This adds no other-actor/organization permission or installed-admission proof.
+
+Fresh Factory device OAuth now exercised the owned review/inline/ordinary-merge
+writes with granted `read:user,repo` scope in
+`/home/vince/tmp/factory-webkit-device-writes-1106.zZ8gy0/`. The initial exit-135
+stop's cause is unverified. Its read-only journal showed only the initial review
+creation complete and no inline capture. The same encrypted Factory grant and
+review survived restart; the continuation completed append, edit/clear,
+publication, direct range publication and merge with committed UI outcomes and
+readback, then withdrew its owned local account. See `recovery-journal-summary.jsonl`,
+`continuation.log` and `github-ui-write-result.json` there. No second sign-in or
+repeated captured creation was needed. This adds same-account scoped write and
+recovery evidence; the explicitly deferred second actor/organization fixtures,
+privacy/notification observations, full privilege matrix and installed gates
+remain required. The fixture result keeps broad scope qualification false.
