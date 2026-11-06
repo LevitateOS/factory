@@ -31404,3 +31404,14 @@ five-minute freshness expiry. Actual callback/identity proof passed in
 precedes bounded coordinator callbacks. Native install/updater enrollment and
 artifact installation remain separate unfinished consumers; no supported agent
 flag, provider-task or D3 qualification follows from this artifact check.
+
+Native intent version 2 now captures the selected model/effort/Contributor
+profile with dispatch and delivers explicit worker CLI flags. PostgreSQL capture
+passed in `/home/vince/tmp/factory-native-profile-pg-1106.pkltVv/run.log`.
+The fixed native MCP route is connected to Go's current worker boundary and Rust
+signer. Actual local ELF low/off delivery, worker-to-Go missing-capability refusal
+and finite/cancel/Quit passed in
+`/home/vince/tmp/factory-native-profile-1106.DMxAYw/run.log`. No provider inference,
+positive MCP activation or product outcome settlement is qualified. Native
+source/setup/context/candidate ports, admitted Go launch and coordinator
+composition remain unfinished; T09 and D3 remain Pending/open.

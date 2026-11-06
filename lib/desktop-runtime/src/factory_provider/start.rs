@@ -34,6 +34,7 @@ impl Executions {
                 "native launch differs from captured admission",
             )
         };
+        start.intent.current_profile()?;
         if start.bundle.is_empty()
             || start.bundle.len() > MAX_STAGE_BUNDLE
             || start.prompt.is_empty()

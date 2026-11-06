@@ -24,7 +24,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
-const MAX_FRAME: usize = 768;
+const MAX_FRAME: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const ATTEST_TIME: Duration = Duration::from_secs(20);
 const PREPARE_TIME: Duration = Duration::from_secs(90);
 const AGENT_TIME: Duration = Duration::from_secs(60);
@@ -897,6 +897,7 @@ impl Broker {
             duration,
             cancellation,
             AgentObserver::default(),
+            &soda_execution_protocol::HarnessProfile::legacy(),
             on_started,
         )
     }
@@ -916,8 +917,12 @@ impl Broker {
         duration: Duration,
         cancellation: AgentCancellation,
         observer: AgentObserver,
+        harness_profile: &soda_execution_protocol::HarnessProfile,
         on_started: impl FnOnce(&AgentStarted) -> io::Result<()>,
     ) -> io::Result<AgentRun> {
+        if !harness_profile.valid() {
+            return Err(refused("native harness profile unsupported"));
+        }
         if cancellation.cancelled() {
             return Err(refused("agent execution cancelled"));
         }
@@ -963,6 +968,7 @@ impl Broker {
             "tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,
             "executable_length":metadata.len(),"prompt_length":prompt.len(),
             "placeholder":placeholder,"duration_ms":duration.as_millis() as u64,
+            "harness_profile":harness_profile,
         }))?;
         if request.len() > MAX_FRAME {
             return Err(refused("agent execution request bound invalid"));

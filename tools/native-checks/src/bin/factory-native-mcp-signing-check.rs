@@ -187,7 +187,6 @@ async fn managed_execution(
     use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
     use soda_desktop_runtime::factory_provider::{
         AttemptPhase, Broker, Budget, ExecutionOutcome, ExecutionStart, LaunchIntent, Policy, Role,
-        WorkerMcp, WorkerMcpReply,
     };
     use std::sync::Arc;
     let digest = |bytes: &[u8]| -> String {
@@ -269,6 +268,14 @@ async fn managed_execution(
             Duration::from_secs(60),
             Budget::new(2, 256 * 1024, 8192)?,
         )?;
+        let mcp = supervisor
+            .worker_mcp(
+                &intent,
+                &["factory.context".into()],
+                intent.run(),
+                &"a".repeat(64),
+            )
+            .await?;
         let ticket = supervisor.launch_admitted_execution(ExecutionStart {
             intent: intent.clone(),
             policy,
@@ -277,12 +284,7 @@ async fn managed_execution(
             bundle: source.clone(),
             prompt: prompt.to_vec(),
             executable,
-            mcp: WorkerMcp::new(&run, &["factory.context".into()], |_| async {
-                Ok(WorkerMcpReply {
-                    status: 200,
-                    body: b"{}".to_vec(),
-                })
-            })?,
+            mcp,
         })?;
         let deadline = std::time::Instant::now() + Duration::from_secs(12);
         loop {

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub const MAX_STAGE_BUNDLE: usize = 512 * 1024;
 pub const MAX_PROMPT: usize = 320 * 1024;
 pub const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
+pub const MAX_BROKER_FRAME: usize = 1024;
+pub const MAX_AGENT_REQUEST: usize = 768;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 pub const MAX_CANDIDATE_BUNDLE: usize = 4 * 1024 * 1024;
 pub const MAX_EXECUTION_REPLY: usize = 1536;
@@ -12,6 +14,32 @@ pub const MAX_START_REPLY: usize = 1024;
 pub const MAX_OBSERVATION_QUERIES: u64 = 65_536;
 pub const OBSERVATION_REQUEST_BYTES: usize = 9;
 pub const OBSERVATION_MARKER: u8 = b'O';
+
+/// Captured run choices, never inherited from a CLI home or machine default.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HarnessProfile {
+    pub model: String,
+    pub effort: String,
+    pub contributor: bool,
+}
+impl HarnessProfile {
+    pub fn valid(&self) -> bool {
+        self.model == "muse-spark-1.3-contributor"
+            && matches!(
+                self.effort.as_str(),
+                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+            )
+    }
+    /// Component callers without a Go intent retain their previous CLI defaults.
+    pub fn legacy() -> Self {
+        Self {
+            model: "muse-spark-1.3-contributor".into(),
+            effort: "high".into(),
+            contributor: true,
+        }
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

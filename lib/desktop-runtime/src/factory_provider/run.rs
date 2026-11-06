@@ -56,6 +56,7 @@ pub struct RunOwner {
     sha256: String,
     candidate: String,
     role: Role,
+    harness_profile: soda_execution_protocol::HarnessProfile,
     tool_sha256: String,
     prompt_sha256: String,
     deadline: Instant,
@@ -262,6 +263,10 @@ impl RunOwner {
         let profile = policy.profile().to_owned();
         let candidate = policy.candidate().to_owned();
         let role = policy.role();
+        let harness_profile = policy
+            .harness_profile
+            .clone()
+            .unwrap_or_else(soda_execution_protocol::HarnessProfile::legacy);
         let deadline = policy.deadline;
         let connection = policy.connection().to_owned();
         let bound = BoundOwner::bind(policy, credentials, capability)?;
@@ -367,6 +372,7 @@ impl RunOwner {
             sha256: staged,
             candidate,
             role,
+            harness_profile,
             tool_sha256: tool_sha256.to_owned(),
             prompt_sha256: prompt_sha256.to_owned(),
             deadline,
@@ -466,6 +472,7 @@ impl RunOwner {
             duration,
             self.cancellation.clone(),
             self.observer.clone(),
+            &self.harness_profile,
             on_started,
         );
         let run = match result {

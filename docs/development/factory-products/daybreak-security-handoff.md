@@ -71,7 +71,7 @@ terminal outcomes and staging until separate exact fixture cleanup. These checks
 used dummy credentials, local ELFs and declared Go intents, without dispatch,
 MCP activation, provider inference or product outcome/accounting settlement.
 Exact remaining dependencies are native source/preparation/Git/artifact ports,
-Go launch and worker MCP transport, credential/policy/funding enrollment and
+Go launch and positive worker MCP admission, credential/policy/funding enrollment and
 single-coordinator composition. Close these only with admitted finite provider
 work, current placement/process/custody/tool facts, cancellation and durable
 outcome/restart evidence. D3 and broader custody/IPC gates remain open.
@@ -89,6 +89,26 @@ identity and selection, not supported agent flags, inference, isolation or D3.
 The native install/updater must supply the directory and install future releases;
 automatic artifact installation, production shell enrollment and the execution
 joins above remain unfinished. No CLI authentication files were read.
+
+Captured profile/MCP update (2026-11-06): new Go intents use version 2 and retain
+model, effort and Contributor mode with the packet. Rust carries these choices
+through the broker to explicit CLI flags; a bound provider policy also checks
+request effort. Version 1 history remains readable, but the native launch entry
+requires version 2. `native_worker_mcp.go`, `factory_provider/mcp.rs` and the native
+server now join the fixed worker transport to existing Go admission and the Rust
+signer. PostgreSQL capture passed in
+`/home/vince/tmp/factory-native-profile-pg-1106.pkltVv/run.log`; actual isolated
+low/off argv delivery, worker-to-Go missing-capability refusal and finite/cancel/
+Quit passed in `factory-native-profile-1106.DMxAYw/run.log` under the same parent.
+These used the local check ELF and dummy credentials, without provider inference,
+positive capability activation, native setup qualification or product settlement.
+The broker's duplicate request-size check was moved before launch consumption and
+aligned with the shared protocol bound. The failed `factory-native-profile-1106.mqeqeg`
+attempt retains quiesced root staging and an unknown terminal outcome; the later
+pass does not settle it. Exact startup/process/custody/root evidence and the Go
+reconciliation transaction are still needed for interrupted-launch closure.
+Native source/setup/context/candidate ports, admitted Go launch and single-
+coordinator composition remain the execution blockers. D3 and broader gates stay open.
 
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to

@@ -31,7 +31,7 @@ const PRIVATE_MOUNT: &str = "/run/factory-agent-private";
 const PRIVATE_MAX_BYTES: u64 = 768 * 1024 * 1024;
 const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
-const MAX_REQUEST: usize = 512;
+const MAX_REQUEST: usize = soda_execution_protocol::MAX_AGENT_REQUEST;
 const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
 const PROMPT: &str = "/run/factory-agent-private/run/agent.prompt";
 
@@ -54,6 +54,8 @@ enum Request {
         prompt_length: usize,
         placeholder: String,
         duration_ms: u64,
+        #[serde(default = "soda_execution_protocol::HarnessProfile::legacy")]
+        harness_profile: soda_execution_protocol::HarnessProfile,
     },
 }
 
@@ -617,8 +619,10 @@ fn execute_agent(
     prompt_length: usize,
     placeholder: &str,
     duration_ms: u64,
+    harness_profile: &soda_execution_protocol::HarnessProfile,
 ) -> io::Result<()> {
-    if !(1..=MAX_PROMPT).contains(&prompt_length)
+    if !harness_profile.valid()
+        || !(1..=MAX_PROMPT).contains(&prompt_length)
         || !(4..=MAX_EXECUTABLE).contains(&executable_length)
         || !id(placeholder, 64)
         || !(1..=MAX_EXECUTION.as_millis() as u64).contains(&duration_ms)
@@ -657,7 +661,15 @@ fn execute_agent(
         "--provider",
         "meta",
         "--model",
-        "muse-spark-1.3-contributor",
+        harness_profile.model.as_str(),
+        "--reasoning-effort",
+        harness_profile.effort.as_str(),
+        "--contributor-mode",
+        if harness_profile.contributor {
+            "on"
+        } else {
+            "off"
+        },
         "--base-url",
         "http://127.0.0.1:37377",
         "--workspace",
@@ -963,6 +975,7 @@ fn serve() -> io::Result<()> {
             prompt_length,
             placeholder,
             duration_ms,
+            harness_profile,
         } => {
             if version != 3
                 || run != args[1]
@@ -988,6 +1001,7 @@ fn serve() -> io::Result<()> {
                 prompt_length,
                 &placeholder,
                 duration_ms,
+                &harness_profile,
             )
         }
     }

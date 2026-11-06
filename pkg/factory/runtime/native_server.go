@@ -79,7 +79,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 		nativeProvider = connector(collaboration.Profile{ID: config.Profile, Name: "This computer"}, db)
 	}
 	var closing atomic.Bool
-	server := &http.Server{Handler: nativeHandler(config, instance, application, nativeProvider, &closing),
+	server := &http.Server{Handler: nativeHandler(ctx, config, instance, application, nativeProvider, &closing),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384,
 		BaseContext: func(net.Listener) context.Context { return ctx }, ConnContext: nativePeerContext,
@@ -112,10 +112,12 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	return errors.Join(serveErr, err)
 }
 
-func nativeHandler(config NativeConfig, instance string, application *NativeApplication, connector http.Handler, closing *atomic.Bool) http.Handler {
+func nativeHandler(lifetime context.Context, config NativeConfig, instance string, application *NativeApplication, connector http.Handler, closing *atomic.Bool) http.Handler {
 	key := []byte(hex.EncodeToString(config.IPCKey()))
 	mux := http.NewServeMux()
 	db := application.application.Store
+	worker := nativeWorkerMCP(lifetime, NativeExecution{Config: config, Instance: instance, Store: db})
+	mux.Handle("/api/native/execution/mcp", application.application.Coordinator.AdmitHTTP(worker))
 	product := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {
 			nativeResponse(w, 401, map[string]string{"error": "retired_native_instance"})

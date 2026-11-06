@@ -24,17 +24,23 @@ type NativeIntent struct {
 	SourceCommit string       `json:"source_commit"`
 	Connection   string       `json:"connection"`
 	Deadline     time.Time    `json:"deadline"`
+	Model        string       `json:"model,omitempty"`
+	Effort       string       `json:"effort,omitempty"`
+	Contributor  bool         `json:"contributor,omitempty"`
 	Native       NativeLaunch `json:"native"`
 }
 
 var ErrNativeIntent = errors.New("native launch intent differs from its captured binding")
 
 func (i NativeIntent) Validate() error {
-	if i.Kind != "factory_native_launch_intent" || i.Version != 1 ||
+	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2) ||
 		!project.ValidFactoryRunID(i.Run) || !project.ValidID(i.Workspace) ||
 		!project.ValidFactoryRole(i.Role) || !project.ValidCommit(i.SourceCommit) ||
 		!collaboration.ValidText(i.Connection, 128) || i.Deadline.IsZero() ||
 		i.Native.Validate() != nil || i.Native.TrustMode != "isolated_system_worker" {
+		return ErrNativeIntent
+	}
+	if i.Version == 1 && (i.Model != "" || i.Effort != "" || i.Contributor) || i.Version == 2 && (i.Model == "" || !project.ValidTaskEffort(i.Effort)) {
 		return ErrNativeIntent
 	}
 	return nil
@@ -55,9 +61,10 @@ func EncodeNativeIntent(request LaunchRequest) (string, error) {
 		return "", ErrNativeIntent
 	}
 	run := request.Input.Run
-	intent := NativeIntent{Kind: "factory_native_launch_intent", Version: 1,
+	intent := NativeIntent{Kind: "factory_native_launch_intent", Version: 2,
 		Run: run.ID, Workspace: run.Project, Role: run.Role, SourceCommit: run.SourceCommit,
-		Connection: run.Connection, Deadline: run.Deadline, Native: *request.Native}
+		Connection: run.Connection, Deadline: run.Deadline, Native: *request.Native,
+		Model: run.Model, Effort: run.Effort, Contributor: run.Contributor}
 	return intent.Encode()
 }
 

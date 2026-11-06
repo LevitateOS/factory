@@ -36,6 +36,12 @@ struct Wire {
     source_commit: String,
     connection: String,
     deadline: String,
+    #[serde(default)]
+    model: String,
+    #[serde(default)]
+    effort: String,
+    #[serde(default)]
+    contributor: bool,
     native: Native,
 }
 #[derive(Clone, Deserialize, Serialize)]
@@ -83,7 +89,7 @@ impl LaunchIntent {
             serde_json::from_str(raw).map_err(|_| refused("native intent shape invalid"))?;
         let n = &wire.native;
         if wire.kind != "factory_native_launch_intent"
-            || wire.version != 1
+            || !matches!(wire.version, 1 | 2)
             || !hex(&wire.run, 32)
             || !text(&wire.workspace, 128)
             || !hex(&wire.connection, 32)
@@ -99,6 +105,17 @@ impl LaunchIntent {
             || OffsetDateTime::parse(&wire.deadline, &Rfc3339).is_err()
         {
             return Err(refused("native intent selectors invalid"));
+        }
+        if wire.version == 1
+            && (!wire.model.is_empty() || !wire.effort.is_empty() || wire.contributor)
+            || wire.version == 2
+                && (wire.model.is_empty()
+                    || !matches!(
+                        wire.effort.as_str(),
+                        "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
+                    ))
+        {
+            return Err(refused("native intent harness profile invalid"));
         }
         let intent = Self {
             raw: raw.into(),
@@ -136,6 +153,20 @@ impl LaunchIntent {
     }
     pub(super) fn tool_sha256(&self) -> &str {
         &self.wire.native.tool.sha256
+    }
+    pub(super) fn current_profile(&self) -> io::Result<soda_execution_protocol::HarnessProfile> {
+        if self.wire.version != 2 {
+            return Err(refused("historical native intent cannot start new work"));
+        }
+        let profile = soda_execution_protocol::HarnessProfile {
+            model: self.wire.model.clone(),
+            effort: self.wire.effort.clone(),
+            contributor: self.wire.contributor,
+        };
+        if !profile.valid() {
+            return Err(refused("native harness profile unsupported"));
+        }
+        Ok(profile)
     }
     pub(super) fn scope(&self) -> io::Result<ReceiptScope<'_>> {
         let role = match self.wire.role.as_str() {
@@ -182,6 +213,9 @@ impl LaunchIntent {
             return Err(refused("native intent deadline expired"));
         }
         policy.deadline = policy.deadline.min(Instant::now() + remaining);
+        if self.wire.version == 2 {
+            policy.harness_profile = Some(self.current_profile()?);
+        }
         Ok(())
     }
     pub(super) fn matches_record(

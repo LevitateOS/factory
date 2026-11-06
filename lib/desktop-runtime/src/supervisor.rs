@@ -331,6 +331,25 @@ impl NativeSupervisor {
             .select_execution_tools(directory)
             .await
     }
+    /// Exact-run delivery over the native private channel. Go independently
+    /// checks the capability and current worker on every protocol request.
+    pub async fn worker_mcp(
+        &self,
+        intent: &crate::factory_provider::LaunchIntent,
+        tools: &[String],
+        capability: &str,
+        secret: &str,
+    ) -> Result<crate::factory_provider::WorkerMcp> {
+        let (channel, alive) = self.github_channel()?;
+        let channel = channel
+            .await
+            .map_err(|_| "native worker channel retired")??;
+        if !alive.load(Ordering::SeqCst) {
+            return Err("native worker owner retired".into());
+        }
+        crate::factory_provider::WorkerMcp::connected(channel, intent, tools, capability, secret)
+            .map_err(|error| error.to_string())
+    }
     pub fn execution_ticket(
         &self,
         intent: &crate::factory_provider::LaunchIntent,

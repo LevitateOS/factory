@@ -188,7 +188,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 		t.Fatal("native dispatch lost admission or intent", err)
 	}
 	intent, err := execution.ParseNativeIntent(capturedNative.Native.Intent)
-	if err != nil || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
+	if err != nil || intent.Version != 2 || intent.Model != assignment.Model || intent.Effort != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Effort || intent.Contributor != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Contributor || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
 		t.Fatal("native intent differs from admitted packet", err)
 	}
 	wrongEnvironment := *nativeEnvironment

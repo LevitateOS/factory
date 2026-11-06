@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -637,6 +638,8 @@ func nativeIntentFixture(profile, instance, operation, argument string) error {
 		}
 		launch := execution.NativeLaunch{Workspace: execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: run.Native.Provenance.WorktreeID}, Tool: run.Native.Tool, BundleSHA256: run.Native.BundleSHA256, PromptSHA256: run.Native.PromptSHA256, Runtime: collaboration.RuntimeID(strings.Repeat("e", 32)), PlacementGeneration: 7, TrustMode: "isolated_system_worker", BrokerRun: run.Native.Provenance.BrokerRun}
 		request := execution.LaunchRequest{Kind: collaboration.Native, Native: &launch, Input: project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: run.ProjectID, Role: run.Role, Preparation: "f" + strings.Repeat("0", 24), Harness: run.Native.Tool.Harness, HarnessVers: run.Native.Tool.Version, Model: run.Model, Assignment: run.Native.PromptSHA256, SourceCommit: run.InputSHA, Connection: input.Connection, Actor: 1, Deadline: run.Deadline, ExecutionPhase: project.ExecutionReview}, Prompt: []byte(input.Prompt), HarnessSHA256: run.Native.Tool.SHA256}}
+		request.Input.Run.Effort = factory.DefaultEffort
+		request.Input.Run.Contributor = factory.DefaultContributor
 		encoded, err := execution.EncodeNativeIntent(request)
 		if err != nil {
 			return err
@@ -1062,6 +1065,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "exec" {
+		if err := workerProfileFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 5 {
 		var err error
 		if os.Args[3] == "check-owned-tool" {
@@ -1091,6 +1101,43 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// The existing native integration driver can itself act as the captured local
+// CLI fixture. It consumes no provider token and calls only its loopback relay.
+func workerProfileFixture() error {
+	selected := map[string]string{}
+	for i := 1; i+1 < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--model", "--reasoning-effort", "--contributor-mode":
+			selected[os.Args[i]] = os.Args[i+1]
+		}
+	}
+	if selected["--model"] != "muse-spark-1.3-contributor" || selected["--reasoning-effort"] != factory.DefaultEffort || selected["--contributor-mode"] != "off" {
+		return errors.New("worker did not receive the captured model/effort/Contributor profile")
+	}
+	if _, err := bufio.NewReader(io.LimitReader(os.Stdin, 256)).ReadString('\n'); err != nil {
+		return errors.New("worker placeholder input unavailable")
+	}
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"owned-native-fixture","version":"1"}}}`
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:37377/mcp", strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", os.Getenv("SODA_FACTORY_RUN_AUTH"))
+	request.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 2 * time.Second, Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true}}
+	response, err := client.Do(request)
+	if err != nil {
+		return errors.New("native worker MCP relay unavailable")
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		return errors.New("native worker without a current Go capability was not refused")
+	}
+	fmt.Println("captured-profile-low-off; native-worker-MCP-missing-capability-refused")
+	time.Sleep(4 * time.Second)
+	return nil
 }
 
 func ownedToolFixture(profile, instance, mode string) error {

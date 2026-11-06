@@ -21,7 +21,7 @@ mod preparation_quota;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
-const MAX_REQUEST: usize = 768;
+const MAX_REQUEST: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
 const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
@@ -128,6 +128,8 @@ enum Request {
         prompt_length: usize,
         placeholder: String,
         duration_ms: u64,
+        #[serde(default = "soda_execution_protocol::HarnessProfile::legacy")]
+        harness_profile: soda_execution_protocol::HarnessProfile,
     },
 }
 
@@ -288,6 +290,7 @@ struct AgentExecutionRequest<'a> {
     prompt_length: usize,
     placeholder: &'a str,
     duration_ms: u64,
+    harness_profile: &'a soda_execution_protocol::HarnessProfile,
 }
 
 #[derive(Serialize)]
@@ -1333,6 +1336,10 @@ fn execute_agent<R: Read, W: Write>(
     let candidate = request.candidate;
     let tool_sha256 = request.tool_sha256;
     let prompt_sha256 = request.prompt_sha256;
+    let bytes = serde_json::to_vec(request)?;
+    if bytes.is_empty() || bytes.len() > soda_execution_protocol::MAX_AGENT_REQUEST {
+        return Err(denied("agent execution request bound invalid"));
+    }
     arm_agent(
         run,
         profile,
@@ -1370,10 +1377,6 @@ fn execute_agent<R: Read, W: Write>(
         manager_unit("stop", &format!("soda-factory-agent@{run}.socket"))?;
         if path.exists() {
             return Err(denied("agent launch socket survived consumption"));
-        }
-        let bytes = serde_json::to_vec(request)?;
-        if bytes.is_empty() || bytes.len() > 512 {
-            return Err(denied("agent execution request bound invalid"));
         }
         worker.write_all(&(bytes.len() as u32).to_le_bytes())?;
         worker.write_all(&bytes)?;
@@ -1784,7 +1787,7 @@ fn mark_root_launch(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     marker.sync_all()
 }
 
-// Return one exact selector at a time to stay inside the fixed 768-byte wire
+// Return one exact selector at a time to stay inside the fixed broker frame
 // bound. The desktop supervisor holds its profile lock while consuming these;
 // the root broker validates every selector from its own private declarations.
 fn launched_run(run: &str) -> io::Result<bool> {
@@ -2380,8 +2383,10 @@ fn serve() -> io::Result<()> {
             prompt_length,
             placeholder,
             duration_ms,
+            harness_profile,
         } => {
-            if version != 3
+            if !harness_profile.valid()
+                || version != 3
                 || !id(&run, 32)
                 || !id(&profile, 32)
                 || !id(&sha256, 64)
@@ -2408,6 +2413,7 @@ fn serve() -> io::Result<()> {
                 prompt_length,
                 placeholder: &placeholder,
                 duration_ms,
+                harness_profile: &harness_profile,
             };
             return execute_agent(
                 &mut input,

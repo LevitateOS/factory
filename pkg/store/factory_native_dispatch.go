@@ -46,8 +46,13 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	// Use store-observed grants for the admission, then capture the exact intent
 	// in the same transaction as the run, assignment and held reservation.
 	n := *run.Native
-	n.Intent, err = (execution.NativeIntent{Kind: "factory_native_launch_intent", Version: 1, Run: run.ID, Workspace: a.ProjectID,
-		Role: a.Role, SourceCommit: a.SourceCommit, Connection: a.Connection, Deadline: run.Deadline, Native: native}).Encode()
+	selection := grants.policy.Roles[a.Role]
+	if selection.Profile.Validate(selection.Harness) != nil {
+		return refuse()
+	}
+	n.Intent, err = (execution.NativeIntent{Kind: "factory_native_launch_intent", Version: 2, Run: run.ID, Workspace: a.ProjectID,
+		Role: a.Role, SourceCommit: a.SourceCommit, Connection: a.Connection, Deadline: run.Deadline, Native: native,
+		Model: a.Model, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor}).Encode()
 	if err != nil {
 		return factory.Run{}, err
 	}

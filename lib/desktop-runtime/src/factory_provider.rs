@@ -31,11 +31,11 @@ pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};
 pub use recovery::{NativeRecovery, NativeRecoveryEvidence};
 pub use run::{RunOwner, RunStart};
-pub use start::ExecutionStart;
-pub use tool::{ToolSelection, Tools};
 use serde_json::Value;
+pub use start::ExecutionStart;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
+pub use tool::{ToolSelection, Tools};
 
 const MAX_RUN: Duration = Duration::from_secs(4 * 60 * 60);
 const MAX_REQUEST_BYTES: usize = 256 * 1024;
@@ -130,6 +130,7 @@ pub struct Policy {
     model_reads_left: u8,
     retired: bool,
     mcp_tools: BTreeSet<String>,
+    harness_profile: Option<soda_execution_protocol::HarnessProfile>,
 }
 impl Policy {
     /// Values come from a trusted run admission, never an IPC request body.
@@ -167,6 +168,7 @@ impl Policy {
             model_reads_left: 2,
             retired: false,
             mcp_tools: BTreeSet::new(),
+            harness_profile: None,
         })
     }
 
@@ -280,6 +282,16 @@ impl Policy {
             .and_then(Value::as_u64)
             .filter(|tokens| *tokens >= 16)
             .ok_or(Error::Invalid)?;
+        if let Some(profile) = &self.harness_profile {
+            if object
+                .get("reasoning")
+                .and_then(|value| value.get("effort"))
+                .and_then(Value::as_str)
+                != Some(profile.effort.as_str())
+            {
+                return Err(Error::Invalid);
+            }
+        }
         let granted = requested.min(MAX_OUTPUT_PER_REQUEST).min(self.output_left);
         let include = object
             .get_mut("include")
