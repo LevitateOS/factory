@@ -114,5 +114,16 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	if facts.Archived || facts.Disabled {
 		set(collaboration.Denied, "repository_read_only", writes...)
 	}
+	if pull {
+		result.MergeMethods = map[string]collaboration.Capability{}
+		current := result.Actions[collaboration.MergePull]
+		for method, enabled := range map[string]bool{"merge": facts.Merge, "squash": facts.Squash, "rebase": facts.Rebase, "rebase-merge": false, "fast-forward-only": false} {
+			fact := collaboration.Capability{State: collaboration.Unsupported, Reason: "merge_method_unsupported"}
+			if enabled {
+				fact = current
+			}
+			result.MergeMethods[method] = fact
+		}
+	}
 	return result, nil
 }

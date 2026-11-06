@@ -76,5 +76,24 @@ func (s CollaborationCapabilities) Read(ctx context.Context, actor collaboration
 			return empty, ErrCapabilitiesUnavailable
 		}
 	}
+	if r.MergeMethods != nil {
+		if q.Subject != "pull" || len(r.MergeMethods) != 5 {
+			return empty, ErrCapabilitiesUnavailable
+		}
+		for _, method := range []string{"merge", "squash", "rebase", "rebase-merge", "fast-forward-only"} {
+			fact, ok := r.MergeMethods[method]
+			if !ok || fact.Reason != "" && !collaboration.ValidText(fact.Reason, 256) {
+				return empty, ErrCapabilitiesUnavailable
+			}
+			switch fact.State {
+			case collaboration.Allowed, collaboration.Denied, collaboration.Unsupported, collaboration.Unavailable, collaboration.Unknown:
+			default:
+				return empty, ErrCapabilitiesUnavailable
+			}
+			if fact.State == collaboration.Allowed && r.Actions[collaboration.MergePull].State != collaboration.Allowed {
+				return empty, ErrCapabilitiesUnavailable
+			}
+		}
+	}
 	return r, nil
 }

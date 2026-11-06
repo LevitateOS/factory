@@ -2,11 +2,12 @@ import {check, id, object} from '../api/models.js';
 import {PendingRecord} from '../shared/retained-record.js';
 
 export interface MergeAddress {scope: string; host: string; actor: string; repository: string; pull: string}
-export type MergeMethod = 'merge' | 'squash' | 'rebase';
+export type MergeMethod = 'merge' | 'squash' | 'rebase' | 'rebase-merge' | 'fast-forward-only';
+export const noMergeMessage = (method: MergeMethod) => method === 'rebase' || method === 'fast-forward-only';
 export const validMergeMessage = (method: MergeMethod, message: string) =>
   !message.includes('\0') && new TextEncoder().encode(message).length <= 65536 &&
   [...message].every(char => { const code = char.codePointAt(0)!; return code < 0xd800 || code > 0xdfff; }) &&
-  (method === 'rebase' ? message === '' : !!message.trim());
+  (noMergeMessage(method) ? message === '' : !!message.trim());
 export interface PendingMerge {
   command: string;
   method: MergeMethod;
@@ -26,7 +27,7 @@ function decode(raw: string, address: MergeAddress): PendingMerge | undefined {
     const row = object(JSON.parse(raw));
     check(Object.keys(row).length === 10);
     for (const [key, value] of Object.entries(fields(address))) check(row[key] === value);
-    check(issued(row.command) && ['merge', 'squash', 'rebase'].includes(String(row.method)));
+    check(issued(row.command) && ['merge', 'squash', 'rebase', 'rebase-merge', 'fast-forward-only'].includes(String(row.method)));
     check(typeof row.message === 'string' && validMergeMessage(row.method as MergeMethod, row.message));
     check(typeof row.external === 'string' && !!row.external.trim() && row.external.length <= 512);
     check(typeof row.head === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(row.head));

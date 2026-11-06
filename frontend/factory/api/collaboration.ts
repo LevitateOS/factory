@@ -68,6 +68,7 @@ export interface Capabilities {
   connection: string;
   observation: Observation;
   actions: Partial<Record<Action, Capability>> | null;
+  merge_methods?: Partial<Record<'merge' | 'squash' | 'rebase' | 'rebase-merge' | 'fast-forward-only', Capability>>;
 }
 export interface IssueRef {
   kind: 'issue';

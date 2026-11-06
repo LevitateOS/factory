@@ -1,5 +1,5 @@
 import {LitElement, html} from 'lit';
-import {check, readSodaJSON} from '../api/models.js';
+import {check, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {PullRef} from '../api/collaboration.js';
 import {pullActionAllowed} from '../api/capability-response.js';
@@ -7,7 +7,23 @@ import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
 import {pullItem} from './response.js';
-import {mergeRecord, mergeRecordKey, validMergeMessage, type MergeAddress, type MergeMethod, type PendingMerge} from './merge-record.js';
+import {mergeRecord, mergeRecordKey, noMergeMessage, validMergeMessage, type MergeAddress, type MergeMethod, type PendingMerge} from './merge-record.js';
+
+const mergeMethods: readonly MergeMethod[] = ['merge', 'squash', 'rebase', 'rebase-merge', 'fast-forward-only'];
+const mergeMethodLabel: Record<MergeMethod, string> = {
+  merge: 'Merge commit', squash: 'Squash', rebase: 'Rebase',
+  'rebase-merge': 'Rebase and merge', 'fast-forward-only': 'Fast-forward only',
+};
+function availableMergeMethods(value: unknown): MergeMethod[] {
+  const facts = object(value).merge_methods;
+  if (facts === undefined) return [];
+  const methods = object(facts);
+  return mergeMethods.filter(method => {
+    const fact = object(methods[method]);
+    check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(fact.state)));
+    return fact.state === 'allowed';
+  });
+}
 
 export interface PullMergeContext extends MergeAddress {
   readonly transport: FactoryTransport;
@@ -28,6 +44,7 @@ export class SodaFactoryPullMerge extends LitElement {
   private durable = true;
   private blocked = false;
   private allowed = false;
+  private methods: MergeMethod[] = [];
   private busy = false;
   private method: MergeMethod = 'merge';
   private message = '';
@@ -44,7 +61,7 @@ export class SodaFactoryPullMerge extends LitElement {
     const key = context && this.key(context);
     if (context && key === this.binding && this.current) return;
     this.lifetime.abort(); this.lifetime = new AbortController();
-    this.current = undefined; this.binding = ''; this.allowed = false; this.busy = false; this.method = 'merge'; this.message = ''; this.status = '';
+    this.current = undefined; this.binding = ''; this.allowed = false; this.methods = []; this.busy = false; this.method = 'merge'; this.message = ''; this.status = '';
     this.pending = undefined; this.blocked = false; this.durable = true;
     if (context) {
       mergeRecordKey(context);
@@ -77,7 +94,7 @@ export class SodaFactoryPullMerge extends LitElement {
     check(this.live(context, signal) && scope === context.scope);
   }
   private async admit(context: PullMergeContext, signal: AbortSignal) {
-    this.allowed = false;
+    this.allowed = false; this.methods = [];
     await this.identity(context, signal);
     const [raw, caps] = await Promise.all([
       getJSON(context.transport, this.path(context), signal),
@@ -86,8 +103,10 @@ export class SodaFactoryPullMerge extends LitElement {
     check(this.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
-    this.allowed = pull.state === 'open' && pull.draft === false && pull.head.commit === context.head &&
+    const current = pull.state === 'open' && pull.draft === false && pull.head.commit === context.head &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.merge');
+    this.methods = current ? availableMergeMethods(caps) : [];
+    this.allowed = this.methods.length > 0;
   }
   private async refresh() {
     const context = this.current, signal = this.lifetime.signal;
@@ -96,6 +115,7 @@ export class SodaFactoryPullMerge extends LitElement {
     try {
       if (this.pending && !this.blocked) { await this.identity(context, signal); await this.deliver(context, signal, 'lookup'); }
       await this.admit(context, signal);
+      if (!this.pending && !this.methods.includes(this.method) && this.methods.length) this.method = this.methods[0]!;
       if (!this.pending && !this.blocked && !this.status) this.status = this.allowed ? '' : 'Merging is unavailable for this pull request.';
     } catch {
       if (this.live(context, signal)) this.status = this.pending
@@ -114,15 +134,15 @@ export class SodaFactoryPullMerge extends LitElement {
       check(!saved.blocked && saved.durable);
       let pending = saved.pending;
       if (action === 'submit') {
-        check(!pending && validMergeMessage(this.method, this.method === 'rebase' ? '' : this.message));
-        pending = {command: factoryCommandId(), method: this.method, message: this.method === 'rebase' ? '' : this.message,
+        check(!pending && this.methods.includes(this.method) && validMergeMessage(this.method, noMergeMessage(this.method) ? '' : this.message));
+        pending = {command: factoryCommandId(), method: this.method, message: noMergeMessage(this.method) ? '' : this.message,
           external: context.parent.external_id, head: context.head};
         check(mergeRecord(context).retain(pending) === 'saved');
         this.pending = pending;
       } else {
         check(pending && this.pending && pending.command === this.pending.command);
         check(pending.external === context.parent.external_id);
-        if (action === 'retry') check(pending.head === context.head);
+        if (action === 'retry') check(pending.head === context.head && this.methods.includes(pending.method));
       }
       await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
@@ -162,16 +182,16 @@ export class SodaFactoryPullMerge extends LitElement {
       <h3>Merge</h3><p role="status">${this.status}</p>
       ${this.pending ? html`<p>Saved ${this.pending.method} merge command. Check its outcome before starting another.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.blocked}>Check saved merge</button>
-        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || !this.allowed}>Retry original merge</button>
+        <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.blocked || !this.allowed || !this.methods.includes(this.pending.method)}>Retry original merge</button>
         <button type="button" @click=${() => this.act('cancel')} ?disabled=${this.busy || this.blocked}>Cancel saved merge</button>`
         : html`<label>Method <select aria-label="Merge method" .value=${this.method} @change=${(event: Event) => {
             const next = (event.target as HTMLSelectElement).value;
-            if (next === 'merge' || next === 'squash' || next === 'rebase') { this.method = next; this.touch(); }
+            if (this.methods.includes(next as MergeMethod)) { this.method = next as MergeMethod; this.touch(); }
           }} ?disabled=${this.busy || !this.allowed}>
-            <option value="merge">Merge commit</option><option value="squash">Squash</option><option value="rebase">Rebase</option>
+            ${this.methods.map(method => html`<option value=${method}>${mergeMethodLabel[method]}</option>`)}
           </select></label>
-          ${this.method !== 'rebase' ? html`<label>Merge message <input aria-label="Merge message" .value=${this.message} @input=${(event: Event) => { this.message = (event.target as HTMLInputElement).value; this.touch(); }} ?disabled=${this.busy || !this.allowed} /></label>` : ''}
-          <button type="button" @click=${() => this.act('submit')} ?disabled=${this.busy || this.blocked || !this.durable || !this.allowed || !validMergeMessage(this.method, this.method === 'rebase' ? '' : this.message)}>Merge pull request</button>`}
+          ${!noMergeMessage(this.method) ? html`<label>Merge message <input aria-label="Merge message" .value=${this.message} @input=${(event: Event) => { this.message = (event.target as HTMLInputElement).value; this.touch(); }} ?disabled=${this.busy || !this.allowed} /></label>` : ''}
+          <button type="button" @click=${() => this.act('submit')} ?disabled=${this.busy || this.blocked || !this.durable || !this.allowed || !this.methods.includes(this.method) || !validMergeMessage(this.method, noMergeMessage(this.method) ? '' : this.message)}>Merge pull request</button>`}
     </section>`;
   }
 }
