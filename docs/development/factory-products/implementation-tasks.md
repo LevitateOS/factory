@@ -30944,6 +30944,12 @@ GitHub's native connector reads the PR commit connection through authenticated
 GraphQL; Fountain's extension reads the exact native Git range through its
 existing admitted callback. Both return newest-first summaries and reject a
 changed PR head. Factory Go, Rust, UI and Fountain source builds/typechecks pass;
-the Forgejo extension and SDK build. Actual provider/host browser pagination,
-installed use and stale-head readback remain unverified. T08-READ and its
-T07-EDIT/T11 prerequisites stay pending/active as recorded in the table.
+the Forgejo extension and SDK build. A fresh local Fountain host check passed
+with current Fountain, Soda appliance/extension, Factory and shared browser
+assets: its real private PR read three commits one per page, refused the old
+head after a native update, read the new head and denied reads after grant
+removal. The populated PR files/reviews/threads and host login/logout checks
+also passed (`/home/vince/tmp/fhp-1793961998465/{run.log,host/result.json}`).
+Rendered PR browser controls, GitHub-connected desktop use and final packaged
+products remain unverified. T08-READ and its T07-EDIT/T11 prerequisites stay
+pending/active as recorded in the table.
