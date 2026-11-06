@@ -103,7 +103,8 @@ export class SodaFactoryPullMerge extends LitElement {
     check(this.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
-    const current = pull.state === 'open' && pull.draft === false && pull.head.commit === context.head &&
+    const current = pull.state === 'open' && pull.draft === false &&
+      (pull.head.commit === null || pull.head.commit === context.head) &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.merge');
     this.methods = current ? availableMergeMethods(caps) : [];
     this.allowed = this.methods.length > 0;

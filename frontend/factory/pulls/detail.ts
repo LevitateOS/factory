@@ -1,8 +1,9 @@
 import {LitElement, html, type PropertyValues} from 'lit';
 import {guard} from 'lit/directives/guard.js';
-import {check, id} from '../api/models.js';
+import {check, id, object} from '../api/models.js';
 import type {ChangedFile} from '../api/collaboration.js';
 import type {FactoryTransport} from '../api/transport.js';
+import {pullActionAllowed} from '../api/capability-response.js';
 import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 import '../review/diff.js';
@@ -38,6 +39,7 @@ const empty = () => ({
   checks: [] as ReturnType<typeof pullChecks>['items'], gate: '',
   next: '', threadNext: '', threadMessage: '', threadBusy: false,
   diff: undefined as {base: string; head: string} | undefined,
+  head: null as string | null,
 });
 
 /** Current PR read, then one bounded page of the selected conversation/files/checks. */
@@ -120,46 +122,59 @@ export class SodaFactoryPull extends LitElement {
     const serial = ++this.serial, signal = AbortSignal.any([this.lifetime.signal, this.read.signal]);
     const cursor = this.cursor, tab = this.tab;
     const path = `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
-    const prior = this.view.pull, priorDiff = this.view.diff;
+    const prior = this.view.pull, priorDiff = this.view.diff, priorHead = this.view.head;
     this.view = {...this.view, busy: true, message: ''};
     try {
       const pull = pullItem(await getJSON(context.transport, path, signal), context.host, context.repository, context.pull);
       if (!this.live(context, serial)) return;
       check(!prior || prior.ref.external_id === pull.ref.external_id);
+      let selectedHead = pull.head.commit;
+      if (!selectedHead) {
+        try {
+          const caps = object(await getJSON(context.transport, path + '/capabilities', signal));
+          const candidate = caps.head;
+          check(candidate === null || typeof candidate === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(candidate));
+          pullActionAllowed(caps, context.repository, context.actor, pull.ref, candidate as string | null, 'pull.review.comment');
+          selectedHead = candidate as string | null;
+        } catch {
+          if (!this.live(context, serial)) return;
+        }
+      }
+      const baseView = {...empty(), pull, head: selectedHead};
       const query = new URLSearchParams({limit: tab === 'files' ? '10' : '20'});
       if (cursor) query.set('cursor', cursor);
       if (tab === 'files') {
         const base = cursor ? priorDiff?.base : undefined, head = cursor ? priorDiff?.head : undefined;
-        if (cursor) check(base && head && prior?.head.commit === pull.head.commit);
+        if (cursor) check(base && head && selectedHead && priorHead === selectedHead && head === selectedHead);
         if (base && head) { query.set('base', base); query.set('head', head); }
         const page = pullFiles(await getJSON(context.transport, path + '/files?' + query, signal), context.repository, context.pull, base || '', head || '', cursor);
         if (!this.live(context, serial)) return;
-        this.view = {...empty(), pull, files: page.items, next: page.next, diff: page.diff};
+        this.view = {...baseView, files: page.items, next: page.next, diff: page.diff};
         void this.loadMoreThreads('');
       } else if (tab === 'checks') {
-        const head = pull.head.commit;
-        if (!head) { this.view = {...empty(), pull, message: 'The current head commit is unavailable.'}; return; }
+        const head = selectedHead;
+        if (!head) { this.view = {...baseView, message: 'The current head commit is unavailable.'}; return; }
         query.set('head', head);
         const kind = this.checkKind;
         const suffix = kind === 'job' ? '/checks/jobs?' : '/checks?';
         const page = pullChecks(await getJSON(context.transport, path + suffix + query, signal), context.repository, context.pull, head, kind, cursor);
         if (!this.live(context, serial)) return;
-        this.view = {...empty(), pull, checks: page.items, gate: page.gate, next: page.next};
+        this.view = {...baseView, checks: page.items, gate: page.gate, next: page.next};
       } else if (tab === 'conversation') {
         const raw = await getJSON(context.transport, path + '/comments?' + query, signal);
         if (!this.live(context, serial)) return;
         const comments = pullComments(raw, context.repository, context.pull, cursor);
-        this.view = {...empty(), pull, comments: comments.items, next: comments.next};
+        this.view = {...baseView, comments: comments.items, next: comments.next};
       } else if (tab === 'threads') {
         const threadsRaw = await getJSON(context.transport, path + '/threads?' + query, signal);
         if (!this.live(context, serial)) return;
         const threads = pullThreads(threadsRaw, context.repository, context.pull, cursor);
-        this.view = {...empty(), pull, threads: threads.items, next: threads.next};
+        this.view = {...baseView, threads: threads.items, next: threads.next};
       } else {
         const reviewsRaw = await getJSON(context.transport, path + '/reviews?' + query, signal);
         if (!this.live(context, serial)) return;
         const reviews = pullReviews(reviewsRaw, context.repository, context.pull, cursor);
-        this.view = {...empty(), pull, reviews: reviews.items, next: reviews.next};
+        this.view = {...baseView, reviews: reviews.items, next: reviews.next};
       }
     } catch (error) {
       if (!this.live(context, serial)) return;
@@ -221,7 +236,7 @@ export class SodaFactoryPull extends LitElement {
     catch { if (this.live(context, serial)) this.view = {...this.view, message: 'This link could not be opened. Try again.'}; }
   }
   render() {
-    const context = this.current, pull = this.view.pull;
+    const context = this.current, pull = this.view.pull, head = this.view.head;
     if (!context) return html``;
     return html`<section class="soda-pull-detail" aria-label="Pull request detail" aria-busy=${this.view.busy} @click=${this.open}>
       <header><h2>${pull?.title || 'Pull request'}</h2><button type="button" @click=${this.refresh} ?disabled=${this.view.busy}>Refresh pull request</button></header>
@@ -243,11 +258,11 @@ export class SodaFactoryPull extends LitElement {
           @pull-comment-saved=${() => void this.refresh()}
         ></soda-factory-issue-comment>` : ''}
         ${this.tab === 'files' ? html`<section aria-label="Changed files" @factory-thread-more=${this.moreThread}>
-          ${this.view.diff && this.view.diff.head !== pull.head.commit ? html`<p role="status">This diff uses a different head from the pull request summary. Refresh before reviewing.</p>` : ''}
-          ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-inline
+          ${this.view.diff && head && this.view.diff.head !== head ? html`<p role="status">This diff uses a different head from the current pull request. Refresh before reviewing.</p>` : ''}
+          ${context.commandScope && head && this.view.diff?.head === head ? html`<soda-factory-pull-inline
             .context=${{transport: context.transport, host: context.host, actor: context.actor,
               repository: context.repository, pull: context.pull, scope: context.scope,
-              parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+              parent: pull.ref, head, commandScope: context.commandScope}}
             .files=${this.view.files} .threads=${this.view.threads}
             @pull-inline-saved=${() => void this.refresh()}
           ></soda-factory-pull-inline>` : this.view.files.length ? this.view.files.map(file => {
@@ -304,16 +319,16 @@ export class SodaFactoryPull extends LitElement {
           .participants=${[...(pull.author ? [{kind: 'user' as const, id: pull.author.id, label: pull.author.login}] : []),
             ...this.view.reviews.flatMap(review => review.authorID ? [{kind: 'user' as const, id: review.authorID, label: review.author}] : [])]}
         ></soda-factory-pull-reviewers>` : ''}
-        ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-review
+        ${context.commandScope && head ? html`<soda-factory-pull-review
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+            parent: pull.ref, head, commandScope: context.commandScope}}
           @pull-review-saved=${() => void this.refresh()}
         ></soda-factory-pull-review>` : ''}
-        ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-merge
+        ${context.commandScope && head ? html`<soda-factory-pull-merge
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
             repository: context.repository, pull: context.pull, scope: context.scope,
-            parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+            parent: pull.ref, head, commandScope: context.commandScope}}
           @pull-merge-saved=${() => void this.refresh()}
         ></soda-factory-pull-merge>` : ''}
       ` : ''}

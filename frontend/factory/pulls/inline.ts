@@ -92,7 +92,7 @@ export class SodaFactoryPullInline extends LitElement {
     check(this.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
     check(pull.ref.external_id === context.parent.external_id);
-    this.allowed = pull.state === 'open' && pull.head.commit === context.head &&
+    this.allowed = pull.state === 'open' && (pull.head.commit === null || pull.head.commit === context.head) &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.review.comment');
   }
   private async refresh() {
