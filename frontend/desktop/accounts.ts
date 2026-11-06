@@ -174,7 +174,6 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
     if (generation !== epoch) {
       generation = epoch;
       accounts = [];
-      changed(accounts);
       localError = null;
       readError = null;
       view = {attempt: 0, phase: 'idle', prompt: null, error: null};

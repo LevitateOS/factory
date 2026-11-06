@@ -24,6 +24,8 @@ The user started the correction goal and selected these requirements on
   second account was an optional two-user integration fixture.
 - Existing Muse session reuse and a browser link only when authentication is
   needed remain the earlier explicit instructions (A01).
+- Hiding/minimizing Factory retains the account/repository choices and reconnects
+  after fresh status on return. Explicit Disconnect keeps it disconnected (A12).
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -32,6 +34,14 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A12 — selected behavior implemented; UI build verified.** Hidden windows
+  retire their obsolete UI binding while retaining connection intent. Fresh
+  runtime/account status on return restores the selected account/repository;
+  unknown status waits, removed accounts and changed profiles clear the intent,
+  and explicit Disconnect prevents automatic reconnection. Runtime-generation
+  reset no longer reports an empty account list as observed removal. Typecheck
+  and desktop UI build passed. Physical minimize/restore and connected readiness
+  races remain part of native UI qualification; no auth/IPC gate is closed.
 - **A13 — source correction and UI build verified.** Unknown account/connection
   failures no longer prescribe signing in or unlocking the keyring. Native error
   messages retain their reported cause; observed locked/expired/unconfirmed-refresh

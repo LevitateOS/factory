@@ -42,6 +42,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   let connection = '',
     wanted = '',
     nextPage = 0;
+  // Account/repository are user choices; selected is only the current binding.
+  let resumeRequested = false;
   let known: readonly Account[] = [],
     discovered: Repository[] = [];
   let message = 'Choose a saved account to connect.';
@@ -81,7 +83,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     repositories.disabled = !selected || busy;
     more.hidden = !nextPage;
     more.disabled = busy || !selected;
-    reconnect.disabled = !ready || !connection || busy;
+    reconnect.disabled = !ready || !connection || busy || !known.some((account) => account.connection === connection && account.state === 'stored');
     disconnect.disabled = !connection && !pending;
     name.disabled = !selected || busy;
     find.querySelector<HTMLButtonElement>('button')!.disabled = !selected || busy;
@@ -157,6 +159,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     nextPage = next;
   }
   async function choose(account: string, remote = '') {
+    resumeRequested = false;
     const captured = ++serial;
     const previousRepository = selected?.repository?.external_id;
     clear();
@@ -166,6 +169,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     message = account ? 'Connecting…' : 'Choose a saved account to connect.';
     render();
     if (!account || !ready || document.hidden) {
+      resumeRequested = !!account;
       busy = false;
       render();
       return;
@@ -298,23 +302,33 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      resumeRequested = !!connection;
       ++serial;
       clear();
       busy = false;
-      message = 'Disconnected. Reconnect to continue.';
+      message = connection ? 'Connection suspended while Factory is hidden.' : 'Choose a saved account to connect.';
       render();
     }
   });
   return {
     refresh(available: boolean, generation: number, identity: string | null) {
-      if (!available || epoch !== generation || profile !== identity) {
+      const changedProfile = identity !== null && profile !== '' && profile !== identity;
+      if (changedProfile) {
+        connection = '';
+        wanted = '';
+        discovered = [];
+        nextPage = 0;
+        resumeRequested = false;
+      }
+      if (!available || epoch !== generation || changedProfile) {
+        if (!changedProfile && connection) resumeRequested = true;
         ++serial;
         clear();
         busy = false;
       }
       ready = available;
       epoch = generation;
-      profile = identity ?? '';
+      profile = identity ?? profile;
       if (!ready) message = 'Connection is unavailable until Factory is ready.';
       render();
     },
@@ -325,10 +339,13 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
         ++serial;
         clear();
         busy = false;
-        connection = '';
-        wanted = '';
-        discovered = [];
-        nextPage = 0;
+        resumeRequested = !!account && account.state !== 'withdrawn';
+        if (!resumeRequested) {
+          connection = '';
+          wanted = '';
+          discovered = [];
+          nextPage = 0;
+        }
         message = account?.state === 'locked'
           ? 'Your saved account is locked. Unlock the desktop keyring before reconnecting. Saved drafts are kept.'
           : account?.state === 'expired'
@@ -336,6 +353,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
             : account?.state === 'refresh_pending'
               ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
               : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
+      }
+      if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
+        void choose(connection, wanted);
+        return;
       }
       render();
     },
