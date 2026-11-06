@@ -41,24 +41,28 @@ branch-rule qualification remain pending. A second account remains optional.
 The A14 native presentation correction also passed the existing composed
 capability check with declared Read access; comments/reviews no longer require
 push permission. It grants no write authority or connected permission closure.
+The owner selected ordinary Go/Rust/Node/Bun setup and declared dependency
+installation inside isolated workspaces (A17). Approved toolchain/dependency
+provisioning, setup network policy and workload-sized limits are prerequisites
+for native executor qualification; the present offline/system-tools preparer
+does not supply them. Preserve isolation and qualify actual cold builds/cleanup.
 
 ## Remaining product milestones (2026-11-06)
 
-T11-WRITES is complete for connected human mutations; eighteen rows remain pending. Earlier
+T11-WRITES and T07-EDIT/T08-READ/T08-WRITE are complete in their recorded scopes;
+fifteen rows remain pending. This is a row count, not an effort estimate. Earlier
 completed component slices do not measure the remaining product effort. There is
 no supported calendar finish estimate; the work below is substantial remaining
 implementation and qualification, not final polish.
 
-1. Complete shared editing and PR journeys: T07-EDIT, T08-READ and T08-WRITE,
-   including actual Fountain and desktop consumers and normal public readback.
-2. Compose runtime placement, isolated native execution and the single Go
+1. Compose runtime placement, isolated native execution and the single Go
    coordinator: T12-PLACEMENT, T09-NATIVE-EXECUTOR and T09-EXECUTION. The completed
    process producer is a dependency, not a qualified executor. D3 remains open.
-3. Complete Fountain enrollment/publication and both providers' automation and
+2. Complete Fountain enrollment/publication and both providers' automation and
    external PR adoption: T10-GATEWAY/PUBLISH/INTAKE, T11-INTAKE and
    T12-GITHUB-PRS/FOUNTAIN-PRS. D1 and D2 remain open; other relevant decisions
    retain their canonical scope.
-4. Package and qualify installed products, upgrades and shared UI parity:
+3. Package and qualify installed products, upgrades and shared UI parity:
    T14-PACKAGE, T13-FORGE/GITHUB/FOUNTAIN and T14-UPGRADE/PARITY.
 
 This summary groups the existing queue; it neither changes prerequisites nor

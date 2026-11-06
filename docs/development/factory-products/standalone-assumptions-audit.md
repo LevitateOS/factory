@@ -26,6 +26,10 @@ The user started the correction goal and selected these requirements on
   needed remain the earlier explicit instructions (A01).
 - Hiding/minimizing Factory retains the account/repository choices and reconnects
   after fresh status on return. Explicit Disconnect keeps it disconnected (A12).
+- Support ordinary Go/Rust/Node/Bun project setup, including installing declared
+  dependencies inside isolated workspaces (A17). The current system-tools-only,
+  offline preparer does not meet this requirement. Approved provisioning, network
+  policy and meaningful resource limits must be implemented and qualified.
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -34,6 +38,13 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A23 — active guidance corrected.** README now describes implemented binding
+  and human GitHub journeys separately from pending agent execution/installed
+  delivery. The milestone summary matches the fifteen pending table rows.
+  Freshness guidance names Factory's actual scope and missing updater automation;
+  stale OS design links and the nonexistent Dependabot claim are removed.
+  Desktop lifecycle guidance reflects A12/A15. Documentation review only; no
+  qualification gate or implementation row is closed by these edits.
 - **A15 — native degraded startup and healthy execution verified.** Product
   health is now separate from execution availability. Missing worker installation,
   an installed missing socket or failed coordinator startup keeps browsing alive;
@@ -458,8 +469,12 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 | Retained preparation material | 512 MiB | `cmd/soda-factory-broker/src/preparation_quota.rs:9` |
 | Agent tmpfs | 768 MiB | `cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in:17` |
 
-**Correction:** choose real supported repositories/toolchains, an explicit approved
-dependency provisioning mechanism and meaningful bounds. Keep enforced isolation
+**Selected correction:** support ordinary Go/Rust/Node/Bun setup and declared
+dependency installation inside isolated workspaces. Implement approved toolchain
+and dependency provisioning, setup network policy and meaningful bounds, then
+qualify representative cold builds and cleanup. These remain dependencies of
+native executor qualification, not features supplied by the current preparer.
+Keep enforced isolation
 and quotas. These constants are observed restrictions, not measured failures on
 all normal projects; packed bundles, expanded trees and build output differ.
 

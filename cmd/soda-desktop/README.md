@@ -25,8 +25,10 @@ same profile activates its main window. Quit stops admission and observations,
 joins cancelled request/observation tasks, then stops Go before PostgreSQL.
 Product calls await outside the lifecycle mutex. Stream cancellation or closure
 of its owning window aborts and joins that polling task and its pending request.
-Startup failure is visible in the toolbar;
-Retry startup retries the same retained profile. UI refresh and visibility changes
+Startup failure is visible in the toolbar. Missing execution dependencies or a
+failed coordinator can leave browsing ready with execution explicitly unavailable;
+new preparation and launch effects refuse. Retry startup/execution retries the
+same retained profile. UI refresh and visibility changes
 request fresh native readiness. A dead backend or database retires the binding.
 
 The webview receives opaque readiness IDs and product operations. It never
@@ -72,7 +74,9 @@ Navigation uses canonical local hash routes; a route cannot enlarge native scope
 Drafts use stable profile/provider/actor scope and existing shared repositories and
 subject keys. Switching/disconnect/retirement clears views and pending replies
 without deleting drafts. Empty filtered issue pages retain their continuation.
-Selectors are stable during readiness polling. The desktop explicitly starts the
+Selectors are stable during readiness polling. Hide/show retains the selected
+account/repository and reconnects after fresh runtime/account status; explicit
+Disconnect clears that intent. The desktop explicitly starts the
 single Go coordinator after Rust's callback owner is ready. Missing task/provider
 dependencies remain unavailable; startup grants no execution authority. Shared PR
 views and human write qualification have their own recorded evidence.

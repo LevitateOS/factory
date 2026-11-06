@@ -4,9 +4,10 @@ Factory is a Linux-first desktop application and Go workflow engine with a share
 Lit frontend for the native Tauri host and Soda Forge/Fountain.
 
 This repository imports the implementation in progress from SodaOS. It is not a
-completed or released desktop product. Connected GitHub login/writes, host
-execution, automatic intake, full PR journeys and installed distribution remain
-unfinished. The dependency-ordered backlog is in
+completed or released desktop product. Connected GitHub sign-in, account/repository
+binding and human issue/PR reads and writes have recorded qualification. Actual
+agent execution with a real provider, automatic intake/PR delivery and installed
+distribution remain unfinished. The dependency-ordered backlog is in
 [the implementation plan](docs/development/factory-products/implementation-tasks.md).
 
 The Go engine lives in public `pkg/` packages under
@@ -53,9 +54,11 @@ bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/f
 This is a development stage, not an installer. The desktop shell supports GitHub
 device sign-in, verification, native encrypted credential storage and saved-account
 removal. Click **Sign in to GitHub**, open the verification page in your browser
-and enter the displayed code. The shared application remains disconnected until
-canonical account/repository binding is implemented; signing in alone does not
-authorize work. [The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
+and enter the displayed code. Choose a saved account and repository to connect the
+shared application. Signing in alone does not authorize execution: local resource
+and workspace consent, policy, funding and run admission are separate requirements.
+Native fixture execution is not proof of real provider inference.
+[The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
 credential custody and opt-in native acceptance checks.
 
 ## Source and integration history

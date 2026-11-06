@@ -7,37 +7,41 @@ Muse and every additional provider, across normal terminals, Factory, broker
 enrollment, hosts, new and retained Projects, development and qualification.
 It supersedes older plans that hold dependencies at obsolete versions.
 
-This document owns the freshness rule; [AGENTS.md](../../AGENTS.md#mandatory-freshness)
-makes it mandatory for coding agents. The
-[CLI updater direction](../reference/project-os.md#automatic-cli-updates-proposed)
-owns the proposed mechanism. A documented requirement is not proof of deployed
+This document owns the freshness rule; [AGENTS.md](../../AGENTS.md#working-on-factory)
+makes it mandatory for coding agents. Installed update delivery remains in
+[T14-UPGRADE](factory-products/implementation-tasks.md#sequential-implementation-order).
+A documented requirement is not proof of deployed
 automation. Never claim that an installation is current without an actual check.
 
 ## Keep every managed input current
 
-Apply the same priority to all Soda-managed libraries, lockfiles, build tools,
-language runtimes and toolchains, OS packages, base/container images, GitHub
-Actions, browser assets, SDKs and external release inputs, including Fountain
-and Canlang. Follow official current stable channels unless the owner selects
+Apply the same priority to Factory-managed libraries, lockfiles, build tools,
+language runtimes and toolchains, native PostgreSQL, provider tools, GitHub
+Actions, browser assets, SDKs and build/release inputs. Host OS updates belong to
+the host's owner; Fountain and SodaOS own their respective release inputs and
+update paths. Follow official current stable channels unless the owner selects
 another channel. Adopt major releases too; repair actual integration failures
 instead of indefinitely ignoring them. Preserve unrelated project work and data.
 
-AI CLIs need automatic release discovery and activation independently of OS
-rebuilds: consume upstream release events where available, poll metadata at least
+AI CLIs need automatic release discovery and activation independently of host OS
+updates: consume upstream release events where available, poll metadata at least
 every five minutes while online, and refresh before new work when that check is
 due. A detected release must be fetched and checked promptly, without a waiting
 period or a paid model call. Check actual required flags and protocols; do not
 substitute version-number compatibility guesses. Keep the chosen model/profile
 and resource limits unchanged by a CLI update.
 
+The native enrolled-tool selector checks official channel metadata, manifests and
+executable integrity before selection. Installed discovery, fetching and activation
+are unfinished; this selector is not a deployed automatic updater.
+
 Other dependencies need event-driven updates where available and frequent
-automatic checks otherwise. The repository Dependabot configuration requests
-hourly checks for its covered ecosystems, with no release cooldown. Custom
-checksum descriptors, Containerfile inputs, independently published SDKs and
-installed-system updates still need their own upstream resolvers/activation
-paths; Dependabot does not cover every Soda input. A bot proposal alone does not
+automatic checks otherwise. This checkout has no Dependabot configuration;
+automated coverage must not be claimed. Checksum descriptors, build inputs,
+independently published SDKs and installed Factory updates need their owning
+resolvers and activation paths. A bot proposal alone does not
 make a dependency updated: apply it, run the affected checks and ship it through
-the owning component's update path. Do not rebuild the complete OS to update an
+the owning component's update path. Do not rebuild the host OS to update an
 independent CLI or rerun unrelated expensive checks.
 
 Discovery intervals bound detection latency; they cannot guarantee simultaneous
