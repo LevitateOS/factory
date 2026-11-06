@@ -263,7 +263,7 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
 }
 
 pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
-    use super::native_github_issues::{call, set_mode};
+    use super::native_github_fixture::{call, set_mode};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -784,7 +784,7 @@ pub(super) async fn resolution(profile: &Path) -> Result<()> {
         let pending =
             async move { Ok::<_, &str>(flight_client.set_thread_resolution(t, "321", &q).await) };
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let start = Instant::now();
         owner.stop()?;
         let result = pending.await?;
@@ -833,7 +833,7 @@ pub(super) async fn resolution_product(
     payload: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed, set_mode, uncertain};
+    use super::native_github_fixture::{call, completed, set_mode, uncertain};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -1146,7 +1146,7 @@ pub(super) async fn resolution_product(
         )?;
         let pending = request.request("POST", &submit, &body);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -1189,7 +1189,7 @@ pub(super) async fn resolution_product(
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store
         .store(
@@ -1238,7 +1238,7 @@ pub(super) async fn resolution_product(
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),

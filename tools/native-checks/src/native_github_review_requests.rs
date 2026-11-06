@@ -19,7 +19,7 @@ pub(super) async fn inline_preparation_port(
     payload: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::call;
+    use super::native_github_fixture::call;
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -218,7 +218,7 @@ pub(super) async fn inline_product(
     helper: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed};
+    use super::native_github_fixture::{call, completed};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -367,7 +367,6 @@ pub(super) async fn inline_product(
         last_id = id;
         last_body = bytes;
     }
-    // Verification failures retain the known primary and exact private receipt.
     for (i, verification) in [
         "summary",
         "old-writing",
@@ -664,7 +663,6 @@ pub(super) async fn inline_product(
         "unsupported inline mode sent an effect",
     )?;
     cases.push("published-mode-unavailable".into());
-    // Withdrawal and native restart retain exact saved capture/outcome bytes.
     store.withdraw(&connection).await?;
     store.retire();
     runtime.stop()?;
@@ -1128,7 +1126,6 @@ pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
         )?;
         cases.push(name);
     }
-    // Capture one real native preparation, then vary only that saved descriptor.
     mode("inline-draft-invalid")?;
     let observed = client
         .observe(
@@ -1602,7 +1599,7 @@ pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
     let q = query(anchor());
     let pending = client.observe(token()?, "321", &q);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     owner.stop()?;
     ensure(
@@ -1899,7 +1896,7 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     let t = token()?;
     let pending = async { Ok::<_, &str>(client.observe_review_requests(t, "321", &q).await) };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let start = Instant::now();
     owner.stop()?;
     ensure(
@@ -2196,7 +2193,7 @@ pub(super) async fn effects(profile: &Path) -> Result<()> {
         let flight = client.clone();
         let pending = async move { Ok::<_, &str>(flight.set_review_request(t, "321", &q).await) };
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let start = Instant::now();
         owner.stop()?;
         let result = pending.await?;
@@ -2235,7 +2232,7 @@ pub(super) async fn effects(profile: &Path) -> Result<()> {
 }
 
 pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
-    use super::native_github_issues::{call, completed, set_mode, uncertain};
+    use super::native_github_fixture::{call, completed, set_mode, uncertain};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -2619,7 +2616,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let pending = request.request("POST", &submit, &body);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -2656,7 +2653,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store
         .store(
@@ -2699,7 +2696,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),
@@ -2981,7 +2978,7 @@ pub(super) async fn preparation(profile: &Path) -> Result<()> {
     let pending_request = request();
     let pending = client.observe(token()?, "321", &pending_request);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     tokio::task::spawn_blocking(move || owner.stop()).await??;
     ensure(
@@ -3211,7 +3208,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
     let first_token = token()?;
     let first = async { Ok::<_, String>(client.create_review(first_token, "321", &q).await) };
     tokio::pin!(first);
-    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    super::native_github_fixture::entered(first.as_mut(), &io).await?;
     let before = writes()?;
     let clone = client.clone();
     let second = clone.create_review(token()?, "321", &q);
@@ -3231,7 +3228,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
     let pending_token = token()?;
     let pending = async { Ok::<_, String>(client.create_review(pending_token, "321", &q).await) };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     tokio::task::spawn_blocking(move || owner.stop()).await??;
     ensure(
@@ -3264,7 +3261,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
 }
 
 pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
-    use super::native_github_issues::{call, completed, set_mode};
+    use super::native_github_fixture::{call, completed, set_mode};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -3626,7 +3623,7 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
         )?;
         let pending = request.request("POST", &submit, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -3666,7 +3663,7 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store
         .store(
@@ -3709,7 +3706,7 @@ pub(super) async fn new_product(production: &Path, payload: &Path, profile: &Pat
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),
@@ -3805,7 +3802,7 @@ pub(super) async fn pending_product(
     helper: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed, set_mode};
+    use super::native_github_fixture::{call, completed, set_mode};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -4095,7 +4092,7 @@ pub(super) async fn pending_product(
     )?;
     let pending = request.request("POST", &submit, &bytes);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let cancelled = call(
         &runtime,
         &store,
@@ -4127,7 +4124,6 @@ pub(super) async fn pending_product(
         "completion lost cancellation or repeated send",
     )?;
     cases.push("late-primary-cancel-completion".into());
-    // Preserve an unfinished known primary across actual backend retirement.
     mode("submit-restart-known")?;
     let known_id = "ffffffffffffffffffffffffffffffff";
     let bytes = envelope(known_id, "comment", "")?;
@@ -4165,7 +4161,7 @@ pub(super) async fn pending_product(
         )?;
         let pending = request.request("POST", &submit, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         if withdraw {
             store.withdraw(&connection).await?;
             connection = store.store(account()?, token()?).await?.connection;
@@ -4269,7 +4265,7 @@ pub(super) async fn expiry(
     pending: bool,
     inline: bool,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed};
+    use super::native_github_fixture::{call, completed};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -4637,7 +4633,7 @@ pub(super) async fn pending_snapshot(profile: &Path) -> Result<()> {
     let q = request();
     let pending = client.observe(token()?, "321", &q);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     tokio::task::spawn_blocking(move || owner.stop()).await??;
     ensure(
@@ -4841,7 +4837,7 @@ pub(super) async fn publication(profile: &Path) -> Result<()> {
     let q = request();
     let pending = client.observe(token()?, "321", &q);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     tokio::task::spawn_blocking(move || owner.stop()).await??;
     ensure(
@@ -5174,7 +5170,7 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
     let first =
         async { Ok::<_, String>(client.submit_pending_review(first_token, "321", &q).await) };
     tokio::pin!(first);
-    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    super::native_github_fixture::entered(first.as_mut(), &io).await?;
     let before = writes()?;
     let clone = client.clone();
     let second = clone.submit_pending_review(token()?, "321", &q);
@@ -5196,7 +5192,7 @@ pub(super) async fn pending_submit(profile: &Path) -> Result<()> {
     let t = token()?;
     let pending = async { Ok::<_, String>(client.submit_pending_review(t, "321", &q).await) };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     tokio::task::spawn_blocking(move || owner.stop()).await??;
     ensure(

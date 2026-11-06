@@ -74,7 +74,6 @@ func (l *mcpRateLimiter) admit(runID string) (release func(), err error) {
 	}, nil
 }
 
-// factoryCatalogServer holds per-server admission dependencies.
 type factoryCatalogServer struct {
 	deps    Dependencies
 	limiter *mcpRateLimiter

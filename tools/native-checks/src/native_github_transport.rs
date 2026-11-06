@@ -1,5 +1,6 @@
 //! Real native supervisor/keyring/Go with the production Rust GitHub connector.
 //! Actual-provider negatives and dummy-only declared HTTPS stay separate.
+use super::native_github_fixture::entered;
 use super::{ensure, fixture, prepare, Result};
 use soda_desktop_runtime::credentials::{
     Account, CredentialState, Credentials, Error as CredentialError, Provider, Token,
@@ -7,12 +8,9 @@ use soda_desktop_runtime::credentials::{
 use soda_desktop_runtime::github::{Error, Read};
 use soda_desktop_runtime::supervisor::NativeSupervisor;
 use std::fs;
-use std::future::Future;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Poll;
 use std::time::{Duration, Instant};
 
 // Bounded provider producer check. This uses only dummy credentials and the
@@ -1305,31 +1303,6 @@ fn pause(io: &Path) -> Result<()> {
         }
     }
     mark(&io.join("pause"))
-}
-pub(super) async fn entered<T, E: std::fmt::Display>(
-    future: Pin<&mut impl Future<Output = std::result::Result<T, E>>>,
-    io: &Path,
-) -> Result<()> {
-    let mut future = future;
-    let until = Instant::now() + Duration::from_secs(4);
-    loop {
-        let ready = std::future::poll_fn(|cx| Poll::Ready(future.as_mut().poll(cx))).await;
-        if let Poll::Ready(result) = ready {
-            return Err(match result {
-                Ok(_) => "RPC completed before transport barrier".into(),
-                Err(e) => format!("RPC failed before transport barrier: {e}"),
-            }
-            .into());
-        }
-        if io.join("entered").exists() {
-            return Ok(());
-        }
-        ensure(
-            Instant::now() < until,
-            "provider transport did not reach barrier",
-        )?;
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
 }
 fn calls(io: &Path) -> Result<u64> {
     Ok(fs::read_to_string(io.join("calls"))?.parse()?)

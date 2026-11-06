@@ -1,5 +1,6 @@
 //! Composed human comments through the actual native credential/effect owner,
 //! shared Go HTTP/service/journal and PostgreSQL. Dummy-only HTTPS, no forwarding.
+use super::native_github_fixture::{call, posts, set_mode as mode};
 use super::{ensure, prepare, Result};
 use serde_json::{json, Value};
 use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
@@ -8,48 +9,12 @@ use soda_desktop_runtime::ProductRequest;
 use std::os::unix::fs::PermissionsExt;
 use std::{fs, path::Path, sync::Arc};
 
-async fn call(
-    runtime: &NativeSupervisor,
-    store: &Arc<Credentials>,
-    connection: &str,
-    method: &str,
-    target: &str,
-    body: &[u8],
-) -> Result<(u16, Value)> {
-    let request = runtime.admit_product(
-        store.clone(),
-        store.capability(connection).await?,
-        Some("123".into()),
-    )?;
-    let reply = request.request(method, target, body).await?;
-    Ok((reply.status, serde_json::from_slice(&reply.body)?))
-}
 fn envelope(path: &str, id: &str, body: &str) -> Result<Vec<u8>> {
     let request: ProductRequest = serde_json::from_value(
         json!({"kind":"write","path":path,"body":{"command_id":id,"body":body}}),
     )?;
     let (_, _, bytes) = request.request()?;
     Ok(bytes)
-}
-fn posts(io: &Path) -> Result<u64> {
-    match fs::read_to_string(io.join("posts")) {
-        Ok(s) => Ok(s.parse()?),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(e) => Err(e.into()),
-    }
-}
-fn mode(io: &Path, name: &str) -> Result<()> {
-    if name.starts_with("pause-") {
-        for marker in ["entered", "release", "cancelled"] {
-            match fs::remove_file(io.join(marker)) {
-                Ok(()) => (),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-                Err(e) => return Err(e.into()),
-            }
-        }
-    }
-    fs::write(io.join("mode"), name)?;
-    Ok(())
 }
 fn completed(reply: &(u16, Value), effect: &str) -> Result<()> {
     ensure(
@@ -343,7 +308,7 @@ pub(super) async fn run(production: &Path, payload: &Path, profile: &Path) -> Re
         )?;
         let pending = request.request("POST", &issue, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -384,7 +349,7 @@ pub(super) async fn run(production: &Path, payload: &Path, profile: &Path) -> Re
     )?;
     let pending = request.request("POST", &issue, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     let saved = store
         .store(
@@ -428,7 +393,7 @@ pub(super) async fn run(production: &Path, payload: &Path, profile: &Path) -> Re
     )?;
     let pending = request.request("POST", &issue, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),

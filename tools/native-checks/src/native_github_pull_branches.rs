@@ -255,7 +255,7 @@ pub(super) async fn branch_creation(profile: &Path) -> Result<()> {
         Ok::<_, std::convert::Infallible>(client.create_branch(first_token, "321", &q).await)
     };
     tokio::pin!(first);
-    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    super::native_github_fixture::entered(first.as_mut(), &io).await?;
     let clone = client.clone();
     let second = clone.create_branch(token()?, "321", &q);
     tokio::pin!(second);
@@ -275,7 +275,7 @@ pub(super) async fn branch_creation(profile: &Path) -> Result<()> {
         Ok::<_, std::convert::Infallible>(client.create_branch(pending_token, "321", &q).await)
     };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     owner.stop()?;
     ensure(
@@ -313,7 +313,7 @@ pub(super) async fn branch_product(
     helper: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed};
+    use super::native_github_fixture::{call, completed};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         github_provider::Read,
@@ -660,7 +660,7 @@ pub(super) async fn branch_product(
         )?;
         let pending = request.request("POST", &submit, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -703,7 +703,7 @@ pub(super) async fn branch_product(
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store.store(account()?, token()?).await?.connection;
     fs::write(io.join("release"), b"")?;
@@ -740,7 +740,7 @@ pub(super) async fn branch_product(
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),
@@ -1031,7 +1031,7 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     let t = token()?;
     let pending = async { Ok::<_, &str>(client.observe_pull_branches(t, "321", &q).await) };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let start = Instant::now();
     owner.stop()?;
     ensure(
@@ -1387,7 +1387,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
     let first_client = client.clone();
     let first = async move { Ok::<_, &str>(first_client.create_pull(t, "321", &a).await) };
     tokio::pin!(first);
-    super::native_github_transport::entered(first.as_mut(), &io).await?;
+    super::native_github_fixture::entered(first.as_mut(), &io).await?;
     let before = writes()?;
     let t = token()?;
     let second = async { clone.create_pull(t, "321", &b).await };
@@ -1416,7 +1416,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
         let flight = client.clone();
         let pending = async move { Ok::<_, &str>(flight.create_pull(t, "321", &q).await) };
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let start = Instant::now();
         owner.stop()?;
         let outcome = pending.await?;
@@ -1457,7 +1457,7 @@ pub(super) async fn creation(profile: &Path) -> Result<()> {
 }
 
 pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
-    use super::native_github_issues::{call, set_mode};
+    use super::native_github_fixture::{call, set_mode};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,
@@ -1949,7 +1949,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let pending = request.request("POST", &submit, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -1989,7 +1989,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store
         .store(
@@ -2032,7 +2032,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),
@@ -2126,7 +2126,7 @@ pub(super) async fn branch_expiry(
     helper: &Path,
     profile: &Path,
 ) -> Result<()> {
-    use super::native_github_issues::{call, completed};
+    use super::native_github_fixture::{call, completed};
     use soda_desktop_runtime::{
         credentials::{Account, Credentials, Provider},
         supervisor::NativeSupervisor,

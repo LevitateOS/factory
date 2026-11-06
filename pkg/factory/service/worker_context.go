@@ -75,21 +75,18 @@ func (s WorkerContext) Load(ctx context.Context, capability factory.MCPCapabilit
 }
 
 // WorkerAssignmentSource loads the recorded assignment behind a
-// capability for current-context projection. *store.Store implements
-// it; tests stub it.
+// capability for current-context projection.
 type WorkerAssignmentSource interface {
 	Assignment(ctx context.Context, id string) (factory.Assignment, error)
 }
 
 // WorkerPriorityJudgmentSource reads the prepared context choice.
-// *store.Store implements it; tests stub it.
 type WorkerPriorityJudgmentSource interface {
 	PriorityJudgment(context.Context, string) (factory.PriorityReceipt, error)
 }
 
 // WorkerRunSource loads recorded run rows behind an assignment
-// for bounded evidence projection. *store.Store implements it;
-// tests stub it.
+// for bounded evidence projection.
 type WorkerRunSource interface {
 	FactoryRun(ctx context.Context, id string) (factory.Run, error)
 }
@@ -134,8 +131,6 @@ func (s WorkerContext) Foreground(ctx context.Context, read WorkerContextRead) (
 	return bundle, "", fingerprint
 }
 
-// Projection renders one read's projection with its eligible
-// attempt and lineage sections.
 func (read WorkerContextRead) Projection(foregrounded string) map[string]any {
 	attemptEligible, lineageEligible := factory.BundleEligibility(read.Assignment, read.ParentLoaded)
 	capability, assignment := read.Capability, read.Assignment

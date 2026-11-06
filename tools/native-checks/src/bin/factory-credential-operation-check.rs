@@ -20,6 +20,8 @@ type Result<T> = std::result::Result<T, Box<dyn StdError>>;
 mod native_github_comments;
 #[path = "../native_github_edits.rs"]
 mod native_github_edits;
+#[path = "../native_github_fixture.rs"]
+mod native_github_fixture;
 #[path = "../native_github_issues.rs"]
 mod native_github_issues;
 #[path = "../native_github_locks.rs"]
@@ -1136,359 +1138,363 @@ async fn run_rotation(profile: &Path) -> Result<()> {
     println!("PASS: retired owner refuses publication, actual eight-second deadline leaves durable uncertainty, and complete fixture withdrawal succeeds; no real provider refresh/login claimed");
     Ok(())
 }
-fn main() {
-    let result = (|| -> Result<()> {
-        let args: Vec<_> = std::env::args_os().skip(1).collect();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        if args.len() == 4 && args[0] == "--github-evidence-declared" {
-            return runtime.block_on(native_github_transport::run_evidence_declared(
+async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    match (args.first().and_then(|arg| arg.to_str()), args.len()) {
+        (Some("--github-evidence-declared"), 4) => {
+            native_github_transport::run_evidence_declared(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-refresh-refusal" {
-            return runtime.block_on(native_github_transport::run_refresh_refusal(
+        (Some("--github-refresh-refusal"), 4) => {
+            native_github_transport::run_refresh_refusal(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-refresh-declared" {
-            return runtime.block_on(native_github_transport::run_refresh_declared(
+        (Some("--github-refresh-declared"), 4) => {
+            native_github_transport::run_refresh_declared(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.first().is_some_and(|arg| arg == "--github-refresh") {
-            return Err("historical Go refresh observer retired; use --github-refresh-refusal or --github-refresh-declared with production backend, PostgreSQL payload and fresh profile".into());
+        (Some("--github-refresh"), _) => {
+            Err("historical Go refresh observer retired; use --github-refresh-refusal or --github-refresh-declared with production backend, PostgreSQL payload and fresh profile".into())
         }
-        if args.len() == 2 && args[0] == "--grant-rotation" {
-            return runtime.block_on(run_rotation(Path::new(&args[1])));
+        (Some("--grant-rotation"), 2) => {
+            run_rotation(Path::new(&args[1])).await
         }
-        if args.len() == 3 && args[0] == "--rotation-probe" {
+        (Some("--rotation-probe"), 3) => {
             let connection = args[2].to_str().ok_or("invalid connection")?;
-            return runtime.block_on(run_rotation_probe(Path::new(&args[1]), connection));
+            run_rotation_probe(Path::new(&args[1]), connection).await
         }
-        if args.len() == 3 && args[0] == "--rotation-writer" {
+        (Some("--rotation-writer"), 3) => {
             let connection = args[2].to_str().ok_or("invalid connection")?;
-            return runtime.block_on(run_rotation_writer(Path::new(&args[1]), connection));
+            run_rotation_writer(Path::new(&args[1]), connection).await
         }
-        if args.len() == 3 && args[0] == "--rotation-crash" {
+        (Some("--rotation-crash"), 3) => {
             let connection = args[2].to_str().ok_or("invalid connection")?;
-            return runtime.block_on(run_rotation_crash(Path::new(&args[1]), connection));
+            run_rotation_crash(Path::new(&args[1]), connection).await
         }
-        if args.len() == 2 && args[0] == "--grant-custody" {
-            return runtime.block_on(run_grant_custody(Path::new(&args[1])));
+        (Some("--grant-custody"), 2) => {
+            run_grant_custody(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-grant-declared" {
-            return runtime.block_on(native_github_transport::run_grant(
+        (Some("--github-grant-declared"), 4) => {
+            native_github_transport::run_grant(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.first().is_some_and(|arg| arg == "--github-grant") {
-            return Err("historical Go grant observer retired; use --github-grant-declared with production backend, PostgreSQL payload and fresh profile".into());
+        (Some("--github-grant"), _) => {
+            Err("historical Go grant observer retired; use --github-grant-declared with production backend, PostgreSQL payload and fresh profile".into())
         }
-        if args.len() == 4 && args[0] == "--github-device-pending" {
-            return runtime.block_on(native_github_transport::run_device_pending(
+        (Some("--github-device-pending"), 4) => {
+            native_github_transport::run_device_pending(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-device-declared" {
-            return runtime.block_on(native_github_transport::run_device_declared(
+        (Some("--github-device-declared"), 4) => {
+            native_github_transport::run_device_declared(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.first().is_some_and(|arg| arg == "--github-device") {
-            return Err("historical Go device observer retired; use --github-device-pending or --github-device-declared with production backend, PostgreSQL payload and fresh profile".into());
+        (Some("--github-device"), _) => {
+            Err("historical Go device observer retired; use --github-device-pending or --github-device-declared with production backend, PostgreSQL payload and fresh profile".into())
         }
-        if args.len() == 2 && args[0] == "--github-comment-declared" {
-            return runtime.block_on(native_github_transport::run_comment_declared(Path::new(
-                &args[1],
-            )));
+        (Some("--github-comment-declared"), 2) => {
+            native_github_transport::run_comment_declared(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-issue-declared" {
-            return runtime.block_on(native_github_issues::producer(Path::new(&args[1])));
+        (Some("--github-issue-declared"), 2) => {
+            native_github_issues::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-state-declared" {
-            return runtime.block_on(native_github_states::producer(Path::new(&args[1])));
+        (Some("--github-state-declared"), 2) => {
+            native_github_states::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-edit-declared" {
-            return runtime.block_on(native_github_edits::producer(Path::new(&args[1])));
+        (Some("--github-edit-declared"), 2) => {
+            native_github_edits::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-lock-declared" {
-            return runtime.block_on(native_github_locks::producer(Path::new(&args[1])));
+        (Some("--github-lock-declared"), 2) => {
+            native_github_locks::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-threads-declared" {
-            return runtime.block_on(native_github_threads::producer(Path::new(&args[1])));
+        (Some("--github-threads-declared"), 2) => {
+            native_github_threads::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-reviewer-read-declared" {
-            return runtime.block_on(native_github_review_requests::producer(Path::new(&args[1])));
+        (Some("--github-reviewer-read-declared"), 2) => {
+            native_github_review_requests::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-review-preparation-declared" {
-            return runtime.block_on(native_github_review_requests::preparation(Path::new(
-                &args[1],
-            )));
+        (Some("--github-review-preparation-declared"), 2) => {
+            native_github_review_requests::preparation(Path::new(&args[1])).await
         }
-        if args.len() == 5 && args[0] == "--github-inline-expiry-product-declared" {
-            return runtime.block_on(native_github_review_requests::expiry(
+        (Some("--github-inline-expiry-product-declared"), 5) => {
+            native_github_review_requests::expiry(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
                 false,
                 true,
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-inline-product-declared" {
-            return runtime.block_on(native_github_review_requests::inline_product(
+        (Some("--github-inline-product-declared"), 5) => {
+            native_github_review_requests::inline_product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-inline-preservation-declared" {
-            return runtime.block_on(native_github_review_requests::inline_preservation(
-                Path::new(&args[1]),
-            ));
+        (Some("--github-inline-preservation-declared"), 2) => {
+            native_github_review_requests::inline_preservation(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-inline-draft-declared" {
-            return runtime.block_on(native_github_review_requests::inline_draft(Path::new(
-                &args[1],
-            )));
+        (Some("--github-inline-draft-declared"), 2) => {
+            native_github_review_requests::inline_draft(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-inline-preparation-port-declared" {
-            return runtime.block_on(native_github_review_requests::inline_preparation_port(
+        (Some("--github-inline-preparation-port-declared"), 4) => {
+            native_github_review_requests::inline_preparation_port(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-inline-preparation-declared" {
-            return runtime.block_on(native_github_review_requests::inline_preparation(
-                Path::new(&args[1]),
-            ));
+        (Some("--github-inline-preparation-declared"), 2) => {
+            native_github_review_requests::inline_preparation(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-pending-review-snapshot-declared" {
-            return runtime.block_on(native_github_review_requests::pending_snapshot(Path::new(
-                &args[1],
-            )));
+        (Some("--github-pending-review-snapshot-declared"), 2) => {
+            native_github_review_requests::pending_snapshot(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-review-publication-declared" {
-            return runtime.block_on(native_github_review_requests::publication(Path::new(
-                &args[1],
-            )));
+        (Some("--github-review-publication-declared"), 2) => {
+            native_github_review_requests::publication(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-pending-review-submit-declared" {
-            return runtime.block_on(native_github_review_requests::pending_submit(Path::new(
-                &args[1],
-            )));
+        (Some("--github-pending-review-submit-declared"), 2) => {
+            native_github_review_requests::pending_submit(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-review-create-declared" {
-            return runtime.block_on(native_github_review_requests::creation(Path::new(&args[1])));
+        (Some("--github-review-create-declared"), 2) => {
+            native_github_review_requests::creation(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-review-create-product-declared" {
-            return runtime.block_on(native_github_review_requests::new_product(
+        (Some("--github-review-create-product-declared"), 4) => {
+            native_github_review_requests::new_product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-pending-review-product-declared" {
-            return runtime.block_on(native_github_review_requests::pending_product(
+        (Some("--github-pending-review-product-declared"), 5) => {
+            native_github_review_requests::pending_product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
-            ));
+            )
+            .await
         }
-        if args.len() == 5
-            && (args[0] == "--github-review-expiry-product-declared"
-                || args[0] == "--github-pending-review-expiry-product-declared")
-        {
-            return runtime.block_on(native_github_review_requests::expiry(
+        (
+            Some(
+                "--github-review-expiry-product-declared"
+                | "--github-pending-review-expiry-product-declared",
+            ),
+            5,
+        ) => {
+            native_github_review_requests::expiry(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
                 args[0] == "--github-pending-review-expiry-product-declared",
                 false,
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-pull-branches-declared" {
-            return runtime.block_on(native_github_pull_branches::producer(Path::new(&args[1])));
+        (Some("--github-pull-branches-declared"), 2) => {
+            native_github_pull_branches::producer(Path::new(&args[1])).await
         }
-        if args.len() == 2 && args[0] == "--github-branch-create-declared" {
-            return runtime.block_on(native_github_pull_branches::branch_creation(Path::new(
-                &args[1],
-            )));
+        (Some("--github-branch-create-declared"), 2) => {
+            native_github_pull_branches::branch_creation(Path::new(&args[1])).await
         }
-        if args.len() == 5 && args[0] == "--github-branch-expiry-product-declared" {
-            return runtime.block_on(native_github_pull_branches::branch_expiry(
+        (Some("--github-branch-expiry-product-declared"), 5) => {
+            native_github_pull_branches::branch_expiry(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-branch-product-declared" {
-            return runtime.block_on(native_github_pull_branches::branch_product(
+        (Some("--github-branch-product-declared"), 5) => {
+            native_github_pull_branches::branch_product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Path::new(&args[4]),
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-pull-create-declared" {
-            return runtime.block_on(native_github_pull_branches::creation(Path::new(&args[1])));
+        (Some("--github-pull-create-declared"), 2) => {
+            native_github_pull_branches::creation(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-pull-create-product-declared" {
-            return runtime.block_on(native_github_pull_branches::product(
+        (Some("--github-pull-create-product-declared"), 4) => {
+            native_github_pull_branches::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-reviewer-write-declared" {
-            return runtime.block_on(native_github_review_requests::effects(Path::new(&args[1])));
+        (Some("--github-reviewer-write-declared"), 2) => {
+            native_github_review_requests::effects(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-reviewer-product-declared" {
-            return runtime.block_on(native_github_review_requests::product(
+        (Some("--github-reviewer-product-declared"), 4) => {
+            native_github_review_requests::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 2 && args[0] == "--github-thread-resolution-declared" {
-            return runtime.block_on(native_github_threads::resolution(Path::new(&args[1])));
+        (Some("--github-thread-resolution-declared"), 2) => {
+            native_github_threads::resolution(Path::new(&args[1])).await
         }
-        if args.len() == 4 && args[0] == "--github-thread-resolution-product-declared" {
-            return runtime.block_on(native_github_threads::resolution_product(
+        (Some("--github-thread-resolution-product-declared"), 4) => {
+            native_github_threads::resolution_product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-threads-product-declared" {
-            return runtime.block_on(native_github_threads::product(
+        (Some("--github-threads-product-declared"), 4) => {
+            native_github_threads::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-lock-product-declared" {
-            return runtime.block_on(native_github_locks::product(
+        (Some("--github-lock-product-declared"), 4) => {
+            native_github_locks::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-edit-product-declared" {
-            return runtime.block_on(native_github_edits::product(
+        (Some("--github-edit-product-declared"), 4) => {
+            native_github_edits::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-state-product-declared" {
-            return runtime.block_on(native_github_states::product(
+        (Some("--github-state-product-declared"), 4) => {
+            native_github_states::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-issue-product-declared" {
-            return runtime.block_on(native_github_issues::product(
+        (Some("--github-issue-product-declared"), 4) => {
+            native_github_issues::product(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-comment-envelope-declared" {
-            return Err("the comment envelope producer observer is retired; use --github-comment-product-declared for the composed writer in an owned no-forwarding fixture".into());
+        (Some("--github-comment-envelope-declared"), 4) => {
+            Err("the comment envelope producer observer is retired; use --github-comment-product-declared for the composed writer in an owned no-forwarding fixture".into())
         }
-        if args.len() == 4 && args[0] == "--github-comment-product-declared" {
-            return runtime.block_on(native_github_comments::run(
+        (Some("--github-comment-product-declared"), 4) => {
+            native_github_comments::run(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4
-            && (args[0] == "--github-transport-refusal" || args[0] == "--github-transport-declared")
-        {
-            return runtime.block_on(native_github_transport::run(
+        (Some("--github-transport-refusal" | "--github-transport-declared"), 4) => {
+            native_github_transport::run(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 args[0] == "--github-transport-declared",
-            ));
+            )
+            .await
         }
-        if args.len() == 4
-            && (args[0] == "--github-verify-refusal" || args[0] == "--github-verify-declared")
-        {
-            return runtime.block_on(native_github_transport::run_verify(
+        (Some("--github-verify-refusal" | "--github-verify-declared"), 4) => {
+            native_github_transport::run_verify(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 args[0] == "--github-verify-declared",
-            ));
+            )
+            .await
         }
-        if args
-            .first()
-            .is_some_and(|arg| arg == "--github-verify" || arg == "--github-transport")
-        {
-            return Err("historical Go verifier/transport observers retired; use their -refusal or -declared replacement with production backend, PostgreSQL payload and fresh profile".into());
+        (Some("--github-verify" | "--github-transport"), _) => {
+            Err("historical Go verifier/transport observers retired; use their -refusal or -declared replacement with production backend, PostgreSQL payload and fresh profile".into())
         }
-        if args.len() == 4 && args[0] == "--github-issues" {
-            return runtime.block_on(native_github_transport::run_records(
+        (Some("--github-issues"), 4) => {
+            native_github_transport::run_records(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 false,
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-discussion" {
-            return runtime.block_on(native_github_transport::run_discussion(
+        (Some("--github-discussion"), 4) => {
+            native_github_transport::run_discussion(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-reviews" {
-            return runtime.block_on(native_github_transport::run_reviews(
+        (Some("--github-reviews"), 4) => {
+            native_github_transport::run_reviews(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-pulls" {
-            return runtime.block_on(native_github_transport::run_records(
+        (Some("--github-pulls"), 4) => {
+            native_github_transport::run_records(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 true,
-            ));
+            )
+            .await
         }
-        if args.len() == 4 && args[0] == "--github-diff" {
-            return runtime.block_on(native_github_transport::run_diff(
+        (Some("--github-diff"), 4) => {
+            native_github_transport::run_diff(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 None,
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-diff-pins" {
+        (Some("--github-diff-pins"), 5) => {
             let saved: serde_json::Value = serde_json::from_slice(&fs::read(&args[4])?)?;
             ensure(
                 saved["result"] == "pass" && saved["phase"] == "discovery",
@@ -1504,14 +1510,15 @@ fn main() {
                 !base.is_empty() && !head.is_empty(),
                 "saved diff pair required",
             )?;
-            return runtime.block_on(native_github_transport::run_diff(
+            native_github_transport::run_diff(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 Some((base, head)),
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-review-comments" {
+        (Some("--github-review-comments"), 5) => {
             let saved: serde_json::Value = serde_json::from_slice(&fs::read(&args[4])?)?;
             ensure(
                 saved["result"] == "pass" && saved["phase"] == "list",
@@ -1527,16 +1534,17 @@ fn main() {
             let id = saved["page"]["items"][0]["external_id"]
                 .as_str()
                 .ok_or("actual comment ID missing")?;
-            return runtime.block_on(native_github_transport::run_review_comments(
+            native_github_transport::run_review_comments(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 repository,
                 number,
                 id,
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-commit-statuses" {
+        (Some("--github-commit-statuses"), 5) => {
             let saved: serde_json::Value = serde_json::from_slice(&fs::read(&args[4])?)?;
             ensure(
                 saved["result"] == "pass" && saved["phase"] == "discover",
@@ -1552,16 +1560,17 @@ fn main() {
             let head = saved["page"]["head"]
                 .as_str()
                 .ok_or("status head missing")?;
-            return runtime.block_on(native_github_transport::run_commit_statuses(
+            native_github_transport::run_commit_statuses(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 repository,
                 number,
                 head,
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-check-runs" {
+        (Some("--github-check-runs"), 5) => {
             let saved: serde_json::Value = serde_json::from_slice(&fs::read(&args[4])?)?;
             ensure(
                 saved["result"] == "pass" && saved["phase"] == "discover",
@@ -1571,14 +1580,15 @@ fn main() {
                 .as_str()
                 .ok_or("check discovery head missing")?;
             ensure(!head.is_empty(), "actual full head required")?;
-            return runtime.block_on(native_github_transport::run_check_runs(
+            native_github_transport::run_check_runs(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 head,
-            ));
+            )
+            .await
         }
-        if args.len() == 5 && args[0] == "--github-files" {
+        (Some("--github-files"), 5) => {
             let saved: serde_json::Value = serde_json::from_slice(&fs::read(&args[4])?)?;
             ensure(
                 saved["result"] == "pass" && saved["phase"] == "discovery",
@@ -1594,16 +1604,29 @@ fn main() {
                 !base.is_empty() && !head.is_empty(),
                 "saved file diff pair required",
             )?;
-            return runtime.block_on(native_github_transport::run_files(
+            native_github_transport::run_files(
                 Path::new(&args[1]),
                 Path::new(&args[2]),
                 Path::new(&args[3]),
                 base,
                 head,
-            ));
+            )
+            .await
         }
-        ensure(args.len() == 1, "usage: factory-credential-operation-check NEW_PROFILE | --github-transport|--github-verify PRODUCTION_BACKEND OBSERVED_BACKEND PG_PAYLOAD NEW_PROFILE | --github-issues|--github-discussion|--github-pulls|--github-reviews|--github-diff BACKEND PG_PAYLOAD NEW_PROFILE | --github-diff-pins|--github-files|--github-check-runs|--github-commit-statuses|--github-review-comments BACKEND PG_PAYLOAD NEW_PROFILE SAVED_DISCOVERY_JSON (isolated real keyring driver only)")?;
-        runtime.block_on(run(Path::new(&args[0])))
+        _ => {
+            ensure(args.len() == 1, "usage: factory-credential-operation-check NEW_PROFILE | --github-transport|--github-verify PRODUCTION_BACKEND OBSERVED_BACKEND PG_PAYLOAD NEW_PROFILE | --github-issues|--github-discussion|--github-pulls|--github-reviews|--github-diff BACKEND PG_PAYLOAD NEW_PROFILE | --github-diff-pins|--github-files|--github-check-runs|--github-commit-statuses|--github-review-comments BACKEND PG_PAYLOAD NEW_PROFILE SAVED_DISCOVERY_JSON (isolated real keyring driver only)")?;
+            run(Path::new(&args[0])).await
+        }
+    }
+}
+
+fn main() {
+    let result = (|| -> Result<()> {
+        let args: Vec<_> = std::env::args_os().skip(1).collect();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        runtime.block_on(run_selected(&args))
     })();
     if let Err(error) = result {
         eprintln!("Native credential operation check: {error}");

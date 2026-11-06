@@ -10,13 +10,11 @@ import (
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
-// SubmissionSink reads and writes work posts.
 type SubmissionSink interface {
 	TerminalMCPProposal(context.Context, string) (factory.MCPWorkStatus, bool, error)
 	RecordMCPSubmission(ctx context.Context, submission factory.MCPSubmission) (factory.MCPWorkStatus, error)
 }
 
-// Dependencies wires the catalog server to canonical sources and services.
 // Prepare supplies current worker admission; Observed supplies
 // runtime state for per-tool admission. Catalog reads the authenticated
 // capability's approved preparation; nil keeps the catalog unavailable.

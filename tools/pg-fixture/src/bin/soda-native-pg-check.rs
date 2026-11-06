@@ -27,13 +27,39 @@ fn run() -> Result<(), Box<dyn Error>> {
     if args.first().is_some_and(|arg| arg == "--supervisor-owner") {
         return supervisor_owner(&args[1..]);
     }
-    let once = args.first().is_some_and(|arg| arg == "--once");
-    if once {
-        args.remove(0);
+    let mut once = false;
+    let mut selected_case = None;
+    let mut case_input = None;
+    loop {
+        match args.first().and_then(|arg| arg.to_str()) {
+            Some("--once") if !once => {
+                once = true;
+                args.remove(0);
+            }
+            Some("--case") | Some("--case-input") => {
+                if args.len() < 2 {
+                    return Err("case option requires a value".into());
+                }
+                let option = args.remove(0);
+                let value = args.remove(0);
+                let target = if option == "--case" {
+                    &mut selected_case
+                } else {
+                    &mut case_input
+                };
+                if value.is_empty() || target.replace(value).is_some() {
+                    return Err("case option must have one nonempty value".into());
+                }
+            }
+            _ => break,
+        }
+    }
+    if case_input.is_some() && selected_case.is_none() {
+        return Err("--case-input requires --case".into());
     }
     if args.len() < 4 || args[2] != "--" {
         return Err(
-            "usage: soda-native-pg-check [--once] PAYLOAD NEW_PROFILE -- STORE_CHECK_COMMAND [ARGS...]"
+            "usage: soda-native-pg-check [--once] [--case CASE] [--case-input PATH] PAYLOAD NEW_PROFILE -- STORE_CHECK_COMMAND [ARGS...]"
                 .into(),
         );
     }
@@ -54,13 +80,20 @@ fn run() -> Result<(), Box<dyn Error>> {
         .open(&dsn_file)?
         .write_all(database.connection_uri().as_bytes())?;
     let check = |phase: &str| -> Result<(), Box<dyn Error>> {
-        let status = Command::new(&args[3])
+        let mut command = Command::new(&args[3]);
+        command
             .args(&args[4..])
             .env("SODA_NATIVE_PG_DSN_FILE", &dsn_file)
             .env("SODA_NATIVE_FACTORY_CONFIG", &backend_config)
             .env("SODA_NATIVE_PG_PHASE", phase)
-            .env("SODA_NATIVE_PG_POST_ID_FILE", profile.join("proof-post-id"))
-            .status()?;
+            .env("SODA_NATIVE_PG_POST_ID_FILE", profile.join("proof-post-id"));
+        if let Some(case) = &selected_case {
+            command.env("SODA_NATIVE_PG_CASE", case);
+        }
+        if let Some(input) = &case_input {
+            command.env("SODA_NATIVE_PG_CASE_INPUT", input);
+        }
+        let status = command.status()?;
         if !status.success() {
             return Err(format!("store transaction check failed in {phase}").into());
         }

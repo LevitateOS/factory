@@ -465,7 +465,6 @@ func DispatchPass(ctx context.Context, deps DispatchDeps) DispatchReport {
 	return report
 }
 
-// dispatchDeps binds one pass to this coordinator's dependencies.
 func (c *Coordinator) dispatchDeps() DispatchDeps {
 	return admitDispatchDependencies(DispatchDeps{
 		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, MCPSecret: c.MCPSecret, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,

@@ -1,5 +1,6 @@
 //! Real native provider/journal integration observers, never Rust unit tests.
 //! Launch only with dummy grants and an owned no-forwarding local HTTPS fixture.
+use super::native_github_fixture::{call, completed, posts, set_mode, uncertain};
 use super::{ensure, prepare, Result};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -21,13 +22,6 @@ fn sha(value: &str) -> String {
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
-}
-fn posts(io: &Path) -> Result<u64> {
-    match fs::read_to_string(io.join("posts")) {
-        Ok(s) => Ok(s.parse()?),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(e) => Err(e.into()),
-    }
 }
 
 pub(super) async fn producer(profile: &Path) -> Result<()> {
@@ -207,7 +201,7 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     let t = token()?;
     let pending = async { Ok::<_, &str>(client.create_issue(t, "321", &q).await) };
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     let started = Instant::now();
     owner.stop()?;
     ensure(
@@ -236,56 +230,12 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn call(
-    runtime: &NativeSupervisor,
-    store: &Arc<Credentials>,
-    connection: &str,
-    method: &str,
-    target: &str,
-    body: &[u8],
-) -> Result<(u16, serde_json::Value)> {
-    let request = runtime.admit_product(
-        store.clone(),
-        store.capability(connection).await?,
-        Some("123".into()),
-    )?;
-    let reply = request.request(method, target, body).await?;
-    Ok((reply.status, serde_json::from_slice(&reply.body)?))
-}
 fn envelope(path: &str, id: &str, title: &str, body: &str) -> Result<Vec<u8>> {
     let request: ProductRequest = serde_json::from_value(
         json!({"kind":"write","path":path,"body":{"command_id":id,"title":title,"body":body}}),
     )?;
     let (_, _, bytes) = request.request()?;
     Ok(bytes)
-}
-pub(super) fn set_mode(io: &Path, name: &str) -> Result<()> {
-    if name.starts_with("pause-") {
-        for marker in ["entered", "release", "cancelled"] {
-            match fs::remove_file(io.join(marker)) {
-                Ok(()) => (),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-                Err(e) => return Err(e.into()),
-            }
-        }
-    }
-    fs::write(io.join("mode"), name)?;
-    Ok(())
-}
-pub(super) fn completed(reply: &(u16, serde_json::Value), effect: &str) -> Result<()> {
-    ensure(
-        reply.0 == 200 && reply.1["effect"] == effect && reply.1["finished"] == true,
-        "composed human command did not retain complete primary",
-    )
-}
-pub(super) fn uncertain(reply: &(u16, serde_json::Value)) -> Result<()> {
-    ensure(
-        matches!(reply.0, 200 | 202)
-            && reply.1["effect"] == "indeterminate"
-            && reply.1["finished"] == false
-            && reply.1["issue"].is_null(),
-        "unknown human command became complete, attributable or safe to retry",
-    )
 }
 
 pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -> Result<()> {
@@ -588,7 +538,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let pending = request.request("POST", &submit, &bytes);
         tokio::pin!(pending);
-        super::native_github_transport::entered(pending.as_mut(), &io).await?;
+        super::native_github_fixture::entered(pending.as_mut(), &io).await?;
         let cancelled = call(
             &runtime,
             &store,
@@ -628,7 +578,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &withdrawn);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     store.withdraw(&connection).await?;
     connection = store
         .store(account()?, Token::new(b"factory-declared-issue".to_vec())?)
@@ -668,7 +618,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     )?;
     let pending = request.request("POST", &submit, &stopped);
     tokio::pin!(pending);
-    super::native_github_transport::entered(pending.as_mut(), &io).await?;
+    super::native_github_fixture::entered(pending.as_mut(), &io).await?;
     runtime.stop()?;
     ensure(
         pending.await.is_err(),

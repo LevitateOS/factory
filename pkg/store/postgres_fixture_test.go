@@ -18,13 +18,9 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-// postgresFixture opens an isolated ephemeral PostgreSQL database for one
-// test. key selects the encrypted entrypoint; nil opens without identity
-// credentials. It returns the store and its connection URL, so close/reopen
-// tests can reconnect to the same database. The database is dropped when
-// the test finishes. Tests skip when the A10 disposable fixture
-// environment (SODA_PG_HOST, SODA_PG_PORT, SODA_PG_SUPER_PASSWORD_FILE,
-// as printed by soda-pg-fixture start) is absent.
+// The database is dropped after the test; the returned DSN permits reopen
+// checks. Supply soda-pg-fixture's SODA_PG_* inputs or soda-native-pg-check's
+// SODA_NATIVE_PG_DSN_FILE; absent fixture inputs skip the test.
 func postgresFixture(t *testing.T) (*Store, string) {
 	t.Helper()
 	admin, ok := TestFixtureDSN()
@@ -80,6 +76,85 @@ func opaqueHumanPreparationFixture(t *testing.T, size int) []byte {
 	return raw
 }
 
+type nativePostgresCheck struct {
+	name, input, phase string
+}
+
+func resolveNativePostgresCheck(t *testing.T) nativePostgresCheck {
+	t.Helper()
+	selected := nativePostgresCheck{
+		name:  os.Getenv("SODA_NATIVE_PG_CASE"),
+		input: os.Getenv("SODA_NATIVE_PG_CASE_INPUT"),
+		phase: os.Getenv("SODA_NATIVE_PG_PHASE"),
+	}
+	switch selected.phase {
+	case "write", "restart", "recover":
+	default:
+		t.Fatalf("unknown native PostgreSQL phase %q", selected.phase)
+	}
+	cases := []struct {
+		name, legacy string
+		input        bool
+	}{
+		{"transaction", "", false},
+		{"collaboration-bindings", "SODA_NATIVE_COLLABORATION_BINDINGS", false},
+		{"human-pull-create-observations", "SODA_NATIVE_HUMAN_PULL_CREATE_OBSERVATIONS", true},
+		{"human-pull-create-journal", "SODA_NATIVE_HUMAN_PULL_CREATE_JOURNAL", false},
+		{"human-pull-create-schema", "SODA_NATIVE_HUMAN_PULL_CREATE_SCHEMA_FILE", true},
+		{"human-merge-observations", "SODA_NATIVE_HUMAN_MERGE_OBSERVATIONS", false},
+		{"human-merge-schema", "SODA_NATIVE_HUMAN_MERGE_SCHEMA_FILE", true},
+		{"human-merge-journal", "SODA_NATIVE_HUMAN_MERGE_JOURNAL", false},
+		{"human-review-request-observations", "SODA_NATIVE_HUMAN_REVIEW_REQUEST_OBSERVATIONS", false},
+		{"human-review-request-journal", "SODA_NATIVE_HUMAN_REVIEW_REQUEST_JOURNAL", false},
+		{"human-review-request-schema", "SODA_NATIVE_HUMAN_REVIEW_REQUEST_SCHEMA_FILE", true},
+		{"collaboration-teams", "SODA_NATIVE_COLLABORATION_TEAMS", false},
+		{"human-thread-schema", "SODA_NATIVE_HUMAN_THREAD_SCHEMA_FILE", true},
+		{"human-thread-journal", "SODA_NATIVE_HUMAN_THREAD_JOURNAL", false},
+		{"human-inline-schema", "SODA_NATIVE_HUMAN_INLINE_SCHEMA_FILE", true},
+		{"human-inline-journal", "SODA_NATIVE_HUMAN_INLINE_JOURNAL", false},
+		{"human-review-schema", "SODA_NATIVE_HUMAN_REVIEW_SCHEMA_FILE", true},
+		{"human-review-journal", "SODA_NATIVE_HUMAN_REVIEW_JOURNAL", false},
+		{"human-state-journal", "SODA_NATIVE_HUMAN_STATE_JOURNAL", false},
+		{"human-lock-journal", "SODA_NATIVE_HUMAN_LOCK_JOURNAL", false},
+		{"human-issue-create-journal", "SODA_NATIVE_HUMAN_ISSUE_CREATE_JOURNAL", false},
+		{"human-edit-journal", "SODA_NATIVE_HUMAN_EDIT_JOURNAL", false},
+		{"human-comment-journal", "SODA_NATIVE_HUMAN_COMMENT_JOURNAL", false},
+	}
+	// Resolve historical environment callers once. Ambiguous runs must fail
+	// instead of silently proving only the first selected case.
+	for _, candidate := range cases {
+		if candidate.legacy == "" {
+			continue
+		}
+		value := os.Getenv(candidate.legacy)
+		if candidate.input && value != "" || !candidate.input && value == "1" {
+			if selected.name != "" {
+				t.Fatalf("multiple native PostgreSQL cases selected: %q and %q", selected.name, candidate.name)
+			}
+			if selected.input != "" {
+				t.Fatal("native PostgreSQL case input requires an explicit case")
+			}
+			selected.name = candidate.name
+			if candidate.input {
+				selected.input = value
+			}
+		}
+	}
+	if selected.name == "" {
+		selected.name = "transaction"
+	}
+	for _, candidate := range cases {
+		if selected.name == candidate.name {
+			if candidate.input != (selected.input != "") {
+				t.Fatalf("native PostgreSQL case %q requires input=%t", selected.name, candidate.input)
+			}
+			return selected
+		}
+	}
+	t.Fatalf("unknown native PostgreSQL case %q", selected.name)
+	return selected
+}
+
 // Driven by soda-native-pg-check across three actual server lifetimes. Each
 // phase opens the same private native cluster, rather than cloning a fixture DB.
 func TestNativePostgresRetainedTransaction(t *testing.T) {
@@ -87,6 +162,7 @@ func TestNativePostgresRetainedTransaction(t *testing.T) {
 	if file == "" {
 		t.Skip("native PostgreSQL driver unavailable")
 	}
+	selected := resolveNativePostgresCheck(t)
 	raw, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
@@ -123,94 +199,59 @@ func TestNativePostgresRetainedTransaction(t *testing.T) {
 	if err == nil {
 		t.Fatal("native socket admitted an incorrect password")
 	}
-	phase := os.Getenv("SODA_NATIVE_PG_PHASE")
+	phase := selected.phase
 	identityFile := os.Getenv("SODA_NATIVE_PG_POST_ID_FILE")
-	if os.Getenv("SODA_NATIVE_COLLABORATION_BINDINGS") == "1" {
+	switch selected.name {
+	case "collaboration-bindings":
 		checkNativeCollaborationBindings(t, s, string(raw), phase, identityFile+".bindings.json")
 		return
-	}
-	if directory := os.Getenv("SODA_NATIVE_HUMAN_PULL_CREATE_OBSERVATIONS"); directory != "" {
-		checkNativeHumanPullCreateObservations(t, s, phase, directory, identityFile+".pull-create-observations.json")
+	case "human-pull-create-observations":
+		checkNativeHumanPullCreateObservations(t, s, phase, selected.input, identityFile+".pull-create-observations.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_PULL_CREATE_JOURNAL") == "1" {
+	case "human-pull-create-journal":
 		checkNativeHumanPullCreateJournal(t, s, string(raw), phase, identityFile+".pull-create.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_PULL_CREATE_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_MERGE_OBSERVATIONS") == "1" {
+	case "human-merge-observations":
 		checkNativeHumanMergeObservations(t, s, phase, identityFile+".merge-native", identityFile+".merge-observations.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_MERGE_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_MERGE_JOURNAL") == "1" {
+	case "human-merge-journal":
 		checkNativeHumanMergeJournal(t, s, string(raw), phase, identityFile+".merge.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_REVIEW_REQUEST_OBSERVATIONS") == "1" {
+	case "human-review-request-observations":
 		checkNativeHumanReviewRequestObservations(t, s, phase, identityFile+".reviewer-observations.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_REVIEW_REQUEST_JOURNAL") == "1" {
+	case "human-review-request-journal":
 		checkNativeHumanReviewRequestJournal(t, s, string(raw), phase, identityFile+".reviewer.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_REVIEW_REQUEST_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_COLLABORATION_TEAMS") == "1" {
+	case "collaboration-teams":
 		checkNativeCollaborationTeams(t, s, string(raw), phase, identityFile+".teams.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_THREAD_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_THREAD_JOURNAL") == "1" {
+	case "human-thread-journal":
 		checkNativeHumanThreadJournal(t, s, string(raw), phase, identityFile+".thread.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_INLINE_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_INLINE_JOURNAL") == "1" {
+	case "human-inline-journal":
 		checkNativeHumanInlineJournal(t, s, string(raw), phase, identityFile+".inline.json")
 		return
-	}
-	if script := os.Getenv("SODA_NATIVE_HUMAN_REVIEW_SCHEMA_FILE"); script != "" {
-		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), script)
-		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_REVIEW_JOURNAL") == "1" {
+	case "human-review-journal":
 		checkNativeHumanReviewJournal(t, s, string(raw), phase, identityFile+".review.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_STATE_JOURNAL") == "1" {
+	case "human-state-journal":
 		checkNativeHumanStateJournal(t, s, phase, identityFile+".state.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_LOCK_JOURNAL") == "1" {
+	case "human-lock-journal":
 		checkNativeHumanLockJournal(t, s, string(raw), phase, identityFile+".lock.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_ISSUE_CREATE_JOURNAL") == "1" {
+	case "human-issue-create-journal":
 		checkNativeHumanIssueCreateJournal(t, s, string(raw), phase, identityFile+".issue-create.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_EDIT_JOURNAL") == "1" {
+	case "human-edit-journal":
 		checkNativeHumanEditJournal(t, s, string(raw), phase, identityFile+".edit.json")
 		return
-	}
-	if os.Getenv("SODA_NATIVE_HUMAN_COMMENT_JOURNAL") == "1" {
+	case "human-comment-journal":
 		checkNativeHumanCommentJournal(t, s, string(raw), phase, identityFile+".comment.json")
+		return
+	case "human-pull-create-schema", "human-merge-schema", "human-review-request-schema", "human-thread-schema", "human-inline-schema", "human-review-schema":
+		checkNativeHumanReviewDevelopmentSchema(t, s, string(raw), selected.input, selected.name)
 		return
 	}
 	var id string
@@ -719,16 +760,27 @@ func checkNativeHumanCommentJournal(t *testing.T, s *Store, dsn, phase, identity
 	t.Logf("%s: exact 64 KiB Markdown/provider bytes, canonical binding, original preparation replay and immutable command retained; no provider dispatch", phase)
 }
 
-// Native PostgreSQL upgrade and three-lifetime proof for immutable edit capture.
 // Provider JSON is opaque fixture preparation; no provider operation is sent.
-func checkNativeHumanReviewDevelopmentSchema(t *testing.T, s *Store, dsn, path string) {
+func checkNativeHumanReviewDevelopmentSchema(t *testing.T, s *Store, dsn, path, selectedCase string) {
 	t.Helper()
 	ctx := t.Context()
-	pull := os.Getenv("SODA_NATIVE_HUMAN_PULL_CREATE_SCHEMA_FILE") != ""
-	merge := pull || os.Getenv("SODA_NATIVE_HUMAN_MERGE_SCHEMA_FILE") != ""
-	reviewer := merge || os.Getenv("SODA_NATIVE_HUMAN_REVIEW_REQUEST_SCHEMA_FILE") != ""
-	thread := reviewer || os.Getenv("SODA_NATIVE_HUMAN_THREAD_SCHEMA_FILE") != ""
-	inline := thread || os.Getenv("SODA_NATIVE_HUMAN_INLINE_SCHEMA_FILE") != ""
+	var pull, merge, reviewer, thread, inline bool
+	switch selectedCase {
+	case "human-pull-create-schema":
+		pull = true
+		fallthrough
+	case "human-merge-schema":
+		merge = true
+		fallthrough
+	case "human-review-request-schema":
+		reviewer = true
+		fallthrough
+	case "human-thread-schema":
+		thread = true
+		fallthrough
+	case "human-inline-schema":
+		inline = true
+	}
 	script, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
