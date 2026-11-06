@@ -1,5 +1,5 @@
 import {check, object} from './models.js';
-import type {IssueRef} from './collaboration.js';
+import type {IssueRef, PullRef, Action} from './collaboration.js';
 
 /** Display availability never grants mutation authority. */
 export function issueActionAllowed(
@@ -23,6 +23,25 @@ export function issueActionAllowed(
         issue.external_id === parent.external_id
     );
   } else check(row.issue === null);
+  check(observation.state === 'available' && typeof observation.revision === 'string' && !!observation.revision.trim());
+  check(typeof observation.observed_at === 'string' && Number.isFinite(Date.parse(observation.observed_at)));
+  const capability = object(object(row.actions)[action]);
+  check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(capability.state)));
+  return capability.state === 'allowed';
+}
+
+export function pullActionAllowed(
+  value: unknown,
+  repository: string,
+  actor: string,
+  parent: PullRef,
+  head: string,
+  action: Extract<Action, 'pull.review' | 'pull.review.comment' | 'pull.review.approve' | 'pull.review.request_changes' | 'thread.resolve' | 'pull.merge'>
+): boolean {
+  const row = object(value), observation = object(row.observation), pull = object(row.pull);
+  check(row.repository === repository && row.actor === actor && row.issue === null);
+  check(pull.kind === 'pull' && pull.repository === parent.repository && pull.number === parent.number && pull.external_id === parent.external_id);
+  check(row.head === head && typeof row.connection === 'string' && !!row.connection);
   check(observation.state === 'available' && typeof observation.revision === 'string' && !!observation.revision.trim());
   check(typeof observation.observed_at === 'string' && Number.isFinite(Date.parse(observation.observed_at)));
   const capability = object(object(row.actions)[action]);

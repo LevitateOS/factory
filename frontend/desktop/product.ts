@@ -207,7 +207,8 @@ export class DesktopProduct {
         return {kind: 'pulls', context: {...common, repository: route.repository}};
       case 'pull':
         return {kind: 'pull', context: {...common, repository: route.repository, pull: route.pull,
-          resolveLink: (href) => this.resolveLink(href, route.pull, 'pull'), openLink: this.openLink}};
+          resolveLink: (href) => this.resolveLink(href, route.pull, 'pull'), openLink: this.openLink,
+          commandScope}};
       case 'issue-new':
         return {kind: 'issue-new', context: {...common, repository: route.repository, commandScope}};
       case 'issue': {

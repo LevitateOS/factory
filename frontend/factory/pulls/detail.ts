@@ -6,6 +6,8 @@ import type {FactoryTransport} from '../api/transport.js';
 import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 import '../review/diff.js';
+import './review.js';
+import './merge.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
@@ -17,6 +19,7 @@ export interface PullDetailContext {
   readonly actor: string;
   readonly scope: string;
   readonly initialTab?: Tab;
+  readonly commandScope?: (signal: AbortSignal) => Promise<string>;
   resolveLink(href: string): string | undefined;
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
@@ -106,7 +109,7 @@ export class SodaFactoryPull extends LitElement {
     const cursor = this.cursor, tab = this.tab;
     const path = `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}`;
     const prior = this.view.pull, priorDiff = this.view.diff;
-    this.view = {...empty(), busy: true};
+    this.view = {...this.view, busy: true, message: ''};
     try {
       const pull = pullItem(await getJSON(context.transport, path, signal), context.host, context.repository, context.pull);
       if (!this.live(context, serial)) return;
@@ -256,6 +259,18 @@ export class SodaFactoryPull extends LitElement {
           ${!this.view.threads.length ? html`<p>No inline discussions on this page.</p>` : ''}
         </section>`}
         <nav aria-label="Pull request pages"><button type="button" @click=${this.back} ?disabled=${this.view.busy || !this.previous.length}>Previous page</button><button type="button" @click=${this.next} ?disabled=${this.view.busy || !this.view.next}>Next page</button></nav>
+        ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-review
+          .context=${{transport: context.transport, host: context.host, actor: context.actor,
+            repository: context.repository, pull: context.pull, scope: context.scope,
+            parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+          @pull-review-saved=${() => void this.refresh()}
+        ></soda-factory-pull-review>` : ''}
+        ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-merge
+          .context=${{transport: context.transport, host: context.host, actor: context.actor,
+            repository: context.repository, pull: context.pull, scope: context.scope,
+            parent: pull.ref, head: pull.head.commit, commandScope: context.commandScope}}
+          @pull-merge-saved=${() => void this.refresh()}
+        ></soda-factory-pull-merge>` : ''}
       ` : ''}
     </section>`;
   }
