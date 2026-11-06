@@ -31078,8 +31078,15 @@ after a real PR head change in both the shared discussion tab and the original
 file fallback. Its existing merge and reload readback still passed. Evidence:
 `/home/vince/tmp/factory-fountain-outdated-1106.eN3FhC/{run.log,host/result.json,host/pull-reader/pull-browser-merge-result.json}`.
 The Fountain native edge check above covers large/partial data; this browser
-check covers outdated rendering. Full large/partial browser rendering,
-installed parity and T07/T11 dependencies remain open.
+check covers outdated rendering.
+
+The same current Fountain host package then opened the six-file edge PR in the
+shared Files view. Its browser rendered the truncated Unicode and binary patch
+states, rename/deletion/literal paths, a split-to-unified switch and a separate
+same-number PR in another repository. Native edge, host and PostgreSQL checks
+still passed. Evidence:
+`/home/vince/tmp/factory-fountain-edge-ui-1106.PJ2zFK/{run.log,host/result.json,host/edge-browser-result.json}`.
+T08-READ still depends on T07-EDIT; installed parity remains T13/T14.
 
 The shared diff now keeps its viewport and selected line across a file refresh
 only when the exact complete patch and immutable file identity still match;

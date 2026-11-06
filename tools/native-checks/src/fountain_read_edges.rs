@@ -1,9 +1,42 @@
 //! Remaining installed provider cases: large/literal diffs and PR namespaces.
 use super::fountain_read_issues::{available, curl_string, read, Seed};
 use super::fountain_read_pull_code::pages;
-use super::{form, private_file, require, Browser, Result};
+use super::{form, private_file, require, Browser, OwnedChild, Result};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use std::thread;
+use std::time::{Duration, Instant};
+
+fn browser_edges(b: &Browser, password: &str) -> Result<Value> {
+    let module = PathBuf::from(std::env::var_os("FACTORY_CHECK_BROWSER_MODULE")
+        .ok_or("explicit Playwright module required for --read-edges-browser")?);
+    require(module.is_absolute() && module.starts_with("/home") && module.is_file(),
+        "owned browser module unavailable")?;
+    let root = &b.root;
+    private_file(&root.join("edge-browser-password"), password.as_bytes())?;
+    private_file(&root.join("edge-browser-input.json"),
+        &serde_json::to_vec(&json!({"module":module,"origin":b.origin}))?)?;
+    private_file(&root.join("edge-browser.mjs"), include_bytes!("fountain_read_edges_browser.mjs"))?;
+    let mut browser = OwnedChild::spawn(
+        Command::new("bun").arg(root.join("edge-browser.mjs")).arg(root),
+        &root.join("edge-browser.log"))?;
+    let until = Instant::now() + Duration::from_secs(60);
+    loop {
+        if let Some(status) = browser.child.try_wait()? {
+            require(status.success(), "native edge browser failed; inspect private stage/log")?;
+            break;
+        }
+        require(Instant::now() < until, "native edge browser deadline")?;
+        thread::sleep(Duration::from_millis(25));
+    }
+    let result: Value = serde_json::from_slice(&fs::read(root.join("edge-browser-result.json"))?)?;
+    require(result["result"] == "pass" && result["large_partial"] == true && result["same_number_isolation"] == true,
+        "native edge browser proof incomplete")?;
+    Ok(result)
+}
 
 fn all_files(
     b: &mut Browser,
@@ -66,7 +99,7 @@ fn all_files(
     Err("file paging did not finish".into())
 }
 
-pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) -> Result<Value> {
+pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, browser_check: bool) -> Result<Value> {
     private_file(
         &b.root.join("seed.curl"),
         format!("user = \"factory-check:{}\"\n", curl_string(password)).as_bytes(),
@@ -229,6 +262,7 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
             && other_diff["pull"] == other_detail["ref"],
         "other repository file scope crossed",
     )?;
+    let browser_result = if browser_check { Some(browser_edges(b, password)?) } else { None };
     let other_base = other_diff["base"]
         .as_str()
         .ok_or("other diff base missing")?;
@@ -323,6 +357,6 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
     )?;
     println!("PASS: installed native same-number PR isolation, complete six-file catalogue with truncated Unicode/binary/literal/rename/delete/modified diffs, cross-repository cursor refusal, rename stability, unit withdrawal and archive capabilities");
     Ok(
-        json!({"result":"pass","repositories":2,"pulls":2,"files":6,"large_file_lines":7000,"truncated_patch_bytes":patch.len(),"same_number_isolation":true,"cross_repository_cursor":true,"rename":true,"unit_withdrawal":true,"archive":true}),
+        json!({"result":"pass","repositories":2,"pulls":2,"files":6,"large_file_lines":7000,"truncated_patch_bytes":patch.len(),"same_number_isolation":true,"cross_repository_cursor":true,"rename":true,"unit_withdrawal":true,"archive":true,"browser":browser_result}),
     )
 }

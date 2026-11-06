@@ -179,11 +179,12 @@ fn run() -> Result<()> {
     let pull_browser = args.first().is_some_and(|s| s == "--pull-code-browser");
     let pull_code = pull_browser || args.first().is_some_and(|s| s == "--pull-code");
     let pull_checks = args.first().is_some_and(|s| s == "--pull-checks");
-    let read_edges = args.first().is_some_and(|s| s == "--read-edges");
+    let read_edges_browser = args.first().is_some_and(|s| s == "--read-edges-browser");
+    let read_edges = read_edges_browser || args.first().is_some_and(|s| s == "--read-edges");
     if issues || pull_code || pull_checks || read_edges {
         args.remove(0);
     }
-    require(args.len()==3,"usage: factory-fountain-host-check [--issues | --issues-browser | --pull-code | --pull-code-browser | --pull-checks | --read-edges] STAGE FOUNTAIN_SOURCE NEW_PROFILE (inside soda-native-pg-check --once)")?;
+    require(args.len()==3,"usage: factory-fountain-host-check [--issues | --issues-browser | --pull-code | --pull-code-browser | --pull-checks | --read-edges | --read-edges-browser] STAGE FOUNTAIN_SOURCE NEW_PROFILE (inside soda-native-pg-check --once)")?;
     let stage = fs::canonicalize(PathBuf::from(&args[0]))?;
     let source = fs::canonicalize(PathBuf::from(&args[1]))?;
     let root = PathBuf::from(&args[2]);
@@ -244,7 +245,7 @@ fn run() -> Result<()> {
     let ini = root.join("app.ini");
     let work = root.join("fountain");
     fs::create_dir(&work)?;
-    if issue_browser || pull_browser {
+    if issue_browser || pull_browser || read_edges_browser {
         require(
             stage.join("presentation.json").is_file()
                 && stage.join("forgejo/templates/repo/header.tmpl").is_file(),
@@ -470,6 +471,7 @@ fn run() -> Result<()> {
             &generation,
             password,
             api,
+            read_edges_browser,
         )?)
     } else {
         None
