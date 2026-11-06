@@ -13,17 +13,10 @@ var (
 	ErrCollaborationIssueUnavailable = errors.New("collaboration issue reader unavailable")
 )
 
-// State selects open (default), closed or all. Number selects any-state detail.
-// Cursors are provider facts, scoped by the explicit repository, never identity.
-type CollaborationIssueQuery struct {
-	Cursor string
-	Number int64
-	Limit  int
-	State  string
-}
+type CollaborationIssueQuery CollaborationQuery
 
 func (q CollaborationIssueQuery) Validate() error {
-	if q.Limit < 1 || q.Limit > 50 || q.Number < 0 || q.Number > 0 && (q.Cursor != "" || q.Limit != 1 || q.State != "") || q.State != "" && q.State != "open" && q.State != "closed" && q.State != "all" || q.Cursor != "" && !collaboration.ValidText(q.Cursor, 4096) {
+	if !CollaborationQuery(q).valid() {
 		return ErrCollaborationIssueQuery
 	}
 	return nil
@@ -50,7 +43,7 @@ func (s CollaborationIssues) Read(ctx context.Context, actor collaboration.Actor
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if page.Observation.State != collaboration.ReadAvailable || page.Observation.Revision == "" || page.Items == nil || len(page.Items) > query.Limit || page.Complete != (page.Next == "") {
+	if !validCollaborationPage(page, query.Limit) {
 		return empty, ErrCollaborationIssueUnavailable
 	}
 	seen := map[int64]bool{}

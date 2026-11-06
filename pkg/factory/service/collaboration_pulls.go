@@ -13,17 +13,10 @@ var (
 	ErrCollaborationPullUnavailable = errors.New("collaboration pull reader unavailable")
 )
 
-// State selects open (default), closed or all. Number selects any-state detail.
-// Cursors are provider facts, scoped by the explicit repository, never identity.
-type CollaborationPullQuery struct {
-	Cursor string
-	Number int64
-	Limit  int
-	State  string
-}
+type CollaborationPullQuery CollaborationQuery
 
 func (q CollaborationPullQuery) Validate() error {
-	if q.Limit < 1 || q.Limit > 50 || q.Number < 0 || q.Number > 0 && (q.Cursor != "" || q.Limit != 1 || q.State != "") || q.State != "" && q.State != "open" && q.State != "closed" && q.State != "all" || q.Cursor != "" && !collaboration.ValidText(q.Cursor, 4096) {
+	if !CollaborationQuery(q).valid() {
 		return ErrCollaborationPullQuery
 	}
 	return nil
@@ -50,7 +43,7 @@ func (s CollaborationPulls) Read(ctx context.Context, actor collaboration.ActorI
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	if page.Observation.State != collaboration.ReadAvailable || page.Observation.Revision == "" || page.Items == nil || len(page.Items) > query.Limit || page.Complete != (page.Next == "") {
+	if !validCollaborationPage(page, query.Limit) {
 		return empty, ErrCollaborationPullUnavailable
 	}
 	seen := map[int64]bool{}

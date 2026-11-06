@@ -10,15 +10,14 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
 // WorkerRoute is the fixed Factory-only MCP route. Listener/socket ownership
 // belongs to the host; a worker cannot select it in its tool arguments.
 const WorkerRoute = "/mcp"
 
-type CapabilitySource interface {
-	GetMCPCapability(context.Context, string) (factory.MCPCapability, error)
-}
+type CapabilitySource = factoryservice.WorkerCapabilitySource
 
 // Workers authenticates each request before current runtime/work admission.
 // Admit must supply the host's current admission; active recorded state alone

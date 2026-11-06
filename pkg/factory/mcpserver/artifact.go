@@ -10,7 +10,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-type factoryMCPArtifactWriter interface {
+type ArtifactWriter interface {
 	UploadWorkerArtifact(context.Context, factory.MCPCapability, []byte) (factory.FeedArtifact, string, error)
 }
 
@@ -20,8 +20,8 @@ func (s *factoryCatalogServer) serveArtifact(ctx context.Context, args mcpCallAr
 		return nil, nil, err
 	}
 	defer release()
-	writer, ok := s.deps.Submissions.(factoryMCPArtifactWriter)
-	if !ok {
+	writer := s.deps.Artifacts
+	if writer == nil {
 		return nil, nil, errors.New("artifact upload is unavailable")
 	}
 	raw, err := json.Marshal(args.Payload)

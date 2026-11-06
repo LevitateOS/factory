@@ -12,7 +12,7 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
-type factoryMCPPostWriter interface {
+type PostWriter interface {
 	RecordWorkerPost(context.Context, factory.MCPSubmission) (store.FeedPostDetail, error)
 }
 
@@ -23,8 +23,8 @@ func (s *factoryCatalogServer) serveWorkerPost(ctx context.Context, tool factory
 	}
 	defer release()
 	s.workerResults().Bind(ctx, cap, tool, args.Payload)
-	writer, ok := s.deps.Submissions.(factoryMCPPostWriter)
-	if !ok {
+	writer := s.deps.Posts
+	if writer == nil {
 		return nil, nil, errors.New("worker posts are unavailable")
 	}
 	raw, err := json.Marshal(args.Payload)

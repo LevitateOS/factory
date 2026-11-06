@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -44,35 +42,11 @@ func (s CollaborationIssues) read(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_request", "A repository is required.")
 		return
 	}
-	query := factoryservice.CollaborationIssueQuery{Limit: 20}
-	values, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil {
-		writeError(w, 400, "invalid_request", "Invalid issue query.")
+	selection, ok := readCollaborationQuery(w, r, collaboration.SubjectIssue)
+	if !ok {
 		return
 	}
-	for key, items := range values {
-		if len(items) != 1 || key != "cursor" && key != "limit" && key != "state" {
-			writeError(w, 400, "invalid_request", "Only one cursor, limit and state are accepted.")
-			return
-		}
-	}
-	query.Cursor = values.Get("cursor")
-	query.State = values.Get("state")
-	if raw, exists := values["limit"]; exists {
-		query.Limit, err = strconv.Atoi(raw[0])
-		if err != nil {
-			writeError(w, 400, "invalid_request", "Invalid issue limit.")
-			return
-		}
-	}
-	if raw := r.PathValue("number"); raw != "" {
-		number, ok := positiveID(raw)
-		if !ok || r.URL.RawQuery != "" || r.URL.ForceQuery {
-			writeError(w, 400, "invalid_request", "An issue number without query parameters is required.")
-			return
-		}
-		query.Number, query.Limit = number, 1
-	}
+	query := factoryservice.CollaborationIssueQuery(selection)
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	page, err := s.Service.Read(ctx, s.Actor, collaboration.RepositoryID(repository), query)

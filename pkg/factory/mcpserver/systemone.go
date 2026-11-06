@@ -30,8 +30,7 @@ func (s *factoryCatalogServer) addSystemOneTool(server *mcp.Server, tool factory
 		if err != nil || len(raw) > factory.MCPMaxSubmissionPayload {
 			return nil, nil, errors.New("System One question exceeds 64 KiB")
 		}
-		journal, _ := s.deps.PriorityJudgments.(factoryservice.WorkerConsultationJournal)
-		consultations := factoryservice.WorkerConsultations{Provider: s.deps.SystemOne, Journal: journal, Now: s.deps.Now}
+		consultations := factoryservice.WorkerConsultations{Provider: s.deps.SystemOne, Journal: s.deps.ConsultationJournal, Now: s.deps.Now}
 		result, err := consultations.Evaluate(ctx, cap, tool, args.WorkerConsultationInput)
 		if err != nil {
 			return nil, nil, err

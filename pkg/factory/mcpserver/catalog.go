@@ -23,37 +23,6 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
-// SubmissionSink reads and writes work posts.
-type SubmissionSink interface {
-	TerminalMCPProposal(context.Context, string) (factory.MCPWorkStatus, bool, error)
-	RecordMCPSubmission(ctx context.Context, submission factory.MCPSubmission) (factory.MCPWorkStatus, error)
-}
-
-// Dependencies wires the catalog server to canonical sources and services.
-// Prepare supplies current worker admission; Observed can additionally supply
-// runtime state for per-tool admission. Catalog reads the authenticated
-// capability's approved preparation; nil keeps the catalog unavailable.
-type Dependencies struct {
-	IssueMaker func(context.Context, factory.MCPCapability, factory.MCPTool, map[string]any, string) (map[string]any, error)
-	// boundCapability is supplied by the authenticated transport, never tool
-	// arguments. Its immutable scope supplies identity and default revisions.
-	boundCapability      *factory.MCPCapability
-	limiter              *mcpRateLimiter
-	Prepare              func(context.Context, factory.MCPCapability) (factory.MCPCapability, error)
-	Capabilities         factoryhttpapi.CapabilitySource
-	Submissions          SubmissionSink
-	Assignments          factoryservice.WorkerAssignmentSource
-	PriorityJudgments    factoryservice.WorkerPriorityJudgmentSource
-	Runs                 factoryservice.WorkerRunSource
-	Observed             func(capability factory.MCPCapability) (control.MCPRunObservation, error)
-	Catalog              func(context.Context, factory.MCPCapability) (factory.ApprovedCatalog, error)
-	Now                  func() time.Time
-	SystemOne            factoryservice.WorkerSystemOne
-	VerificationEvidence func(context.Context, factory.MCPCapability) (map[string]any, error)
-	RepairPreview        func(context.Context, factory.MCPCapability, json.RawMessage) (factory.RepairPreview, error)
-	NativeTask           func(context.Context, factory.MCPCapability, string, string) (map[string]any, error)
-}
-
 // mcpCallArgs is the tool envelope. The bound server supplies capability
 // identity and scope; the worker sends only its payload and, optionally, a
 // submission_id to identify the submission. CapabilityID remains an internal
@@ -120,10 +89,7 @@ func (s *factoryCatalogServer) now() time.Time {
 
 func (s *factoryCatalogServer) observed(capability factory.MCPCapability) (control.MCPRunObservation, error) {
 	if s.deps.Observed == nil {
-		if s.deps.boundCapability != nil {
-			return control.MCPRunObservation{}, errors.New("factory run observation unavailable")
-		}
-		return control.MCPRunObservation{}, nil
+		return control.MCPRunObservation{}, errors.New("factory run observation unavailable")
 	}
 	observed, err := s.deps.Observed(capability)
 	if err != nil {
@@ -221,9 +187,7 @@ func mcpJSONResult(value any) (*mcp.CallToolResult, any, error) {
 	return mcpTextResult(string(raw))
 }
 
-// newFactoryCatalogServer builds the shared, role-filtered catalog. Reads
-// serve capability-bound state; mutations submit work on posts.
-func newFactoryCatalogServer(deps Dependencies) *mcp.Server {
+func newCatalogServer(deps Dependencies, tools []factory.MCPTool) *mcp.Server {
 	limiter := deps.limiter
 	if limiter == nil {
 		limiter = newMCPRateLimiter()
@@ -234,7 +198,7 @@ func newFactoryCatalogServer(deps Dependencies) *mcp.Server {
 		name += "-" + string(deps.boundCapability.Profile)
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: name}, nil)
-	for _, tool := range catalogTools(deps) {
+	for _, tool := range tools {
 		tool := tool
 		if mcpwire.IsSystemOne(tool) {
 			catalog.addSystemOneTool(server, tool)
@@ -261,20 +225,19 @@ func BoundToolNames(ctx context.Context, deps Dependencies, capability factory.M
 	}
 	bound := bindCatalog(ctx, deps, capability)
 	names := make([]string, 0, len(factory.MCPTools))
-	for _, tool := range catalogTools(bound) {
+	for _, tool := range catalogTools(bound, capability) {
 		names = append(names, string(tool))
 	}
 	slices.Sort(names)
 	return names, nil
 }
 
-// catalogTools is the defining selection for both SDK registration and the
-// trusted prelaunch projection. Unbound transport fixtures retain all tools.
-func catalogTools(deps Dependencies) []factory.MCPTool {
+// Prelaunch projection and authenticated discovery use the same selection.
+func catalogTools(deps Dependencies, capability factory.MCPCapability) []factory.MCPTool {
 	tools := make([]factory.MCPTool, 0, len(factory.MCPTools))
 	for _, tool := range factory.MCPTools {
-		if deps.boundCapability != nil && (!factory.MCPToolAdmitted(deps.boundCapability.Profile, tool) ||
-			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil)) {
+		if !factory.MCPToolAdmitted(capability.Profile, tool) ||
+			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil) {
 			continue
 		}
 		tools = append(tools, tool)
@@ -283,7 +246,7 @@ func catalogTools(deps Dependencies) []factory.MCPTool {
 }
 
 func (s *factoryCatalogServer) serve(ctx context.Context, tool factory.MCPTool, args mcpCallArgs) (*mcp.CallToolResult, any, error) {
-	args.SubmissionID = mcpSubmissionID(args.SubmissionID, mcpTakesSubmission(tool))
+	args.SubmissionID = mcpSubmissionID(args.SubmissionID, factory.MCPNeedsSubmission(tool))
 	if factory.MCPIsLibraryRead(tool) {
 		return s.serveLibraryRead(ctx, tool, args)
 	}
@@ -384,7 +347,7 @@ func (s *factoryCatalogServer) serveMutation(ctx context.Context, tool factory.M
 }
 
 var (
-	_ factoryhttpapi.CapabilitySource             = (*store.Store)(nil)
+	_ factoryservice.WorkerCapabilitySource       = (*store.Store)(nil)
 	_ SubmissionSink                              = (*store.Store)(nil)
 	_ factoryservice.WorkerAssignmentSource       = (*store.Store)(nil)
 	_ factoryservice.WorkerPriorityJudgmentSource = (*store.Store)(nil)
@@ -415,8 +378,7 @@ type readContext struct {
 }
 
 func (s *factoryCatalogServer) workerContext() factoryservice.WorkerContext {
-	current, _ := s.deps.Submissions.(factoryservice.WorkerCurrentContextSource)
-	return factoryservice.WorkerContext{Terminal: s.deps.Submissions, Assignments: s.deps.Assignments, Runs: s.deps.Runs, Priority: s.deps.PriorityJudgments, Current: current, Now: s.now}
+	return factoryservice.WorkerContext{Terminal: s.deps.Submissions, Assignments: s.deps.Assignments, Runs: s.deps.Runs, Priority: s.deps.PriorityJudgments, Current: s.deps.CurrentContext, Now: s.now}
 }
 
 func (s *factoryCatalogServer) loadReadContext(ctx context.Context, tool factory.MCPTool, args mcpCallArgs) (*readContext, error) {

@@ -125,17 +125,8 @@ func StageIntentPlanningPrompt(head factory.IntentRevision, in factory.SemanticP
 	return prompt, nil
 }
 
-// FinishProductPlanArgsGuidance tells a Product Lead worker which
-// top-level finish arguments settle: intent, revision, operation,
-// objective and facts already bind from the staged planning input,
-// so those immutable identity/facts fields are the ONLY top-level
-// fields the worker must never send. Every documented carrier stays
-// admissible: required candidates, coverage and evidence_refs plus
-// optional walkthroughs, questions and verification_manifest_proposal.
-// Unknown top-level fields are refused before
-// settlement, so an inlined identity/facts field fails instead of
-// settling no matter how small it is.
-const FinishProductPlanArgsGuidance = "Send only candidates, coverage, evidence_refs, walkthroughs, questions and verification_manifest_proposal as finish arguments: intent, revision, operation, objective and facts already bind from the staged planning input, so never send intent, revision, operation, objective or facts as top-level finish arguments — those immutable top-level fields are refused before settlement no matter how small they are. Send candidates as an array of JSON objects and walkthroughs as one JSON object carrying the exact nested objective and facts from the admitted Content (facts[0] byte-equal to the objective; objective and each fact to 16000 characters) — never as strings. Optional carriers questions and verification_manifest_proposal stay admissible alongside the required fields. Authored walkthrough prose stays within its own <=4000-character bounds; those bounds never shorten the preserved objective or facts."
+// Retained for host integrations importing the coordinator package.
+const FinishProductPlanArgsGuidance = factory.FinishProductPlanArgsGuidance
 
 // stagedPlanningInputMarker opens the exact typed planning input the
 // staged prompt preserves; the shared phased report marker closes it.

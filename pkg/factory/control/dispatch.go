@@ -339,6 +339,7 @@ type DispatchDeps struct {
 	RetireRetry          func(context.Context, *attemptPlan) error
 	Queue                *DispatchQueueCursor
 	Priority             *PriorityJudgments
+	ContextChooser       ProductJudgment
 	// ObserveRevision reports one idle native revision for the durable
 	// priority inventory. RefreshCandidate returns the observation-ready
 	// control for one inventory member at the scan revision.
@@ -380,6 +381,16 @@ func (c *Coordinator) mcpConfigured() bool {
 	return c.MCPSecret != nil || len(c.MCPKey) >= 32
 }
 
+// Older public Coordinator/DispatchDeps callers provide one chooser through
+// Priority. Resolve that compatibility at dispatch admission; launch consumes
+// the explicit context port and never infers it from another workflow.
+func admitDispatchDependencies(deps DispatchDeps) DispatchDeps {
+	if deps.ContextChooser == nil && deps.Priority != nil {
+		deps.ContextChooser, _ = deps.Priority.Chooser.(ProductJudgment)
+	}
+	return deps
+}
+
 // dispatchReady reports whether one pass has its required dependencies.
 // Reads stay optional: an unwired source waits every issue instead of
 // failing the pass.
@@ -393,6 +404,7 @@ func dispatchReady(deps DispatchDeps) bool {
 // runs stay held for reconcile. Coordinator startup calls this after
 // settling runs; failures report instead of failing the caller.
 func RecoverDispatch(ctx context.Context, deps DispatchDeps) DispatchReport {
+	deps = admitDispatchDependencies(deps)
 	report := newDispatchReport()
 	if !dispatchReady(deps) {
 		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "dispatch dependencies unavailable"})
@@ -409,6 +421,7 @@ func RecoverDispatch(ctx context.Context, deps DispatchDeps) DispatchReport {
 // An explicit Retry may retain bounded preparation custody while waiting;
 // reservations release only capacity confirmed unused.
 func DispatchPass(ctx context.Context, deps DispatchDeps) DispatchReport {
+	deps = admitDispatchDependencies(deps)
 	report := RecoverDispatch(ctx, deps)
 	if !dispatchReady(deps) {
 		return report
@@ -454,15 +467,16 @@ func DispatchPass(ctx context.Context, deps DispatchDeps) DispatchReport {
 
 // dispatchDeps binds one pass to this coordinator's dependencies.
 func (c *Coordinator) dispatchDeps() DispatchDeps {
-	return DispatchDeps{
+	return admitDispatchDependencies(DispatchDeps{
 		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, MCPSecret: c.MCPSecret, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,
 		Reads: c.DispatchReads, Authority: c.EffectiveAuthority,
 		Refresh: c.refreshReadiness, PrepareRetry: c.prepareRetryCoder, PrepareSource: c.prepareSourceCoder, RetireRetry: c.retireRetryCoder,
 		Queue:           &c.queue,
 		Priority:        c.Priority,
+		ContextChooser:  c.ContextChooser,
 		ObserveRevision: c.observePriorityRevision, RefreshCandidate: c.refreshPriorityCandidate,
 		FenceCache: map[int64]bool{},
-	}
+	})
 }
 
 // noteAllowanceWaits leaves one durable Feed card per issue waiting on

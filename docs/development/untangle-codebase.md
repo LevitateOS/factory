@@ -74,7 +74,7 @@ The final adapter extraction also passed independent review, the existing
 `/home/vince/tmp/fua-1106.xbznkH/e/edit-product-result.json`. The dispatch read
 retains its existing two-read ordering; no atomic snapshot claim is added.
 
-### 2. Go contracts and service composition — active
+### 2. Go contracts and service composition — complete
 
 Put stable tool/planning/capability contracts below HTTP and coordinator owners;
 bind dependencies explicitly and define one list/detail read contract.
@@ -93,7 +93,26 @@ bind dependencies explicitly and define one list/detail read contract.
   `httpapi/product.go:54` manually propagates account/store fields across routes.
   Separate immutable routing from fresh admission without caching authority.
 
-### 3. Go coordinator and provider judgments — pending
+Implemented: stable planning/capability contracts no longer depend on control/HTTP;
+one tool definition table and payload-schema policy preserve discovery and profiles.
+Production bound construction is separate from the existing all-tools fixture.
+MCP handlers consume explicit typed ports, with legacy resolution once at public
+composition. Context selection is explicit through application/coordinator/dispatch;
+legacy public dispatch inputs resolve at admission. Shared issue/PR query and page
+validation retains distinct item/state rules. Native root routes register once;
+each request still binds fresh account authority inside coordinator admission.
+Independent reviews preserved all 76 root registrations and guard ordering.
+
+Reassessed application wiring: coordinator-owned background callbacks intentionally
+use that same coordinator as admitted transport. Moving assignments into another
+constructor would relocate this required cycle without simplifying ownership.
+Keep it. Verification: existing MCP SDK/HTTP suite, cached Go production build,
+dependency boundaries and the existing 16-case composed native/PG edit journey
+passed (`/home/vince/tmp/fuc.2cFOMm/edit-product-result.json`). The first longer
+scratch path failed local socket setup before the journey; it was rerun with a
+short path. No connected, installed or security qualification is claimed.
+
+### 3. Go coordinator and provider judgments — active
 
 Give progress one explicit pass owner and repair adoption one workflow with
 cause-specific admission/persistence. Give System One one transport owner.
@@ -140,7 +159,7 @@ primitives their own low-level owner and RunOwner one explicit start input.
 - Keep Linux/SELinux workarounds, retirement uncertainty, independent resource
   facts and actual worker isolation. No cosmetic dissolution of native owners.
 
-### 6. Browser retained records and API contracts — pending
+### 6. Browser retained records and API contracts — active
 
 One small retained-record owner handles exact-byte storage/conflicts; workflows
 own schemas and settlement. Put shared command outcomes and reads in API owners.
@@ -183,7 +202,7 @@ or implementation-bound checks after structural replacements work.
 - No initial audit proved any existing test worthless. Do not delete coverage
   from line count alone. Retain real compositor input and connected boundaries.
 
-### 9. Build, assets and active documentation — pending
+### 9. Build, assets and active documentation — active
 
 Stage reported build artifacts and define UI assets/notices together. Make active
 guidance describe this repository; preserve historical evidence without copying

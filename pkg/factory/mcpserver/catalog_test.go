@@ -194,6 +194,26 @@ func (f *fakeCatalogSink) MCPSubmissionCount(_ context.Context, assignmentID str
 	return count, nil
 }
 
+func fixtureCatalogDependencies(sink *fakeCatalogSink) Dependencies {
+	return Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink, CurrentContext: sink, Posts: sink,
+		Observed: func(factory.MCPCapability) (control.MCPRunObservation, error) {
+			return control.MCPRunObservation{}, nil
+		},
+	}
+}
+
+func fixtureCatalogDependenciesWithRuns(sink *fakeCatalogSink) Dependencies {
+	deps := fixtureCatalogDependencies(sink)
+	deps.Runs = sink
+	return deps
+}
+
+// Unbound protocol fixtures advertise every tool; serving construction always
+// binds an admitted capability and supplies current runtime observations.
+func newFixtureCatalogServer(deps Dependencies) *mcp.Server {
+	return newCatalogServer(deps, factory.MCPTools)
+}
+
 // TestFactoryCatalogServerProcess is the stdio helper: catalog tests
 // re-execute the test binary with SODA_FACTORY_MCP_FW38 set and
 // speak MCP to this server over the child's stdin/stdout.
@@ -202,7 +222,7 @@ func TestFactoryCatalogServerProcess(t *testing.T) {
 		return
 	}
 	sink := newFakeCatalogSink()
-	server := newFactoryCatalogServer(Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink})
+	server := newFixtureCatalogServer(fixtureCatalogDependencies(sink))
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		t.Logf("catalog helper server exited: %v", err)
 	}
@@ -545,7 +565,7 @@ func TestFactoryCatalogTransportPerHarness(t *testing.T) {
 func TestFactoryCatalogReadsSpendNothingAndDiscloseNothing(t *testing.T) {
 	sink := newFakeCatalogSink()
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	ctx := context.Background()
@@ -619,7 +639,7 @@ func TestFactoryCatalogReadsSpendNothingAndDiscloseNothing(t *testing.T) {
 func TestFactoryCatalogContextProjectsAssignmentCurrent(t *testing.T) {
 	sink := newFakeCatalogSink()
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	ctx := context.Background()
@@ -682,7 +702,7 @@ func TestFactoryCatalogContextServesAttemptBundle(t *testing.T) {
 	sink.assignments[sink.capability.AssignmentID] = stored
 	storeSelectionReceipt(t, sink, stored, true, false, factory.ContextBundleAttempt)
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	res, _, err := server.serve(context.Background(), factory.MCPToolContext, mcpCallArgs{
@@ -734,7 +754,7 @@ func TestFactoryCatalogContextServesLineageBundle(t *testing.T) {
 	}
 	storeSelectionReceipt(t, sink, stored, false, true, factory.ContextBundleLineage)
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	res, _, err := server.serve(context.Background(), factory.MCPToolContext, mcpCallArgs{
@@ -773,7 +793,7 @@ func TestFactoryCatalogContextMarksIncompleteLineage(t *testing.T) {
 	stored.ParentAssignment = factory.NewID()
 	sink.assignments[sink.capability.AssignmentID] = stored
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	res, _, err := server.serve(context.Background(), factory.MCPToolContext, mcpCallArgs{
@@ -806,7 +826,7 @@ func TestFactoryCatalogContextMarksIncompleteLineage(t *testing.T) {
 func serveContextBody(t *testing.T, sink *fakeCatalogSink) map[string]any {
 	t.Helper()
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	res, _, err := server.serve(context.Background(), factory.MCPToolContext, mcpCallArgs{
@@ -955,7 +975,7 @@ func TestFactoryCatalogContextIgnoresUnknownSelection(t *testing.T) {
 func serveEvidenceBody(t *testing.T, sink *fakeCatalogSink) map[string]any {
 	t.Helper()
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink, Runs: sink},
+		deps:    fixtureCatalogDependenciesWithRuns(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	res, _, err := server.serve(context.Background(), factory.MCPToolEvidence, mcpCallArgs{
@@ -1046,7 +1066,7 @@ func TestFactoryCatalogEvidenceRefusesUnresolvableRun(t *testing.T) {
 	stored.RunHistory = []string{"ghost-run"}
 	sink.assignments[sink.capability.AssignmentID] = stored
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink, PriorityJudgments: sink, Runs: sink},
+		deps:    fixtureCatalogDependenciesWithRuns(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	if _, _, err := server.serve(context.Background(), factory.MCPToolEvidence, mcpCallArgs{
@@ -1071,7 +1091,7 @@ func TestFactoryCatalogManifestGate(t *testing.T) {
 	sink.capability.Profile = factory.MCPProfileProductLead
 	storeSelectionReceipt(t, sink, sink.assignments[sink.capability.AssignmentID], false, false, factory.ContextBundleCurrent)
 	server := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink},
+		deps:    fixtureCatalogDependencies(sink),
 		limiter: newMCPRateLimiter(),
 	}
 	ctx := context.Background()
@@ -1112,7 +1132,7 @@ func TestFactoryCatalogManifestGate(t *testing.T) {
 	optionalSink.capability.Profile = factory.MCPProfileProductLead
 	storeSelectionReceipt(t, optionalSink, optionalSink.assignments[optionalSink.capability.AssignmentID], false, false, factory.ContextBundleCurrent)
 	optionalServer := &factoryCatalogServer{
-		deps:    Dependencies{Capabilities: optionalSink, Submissions: optionalSink, Assignments: optionalSink},
+		deps:    fixtureCatalogDependencies(optionalSink),
 		limiter: newMCPRateLimiter(),
 	}
 	withOptional := map[string]any{
@@ -1188,7 +1208,7 @@ func TestFactoryCatalogRateLimit(t *testing.T) {
 // GET returns 405 with no SSE stream, and browser Origin refuses.
 func TestFactoryCatalogHTTPRoute(t *testing.T) {
 	sink := newFakeCatalogSink()
-	srv := httptest.NewServer(factoryCatalogMux(newFactoryCatalogServer(Dependencies{Capabilities: sink, Submissions: sink, Assignments: sink})))
+	srv := httptest.NewServer(factoryCatalogMux(newFixtureCatalogServer(fixtureCatalogDependencies(sink))))
 	defer srv.Close()
 
 	if res, err := http.Get(srv.URL + factoryhttpapi.WorkerRoute); err != nil {

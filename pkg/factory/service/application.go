@@ -31,6 +31,7 @@ type ApplicationPorts struct {
 	CompletionLocalCapture func(context.Context, int64) (factory.CompletionLocal, error)
 	Priority               control.PriorityChooser
 	Planning               control.ProductJudgment
+	ContextChooser         control.ProductJudgment
 	CurrentChooser         func() control.ProductJudgment
 	IssueEffects           IssueMakerEffects
 }
@@ -57,6 +58,7 @@ func NewApplication(ports ApplicationPorts) Application {
 	coordinator.Resolutions, coordinator.Checks, coordinator.Merges = ports.Resolutions, ports.Checks, ports.Merges
 	coordinator.CompletionEnumerator, coordinator.CompletionLocalCapture = ports.CompletionEnumerator, ports.CompletionLocalCapture
 	coordinator.Priority = &control.PriorityJudgments{Journal: ports.Store, Chooser: ports.Priority, MaxCalls: control.PriorityDefaultMaxCalls}
+	coordinator.ContextChooser = ports.ContextChooser
 	if ports.Planning != nil {
 		coordinator.Planning = &control.PlanningJudgments{Chooser: ports.Planning}
 	}

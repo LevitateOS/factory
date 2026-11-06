@@ -11,7 +11,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-type factoryMCPVerificationJourneySource interface {
+type VerificationJourneySource interface {
 	VerificationScope(context.Context, factory.MCPCapability, int64) (factory.VerificationScopeView, error)
 }
 
@@ -21,8 +21,8 @@ func (s *factoryCatalogServer) serveVerificationScope(ctx context.Context, args 
 		return nil, nil, err
 	}
 	defer release()
-	source, ok := s.deps.Submissions.(factoryMCPVerificationJourneySource)
-	if !ok {
+	source := s.deps.VerificationJourneys
+	if source == nil {
 		return nil, nil, errors.New("verification scope is unavailable")
 	}
 	var page struct {

@@ -725,11 +725,7 @@ func launchTail(ctx context.Context, deps DispatchDeps, a factory.Assignment, ru
 	// The context classifier picks how much history the worker sees. Its
 	// answer is advice: a failed or unsure choice serves current context,
 	// and the run starts either way.
-	var contextChooser ProductJudgment
-	if deps.Priority != nil {
-		contextChooser, _ = deps.Priority.Chooser.(ProductJudgment)
-	}
-	_, _, _ = PrepareContextBundleSelection(ctx, deps.Store, contextChooser, a, run, deps.ContextVerification)
+	_, _, _ = PrepareContextBundleSelection(ctx, deps.Store, deps.ContextChooser, a, run, deps.ContextVerification)
 	if run.ContextPending {
 		run.ContextPending = false
 		if err := deps.Store.SaveFactoryRun(ctx, run); err != nil {

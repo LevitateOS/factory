@@ -8,8 +8,7 @@ import (
 )
 
 func (s *factoryCatalogServer) workerInputs() factoryservice.WorkerInputs {
-	source, _ := s.deps.Submissions.(factoryservice.WorkerCurrentContextSource)
-	return factoryservice.WorkerInputs{Source: source, Verification: s.deps.VerificationEvidence, Now: s.now}
+	return factoryservice.WorkerInputs{Source: s.deps.CurrentContext, Verification: s.deps.VerificationEvidence, Now: s.now}
 }
 
 func (s *factoryCatalogServer) addCurrentContext(ctx context.Context, read *readContext, body map[string]any, args mcpCallArgs) error {

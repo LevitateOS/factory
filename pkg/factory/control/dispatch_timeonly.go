@@ -111,6 +111,7 @@ func dispatchTimeOnlyRetry(ctx context.Context, deps DispatchDeps, occupancy *pa
 }
 
 func dispatchTimeOnlyRootAttempt(ctx context.Context, deps DispatchDeps, occupancy *passOccupancy, repository int64, subject factory.ExecutionSubject, source string, prompt []byte, preparationID string, planning *factory.SemanticPlannerInput, retry *factory.RetryDecision, report *DispatchReport) {
+	deps = admitDispatchDependencies(deps)
 	// Truncated to the second like every packet caller: the funding
 	// check compares the deadline against a Unix-second horizon, so a
 	// sub-second skew on exact-horizon funding would refuse.

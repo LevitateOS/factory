@@ -12,85 +12,61 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-// mcpEnvelopeSchema advertises and enforces the envelope per tool.
-// additionalProperties false refuses unknown top-level fields
-// server-side through SDK schema validation, and required lists
-// differ for reads and mutations.
 func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 	required := []string{"capability_id"}
-	if !factory.MCPIsRead(tool) {
-		required = []string{"capability_id", "payload"}
+	if !factory.MCPIsRead(tool) || tool == factory.MCPToolDiscussion || tool == factory.MCPToolReadLibraryItem || tool == factory.MCPToolPreviewRepair {
+		required = append(required, "payload")
 	}
-	definition := &mcp.Tool{
-		Name:        string(tool),
-		Description: factoryToolDescription(tool),
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"capability_id": {Type: "string"},
-				"submission_id": {Type: "string"},
-				"payload":       {Type: "object"},
-			},
-			Required:             required,
-			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	schema := &jsonschema.Schema{
+		Type: "object", Properties: map[string]*jsonschema.Schema{
+			"capability_id": {Type: "string"}, "submission_id": {Type: "string"}, "payload": {Type: "object"},
 		},
+		Required: required, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 	}
-	if payload := communicationPayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-	}
-	if payload := inboxPayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-		if tool == factory.MCPToolDiscussion {
-			definition.InputSchema.(*jsonschema.Schema).Required = []string{"capability_id", "payload"}
-		}
-	}
-	if payload := rolePayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-	}
-	if payload := libraryPayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-		if tool == factory.MCPToolReadLibraryItem {
-			definition.InputSchema.(*jsonschema.Schema).Required = []string{"capability_id", "payload"}
-		}
-	}
-	if payload := verificationJourneyPayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-	}
-	if tool == factory.MCPToolPreviewRepair {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = repairPreviewPayloadSchema()
-		definition.InputSchema.(*jsonschema.Schema).Required = []string{"capability_id", "payload"}
-	}
-	if tool == factory.MCPToolRecordDiagnosis {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = repairDiagnosisPayloadSchema()
-	}
-	if tool == factory.MCPToolDraftRepair {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = repairDraftPayloadSchema()
-	}
-	if tool == factory.MCPToolReassessmentScope {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = repairScopePayloadSchema()
-	}
-	if payload := resolvePostPayloadSchema(tool); payload != nil {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = payload
-	}
-	if tool == factory.MCPToolContext {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = contextPayloadSchema()
+	if payload := mcpPayloadSchema(tool); payload != nil {
+		schema.Properties["payload"] = payload
 	}
 	if tool == factory.MCPToolPublishArtifact {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = artifactPayloadSchema()
-		delete(definition.InputSchema.(*jsonschema.Schema).Properties, "submission_id")
+		delete(schema.Properties, "submission_id")
+	}
+	return &mcp.Tool{Name: string(tool), Description: factoryToolDescription(tool), InputSchema: schema}
+}
+
+func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
+	switch tool {
+	case factory.MCPToolPreviewRepair:
+		return repairPreviewPayloadSchema()
+	case factory.MCPToolRecordDiagnosis:
+		return repairDiagnosisPayloadSchema()
+	case factory.MCPToolDraftRepair:
+		return repairDraftPayloadSchema()
+	case factory.MCPToolReassessmentScope:
+		return repairScopePayloadSchema()
+	case factory.MCPToolContext:
+		return contextPayloadSchema()
+	case factory.MCPToolPublishArtifact:
+		return artifactPayloadSchema()
 	}
 	if IsNativeTask(tool) {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = &jsonschema.Schema{
+		return &jsonschema.Schema{
 			Type: "object", Properties: map[string]*jsonschema.Schema{
 				"task_id": {Type: "string", Pattern: "^[a-z][a-z0-9_-]{0,31}$"},
 			}, Required: []string{"task_id"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		}
-		definition.InputSchema.(*jsonschema.Schema).Required = []string{"capability_id", "payload"}
 	}
 	if IsIssueMaker(tool) {
-		definition.InputSchema.(*jsonschema.Schema).Properties["payload"] = issueMakerPayloadSchema()
+		return issueMakerPayloadSchema()
 	}
-	return definition
+	// Typed result schemas take precedence over the shared communication schema.
+	for _, define := range []func(factory.MCPTool) *jsonschema.Schema{
+		resolvePostPayloadSchema, verificationJourneyPayloadSchema, libraryPayloadSchema,
+		rolePayloadSchema, inboxPayloadSchema, communicationPayloadSchema,
+	} {
+		if schema := define(tool); schema != nil {
+			return schema
+		}
+	}
+	return nil
 }
 
 // canonicalPayload renders deterministic canonical bytes for the

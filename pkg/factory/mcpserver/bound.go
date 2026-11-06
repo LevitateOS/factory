@@ -11,7 +11,6 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
-	"github.com/levitateos/factory/pkg/factory/mcpwire"
 )
 
 // NewHandler authenticates the relay outside the tool payload.
@@ -40,6 +39,7 @@ func NewHandlerWithSecretVerifier(deps Dependencies, verify factory.MCPSecretVer
 }
 
 func newBoundary(deps Dependencies) factoryhttpapi.Workers {
+	deps = completeLegacyDependencies(deps)
 	deps.limiter = newMCPRateLimiter()
 	boundary := factoryhttpapi.Workers{Capabilities: deps.Capabilities, Now: deps.Now}
 	boundary.Admit = func(ctx context.Context, capability factory.MCPCapability) (factory.MCPCapability, error) {
@@ -61,11 +61,15 @@ func newBoundary(deps Dependencies) factoryhttpapi.Workers {
 		return prepared, control.AdmitMCPCapability(prepared, factory.MCPToolContext, now, observed)
 	}
 	boundary.Protocol = func(ctx context.Context, capability factory.MCPCapability) (http.Handler, error) {
-		bound := bindCatalog(ctx, deps, capability)
-		server := newFactoryCatalogServer(bound)
+		server := newBoundCatalogServer(ctx, deps, capability)
 		return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true}), nil
 	}
 	return boundary
+}
+
+func newBoundCatalogServer(ctx context.Context, deps Dependencies, capability factory.MCPCapability) *mcp.Server {
+	bound := bindCatalog(ctx, deps, capability)
+	return newCatalogServer(bound, catalogTools(bound, capability))
 }
 
 func bindCatalog(ctx context.Context, deps Dependencies, capability factory.MCPCapability) Dependencies {
@@ -78,12 +82,4 @@ func bindCatalog(ctx context.Context, deps Dependencies, capability factory.MCPC
 		}
 	}
 	return deps
-}
-
-// mcpTakesSubmission reports whether a tool needs a request key. Reads,
-// previews, native task requests and offset-based uploads do not.
-func mcpTakesSubmission(tool factory.MCPTool) bool {
-	return !factory.MCPIsRead(tool) && tool != factory.MCPToolDiscussion &&
-		tool != factory.MCPToolReadLibraryItem &&
-		tool != factory.MCPToolPreviewRepair && tool != factory.MCPToolPublishArtifact && !mcpwire.IsNativeTask(tool)
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 )
 
-type factoryMCPDiscussionSource interface {
+type DiscussionSource interface {
 	MCPInbox(context.Context, factory.MCPCapability, string) (factory.MCPFeedPage, error)
 	MCPDiscussion(context.Context, factory.MCPCapability, string, string) (factory.MCPFeedPage, error)
 }
@@ -20,8 +20,8 @@ func (s *factoryCatalogServer) serveInbox(ctx context.Context, tool factory.MCPT
 		return nil, nil, err
 	}
 	defer release()
-	source, ok := s.deps.Submissions.(factoryMCPDiscussionSource)
-	if !ok {
+	source := s.deps.Discussions
+	if source == nil {
 		return nil, nil, errors.New("worker inbox is unavailable")
 	}
 	cursor, postID := "", ""

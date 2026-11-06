@@ -16,13 +16,14 @@ type NativeProductBinding func(context.Context, factoryservice.Application) (fac
 type NativeApplication struct {
 	application factoryservice.Application
 	bind        NativeProductBinding
+	routes      *factoryhttpapi.ProductRoutes
 	handler     http.Handler
 }
 
 // NewNativeApplication uses the same service owner as the appliance host.
 // Construction neither starts its coordinator nor drives/reconciles retained work.
 func NewNativeApplication(ports factoryservice.ApplicationPorts, bind NativeProductBinding) *NativeApplication {
-	a := &NativeApplication{application: factoryservice.NewApplication(ports), bind: bind}
+	a := &NativeApplication{application: factoryservice.NewApplication(ports), bind: bind, routes: factoryhttpapi.NewProductRoutes()}
 	// Binding can itself perform account/provider I/O. It belongs inside the
 	// same lifetime gate as product work, even before background runtime starts.
 	a.handler = a.application.Coordinator.AdmitHTTP(http.HandlerFunc(a.serveHTTP))
@@ -54,5 +55,5 @@ func (a *NativeApplication) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// Missing/unknown account binding retains the canonical unavailable response
 	// from shared HTTP. It never becomes an empty successful account or feed.
-	product.Handler().ServeHTTP(w, r)
+	a.routes.ServeProductHTTP(w, r, product)
 }

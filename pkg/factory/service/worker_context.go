@@ -9,6 +9,10 @@ import (
 	"github.com/levitateos/factory/pkg/factory/control"
 )
 
+type WorkerCapabilitySource interface {
+	GetMCPCapability(context.Context, string) (factory.MCPCapability, error)
+}
+
 // WorkerTerminalSource reads the existing proposal journal without settling it.
 type WorkerTerminalSource interface {
 	TerminalMCPProposal(context.Context, string) (factory.MCPWorkStatus, bool, error)
@@ -115,9 +119,6 @@ func (s WorkerContext) Foreground(ctx context.Context, read WorkerContextRead) (
 		return factory.ContextBundleCurrent, "", read.Capability.ContextSelectionSnapshot
 	}
 	priority := s.Priority
-	if priority == nil {
-		priority, _ = s.Terminal.(WorkerPriorityJudgmentSource)
-	}
 	fingerprint := read.Capability.ContextSelectionSnapshot
 	if priority == nil || !factory.ValidDigest(fingerprint) {
 		return factory.ContextBundleCurrent, "", ""

@@ -4,7 +4,6 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/levitateos/factory/pkg/factory"
-	"github.com/levitateos/factory/pkg/factory/control"
 )
 
 // rolePayloadSchema documents each existing result carrier at discovery. The
@@ -41,12 +40,12 @@ func rolePayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 		set("cause", "Short cause code or explanation for ending without a complete result.", text)
 		set("cause_detail", "Optional supporting explanation.", text)
 	case factory.MCPToolFinishProductPlan:
-		set("candidates", "One to three structured semantic graph candidates. Each contains key, rationale and full task metadata. String candidate names alone cannot settle a product plan. "+control.FinishProductPlanArgsGuidance, mcpCarrier[[]factory.SemanticCandidate]())
+		set("candidates", "One to three structured semantic graph candidates. Each contains key, rationale and full task metadata. String candidate names alone cannot settle a product plan. "+factory.FinishProductPlanArgsGuidance, mcpCarrier[[]factory.SemanticCandidate]())
 		set("coverage", "Explain how the candidates cover the accepted requested outcomes.", strings)
 		set("questions", "Any unresolved product questions; required unresolved questions prevent executable adoption.", strings)
 		set("verification_manifest_proposal", "Optional structured proposal using approved check catalog references; separately validated and adopted. "+factory.ApplicationBundleGuidance, mcpCarrier[factory.VerificationManifestProposal]())
 		props["walkthroughs"] = mcpCarrier[factory.ProposalContent]()
-		props["walkthroughs"].Description = "Required for newly staged intent plans: author two concrete product walkthroughs using producer soda-planning-agent-v1, the exact admitted Content facts/identity/exclusions, and every resolved-scope ID from Head in each alternative's idea_ids (the explicit nonempty EffectiveOutcomes verbatim, else the accept/edit idea IDs in revision order; pending/declined never resolve). JEV compares and checks this authored prose separately. Follow the staged product walkthrough instructions. " + control.FinishProductPlanArgsGuidance
+		props["walkthroughs"].Description = "Required for newly staged intent plans: author two concrete product walkthroughs using producer soda-planning-agent-v1, the exact admitted Content facts/identity/exclusions, and every resolved-scope ID from Head in each alternative's idea_ids (the explicit nonempty EffectiveOutcomes verbatim, else the accept/edit idea IDs in revision order; pending/declined never resolve). JEV compares and checks this authored prose separately. Follow the staged product walkthrough instructions. " + factory.FinishProductPlanArgsGuidance
 	case factory.MCPToolFinishIssuePlan:
 		set("approach", "Approach chosen after source investigation; must match tasks.approach.", text)
 		props["tasks"] = investigationPlanSchema()

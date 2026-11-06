@@ -12,11 +12,11 @@ import (
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 )
 
-type factoryMCPReassessmentScopeSource interface {
+type ReassessmentScopeSource interface {
 	ReassessmentScope(context.Context, factory.MCPCapability, int64) (factory.RepairScopeView, error)
 }
 
-type factoryMCPRepairObservationSource interface {
+type RepairObservationSource interface {
 	ReadRepairObservation(context.Context, factory.MCPCapability, string, int) (factory.RepairObservationPage, error)
 }
 
@@ -43,8 +43,8 @@ func (s *factoryCatalogServer) serveReassessmentScope(ctx context.Context, args 
 		return nil, nil, err
 	}
 	defer read.release()
-	source, ok := s.deps.Submissions.(factoryMCPReassessmentScopeSource)
-	if !ok {
+	source := s.deps.Reassessment
+	if source == nil {
 		return nil, nil, errors.New("reassessment scope is unavailable")
 	}
 	view, err := source.ReassessmentScope(ctx, read.Capability, payload.After)
@@ -61,8 +61,8 @@ func (s *factoryCatalogServer) serveReassessmentScope(ctx context.Context, args 
 	body["context_selection"] = map[string]any{"bundle": foregrounded, "action": action, "reason_code": reason, "fingerprint": fingerprint}
 	body["reassessment_scope"] = view
 	if payload.Record != "" {
-		reader, ok := s.deps.Submissions.(factoryMCPRepairObservationSource)
-		if !ok {
+		reader := s.deps.RepairObservations
+		if reader == nil {
 			return nil, nil, errors.New("repair observation is unavailable")
 		}
 		page, err := reader.ReadRepairObservation(ctx, read.Capability, payload.Record, payload.Offset)

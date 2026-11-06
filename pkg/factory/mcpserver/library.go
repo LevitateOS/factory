@@ -9,7 +9,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/levitateos/factory/pkg/factory"
-	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
 func (s *factoryCatalogServer) serveLibraryRead(ctx context.Context, tool factory.MCPTool, args mcpCallArgs) (*mcp.CallToolResult, any, error) {
@@ -18,8 +17,8 @@ func (s *factoryCatalogServer) serveLibraryRead(ctx context.Context, tool factor
 		return nil, nil, err
 	}
 	defer release()
-	source, ok := s.deps.Submissions.(factoryservice.LibrarySource)
-	if !ok {
+	source := s.deps.Library
+	if source == nil {
 		return nil, nil, errors.New("library is unavailable")
 	}
 	var in struct {
