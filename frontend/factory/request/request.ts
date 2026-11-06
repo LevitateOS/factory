@@ -24,6 +24,7 @@ import {readSave, retainSave, settleSave, savedReceipt, savedDraft, releaseObsol
 import type {PendingSave} from './save-record.js';
 import {readRequestDraft, retainRequestDraft, requestDraftKey} from './draft.js';
 import type {RequestDraft, RequestDraftAddress, RequestDraftRead, ShelvedDepRepair} from './draft.js';
+import {TaskShelf} from './task-shelf.js';
 import {
   decisionID,
   department,
@@ -310,32 +311,7 @@ export class SodaIntent extends LitElement {
   private generationIntent = '';
   private savedSnapshot: IntentRevision | undefined;
   private scopeGateArmed = false;
-  // Work shelved when a decision edit declined a linked idea: the dropped
-  // tasks are kept here (never re-decided) so re-accepting the idea restores
-  // them on the next save, while leaving them declined keeps them out.
-  // pendingDropped carries the current save's drops from currentProposal to
-  // save. Both clear with the revision; a server-replaced proposal
-  // reconciles the shelf instead (drops whose ideas are gone are forgotten).
-  // shelvedPrunedDeps remembers the exact pre-prune dependency edges of kept
-  // tasks whose links were cut by a decline save (task key to its original
-  // depends_on plus the idea links identifying the work), so re-accepting
-  // the declined idea re-attaches only those recorded edges that point at
-  // restored work. Shelved tasks whose own edges point at kept work that a
-  // later explore may re-key carry a lineage entry here too, so the edge
-  // follows the successor instead of being lost. Nothing here invents an
-  // edge: repair replays recorded originals against the final live set, and
-  // a target whose lineage is ambiguous stays cut. The idea links let the
-  // record follow its work across an explore regeneration (fresh keys, same
-  // ideas) only onto a unique exact-idea-identical successor; an ambiguous
-  // split transfers to none and surfaces explicit review instead of guessing.
-  private shelvedTasks: IntentTask[] = [];
-  private shelvedPrunedDeps: Record<string, ShelvedDepRepair> = {};
-  private pendingDropped: IntentTask[] = [];
-  // pendingRestored carries the current save's shelf restorations from
-  // currentProposal to save: tasks absent from the prior revision whose
-  // exact pre-prune edges must still be recorded when re-accepting prunes
-  // them again before their targets return.
-  private pendingRestored: IntentTask[] = [];
+  private taskShelf = new TaskShelf();
   // Cross-device saved-history recovery (saved bytes only): the local shelf
   // above is same-browser localStorage, so a resume on another device starts
   // with no shelf. Recovery then reads ONLY the owner-private history
@@ -505,10 +481,7 @@ export class SodaIntent extends LitElement {
       this.departments = [];
       this.dirty = this.changeOpen = this.departmentDialog = false;
       this.scopeGateArmed = false;
-      this.shelvedTasks = [];
-      this.shelvedPrunedDeps = {};
-      this.pendingDropped = [];
-      this.pendingRestored = [];
+      this.taskShelf.reset();
       this.savedHistory = [];
       this.savedHistoryNote = '';
       this.savedHistorySkipped = 0;
@@ -633,8 +606,7 @@ export class SodaIntent extends LitElement {
           ...(correction === undefined ? {} : {correction}),
         })) ?? [],
       ...(this.revision?.approach === undefined ? {} : {approach: this.revision.approach}),
-      shelf: this.shelvedTasks,
-      shelfDeps: this.shelvedPrunedDeps,
+      ...this.taskShelf.snapshot(),
     });
   }
   private rememberDraft() {
@@ -679,8 +651,7 @@ export class SodaIntent extends LitElement {
       this.draftProblem(read);
       const archive = this.savedSnapshot && savedDraft(address, this.savedSnapshot);
       if (archive) {
-        this.shelvedTasks = structuredClone(archive.shelf);
-        this.shelvedPrunedDeps = structuredClone(archive.shelfDeps);
+        this.taskShelf.restore(archive);
       }
       const draft = read.draft;
       if (!draft) return;
@@ -714,8 +685,7 @@ export class SodaIntent extends LitElement {
           ...(draft.approach === undefined ? {} : {approach: draft.approach}),
         };
       }
-      this.shelvedTasks = structuredClone(draft.shelf);
-      this.shelvedPrunedDeps = structuredClone(draft.shelfDeps);
+      this.taskShelf.restore(draft);
       this.dirty =
         !!this.revision &&
         (this.objective !== this.revision.objective ||
@@ -795,10 +765,7 @@ export class SodaIntent extends LitElement {
     this.saveObsolete = false;
     this.retireRequests();
     this.scopeGateArmed = false;
-    this.shelvedTasks = [];
-    this.shelvedPrunedDeps = {};
-    this.pendingDropped = [];
-    this.pendingRestored = [];
+    this.taskShelf.reset();
     this.savedHistory = [];
     this.savedHistoryNote = '';
     this.savedHistorySkipped = 0;
@@ -1076,97 +1043,19 @@ export class SodaIntent extends LitElement {
     return state === 'declined' || state === 'rejected' || state === 'abandoned';
   }
   private currentProposal() {
-    this.pendingDropped = [];
-    this.pendingRestored = [];
+    this.taskShelf.clearProposal();
     if (this.terminalRevision()) return {ideas: [], tasks: []};
     if (this.objective.trim() !== this.revision?.objective) return {ideas: [], tasks: []};
     const ideas = this.revision?.ideas || [];
     const effective = this.revision?.effective_outcomes?.filter((id) =>
       ideas.some((idea) => idea.id === id && (idea.decision === 'accept' || idea.decision === 'edit'))
     );
-    const split = this.splitProposalTasks(ideas, this.revision?.tasks || []);
-    this.pendingDropped = split.dropped;
-    this.pendingRestored = split.restored;
+    const tasks = this.taskShelf.proposal(ideas, this.revision?.tasks || []);
     return {
       ideas,
-      tasks: split.tasks,
+      tasks,
       ...(effective === undefined ? {} : {effective_outcomes: effective}),
     };
-  }
-  // Canonical task binding (IntentRevision.Validate rejects declined
-  // references in every state): drop tasks linked to declined ideas without
-  // re-deciding anything, prune dependency edges left dangling by those
-  // drops, and restore shelved tasks whose links are all decided again.
-  // Accepted-only subset membership stays out of scope here.
-  // Restore-before-prune: the restorable shelved set joins the live set
-  // BEFORE any edge is cut, so a kept task depending on re-accepted work
-  // keeps its edge and shelved↔shelved edges survive regardless of shelf
-  // order. Kept tasks whose edges an earlier decline save cut are repaired
-  // first from the recorded pre-prune originals (only edges pointing at
-  // live work return); declined work stays declined until re-accepted.
-  private splitProposalTasks(
-    ideas: ProductIdea[],
-    tasks: IntentTask[]
-  ): {tasks: IntentTask[]; dropped: IntentTask[]; restored: IntentTask[]} {
-    const byID = new Map(ideas.map((idea) => [idea.id, idea]));
-    const dropped: IntentTask[] = [];
-    const kept = tasks.filter((task) => {
-      if (!task.idea_ids.some((id) => byID.get(id)?.decision === 'decline')) return true;
-      dropped.push(task);
-      return false;
-    });
-    const restorable = this.shelvedTasks.filter(
-      (task) =>
-        !kept.some((entry) => entry.key === task.key) &&
-        task.idea_ids.length > 0 &&
-        task.idea_ids.every((id) => byID.has(id) && byID.get(id)?.decision !== 'decline')
-    );
-    const live = new Set([...kept.map((task) => task.key), ...restorable.map((task) => task.key)]);
-    const repaired = kept.map((task) => this.repairTaskDeps(task, live));
-    const pruned = repaired.map((task) => this.pruneTaskDeps(task, live));
-    // Shelved originals can themselves be cut (shelved while already
-    // pruned by an earlier decline), so they get the same recorded repair.
-    // The raw restorable entries travel to the save as pendingRestored: a
-    // restored task is absent from the prior revision, so its exact
-    // pre-prune edges must be captured from this shape before pruning.
-    const restored = restorable.map((task) => this.pruneTaskDeps(this.repairTaskDeps(task, live), live));
-    return {tasks: [...pruned, ...restored], dropped, restored: restorable};
-  }
-  // Re-attach only recorded pre-prune edges that point at live work, in
-  // their original order. Edges to still-declined or unknown keys stay cut;
-  // no edge is ever invented.
-  private repairTaskDeps(task: IntentTask, live: Set<string>): IntentTask {
-    const recorded = this.shelvedPrunedDeps[task.key]?.deps;
-    if (!recorded || recorded.length === 0) return task;
-    const current = new Set(task.depends_on || []);
-    // Recorded order is the pre-prune order; stored edges keep their place
-    // and only the cut edges return, appended in recorded order.
-    const repaired = recorded.filter((dep) => live.has(dep) && !current.has(dep));
-    if (!repaired.length) return task;
-    return {...task, depends_on: [...(task.depends_on || []), ...repaired]};
-  }
-  private pruneTaskDeps(task: IntentTask, live: Set<string>): IntentTask {
-    const depends = task.depends_on || [];
-    const kept = depends.filter((dep) => live.has(dep));
-    return kept.length === depends.length ? task : {...task, depends_on: kept};
-  }
-  // Unresolved repair records: entries whose owner is absent from both the
-  // current and shelved sets (an ambiguous split kept the record under the
-  // old owner key). Derived, never stored separately: the record itself is
-  // the state, and the review below renders while any entry qualifies —
-  // across saves, reloads and leaves — until a unique successor claims it
-  // or the user confirms the drop. Never silently erased.
-  private unresolvedRepairs(): {key: string; repair: ShelvedDepRepair}[] {
-    const live = new Set((this.revision?.tasks || []).map((task) => task.key));
-    const shelved = new Set(this.shelvedTasks.map((task) => task.key));
-    return Object.entries(this.shelvedPrunedDeps)
-      .filter(
-        ([key, repair]) =>
-          !live.has(key) &&
-          !shelved.has(key) &&
-          (repair.deps.length > 0 || Object.keys(repair.depIdeas || {}).length > 0)
-      )
-      .map(([key, repair]) => ({key, repair}));
   }
   // Resolved review scope: the explicit narrowed subset when the stored
   // revision records one, else every decided idea in revision order.
@@ -1258,156 +1147,6 @@ export class SodaIntent extends LitElement {
     if (!this.revision || this.busy || this.blocked) return;
     this.decide(id, decision);
   };
-  // Keep the current save's declined-linked drops for recovery: shelved
-  // tasks survive so re-accepting an idea restores them, restored keys leave
-  // the shelf, and drops whose ideas are gone (a cleared new request) are
-  // forgotten. Nothing here re-decides any idea. Kept tasks whose
-  // dependency edges this save cut record their pre-prune originals so a
-  // later re-accept re-attaches exactly those edges; restored shelf tasks
-  // record theirs from the restored shape (they are absent from the prior
-  // revision); entries whose edges no longer point at shelved work and
-  // carry no pending lineage are forgotten.
-  private shelveDroppedTasks(next: IntentRevision) {
-    const posted = new Set(next.ideas.map((idea) => idea.id));
-    const saved = new Set(next.tasks.map((task) => task.key));
-    const kept = this.shelvedTasks.filter(
-      (task) => !saved.has(task.key) && task.idea_ids.length > 0 && task.idea_ids.every((id) => posted.has(id))
-    );
-    for (const task of this.pendingDropped) {
-      if (saved.has(task.key) || kept.some((entry) => entry.key === task.key)) continue;
-      kept.push(task);
-    }
-    this.shelvedTasks = kept;
-    this.pendingDropped = [];
-    const restored = new Map(this.pendingRestored.map((task) => [task.key, task]));
-    this.pendingRestored = [];
-    this.captureShelvedLineage();
-    this.recordPrunedDeps(next, restored);
-    this.requestUpdate();
-  }
-  // Pin the stable lineage of shelved tasks' edges: an explore may
-  // regenerate live targets under fresh keys, and shelved targets return
-  // under their stable keys but may regenerate after that, so the record
-  // carries every known target's idea links to remap the edge onto the
-  // successor later. No remap fires while the recorded key still resolves.
-  private captureShelvedLineage() {
-    const known = new Map<string, string[]>();
-    for (const task of this.revision?.tasks || []) known.set(task.key, [...task.idea_ids]);
-    for (const task of this.shelvedTasks) known.set(task.key, [...task.idea_ids]);
-    for (const task of this.shelvedTasks) {
-      const depIdeas = lineageForDeps(
-        task.depends_on || [],
-        (dep) => known.get(dep),
-        this.shelvedPrunedDeps[task.key]?.depIdeas
-      );
-      if (Object.keys(depIdeas).length === 0) continue;
-      const prior = this.shelvedPrunedDeps[task.key];
-      const deps = prior ? [...prior.deps] : [...(task.depends_on || [])];
-      for (const dep of task.depends_on || []) if (!deps.includes(dep)) deps.push(dep);
-      this.shelvedPrunedDeps[task.key] = {deps, ideas: [...task.idea_ids], depIdeas};
-    }
-    // Records whose owner is repaired/live or unassigned carry dependency
-    // keys reconcile remapped onto successors: refresh their target lineage
-    // from the current task graph so a later regeneration can follow every
-    // hop. Only known keys gain entries; unknown keys keep their carried
-    // lineage for a later regeneration. Nothing here invents an edge.
-    for (const [key, repair] of Object.entries(this.shelvedPrunedDeps)) {
-      if (repair.deps.length === 0) continue;
-      const depIdeas = lineageForDeps(repair.deps, (dep) => known.get(dep), repair.depIdeas);
-      if (Object.keys(depIdeas).length === 0) continue;
-      this.shelvedPrunedDeps[key] = {deps: [...repair.deps], ideas: [...repair.ideas], depIdeas};
-    }
-  }
-  private recordPrunedDeps(next: IntentRevision, restored: Map<string, IntentTask>) {
-    const original = new Map((this.revision?.tasks || []).map((task) => [task.key, task]));
-    const shelvedByKey = new Map(this.shelvedTasks.map((task) => [task.key, task]));
-    const shelved = new Set(shelvedByKey.keys());
-    const saved = new Set(next.tasks.map((task) => task.key));
-    const posted = new Set(next.ideas.map((idea) => idea.id));
-    const recorded: Record<string, ShelvedDepRepair> = {};
-    // Carry forward records for work that is still kept or newly shelved:
-    // a recorded edge still pointing at shelved work, or a lineage entry
-    // whose target has not come back live, must survive later saves — a
-    // second decline (or a staggered re-accept) must not forget the first
-    // decline's cut edges.
-    for (const [key, repair] of Object.entries(this.shelvedPrunedDeps)) {
-      if (!saved.has(key) && !shelved.has(key)) {
-        // Unresolved owner: the record outlived its work (an ambiguous
-        // split kept it under the old owner key, and no unique successor
-        // has claimed it yet). Carry it across saves — the post-save draft
-        // re-persist keeps it bound to the new head with the shelf — while
-        // its lineage still names posted work, so a later regeneration can
-        // still resolve it or the user can explicitly confirm the drop.
-        // Entries with no edges and no pending lineage carry nothing, and
-        // entries whose ideas are gone are forgotten with the shelf. Never
-        // silently erased otherwise: the next save (limit-only, leave, or
-        // the save before an explore) must not lose the ambiguity.
-        if (repair.deps.length === 0 && Object.keys(repair.depIdeas || {}).length === 0) continue;
-        if (!repair.ideas.some((id) => posted.has(id))) continue;
-        recorded[key] = copyRepair(repair);
-        continue;
-      }
-      // A still-shelved owner keeps its entry while it carries anything:
-      // its edges may point at live work a later explore re-keys, and only
-      // a restore (or forgotten ideas) ends that. A kept owner keeps its
-      // entry while an edge points at shelved work or a lineage target has
-      // not come back live.
-      if (shelved.has(key)) {
-        if (repair.deps.length > 0 || Object.keys(repair.depIdeas || {}).length > 0) recorded[key] = copyRepair(repair);
-        continue;
-      }
-      if (!repair.deps.some((dep) => shelved.has(dep)) && pendingRepairLineage(repair, saved, shelved).length === 0)
-        continue;
-      recorded[key] = copyRepair(repair);
-    }
-    for (const task of next.tasks) {
-      // A restored shelf task is absent from the prior revision: read its
-      // exact pre-prune edges from the restored proposal shape, not from
-      // the prior revision (which never carried it).
-      const before = original.get(task.key) ?? restored.get(task.key);
-      if ((before?.depends_on || []).length === 0 && !recorded[task.key]) continue;
-      const initial = before?.depends_on || [];
-      const after = new Set(task.depends_on || []);
-      const cut = initial.filter((dep) => !after.has(dep));
-      // Remember the full pre-prune order only while a cut edge still
-      // points at shelved work; a fully restored task needs no record.
-      // Accumulate against the exact ORIGINAL edges: a later decline sees
-      // an already-pruned `before`, so union it with the carried record —
-      // never discard edges recorded for still-declined ideas.
-      if (cut.some((dep) => shelved.has(dep))) {
-        const prior = recorded[task.key];
-        // Pin lineage for every recorded edge with known ideas: a later
-        // save or explore may re-key any target, and only pinned lineage
-        // lets the remap follow it. While the key still resolves the
-        // remap is a no-op, so stable backends see no change.
-        const depIdeas = lineageForDeps(
-          initial,
-          (dep) => (original.get(dep) ?? shelvedByKey.get(dep))?.idea_ids,
-          prior?.depIdeas
-        );
-        if (prior) {
-          const merged = [...prior.deps];
-          for (const dep of initial) if (!merged.includes(dep)) merged.push(dep);
-          const ideas = [...prior.ideas];
-          for (const id of task.idea_ids) if (!ideas.includes(id)) ideas.push(id);
-          const mergedLineage = {...prior.depIdeas};
-          for (const [dep, ids] of Object.entries(depIdeas)) if (!mergedLineage[dep]) mergedLineage[dep] = ids;
-          recorded[task.key] = {
-            deps: merged,
-            ideas,
-            ...(Object.keys(mergedLineage).length > 0 ? {depIdeas: mergedLineage} : {}),
-          };
-        } else {
-          recorded[task.key] = {
-            deps: [...initial],
-            ideas: [...task.idea_ids],
-            ...(Object.keys(depIdeas).length > 0 ? {depIdeas} : {}),
-          };
-        }
-      }
-    }
-    this.shelvedPrunedDeps = recorded;
-  }
   // Declined ideas behind shelved work: the only entries offering recovery.
   // Re-accepted ideas fall out on their own; restored work leaves the shelf
   // on the next save.
@@ -1415,7 +1154,7 @@ export class SodaIntent extends LitElement {
     const byID = new Map((this.revision?.ideas || []).map((idea) => [idea.id, idea]));
     const seen = new Set<string>();
     const declined: ProductIdea[] = [];
-    for (const task of this.shelvedTasks) {
+    for (const task of this.taskShelf.tasks) {
       for (const id of task.idea_ids) {
         const idea = byID.get(id);
         if (idea?.decision === 'decline' && !seen.has(id)) {
@@ -1427,9 +1166,9 @@ export class SodaIntent extends LitElement {
     return declined;
   }
   private declinedWorkRecovery() {
-    if (!this.shelvedTasks.length) return '';
+    if (!this.taskShelf.tasks.length) return '';
     const declined = this.shelvedDeclinedIdeas();
-    const count = this.shelvedTasks.length;
+    const count = this.taskShelf.tasks.length;
     return html`<div class="declined-work-gate" role="group" aria-label="Declined work recovery">
       <p>
         ${count} proposed work item${count === 1 ? ' was' : 's were'} removed because
@@ -1462,7 +1201,7 @@ export class SodaIntent extends LitElement {
     const revision = this.revision;
     if (!revision || this.terminalRevision()) return [];
     const shelved = new Set<string>();
-    for (const task of this.shelvedTasks) for (const id of task.idea_ids) shelved.add(id);
+    for (const task of this.taskShelf.tasks) for (const id of task.idea_ids) shelved.add(id);
     return (revision.ideas || []).filter((idea) => idea.decision === 'decline' && !shelved.has(idea.id));
   }
   // Saved-history lookup for a shelfless resume (another device): one bare
@@ -1814,7 +1553,7 @@ export class SodaIntent extends LitElement {
     if (tasks.length === 0) return;
     const staged = new Set(tasks.map((task) => task.key));
     for (const task of tasks) {
-      if (this.shelvedTasks.some((shelved) => shelved.key === task.key)) continue;
+      if (this.taskShelf.tasks.some((shelved) => shelved.key === task.key)) continue;
       // Staged task edges (FJ-444): a same-key live dep still requires target
       // semantics — drop it when the live target's linked ideas changed
       // meaning, never carry it by key identity alone.
@@ -1829,7 +1568,9 @@ export class SodaIntent extends LitElement {
           return past !== undefined && now !== undefined && sameIdeaMeaning(past, now);
         });
       });
-      this.shelvedTasks.push(deps.length === (task.depends_on || []).length ? {...task} : {...task, depends_on: deps});
+      this.taskShelf.addRecovered(
+        deps.length === (task.depends_on || []).length ? {...task} : {...task, depends_on: deps}
+      );
     }
     for (const repair of entry.repairs) {
       // Narrowed staging (FJ-444): merge ONLY justified edges into the
@@ -1862,10 +1603,9 @@ export class SodaIntent extends LitElement {
         const ids = repair.depIdeas[dep];
         if (ids) narrowedDepIdeas[dep] = [...ids];
       }
-      this.mergeHistoryRepair({
-        ...repair,
+      this.taskShelf.mergeRepair(repair.owner, {
+        ideas: repair.ideas,
         deps: [...justifiedDeps],
-        targets: repair.targets.filter((dep) => justifiedDeps.includes(dep)),
         depIdeas: narrowedDepIdeas,
       });
     }
@@ -1876,30 +1616,6 @@ export class SodaIntent extends LitElement {
     }
     this.decide(id, 'accept');
   };
-  // Union-merge a history-staged repair into the shelf record without
-  // overwriting local entries: recorded edges accumulate like the ordinary
-  // transfer path, so a local repair for the same owner survives.
-  private mergeHistoryRepair(repair: SavedHistoryRepair): void {
-    const prior = this.shelvedPrunedDeps[repair.owner];
-    if (!prior) {
-      this.shelvedPrunedDeps[repair.owner] = {
-        deps: [...repair.deps],
-        ideas: [...repair.ideas],
-        ...(Object.keys(repair.depIdeas).length > 0 ? {depIdeas: {...repair.depIdeas}} : {}),
-      };
-      return;
-    }
-    for (const dep of repair.deps) if (!prior.deps.includes(dep)) prior.deps.push(dep);
-    for (const link of repair.ideas) if (!prior.ideas.includes(link)) prior.ideas.push(link);
-    if (Object.keys(repair.depIdeas).length > 0) {
-      prior.depIdeas = prior.depIdeas || {};
-      for (const [dep, ids] of Object.entries(repair.depIdeas)) {
-        const bucket = prior.depIdeas[dep] || [];
-        for (const link of ids) if (!bucket.includes(link)) bucket.push(link);
-        prior.depIdeas[dep] = bucket;
-      }
-    }
-  }
   // Saved-history recovery gate: the explicit preview (source revision, work,
   // proven edges and recorded repairs per idea) plus the honest unavailable
   // states. Rows render only for the head they were derived from; stale
@@ -2028,7 +1744,7 @@ export class SodaIntent extends LitElement {
   // successor will ever come. Dropping removes the recovery record only;
   // the saved graph is untouched.
   private unresolvedRepairReview() {
-    const pending = this.unresolvedRepairs();
+    const pending = this.taskShelf.unresolved(this.revision);
     if (pending.length === 0) return '';
     const byID = new Map((this.revision?.ideas || []).map((idea) => [idea.id, idea]));
     return html`<div class="unresolved-repair-gate" role="group" aria-label="Unresolved dependency repair">
@@ -2053,196 +1769,13 @@ export class SodaIntent extends LitElement {
   }
   private dropUnresolvedRepair = (key: string) => {
     if (!this.revision || this.busy || this.blocked) return;
-    if (!this.unresolvedRepairs().some((entry) => entry.key === key)) return;
-    delete this.shelvedPrunedDeps[key];
+    if (!this.taskShelf.unresolved(this.revision).some((entry) => entry.key === key)) return;
+    this.taskShelf.dropRepair(key);
     this.rememberDraft();
     this.requestUpdate();
   };
-  // After the server replaces the proposal, shelved drops stay only while
-  // their ideas still exist and no fresh task supersedes their key: explore
-  // regenerates work from the current decisions, so a cleared new request
-  // forgets its drops while re-accepted ideas keep theirs for the next save.
-  // Repair records survive while their task is still proposed with a stored
-  // edge subset of the recorded original (a regenerated task with new edges
-  // drops its stale record) and a recorded edge still points at shelved
-  // work. When explore regenerated the work under a fresh key, the record
-  // follows its work only onto a UNIQUE exact-idea-identical successor, so
-  // a later re-accept still restores the cut edges onto the proven task. An
-  // ambiguous split (two or more tasks sharing the exact lineage) transfers
-  // to NONE and surfaces explicit review instead of guessing. Recorded TARGETS follow their
-  // successors the same way, by the stable idea lineage pinned at record
-  // time: a unique idea-identical successor remaps the edge, while zero or
-  // several successors leave the edge cut (never invented) with the pending
-  // lineage kept for a later regeneration to recover.
   private reconcileShelvedTasks(proposal: IntentRevision) {
-    const ideas = new Set(proposal.ideas.map((idea) => idea.id));
-    const live = new Set(proposal.tasks.map((task) => task.key));
-    this.shelvedTasks = this.shelvedTasks.filter(
-      (task) => !live.has(task.key) && task.idea_ids.length > 0 && task.idea_ids.every((id) => ideas.has(id))
-    );
-    const shelved = new Set(this.shelvedTasks.map((task) => task.key));
-    const proposed = new Map(proposal.tasks.map((task) => [task.key, task]));
-    // Index fresh keys by stable idea linkage: the same ideas under a new
-    // key are the same work regenerated, whatever the key says.
-    const byIdeas = new Map<string, string[]>();
-    for (const task of proposal.tasks) {
-      const signature = [...task.idea_ids].sort().join('\0');
-      const bucket = byIdeas.get(signature);
-      if (bucket) bucket.push(task.key);
-      else byIdeas.set(signature, [task.key]);
-    }
-    const recorded: Record<string, ShelvedDepRepair> = {};
-    const resolvedTargets = new Map<string, string>();
-    // Remap a record's targets onto successor keys by stable idea lineage.
-    // A target that still resolves under its key keeps its pinned lineage
-    // for the next regeneration. A target whose lineage is ambiguous or
-    // gone is left untouched: the edge stays cut rather than invented, and
-    // pending lineage survives for a later regeneration.
-    const remapRepair = (repair: ShelvedDepRepair): ShelvedDepRepair => {
-      const entry = copyRepair(repair);
-      if (!entry.depIdeas) return entry;
-      const pending: Record<string, string[]> = {};
-      const mapped = entry.deps.map((dep) => {
-        const ids = entry.depIdeas?.[dep];
-        if (!ids) return dep;
-        if (proposed.has(dep)) {
-          pending[dep] = [...ids];
-          return dep;
-        }
-        const candidates = byIdeas.get([...ids].sort().join('\0')) || [];
-        if (candidates.length === 1) {
-          const successor = candidates[0] as string;
-          resolvedTargets.set(dep, successor);
-          // The lineage follows the successor key: a later regeneration
-          // re-keys the successor again, and only the carried mapping lets
-          // the next remap follow it. Dropping it here would strand the
-          // record on a stale key the next explore cannot resolve.
-          pending[successor] = [...ids];
-          return successor;
-        }
-        pending[dep] = [...ids];
-        return dep;
-      });
-      // Two recorded targets with identical lineage resolve onto the same
-      // successor: one edge, not a duplicated one.
-      const deps = [...new Set(mapped)];
-      const next: ShelvedDepRepair = {deps, ideas: [...entry.ideas]};
-      if (Object.keys(pending).length > 0) next.depIdeas = pending;
-      return next;
-    };
-    const transfer = (key: string, repair: ShelvedDepRepair) => {
-      const current = recorded[key];
-      if (!current) {
-        recorded[key] = copyRepair(repair);
-        return;
-      }
-      for (const dep of repair.deps) if (!current.deps.includes(dep)) current.deps.push(dep);
-      for (const id of repair.ideas) if (!current.ideas.includes(id)) current.ideas.push(id);
-      if (repair.depIdeas) {
-        current.depIdeas = current.depIdeas || {};
-        for (const [dep, ids] of Object.entries(repair.depIdeas)) {
-          const bucket = current.depIdeas[dep] || [];
-          for (const id of ids) if (!bucket.includes(id)) bucket.push(id);
-          current.depIdeas[dep] = bucket;
-        }
-      }
-    };
-    const adoptable = (task: IntentTask, repair: ShelvedDepRepair) =>
-      [...(task.depends_on || [])].every((dep) => repair.deps.includes(dep)) &&
-      repair.deps.some((dep) => shelved.has(dep));
-    // A unique successor whose recorded targets are ALL live replays the
-    // exact recorded edges on the next save: adopt it onto the successor
-    // rather than dropping the record for having nothing left to wait for.
-    // The lineage match below is already exact (same idea set); no edge is
-    // guessed — every replayed target resolves to live work.
-    const liveAdoptable = (task: IntentTask, repair: ShelvedDepRepair) =>
-      repair.deps.length > 0 &&
-      [...(task.depends_on || [])].every((dep) => repair.deps.includes(dep)) &&
-      repair.deps.every((dep) => proposed.has(dep));
-    const carriesRepair = (entry: ShelvedDepRepair) =>
-      entry.deps.length > 0 || Object.keys(entry.depIdeas || {}).length > 0;
-    // Owner ideas still proposed: the work may come back, so an unclaimed
-    // record waits for a later regeneration or an explicit confirm drop.
-    // Ideas gone means the direction left the work behind and the record is
-    // forgotten with the shelf.
-    const ownerIdeasProposed = (entry: ShelvedDepRepair) =>
-      entry.ideas.length > 0 && entry.ideas.every((id) => ideas.has(id));
-    const ambiguousOwners: string[] = [];
-    for (const [key, repair] of Object.entries(this.shelvedPrunedDeps)) {
-      const entry = remapRepair(repair);
-      const current = proposed.get(key);
-      if (current) {
-        if (adoptable(current, entry)) transfer(key, entry);
-        continue;
-      }
-      if (shelved.has(key)) {
-        // The owner stays shelved under its stable key: keep the entry with
-        // remapped targets so a later re-accept restores onto the successor
-        // work. Entries with no edges and no pending lineage carry nothing.
-        if (entry.deps.length > 0 || Object.keys(entry.depIdeas || {}).length > 0) recorded[key] = entry;
-        continue;
-      }
-      // Owner lineage must be proven exact, never guessed from a shared
-      // idea: the recorded idea links must equal the successor's idea links
-      // exactly (same set). A split that shares the lineage across two or
-      // more tasks proves neither successor, so the repair transfers to NONE
-      // and surfaces explicit review instead of inventing an edge on every
-      // twin.
-      const signature = [...entry.ideas].sort().join('\0');
-      const exact = proposal.tasks.filter(
-        (task) => task.idea_ids.length === entry.ideas.length && [...task.idea_ids].sort().join('\0') === signature
-      );
-      if (exact.length === 1) {
-        const sole = exact[0] as IntentTask;
-        if (adoptable(sole, entry) || liveAdoptable(sole, entry)) transfer(sole.key, entry);
-        // Unique but not adoptable (the successor carries out-of-record
-        // edges, or a recorded target is neither live nor shelved): keep the
-        // remapped record under the original owner key instead of erasing
-        // it — a later regeneration or an explicit confirm drop resolves it.
-        else if (carriesRepair(entry) && ownerIdeasProposed(entry)) recorded[key] = entry;
-        continue;
-      }
-      if (exact.length > 1) {
-        // Ambiguous split: keep the remapped record under the original owner
-        // key so a later regeneration can still recover it, and surface
-        // explicit review so the user picks the true successor or re-maps
-        // manually. Saves carry the unassigned record (recordPrunedDeps) and
-        // the unresolved review keeps it visible until a unique successor
-        // claims it or the user confirms the drop. Entries with no edges
-        // and no pending lineage carry nothing.
-        if (entry.deps.length > 0 || Object.keys(entry.depIdeas || {}).length > 0) recorded[key] = entry;
-        ambiguousOwners.push(key);
-        continue;
-      }
-      // No successor carries the recorded lineage: keep the record while
-      // its owner ideas are still proposed (a later regeneration may bring
-      // the work back); forget it with the shelf once its ideas are gone.
-      if (carriesRepair(entry) && ownerIdeasProposed(entry)) recorded[key] = entry;
-    }
-    // Rewrite shelved tasks' own edges onto resolved successors: the shelf
-    // entry keeps its meaning (same lineage, fresh key) so a later
-    // re-accept prunes nothing that came back live.
-    if (resolvedTargets.size > 0)
-      this.shelvedTasks = this.shelvedTasks.map((task) => {
-        if (!task.depends_on || task.depends_on.length === 0) return task;
-        let changed = false;
-        const depends_on = task.depends_on.map((dep) => {
-          const successor = !shelved.has(dep) && !proposed.has(dep) ? resolvedTargets.get(dep) : undefined;
-          if (successor && successor !== dep) {
-            changed = true;
-            return successor;
-          }
-          return dep;
-        });
-        return changed ? {...task, depends_on} : task;
-      });
-    this.shelvedPrunedDeps = recorded;
-    this.pendingDropped = [];
-    this.pendingRestored = [];
-    // Ambiguous split: the repair stayed with no owner rather than guessed,
-    // so say so explicitly — the user picks the true successor or re-maps
-    // manually (Change something), and no edge was invented.
-    if (ambiguousOwners.length > 0)
+    if (this.taskShelf.reconcile(proposal))
       this.error =
         'Exploration split linked work into several items with identical idea links, so a recorded dependency repair was left unassigned instead of guessed. Review the proposed work and use Change something to correct it; no dependency was invented.';
     this.requestUpdate();
@@ -2266,30 +1799,18 @@ export class SodaIntent extends LitElement {
       throw Error('Unresolved saved request');
     }
     const before = this.captureDraft();
-    const shelf = structuredClone(this.shelvedTasks),
-      repairs = structuredClone(this.shelvedPrunedDeps),
-      dropped = this.pendingDropped,
-      restored = this.pendingRestored;
-    let after: RequestDraft;
-    try {
-      this.shelveDroppedTasks(next);
-      after = {
-        ...this.captureDraft(),
-        base: next.id,
-        repository: next.repository,
-        ideas: next.ideas.map(({id, decision, correction}) => ({
-          id,
-          decision,
-          ...(correction === undefined ? {} : {correction}),
-        })),
-        ...(next.approach === undefined ? {} : {approach: next.approach}),
-      };
-    } finally {
-      this.shelvedTasks = shelf;
-      this.shelvedPrunedDeps = repairs;
-      this.pendingDropped = dropped;
-      this.pendingRestored = restored;
-    }
+    const after: RequestDraft = {
+      ...this.captureDraft(),
+      ...this.taskShelf.afterSave(next, this.revision),
+      base: next.id,
+      repository: next.repository,
+      ideas: next.ideas.map(({id, decision, correction}) => ({
+        id,
+        decision,
+        ...(correction === undefined ? {} : {correction}),
+      })),
+      ...(next.approach === undefined ? {} : {approach: next.approach}),
+    };
     const host = await this.saveIdentity(signal);
     const pending: PendingSave = {host, revision: next, before, after};
     if (!(await retainSave(address, pending))) {
@@ -2341,10 +1862,7 @@ export class SodaIntent extends LitElement {
         'The original save was confirmed. Later writing or a newer saved revision was kept; no planning or generation was started.';
       return false;
     }
-    this.shelvedTasks = structuredClone(pending.after.shelf);
-    this.shelvedPrunedDeps = structuredClone(pending.after.shelfDeps);
-    this.pendingDropped = [];
-    this.pendingRestored = [];
+    this.taskShelf.reset(pending.after);
     this.revision = saved;
     this.savedSnapshot = structuredClone(saved);
     this.dirty = false;
@@ -2735,10 +2253,7 @@ export class SodaIntent extends LitElement {
       await this.save('declined', '0', signal);
       signal.throwIfAborted();
       this.scopeGateArmed = false;
-      this.shelvedTasks = [];
-      this.shelvedPrunedDeps = {};
-      this.pendingDropped = [];
-      this.pendingRestored = [];
+      this.taskShelf.reset();
       this.savedHistory = [];
       this.savedHistoryNote = '';
       this.savedHistorySkipped = 0;
@@ -3726,44 +3241,6 @@ function intentHistory(value: unknown): IntentRevision[] {
   const revisions = raw.revisions;
   check(Array.isArray(revisions) && revisions.length <= 64);
   return (revisions as unknown[]).map((entry) => intentRevision(entry));
-}
-
-// Lineage entries whose target is neither live nor shelved: the edge's
-// successor has not (or not yet) come back, so the lineage stays pending
-// for a later regeneration instead of being forgotten.
-function pendingRepairLineage(repair: ShelvedDepRepair, live: Set<string>, shelved: Set<string>): string[] {
-  return Object.keys(repair.depIdeas || {}).filter((dep) => !live.has(dep) && !shelved.has(dep));
-}
-
-function copyRepair(repair: ShelvedDepRepair): ShelvedDepRepair {
-  return {
-    deps: [...repair.deps],
-    ideas: [...repair.ideas],
-    ...(repair.depIdeas
-      ? {depIdeas: Object.fromEntries(Object.entries(repair.depIdeas).map(([dep, ids]) => [dep, [...ids]]))}
-      : {}),
-  };
-}
-
-// Pin stable lineage for every recorded target whose ideas are known: a
-// later save or explore may re-key any of them — kept work regenerates
-// under fresh keys, and shelved work returns under its stable key but may
-// regenerate after that — and only pinned lineage lets the remap follow
-// the edge. Retained entries never invent edges: the remap fires only for
-// a unique idea-identical successor and stays cut otherwise.
-function lineageForDeps(
-  deps: string[],
-  lookup: (dep: string) => string[] | undefined,
-  prior?: Record<string, string[]>
-): Record<string, string[]> {
-  const depIdeas: Record<string, string[]> = {};
-  if (prior) for (const [dep, ids] of Object.entries(prior)) depIdeas[dep] = [...ids];
-  for (const dep of deps) {
-    if (depIdeas[dep]) continue;
-    const ids = lookup(dep);
-    if (ids && ids.length > 0) depIdeas[dep] = [...ids];
-  }
-  return depIdeas;
 }
 
 export interface RestoredReviewIdentity {

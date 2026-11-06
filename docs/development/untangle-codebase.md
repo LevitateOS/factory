@@ -220,6 +220,20 @@ in Lit elements. Extract workflows with their retained state, not loose methods.
 - API IntentGeneration is decoded inside a rendering/model module.
 - Role labels/portrait keys are a smaller defining-data consolidation candidate.
 
+Implemented Watch attachment ownership in the element and renderer/fit/observer
+lifetime in `WatchScreen`, removing both getter/setter callback bags. Strict
+generation decoding now lives in API ownership; one role definition supplies
+labels/aliases/portraits; the unused planning-availability field is gone. Existing
+Chromium Watch lifecycle and portrait cases, typecheck and Lit passed; independent
+source review preserved reconnect, cursor, disposal and stale-response behavior.
+
+`TaskShelf` now owns declined tasks, dependency lineage and proposal/save-preview
+transitions. Request no longer temporarily mutates/rolls back four fields to prepare
+persisted after-state. Independent source review and ten existing UI/history/repair
+browser journeys passed, plus typecheck/Lit. The historical test that accesses the
+removed private fields no longer applies; actual zero/unique/ambiguous successor
+and persisted-repair journeys cover that behavior. Feed workflow extraction remains.
+
 ### 8. Integration checks and test cleanup — pending, cleanup last
 
 Define shared fixture sessions and explicit case/phase protocols in existing
