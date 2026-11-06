@@ -11,8 +11,10 @@ import (
 // PolicyActor names an existing operation binding. Operation kind is selected
 // by its policy slot, never supplied by the command body.
 type PolicyActor struct {
-	TokenID int64 `json:"token_id,string"`
-	ActorID int64 `json:"actor_id,string"`
+	NativeProfile    collaboration.ProfileID    `json:"native_profile,omitempty"`
+	NativeConnection collaboration.ConnectionID `json:"native_connection,omitempty"`
+	TokenID          int64                      `json:"token_id,string"`
+	ActorID          int64                      `json:"actor_id,string"`
 }
 
 type PolicyChange struct {
@@ -79,7 +81,7 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		return empty, err
 	}
 	bind := func(a PolicyActor, kind string) (factory.ActorBindingRef, error) {
-		ref := factory.ActorBindingRef{TokenID: a.TokenID, ActorID: a.ActorID, Kind: kind}
+		ref := factory.ActorBindingRef{NativeProfile: a.NativeProfile, NativeConnection: a.NativeConnection, TokenID: a.TokenID, ActorID: a.ActorID, Kind: kind}
 		if err := ref.Validate(); err != nil {
 			return factory.ActorBindingRef{}, errors.Join(ErrPolicyBindingInvalid, err)
 		}

@@ -113,6 +113,10 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		AdminAccess: bound.adminAccess}
 	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, EnvironmentAccess: bound.adminAccess, NativeEnvironment: bound.nativeEnvironment}
 	product.Repositories.Sponsorships = factoryservice.Sponsorships{Store: application.Store, Writer: application.Coordinator, Visibility: bound.visible, Custody: bound.sponsorship}
+	product.Repositories.Policies = factoryservice.Policies{Writer: application.Coordinator, BindingAccess: bound.policyBinding,
+		WriteAccess: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
+			return bound.adminAccess(ctx, actor, collaboration.RepositoryID(repository))
+		}}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started
@@ -131,6 +135,8 @@ func nativeProductResourceError(w http.ResponseWriter, err error) {
 		nativeProductError(w, 503, "authority_unavailable", "Current repository write authority is unavailable.")
 	case errors.Is(err, errNativeWriteDenied):
 		nativeProductError(w, 403, "repository_write_required", "Current repository write access is required.")
+	case errors.Is(err, factoryservice.ErrPlacementAdminRequired):
+		nativeProductError(w, 403, "repository_admin_required", "Current repository administration access is required.")
 	default:
 		nativeProductUnavailable(w)
 	}

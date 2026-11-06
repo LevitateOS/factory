@@ -11,6 +11,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -80,19 +81,27 @@ func SettingsDigest(typ, target, payload string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// ActorBindingRef references one administrator-enrolled native actor binding
-// for the policy's repository. It holds IDs only, never secrets, and never
-// selects an installation: the host derives installation identity at
-// dispatch from authenticated transport.
+// ActorBindingRef references an enrolled account for one operation kind.
+// Desktop references name the profile/connection; appliance references retain
+// their token binding ID. Current scope is established by the host, not these IDs.
 type ActorBindingRef struct {
-	TokenID int64  `json:"token_id,string"`
-	ActorID int64  `json:"actor_id,string"`
-	Kind    string `json:"kind"`
+	NativeProfile    collaboration.ProfileID    `json:"native_profile,omitempty"`
+	NativeConnection collaboration.ConnectionID `json:"native_connection,omitempty"`
+	TokenID          int64                      `json:"token_id,string"`
+	ActorID          int64                      `json:"actor_id,string"`
+	Kind             string                     `json:"kind"`
 }
 
 func (a ActorBindingRef) Validate() error {
-	if a.TokenID <= 0 || a.ActorID <= 0 || !ValidOperationKind(a.Kind) {
+	if a.ActorID <= 0 || !ValidOperationKind(a.Kind) {
 		return errors.New("invalid native actor binding reference")
+	}
+	if a.NativeProfile != "" || a.NativeConnection != "" {
+		if a.TokenID != 0 || !collaboration.ValidID(string(a.NativeProfile)) || !collaboration.ValidID(string(a.NativeConnection)) {
+			return errors.New("invalid desktop actor binding reference")
+		}
+	} else if a.TokenID <= 0 {
+		return errors.New("invalid appliance actor binding reference")
 	}
 	return nil
 }

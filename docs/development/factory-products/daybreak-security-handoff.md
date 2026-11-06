@@ -275,6 +275,21 @@ replacement/withdrawal observations and durable Go settlement. Native account
 selection and policy/publication actor bindings remain implementation blockers.
 No existing uncertain run or broad custody/IPC/D3 gate is closed.
 
+Native policy update: `factory/grants.go` and `service/policies.go` now represent
+desktop actors by profile/connection IDs and preserve the legacy appliance
+variant. `runtime/native_policies.go` accepts only the current verified account
+and repository; `native_product.go` brackets policy save with repository admin
+checks. Canonical native policy persistence, mixed-namespace refusal and native
+reference readback after restart passed in `/home/vince/tmp/fpol6.SB5UNF/run.log`.
+Provider identity/admin facts were declared fixtures; this does not qualify the
+connected handler's current-scope/permission gate or any publication effect.
+Cross-account policy enrollment and background native actor resolution are still
+implementation blockers. Closure requires actually verified selected accounts,
+current provider repository permissions and bound per-operation observations,
+including refusal after account/scope/permission changes and durable outcome
+evidence. Relevant files are those above and the existing publication/review/merge
+ports. No broad security gate is closed by the typed references or fixture pass.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
 checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy

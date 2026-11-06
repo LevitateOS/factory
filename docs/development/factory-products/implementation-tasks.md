@@ -31533,3 +31533,14 @@ same parent. Repository visibility/launch authority remained declared fixtures;
 no provider inference or positive end-to-end Go launch is claimed. Shell model
 account enrollment/selection, native policy/publication actor bindings, task and
 checkpoint ports and the real admitted provider journey remain unfinished.
+
+Policy actor references now support native profile/connection identities while
+preserving retained appliance token references. The native policy writer checks
+repository administration and restricts every binding to the current verified
+selected account; mixed native/appliance references refuse. Canonical policy save
+and native-reference readback after restart passed in
+`/home/vince/tmp/fpol6.SB5UNF/run.log`, using declared provider identity/admin facts.
+This does not qualify connected settings permission or execute publication.
+Cross-account policy enrollment, shell account selection and background native
+publication/review/merge authority remain unfinished alongside task/checkpoint
+ports and the real admitted provider journey. T09 and broad security gates stay open.

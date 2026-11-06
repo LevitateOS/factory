@@ -1316,6 +1316,52 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 	if saved.Validate() != nil || saved.Native == nil || saved.Native.Profile != config.Profile || saved.Native.CredentialSHA256 != intent.Native.CredentialSHA256 || saved.ActorID != int64(actor) || saved.Generation != 0 || saved.GrantID != "" || saved.Active != active || active && read != 1 || !active && read != 0 {
 		return errors.New("native sponsorship lost credential identity or invented a broker grant")
 	}
+	if active {
+		// Provider identity/administration are declared here. The canonical
+		// account mapping, policy service and persisted native references are real.
+		binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{
+			Profile:  collaboration.Profile{ID: config.Profile, Name: "Native source fixture"},
+			Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()),
+			Account: "native-source-owner", Login: "native-source-owner",
+		})
+		if err != nil || binding.Actor.ID != actor {
+			return errors.New("native policy fixture actor mapping changed")
+		}
+		selected := factoryservice.PolicyActor{NativeProfile: config.Profile, NativeConnection: binding.Connection.ID, ActorID: int64(actor)}
+		change := factoryservice.PolicyChange{Enabled: true, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward,
+			RequiredChecks: []string{"fixture/check"}, PublishActor: selected, CreateActor: selected, ReviewActor: selected, MergeActor: selected,
+			Roles: map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: run.Model}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: run.Model}}}
+		policies := factoryservice.Policies{Writer: coordinator,
+			WriteAccess: func(ctx context.Context, viewer collaboration.ActorID, repo int64) error {
+				if viewer != actor || repo != int64(repository) {
+					return errors.New("declared fixture administration changed")
+				}
+				return ctx.Err()
+			}, BindingAccess: func(ctx context.Context, viewer collaboration.ActorID, repo collaboration.RepositoryID, ref factory.ActorBindingRef) error {
+				if viewer != actor || repo != repository || ref.NativeProfile != config.Profile || ref.NativeConnection != binding.Connection.ID || ref.ActorID != int64(actor) || ref.TokenID != 0 {
+					return factoryservice.ErrPolicyBindingUnavailable
+				}
+				return ctx.Err()
+			}}
+		mixed := change
+		mixed.PublishActor.TokenID = 1
+		if _, err = policies.Apply(ctx, actor, "native-source-fixture", repository, mixed); !errors.Is(err, factoryservice.ErrPolicyBindingInvalid) {
+			return errors.New("policy mixed desktop and appliance actor authority")
+		}
+		if _, err = policies.Apply(ctx, actor, "native-source-fixture", repository, change); err != nil {
+			return err
+		}
+	}
+	policy, err := db.RepositoryPolicy(ctx, int64(repository))
+	if err != nil {
+		return err
+	}
+	for _, ref := range []factory.ActorBindingRef{policy.Publish, policy.Create, policy.Review, policy.Merge} {
+		if ref.Validate() != nil || ref.NativeProfile != config.Profile || ref.NativeConnection == "" || ref.TokenID != 0 || ref.ActorID != int64(actor) {
+			return errors.New("native policy lost its account binding across persistence/restart")
+		}
+	}
+	fmt.Println("PASS: canonical native policy bindings; mixed appliance authority refused; retained native account references")
 	fmt.Println("PASS: actual native credential binding and canonical sponsorship; active:", active, "; withdrawal needs no removed key")
 	return nil
 }
