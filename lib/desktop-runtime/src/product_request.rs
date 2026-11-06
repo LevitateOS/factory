@@ -46,6 +46,8 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
 pub enum RepositorySetting {
     Placement,
     EnvironmentGrant,
+    OperatorGrant,
+    Policy,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +61,9 @@ pub enum ProductRequest {
         body: Value,
     },
     Subscription {
+        body: Value,
+    },
+    Capacity {
         body: Value,
     },
     RepositorySetting {
@@ -75,6 +80,7 @@ impl ProductRequest {
             Self::Subscription { body } => {
                 ("PUT", "/api/factory/feed/subscription".into(), Some(body))
             }
+            Self::Capacity { body } => ("PUT", "/api/factory/capacity".into(), Some(body)),
             Self::RepositorySetting {
                 repository,
                 setting,
@@ -89,6 +95,8 @@ impl ProductRequest {
                 let setting = match setting {
                     RepositorySetting::Placement => "placement",
                     RepositorySetting::EnvironmentGrant => "environment-grant",
+                    RepositorySetting::OperatorGrant => "operator-grant",
+                    RepositorySetting::Policy => "policy",
                 };
                 (
                     "PUT",

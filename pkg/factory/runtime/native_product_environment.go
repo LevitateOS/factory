@@ -9,18 +9,44 @@ import (
 	"github.com/levitateos/factory/pkg/project"
 )
 
-func (b *nativeProductAccount) adminAccess(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
-	observed, err := b.repositoryObservation(ctx, actor, repository)
-	if err != nil {
+// Native requests already originate from the admitted local profile owner.
+// A collaboration account attributes the change; it does not make that owner
+// an administrator of the remote repository or grant remote write permission.
+func (b *nativeProductAccount) localOwnerAccess(ctx context.Context, actor collaboration.ActorID) error {
+	if actor != b.binding.Actor.ID || b.binding.Profile.ID != b.port.operation.config.Profile {
+		return factoryservice.ErrRuntimeGrantAccess
+	}
+	return b.current(ctx)
+}
+
+func (b *nativeProductAccount) localResourceAccess(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) error {
+	if err := b.localOwnerAccess(ctx, actor); err != nil {
 		return err
 	}
-	if observed.Admin == nil {
-		return factoryservice.ErrPlacementUnavailable
+	return b.visible(ctx, actor, repository)
+}
+
+func (b *nativeProductAccount) preparationStatus(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*factoryservice.RepositoryPreparation, error) {
+	if actor != b.binding.Actor.ID {
+		return nil, factoryservice.ErrRepositoryHidden
 	}
-	if !*observed.Admin {
-		return factoryservice.ErrPlacementAdminRequired
+	setup, err := b.requestSetup(ctx, int64(repository))
+	if err != nil || setup.Project == "" {
+		return nil, err
 	}
-	return ctx.Err()
+	return &factoryservice.RepositoryPreparation{Project: setup.Project, Ready: setup.State == factoryservice.RequestSetupReady}, nil
+}
+
+// This is recorded standing authority, not proof of a live admitted worker.
+func (b *nativeProductAccount) recordedAuthority(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factory.EffectiveAuthority, error) {
+	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		return factory.EffectiveAuthority{}, err
+	}
+	in, err := b.store.FactoryAuthorityInput(ctx, int64(repository))
+	if err != nil {
+		return factory.EffectiveAuthority{}, err
+	}
+	return factory.EvaluateAuthority(in), nil
 }
 
 func (b *nativeProductAccount) nativeEnvironment(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, active bool) (*project.NativeEnvironment, error) {

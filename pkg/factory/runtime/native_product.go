@@ -78,7 +78,9 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
 		Work:     factoryhttp.Work{Reads: factoryservice.WorkReads{Store: application.Store, Visibility: bound.visible}, Issues: factoryservice.Issues{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
-			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
+			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
+				Bindings: bound.policyBindings, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
+			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Runs:    factoryhttp.Runs{Store: application.Store, Visibility: bound.visible, Status: factoryservice.RunStatus{Store: application.Store}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
@@ -110,12 +112,13 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.ReviewRequestReads = factoryhttp.CollaborationReviewRequests{Service: factoryservice.CollaborationReviewRequests{Source: reads}}
 	product.Repositories.Placements = factoryservice.Placements{Store: application.Store, Host: bound.binding.Host.ID,
 		Runtime:     collaboration.RuntimeRef{ID: collaboration.RuntimeID(port.operation.config.Profile), Profile: port.operation.config.Profile, Kind: collaboration.Native, Name: "This computer"},
-		AdminAccess: bound.adminAccess}
-	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, EnvironmentAccess: bound.adminAccess, NativeEnvironment: bound.nativeEnvironment}
+		AdminAccess: bound.localResourceAccess}
+	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, OperatorAccess: bound.localOwnerAccess,
+		Visibility: bound.visible, EnvironmentAccess: bound.localResourceAccess, NativeEnvironment: bound.nativeEnvironment}
 	product.Repositories.Sponsorships = factoryservice.Sponsorships{Store: application.Store, Writer: application.Coordinator, Visibility: bound.visible, Custody: bound.sponsorship}
 	product.Repositories.Policies = factoryservice.Policies{Writer: application.Coordinator, BindingAccess: bound.policyBinding,
 		WriteAccess: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
-			return bound.adminAccess(ctx, actor, collaboration.RepositoryID(repository))
+			return bound.localResourceAccess(ctx, actor, collaboration.RepositoryID(repository))
 		}}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly

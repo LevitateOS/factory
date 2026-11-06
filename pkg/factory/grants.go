@@ -278,8 +278,8 @@ func (p RepositoryPolicy) ResolveBinding() (ActorBindingRef, error) {
 	return p.Resolve, nil
 }
 
-// Capacity is the appliance-wide factory execution budget, held separately
-// from any repository grant. Only the configured operator changes it.
+// Capacity is the runtime-wide execution limit, separate from repository grants.
+// The desktop's local owner or the appliance's configured operator changes it.
 type Capacity struct {
 	Revision          int64 `json:"revision"`
 	UpdatedBy         int64 `json:"updated_by,string"`

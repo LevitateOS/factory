@@ -24,7 +24,11 @@ statuses/evidence and open security gates remain unchanged. The active correctio
 goal precedes this feature queue. Owner decisions now require local-owner control
 of execution/spending, the full automated pipeline and support for independent
 agent inspection with one GitHub account. The audit records those choices and
-verified corrections, including native request-overview setup readback (A06).
+verified corrections: native request-overview setup readback (A06), and reachable
+local-owner capacity/repository/workspace consent and policy settings (A02/A03).
+The latter passed the existing composed native product check with declared
+provider permissions; connected/installed authority and A04 review semantics
+remain open. Exact evidence and limitations live in the audit register.
 
 ## Remaining product milestones (2026-11-06)
 

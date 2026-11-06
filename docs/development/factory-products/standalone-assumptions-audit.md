@@ -32,6 +32,16 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A02/A03 — local native integration verified.** Desktop now exposes explicit
+  run-limit and repository-run consent alongside controller/workspace controls.
+  Local-owner admission replaces remote-admin admission for local resource and
+  policy settings; native settings readback and typed policy writes are wired.
+  The existing composed product check passed in
+  `/home/vince/tmp/floc6.1PARrb/result.log`: actual Rust/Go/PostgreSQL settings,
+  disabled full-pipeline policy and remote-write refusal with declared
+  `push=false` and no admin observation. Typecheck and desktop UI build passed.
+  No actual GitHub permission matrix, physical UI or broad security closure is
+  claimed. Same-account review/merge semantics (A04) remain pending.
 - **A06 — local native integration verified.** Saved bound-request overview now
   reports explicit unavailable setup when a host has no reader. Desktop supplies
   a native workspace reader; ready requires both approved role preparations in

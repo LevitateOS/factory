@@ -16,9 +16,11 @@ type PlacementChange struct {
 
 // Runtime is the host's configured controller, never a browser-chosen identity.
 type Placements struct {
-	Store       *store.Store
-	Host        collaboration.HostID
-	Runtime     collaboration.RuntimeRef
+	Store   *store.Store
+	Host    collaboration.HostID
+	Runtime collaboration.RuntimeRef
+	// Host-specific controller management: local owner on desktop, repository
+	// administration where the host operates a shared appliance.
 	AdminAccess WorkVisibility
 }
 

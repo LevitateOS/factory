@@ -340,6 +340,69 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .ok_or("canonical repository absent")?
         .to_owned();
     let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+    if std::env::var("SODA_NATIVE_CHECK_LOCAL_RESOURCES").as_deref() == Ok("1") {
+        let settings_path = format!("/api/repositories/{repository}/factory");
+        let before = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        ensure(before.0 == 200, "local settings read unavailable")?;
+        let binding = &before.1["native_bindings"][0];
+        let actor = json!({"native_profile":binding["native_profile"],
+            "native_connection":binding["native_connection"],"actor_id":binding["actor_id"]});
+        let role = json!({"harness":"muse","model":"muse-spark-1.3-contributor",
+            "profile":{"effort":"high","contributor":false}});
+        let changes = [
+            json!({"kind":"capacity","body":{"expected_revision":0,"max_concurrent_runs":2}}),
+            json!({"kind":"repository_setting","repository":repository,"setting":"placement",
+                "body":{"expected_revision":"","state":"active"}}),
+            json!({"kind":"repository_setting","repository":repository,"setting":"operator-grant",
+                "body":{"expected_revision":0,"active":true}}),
+            json!({"kind":"repository_setting","repository":repository,"setting":"environment-grant",
+                "body":{"expected_revision":0,"active":true,"native":true}}),
+            json!({"kind":"repository_setting","repository":repository,"setting":"policy",
+                "body":{"expected_revision":0,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
+                    "roles":{"soda-coder":role,"soda-reviewer":role},"required_checks":["fixture/check"],
+                    "merge_method":"fast-forward-only","publish_actor":actor,"create_actor":actor,
+                    "review_actor":actor,"merge_actor":actor}}),
+        ];
+        for change in changes {
+            let request: ProductRequest = serde_json::from_value(change)?;
+            let (method, target, body) = request.request()?;
+            let reply = call(&runtime, &store, &connection, method, &target, &body).await?;
+            ensure(
+                reply.0 == 200,
+                &format!(
+                    "local resource change {target} refused: {} {}",
+                    reply.0, reply.1["error"]["code"]
+                ),
+            )?;
+        }
+        let after = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        ensure(
+            after.0 == 200
+                && after.1["capacity"]["max_concurrent_runs"] == 2
+                && after.1["operator_grant"]["active"] == true
+                && after.1["environment_grant"]["active"] == true
+                && after.1["policy"]["enabled"] == false,
+            "local resource readback changed permission, limit or disabled automation",
+        )?;
+        let denied = call(&runtime, &store, &connection, "POST", "/api/factory/intents", &serde_json::to_vec(&json!({
+            "id":format!("d{}","1".repeat(24)),"intent":format!("d{}","2".repeat(24)),
+            "repository":repository,"objective":"Do not infer repository write from local ownership",
+            "state":"draft","max_issues":1,"ideas":[],"tasks":[]
+        }))?).await?;
+        ensure(
+            denied.0 == 403,
+            "local resource ownership became repository write permission",
+        )?;
+        fs::write(
+            root.join("local-resource-result.json"),
+            serde_json::to_vec(&json!({
+                "local_owner_controls":true,"run_limit":2,"repository_run_permission":true,
+                "workspace_permission":true,"policy_enabled":false,"provider_write_refused":true,
+            "provider_permissions":"declared push=false and no admin observation; no real provider effects"
+            }))?,
+        )?;
+        println!("PASS: native local-owner capacity/placement/repository/workspace/policy setup and readback without repository admin; provider write stays refused and automation disabled");
+    }
     let mut cases = Vec::new();
     for (i, (kind, title, body)) in [
         (

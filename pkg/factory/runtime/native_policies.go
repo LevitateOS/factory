@@ -18,3 +18,16 @@ func (b *nativeProductAccount) policyBinding(ctx context.Context, actor collabor
 	}
 	return b.current(ctx)
 }
+
+// These are account references for configuration, not provider permissions.
+func (b *nativeProductAccount) policyBindings(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factory.ActorBindingRef, error) {
+	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		return nil, err
+	}
+	var refs []factory.ActorBindingRef
+	for _, kind := range []string{factory.OpRefPublish, factory.OpPRCreate, factory.OpReviewSubmit, factory.OpThreadResolve, factory.OpMerge} {
+		refs = append(refs, factory.ActorBindingRef{Kind: kind, ActorID: int64(actor),
+			NativeProfile: b.binding.Profile.ID, NativeConnection: b.binding.Connection.ID})
+	}
+	return refs, nil
+}
