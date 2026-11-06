@@ -21,12 +21,13 @@ export interface PullDetailContext {
   readonly pull: string;
   readonly actor: string;
   readonly scope: string;
-  readonly initialTab?: Tab;
+  readonly initialTab?: PullTab;
   readonly commandScope?: (signal: AbortSignal) => Promise<string>;
+  navigateTab?(tab: PullTab, signal: AbortSignal): void;
   resolveLink(href: string): string | undefined;
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
-type Tab = 'conversation' | 'reviews' | 'threads' | 'files' | 'checks';
+export type PullTab = 'conversation' | 'reviews' | 'threads' | 'files' | 'checks';
 const empty = () => ({
   busy: false, message: '', pull: undefined as PullItem | undefined,
   files: [] as readonly ChangedFile[], threads: [] as readonly PullThreadView[],
@@ -41,7 +42,7 @@ const empty = () => ({
 export class SodaFactoryPull extends LitElement {
   static properties = {view: {state: true}, tab: {state: true}};
   declare private view: ReturnType<typeof empty>;
-  declare private tab: Tab;
+  declare private tab: PullTab;
   private checkKind: 'status' | 'job' = 'status';
   private current: PullDetailContext | undefined;
   private binding = '';
@@ -94,8 +95,14 @@ export class SodaFactoryPull extends LitElement {
     return true;
   }
   refresh() { this.cursor = ''; this.previous = []; return this.load(); }
-  private select(tab: Tab) {
+  private select(tab: PullTab) {
     if (tab === this.tab || this.view.busy) return;
+    const context = this.current;
+    if (context?.navigateTab) {
+      try { context.navigateTab(tab, this.lifetime.signal); }
+      catch { if (this.live(context)) this.view = {...this.view, message: 'This pull request section could not be opened.'}; }
+      return;
+    }
     this.tab = tab; this.cursor = ''; this.previous = [];
     void this.load();
   }

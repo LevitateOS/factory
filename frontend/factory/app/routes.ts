@@ -2,6 +2,7 @@ import {check, id} from '../api/models.js';
 import {decisionID} from '../api/request-response.js';
 import {factoryRunID} from '../api/run-response.js';
 import {libraryID} from '../api/library-response.js';
+import type {PullTab} from '../pulls/detail.js';
 
 /** Canonical product destinations. Hosts own URLs, history and account selection. */
 export type FactoryRoute =
@@ -10,7 +11,7 @@ export type FactoryRoute =
   | {readonly kind: 'work'; readonly repository: string; readonly intent?: string}
   | {readonly kind: 'issues'; readonly repository: string}
   | {readonly kind: 'pulls'; readonly repository: string}
-  | {readonly kind: 'pull'; readonly repository: string; readonly pull: string}
+  | {readonly kind: 'pull'; readonly repository: string; readonly pull: string; readonly tab?: PullTab}
   | {readonly kind: 'issue-new'; readonly repository: string}
   | {readonly kind: 'issue'; readonly repository: string; readonly issue: string; readonly fragment?: string}
   | {readonly kind: 'work-detail'; readonly repository: string; readonly issue: string}
@@ -56,7 +57,8 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       check(id(route.repository) && id(route.issue));
       return;
     case 'pull':
-      check(id(route.repository) && id(route.pull));
+      check(id(route.repository) && id(route.pull) &&
+        (route.tab === undefined || ['conversation', 'reviews', 'threads', 'files', 'checks'].includes(route.tab)));
       return;
     case 'work-detail':
       check(id(route.repository) && id(route.issue));

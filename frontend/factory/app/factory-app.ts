@@ -248,6 +248,7 @@ export class SodaFactoryApp extends LitElement {
       }
       case 'pull': {
         check(route.kind === 'pull' && ports.context.repository === route.repository && ports.context.pull === route.pull);
+        check((ports.context.initialTab ?? 'conversation') === (route.tab ?? 'conversation'));
         check(ports.context.host === context.host && ports.context.actor === context.actor && ports.context.scope === context.scope);
         const view = new SodaFactoryPull();
         this.own(view, () => { view.context = undefined; });
