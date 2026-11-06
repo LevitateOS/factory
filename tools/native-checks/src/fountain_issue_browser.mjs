@@ -142,10 +142,13 @@ try {
   await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
   await editor.getByRole('button', {name: 'Edit issue', exact: true}).click();
   await editor.getByRole('textbox', {name: 'Edit issue title'}).fill('Rendered native edit');
+  await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).fill('# Edited native description\n\nSaved through the shared editor.');
   await editor.getByRole('button', {name: 'Save issue', exact: true}).click();
   await detail.getByRole('heading', {name: 'Rendered native edit', exact: true}).waitFor();
+  await detail.locator('article[aria-label="Issue description"]').getByText('Saved through the shared editor.', {exact: true}).waitFor();
   await page.reload();
   await detail.getByRole('heading', {name: 'Rendered native edit', exact: true}).waitFor();
+  await detail.locator('article[aria-label="Issue description"]').getByText('Saved through the shared editor.', {exact: true}).waitFor();
   await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
   stage = 'revocation-wait';
   await save('issue-browser-ready', {read: true, comment: true, edit: true});
@@ -183,6 +186,7 @@ try {
     native_original_available: true,
     read_only_before_grant: true,
     shared_comment_and_edit_readback: true,
+    description_edit_readback: true,
     access_revocation_retired_facts: true,
     synthetic_api_or_admission: false,
     installed_release_qualified: false,

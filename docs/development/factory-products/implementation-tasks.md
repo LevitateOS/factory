@@ -30967,6 +30967,8 @@ collaboration grant became writable, that same account posted a comment and
 edited the issue title through the shared UI; both persisted across a browser
 reload. Revocation then retired the issue body and optional controls in the
 still-live session. Evidence: `/home/vince/tmp/fhi-1793962172406/{run.log,host/result.json,host/issue-browser.log}`.
+A fresh run also edited description Markdown through the shared editor and read
+the rendered body back after reload (`/home/vince/tmp/fie-1793964258926/{run.log,host/issue-browser-result.json}`).
 This proves the Fountain source host journey, not GitHub-connected desktop
 writes or a final installed release. T07-EDIT remains pending.
 
