@@ -7,9 +7,11 @@ import {pathToFileURL} from 'node:url';
 const root = process.argv[2];
 const input = JSON.parse(await readFile(resolve(root, 'browser-input.json'), 'utf8'));
 const {chromium} = await import(pathToFileURL(input.module).href);
-const browser = await chromium.launch({headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage']});
-const context = await browser.newContext({ignoreHTTPSErrors: true, viewport: {width: 1280, height: 900}});
-const page = await context.newPage();
+const profile = resolve(root, 'issue-browser-profile');
+const options = {headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  ignoreHTTPSErrors: true, viewport: {width: 1280, height: 900}};
+let context = await chromium.launchPersistentContext(profile, options);
+let page = context.pages()[0] || await context.newPage();
 page.setDefaultTimeout(20000);
 let stage = 'login';
 const save = (name, value) => writeFile(resolve(root, name), JSON.stringify(value), {mode: 0o600, flag: 'wx'});
@@ -28,8 +30,9 @@ const until = async (check, label) => {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 };
-try {
+const login = async () => {
   await page.goto(input.origin + '/user/login');
+  if (!new URL(page.url()).pathname.startsWith('/user/login')) return;
   await page.locator('input[name="user_name"]').fill(input.username);
   await page.locator('input[name="password"]').fill(await readFile(resolve(root, 'browser-password'), 'utf8'));
   await page
@@ -38,6 +41,9 @@ try {
     .getByRole('button', {name: /^sign in$/i})
     .click();
   await page.waitForURL((url) => !url.pathname.startsWith('/user/login'));
+};
+try {
+  await login();
   stage = 'header';
   const repository = '/factory-check/read-one-renamed';
   const list = repository + '/feed/work/issues';
@@ -51,7 +57,7 @@ try {
   stage = 'list';
   await page.locator('soda-factory-issues').getByRole('button', {name: 'Rendered native read', exact: true}).click();
   await page.waitForURL((url) => url.pathname === issue);
-  const detail = page.locator('soda-factory-issue');
+  let detail = page.locator('soda-factory-issue');
   const description = detail.locator('article[aria-label="Issue description"]');
   const comment = detail.locator('#issuecomment-' + input.comment);
   await comment.getByRole('heading', {name: 'Native comment', exact: true}).waitFor();
@@ -123,8 +129,8 @@ try {
     ).endsWith(repository + '/issues/' + input.number),
     'native original unavailable'
   );
-  const editor = page.locator('soda-factory-issue-editor');
-  const composer = page.locator('soda-factory-issue-comment');
+  let editor = page.locator('soda-factory-issue-editor');
+  let composer = page.locator('soda-factory-issue-comment');
   assert(await editor.getByRole('button', {name: 'Edit issue', exact: true}).isDisabled(), 'reader could edit issue');
   assert(await composer.getByRole('button', {name: 'Post comment', exact: true}).isDisabled(), 'reader could post comment');
   await page.screenshot({path: resolve(root, 'issue-browser.png')});
@@ -137,10 +143,29 @@ try {
   stage = 'write';
   await page.reload();
   await detail.getByText('Rendered native read', {exact: true}).waitFor();
+  await editor.getByRole('button', {name: 'Edit issue', exact: true}).click();
+  await editor.getByRole('textbox', {name: 'Edit issue title'}).fill('Unsent native title');
+  await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).fill('Unsent native Markdown draft 茶');
+  await page.waitForFunction(() => Object.keys(localStorage).some(key =>
+    key.includes('issue-edit') && localStorage.getItem(key)?.includes('Unsent native Markdown draft 茶')));
+  stage = 'draft-restart';
+  await context.close();
+  context = await chromium.launchPersistentContext(profile, options);
+  page = context.pages()[0] || await context.newPage();
+  page.setDefaultTimeout(20000);
+  await login();
+  await page.goto(input.origin + issue);
+  detail = page.locator('soda-factory-issue');
+  editor = page.locator('soda-factory-issue-editor');
+  composer = page.locator('soda-factory-issue-comment');
+  await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).waitFor();
+  assert(await editor.getByRole('textbox', {name: 'Edit issue title'}).inputValue() === 'Unsent native title' &&
+    await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).inputValue() === 'Unsent native Markdown draft 茶',
+  'unsent issue draft lost after browser restart');
+  stage = 'write';
   await composer.getByRole('textbox', {name: 'Comment Markdown'}).fill('Written through the shared issue composer.');
   await composer.getByRole('button', {name: 'Post comment', exact: true}).click();
   await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
-  await editor.getByRole('button', {name: 'Edit issue', exact: true}).click();
   await editor.getByRole('textbox', {name: 'Edit issue title'}).fill('Rendered native edit');
   await editor.getByRole('textbox', {name: 'Edit issue Markdown'}).fill('# Edited native description\n\nSaved through the shared editor.');
   await editor.getByRole('button', {name: 'Save issue', exact: true}).click();
@@ -150,6 +175,12 @@ try {
   await detail.getByRole('heading', {name: 'Rendered native edit', exact: true}).waitFor();
   await detail.locator('article[aria-label="Issue description"]').getByText('Saved through the shared editor.', {exact: true}).waitFor();
   await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
+  stage = 'issue-state';
+  const state = page.locator('soda-factory-issue-state');
+  await state.getByRole('button', {name: 'Close issue', exact: true}).click();
+  await until(async () => /·\s*Closed\s*·/.test(await detail.locator('.soda-issue-meta').first().textContent()), 'issue did not close');
+  await state.getByRole('button', {name: 'Reopen issue', exact: true}).click();
+  await until(async () => /·\s*Open\s*·/.test(await detail.locator('.soda-issue-meta').first().textContent()), 'issue did not reopen');
   stage = 'revocation-wait';
   await save('issue-browser-ready', {read: true, comment: true, edit: true});
   await until(async () => {
@@ -187,6 +218,8 @@ try {
     read_only_before_grant: true,
     shared_comment_and_edit_readback: true,
     description_edit_readback: true,
+    unsent_draft_retained_after_browser_restart: true,
+    issue_closed_and_reopened: true,
     access_revocation_retired_facts: true,
     synthetic_api_or_admission: false,
     installed_release_qualified: false,
@@ -204,5 +237,4 @@ try {
   process.exitCode = 1;
 } finally {
   await context.close();
-  await browser.close();
 }

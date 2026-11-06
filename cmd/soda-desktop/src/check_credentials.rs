@@ -144,7 +144,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
             let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft"
-                || fixture["mode"] == "reviewer_requests" && fixture["retain_account"] == true;
+                || (fixture["mode"] == "reviewer_requests" || fixture["issue_navigation"] == true)
+                    && fixture["retain_account"] == true;
             if !retained {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             }
@@ -205,15 +206,18 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 return Ok::<(), String>(());
             }
             if fixture["issue_navigation"] == true {
-                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                let evidence_name = if retained { "github-issue-draft-result.json" } else { "github-ui-write-result.json" };
+                write_consent_evidence(&app, evidence_name, &serde_json::json!({
                     "real_github": true,
                     "webkit": true,
                     "production_ui_ipc_go_pg_native": true,
                     "feed_issue_comment_navigation": true,
                     "factory_detail_back_deep_link": true,
                     "unsubmitted_issue_draft_retained": true,
-                    "provider_writes": false,
-                    "owned_account_removed": true,
+                    "unsent_draft_after_desktop_restart": fixture["resume_pending"] == true,
+                    "issue_closed_and_reopened": fixture["issue_state"] == true,
+                    "provider_writes": fixture["issue_state"] == true,
+                    "owned_account_removed": !retained,
                     "oauth_source": "user_authorized_gh_grant",
                     "factory_device_scope_qualified": false,
                 }))?;

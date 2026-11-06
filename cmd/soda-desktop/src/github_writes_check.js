@@ -79,9 +79,17 @@
         issue()?.querySelector('.soda-issue-detail h2')?.textContent === fixture.expected_title &&
         issue()?.textContent.includes(fixture.comment_body), 'fixture issue or comment unavailable');
       const editor = () => document.querySelector('soda-factory-issue-editor');
-      await click(editor(), 'Edit issue');
+      if (fixture.issue_state) {
+        await write('soda-factory-issue-state', 'Close issue', 'Check saved state', 'issue-state-saved');
+        await until(() => /·\s*Closed\s*·/.test(issue()?.querySelector('.soda-issue-meta')?.textContent), 'issue did not close');
+        await write('soda-factory-issue-state', 'Reopen issue', 'Check saved state', 'issue-state-saved');
+        await until(() => /·\s*Open\s*·/.test(issue()?.querySelector('.soda-issue-meta')?.textContent), 'issue did not reopen');
+      }
+      if (!fixture.resume_pending) await click(editor(), 'Edit issue');
       await until(() => editor()?.querySelector('textarea[aria-label="Edit issue Markdown"]'), 'issue editor unavailable');
-      input(editor().querySelector('textarea[aria-label="Edit issue Markdown"]'), fixture.draft_body);
+      if (fixture.resume_pending) assert(editor().querySelector('textarea[aria-label="Edit issue Markdown"]').value === fixture.draft_body,
+        'issue draft lost after desktop restart');
+      else input(editor().querySelector('textarea[aria-label="Edit issue Markdown"]'), fixture.draft_body);
       await until(() => Object.keys(localStorage).some(key => key.includes('issue') &&
         localStorage.getItem(key)?.includes(fixture.draft_body)), 'issue draft not saved');
       const issueRoute = location.hash;

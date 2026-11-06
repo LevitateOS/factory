@@ -744,7 +744,7 @@ cutovers before implementation; its final closure/provider qualification remains
 | 325 | T04-REPO-UI | T04-REPO-GO, T04-UI | Switch Forge shared component/build/asset consumers to the Factory repository, remove duplicate UI owners and verify both production bundles use the same defining sources; installed parity remains T14-PARITY. | Complete |
 | 326 | T04-REPO-NATIVE | T04-REPO-UI, T05-LIFECYCLE | Remove the remaining duplicate Factory desktop/runtime/workbench and shared Unix transport Rust owners from Forge; point its retained native acceptance/PG consumers at the defining Factory crates and verify the real managed native lifecycle before distribution. Preserve the original source and unrelated workspace changes. | Complete |
 | 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Complete |
-| 328 | T07-EDIT | T07-READ, T07-ISSUE-COMMENT, T07-ISSUE-CREATE, T07-ISSUE-EDIT-BASE, T07-ISSUE-EDITOR, T10-WRITES, T11-WRITES | Shared issue editor/comment mutations, draft recovery and Fountain normal-navigation route cutover; verify real writes in Fountain and the GitHub-connected desktop. Do not claim the later Fountain desktop journey. | Pending |
+| 328 | T07-EDIT | T07-READ, T07-ISSUE-COMMENT, T07-ISSUE-CREATE, T07-ISSUE-EDIT-BASE, T07-ISSUE-EDITOR, T10-WRITES, T11-WRITES | Shared issue editor/comment mutations, draft recovery and Fountain normal-navigation route cutover; verify real writes in Fountain and the GitHub-connected desktop. Do not claim the later Fountain desktop journey. | Complete |
 | 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Pending |
 | 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
 | 331 | T12-PLACEMENT | T01-RUNTIME, T03-APP, T06-CONNECT | Persist/enforce runtime placement, generation and explicit policy enrollment before dispatch. Prove local GitHub single-controller behavior; preserve appliance admission. Remote Fountain placement is qualified in T10-GATEWAY. Automation stays inactive. | Pending |
@@ -31279,3 +31279,19 @@ T07-EDIT/T08-READ/T08-WRITE still own the complete shared host journeys and phys
 interaction. T13/T14 own installed/distribution qualification. Broader permission,
 custody/IPC and D1/D2/D3/D5 gates remain open in the security handoff; automation
 and the full Factory product are not complete.
+
+
+### T07-EDIT: both current host journeys complete (2026-11-06)
+
+The existing native Fountain browser journey now preserves an unsent title/body
+through an actual browser restart, then comments, edits, closes and reopens the
+issue with normal readback. Desktop/WebKit closes/reopens the owned GitHub issue
+and restores its unsent draft after a full desktop restart before any typing.
+Feed, issue/comment, Factory detail, Back and deep-link checks pass in both hosts;
+the earlier editor checks retain stale-content, account-retirement and denied
+writing coverage. TypeScript, desktop assets and native builds pass. Evidence:
+`/home/vince/tmp/fountain-issue-restart-1106.KYkXl7/{run.log,host/issue-browser-result.json}`
+and `/home/vince/tmp/factory-issue-restart-1106.rdTwzJ/{phase1.log,phase2.log,github-issue-draft-result.json,github-ui-write-result.json}`.
+The owned desktop account was removed after the second phase. T07-EDIT is Complete;
+desktop Fountain access, D5 admission and installed qualification remain separate
+open gates.
