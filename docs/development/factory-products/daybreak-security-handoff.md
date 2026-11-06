@@ -3701,3 +3701,17 @@ Actual organization-team lookup and positive user/team requests remain unverifie
 without the authorized organization/second actor. Their closure still requires
 real selected-grant visibility, canonical identity, request/readback/notification
 and recovery observations; no broad permission gate is closed by lookup.
+
+The actual WebKit draft journey exposed a provider summary constraint, not new
+privacy proof: GitHub refuses editing an inline-only pending review with no
+summary record. Factory now keeps that writing local until submission and
+conservatively withholds remote edits for empty provider summaries. Earlier
+indeterminate edits remain fenced under
+`/home/vince/tmp/factory-webkit-writes-1106.{a7rmHl,EMvyxJ}/`;
+matching current provider text is not causal evidence. The private diagnostic
+GraphQL and REST refusals are retained under
+`/home/vince/tmp/factory-review-edit-diagnostic-1106.HJUncs/` and
+`/home/vince/tmp/factory-rest-review-1106.FMForF/`. Those attempts, and the passing
+dummy recovery check `factory-pending-summary-1106.WZdpIV`, do not close the
+cross-account draft-privacy/notification or installed admission dependencies
+above. Closure still requires those exact authorized actor/host observations.

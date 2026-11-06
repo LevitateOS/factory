@@ -132,6 +132,17 @@ func (s nativeHumanPendingReviews) prepare(ctx context.Context, q factory.HumanR
 	if _, err := s.mapRead(ctx, observed.Repository, observed.Name, nil, nil); err != nil {
 		return empty, err
 	}
+	if q.Event == factory.HumanReviewDraft {
+		// GitHub can have inline-only pending reviews without a summary record.
+		// An empty body does not prove that record exists. Keep new summary
+		// writing local until submission instead of attempting an uncertain edit.
+		if pending.Body == "" {
+			return empty, factoryservice.ErrHumanReviewUnavailable
+		}
+		if q.Body == pending.Body {
+			return empty, factoryservice.ErrHumanReviewConflict
+		}
+	}
 	body, hash := (*string)(nil), nativeCreationSHA([]byte(pending.Body))
 	// The canonical empty summary means preserve the saved pending writing.
 	// Draft editing supplies explicit writing, including an empty clear.

@@ -29,20 +29,21 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 		Squash       bool   `json:"squash"`
 		Rebase       bool   `json:"rebase"`
 		Subject      *struct {
-			Kind       string                  `json:"kind"`
-			ExternalID string                  `json:"external_id"`
-			Number     int64                   `json:"number"`
-			State      string                  `json:"state"`
-			Locked     bool                    `json:"locked"`
-			CanUpdate  bool                    `json:"can_update"`
-			CanClose   bool                    `json:"can_close"`
-			CanReopen  bool                    `json:"can_reopen"`
-			Own        bool                    `json:"own"`
-			Draft      bool                    `json:"draft"`
-			Merged     bool                    `json:"merged"`
-			Head       *collaboration.CommitID `json:"head"`
-			Base       *collaboration.CommitID `json:"base"`
-			MergeReady bool                    `json:"merge_ready"`
+			Kind        string                  `json:"kind"`
+			ExternalID  string                  `json:"external_id"`
+			Number      int64                   `json:"number"`
+			State       string                  `json:"state"`
+			Locked      bool                    `json:"locked"`
+			CanUpdate   bool                    `json:"can_update"`
+			CanClose    bool                    `json:"can_close"`
+			CanReopen   bool                    `json:"can_reopen"`
+			Own         bool                    `json:"own"`
+			Draft       bool                    `json:"draft"`
+			Merged      bool                    `json:"merged"`
+			Head        *collaboration.CommitID `json:"head"`
+			Base        *collaboration.CommitID `json:"base"`
+			DraftReview *bool                   `json:"draft_review"`
+			MergeReady  bool                    `json:"merge_ready"`
 		} `json:"subject"`
 	}
 	pull := q.Subject == "pull"
@@ -115,6 +116,17 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	}
 	if facts.Archived || facts.Disabled {
 		set(collaboration.Denied, "repository_read_only", writes...)
+	}
+	if target := facts.Subject; pull && target != nil {
+		fact := result.Actions[collaboration.CommentReview]
+		if fact.State == collaboration.Allowed {
+			if target.DraftReview == nil {
+				fact = collaboration.Capability{State: collaboration.Unknown, Reason: "pending_summary_unobserved"}
+			} else if !*target.DraftReview {
+				fact = collaboration.Capability{State: collaboration.Unavailable, Reason: "pending_summary_empty"}
+			}
+		}
+		result.ReviewDraft = &fact
 	}
 	if target := facts.Subject; target != nil {
 		result.StateActions = map[string]collaboration.Capability{}

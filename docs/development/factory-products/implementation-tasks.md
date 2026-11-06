@@ -31013,3 +31013,23 @@ repository afterward. The host's asynchronous head-settlement check now
 retries only the transient 409 until its existing deadline. Evidence:
 `/home/vince/tmp/fpm-1793963797467/{run.log,host/result.json,host/pull-reader/pull-browser-merge-result.json}`.
 GitHub-connected desktop and final installed qualification remain open.
+
+### T11-WRITES: truthful pending-summary availability (2026-11-06)
+
+The actual WebKit journey found a GitHub constraint missed by the summary-first
+connected check: an inline-only pending review has no summary comment to edit.
+Both GraphQL and REST refused it. Factory now keeps new summary writing local
+until submission when the provider summary is empty. A bounded native capability
+fact reaches the shared UI; Go refuses that draft edit before capture and Rust
+independently refuses before dispatch. This conservative rule also applies after
+an explicit clear; publication can still supply the locally retained summary.
+Nonempty saved summaries remain remotely editable/clearable. An unchanged summary
+is refused before capture without sending a provider mutation.
+
+Go/native builds, TypeScript and desktop assets passed. The existing composed
+pending-review product check passed, including the unchanged-summary refusal and
+its prior durable recovery cases:
+`/home/vince/tmp/factory-pending-summary-1106.WZdpIV/`.
+Actual WebKit continuation is still in progress; this checkpoint does not qualify
+it. The prior indeterminate draft-edit commands remain fenced in their original
+private profiles. T11 and connected/installed/permission gates remain open.

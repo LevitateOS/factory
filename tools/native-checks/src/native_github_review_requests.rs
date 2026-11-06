@@ -3893,6 +3893,18 @@ pub(super) async fn pending_product(
         Ok(request.request()?.2)
     };
     let mut cases = Vec::new();
+    mode("submit-unchanged-draft")?;
+    let unchanged_id = format!("{:032x}", 9800);
+    let before = writes()?;
+    let unchanged = call(
+        &runtime, &store, &connection, "POST", &submit,
+        &envelope(&unchanged_id, "draft", "Exact pending writing 🍵\n[link](relative.md)")?,
+    ).await?;
+    ensure(
+        unchanged.0 == 409 && writes()? == before,
+        "unchanged draft summary dispatched a provider mutation",
+    )?;
+    cases.push("unchanged-draft-not-sent".to_owned());
     for (i, (name, event, body)) in [
         ("comment", "comment", String::new()),
         ("approve", "approve", String::new()),

@@ -88,6 +88,7 @@ type Capabilities struct {
 	Connection   ConnectionID          `json:"connection"`
 	Observation  Observation           `json:"observation"`
 	Actions      map[Action]Capability `json:"actions"`
+	ReviewDraft  *Capability           `json:"review_draft,omitempty"`
 	MergeMethods map[string]Capability `json:"merge_methods,omitempty"`
 	StateActions map[string]Capability `json:"state_actions,omitempty"`
 }

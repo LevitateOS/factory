@@ -143,6 +143,15 @@ impl Client {
                 .body
                 .as_deref()
                 .unwrap_or(r::text(&before["pending"], "body")?);
+            if q.event == "draft" {
+                let saved = r::text(&before["pending"], "body")?;
+                if saved.is_empty() {
+                    return Err(Failure::new(409, "github_pending_summary_unavailable"));
+                }
+                if body == saved {
+                    return Err(Failure::new(409, "github_review_already_desired"));
+                }
+            }
             if body.trim().is_empty()
                 && (q.event == "request_changes" || q.event == "comment" && q.comments_count == 0)
             {

@@ -96,6 +96,12 @@ export class SodaFactoryPullReview extends LitElement {
       approve: pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.review.approve'),
       request_changes: pullActionAllowed(caps, context.repository, context.actor, context.parent, context.head, 'pull.review.request_changes'),
     };
+    const draft = object(caps).review_draft;
+    if (draft !== undefined) {
+      const fact = object(draft);
+      check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(fact.state)));
+      this.allowed.draft &&= fact.state === 'allowed';
+    }
   }
   private async refresh() {
     const context = this.current, signal = this.lifetime.signal;
@@ -244,6 +250,7 @@ export class SodaFactoryPullReview extends LitElement {
       <h3>Review</h3><p role="status">${this.message}</p>
       ${this.saved.blocked ? html`<button type="button" @click=${this.reload}>Reload saved review writing</button>` : ''}
       <label>Review Markdown <textarea aria-label="Review Markdown" .value=${this.writing.draft.body} @input=${this.input} ?disabled=${this.busy || !!pending || this.saved.blocked}></textarea></label>
+      ${!this.allowed.draft && this.allowed.comment ? html`<p>Your summary is saved on this device. Submit it with your pending comments when ready.</p>` : ''}
       ${pending ? html`<p>Saved ${pending.event.replace('_', ' ')} review command. Check its outcome before starting another.</p>
         <button type="button" @click=${() => this.act('lookup')} ?disabled=${this.busy || this.saved.blocked}>Check saved review</button>
         <button type="button" @click=${() => this.act('retry')} ?disabled=${this.busy || this.saved.blocked || pending.cancel || !this.allowed[pending.event]}>Retry original review</button>

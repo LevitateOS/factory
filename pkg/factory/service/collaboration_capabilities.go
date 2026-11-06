@@ -76,6 +76,19 @@ func (s CollaborationCapabilities) Read(ctx context.Context, actor collaboration
 			return empty, ErrCapabilitiesUnavailable
 		}
 	}
+	if fact := r.ReviewDraft; fact != nil {
+		if q.Subject != "pull" || fact.Reason != "" && !collaboration.ValidText(fact.Reason, 256) {
+			return empty, ErrCapabilitiesUnavailable
+		}
+		switch fact.State {
+		case collaboration.Allowed, collaboration.Denied, collaboration.Unsupported, collaboration.Unavailable, collaboration.Unknown:
+		default:
+			return empty, ErrCapabilitiesUnavailable
+		}
+		if fact.State == collaboration.Allowed && r.Actions[collaboration.CommentReview].State != collaboration.Allowed {
+			return empty, ErrCapabilitiesUnavailable
+		}
+	}
 	if r.MergeMethods != nil {
 		if q.Subject != "pull" || len(r.MergeMethods) != 5 {
 			return empty, ErrCapabilitiesUnavailable

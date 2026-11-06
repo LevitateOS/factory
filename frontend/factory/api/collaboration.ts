@@ -68,6 +68,7 @@ export interface Capabilities {
   connection: string;
   observation: Observation;
   actions: Partial<Record<Action, Capability>> | null;
+  review_draft?: Capability;
   merge_methods?: Partial<Record<'merge' | 'squash' | 'rebase' | 'rebase-merge' | 'fast-forward-only', Capability>>;
   state_actions?: Partial<Record<'close' | 'reopen', Capability>>;
 }
