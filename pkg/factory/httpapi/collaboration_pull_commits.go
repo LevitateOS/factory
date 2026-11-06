@@ -12,6 +12,8 @@ import (
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
+const CollaborationPullCommitsResponseLimit = 1 << 20
+
 type CollaborationPullCommits struct {
 	Service factoryservice.CollaborationPullCommits
 	Host    collaboration.HostID

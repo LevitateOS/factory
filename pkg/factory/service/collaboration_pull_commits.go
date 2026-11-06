@@ -56,7 +56,7 @@ func (s CollaborationPullCommits) Read(ctx context.Context, actor collaboration.
 	}
 	seen := map[collaboration.CommitID]bool{}
 	for _, item := range page.Items {
-		if !collaboration.ValidCommitID(item.Commit) || seen[item.Commit] || len(item.Summary) > 65536 || !utf8.ValidString(item.Summary) || len(item.Author) > 1024 || !utf8.ValidString(item.Author) || item.AuthoredAt.IsZero() {
+		if !collaboration.ValidCommitID(item.Commit) || seen[item.Commit] || len(item.Summary) > 4096 || !utf8.ValidString(item.Summary) || len(item.Author) > 1024 || !utf8.ValidString(item.Author) || item.AuthoredAt.IsZero() {
 			return empty, ErrPullCommitsUnavailable
 		}
 		seen[item.Commit] = true

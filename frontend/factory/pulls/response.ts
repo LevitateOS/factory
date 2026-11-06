@@ -117,7 +117,7 @@ export function pullCommits(value: unknown, repository: string, number: string, 
     seen.add(oid);
     const authoredAt = date(row.authored_at);
     check(authoredAt);
-    return {commit: oid, summary: text(row.summary, 65536), author: text(row.author, 1024), authoredAt};
+    return {commit: oid, summary: text(row.summary, 4096), author: text(row.author, 1024), authoredAt};
   }, cursor);
 }
 

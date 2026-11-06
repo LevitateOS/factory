@@ -73,7 +73,7 @@ impl Reader<'_> {
             let author = entry["author"]["name"].as_str().unwrap_or("");
             if !commit(oid)
                 || !seen.insert(oid)
-                || summary.len() > 65536
+                || summary.len() > 4096
                 || summary.contains('\0')
                 || author.len() > 1024
                 || author.contains('\0')
