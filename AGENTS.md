@@ -1,5 +1,29 @@
 # Working on Factory
 
+- Spend at least 80% of active work on implementing and integrating product
+  behavior. Treat planning, test infrastructure, evidence formatting and status
+  reporting as support work. This is a working priority, not a claimed progress
+  percentage or permission to skip a required qualification gate.
+- Choose the next dependency-ready slice by the usable product journey it
+  advances. Implement its defining behavior across the necessary Go, Rust and UI
+  boundaries before creating another internal checkpoint. Keep unsupported
+  provider behavior explicitly unavailable, then move to independent work.
+- Reuse the existing command journal, native connector, integration check and
+  documentation structure. Consolidate repeated operation plumbing when doing
+  so makes the current slice simpler. Do not create a new framework, parallel
+  state machine, per-operation fixture suite or speculative edge-case matrix
+  without a concrete requirement that the existing owner cannot meet.
+- Verify the behavior and risks changed by the slice with the smallest real
+  check that can prove them. Fix a failed check and rerun the affected check;
+  broaden testing only for a demonstrated gap or required gate. Do not repeat
+  successful builds, long expiry waits or connected journeys merely to collect
+  more evidence. A fixture pass does not qualify a connected or installed gate.
+- Keep evidence concise and actionable: record the result, command or retained
+  artifact location, material limitations and next dependency once. Add hashes
+  only where integrity or an explicit gate needs them. Preserve historical
+  evidence, but stop appending duplicate narratives and intermediate attempts
+  to the canonical plan or security handoff. If support work repeatedly crowds
+  out implementation, state the blocker briefly and return to product code.
 - Implement one dependency-ready slice at a time using
   `docs/development/factory-products/implementation-tasks.md`. Do not confuse a
   completed slice with a finished product.
