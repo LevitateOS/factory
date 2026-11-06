@@ -30998,3 +30998,9 @@ the host read the approval through the normal PR API. PR tab controls now show
 their disabled state while a detail read is loading. Evidence:
 `/home/vince/tmp/fpd-1793963416476/{run.log,host/result.json,host/pull-reader/pull-browser-result.json}`.
 Thread resolution, merge controls and GitHub desktop remain to be exercised.
+
+A fresh Fountain host/browser journey upgraded the test collaborator from read
+to write after the read-only admission checks, resolved a real inline discussion
+through the shared control, then reopened it with provider readback. The draft
+review and PR read journey still passed (`/home/vince/tmp/fpt-1793963549943/{run.log,host/result.json}`).
+Merge controls and GitHub desktop remain to be exercised.

@@ -61,6 +61,15 @@ try {
   await detail.getByText('actual native inline reply', {exact: true}).waitFor();
   assert(await detail.locator('section[aria-label="Inline discussions"] > ol > li').count() === 2,
     'shared inline discussions or pending privacy incomplete');
+  stage = 'thread resolution';
+  const discussion = detail.locator('section[aria-label="Inline discussions"] > ol > li')
+    .filter({hasText: 'actual native inline reply'});
+  await discussion.getByRole('button', {name: 'Manage resolution'}).click();
+  await discussion.getByRole('button', {name: 'Resolve discussion'}).click();
+  await discussion.filter({hasText: '· resolved'}).waitFor();
+  await discussion.getByRole('button', {name: 'Manage resolution'}).click();
+  await discussion.getByRole('button', {name: 'Reopen discussion'}).click();
+  await discussion.filter({hasText: '· unresolved'}).waitFor();
   stage = 'checks';
   await detail.getByRole('button', {name: 'Checks', exact: true}).click();
   await detail.locator('section[aria-label="Checks"]').waitFor();
@@ -91,7 +100,7 @@ try {
   await save('pull-browser-result.json', {
     result: 'pass', native_header_and_shared_list: true, detail: true,
     markdown_issue_navigation: true,
-    commits: 3, files: 3, checks: true, inline_discussions: 2,
+    commits: 3, files: 3, checks: true, inline_discussions: 2, thread_resolved_and_reopened: true,
     pending_review_private: true, draft_reopened_and_submitted: true,
     approval_submitted: true, approval_readback_after_reload: true,
   });

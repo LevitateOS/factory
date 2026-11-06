@@ -533,6 +533,14 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
             && reader_caps["actions"]["pull.comment"]["state"] == "allowed",
         "native reader/author capability distinction lost",
     )?;
+    if pull_browser {
+        Seed { browser: b }.json(
+            "PUT",
+            &format!("{repo}/collaborators/pull-reader"),
+            Some(json!({"permission":"write"})),
+            204,
+        )?;
+    }
     let browser_result = if pull_browser { Some(browser_review(&reader, &reader_password)?) } else { None };
     let approval_id = if pull_browser {
         pages(b, &format!("{prefix}/reviews"), generation, "external_id")?
