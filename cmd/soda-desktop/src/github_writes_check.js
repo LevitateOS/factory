@@ -61,6 +61,46 @@
     await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.issue_navigation) {
+      stage = 'issue-navigation';
+      assert(document.querySelector('soda-factory-feed'), 'connected feed unavailable');
+      const nav = name => button(document.querySelector('soda-factory-app nav[aria-label="Factory"]'), name);
+      nav('Issues').click();
+      let row;
+      await until(() => {
+        row = [...document.querySelectorAll('soda-factory-issues li')].find(item =>
+          item.querySelector('.soda-issue-meta')?.textContent.includes('#' + fixture.issue_number + ' ·'));
+        return row?.querySelector('button.soda-issue-title:not([disabled])');
+      }, 'fixture issue unavailable from feed');
+      row.querySelector('button.soda-issue-title').click();
+      const issue = () => document.querySelector('soda-factory-issue');
+      await until(() => issue()?.context?.issue === String(fixture.issue_number) &&
+        issue()?.querySelector('.soda-issue-detail h2')?.textContent === fixture.expected_title &&
+        issue()?.textContent.includes(fixture.comment_body), 'fixture issue or comment unavailable');
+      const editor = () => document.querySelector('soda-factory-issue-editor');
+      await click(editor(), 'Edit issue');
+      await until(() => editor()?.querySelector('textarea[aria-label="Edit issue Markdown"]'), 'issue editor unavailable');
+      input(editor().querySelector('textarea[aria-label="Edit issue Markdown"]'), fixture.draft_body);
+      await until(() => Object.keys(localStorage).some(key => key.includes('issue') &&
+        localStorage.getItem(key)?.includes(fixture.draft_body)), 'issue draft not saved');
+      const issueRoute = location.hash;
+      location.hash = new URLSearchParams({view: 'work-detail', repository: repo, issue: String(fixture.issue_number)});
+      await until(() => new URLSearchParams(location.hash.slice(1)).get('view') === 'work-detail' &&
+        document.querySelector('main[aria-label="Work detail"] soda-factory-work-detail section[aria-label="Factory work detail"]'),
+      'Factory detail did not open');
+      history.back();
+      await until(() => location.hash === issueRoute && issue()?.context?.issue === String(fixture.issue_number) &&
+        editor()?.querySelector('textarea[aria-label="Edit issue Markdown"]')?.value === fixture.draft_body,
+      'Back did not restore the issue draft');
+      nav('Feed').click();
+      await until(() => document.querySelector('soda-factory-feed'), 'feed did not reopen');
+      location.hash = new URLSearchParams({view: 'issue', repository: repo, issue: String(fixture.issue_number)});
+      await until(() => issue()?.context?.issue === String(fixture.issue_number) &&
+        editor()?.querySelector('textarea[aria-label="Edit issue Markdown"]')?.value === fixture.draft_body,
+      'issue deep link lost the draft');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.diff_edge) {
       stage = 'large-diff';
       location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'files'});

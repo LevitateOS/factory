@@ -30978,8 +30978,14 @@ posted an ordinary comment, and read both writes back through normal Factory
 routes. The edit remained visible after navigation; the isolated local account
 was removed. Evidence:
 `/home/vince/tmp/factory-issue-ui-1106.dV0tHg/{run2.log,github-ui-write-result.json}`.
-The complete connected feed/Factory-detail/Back and retained-draft journey still
-needs qualification before T07-EDIT can close; installed desktop remains T13.
+A read-only connected GitHub desktop/WebKit journey then opened the existing
+issue from Feed through the shared list, read its prior comment, opened the
+issue-scoped Factory detail, returned with Back and retained an unsent Markdown
+edit across Back and a direct issue link. The isolated account was removed;
+evidence: `/home/vince/tmp/factory-issue-nav-1106.xnKhvv/{run.log,github-ui-write-result.json}`.
+This confirms navigation and draft custody, not a recorded Factory work journey
+for that issue. Fountain's matching navigation qualification and the T11-WRITES
+prerequisite remain open.
 
 ### T08-READ/T08-WRITE: Fountain shared PR browser journey (2026-11-06)
 

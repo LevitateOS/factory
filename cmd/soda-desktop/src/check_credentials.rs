@@ -106,6 +106,14 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
             .map_err(|e| e.to_string())?
             .connection
     };
+    if let Some(expected) = fixture["expected_account"].as_str() {
+        let accounts = store.status().await.map_err(|e| e.to_string())?;
+        ensure(
+            accounts.len() == 1 && accounts[0].account == expected,
+            "owned check signed into the wrong GitHub account",
+        )?;
+        println!("Owned GitHub check account: {} ({})", accounts[0].label.as_deref().unwrap_or("unlabelled"), accounts[0].account);
+    }
     if fixture["mode"] == "inspect" {
         return Ok(());
     }
@@ -133,6 +141,21 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
+            if fixture["issue_navigation"] == true {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "feed_issue_comment_navigation": true,
+                    "factory_detail_back_deep_link": true,
+                    "unsubmitted_issue_draft_retained": true,
+                    "provider_writes": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["diff_edge"] == true {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,
