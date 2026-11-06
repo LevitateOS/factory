@@ -618,6 +618,12 @@ async fn dispatch(
         return Ok(json!({"valid":valid}));
     }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+    let descriptor_limit = match &call.call {
+        Effect::Read {
+            query: Read::InlinePreparation { .. },
+        } => 64 * 1024,
+        _ => 8192,
+    };
     if !matches!(
         &call.call,
         Effect::CreateComment { .. }
@@ -627,7 +633,7 @@ async fn dispatch(
             | Effect::SubmitPendingReview { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
-    ) && body.len() > 8192
+    ) && body.len() > descriptor_limit
     {
         return Err(Failure::invalid());
     }

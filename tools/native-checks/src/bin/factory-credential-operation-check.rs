@@ -1239,6 +1239,13 @@ fn main() {
                 &args[1],
             )));
         }
+        if args.len() == 4 && args[0] == "--github-inline-preparation-port-declared" {
+            return runtime.block_on(native_github_review_requests::inline_preparation_port(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+        }
         if args.len() == 2 && args[0] == "--github-inline-preparation-declared" {
             return runtime.block_on(native_github_review_requests::inline_preparation(
                 Path::new(&args[1]),

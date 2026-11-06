@@ -12,6 +12,206 @@ use std::{
     time::{Duration, Instant},
 };
 
+// The supplied Go observer composes the production admitted port, not a second
+// provider reader. It records private facts in this owned dummy-only profile.
+pub(super) async fn inline_preparation_port(
+    production: &Path,
+    payload: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use super::native_github_issues::call;
+    use soda_desktop_runtime::{
+        credentials::{Account, Credentials, Provider},
+        supervisor::NativeSupervisor,
+    };
+    use std::{os::unix::fs::PermissionsExt, sync::Arc};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
+    let runtime = NativeSupervisor::start(payload, production, profile)?;
+    let credentials = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        credentials.status().await?.is_empty(),
+        "owned custody not empty",
+    )?;
+    let connection = credentials
+        .store(
+            Account::new(Provider::Github, "https://github.com", "321")?,
+            Token::new(b"factory-declared-review-preparation".to_vec())?,
+        )
+        .await?
+        .connection;
+    let anchor = || json!({"base":"a".repeat(40),"head":"b".repeat(40),"path":"src/tea.md","side":"new","scope":"lines","start_line":2,"end_line":3});
+    let mut cases = Vec::new();
+    for name in [
+        "new-lines",
+        "old-lines",
+        "new-file",
+        "renamed-old",
+        "unicode-path",
+        "maximum-path",
+        "escaped-path",
+        "merge-base",
+        "no-pending",
+    ] {
+        fs::write(io.join("mode"), format!("inline-{name}"))?;
+        let mut a = anchor();
+        match name {
+            "old-lines" => a["side"] = json!("old"),
+            "new-file" => {
+                a["scope"] = json!("file");
+                a["start_line"] = json!(0);
+                a["end_line"] = json!(0);
+            }
+            "renamed-old" => {
+                a["side"] = json!("old");
+                a["path"] = json!("src/old.md");
+            }
+            "unicode-path" => a["path"] = json!("src/茶/π.md"),
+            "maximum-path" => a["path"] = json!(format!("p/{}", "x".repeat(4094))),
+            "escaped-path" => a["path"] = json!(format!("p/{}", "\u{0001}".repeat(4094))),
+            _ => (),
+        }
+        fs::write(
+            io.join("selection.json"),
+            serde_json::to_vec(&json!({"repository":"123","number":7,"anchor":a}))?,
+        )?;
+        let reply = call(
+            &runtime,
+            &credentials,
+            &connection,
+            "GET",
+            "/api/factory/collaboration/repositories",
+            &[],
+        )
+        .await?;
+        ensure(
+            reply.0 == 503,
+            "observer accidentally enabled a product consumer",
+        )?;
+        let proof: serde_json::Value =
+            serde_json::from_slice(&fs::read(io.join("port-proof.json"))?)?;
+        ensure(
+            proof["ok"] == true
+                && proof["identity"]["Connection"]["account"] == "321"
+                && proof["identity"]["SelectedRepository"] == "123"
+                && proof["preparation"]["selection"] == a
+                && proof["preparation"]["repository"] == "123"
+                && proof["preparation"]["diff"]["catalogue"]["complete"] == true
+                && proof["preparation"]["diff"]["catalogue"]["count"] == 13,
+            "Go/native inline facts lost exact selection/account/catalogue",
+        )?;
+        if name == "escaped-path" {
+            ensure(
+                proof["descriptor_bytes"]
+                    .as_u64()
+                    .is_some_and(|n| n > 8192 && n <= 65536),
+                "maximal escaped path did not cross ordinary descriptor bound",
+            )?;
+        }
+        if name == "merge-base" {
+            ensure(
+                proof["preparation"]["diff"]["scope"]["base"] == "a".repeat(40)
+                    && proof["preparation"]["diff"]["scope"]["pull_base"] == "c".repeat(40),
+                "composed preparation conflated branch tip and merge base",
+            )?;
+        }
+        cases.push(name);
+    }
+    for (name, status) in [
+        ("invalid-path", 0),
+        ("invalid-number", 0),
+        ("invalid-repository", 0),
+        ("outside-repository", 403),
+        ("stale-head", 409),
+        ("pending-change", 409),
+        ("comment-change", 409),
+        ("unavailable-patch", 409),
+    ] {
+        fs::write(io.join("mode"), format!("inline-{name}"))?;
+        let mut input = json!({"repository":"123","number":7,"anchor":anchor()});
+        match name {
+            "invalid-path" => input["anchor"]["path"] = json!("x".repeat(4097)),
+            "invalid-number" => input["number"] = json!(0),
+            "invalid-repository" => input["repository"] = json!("0123"),
+            "outside-repository" => input["repository"] = json!("124"),
+            "stale-head" => input["anchor"]["head"] = json!("c".repeat(40)),
+            _ => (),
+        }
+        fs::write(io.join("selection.json"), serde_json::to_vec(&input)?)?;
+        let before = fs::read(io.join("gets"))?;
+        call(
+            &runtime,
+            &credentials,
+            &connection,
+            "GET",
+            "/api/factory/collaboration/repositories",
+            &[],
+        )
+        .await?;
+        let proof: serde_json::Value =
+            serde_json::from_slice(&fs::read(io.join("port-proof.json"))?)?;
+        ensure(
+            proof["ok"] == false && proof["status"] == status,
+            "Go/native invalid selection lost refusal",
+        )?;
+        if status == 0 || name == "outside-repository" {
+            ensure(
+                fs::read(io.join("gets"))? == before,
+                "invalid or outside selector reached provider",
+            )?;
+        }
+        cases.push(name);
+    }
+    // The Go observer sends these declared malformed descriptors only to its
+    // own authenticated dummy port; no provider I/O is expected.
+    for name in ["ordinary-large", "inline-over-bound", "inline-extra-field"] {
+        fs::write(io.join("mode"), format!("inline-{name}"))?;
+        fs::write(
+            io.join("selection.json"),
+            serde_json::to_vec(&json!({"raw_case":name}))?,
+        )?;
+        let before = fs::read(io.join("gets"))?;
+        call(
+            &runtime,
+            &credentials,
+            &connection,
+            "GET",
+            "/api/factory/collaboration/repositories",
+            &[],
+        )
+        .await?;
+        let proof: serde_json::Value =
+            serde_json::from_slice(&fs::read(io.join("port-proof.json"))?)?;
+        ensure(
+            proof["status"] == 400 && fs::read(io.join("gets"))? == before,
+            "untyped/oversized descriptor admission widened",
+        )?;
+        cases.push(name);
+    }
+    credentials.withdraw(&connection).await?;
+    ensure(
+        credentials.status().await?.is_empty(),
+        "owned dummy account retained",
+    )?;
+    tokio::task::spawn_blocking(move || runtime.stop()).await??;
+    ensure(
+        !io.join("unexpected-request").exists()
+            && fs::read_to_string(io.join("writes")).unwrap_or_else(|_| "0".into()) == "0",
+        "preparation port mutated or sent undeclared provider request",
+    )?;
+    fs::write(
+        root.join("inline-preparation-port-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"actual_go_native_callback":true,"actual_custody":true,"actual_postgresql_startup":true,"maximum_escaped_path":4096,"read_descriptor_limit":65536,"other_reads_remain":8192,"provider_mutations":0,"product_writer_connected":false,"real_github":false,"installed_qualification":false}),
+        )?,
+    )?;
+    println!("PASS: admitted Go/native inline preparation including maximal escaped path, narrow envelope refusal, current custody and joined stop; no product writer or provider mutations");
+    Ok(())
+}
+
 pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
     use sha2::{Digest, Sha256};
     use soda_desktop_runtime::github_provider::{InlineAnchor, Read};
