@@ -31396,3 +31396,11 @@ settle it. Inputs were declared Go intents, local ELFs and dummy credentials.
 Native source/preparation/Git/artifact ports, Go launch/MCP transport, native
 policy/funding and coordinator composition, actual provider work and durable
 outcome/restart proof remain unfinished. T09 and D3 remain Pending/open.
+
+Native tool inspection now joins Go's `ToolObserver` to official stable metadata
+and the installed ELF's actual checksum, with native-only directory selection and
+five-minute freshness expiry. Actual callback/identity proof passed in
+`/home/vince/tmp/factory-native-tool-1106.5R0j9j/run.log`. Initial ELF verification
+precedes bounded coordinator callbacks. Native install/updater enrollment and
+artifact installation remain separate unfinished consumers; no supported agent
+flag, provider-task or D3 qualification follows from this artifact check.

@@ -15,6 +15,7 @@ pub(crate) mod recovery;
 mod response;
 mod run;
 mod start;
+mod tool;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
     AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
@@ -31,6 +32,7 @@ pub use receipt::{read_retained, retire_recovered_receipt, write_retained, Recei
 pub use recovery::{NativeRecovery, NativeRecoveryEvidence};
 pub use run::{RunOwner, RunStart};
 pub use start::ExecutionStart;
+pub use tool::{ToolSelection, Tools};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};

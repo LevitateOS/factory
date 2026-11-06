@@ -15,6 +15,42 @@ use std::time::Duration;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 5 && args[4] == "tool" {
+        let supervisor = NativeSupervisor::start(
+            Path::new(&args[1]),
+            Path::new(&args[2]),
+            &root.join("tool-profile"),
+        )?;
+        let ready = supervisor.health()?;
+        let check = |mode: &str| -> Result<(), Box<dyn std::error::Error>> {
+            if !Command::new(&args[3])
+                .arg(root.join("tool-profile"))
+                .arg(&ready.instance)
+                .arg("check-owned-tool")
+                .arg(mode)
+                .status()?
+                .success()
+            {
+                return Err("native tool callback check failed".into());
+            }
+            Ok(())
+        };
+        check("unavailable")?;
+        let selection_started = std::time::Instant::now();
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(supervisor.select_execution_tools(Path::new(&std::env::var(
+                "SODA_NATIVE_CHECK_TOOL_DIRECTORY",
+            )?)))?;
+        println!(
+            "Native official ELF selection: {} ms",
+            selection_started.elapsed().as_millis()
+        );
+        check("current")?;
+        supervisor.stop()?;
+        return Ok(());
+    }
     if args.len() == 5 && args[4] == "execution" {
         return tokio::runtime::Builder::new_current_thread()
             .enable_all()

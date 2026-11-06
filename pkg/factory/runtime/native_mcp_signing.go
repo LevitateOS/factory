@@ -74,13 +74,13 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 		return errors.New("native callback route unavailable")
 	}
 	if ctx.Err() != nil || !collaboration.ValidID(instance) {
-		return errors.New("native MCP callback unavailable")
+		return errors.New("native host callback unavailable")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	body, err := json.Marshal(payload)
 	if err != nil || len(body) > requestLimit {
-		return errors.New("native MCP callback unavailable")
+		return errors.New("native host callback unavailable")
 	}
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
@@ -92,19 +92,19 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://soda-native"+route, bytes.NewReader(body))
 	if err != nil {
-		return errors.New("native MCP callback unavailable")
+		return errors.New("native host callback unavailable")
 	}
 	request.Header.Set("Authorization", "Bearer "+hex.EncodeToString(config.IPCKey()))
 	request.Header.Set("X-Soda-Native-Instance", instance)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := client.Do(request)
 	if err != nil {
-		return errors.New("native MCP callback unavailable")
+		return errors.New("native host callback unavailable")
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(responseLimit+1)))
 	if err != nil || len(raw) > responseLimit || response.StatusCode != http.StatusOK || ctx.Err() != nil || nativeDecode(raw, result) != nil {
-		return errors.New("native MCP callback unavailable")
+		return errors.New("native host callback unavailable")
 	}
 	return nil
 }

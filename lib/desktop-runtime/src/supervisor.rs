@@ -319,6 +319,18 @@ impl NativeSupervisor {
             .ok_or("native execution unavailable")?;
         self.with_executions(|executions| executions.launch(profile.clone(), start))
     }
+    /// The native install/updater owner chooses this directory. No browser or Go
+    /// callback accepts a path; selection alone admits no product execution.
+    pub async fn select_execution_tools(
+        &self,
+        directory: &Path,
+    ) -> Result<crate::factory_provider::ToolSelection> {
+        self.collaboration
+            .as_ref()
+            .ok_or("native collaboration unavailable")?
+            .select_execution_tools(directory)
+            .await
+    }
     pub fn execution_ticket(
         &self,
         intent: &crate::factory_provider::LaunchIntent,

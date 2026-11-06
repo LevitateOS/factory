@@ -13,45 +13,63 @@ use std::sync::{
 use std::time::Duration;
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Call {
-    intent: String,
-    operation: Operation,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum Operation {
-    Inspect,
-    Cancel,
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum Call {
+    Inspect { intent: String },
+    Cancel { intent: String },
+    InspectTool { harness: String },
 }
 
 pub(crate) async fn call(
     executions: Arc<Mutex<Executions>>,
     alive: Arc<AtomicBool>,
+    tools: Option<Arc<super::Tools>>,
     call: Call,
 ) -> io::Result<Value> {
+    let (intent, cancel) = match call {
+        Call::InspectTool { harness } => {
+            if harness != "muse" || !alive.load(Ordering::SeqCst) {
+                return Err(io::Error::other("native tool unavailable"));
+            }
+            let selected = tools
+                .ok_or_else(|| io::Error::other("native tool selection unavailable"))?
+                .inspect()
+                .await?;
+            if !alive.load(Ordering::SeqCst) {
+                return Err(io::Error::other("native tool owner retired"));
+            }
+            return serde_json::to_value(selected).map_err(io::Error::other);
+        }
+        Call::Inspect { intent } => (intent, false),
+        Call::Cancel { intent } => (intent, true),
+    };
     // Kernel observation is bounded and runs outside the HTTP owner and the
     // registry lock. Runtime shutdown joins this blocking read; it owns no run.
-    tokio::task::spawn_blocking(move || snapshot(&executions, &alive, call))
+    tokio::task::spawn_blocking(move || snapshot(&executions, &alive, &intent, cancel))
         .await
         .map_err(|_| io::Error::other("native execution observation failed"))?
 }
 
-fn snapshot(executions: &Mutex<Executions>, alive: &AtomicBool, call: Call) -> io::Result<Value> {
+fn snapshot(
+    executions: &Mutex<Executions>,
+    alive: &AtomicBool,
+    raw: &str,
+    cancel: bool,
+) -> io::Result<Value> {
     let refused = || {
         io::Error::new(
             io::ErrorKind::PermissionDenied,
             "native execution unavailable",
         )
     };
-    let intent = LaunchIntent::from_go(&call.intent)?;
+    let intent = LaunchIntent::from_go(raw)?;
     let binding = ExecutionBinding::from_intent(&intent)?;
     let (ticket, outcome) = {
         let mut executions = executions.lock().map_err(|_| refused())?;
         if !alive.load(Ordering::SeqCst) {
             return Err(refused());
         }
-        if matches!(call.operation, Operation::Cancel) {
+        if cancel {
             executions.cancel(&binding)?;
         }
         (executions.ticket(&binding)?, executions.outcome(&binding)?)

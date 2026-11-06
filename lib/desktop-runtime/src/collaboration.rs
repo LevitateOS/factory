@@ -25,7 +25,7 @@ use std::fs::{self, Metadata};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex, Weak};
+use std::sync::{mpsc, Arc, Mutex, RwLock, Weak};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tokio::net::UnixListener;
@@ -61,6 +61,7 @@ struct State {
     slots: Arc<Semaphore>,
     finalizations: jobs::Sender<Finalize>,
     executions: Arc<Mutex<crate::factory_provider::Executions>>,
+    tools: RwLock<Option<Arc<crate::factory_provider::Tools>>>,
 }
 struct Finalize {
     scope: Arc<Scope>,
@@ -114,6 +115,28 @@ impl Drop for NativeRequest {
     }
 }
 impl Port {
+    pub async fn select_execution_tools(
+        &self,
+        directory: &Path,
+    ) -> Result<crate::factory_provider::ToolSelection> {
+        if !self.0.alive.load(Ordering::SeqCst) {
+            return Err("native tool owner retired".into());
+        }
+        let tools = Arc::new(
+            crate::factory_provider::Tools::new(directory).map_err(|error| error.to_string())?,
+        );
+        let verified = tools.inspect().await.map_err(|error| error.to_string())?;
+        let mut selection = self
+            .0
+            .tools
+            .write()
+            .map_err(|_| "native tool selection unavailable")?;
+        if !self.0.alive.load(Ordering::SeqCst) {
+            return Err("native tool owner retired".into());
+        }
+        *selection = Some(tools);
+        Ok(verified)
+    }
     async fn finalize(&self, scope: Arc<Scope>) -> Result<()> {
         if !scope.current() || !self.0.alive.load(Ordering::SeqCst) {
             return Err("native operation retired".into());
@@ -230,6 +253,7 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
+            tools: RwLock::new(None),
         }));
         let state = port.0.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -654,13 +678,22 @@ async fn dispatch(
         .to_bytes();
     if execution {
         let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let tools = state
+            .tools
+            .read()
+            .map_err(|_| Failure::unavailable())?
+            .clone();
         return crate::factory_provider::port::call(
             state.executions.clone(),
             state.alive.clone(),
+            tools,
             call,
         )
         .await
-        .map_err(|_| Failure::new(503, "native_execution_unavailable"));
+        .map_err(|error| {
+            eprintln!("native execution callback: {error}");
+            Failure::new(503, "native_execution_unavailable")
+        });
     }
     if signing {
         let call: SignCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;

@@ -76,6 +76,20 @@ single-coordinator composition. Close these only with admitted finite provider
 work, current placement/process/custody/tool facts, cancellation and durable
 outcome/restart evidence. D3 and broader custody/IPC gates remain open.
 
+Native tool inspection now resolves the fixed official Muse stable channel and
+manifest, verifies the installed architecture-specific ELF against its published
+size/SHA-256, and exposes that native selection to Go's `ToolObserver`. Relevant
+files are `factory_provider/tool.rs`, `collaboration.rs`, `supervisor.rs` and
+`pkg/factory/runtime/native_execution.go`. Initial hashing belongs to native
+selection; bounded callbacks use the verified identity. Metadata expires after
+five minutes; changed files, missing/current-release artifacts and failed release
+lookups refuse. The actual Go/Rust callback matched the installed official ELF in
+`/home/vince/tmp/factory-native-tool-1106.5R0j9j/run.log`. This proves artifact
+identity and selection, not supported agent flags, inference, isolation or D3.
+The native install/updater must supply the directory and install future releases;
+automatic artifact installation, production shell enrollment and the execution
+joins above remain unfinished. No CLI authentication files were read.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary

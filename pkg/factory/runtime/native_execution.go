@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory/execution"
@@ -23,6 +24,31 @@ type NativeExecution struct {
 
 var _ execution.RunObserver = NativeExecution{}
 var _ execution.CustodyObserver = NativeExecution{}
+var _ execution.ToolObserver = NativeExecution{}
+
+func (p NativeExecution) InspectTool(ctx context.Context, family string) (execution.ToolObservation, error) {
+	var empty execution.ToolObservation
+	if family != project.FactoryHarnessMuse {
+		return empty, execution.ErrProvenance
+	}
+	var selected struct {
+		Tool          execution.NativeTool `json:"tool"`
+		Channel       string               `json:"channel"`
+		CheckedAtUnix int64                `json:"checked_at_unix"`
+	}
+	if err := nativeHostCall(ctx, p.Config, p.Instance, "/api/native/execution", struct {
+		Operation string `json:"operation"`
+		Harness   string `json:"harness"`
+	}{"inspect_tool", family}, &selected); err != nil {
+		return empty, err
+	}
+	checked := time.Unix(selected.CheckedAtUnix, 0)
+	if selected.Channel != "muse-stable" || time.Since(checked) > 5*time.Minute || checked.After(time.Now().Add(5*time.Second)) {
+		return empty, execution.ErrProvenance
+	}
+	observed := execution.ToolObservation{Kind: collaboration.Native, Native: &selected.Tool}
+	return observed, observed.ValidateFor(family)
+}
 
 type nativeExecutionSnapshot struct {
 	IntentDigest   string                              `json:"intent_digest"`

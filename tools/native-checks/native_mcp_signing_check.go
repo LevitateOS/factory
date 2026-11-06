@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -1063,7 +1064,9 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 func main() {
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "check-owned-execution" {
+		if os.Args[3] == "check-owned-tool" {
+			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-owned-execution" {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -1088,4 +1091,39 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func ownedToolFixture(profile, instance, mode string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance}
+	observed, err := port.InspectTool(ctx, project.FactoryHarnessMuse)
+	if mode == "unavailable" {
+		if err == nil {
+			return errors.New("unselected native tool became available")
+		}
+		fmt.Println("PASS: unselected native executable remains unavailable")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	file, err := os.Open(observed.Native.Executable)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err = io.Copy(digest, file); err != nil || observed.Native.SHA256 != hex.EncodeToString(digest.Sum(nil)) {
+		return errors.New("native tool observation differs from actual installed bytes")
+	}
+	if _, err = port.InspectTool(ctx, "unsupported"); err == nil {
+		return errors.New("unknown native harness became available")
+	}
+	fmt.Println("PASS: actual Go/native tool callback verifies official stable Muse", observed.Native.Version, "ELF", observed.Native.SHA256)
+	return nil
 }
