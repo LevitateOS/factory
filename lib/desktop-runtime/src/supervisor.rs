@@ -336,6 +336,14 @@ impl NativeSupervisor {
             .ok_or("native execution enrollment unavailable")?
             .enroll_execution_account(credentials, capability)
     }
+    /// The native receiver chooses an empty owned directory. Recovery publishes
+    /// a fresh `checkout` child; only the registration ID crosses to Go.
+    pub fn register_recovery_checkout(&self, path: &Path) -> Result<String> {
+        self.collaboration
+            .as_ref()
+            .ok_or("native work recovery unavailable")?
+            .register_recovery_checkout(path)
+    }
     /// The native install/updater owner chooses this directory. No browser or Go
     /// callback accepts a path; selection alone admits no product execution.
     pub async fn select_execution_tools(

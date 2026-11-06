@@ -8,6 +8,7 @@ mod custody;
 mod executions;
 mod intent;
 pub(crate) mod launch;
+pub(crate) mod work;
 mod mcp;
 mod observation;
 mod owner;

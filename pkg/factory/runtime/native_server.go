@@ -63,7 +63,9 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 		return errors.New("native Factory database startup failed")
 	}
 	defer func() { runErr = errors.Join(runErr, db.Close()) }()
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db}, binding)
+	instance := collaboration.NewID()
+	native := NativeExecution{Config: config, Instance: instance, Store: db}
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {
@@ -72,7 +74,6 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 		return errors.New("native Factory retained recovery failed")
 	}
 	cancelStartup()
-	instance := collaboration.NewID()
 	application.application.Coordinator.MCPSecret = NativeMCPSecretDeriver(config, instance)
 	var nativeProvider http.Handler
 	if connector != nil {

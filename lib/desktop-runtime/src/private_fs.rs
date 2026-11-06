@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fs::{self, DirBuilder, File, OpenOptions};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::Path;
 
@@ -45,4 +46,40 @@ pub(crate) fn private_file(path: &Path, fresh: bool) -> Result<File> {
         return Err("native database file must be owned and private".into());
     }
     Ok(file)
+}
+
+pub(crate) fn write_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    File::open(
+        path.parent()
+            .ok_or_else(|| io::Error::other("native record parent missing"))?,
+    )?
+    .sync_all()
+}
+pub(crate) fn read_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || meta.len() > limit as u64
+    {
+        return Err(io::Error::other("native record is not private and bounded"));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != meta.len() {
+        return Err(io::Error::other("native record changed"));
+    }
+    Ok(bytes)
 }

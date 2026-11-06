@@ -593,6 +593,39 @@ async fn managed_execution(
         )?;
         if mode == "finite" && candidate_check {
             command("check-owned-execution", "export")?;
+            let destination = root.join("recovered-work");
+            DirBuilder::new().mode(0o700).create(&destination)?;
+            let target = supervisor.register_recovery_checkout(&destination)?;
+            fs::write(profile.join("native-recovery-target.id"), target)?;
+            command("check-owned-execution", "recover")?;
+            if fs::read(destination.join("checkout/native-candidate.txt"))?
+                != b"Actual isolated coder candidate\n"
+            {
+                return Err("recovered checkout lost the actual candidate".into());
+            }
+            if destination.join("checkout/.factory-build").exists()
+                || destination.join("checkout/factory-env").exists()
+            {
+                return Err("recovery copied the worker environment".into());
+            }
+            fs::write(
+                destination.join("checkout/README.md"),
+                b"Human edit retained on recovery retry\n",
+            )?;
+            command("check-owned-execution", "recover_replay")?;
+            if fs::read(destination.join("checkout/README.md"))?
+                != b"Human edit retained on recovery retry\n"
+            {
+                return Err("recovery retry overwrote human work".into());
+            }
+            let occupied = root.join("occupied-recovery");
+            DirBuilder::new().mode(0o700).create(&occupied)?;
+            fs::write(occupied.join("human.txt"), b"Retain existing work\n")?;
+            if supervisor.register_recovery_checkout(&occupied).is_ok()
+                || fs::read(occupied.join("human.txt"))? != b"Retain existing work\n"
+            {
+                return Err("native target registration changed occupied work".into());
+            }
         }
     }
     if candidate_check {
@@ -628,6 +661,21 @@ async fn managed_execution(
             .success()
         {
             return Err("native candidate export after restart failed".into());
+        }
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&health.instance)
+            .arg("check-owned-execution")
+            .arg("recover_replay")
+            .status()?
+            .success()
+        {
+            return Err("native work recovery replay after restart failed".into());
+        }
+        if fs::read(root.join("recovered-work/checkout/README.md"))?
+            != b"Human edit retained on recovery retry\n"
+        {
+            return Err("restarted recovery changed human work".into());
         }
         restarted.stop()?;
         println!("PASS: exact candidate bundle remains exportable after native restart without the execution registry");

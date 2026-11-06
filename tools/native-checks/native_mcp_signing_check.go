@@ -1031,6 +1031,45 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	}
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 	address := execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}
+	if mode == "recover" || mode == "recover_replay" {
+		targetID, readErr := os.ReadFile(filepath.Join(profile, "native-recovery-target.id"))
+		if readErr != nil {
+			return readErr
+		}
+		provenance := run.Native.Provenance
+		request := execution.WorkRecoveryRequest{Address: address, Native: &execution.NativeRecovery{
+			Source: execution.NativeWorkspaceRef{Profile: provenance.Profile, InstanceID: provenance.InstanceID, WorktreeID: provenance.WorktreeID},
+			Target: execution.NativeCheckoutRef{Profile: config.Profile, CheckoutID: string(targetID)},
+		}}
+		if mode == "recover" {
+			if _, err = port.RecoverWork(ctx, request); !errors.Is(err, execution.ErrRecovery) {
+				return errors.New("native work copied before reconciliation")
+			}
+			coordinator := control.NewCoordinator(db, port, port)
+			defer coordinator.Close()
+			reconciled, reconcileErr := coordinator.Reconcile(ctx)
+			if reconcileErr != nil || !slices.Contains(reconciled.Settled, run.ID) {
+				return fmt.Errorf("local native reconciliation: %+v %v", reconciled, reconcileErr)
+			}
+			copied, copyErr := coordinator.RecoverRunWork(ctx, run.ID, request.Target())
+			if copyErr != nil {
+				return copyErr
+			}
+			replayed, copyErr := coordinator.RecoverRunWork(ctx, run.ID, request.Target())
+			if copyErr != nil || !reflect.DeepEqual(copied, replayed) {
+				return errors.New("canonical native work receipt changed on replay")
+			}
+		}
+		receipt, copyErr := port.RecoverWork(ctx, request)
+		if copyErr != nil {
+			return copyErr
+		}
+		if !receipt.Reused || receipt.ValidateFor(request) != nil {
+			return errors.New("native work retry did not reuse the installed checkout")
+		}
+		fmt.Println("PASS: canonical local native reconciliation and work recovery; settled-source guard, durable receipt replay and native reuse without recopy")
+		return nil
+	}
 	if mode == "launch_refused" {
 		intent, parseErr := execution.ParseNativeIntent(run.Native.Intent)
 		if parseErr != nil {

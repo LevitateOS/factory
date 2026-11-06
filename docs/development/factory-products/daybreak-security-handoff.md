@@ -207,8 +207,24 @@ canonical Go-to-native positive launch, provider identity/spending authority,
 positive MCP activation, production coordinator or product settlement. Existing
 cancelled/interrupted outcomes remain unresolved.
 
-Remaining dependencies: admitted retry/reviewer integration, registered-checkout
-work recovery, checkpoint/artifact operations, shell enrollment of the native
+Registered-checkout recovery update: `factory_provider/work.rs` and
+`pkg/factory/runtime/native_work.go` now join exact retained source/result to an
+owned, native-registered fresh directory. The local coordinator recovery, durable
+receipt replay, nonempty-target refusal, human-edit preservation and replay after
+restart passed in `/home/vince/tmp/fwrc6.ngtHWu/run.log`. Go receives an opaque
+registration ID, not a destination path or provider credentials. Private byte
+files use `private_fs.rs`; `collaboration.rs` owns the callback/lifetime.
+Git commands have a fixed environment, deadline, process group and resource limits;
+installation uses no-replace rename. Interrupted staging remains preserved and
+requires a fresh target. These controls are implementation facts, not qualification.
+Adversarial target swaps, attribute expansion/peak disk bounds and abrupt host-death
+descendant teardown remain unverified. Closing those tasks requires evidence of
+confined effects, bounded actual resources and complete owned-process termination
+under those conditions; hacking-like checks require user-started Daybreak. Shell
+selection remains an unfinished consumer. No broad D3/custody/IPC gate is closed.
+
+Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
+checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy
 `ActorBindingRef.TokenID` is not native account authority), current provider policy/
 funding and positive MCP activation, followed by

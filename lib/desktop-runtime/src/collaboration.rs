@@ -65,6 +65,7 @@ struct State {
     preparations: Arc<crate::factory_provider::preparations::Preparations>,
     execution_accounts:
         Arc<RwLock<BTreeMap<String, Arc<crate::factory_provider::launch::Account>>>>,
+    work: Arc<crate::factory_provider::work::Work>,
 }
 struct Finalize {
     scope: Arc<Scope>,
@@ -118,6 +119,12 @@ impl Drop for NativeRequest {
     }
 }
 impl Port {
+    pub(crate) fn register_recovery_checkout(&self, path: &Path) -> Result<String> {
+        self.0
+            .work
+            .register(path)
+            .map_err(|error| error.to_string())
+    }
     pub(crate) fn execution_source(
         &self,
         intent: &crate::factory_provider::LaunchIntent,
@@ -287,6 +294,17 @@ impl Owner {
                 .map_err(|error| error.to_string())?,
         );
         let (retired, mut retirement) = watch::channel(false);
+        let work = Arc::new(
+            crate::factory_provider::work::Work::new(
+                channel
+                    .socket
+                    .parent()
+                    .ok_or("native recovery profile unavailable")?,
+                &channel.profile,
+                alive.clone(),
+            )
+            .map_err(|error| error.to_string())?,
+        );
         let (finalizations, mut finalization_jobs) = jobs::channel::<Finalize>(MAX_OPERATIONS);
         let port = Port(Arc::new(State {
             channel,
@@ -301,6 +319,7 @@ impl Owner {
             tools: RwLock::new(None),
             preparations,
             execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
+            work,
         }));
         let state = port.0.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -767,6 +786,23 @@ async fn dispatch(
     if execution {
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if let crate::factory_provider::port::Call::Recover {
+            intent,
+            checkout_id,
+        } = call
+        {
+            let owner = state.work.clone();
+            let preparations = state.preparations.clone();
+            return tokio::task::spawn_blocking(move || {
+                owner.recover(&intent, &checkout_id, &preparations)
+            })
+            .await
+            .map_err(|_| Failure::unavailable())?
+            .map_err(|error| {
+                eprintln!("native work recovery: {error}");
+                Failure::new(503, "native_work_recovery_unavailable")
+            });
+        }
         if let crate::factory_provider::port::Call::Launch {
             intent,
             prompt,

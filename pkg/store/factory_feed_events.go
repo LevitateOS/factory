@@ -129,7 +129,15 @@ func recordFactoryFeedEventTx(ctx context.Context, tx *sql.Tx, repository, issue
 func factoryRunFeedScopeTx(ctx context.Context, tx *sql.Tx, run, project string) (repository, issue int64, assignment string, err error) {
 	err = tx.QueryRowContext(ctx, `SELECT repository,issue,id FROM factory_assignments WHERE run=$1`, run).Scan(&repository, &issue, &assignment)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = tx.QueryRowContext(ctx, `SELECT r.id`+nativeProjectCollaborationJoin+` WHERE p.id=$1`, project).Scan(&repository)
+		var native bool
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(data->'native'!='null'::jsonb,FALSE) FROM factory_runs WHERE id=$1`, run).Scan(&native); err != nil {
+			return
+		}
+		if native {
+			err = tx.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, project).Scan(&repository)
+		} else {
+			err = tx.QueryRowContext(ctx, `SELECT r.id`+nativeProjectCollaborationJoin+` WHERE p.id=$1`, project).Scan(&repository)
+		}
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}

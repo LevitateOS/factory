@@ -16,6 +16,10 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    Recover {
+        intent: String,
+        checkout_id: String,
+    },
     Launch {
         intent: String,
         prompt: String,
@@ -48,6 +52,9 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::Recover { .. } => {
+            return Err(io::Error::other("native work recovery owner required"))
+        }
         Call::Launch { .. } => return Err(io::Error::other("native launch owner required")),
         Call::Export { intent, candidate } => {
             return tokio::task::spawn_blocking(move || {

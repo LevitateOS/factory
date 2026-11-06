@@ -31485,3 +31485,14 @@ unadmitted rows was verified. Full positive Go/coordinator/provider composition,
 registered-checkout recovery, checkpoint/artifact ports, shell account/native
 grant binding, positive MCP and interrupted-outcome settlement remain pending.
 T09 and D3 stay open; no provider or installed qualification is claimed.
+
+Native work recovery now imports retained base/result bundles into a fresh checkout
+under a native-registered directory. Go receives only its registration ID; replay
+preserves human edits. The real local coordinator reconciled the run and recorded
+the recovery receipt using the native workspace's repository mapping. Recovery,
+receipt replay, occupied-target refusal and replay after native restart passed in
+`/home/vince/tmp/fwrc6.ngtHWu/run.log`; provider HOME/build state was excluded.
+The native server now supplies actual host/custody ports, but background coordinator
+startup, shell directory selection, checkpoint/artifact ports, native account/actor
+binding, positive MCP/provider execution and interrupted settlement remain pending.
+This local fixture does not qualify provider admission or close T09/D3.

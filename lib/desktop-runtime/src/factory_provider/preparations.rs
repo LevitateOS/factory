@@ -1,7 +1,7 @@
 //! Own credential-free preparation jobs and their private immutable inputs.
 //! Go owns approval and enrollment. Request drop never owns an admitted job.
 use super::{AgentCancellation, Broker, Role};
-use crate::private_fs::private_dir;
+use crate::private_fs::{private_dir, read_bytes as load_bytes, write_bytes as save_bytes};
 use crate::supervisor::NativeChannel;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -9,9 +9,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_STAGE_BUNDLE};
 use std::collections::BTreeMap;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::fs;
+use std::io;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -46,39 +46,8 @@ fn save(path: &Path, value: &impl Serialize) -> io::Result<()> {
     let bytes = serde_json::to_vec(value).map_err(io::Error::other)?;
     save_bytes(path, &bytes)
 }
-fn save_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    File::open(path.parent().ok_or_else(denied)?)?.sync_all()
-}
 fn load<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
     serde_json::from_slice(&load_bytes(path, 2 * 1024 * 1024)?).map_err(io::Error::other)
-}
-fn load_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(path)?;
-    let meta = file.metadata()?;
-    if !meta.is_file()
-        || meta.uid() != unsafe { libc::geteuid() }
-        || meta.mode() & 0o077 != 0
-        || meta.len() > limit as u64
-    {
-        return Err(denied());
-    }
-    let mut bytes = Vec::new();
-    file.take(limit as u64 + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 != meta.len() {
-        return Err(denied());
-    }
-    Ok(bytes)
 }
 struct DerivedSource {
     key: String,
@@ -274,6 +243,34 @@ pub(crate) struct Preparations {
     entries: Mutex<BTreeMap<String, Entry>>,
 }
 impl Preparations {
+    pub(crate) fn recovery_bundle(&self, intent: &super::LaunchIntent) -> io::Result<Vec<u8>> {
+        let scope = intent.scope()?;
+        if scope.profile != self.profile {
+            return Err(denied());
+        }
+        let native = json!({"profile":scope.profile,"instance_id":intent.instance(),"worktree_id":intent.worktree()});
+        let key = digest(&serde_json::to_vec(&native).map_err(io::Error::other)?)[..32].to_owned();
+        let directory = self.directory.join(key);
+        let meta = directory.symlink_metadata()?;
+        if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o077 != 0 {
+            return Err(denied());
+        }
+        let input = Input::decode(
+            load(&directory.join("request.json"))?,
+            &self.profile,
+            intent.instance(),
+        )?;
+        let bundle = input.effective_bundle(&directory)?;
+        if input.native != native
+            || input.workspace != intent.workspace()
+            || input.source != scope.candidate
+            || input.role != scope.role
+            || digest(&bundle) != scope.source_sha256
+        {
+            return Err(denied());
+        }
+        Ok(bundle)
+    }
     pub(crate) fn execution_material(
         &self,
         intent: &super::LaunchIntent,
