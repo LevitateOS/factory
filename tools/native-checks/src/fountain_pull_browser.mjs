@@ -5,6 +5,7 @@ import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 const root = process.argv[2];
+const merge = process.argv[3] === 'merge';
 const input = JSON.parse(await readFile(resolve(root, 'pull-browser-input.json'), 'utf8'));
 const {chromium} = await import(pathToFileURL(input.module).href);
 const browser = await chromium.launch({headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage']});
@@ -24,6 +25,21 @@ try {
   const repository = '/factory-check/pull-code';
   const list = repository + '/feed/work/pulls';
   const detailPath = list + '/2';
+  if (merge) {
+    stage = 'merge';
+    await page.goto(input.origin + detailPath);
+    const detail = page.locator('soda-factory-pull');
+    await detail.getByRole('heading', {name: 'Native code review', exact: true}).waitFor();
+    const control = detail.locator('soda-factory-pull-merge');
+    await control.getByRole('combobox', {name: 'Merge method'}).selectOption('merge');
+    await control.getByRole('textbox', {name: 'Merge message'}).fill('Merge reviewed native code');
+    await control.getByRole('button', {name: 'Merge pull request'}).click();
+    await control.getByText('Merge recorded. Refresh to read the provider state.', {exact: true}).waitFor();
+    await page.reload();
+    await detail.locator('.soda-pull-meta').filter({hasText: '· merged'}).waitFor();
+    await save('pull-browser-merge-result.json', {result: 'pass', merged: true, readback_after_reload: true});
+    console.log('PASS: real Fountain shared PR merge and provider readback');
+  } else {
   stage = 'navigation';
   await page.goto(input.origin + repository + '/feed');
   const pullsTab = page.locator('a[data-soda-place="pulls"]');
@@ -105,8 +121,10 @@ try {
     approval_submitted: true, approval_readback_after_reload: true,
   });
   console.log('PASS: real Fountain shared PR reads and draft review reopening/submission');
+  }
 } catch (error) {
-  await save('pull-browser-error.json', {stage, error_class: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 512)});
+  await save(merge ? 'pull-browser-merge-error.json' : 'pull-browser-error.json',
+    {stage, error_class: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 512)});
   console.error('FAIL: native Fountain PR browser stage=' + stage);
   process.exitCode = 1;
 } finally {

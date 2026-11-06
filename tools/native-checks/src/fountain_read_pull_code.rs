@@ -76,18 +76,21 @@ fn file(
     )
 }
 
-fn browser_review(b: &Browser, password: &str) -> Result<Value> {
+fn browser_review(b: &Browser, password: &str, merge: bool) -> Result<Value> {
     let module = PathBuf::from(
         std::env::var_os("FACTORY_CHECK_BROWSER_MODULE")
             .ok_or("explicit owned Playwright module required for --pull-code-browser")?,
     );
     require(module.is_absolute() && module.starts_with("/home") && module.is_file(), "owned browser module unavailable")?;
-    private_file(&b.root.join("pull-browser-password"), password.as_bytes())?;
-    private_file(&b.root.join("pull-browser-input.json"), &serde_json::to_vec(&json!({"module":module,"origin":b.origin}))?)?;
-    private_file(&b.root.join("pull-browser.mjs"), include_bytes!("fountain_pull_browser.mjs"))?;
+    if !merge {
+        private_file(&b.root.join("pull-browser-password"), password.as_bytes())?;
+        private_file(&b.root.join("pull-browser-input.json"), &serde_json::to_vec(&json!({"module":module,"origin":b.origin}))?)?;
+        private_file(&b.root.join("pull-browser.mjs"), include_bytes!("fountain_pull_browser.mjs"))?;
+    }
+    let name = if merge { "pull-browser-merge" } else { "pull-browser" };
     let mut browser = OwnedChild::spawn(
-        Command::new("bun").arg(b.root.join("pull-browser.mjs")).arg(&b.root),
-        &b.root.join("pull-browser.log"),
+        Command::new("bun").arg(b.root.join("pull-browser.mjs")).arg(&b.root).arg(if merge { "merge" } else { "review" }),
+        &b.root.join(format!("{name}.log")),
     )?;
     let until = Instant::now() + Duration::from_secs(120);
     loop {
@@ -98,8 +101,8 @@ fn browser_review(b: &Browser, password: &str) -> Result<Value> {
         require(Instant::now() < until, "native PR browser deadline")?;
         thread::sleep(Duration::from_millis(25));
     }
-    let result: Value = serde_json::from_slice(&fs::read(b.root.join("pull-browser-result.json"))?)?;
-    require(result["result"] == "pass" && result["approval_submitted"] == true, "native PR browser proof incomplete")?;
+    let result: Value = serde_json::from_slice(&fs::read(b.root.join(format!("{name}-result.json")))?)?;
+    require(result["result"] == "pass" && result[if merge { "merged" } else { "approval_submitted" }] == true, "native PR browser proof incomplete")?;
     Ok(result)
 }
 
@@ -541,7 +544,7 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
             204,
         )?;
     }
-    let browser_result = if pull_browser { Some(browser_review(&reader, &reader_password)?) } else { None };
+    let browser_result = if pull_browser { Some(browser_review(&reader, &reader_password, false)?) } else { None };
     let approval_id = if pull_browser {
         pages(b, &format!("{prefix}/reviews"), generation, "external_id")?
             .iter()
@@ -578,7 +581,14 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
     require(moved_head != head, "head update did not move")?;
     let until = Instant::now() + Duration::from_secs(20);
     loop {
-        let current = read(b, &format!("{prefix}/files?limit=1"), generation, 200)?;
+        let (status, body, _) = b.request(&format!("{prefix}/files?limit=1"), None, Some(generation))?;
+        if status == 409 {
+            require(Instant::now() < until, "native hidden PR head stayed unsettled")?;
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
+        require(status == 200, "native hidden PR head read failed")?;
+        let current: Value = serde_json::from_str(&body)?;
         if current["diff"]["head"] == moved_head {
             break;
         }
@@ -628,6 +638,7 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
     ] {
         read(b, &path, generation, 400)?;
     }
+    let merge_result = if pull_browser { Some(browser_review(&reader, &reader_password, true)?) } else { None };
     Seed { browser: b }.json(
         "DELETE",
         &format!("{repo}/collaborators/pull-reader"),
@@ -667,6 +678,6 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
     )?;
     println!("PASS: real private native PR metadata/files/reviews/threads/discussion, immutable anchors and changed-head refusal, pending privacy, non-author approval and access revocation");
     Ok(
-        json!({"result":"pass","pulls":3,"files":3,"reviews":3,"threads":3,"full_body_runes":body.chars().count(),"pending_privacy":true,"changed_head":true,"access_revocation":true,"browser":browser_result}),
+        json!({"result":"pass","pulls":3,"files":3,"reviews":3,"threads":3,"full_body_runes":body.chars().count(),"pending_privacy":true,"changed_head":true,"access_revocation":true,"browser":browser_result,"merge_browser":merge_result}),
     )
 }

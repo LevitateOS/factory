@@ -31004,3 +31004,12 @@ to write after the read-only admission checks, resolved a real inline discussion
 through the shared control, then reopened it with provider readback. The draft
 review and PR read journey still passed (`/home/vince/tmp/fpt-1793963549943/{run.log,host/result.json}`).
 Merge controls and GitHub desktop remain to be exercised.
+
+The fresh Fountain host/browser journey then completed the shared merge
+control after the changed-head and historical-anchor checks: the writer chose
+the native merge method, entered its message, received a committed result and
+read the merged PR back after browser reload. Revocation still denied the
+repository afterward. The host's asynchronous head-settlement check now
+retries only the transient 409 until its existing deadline. Evidence:
+`/home/vince/tmp/fpm-1793963797467/{run.log,host/result.json,host/pull-reader/pull-browser-merge-result.json}`.
+GitHub-connected desktop and final installed qualification remain open.
