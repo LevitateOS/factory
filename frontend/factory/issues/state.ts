@@ -2,7 +2,7 @@ import {LitElement, html} from 'lit';
 import {check, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {IssueRef} from '../api/collaboration.js';
-import {issueActionAllowed} from '../api/capability-response.js';
+import {issueStateAllowed} from '../api/capability-response.js';
 import {issueDetail} from '../api/issue-response.js';
 import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
@@ -88,7 +88,7 @@ export class SodaFactoryIssueState extends LitElement {
     const issue = issueDetail(raw, context.host, context.repository, context.issue);
     check(issue.ref.external_id === context.parent.external_id);
     this.state = issue.state;
-    this.allowed = issue.state !== 'unknown' && issueActionAllowed(caps, context.repository, context.actor, context.parent, 'issue.edit');
+    this.allowed = issue.state !== 'unknown' && issueStateAllowed(caps, context.repository, context.actor, context.parent, issue.state === 'open');
   }
   private async refresh() {
     const context = this.current, signal = this.lifetime.signal;

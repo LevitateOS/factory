@@ -30,6 +30,18 @@ export function issueActionAllowed(
   return capability.state === 'allowed';
 }
 
+export function issueStateAllowed(value: unknown, repository: string, actor: string, parent: IssueRef, close: boolean): boolean {
+  issueActionAllowed(value, repository, actor, parent, 'issue.edit');
+  const facts = object(value).state_actions;
+  if (facts === undefined) return false;
+  const actions = object(facts);
+  for (const kind of ['close', 'reopen']) {
+    const fact = object(actions[kind]);
+    check(['allowed', 'denied', 'unsupported', 'unavailable', 'unknown'].includes(String(fact.state)));
+  }
+  return object(actions[close ? 'close' : 'reopen']).state === 'allowed';
+}
+
 export function pullActionAllowed(
   value: unknown,
   repository: string,

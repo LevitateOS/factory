@@ -35,6 +35,8 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 			State      string                  `json:"state"`
 			Locked     bool                    `json:"locked"`
 			CanUpdate  bool                    `json:"can_update"`
+			CanClose   bool                    `json:"can_close"`
+			CanReopen  bool                    `json:"can_reopen"`
 			Own        bool                    `json:"own"`
 			Draft      bool                    `json:"draft"`
 			Merged     bool                    `json:"merged"`
@@ -113,6 +115,19 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 	}
 	if facts.Archived || facts.Disabled {
 		set(collaboration.Denied, "repository_read_only", writes...)
+	}
+	if target := facts.Subject; target != nil {
+		result.StateActions = map[string]collaboration.Capability{}
+		for action, allowed := range map[string]bool{"close": target.CanClose, "reopen": target.CanReopen} {
+			fact := collaboration.Capability{State: collaboration.Denied, Reason: "provider_cannot_change_state"}
+			if allowed {
+				fact = collaboration.Capability{State: collaboration.Allowed}
+			}
+			if facts.Archived || facts.Disabled {
+				fact = collaboration.Capability{State: collaboration.Denied, Reason: "repository_read_only"}
+			}
+			result.StateActions[action] = fact
+		}
 	}
 	if pull {
 		result.MergeMethods = map[string]collaboration.Capability{}

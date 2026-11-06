@@ -18,8 +18,8 @@ impl Reader<'_> {
             return Err(Failure::protocol());
         }
         let subject=match number{
-            Some(_) if pull=>"subject:pullRequest(number:$number){id fullDatabaseId number state locked isDraft merged headRefOid baseRefOid viewerCanUpdate viewerDidAuthor mergeStateStatus}",
-            Some(_)=>"subject:issue(number:$number){id fullDatabaseId number state locked viewerCanUpdate viewerDidAuthor}",
+            Some(_) if pull=>"subject:pullRequest(number:$number){id fullDatabaseId number state locked isDraft merged headRefOid baseRefOid viewerCanUpdate viewerCanClose viewerCanReopen viewerDidAuthor mergeStateStatus}",
+            Some(_)=>"subject:issue(number:$number){id fullDatabaseId number state locked viewerCanUpdate viewerCanClose viewerCanReopen viewerDidAuthor}",
             None=>"",
         };
         let query=format!("query FactoryWriteCapabilities($repository:ID!{}){{node(id:$repository){{__typename ... on Repository{{id nameWithOwner isArchived isDisabled hasIssuesEnabled viewerCanCreateIssues viewerPermission mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed {subject}}}}}}}",if number.is_some(){",$number:Int!"}else{""});
@@ -64,7 +64,7 @@ impl Reader<'_> {
             {
                 return Err(Failure::protocol());
             }
-            json!({"kind":if pull{"pull"}else{"issue"},"external_id":r::big_id(&target["fullDatabaseId"])?,"number":number,"state":r::text(target,"state")?.to_ascii_lowercase(),"locked":r::boolean(target,"locked")?,"can_update":r::boolean(target,"viewerCanUpdate")?,"own":r::boolean(target,"viewerDidAuthor")?,"draft":target["isDraft"],"merged":target["merged"],"head":target["headRefOid"],"base":target["baseRefOid"],"merge_ready":target["mergeStateStatus"]=="CLEAN"})
+            json!({"kind":if pull{"pull"}else{"issue"},"external_id":r::big_id(&target["fullDatabaseId"])?,"number":number,"state":r::text(target,"state")?.to_ascii_lowercase(),"locked":r::boolean(target,"locked")?,"can_update":r::boolean(target,"viewerCanUpdate")?,"can_close":r::boolean(target,"viewerCanClose")?,"can_reopen":r::boolean(target,"viewerCanReopen")?,"own":r::boolean(target,"viewerDidAuthor")?,"draft":target["isDraft"],"merged":target["merged"],"head":target["headRefOid"],"base":target["baseRefOid"],"merge_ready":target["mergeStateStatus"]=="CLEAN"})
         } else {
             Value::Null
         };

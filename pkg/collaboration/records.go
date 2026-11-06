@@ -89,6 +89,7 @@ type Capabilities struct {
 	Observation  Observation           `json:"observation"`
 	Actions      map[Action]Capability `json:"actions"`
 	MergeMethods map[string]Capability `json:"merge_methods,omitempty"`
+	StateActions map[string]Capability `json:"state_actions,omitempty"`
 }
 
 // External IDs identify records; Number is the display/route index in this repo.

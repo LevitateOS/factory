@@ -95,5 +95,21 @@ func (s CollaborationCapabilities) Read(ctx context.Context, actor collaboration
 			}
 		}
 	}
+	if r.StateActions != nil {
+		if q.Subject == "repository" || len(r.StateActions) != 2 {
+			return empty, ErrCapabilitiesUnavailable
+		}
+		for _, action := range []string{"close", "reopen"} {
+			fact, ok := r.StateActions[action]
+			if !ok || fact.Reason != "" && !collaboration.ValidText(fact.Reason, 256) {
+				return empty, ErrCapabilitiesUnavailable
+			}
+			switch fact.State {
+			case collaboration.Allowed, collaboration.Denied, collaboration.Unsupported, collaboration.Unavailable, collaboration.Unknown:
+			default:
+				return empty, ErrCapabilitiesUnavailable
+			}
+		}
+	}
 	return r, nil
 }
