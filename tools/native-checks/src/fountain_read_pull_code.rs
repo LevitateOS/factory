@@ -213,6 +213,57 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
         "native open/closed filters lost",
     )?;
 
+    let commit_path = format!("{prefix}/commits?{}&limit=1", form(&[("head", &head)]));
+    let mut commits = Vec::new();
+    let mut commit_cursor = String::new();
+    let mut first_commit_cursor = String::new();
+    for _ in 0..4 {
+        let suffix = if commit_cursor.is_empty() {
+            String::new()
+        } else {
+            format!("&{}", form(&[("cursor", &commit_cursor)]))
+        };
+        let page = read(b, &format!("{commit_path}{suffix}"), generation, 200)?;
+        require(
+            page["pull"] == detail["ref"] && page["head"] == head,
+            "commit page lost its PR or head",
+        )?;
+        available(&page["commits"])?;
+        let rows = page["commits"]["items"]
+            .as_array()
+            .ok_or("commit items missing")?;
+        require(
+            rows.len() == 1
+                && !commits
+                    .iter()
+                    .any(|prior: &Value| prior["commit"] == rows[0]["commit"]),
+            "commit page duplicated or exceeded limit",
+        )?;
+        commits.push(rows[0].clone());
+        if page["commits"]["complete"] == true {
+            require(
+                page["commits"]["next"] == "",
+                "complete commit page retained cursor",
+            )?;
+            break;
+        }
+        let next = page["commits"]["next"]
+            .as_str()
+            .ok_or("commit cursor missing")?;
+        require(
+            !next.is_empty() && next != commit_cursor,
+            "commit cursor did not advance",
+        )?;
+        if first_commit_cursor.is_empty() {
+            first_commit_cursor = next.to_owned();
+        }
+        commit_cursor = next.to_owned();
+    }
+    require(
+        commits.len() == 3 && commits[0]["commit"] == head && !first_commit_cursor.is_empty(),
+        "actual PR commit history incomplete",
+    )?;
+
     let first_files = read(b, &format!("{prefix}/files?limit=1"), generation, 200)?;
     require(
         first_files["diff"]["base"] == base
@@ -503,6 +554,17 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
         generation,
         409,
     )?;
+    read(b, &commit_path, generation, 409)?;
+    let moved_commits = read(
+        b,
+        &format!("{prefix}/commits?{}&limit=1", form(&[("head", moved_head)])),
+        generation,
+        200,
+    )?;
+    require(
+        moved_commits["commits"]["items"][0]["commit"] == moved_head,
+        "moved PR head absent from current commits",
+    )?;
     let outdated = read(b, &thread_path, generation, 200)?;
     require(
         outdated["anchor"] == original_anchor
@@ -554,6 +616,12 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str) 
             404,
         )?;
     }
+    read(
+        &mut reader,
+        &format!("{prefix}/commits?{}", form(&[("head", moved_head)])),
+        &reader_generation,
+        404,
+    )?;
     println!("PASS: real private native PR metadata/files/reviews/threads/discussion, immutable anchors and changed-head refusal, pending privacy, non-author approval and access revocation");
     Ok(
         json!({"result":"pass","pulls":3,"files":3,"reviews":3,"threads":3,"full_body_runes":body.chars().count(),"pending_privacy":true,"changed_head":true,"access_revocation":true}),
