@@ -9,6 +9,7 @@ import '../review/diff.js';
 import './review.js';
 import './merge.js';
 import './inline.js';
+import './thread-resolution.js';
 import type {DiffThread} from '../review/diff.js';
 import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
@@ -262,6 +263,12 @@ export class SodaFactoryPull extends LitElement {
             · ${thread.resolution}${thread.outdated ? ' · Outdated' : ''}
             <ol>${thread.comments.map(comment => html`<li>${comment.author}${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<p>${comment.body}</p></li>`)}</ol>
             ${thread.commentsNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadThreadComments(thread)}>Load more comments</button>` : ''}
+            ${context.commandScope ? html`<soda-factory-thread-resolution
+              .context=${{transport: context.transport, host: context.host, actor: context.actor,
+                repository: context.repository, pull: context.pull, scope: context.scope,
+                parent: pull.ref, threadID: thread.externalID, commandScope: context.commandScope}}
+              @pull-thread-saved=${() => void this.refresh()}
+            ></soda-factory-thread-resolution>` : ''}
           </li>`)}</ol>
           <p role="status">${this.view.threadMessage}</p>
           ${!this.view.threads.length ? html`<p>No inline discussions on this page.</p>` : ''}

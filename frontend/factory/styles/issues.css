@@ -170,7 +170,9 @@
 .soda-pull-review textarea { display: block; box-sizing: border-box; width: 100%; min-height: 120px; font: inherit; padding: 12px; }
 .soda-pull-merge input { display: block; box-sizing: border-box; width: 100%; max-width: 680px; font: inherit; padding: 8px; }
 .soda-pull-review button,
-.soda-pull-merge button { margin-inline-end: 8px; margin-block-end: 8px; }
+.soda-pull-merge button,
+.soda-pull-thread-resolution button,
+.soda-pull-inline button { margin-inline-end: 8px; margin-block-end: 8px; }
 
 .soda-issue-create,
 .soda-issue-editor {
