@@ -3827,3 +3827,20 @@ additional permission variants require authorized fixtures and matching actual
 actor/grant observations. Source checks and this two-account journey do not close
 them. Primary terminal gh configuration and all historical uncertain commands
 were preserved.
+
+Protected-branch write check (2026-11-06): the authorized public disposable
+`LevitateOS/factory-team-public-check-20261106` fixture has PR #2 from its
+four-line head into `check-base-branch-rule-1106`; that base branch requires one
+approval and enforces the rule for admins. A coherent source-built WebKit,
+native, Go and PostgreSQL run in
+`/home/vince/tmp/factory-branch-rule-coherent-1106.3M3UEV/` exited 0. The
+shared merge UI disabled its action; a direct production-path merge attempt did
+not report a committed effect, and the normal product read kept the same open
+PR/head. The owned local test account was withdrawn. This proves the scoped
+protected-branch refusal for that fixture, not the full branch-rule or permission
+matrix. The observer did not retain the attempt's command ID, HTTP class or
+causal provider receipt, so it does not close exact-command recovery. Installed
+write admission and credential isolation still require T14-PACKAGE and a real
+installed-host journey. D1 automation still requires T09-EXECUTION, admitted
+T12 placement dispatch and D3 execution. The two private Free-plan team commands
+listed above still lack original causal evidence and remain indeterminate.

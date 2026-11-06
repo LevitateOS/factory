@@ -174,6 +174,18 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 }))?;
                 return Ok::<(), String>(());
             }
+            if fixture["mode"] == "branch_rule" {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "protected_branch_merge_refused": true,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "installed_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["mode"] == "other_actor" || fixture["mode"] == "reviewer_requests" {
                 let oauth = fixture["oauth_source"] == "factory_device";
                 let evidence_name = if fixture["mode"] == "other_actor" {
