@@ -128,6 +128,7 @@ export class SodaFactoryPullMerge extends LitElement {
     const context = this.current, signal = this.lifetime.signal;
     if (!context || !this.live(context, signal) || this.busy || this.blocked) return;
     this.busy = true; this.status = ''; this.touch();
+    let settled = false;
     try {
       if (action === 'submit' || action === 'retry') { await this.admit(context, signal); check(this.allowed); }
       else await this.identity(context, signal);
@@ -145,14 +146,19 @@ export class SodaFactoryPullMerge extends LitElement {
         check(pending.external === context.parent.external_id);
         if (action === 'retry') check(pending.head === context.head && this.methods.includes(pending.method));
       }
-      await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
+      settled = await this.deliver(context, signal, action === 'retry' ? 'submit' : action);
     } catch {
       if (this.live(context, signal)) this.status = this.pending
         ? 'No final merge outcome was confirmed. Check the saved command before retrying.'
         : 'Merge admission or saved state changed. Nothing was submitted.';
-    } finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+    } finally {
+      if (this.live(context, signal)) {
+        this.busy = false; this.touch();
+        if (settled) void this.refresh();
+      }
+    }
   }
-  private async deliver(context: PullMergeContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
+  private async deliver(context: PullMergeContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel'): Promise<boolean> {
     const pending = this.pending;
     check(pending && this.live(context, signal));
     const base = this.path(context) + '/merges', command = base + '/commands/' + pending.command;
@@ -169,13 +175,14 @@ export class SodaFactoryPullMerge extends LitElement {
       this.status = outcome.completion === 'needs_intervention' ? 'The saved merge needs attention. Check status.'
         : outcome.effect === 'committed' ? 'Merge effect recorded; completion is pending.'
           : 'The merge is not confirmed. Its original command remains saved.';
-      return;
+      return false;
     }
     check(mergeRecord(context).settle(pending));
     this.restore(context);
     this.status = outcome.effect === 'committed' ? 'Merge recorded. Refresh to read the provider state.'
       : action === 'cancel' ? 'Merge cancelled before it was committed.' : 'No merge was committed.';
     if (outcome.effect === 'committed') this.dispatchEvent(new CustomEvent('pull-merge-saved', {detail: {repository: context.repository, pull: context.pull, command: pending.command}}));
+    return true;
   }
   render() {
     if (!this.current) return html``;
