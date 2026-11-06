@@ -31375,3 +31375,12 @@ refusal and affected appliance/retry checks passed in
 boundaries pass. Preparation/tool facts are declared fixtures. The next consumer
 must connect the Go planner and Rust ports; no worker launch or D3 closure is
 proved by this transaction check.
+
+Go dispatch planning now resolves the native workspace, keeps native executable
+proof separate from appliance pins, captures native runs and calls the native
+packet entry. Candidate preparation checks the same native enrollment and its
+existing source/retry owner. Go builds/boundaries and the affected PostgreSQL
+guards pass: `/home/vince/tmp/factory-native-planner-1106.18AHwZ/{run.log,run3.log}`.
+The native preparation fixture preserves missing-retry refusal and uses standing
+preparation facts for the positive packet. No planner-to-Rust callback or actual
+worker/provider execution is qualified yet; the execution rows remain Pending.

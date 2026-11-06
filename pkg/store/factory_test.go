@@ -146,6 +146,14 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	preparedOwner := execution.NativeWorkspaceRef{Profile: controller.Profile, InstanceID: factory.NewID(), WorktreeID: assignment.Preparation}
 	prepared := project.Preparation{ID: assignment.Preparation, Project: grant.Project, Role: assignment.Role, SourceCommit: assignment.SourceCommit, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1)}
 	preparedState := execution.PreparationState{ID: prepared.ID, Project: prepared.Project, Role: prepared.Role, SourceCommit: prepared.SourceCommit, SetupDigest: prepared.SetupDigest, Native: &preparedOwner, SourceBundleSHA256: strings.Repeat("f", 64), Phase: project.PrepareReady, Ready: true}
+	control := dispatchTestControlFor(t, s, assignment)
+	_, _, err = s.AdmitCandidatePreparation(ctx, execution.PreparationRecord{Preparation: prepared, Native: &preparedOwner}, CandidatePreparationRegistration{
+		Repository: assignment.Repository, Issue: assignment.Issue, ActorID: assignment.ActorID, Project: assignment.ProjectID,
+		OwnerAssignment: assignment.ID, ChildAssignment: assignment.ID, AttemptRoot: assignment.AttemptRoot, Connection: connection,
+		Authority: assignment.Authority, Control: control, RequestedNotAfter: time.Now().Add(10 * time.Minute).Unix()})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatal("native preparation accepted an absent retry command", err)
+	}
 	if _, _, err := s.AdmitPreparation(ctx, execution.PreparationRecord{Preparation: prepared, State: preparedState, Native: &preparedOwner}); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +170,6 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	dispatchRun.Native = &execution.NativeRecord{Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Retirement: execution.NotStarted,
 		Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: controller.Profile, InstanceID: preparedOwner.InstanceID, WorktreeID: preparedOwner.WorktreeID, BrokerRun: factory.NewID(), Custody: execution.NativeCustody{State: execution.NotAcquired}}}
 	view.Repository = assignment.Repository
-	control := dispatchTestControlFor(t, s, assignment)
 	nativeLaunch := execution.NativeLaunch{Workspace: preparedOwner, Tool: tool, BundleSHA256: preparedState.SourceBundleSHA256, PromptSHA256: assignment.PromptSHA, Runtime: controller.ID, PlacementGeneration: placed.Generation, TrustMode: "isolated_system_worker", BrokerRun: dispatchRun.Native.Provenance.BrokerRun}
 	staleLaunch := nativeLaunch
 	staleLaunch.PlacementGeneration--

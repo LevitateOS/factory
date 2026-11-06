@@ -44,8 +44,8 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 		ProjectID: plan.projectID, Role: role,
 		Repository: repository, Issue: issue, NativeRev: plan.inputs.Revision,
 		Acceptance: plan.acceptance.ID, Preparation: plan.prep.Preparation.ID,
-		Harness: plan.pin.Harness + "-" + plan.pin.Version, HarnessVers: plan.pin.Version,
-		AdoptedHarness: plan.pin,
+		Harness: plan.tool.Harness + "-" + plan.tool.Version, HarnessVers: plan.tool.Version,
+		AdoptedHarness: plan.tool.appliancePin(),
 		Model:          plan.policy.Roles[role].Model, Connection: plan.sponsorship.Connection,
 		SourceCommit: plan.inputs.Tip, Prompt: plan.prompt, PromptSHA: plan.promptSHA,
 		Run: runID, RunHistory: []string{runID}, Stage: factory.AssignmentAssigned,
@@ -58,12 +58,12 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 	run := factory.Run{
 		ID: runID, ProjectID: plan.projectID, Role: role, InputSHA: plan.inputs.Tip,
 		Started: now, Deadline: plan.deadline,
-		Image: plan.pin.Image, Harness: assignment.Harness, Model: assignment.Model,
+		Image: plan.tool.Image, Harness: assignment.Harness, Model: assignment.Model,
 	}
 	view := factory.RunView{RunID: runID, Repository: repository, Issue: issue, Attempt: assignmentID}
 	var packetErr error
 	if retry == nil {
-		packetErr = deps.Store.RecordDispatchPacket(ctx, plan.control, assignment, reservation, run, view)
+		packetErr = plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view)
 	} else {
 		packetErr = deps.Store.RecordExplicitRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view)
 	}
@@ -85,13 +85,13 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 		Run: project.FactoryRun{
 			ID: runID, Project: plan.projectID, Role: role,
 			Preparation: plan.prep.Preparation.ID,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      assignment.Model,
 			Assignment: plan.promptSHA, SourceCommit: plan.inputs.Tip,
 			Connection: plan.sponsorship.Connection, Actor: assignment.ActorID,
 			Deadline: plan.deadline, ExecutionPhase: plan.phase,
 		},
-		Prompt: plan.prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: plan.prompt, HarnessSHA256: plan.tool.SHA256,
 	}
 	if err := launch.Validate(); err != nil {
 		report.Errors = append(report.Errors, DispatchError{Repository: repository, Issue: issue, Reason: DispatchErrHost, Detail: "dispatch launch invalid"})
@@ -204,8 +204,8 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 		ProjectID: plan.projectID, Role: project.RoleCoder,
 		Repository: repository, Issue: issue, NativeRev: plan.inputs.Revision,
 		Acceptance: parent.Acceptance, Preparation: plan.prep.Preparation.ID,
-		Harness: plan.pin.Harness + "-" + plan.pin.Version, HarnessVers: plan.pin.Version,
-		AdoptedHarness: plan.pin,
+		Harness: plan.tool.Harness + "-" + plan.tool.Version, HarnessVers: plan.tool.Version,
+		AdoptedHarness: plan.tool.appliancePin(),
 		Model:          plan.policy.Roles[project.RoleCoder].Model, Connection: plan.sponsorship.Connection,
 		SourceCommit: parent.SourceCommit, Prompt: plan.prompt, PromptSHA: plan.promptSHA,
 		Run: runID, RunHistory: []string{runID}, Stage: factory.AssignmentAssigned,
@@ -227,12 +227,12 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 		ID: runID, ProjectID: plan.projectID, Role: project.RoleCoder, InputSHA: parent.SourceCommit,
 		ContextPending: deps.mcpConfigured(), ExecutionManifest: manifest,
 		Started: now, Deadline: plan.deadline,
-		Image: plan.pin.Image, Harness: assignment.Harness, Model: assignment.Model,
+		Image: plan.tool.Image, Harness: assignment.Harness, Model: assignment.Model,
 	}
 	view := factory.RunView{RunID: runID, Repository: repository, Issue: issue, Attempt: childID}
 	var packetErr error
 	if retry == nil {
-		packetErr = deps.Store.RecordDispatchPacket(ctx, plan.control, assignment, reservation, run, view)
+		packetErr = plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view)
 	} else {
 		packetErr = deps.Store.RecordImplementationRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view)
 	}
@@ -245,14 +245,14 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 		Run: project.FactoryRun{
 			ID: runID, Project: plan.projectID, Role: project.RoleCoder,
 			Preparation: plan.prep.Preparation.ID,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      assignment.Model,
 			Assignment: plan.promptSHA, SourceCommit: parent.SourceCommit,
 			Connection: plan.sponsorship.Connection, Actor: assignment.ActorID,
 			Deadline: plan.deadline, ExecutionPhase: project.ExecutionImplement,
 			ManifestDigest: manifestDigest,
 		},
-		Prompt: plan.prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: plan.prompt, HarnessSHA256: plan.tool.SHA256,
 		ExecutionManifest: manifest,
 	}
 	if err := launch.Validate(); err != nil {
@@ -339,13 +339,13 @@ func retryAttempt(ctx context.Context, deps DispatchDeps, a factory.Assignment, 
 		Run: project.FactoryRun{
 			ID: runID, Project: a.ProjectID, Role: a.Role,
 			Preparation: a.Preparation,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      a.Model,
 			Assignment: a.PromptSHA, SourceCommit: a.SourceCommit,
 			Connection: a.Connection, Actor: a.ActorID,
 			Deadline: plan.deadline, ExecutionPhase: plan.phase,
 		},
-		Prompt: a.Prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: a.Prompt, HarnessSHA256: plan.tool.SHA256,
 	}
 	validateRetryLaunch(ctx, deps, a, next, run, launch, false, report)
 }
@@ -375,13 +375,13 @@ func recordRetryRun(ctx context.Context, deps DispatchDeps, a factory.Assignment
 	run := factory.Run{
 		ID: runID, ProjectID: a.ProjectID, Role: a.Role, InputSHA: a.SourceCommit,
 		Started: now, Deadline: plan.deadline,
-		Image: plan.pin.Image, Harness: plan.pin.Harness + "-" + plan.pin.Version, Model: a.Model,
+		Image: plan.tool.Image, Harness: plan.tool.Harness + "-" + plan.tool.Version, Model: a.Model,
 	}
 	// Advance the calling snapshot to the current pin so the packet records
 	// the new execution's identity; the store keeps every other binding exact.
-	a.Harness = plan.pin.Harness + "-" + plan.pin.Version
-	a.HarnessVers = plan.pin.Version
-	a.AdoptedHarness = plan.pin
+	a.Harness = plan.tool.Harness + "-" + plan.tool.Version
+	a.HarnessVers = plan.tool.Version
+	a.AdoptedHarness = plan.tool.appliancePin()
 	view := factory.RunView{RunID: runID, Repository: a.Repository, Issue: a.Issue, Attempt: a.ID}
 	next, err := deps.Store.RecordRetryPacket(ctx, a, plan.control, plan.effective.Authority, run, view, plan.planned)
 	if err != nil {
@@ -505,7 +505,7 @@ func checkRetryChildPlan(ctx context.Context, deps DispatchDeps, a factory.Assig
 	// current staged pin, so only a family move (a different tool) ends
 	// the recorded child. The saved model, connection, preparation and
 	// branch still bind exactly.
-	harnessMoved := !strings.HasPrefix(a.Harness, plan.pin.Harness+"-")
+	harnessMoved := !strings.HasPrefix(a.Harness, plan.tool.Harness+"-")
 	if plan.attemptRoot != a.AttemptRoot ||
 		plan.sponsorship.Connection != a.Connection || selection.Model != a.Model ||
 		harnessMoved ||
@@ -598,14 +598,14 @@ func retryPhasedChild(ctx context.Context, deps DispatchDeps, occupancy *passOcc
 		Run: project.FactoryRun{
 			ID: runID, Project: a.ProjectID, Role: a.Role,
 			Preparation: a.Preparation,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      a.Model,
 			Assignment: a.PromptSHA, SourceCommit: a.SourceCommit,
 			Connection: a.Connection, Actor: a.ActorID,
 			Deadline: plan.deadline, ExecutionPhase: project.ExecutionImplement,
 			ManifestDigest: project.ExecutionManifestDigest(manifest),
 		},
-		Prompt: a.Prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: a.Prompt, HarnessSHA256: plan.tool.SHA256,
 		ExecutionManifest: manifest,
 	}
 	validateRetryLaunch(ctx, deps, a, next, run, launch, true, report)
@@ -967,14 +967,14 @@ func retryPhasedPublicationChild(ctx context.Context, deps DispatchDeps, occupan
 		Run: project.FactoryRun{
 			ID: runID, Project: a.ProjectID, Role: a.Role,
 			Preparation: a.Preparation,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      a.Model,
 			Assignment: a.PromptSHA, SourceCommit: a.SourceCommit,
 			Connection: a.Connection, Actor: a.ActorID,
 			Deadline: plan.deadline, ExecutionPhase: a.Phase,
 			ManifestDigest: manifestDigest,
 		},
-		Prompt: a.Prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: a.Prompt, HarnessSHA256: plan.tool.SHA256,
 		ExecutionManifest: manifest,
 	}
 	validateRetryLaunch(ctx, deps, a, next, run, launch, a.Phase == project.ExecutionCorrect, report)

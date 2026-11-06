@@ -53,6 +53,32 @@ func initializeNativeWorkspaceSchema(ctx context.Context, db *sql.DB) error {
 	return tx.Commit()
 }
 
+// ExecutionWorkspace resolves the configured runtime without interpreting a
+// native workspace ID as an appliance Project. Dispatch rechecks it atomically.
+func (s *Store) ExecutionWorkspace(ctx context.Context, repository collaboration.RepositoryID) (string, *project.NativeEnvironment, error) {
+	g, err := s.EnvironmentGrant(ctx, int64(repository))
+	if err != nil {
+		return "", nil, err
+	}
+	if g.Native == nil {
+		p, err := s.NativeProjectForCollaborationRepository(ctx, repository)
+		return p.ID, nil, err
+	}
+	if g.Validate() != nil || !g.Active {
+		return "", nil, ErrAdmissionChanged
+	}
+	var matches bool
+	err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_native_workspaces w JOIN factory_placements p ON p.repository=w.repository
+ WHERE w.id=$1 AND w.repository=$2 AND w.runtime=$3 AND w.profile=$4 AND p.runtime=w.runtime AND p.state='active' AND p.generation=$5)`, g.Project, repository, g.Native.Runtime, g.Native.Profile, g.Native.Generation).Scan(&matches)
+	if err != nil {
+		return "", nil, err
+	}
+	if !matches {
+		return "", nil, factory.ErrPlacement
+	}
+	return g.Project, g.Native, nil
+}
+
 // A native workspace is a stable logical owner for isolated checkouts. It never
 // identifies a user-owned directory, container Project or current live process.
 func bindNativeEnvironmentTx(ctx context.Context, tx *sql.Tx, g project.EnvironmentGrant) (project.EnvironmentGrant, error) {

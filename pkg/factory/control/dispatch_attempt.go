@@ -35,32 +35,33 @@ type attemptLineage struct {
 // source, the verified prompt bytes, and the deadline the reservation
 // will hold.
 type attemptPlan struct {
-	effective        factory.EffectiveAuthority
-	policy           factory.RepositoryPolicy
-	sponsorship      factory.Sponsorship
-	prep             execution.PreparationRecord
-	pin              project.FactoryHarnessPin
-	acceptance       factory.Acceptance
-	control          factory.IssueControl
-	subject          factory.ExecutionSubject
-	advancePlan      *factory.InvestigationPlan
-	inputs           DispatchInputs
-	projectID        string
-	attemptRoot      string
-	preparationOwner string
-	phase            string
-	parent           string
-	prompt           []byte
-	promptSHA        string
-	acceptedContext  *factory.AcceptedContext
-	reviewContext    *factory.CurrentReviewContext
-	deadline         time.Time
-	requirement      string
-	approval         string
-	planned          int
-	gateRev          int64
-	freshAttempt     bool
-	attemptLimits    factory.AttemptLimits
+	effective         factory.EffectiveAuthority
+	policy            factory.RepositoryPolicy
+	sponsorship       factory.Sponsorship
+	prep              execution.PreparationRecord
+	tool              dispatchTool
+	nativeEnvironment *project.NativeEnvironment
+	acceptance        factory.Acceptance
+	control           factory.IssueControl
+	subject           factory.ExecutionSubject
+	advancePlan       *factory.InvestigationPlan
+	inputs            DispatchInputs
+	projectID         string
+	attemptRoot       string
+	preparationOwner  string
+	phase             string
+	parent            string
+	prompt            []byte
+	promptSHA         string
+	acceptedContext   *factory.AcceptedContext
+	reviewContext     *factory.CurrentReviewContext
+	deadline          time.Time
+	requirement       string
+	approval          string
+	planned           int
+	gateRev           int64
+	freshAttempt      bool
+	attemptLimits     factory.AttemptLimits
 }
 
 // dispatchOne dispatches one queued issue or reports exactly why it
@@ -331,14 +332,14 @@ func loadAttemptPlanBasis(ctx context.Context, deps DispatchDeps, plan *attemptP
 		}
 		return empty, waitFor(WaitAuthority, "grants do not authorize dispatch"), nil
 	}
-	p, err := deps.Store.NativeProjectForCollaborationRepository(ctx, collaboration.RepositoryID(repository))
+	workspace, native, err := deps.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return empty, waitFor(WaitPreparation, "repository has no project"), nil
 		}
 		return empty, nil, waitFor(DispatchErrStore, "project unreadable")
 	}
-	plan.projectID = p.ID
+	plan.projectID, plan.nativeEnvironment = workspace, native
 	policy, err := deps.Store.RepositoryPolicy(ctx, repository)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -439,7 +440,7 @@ func renderAttemptPrompt(ctx context.Context, deps DispatchDeps, plan *attemptPl
 		ApprovedBase:   plan.prep.Preparation.SourceCommit,
 		Preparation:    plan.prep.Preparation.ID,
 		RequirementsID: plan.requirement, ApprovalID: plan.approval,
-		Harness: plan.pin.Harness, Model: selection.Model, Role: role,
+		Harness: plan.tool.Harness, Model: selection.Model, Role: role,
 		ProviderConnection: plan.sponsorship.Connection,
 		RequiredChecks:     policy.Checks,
 		AttemptLimits:      plan.attemptLimits,

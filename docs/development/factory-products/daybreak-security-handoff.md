@@ -47,6 +47,16 @@ facts in this check were declared fixtures. The Go dispatch planner and Rust
 effect ports are not composed; current credential/MCP admission, actual provider
 execution, cancellation, settlement and retirement/restart remain unverified.
 
+The Go planner now resolves the enrolled native workspace, retains a tagged tool
+proof and selects the explicit native packet entry. Fresh preparation admission
+rechecks native enrollment and preserves the existing retry/source-owner gates.
+Go builds/boundaries and affected PostgreSQL guards pass under
+`/home/vince/tmp/factory-native-planner-1106.18AHwZ/{run.log,run3.log}`. The absent
+retry-command fixture correctly refuses; standing preparation metadata then
+admits the native packet. This does not prove the planner-to-Rust effect journey.
+Remaining work is the Rust snapshot/execution callbacks, coordinator composition,
+current provider/MCP custody and the full finite-task/retirement evidence above.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary

@@ -237,7 +237,7 @@ func (t *timeOnlyLaunch) loadGrants() bool {
 		return false
 	}
 	t.plan.effective = effective
-	proj, err := t.deps.Store.NativeProjectForCollaborationRepository(t.ctx, collaboration.RepositoryID(t.repository))
+	workspace, native, err := t.deps.Store.ExecutionWorkspace(t.ctx, collaboration.RepositoryID(t.repository))
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			t.report.Waits = append(t.report.Waits, DispatchWait{Repository: t.repository, Reason: WaitAuthority, Detail: "project changed during time-only dispatch"})
@@ -246,8 +246,8 @@ func (t *timeOnlyLaunch) loadGrants() bool {
 		}
 		return false
 	}
-	t.projectID = proj.ID
-	t.plan.projectID = proj.ID
+	t.projectID = workspace
+	t.plan.projectID, t.plan.nativeEnvironment = workspace, native
 	policy, err := t.deps.Store.RepositoryPolicy(t.ctx, t.repository)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -361,7 +361,7 @@ func (t *timeOnlyLaunch) submitPacket() {
 	t.plan.control = factory.IssueControl{Repository: t.repository, Issue: 0, NativeRev: nativeRev}
 	t.plan.prompt, t.plan.promptSHA = t.prompt, assignment.PromptSHA
 	t.plan.preparationOwner = t.plan.prep.Preparation.ID
-	if err := t.deps.Store.RecordDispatchPacket(t.ctx, t.plan.control, assignment, reservation, run, view); err != nil {
+	if err := t.plan.recordPacket(t.ctx, t.deps.Store, assignment, reservation, run, view); err != nil {
 		reportPacketRefusal(t.ctx, t.deps, t.occupancy, t.repository, 0, err, t.report)
 		return
 	}
@@ -411,7 +411,7 @@ func (t *timeOnlyLaunch) buildAssignment(nativeRev int64, deadline time.Time) (f
 		Subject: t.subject, Phase: t.phase,
 		ProjectID: t.projectID, ActorID: t.plan.sponsorship.ActorID, Role: t.role,
 		Repository: t.repository, Issue: 0, NativeRev: nativeRev, Acceptance: "", Preparation: t.plan.prep.Preparation.ID,
-		Harness: t.plan.pin.Harness + "-" + t.plan.pin.Version, HarnessVers: t.plan.pin.Version, AdoptedHarness: t.plan.pin, Model: t.selection.Model,
+		Harness: t.plan.tool.Harness + "-" + t.plan.tool.Version, HarnessVers: t.plan.tool.Version, AdoptedHarness: t.plan.tool.appliancePin(), Model: t.selection.Model,
 		Connection: t.plan.sponsorship.Connection, SourceCommit: t.source,
 		Prompt: t.prompt, PromptSHA: hex.EncodeToString(promptSum[:]),
 		Run: runID, RunHistory: []string{runID}, Stage: factory.AssignmentAssigned,
@@ -425,8 +425,9 @@ func (t *timeOnlyLaunch) buildAssignment(nativeRev int64, deadline time.Time) (f
 	run := factory.Run{
 		ID: runID, ProjectID: t.projectID, Role: t.role, InputSHA: t.source,
 		Started: t.now, Deadline: deadline,
-		Image: t.plan.pin.Image, Harness: t.plan.pin.Harness + "-" + t.plan.pin.Version, Model: t.selection.Model,
+		Image: t.plan.tool.Image, Harness: t.plan.tool.Harness + "-" + t.plan.tool.Version, Model: t.selection.Model,
 	}
+	t.plan.captureRuntime(&assignment, &run)
 	if t.deps.VerificationManifest != nil {
 		manifest, err := t.deps.VerificationManifest(t.ctx, assignment, run)
 		if err != nil {
@@ -555,9 +556,9 @@ func stageTimeOnlyLaunch(plan *attemptPlan, model string, assignment factory.Ass
 		staged, err := StageIntentBoundLaunch(assignment.Subject, IntentBoundLaunchInput{
 			Prompt: promptOf(plan, assignment), Deadline: deadline, RunID: run.ID,
 			ProjectID: assignment.ProjectID, PreparationID: assignment.Preparation,
-			Harness: plan.pin.Harness, HarnessVers: plan.pin.Version, Model: model,
+			Harness: plan.tool.Harness, HarnessVers: plan.tool.Version, Model: model,
 			PromptSHA: assignment.PromptSHA, SourceCommit: assignment.SourceCommit,
-			Connection: assignment.Connection, HarnessSHA256: plan.pin.SHA256, ActorID: assignment.ActorID,
+			Connection: assignment.Connection, HarnessSHA256: plan.tool.SHA256, ActorID: assignment.ActorID,
 		})
 		if err != nil {
 			return project.FactoryLaunch{}, waitFor(DispatchErrStore, "intent launch unstaged: "+err.Error())
@@ -568,13 +569,13 @@ func stageTimeOnlyLaunch(plan *attemptPlan, model string, assignment factory.Ass
 		Run: project.FactoryRun{
 			ID: run.ID, Project: assignment.ProjectID, Role: assignment.Role,
 			Preparation: assignment.Preparation,
-			Harness:     plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Harness:     plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model:      model,
 			Assignment: assignment.PromptSHA, SourceCommit: assignment.SourceCommit,
 			Connection: assignment.Connection, Actor: assignment.ActorID,
 			Deadline: deadline, ExecutionPhase: assignment.Phase,
 		},
-		Prompt: promptOf(plan, assignment), HarnessSHA256: plan.pin.SHA256,
+		Prompt: promptOf(plan, assignment), HarnessSHA256: plan.tool.SHA256,
 		VerificationManifest: run.VerificationManifest,
 	}
 	if len(run.VerificationManifest) > 0 {

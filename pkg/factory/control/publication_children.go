@@ -1003,8 +1003,8 @@ func (c *Coordinator) executePublicationChild(ctx context.Context, deps Dispatch
 		ProjectID: owner.ProjectID, Role: role,
 		Repository: p.Repository, Issue: p.Issue, NativeRev: plan.inputs.Revision,
 		Acceptance: owner.Acceptance, Preparation: preparationID,
-		Harness: plan.pin.Harness + "-" + plan.pin.Version, HarnessVers: plan.pin.Version,
-		AdoptedHarness: plan.pin,
+		Harness: plan.tool.Harness + "-" + plan.tool.Version, HarnessVers: plan.tool.Version,
+		AdoptedHarness: plan.tool.appliancePin(),
 		Model:          plan.policy.Roles[role].Model, Connection: plan.sponsorship.Connection,
 		SourceCommit: p.Candidate, Prompt: plan.prompt, PromptSHA: plan.promptSHA,
 		Run: runID, RunHistory: []string{runID}, Stage: factory.AssignmentAssigned,
@@ -1017,10 +1017,10 @@ func (c *Coordinator) executePublicationChild(ctx context.Context, deps Dispatch
 	run := factory.Run{
 		ID: runID, ProjectID: owner.ProjectID, Role: role, InputSHA: p.Candidate,
 		Started: now, Deadline: plan.deadline,
-		Image: plan.pin.Image, Harness: assignment.Harness, Model: assignment.Model,
+		Image: plan.tool.Image, Harness: assignment.Harness, Model: assignment.Model,
 	}
 	view := factory.RunView{RunID: runID, Repository: p.Repository, Issue: p.Issue, Attempt: assignmentID}
-	if err := deps.Store.RecordDispatchPacket(ctx, plan.control, assignment, reservation, run, view); err != nil {
+	if err := plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view); err != nil {
 		if errors.Is(err, store.ErrAssignmentActive) || errors.Is(err, store.ErrAdmissionChanged) || errors.Is(err, store.ErrDispatchControlStale) {
 			publicationWait(report, p.ID, "child_admission_changed")
 			return
@@ -1036,12 +1036,12 @@ func (c *Coordinator) executePublicationChild(ctx context.Context, deps Dispatch
 	launch := project.FactoryLaunch{
 		Run: project.FactoryRun{
 			ID: runID, Project: owner.ProjectID, Role: role,
-			Preparation: preparationID, Harness: plan.pin.Harness, HarnessVers: plan.pin.Version,
+			Preparation: preparationID, Harness: plan.tool.Harness, HarnessVers: plan.tool.Version,
 			Model: assignment.Model, Assignment: assignment.PromptSHA, SourceCommit: p.Candidate,
 			Connection: plan.sponsorship.Connection, Actor: assignment.ActorID, Deadline: plan.deadline,
 			ExecutionPhase: plan.phase, ManifestDigest: manifestDigest,
 		},
-		Prompt: plan.prompt, HarnessSHA256: plan.pin.SHA256,
+		Prompt: plan.prompt, HarnessSHA256: plan.tool.SHA256,
 		ExecutionManifest: manifest,
 	}
 	if err := launch.Validate(); err != nil {
@@ -1104,7 +1104,7 @@ func buildPublicationChildPrompt(plan *attemptPlan, p factory.Publication, owner
 		PRBase:                p.PRCreate.BaseOID,
 		PublicationAssignment: p.AssignmentID, Preparation: preparationID,
 		RequirementsID: plan.requirement, ApprovalID: plan.approval,
-		Harness: plan.pin.Harness + "-" + plan.pin.Version, Model: selection.Model, Role: role,
+		Harness: plan.tool.Harness + "-" + plan.tool.Version, Model: selection.Model, Role: role,
 		ProviderConnection: plan.sponsorship.Connection, RequiredChecks: plan.policy.Checks,
 		AttemptLimits: plan.attemptLimits,
 		Title:         plan.inputs.Issue.Title, Body: plan.inputs.Issue.Body,

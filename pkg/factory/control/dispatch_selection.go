@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
-	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -77,6 +77,19 @@ func checkConcurrencyLimits(ctx context.Context, deps DispatchDeps, occupancy *p
 // selectPreparationFor binds a ready role preparation built from the current
 // requirement and approval decisions. An exact ID preserves child work.
 func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role, exactID string) (*planWait, *planWait) {
+	if plan.nativeEnvironment == nil {
+		g, err := deps.Store.EnvironmentGrant(ctx, plan.policy.Repository)
+		if err != nil {
+			return nil, waitFor(DispatchErrStore, "environment grant unreadable")
+		}
+		if g.Native != nil {
+			workspace, native, err := deps.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(plan.policy.Repository))
+			if err != nil || workspace != plan.projectID {
+				return waitFor(WaitPreparation, "native workspace selection changed"), nil
+			}
+			plan.nativeEnvironment = native
+		}
+	}
 	requirement, err := deps.Store.RequirementHead(ctx, plan.projectID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -101,10 +114,8 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 		return nil, waitFor(DispatchErrStore, "preparations unreadable")
 	}
 	for _, prep := range preparations {
-		// This dispatcher still constructs an appliance execution packet.
-		// Native preparation ownership must survive storage without becoming
-		// permission to execute it through that appliance path.
-		if prep.Native != nil {
+		if plan.nativeEnvironment == nil && prep.Native != nil || plan.nativeEnvironment != nil &&
+			(prep.Native == nil || prep.Native.Profile != plan.nativeEnvironment.Profile || prep.State.SourceBundleSHA256 == "") {
 			continue
 		}
 		if prep.Preparation.Role != role || !prep.State.Ready || (exactID != "" && prep.Preparation.ID != exactID) {
@@ -134,14 +145,10 @@ func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, 
 	if err := tool.ValidateFor(selection.Harness); err != nil {
 		return waitFor(WaitHarness, "execution tool identity is invalid")
 	}
-	if tool.Appliance == nil {
-		// This path admits an appliance preparation/environment. Native
-		// placement/admission is a separate gate, never a fabricated image.
-		return waitFor(WaitHarness, "native tool requires native execution admission")
+	if (tool.Native != nil) != (plan.nativeEnvironment != nil) {
+		return waitFor(WaitHarness, "execution tool does not match the selected runtime")
 	}
-	pin := tool.Appliance
-	// Retained appliance packets keep their exact existing pin shape.
-	plan.pin = project.FactoryHarnessPin{Harness: pin.Harness, Version: pin.Version, SHA256: pin.SHA256, Image: pin.Image}
+	plan.tool = captureDispatchTool(tool)
 	return nil
 }
 

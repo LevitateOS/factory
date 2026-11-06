@@ -120,9 +120,6 @@ func admitCandidatePreparationShape(preparation execution.PreparationRecord, reg
 	if err := preparation.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrCandidatePreparationConflict, err)
 	}
-	if preparation.Native != nil {
-		return ErrAdmissionChanged
-	}
 	if preparation.State.ID != "" || preparation.State.Phase != "" {
 		return fmt.Errorf("%w: admission must start without observed state", ErrCandidatePreparationConflict)
 	}
@@ -510,12 +507,6 @@ func validateCandidatePreparationRegistration(preparation execution.PreparationR
 
 func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparation execution.PreparationRecord, r CandidatePreparationRegistration) (admissionGrants, error) {
 	var empty admissionGrants
-	// This admission path uses appliance environment grants. Retained native
-	// metadata is observable/retirable, but needs its own placement authority
-	// before any automatic setup or attempt allowance is admitted.
-	if preparation.Native != nil {
-		return empty, ErrAdmissionChanged
-	}
 	open, revision, _, err := ensureDispatchGateTx(ctx, tx, r.Repository)
 	if err != nil {
 		return empty, err
@@ -573,6 +564,17 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 		return empty, err
 	}
 	if grants.sponsorship.ProjectID != r.Project || grants.sponsorship.ActorID != r.ActorID {
+		return empty, ErrAdmissionChanged
+	}
+	if preparation.Native != nil {
+		if grants.environment.Native == nil || grants.environment.Project != r.Project ||
+			preparation.Native.Profile != grants.environment.Native.Profile {
+			return empty, ErrAdmissionChanged
+		}
+		if err = requireNativeDecisionTx(ctx, tx, r.Project, grants.environment.Native); err != nil {
+			return empty, err
+		}
+	} else if grants.environment.Native != nil {
 		return empty, ErrAdmissionChanged
 	}
 	if err = checkAssignmentAuthorityTx(ctx, tx, r.Authority, assignment, grants); err != nil {

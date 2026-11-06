@@ -82,9 +82,6 @@ func (c *Coordinator) prepareSourceCoder(ctx context.Context, plan *attemptPlan)
 }
 
 func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, command string, expectedGate *int64) (bool, error) {
-	if plan.prep.Native != nil {
-		return false, errors.New("native preparation requires native execution admission")
-	}
 	source, sourceRun, err := c.resolveCoderSource(ctx, plan)
 	if err != nil {
 		return false, err
@@ -160,7 +157,13 @@ func (c *Coordinator) admitCoderPreparation(ctx context.Context, plan *attemptPl
 		return empty, false, store.ErrStaleRevision
 	}
 	registration.GateRevision = revision
-	record, created, err := c.Store.AdmitCandidatePreparation(ctx, execution.PreparationRecord{Preparation: prep}, registration)
+	requested := execution.PreparationRecord{Preparation: prep}
+	if plan.prep.Native != nil {
+		owner := *plan.prep.Native
+		owner.WorktreeID = prep.ID
+		requested.Native = &owner
+	}
+	record, created, err := c.Store.AdmitCandidatePreparation(ctx, requested, registration)
 	if err != nil {
 		if prior, readErr := c.Store.CandidatePreparation(ctx, prep.ID); retryPreparationInvalidated(err) && readErr == nil &&
 			prior.Admission.OwnerAssignment == command && prior.Admission.PublicationID == "" && !prior.Stopped {
