@@ -61,6 +61,50 @@
     await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.issue_only) {
+      stage = 'issue-list';
+      location.hash = new URLSearchParams({view: 'issues', repository: repo});
+      let issueRow;
+      await until(() => {
+        issueRow = [...document.querySelectorAll('soda-factory-issues li')].find(row =>
+          row.querySelector('.soda-issue-meta')?.textContent.includes('#' + fixture.issue_number + ' ·'));
+        return issueRow?.querySelector('button.soda-issue-title:not([disabled])');
+      }, 'owned issue absent from shared list');
+      issueRow.querySelector('button.soda-issue-title').click();
+      await until(() => document.querySelector('soda-factory-issue')?.context?.issue === String(fixture.issue_number) &&
+        document.querySelector('soda-factory-issue article[aria-label="Issue description"]')?.textContent.includes(fixture.expected_body),
+      'owned issue detail unavailable');
+      const detail = document.querySelector('soda-factory-issue');
+      assert(detail.querySelector('.soda-issue-detail h2').textContent === fixture.expected_title, 'owned issue changed before editing');
+      const readIssue = async suffix => {
+        const response = await detail.context.transport.request('factory/collaboration/repositories/' + repo + '/issues/' + fixture.issue_number + suffix, {method: 'GET'});
+        assert(response.ok, 'normal issue read refused: ' + suffix);
+        return response.json();
+      };
+      stage = 'issue-edit';
+      const editor = document.querySelector('soda-factory-issue-editor');
+      await click(editor, 'Edit issue');
+      await until(() => editor.querySelector('input[aria-label="Edit issue title"]') && editor.querySelector('textarea[aria-label="Edit issue Markdown"]'), 'shared issue editor unavailable');
+      input(editor.querySelector('input[aria-label="Edit issue title"]'), fixture.edited_title);
+      input(editor.querySelector('textarea[aria-label="Edit issue Markdown"]'), fixture.edited_body);
+      await write('soda-factory-issue-editor', 'Save issue', 'Check edit status', 'issue-edit-saved');
+      await until(async () => { const issue = await readIssue(''); return issue.title === fixture.edited_title && issue.body === fixture.edited_body; }, 'edited issue not readable');
+      await until(() => detail.querySelector('.soda-issue-detail h2')?.textContent === fixture.edited_title &&
+        detail.querySelector('article[aria-label="Issue description"]')?.textContent.includes(fixture.edited_body), 'edited issue not rendered');
+      stage = 'issue-comment';
+      const composer = document.querySelector('soda-factory-issue-comment');
+      await until(() => composer?.querySelector('textarea[aria-label="Comment Markdown"]'), 'issue comment composer unavailable');
+      input(composer.querySelector('textarea[aria-label="Comment Markdown"]'), fixture.comment_body);
+      await write('soda-factory-issue-comment', 'Post comment', 'Check comment status', 'issue-comment-saved');
+      await until(async () => (await readIssue('/comments?limit=20')).items?.some(row => row.comment?.body === fixture.comment_body), 'posted issue comment not readable');
+      location.hash = new URLSearchParams({view: 'issues', repository: repo});
+      await until(() => document.querySelector('soda-factory-issues'), 'issue list did not remount');
+      location.hash = new URLSearchParams({view: 'issue', repository: repo, issue: String(fixture.issue_number)});
+      await until(() => document.querySelector('soda-factory-issue .soda-issue-detail h2')?.textContent === fixture.edited_title &&
+        document.querySelector('soda-factory-issue article[aria-label="Issue description"]')?.textContent.includes(fixture.edited_body), 'edited issue lost after navigation');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     const navigate = async tab => {
       location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab});
       await until(() => document.querySelector('soda-factory-pull')?.context?.initialTab === tab, 'PR route not mounted: ' + tab);

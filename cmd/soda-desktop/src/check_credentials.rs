@@ -36,8 +36,12 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
         fixture["name"]
             .as_str()
             .is_some_and(|s| s.split('/').count() == 2)
-            && fixture["number"].as_u64().is_some_and(|n| n > 0),
-        "fixture PR missing",
+            && if fixture["issue_only"] == true {
+                fixture["issue_number"].as_u64().is_some_and(|n| n > 0)
+            } else {
+                fixture["number"].as_u64().is_some_and(|n| n > 0)
+            },
+        "owned write fixture missing",
     )?;
     let store = state.credentials()?;
     let accounts = store.status().await.map_err(|e| e.to_string())?;
@@ -108,7 +112,19 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
             let reviews = fixture["mode"] != "thread_resolution";
-            write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+            let evidence = if fixture["issue_only"] == true {
+                serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "issue_list_navigation": true,
+                    "issue_title_body_edit_readback": true,
+                    "issue_comment_readback": true,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                })
+            } else { serde_json::json!({
                 "real_github": true,
                 "webkit": true,
                 "production_ui_ipc_go_pg_native": true,
@@ -125,7 +141,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 "owned_account_removed": true,
                 "oauth_source": "user_authorized_gh_grant",
                 "factory_device_scope_qualified": false,
-            }))?;
+            }) };
+            write_consent_evidence(&app, "github-ui-write-result.json", &evidence)?;
             Ok::<(), String>(())
         }.await;
         match result {
