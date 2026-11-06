@@ -1,5 +1,13 @@
 # Privileged run bundle staging and reviewer preparation
 
+Supervisor agent staging references a current ready native preparation. The broker
+copies its protected approved files into the new exact-run input binding and
+requires fresh setup/check success. The agent mounts only that run's captured
+inputs and prepared output read-only; it transfers workspace artifacts/private
+HOME and runs the approved check in the actual worker environment before CLI
+startup. Legacy component entry points without a preparation remain component
+paths and do not qualify product execution.
+
 Native standing preparations also use `soda-factory-context@.service` for bounded
 Git context reads and candidate import. Install this template with the preparer
 binary. It mounts the exact prepared repository, base bundle and staged incremental

@@ -79,6 +79,7 @@ pub struct RunStart<'a> {
     pub mcp: Option<WorkerMcp>,
     pub cancellation: AgentCancellation,
     pub intent: Option<&'a LaunchIntent>,
+    pub preparation: Option<&'a soda_execution_protocol::PreparedSourceRef>,
 }
 
 impl RunOwner {
@@ -105,6 +106,7 @@ impl RunOwner {
             mcp: None,
             cancellation: AgentCancellation::default(),
             intent: None,
+            preparation: None,
         })
     }
 
@@ -130,6 +132,7 @@ impl RunOwner {
             mcp: Some(mcp),
             cancellation: AgentCancellation::default(),
             intent: None,
+            preparation: None,
         })
     }
 
@@ -155,6 +158,7 @@ impl RunOwner {
             mcp: None,
             cancellation,
             intent: None,
+            preparation: None,
         })
     }
 
@@ -180,6 +184,7 @@ impl RunOwner {
             mcp: Some(mcp),
             cancellation,
             intent: None,
+            preparation: None,
         })
     }
 
@@ -208,6 +213,7 @@ impl RunOwner {
             mcp,
             cancellation,
             intent: Some(intent),
+            preparation: None,
         })
     }
 
@@ -225,6 +231,7 @@ impl RunOwner {
             mcp,
             cancellation,
             intent,
+            preparation,
         } = input;
         if let Some(intent) = intent {
             intent.bind_policy(&mut policy, tool_sha256, prompt_sha256)?;
@@ -291,7 +298,7 @@ impl RunOwner {
             super::intent::require_absent(profile_dir, &scope)?;
         }
         let custody = RunCustody::prepare(profile_dir, &scope, &connection, cancellation.clone())?;
-        let preparing = Broker::preparing(cancellation.clone());
+        let preparing = Broker::preparing(cancellation.with_deadline(deadline));
         let staged = match preparing.stage_bundle(
             &run,
             &profile,
@@ -299,6 +306,7 @@ impl RunOwner {
             tool_sha256,
             prompt_sha256,
             bundle,
+            preparation,
         ) {
             Ok(staged) => staged,
             Err(error) => {
@@ -327,6 +335,21 @@ impl RunOwner {
         }
         let result = (|| {
             preparing.prepare_reviewer(&run, &profile, &staged, &candidate)?;
+            if preparation.is_some() {
+                let setup = Broker::read_source_setup(
+                    &run,
+                    &profile,
+                    &staged,
+                    &candidate,
+                    cancellation.with_deadline(deadline),
+                )?;
+                if setup.setup_exit != Some(0)
+                    || setup.check_exit != Some(0)
+                    || !setup.missing.is_empty()
+                {
+                    return Err(refused("admitted worker environment preparation failed"));
+                }
+            }
             let relay =
                 preparing.attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
             preparing.arm_agent(

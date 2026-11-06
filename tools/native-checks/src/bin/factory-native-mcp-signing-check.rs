@@ -391,6 +391,7 @@ async fn managed_execution(
         .await?;
     let command = |operation: &str, argument: &str| -> Result<(), Box<dyn std::error::Error>> {
         if !Command::new(client)
+            .env("SODA_NATIVE_KEEP_PREPARATION", "1")
             .arg(&profile)
             .arg(&ready.instance)
             .arg(operation)
@@ -403,18 +404,16 @@ async fn managed_execution(
         Ok(())
     };
     let candidate_check = std::env::var("SODA_NATIVE_CHECK_CANDIDATE").as_deref() == Ok("1");
-    let source_preparation = if candidate_check {
+    let source_preparation = {
         command("check-native-preparation", "ready")?;
         let entries: Vec<_> =
             fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
         if entries.len() != 1 {
             return Err("candidate source preparation missing".into());
         }
-        Some(serde_json::from_slice::<serde_json::Value>(&fs::read(
+        serde_json::from_slice::<serde_json::Value>(&fs::read(
             entries[0].path().join("request.json"),
-        )?)?)
-    } else {
-        None
+        )?)?
     };
     let mut quit_ticket = None;
     let mut runs = Vec::new();
@@ -424,7 +423,6 @@ async fn managed_execution(
         &["finite", "cancel", "quit"]
     };
     for &mode in modes {
-        let coder = mode == "finite" && candidate_check;
         let executable = PathBuf::from(std::env::var(if mode == "finite" {
             "SODA_NATIVE_CHECK_FINITE"
         } else {
@@ -437,22 +435,21 @@ async fn managed_execution(
         runs.push(run.clone());
         fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
         let fixture = profile.join("native-recovery-fixture.json");
-        let project = if coder {
-            source_preparation.as_ref().unwrap()["input"]["preparation"]["project"]
+        let project = {
+            source_preparation["input"]["preparation"]["project"]
                 .as_str()
                 .ok_or("preparation workspace missing")?
-        } else {
-            "p123456789012345678901234"
         };
-        let worktree = if coder {
-            source_preparation.as_ref().unwrap()["native"]["worktree_id"]
+        let worktree = {
+            source_preparation["native"]["worktree_id"]
                 .as_str()
                 .ok_or("preparation worktree missing")?
-        } else {
-            "fixture-worktree"
         };
+        let role = source_preparation["input"]["preparation"]["role"]
+            .as_str()
+            .ok_or("preparation role missing")?;
         let input = serde_json::json!({"Connection":account.connection,"Prompt":std::str::from_utf8(prompt)?,"Run":{
-            "id":run,"project_id":project,"role":if coder {"soda-coder"} else {"soda-reviewer"},"input_sha":commit,
+            "id":run,"project_id":project,"role":role,"input_sha":commit,
             "model":"muse-spark-1.3-contributor","harness":"muse-fixture","native":{
                 "tool":{"harness":"muse","version":"fixture","sha256":tool,"executable":executable},
                 "bundle_sha256":digest(&source),"prompt_sha256":digest(prompt),"retirement":"not_started","sealed":false,
@@ -474,7 +471,11 @@ async fn managed_execution(
             &digest(&source),
             &commit,
             &account.connection,
-            if coder { Role::Coder } else { Role::Reviewer },
+            if role == "soda-coder" {
+                Role::Coder
+            } else {
+                Role::Reviewer
+            },
             Duration::from_secs(60),
             Budget::new(2, 256 * 1024, 8192)?,
         )?;
@@ -520,7 +521,7 @@ async fn managed_execution(
                     tokio::time::sleep(Duration::from_millis(20)).await
                 }
                 ExecutionOutcome::Complete(result) if mode == "finite" => {
-                    if coder {
+                    if candidate_check {
                         if result.candidate_state != "captured"
                             || result.result_candidate.is_none()
                             || result.candidate_bundle.is_empty()
@@ -552,7 +553,7 @@ async fn managed_execution(
                 "uncertain"
             },
         )?;
-        if coder {
+        if mode == "finite" && candidate_check {
             command("check-owned-execution", "export")?;
         }
     }

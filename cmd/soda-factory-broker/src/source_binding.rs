@@ -4,7 +4,11 @@ use super::*;
 use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
 
 pub(super) enum Binding<'a> {
-    Agent { tool: &'a str, prompt: &'a str },
+    Agent {
+        tool: &'a str,
+        prompt: &'a str,
+        setup: Option<&'a ApprovedFiles>,
+    },
     Preparation(&'a ApprovedFiles),
 }
 fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -47,9 +51,19 @@ pub(super) fn approved(directory: &Path) -> io::Result<ApprovedFiles> {
 impl Binding<'_> {
     pub(super) fn verify(&self, directory: &Path) -> io::Result<()> {
         match self {
-            Self::Agent { tool, prompt } => {
-                if directory.join("owner.setup_sha256").try_exists()? {
-                    return Err(denied("source belongs to preparation"));
+            Self::Agent {
+                tool,
+                prompt,
+                setup,
+            } => {
+                match setup {
+                    Some(expected) if approved(directory)? != **expected => {
+                        return Err(denied("agent setup differs"))
+                    }
+                    None if directory.join("owner.setup_sha256").try_exists()? => {
+                        return Err(denied("agent setup binding changed"))
+                    }
+                    _ => (),
                 }
                 verified_digest(directory, "owner.tool_sha256", tool)?;
                 verified_digest(directory, "owner.prompt_sha256", prompt)
@@ -67,7 +81,11 @@ impl Binding<'_> {
     }
     pub(super) fn write(&self, directory: &Path) -> io::Result<()> {
         match self {
-            Self::Agent { tool, prompt } => {
+            Self::Agent {
+                tool,
+                prompt,
+                setup,
+            } => {
                 write(
                     &directory.join("owner.tool_sha256"),
                     format!("{tool}\n").as_bytes(),
@@ -75,7 +93,11 @@ impl Binding<'_> {
                 write(
                     &directory.join("owner.prompt_sha256"),
                     format!("{prompt}\n").as_bytes(),
-                )
+                )?;
+                if let Some(input) = setup {
+                    Self::Preparation(input).write(directory)?;
+                }
+                Ok(())
             }
             Self::Preparation(input) => {
                 if !input.valid() {
@@ -101,17 +123,43 @@ impl Binding<'_> {
     }
 }
 pub(super) fn verify(directory: &Path) -> io::Result<()> {
-    if directory.join("owner.setup_sha256").try_exists()? {
-        if directory.join("owner.tool_sha256").try_exists()?
-            || directory.join("owner.prompt_sha256").try_exists()?
-        {
-            return Err(denied("mixed source binding"));
-        }
-        approved(directory).map(|_| ())
-    } else {
-        read_digest(directory, "owner.tool_sha256")?;
-        read_digest(directory, "owner.prompt_sha256").map(|_| ())
+    let setup = directory.join("owner.setup_sha256").try_exists()?;
+    if setup {
+        approved(directory)?;
     }
+    if !setup
+        || directory.join("owner.tool_sha256").try_exists()?
+        || directory.join("owner.prompt_sha256").try_exists()?
+    {
+        read_digest(directory, "owner.tool_sha256")?;
+        read_digest(directory, "owner.prompt_sha256")?;
+    }
+    Ok(())
+}
+pub(super) fn agent_setup(
+    source: &soda_execution_protocol::PreparedSourceRef,
+    profile: &str,
+    digest: &str,
+    role: &str,
+    desktop_uid: u32,
+) -> io::Result<ApprovedFiles> {
+    if !id(&source.run, 32) || !id(&source.candidate, 40) {
+        return Err(denied("agent preparation selector invalid"));
+    }
+    let proof = receipt(&source.run, profile, digest, &source.candidate, desktop_uid)?;
+    if proof.setup_exit != Some(0) || proof.check_exit != Some(0) || !proof.missing.is_empty() {
+        return Err(denied("agent preparation is not ready"));
+    }
+    let runs = state()?;
+    let _lock = lock(&runs)?;
+    let directory = runs.join(&source.run);
+    private_dir(&directory, 0o555)?;
+    verified_profile(&directory, profile)?;
+    verified_role(&directory, role)?;
+    if !verified_bundle(&directory, digest)? {
+        return Err(denied("agent prepared source differs"));
+    }
+    approved(&directory)
 }
 pub(super) fn cleanup(directory: &Path) -> io::Result<()> {
     let files = directory.join("approved");

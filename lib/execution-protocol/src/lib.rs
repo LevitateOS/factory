@@ -19,6 +19,12 @@ pub const OBSERVATION_MARKER: u8 = b'O';
 pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
 pub const MAX_SETUP_FRAME: usize = 600 * 1024;
 pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreparedSourceRef {
+    pub run: String,
+    pub candidate: String,
+}
 
 pub const MAX_CONTEXT_BYTES: usize = 128 * 1024;
 pub const MAX_CONTEXT_REQUEST: usize = 8192;

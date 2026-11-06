@@ -721,7 +721,7 @@ impl Broker {
         bundle: &[u8],
     ) -> io::Result<String> {
         BrokerPreparation { cancellation: None }
-            .stage_bundle(run, profile, role, tool, prompt, bundle)
+            .stage_bundle(run, profile, role, tool, prompt, bundle, None)
     }
     pub fn prepare_reviewer(
         run: &str,
@@ -779,6 +779,7 @@ impl BrokerPreparation {
         tool_sha256: &str,
         prompt_sha256: &str,
         bundle: &[u8],
+        preparation: Option<&soda_execution_protocol::PreparedSourceRef>,
     ) -> io::Result<String> {
         if !id(run, 32)
             || !id(profile, 32)
@@ -794,7 +795,7 @@ impl BrokerPreparation {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         let reply: Staged = exchange_controlled(
-            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,"length":bundle.len(),"sha256":sha256}),
+            json!({"kind":"stage_bundle","version":1,"run":run,"profile":profile,"role":role.as_str(),"tool_sha256":tool_sha256,"prompt_sha256":prompt_sha256,"length":bundle.len(),"sha256":sha256,"preparation":preparation}),
             Some(bundle),
             PREPARE_TIME,
             self.cancellation.clone(),

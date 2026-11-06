@@ -274,6 +274,35 @@ pub(crate) struct Preparations {
     entries: Mutex<BTreeMap<String, Entry>>,
 }
 impl Preparations {
+    pub(crate) fn execution_source(
+        &self,
+        intent: &super::LaunchIntent,
+        bundle: &[u8],
+    ) -> io::Result<soda_execution_protocol::PreparedSourceRef> {
+        let scope = intent.scope()?;
+        let native = json!({"profile":scope.profile,"instance_id":intent.instance(),"worktree_id":intent.worktree()});
+        let key = self.key(&json!({"native":native}))?;
+        let input = {
+            let entries = self.entries.lock().map_err(|_| denied())?;
+            entries.get(&key).ok_or_else(denied)?.input.clone()
+        };
+        if input.workspace != intent.workspace()
+            || input.source != scope.candidate
+            || input.role != scope.role
+            || digest(bundle) != scope.source_sha256
+            || input.effective_bundle(&self.directory.join(&key))? != bundle
+        {
+            return Err(denied());
+        }
+        let address = json!({"id":input.id,"workspace":input.workspace,"native":native});
+        if self.inspect(&address)?["ready"] != true {
+            return Err(denied());
+        }
+        Ok(soda_execution_protocol::PreparedSourceRef {
+            run: key,
+            candidate: input.source.clone(),
+        })
+    }
     pub(crate) fn new(channel: &NativeChannel, alive: Arc<AtomicBool>) -> io::Result<Self> {
         let directory = channel
             .socket

@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 #[path = "../agent_candidate.rs"]
 mod agent_candidate;
+#[path = "../agent_environment.rs"]
+mod agent_environment;
 #[path = "../agent_observation.rs"]
 mod agent_observation;
 use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
@@ -30,6 +32,7 @@ const PRIVATE: &str = "/run/factory-agent-private/run";
 const PRIVATE_MOUNT: &str = "/run/factory-agent-private";
 const PRIVATE_MAX_BYTES: u64 = 768 * 1024 * 1024;
 const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
+const PRIVATE_HOME: &str = "/run/factory-agent-private/run/home";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
 const MAX_REQUEST: usize = soda_execution_protocol::MAX_AGENT_REQUEST;
 const MAX_EXECUTION: Duration = Duration::from_secs(4 * 60 * 60);
@@ -177,6 +180,7 @@ fn identity(run: &str, desktop_uid: u32) -> io::Result<u32> {
     }
     fs::create_dir(PRIVATE)?;
     fs::create_dir(PRIVATE_TMP)?;
+    fs::create_dir(PRIVATE_HOME)?;
     let metadata = Path::new(PRIVATE).symlink_metadata()?;
     if !metadata.is_dir() || metadata.uid() != uid || metadata.mode() & 0o7777 != 0o700 {
         return Err(refused("agent private runtime identity invalid"));
@@ -390,27 +394,37 @@ fn source(candidate: &str, processes: &mut Processes) -> io::Result<()> {
     Ok(())
 }
 
-fn coder_workspace(candidate: &str, worker_uid: u32, processes: &mut Processes) -> io::Result<()> {
+fn coder_workspace(
+    candidate: &str,
+    worker_uid: u32,
+    processes: &mut Processes,
+    prepared: bool,
+) -> io::Result<()> {
     match Path::new(WORKSPACE).symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
         Ok(_) => return Err(refused("agent coder workspace already exists")),
     }
-    git(
-        processes,
-        &[
-            "-c",
-            "safe.directory=/run/factory-source",
-            "clone",
-            "--quiet",
-            "--no-local",
-            "--no-checkout",
-            "--",
-            SOURCE,
-            WORKSPACE,
-        ],
-        Duration::from_secs(15),
-    )?;
+    if prepared {
+        fs::create_dir(WORKSPACE)?;
+        agent_environment::copy(Path::new(SOURCE), Path::new(WORKSPACE))?;
+    } else {
+        git(
+            processes,
+            &[
+                "-c",
+                "safe.directory=/run/factory-source",
+                "clone",
+                "--quiet",
+                "--no-local",
+                "--no-checkout",
+                "--",
+                SOURCE,
+                WORKSPACE,
+            ],
+            Duration::from_secs(15),
+        )?;
+    }
     let metadata = Path::new(WORKSPACE).symlink_metadata()?;
     if !metadata.is_dir()
         || metadata.uid() != worker_uid
@@ -425,12 +439,13 @@ fn coder_workspace(candidate: &str, worker_uid: u32, processes: &mut Processes) 
         &["-C", WORKSPACE, "reset", "--hard", "--quiet", "HEAD"],
         Duration::from_secs(15),
     )?;
-    if !git(
-        processes,
-        &["-C", WORKSPACE, "status", "--porcelain", "-z"],
-        Duration::from_secs(3),
-    )?
-    .is_empty()
+    if !prepared
+        && !git(
+            processes,
+            &["-C", WORKSPACE, "status", "--porcelain", "-z"],
+            Duration::from_secs(3),
+        )?
+        .is_empty()
     {
         return Err(refused("agent coder workspace dirty"));
     }
@@ -707,18 +722,18 @@ fn execute_agent(
             OsString::from(format!("Bearer {placeholder}")),
         ),
         (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
-        (OsString::from("HOME"), OsString::from(PRIVATE)),
+        (OsString::from("HOME"), OsString::from(PRIVATE_HOME)),
         (
             OsString::from("XDG_CONFIG_HOME"),
-            OsString::from(format!("{PRIVATE}/config")),
+            OsString::from(format!("{PRIVATE_HOME}/.config")),
         ),
         (
             OsString::from("XDG_CACHE_HOME"),
-            OsString::from(format!("{PRIVATE}/cache")),
+            OsString::from(format!("{PRIVATE_HOME}/.cache")),
         ),
         (
             OsString::from("XDG_STATE_HOME"),
-            OsString::from(format!("{PRIVATE}/state")),
+            OsString::from(format!("{PRIVATE_HOME}/.local/state")),
         ),
     ]);
     let process = processes
@@ -897,8 +912,35 @@ fn serve() -> io::Result<()> {
     let mut processes = process_owner(&args[1], worker_uid)?;
     let (role, profile, candidate, tool_sha256, prompt_sha256) = manifest(&args[1])?;
     source(&candidate, &mut processes)?;
+    let approved = agent_environment::approved()?;
     if role == "coder" {
-        coder_workspace(&candidate, worker_uid, &mut processes)?;
+        coder_workspace(&candidate, worker_uid, &mut processes, approved.is_some())?;
+    }
+    if approved.is_some() {
+        let workspace = if role == "coder" { WORKSPACE } else { SOURCE };
+        agent_environment::check(&mut processes, Path::new(workspace))?;
+        head(workspace, &candidate, &mut processes)?;
+        let safe = format!("safe.directory={workspace}");
+        git(
+            &mut processes,
+            &[
+                "-C",
+                workspace,
+                "-c",
+                &safe,
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--quiet",
+                "HEAD",
+                "--",
+            ],
+            Duration::from_secs(3),
+        )?;
     }
     let candidate_identity = if role == "coder" {
         Some(repository_identity(Path::new(WORKSPACE))?)

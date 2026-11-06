@@ -116,6 +116,16 @@ impl Drop for NativeRequest {
     }
 }
 impl Port {
+    pub(crate) fn execution_source(
+        &self,
+        intent: &crate::factory_provider::LaunchIntent,
+        bundle: &[u8],
+    ) -> Result<soda_execution_protocol::PreparedSourceRef> {
+        self.0
+            .preparations
+            .execution_source(intent, bundle)
+            .map_err(|error| error.to_string())
+    }
     pub async fn select_execution_tools(
         &self,
         directory: &Path,

@@ -17,6 +17,8 @@ TemporaryFileSystem=/run/soda-factory-agent:mode=0700
 TemporaryFileSystem=/run/factory-agent-private:mode=1777,size=768M
 InaccessiblePaths=/tmp /var/tmp /dev/shm /run/lock
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output/repo:/run/factory-source
+BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output:/run/factory-prepared
+BindReadOnlyPaths=/run/soda-factory-broker/runs/%i:/run/factory-captured-inputs
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/agent.role:/run/factory-role
 ProtectHome=yes
 PrivateTmp=yes

@@ -100,8 +100,8 @@ pub(super) fn ensure_receipts(profile_dir: &Path) -> io::Result<PathBuf> {
 pub struct ReceiptScope<'a> {
     pub(super) run: &'a str,
     pub(super) profile: &'a str,
-    source_sha256: &'a str,
-    candidate: &'a str,
+    pub(super) source_sha256: &'a str,
+    pub(super) candidate: &'a str,
     pub(super) role: Role,
     tool_sha256: &'a str,
     prompt_sha256: &'a str,

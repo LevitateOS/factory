@@ -159,6 +159,7 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
     // The broker has no DAC override capability. Publish completed helper
     // directories for its metadata walk inside the root-private staging area.
     let mut pending = vec![
+        (Path::new(CHECKOUT).to_path_buf(), 0usize),
         (Path::new(OUTPUT).join("home"), 0usize),
         (Path::new(OUTPUT).join("tmp"), 0usize),
     ];
@@ -177,7 +178,15 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
             for entry in fs::read_dir(path)? {
                 pending.push((entry?.path(), depth + 1));
             }
-        } else if !meta.is_file() && !meta.file_type().is_symlink() {
+        } else if meta.is_file() {
+            if meta.uid() != unsafe { libc::geteuid() } {
+                return Err(refused("setup output file owner differs"));
+            }
+            fs::set_permissions(
+                &path,
+                fs::Permissions::from_mode((meta.mode() & 0o777) | 0o444),
+            )?;
+        } else if !meta.file_type().is_symlink() {
             return Err(refused("setup output has special files"));
         }
     }

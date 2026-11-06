@@ -75,6 +75,8 @@ enum Request {
         prompt_sha256: String,
         length: usize,
         sha256: String,
+        #[serde(default)]
+        preparation: Option<soda_execution_protocol::PreparedSourceRef>,
     },
     RetireBundle {
         version: u8,
@@ -1944,7 +1946,11 @@ fn stage(
 ) -> io::Result<()> {
     let runs = state()?;
     let _lock = lock(&runs)?;
-    if matches!(&binding, source_binding::Binding::Preparation(_)) {
+    if matches!(
+        &binding,
+        source_binding::Binding::Preparation(_)
+            | source_binding::Binding::Agent { setup: Some(_), .. }
+    ) {
         preparation_caller_current()?;
     }
     for entry in fs::read_dir(&runs)? {
@@ -2237,6 +2243,7 @@ fn serve() -> io::Result<()> {
             prompt_sha256,
             length,
             sha256,
+            preparation,
         } => {
             if version != 1
                 || !id(&run, 32)
@@ -2258,6 +2265,12 @@ fn serve() -> io::Result<()> {
             if hash(&bundle) != sha256 {
                 return Err(denied("broker bundle digest mismatch"));
             }
+            let setup = preparation
+                .as_ref()
+                .map(|source| {
+                    source_binding::agent_setup(source, &profile, &sha256, &role, desktop_uid)
+                })
+                .transpose()?;
             unsafe { libc::shutdown(0, libc::SHUT_RD) };
             stage(
                 &run,
@@ -2266,6 +2279,7 @@ fn serve() -> io::Result<()> {
                 source_binding::Binding::Agent {
                     tool: &tool_sha256,
                     prompt: &prompt_sha256,
+                    setup: setup.as_ref(),
                 },
                 &bundle,
                 &sha256,

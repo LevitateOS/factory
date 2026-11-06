@@ -27,6 +27,7 @@ impl Executions {
         &mut self,
         profile: PathBuf,
         mut start: ExecutionStart,
+        preparation: soda_execution_protocol::PreparedSourceRef,
     ) -> io::Result<ExecutionTicket> {
         let refuse = || {
             io::Error::new(
@@ -86,6 +87,7 @@ impl Executions {
                     mcp: Some(mcp),
                     cancellation,
                     intent: Some(&intent),
+                    preparation: Some(&preparation),
                 })
             },
             bytes,

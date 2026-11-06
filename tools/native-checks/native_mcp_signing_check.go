@@ -1194,6 +1194,10 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_PREPARE_CANDIDATE") == "1" {
 		check = []byte("printf 'checked-by-native\\n'\ngit rev-parse --verify HEAD\ncat docs/note.md\n")
 	}
+	if os.Getenv("SODA_NATIVE_KEEP_PREPARATION") == "1" {
+		setup = []byte("mkdir -p .factory-build\nprintf 'prepared dependency\\n' > .factory-build/dependency\nprintf 'prepared HOME\\n' > \"$HOME/factory-env\"\nchmod 600 \"$HOME/factory-env\" .factory-build/dependency\n")
+		check = []byte("test \"$(cat .factory-build/dependency)\" = 'prepared dependency'\ntest \"$(cat \"$HOME/factory-env\")\" = 'prepared HOME'\nprintf 'checked-by-native\\n'\n")
+	}
 	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
 	source := os.Getenv("SODA_NATIVE_CHECK_COMMIT")
@@ -1206,6 +1210,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return err
 	}
 	prep := project.Preparation{ID: "f" + factory.NewID()[:24], Project: grant.Project, Role: project.RoleCoder, SourceCommit: source, SetupDigest: requirement.SetupDigest, Requirements: requirement.Ref(1), Approval: approval.Ref(1), Tools: tools}
+	if os.Getenv("SODA_NATIVE_PREPARATION_ROLE") == project.RoleReviewer {
+		prep.Role = project.RoleReviewer
+	}
 	ref := &execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: prep.ID}
 	record, _, err := db.AdmitStandingPreparation(ctx, execution.PreparationRecord{Preparation: prep, Native: ref})
 	if err != nil {
@@ -1260,6 +1267,10 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	request.Input.Preparation.Revision = record.Preparation.Revision
 	if _, err = port.PrepareWorkspace(ctx, request); err != nil {
 		return err
+	}
+	if os.Getenv("SODA_NATIVE_KEEP_PREPARATION") == "1" {
+		fmt.Println("PASS: retained admitted source preparation with actual build output and private HOME file")
+		return nil
 	}
 	if os.Getenv("SODA_NATIVE_CONTEXT_CHECK") == "1" {
 		base := os.Getenv("SODA_NATIVE_CHECK_BASE")
@@ -1400,7 +1411,7 @@ func workerProfileFixture() error {
 	selected := map[string]string{}
 	for i := 1; i+1 < len(os.Args); i++ {
 		switch os.Args[i] {
-		case "--model", "--reasoning-effort", "--contributor-mode":
+		case "--model", "--reasoning-effort", "--contributor-mode", "--workspace":
 			selected[os.Args[i]] = os.Args[i+1]
 		}
 	}
@@ -1425,6 +1436,14 @@ func workerProfileFixture() error {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusForbidden {
 		return errors.New("native worker without a current Go capability was not refused")
+	}
+	dependency, readErr := os.ReadFile(filepath.Join(selected["--workspace"], ".factory-build/dependency"))
+	if readErr != nil || string(dependency) != "prepared dependency\n" {
+		return errors.New("worker lost prepared workspace dependency")
+	}
+	home, readErr := os.ReadFile(filepath.Join(os.Getenv("HOME"), "factory-env"))
+	if readErr != nil || string(home) != "prepared HOME\n" {
+		return errors.New("worker lost prepared HOME")
 	}
 	if _, err := os.Stat(".git"); err == nil {
 		if err = os.WriteFile("native-candidate.txt", []byte("Actual isolated coder candidate\n"), 0600); err != nil {

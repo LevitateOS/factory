@@ -317,7 +317,12 @@ impl NativeSupervisor {
             .execution_profile
             .as_ref()
             .ok_or("native execution unavailable")?;
-        self.with_executions(|executions| executions.launch(profile.clone(), start))
+        let preparation = self
+            .collaboration
+            .as_ref()
+            .ok_or("native preparation owner unavailable")?
+            .execution_source(&start.intent, &start.bundle)?;
+        self.with_executions(|executions| executions.launch(profile.clone(), start, preparation))
     }
     /// The native install/updater owner chooses this directory. No browser or Go
     /// callback accepts a path; selection alone admits no product execution.

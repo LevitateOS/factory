@@ -31458,3 +31458,16 @@ and Go absent-admission refusal verified. Successful canonical Go retry/reviewer
 admission through the coordinator, live candidate deadline expiry and restart
 adoption remain unverified. Environment transfer, checkpoint/artifact operations,
 admitted launch/coordinator/provider joins and all open gates remain pending.
+
+Supervisor launches now require the exact ready native preparation. Root staging
+derives its approved files, setup/check must pass, and the worker transfers prepared
+build artifacts and a private credential-free HOME before checking the actual
+workspace and starting the CLI. Actual coder environment/commit/export/restart
+passed in `/home/vince/tmp/fenv6.x7x2TG/run.log`; reviewer environment, finite
+execution, cancellation and Quit passed in `fenv6.j86cEr/run.log` under the same
+parent. The real Go preparation admission does not qualify the declared launch
+intent/local CLI/dummy credential as provider or coordinator authority. Remaining
+work is admitted launch/coordinator composition, checkpoint/artifact operations,
+current credentials/policy/funding and positive MCP, actual provider execution and
+durable outcome/restart settlement. T09 and D3 remain open; limitations and the
+retained failed reviewer attempt are recorded in the security handoff.

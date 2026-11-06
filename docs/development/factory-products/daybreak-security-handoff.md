@@ -162,12 +162,34 @@ during live setup, restart adoption and adversarial import checks remain unverif
 Close those with the actual admitted coordinator journey and exact native/Go
 lifecycle facts; checks that look like hacking require a user-started Daybreak.
 
+Prepared worker environments (`agent_environment.rs`, `prepared_setup.rs`,
+`source_binding.rs`, `preparations.rs`, `start.rs`, `run.rs`, `supervisor.rs` and
+the agent service) now join supervisor launches to an exact current ready source.
+The broker derives approved files from that protected preparation; a fresh helper
+must pass setup/check before activation. The coder copies the prepared Git tree
+including build artifacts; both roles copy the credential-free HOME and run the
+approved check in their actual workspace before the CLI starts. Completed files
+are readable only behind the protected staging parent and exact read-only mounts;
+worker copies remain private. Copied links must be relative and confined, and
+file/tree bounds apply. Arbitrary package layouts and adversarial transfer are
+not qualified.
+
+Actual build artifact/private HOME use, coder commit/export and completed-run
+restart passed in `/home/vince/tmp/fenv6.x7x2TG/run.log`; reviewer read-only source,
+HOME, finite execution, cancellation and Quit passed in `fenv6.j86cEr/run.log`
+under the same parent. These used a real Go-admitted preparation, declared launch
+intent, local CLI and dummy credential, without provider inference, positive MCP,
+production coordinator or product settlement. The earlier `fenv6.YrNTNB` reviewer
+attempt failed at the process owner's private-directory rule; its profile remains
+retained. The check now starts in the owned directory and enters the exact source
+inside the supervised shell. Interrupted startup/cancelled outcomes still need
+exact custody/resource evidence and Go reconciliation; no proposed recovery fix
+is verified by these passes.
+
 Remaining dependencies: admitted retry/reviewer integration, checkpoint/artifact operations, admitted Go
 launch, current credential/policy/funding and positive MCP activation, followed by
-single-coordinator execution and durable outcome/restart settlement. The active
-agent currently clones bare source without the approved setup artifacts: prove
-the approved environment is transferred or reproduced in its actual workspace/HOME
-before claiming that join. Old-instance preparation re-enrollment and crash/reboot
+single-coordinator execution and durable outcome/restart settlement using the
+prepared environment above. Old-instance preparation re-enrollment and crash/reboot
 reconciliation remain unverified. Adversarial script/receipt/source integrity and
 worst-case stubborn-child teardown are unqualified; `TimeoutStopSec=2s` alone is
 not teardown evidence. Close these with actual admitted environment/worker facts,
