@@ -215,7 +215,7 @@ export class SodaFactoryPull extends LitElement {
       <p role="status">${this.view.busy ? 'Loading pull request…' : this.view.message}</p>
       ${pull ? html`
         <p class="soda-pull-meta">#${pull.ref.number} · ${pull.state}${pull.draft ? ' · Draft' : ''} · ${pull.author?.login || 'Unknown author'} · ${pull.head.name} → ${pull.base.name}</p>
-        <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href))) : html`<p>No description provided.</p>`}</article>
+        <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href), `pull-${pull.ref.external_id}`)) : html`<p>No description provided.</p>`}</article>
         <nav aria-label="Pull request sections">
           <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} @click=${() => this.select('conversation')}>Conversation</button>
           <button type="button" aria-current=${this.tab === 'reviews' ? 'page' : 'false'} @click=${() => this.select('reviews')}>Reviews</button>
@@ -259,16 +259,16 @@ export class SodaFactoryPull extends LitElement {
           <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.workflow ? row.workflow + ' · ' : ''}${row.description}</p></li>`)}</ul>
           ${!this.view.checks.length ? html`<p>No checks on this page.</p>` : ''}
         </section>` : this.tab === 'conversation' ? html`<section aria-label="Conversation">
-          <ol>${this.view.comments.map(comment => html`<li><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([comment.externalID, comment.body, context.resolveLink], () => issueMarkdown(comment.body, href => context.resolveLink(href)))}</div></li>`)}</ol>
+          <ol>${this.view.comments.map(comment => html`<li><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([comment.externalID, comment.body, context.resolveLink], () => issueMarkdown(comment.body, href => context.resolveLink(href), `pull-comment-${comment.externalID}`))}</div></li>`)}</ol>
           ${!this.view.comments.length ? html`<p>No comments on this page.</p>` : ''}
         </section>` : this.tab === 'reviews' ? html`<section aria-label="Reviews">
-          <ul>${this.view.reviews.map(review => html`<li>${review.author} · ${review.state}${review.stale ? ' · Stale' : ''}<p>${review.body}</p></li>`)}</ul>
+          <ul>${this.view.reviews.map(review => html`<li>${review.author} · ${review.state}${review.stale ? ' · Stale' : ''}<div class="soda-markdown">${guard([review.externalID, review.body, context.resolveLink], () => issueMarkdown(review.body, href => context.resolveLink(href), `pull-review-${review.externalID}`))}</div></li>`)}</ul>
           ${!this.view.reviews.length ? html`<p>No reviews on this page.</p>` : ''}
         </section>` : html`<section aria-label="Inline discussions"><ol>${this.view.threads.map(thread => html`<li>
             <strong>${thread.currentAnchor?.new_path || thread.currentAnchor?.old_path || thread.anchor?.new_path || thread.anchor?.old_path || 'Location unavailable'}</strong>
             ${thread.anchor?.lines ? html` · ${thread.anchor.side} line ${thread.anchor.lines.start}${thread.anchor.lines.end !== thread.anchor.lines.start ? `–${thread.anchor.lines.end}` : ''}` : ''}
             · ${thread.resolution}${thread.outdated ? ' · Outdated' : ''}
-            <ol>${thread.comments.map(comment => html`<li>${comment.author}${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<p>${comment.body}</p></li>`)}</ol>
+            <ol>${thread.comments.map((comment, index) => html`<li>${comment.author}${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([thread.externalID, index, comment.body, context.resolveLink], () => issueMarkdown(comment.body, href => context.resolveLink(href), `pull-thread-${thread.externalID}-${index}`))}</div></li>`)}</ol>
             ${thread.commentsNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadThreadComments(thread)}>Load more comments</button>` : ''}
             ${context.commandScope ? html`<soda-factory-thread-resolution
               .context=${{transport: context.transport, host: context.host, actor: context.actor,
