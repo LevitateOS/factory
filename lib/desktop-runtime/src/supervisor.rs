@@ -324,6 +324,18 @@ impl NativeSupervisor {
             .execution_source(&start.intent, &start.bundle)?;
         self.with_executions(|executions| executions.launch(profile.clone(), start, preparation))
     }
+    /// Trusted native host enrollment. Go may address this captured account,
+    /// but cannot mint a keyring capability or choose another credential owner.
+    pub fn enroll_execution_account(
+        &self,
+        credentials: Arc<crate::credentials::Credentials>,
+        capability: crate::credentials::TokenCapability,
+    ) -> Result<()> {
+        self.collaboration
+            .as_ref()
+            .ok_or("native execution enrollment unavailable")?
+            .enroll_execution_account(credentials, capability)
+    }
     /// The native install/updater owner chooses this directory. No browser or Go
     /// callback accepts a path; selection alone admits no product execution.
     pub async fn select_execution_tools(

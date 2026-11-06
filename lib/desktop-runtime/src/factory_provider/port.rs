@@ -1,5 +1,5 @@
 //! Private Go callbacks over the supervisor's actual execution registry.
-//! Requests observe or cancel an existing captured intent; they cannot launch.
+//! The native host composes typed launches with its account and source owners.
 use super::{
     AttemptPhase, CustodyState, ExecutionBinding, ExecutionOutcome, Executions, LaunchIntent,
 };
@@ -16,10 +16,27 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
-    Inspect { intent: String },
-    Cancel { intent: String },
-    InspectTool { harness: String },
-    Export { intent: String, candidate: String },
+    Launch {
+        intent: String,
+        prompt: String,
+        capability: String,
+        secret: String,
+        scope_digest: String,
+        tools: Vec<String>,
+    },
+    Inspect {
+        intent: String,
+    },
+    Cancel {
+        intent: String,
+    },
+    InspectTool {
+        harness: String,
+    },
+    Export {
+        intent: String,
+        candidate: String,
+    },
 }
 
 pub(crate) async fn call(
@@ -31,6 +48,7 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::Launch { .. } => return Err(io::Error::other("native launch owner required")),
         Call::Export { intent, candidate } => {
             return tokio::task::spawn_blocking(move || {
                 if !alive.load(Ordering::SeqCst) {

@@ -31471,3 +31471,17 @@ work is admitted launch/coordinator composition, checkpoint/artifact operations,
 current credentials/policy/funding and positive MCP, actual provider execution and
 durable outcome/restart settlement. T09 and D3 remain open; limitations and the
 retained failed reviewer attempt are recorded in the security handoff.
+
+`NativeExecution.LaunchRun` now validates the recorded packet/current grants,
+recomputes and verifies the MCP scope/catalog, calls the native launch owner and
+waits for that retained job's observation. Native account enrollment is a trusted
+host operation; the callback renews only that profile/account and obtains prepared
+source without a Go path or provider credential. Actual PostgreSQL positive
+preflight/withdrawal refusal passed in `/home/vince/tmp/flpg6.bgxHLb/run.log`;
+native 64 KiB prompt/replay/finite/export/restart passed in `flch6.o9WsX6/run.log`,
+and reviewer replay/cancel/Quit passed in `flch6.RHjGYW/run.log` under the same
+parent. Native producer admission remained declared; public Go refusal of those
+unadmitted rows was verified. Full positive Go/coordinator/provider composition,
+registered-checkout recovery, checkpoint/artifact ports, shell account/native
+grant binding, positive MCP and interrupted-outcome settlement remain pending.
+T09 and D3 stay open; no provider or installed qualification is claimed.

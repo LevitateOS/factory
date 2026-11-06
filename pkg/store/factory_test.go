@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"strings"
 	"testing"
@@ -191,6 +192,26 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	if err != nil || intent.Version != 2 || intent.Model != assignment.Model || intent.Effort != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Effort || intent.Contributor != capturedNative.Admission.Policy.Roles[assignment.Role].Profile.Contributor || intent.Run != dispatchRun.ID || intent.Workspace != grant.Project || intent.Native != nativeLaunch || intent.Connection != connection {
 		t.Fatal("native intent differs from admitted packet", err)
 	}
+	// Exercise the native effect preflight against the actual admitted packet.
+	// Provider identities, executable and preparation readiness remain fixture facts.
+	launchInput := project.FactoryLaunch{Run: project.FactoryRun{ID: capturedNative.ID, Project: capturedNative.ProjectID, Role: capturedNative.Role,
+		Preparation: assignment.Preparation, Harness: tool.Harness, HarnessVers: tool.Version, Model: intent.Model, Effort: intent.Effort, Contributor: intent.Contributor,
+		Assignment: assignment.PromptSHA, SourceCommit: assignment.SourceCommit, Connection: assignment.Connection, Actor: assignment.ActorID, Deadline: capturedNative.Deadline, ExecutionPhase: assignment.Phase},
+		Prompt: assignment.Prompt, HarnessSHA256: tool.SHA256, MCP: &project.FactoryMCPBinding{Capability: capturedNative.ID, Secret: strings.Repeat("a", 64)}}
+	launchRequest, err := capturedNative.LaunchRequest(assignment, launchInput)
+	if err != nil {
+		t.Fatal("native preflight request", err)
+	}
+	capability := factory.MCPCapability{ID: capturedNative.ID, AssignmentID: assignment.ID, RunID: capturedNative.ID, Generation: 1,
+		Profile: factory.MCPProfileOfAssignment(assignment), Subject: assignment.Subject.SubjectKey(assignment.Repository), Repository: assignment.Repository,
+		Project: assignment.ProjectID, PreparationDigest: prepared.SetupDigest, SourceDigest: assignment.SourceCommit, AcceptedRevision: fmt.Sprint(assignment.NativeRev),
+		Authority: strings.Repeat("a", 64), DeadlineUnix: capturedNative.Deadline.Unix(), State: factory.MCPCapabilityStaged}
+	if err = s.StageMCPCapability(ctx, capability); err != nil {
+		t.Fatal("native launch capability", err)
+	}
+	if _, err = s.AuthorizeNativeLaunch(ctx, launchRequest); err != nil {
+		t.Fatal("current native launch preflight", err)
+	}
 	wrongEnvironment := *nativeEnvironment
 	wrongEnvironment.Generation--
 	staleRequirement := requirement
@@ -207,6 +228,9 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	grant.Active = false
 	if _, err := s.ApplyFactoryGrant(ctx, "native-workspace-fixture", grant); err != nil {
 		t.Fatal("native permission withdrawal", err)
+	}
+	if _, err = s.AuthorizeNativeLaunch(ctx, launchRequest); err == nil {
+		t.Fatal("withdrawn native launch preflight", err)
 	}
 	withdrawnApproval := approval
 	withdrawnApproval.ID, withdrawnApproval.Predecessor = "d523456789012345678901234", approval.ID

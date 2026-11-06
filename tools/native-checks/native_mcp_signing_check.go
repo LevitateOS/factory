@@ -611,7 +611,7 @@ func nativeIntentFixture(profile, instance, operation, argument string) error {
 	if err != nil {
 		return err
 	}
-	if len(raw) > 32768 {
+	if len(raw) > project.MaxFactoryPrompt+32768 {
 		return errors.New("native intent fixture too large")
 	}
 	var input struct {
@@ -1031,6 +1031,33 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	}
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 	address := execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}
+	if mode == "launch_refused" {
+		intent, parseErr := execution.ParseNativeIntent(run.Native.Intent)
+		if parseErr != nil {
+			return parseErr
+		}
+		var fixture struct{ Prompt string }
+		raw, readErr := os.ReadFile(filepath.Join(profile, "native-recovery-fixture.json"))
+		if readErr != nil {
+			return readErr
+		}
+		if json.Unmarshal(raw, &fixture) != nil {
+			return errors.New("owned launch fixture missing")
+		}
+		request := execution.LaunchRequest{Kind: collaboration.Native, Native: &intent.Native, Input: project.FactoryLaunch{
+			Run: project.FactoryRun{ID: run.ID, Project: run.ProjectID, Role: run.Role, Preparation: run.Native.Provenance.WorktreeID, Harness: run.Native.Tool.Harness, HarnessVers: run.Native.Tool.Version, Model: intent.Model, Effort: intent.Effort, Contributor: intent.Contributor,
+				Assignment: run.Native.PromptSHA256, SourceCommit: run.InputSHA, Connection: intent.Connection, Actor: 1, Deadline: run.Deadline, ExecutionPhase: project.ExecutionReview},
+			Prompt: []byte(fixture.Prompt), HarnessSHA256: run.Native.Tool.SHA256, MCP: &project.FactoryMCPBinding{Capability: run.ID, Secret: strings.Repeat("a", 64)},
+		}}
+		if err = request.Validate(); err != nil {
+			return err
+		}
+		if _, err = port.LaunchRun(ctx, request); err == nil {
+			return errors.New("Go launched an unadmitted native fixture")
+		}
+		fmt.Println("PASS: Go native launch refuses unadmitted work before native effects")
+		return nil
+	}
 	if mode == "export" {
 		var expected struct {
 			Candidate string `json:"candidate"`

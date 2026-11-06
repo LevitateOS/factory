@@ -7,6 +7,7 @@ mod candidate;
 mod custody;
 mod executions;
 mod intent;
+pub(crate) mod launch;
 mod mcp;
 mod observation;
 mod owner;

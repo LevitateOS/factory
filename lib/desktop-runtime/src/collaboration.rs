@@ -63,6 +63,8 @@ struct State {
     executions: Arc<Mutex<crate::factory_provider::Executions>>,
     tools: RwLock<Option<Arc<crate::factory_provider::Tools>>>,
     preparations: Arc<crate::factory_provider::preparations::Preparations>,
+    execution_accounts:
+        Arc<RwLock<BTreeMap<String, Arc<crate::factory_provider::launch::Account>>>>,
 }
 struct Finalize {
     scope: Arc<Scope>,
@@ -121,10 +123,37 @@ impl Port {
         intent: &crate::factory_provider::LaunchIntent,
         bundle: &[u8],
     ) -> Result<soda_execution_protocol::PreparedSourceRef> {
-        self.0
+        let (captured, source) = self
+            .0
             .preparations
-            .execution_source(intent, bundle)
-            .map_err(|error| error.to_string())
+            .execution_material(intent)
+            .map_err(|error| error.to_string())?;
+        if captured != bundle {
+            return Err("native launch source differs".into());
+        }
+        Ok(source)
+    }
+    pub(crate) fn enroll_execution_account(
+        &self,
+        credentials: Arc<Credentials>,
+        capability: TokenCapability,
+    ) -> Result<()> {
+        if !self.0.alive.load(Ordering::SeqCst) || !credentials.is_profile(&self.0.channel.profile)
+        {
+            return Err("native execution enrollment unavailable".into());
+        }
+        let account = crate::factory_provider::launch::Account::new(credentials, capability)
+            .map_err(|error| error.to_string())?;
+        let mut accounts = self
+            .0
+            .execution_accounts
+            .write()
+            .map_err(|_| "native execution accounts unavailable")?;
+        if accounts.len() >= 8 && !accounts.contains_key(account.connection()) {
+            return Err("native execution account capacity retained".into());
+        }
+        accounts.insert(account.connection().to_owned(), Arc::new(account));
+        Ok(())
     }
     pub async fn select_execution_tools(
         &self,
@@ -271,6 +300,7 @@ impl Owner {
             executions,
             tools: RwLock::new(None),
             preparations,
+            execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
         }));
         let state = port.0.clone();
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -694,7 +724,7 @@ async fn dispatch(
     let body_limit = if preparation {
         1024 * 1024
     } else if execution {
-        32768
+        512 * 1024
     } else if signing || verifying {
         8192
     } else {
@@ -735,7 +765,44 @@ async fn dispatch(
         });
     }
     if execution {
-        let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let call: crate::factory_provider::port::Call =
+            serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if let crate::factory_provider::port::Call::Launch {
+            intent,
+            prompt,
+            capability,
+            secret,
+            scope_digest,
+            tools,
+        } = call
+        {
+            if !state
+                .signer
+                .verify(&capability, &scope_digest, &secret)
+                .map_err(|_| Failure::unavailable())?
+            {
+                return Err(Failure::invalid());
+            }
+            return crate::factory_provider::launch::launch(
+                state.channel.clone(),
+                state.alive.clone(),
+                state.executions.clone(),
+                state.preparations.clone(),
+                state.execution_accounts.clone(),
+                crate::factory_provider::launch::Input {
+                    intent,
+                    prompt,
+                    capability,
+                    secret,
+                    tools,
+                },
+            )
+            .await
+            .map_err(|error| {
+                eprintln!("native launch callback: {error}");
+                Failure::new(503, "native_launch_unavailable")
+            });
+        }
         let tools = state
             .tools
             .read()

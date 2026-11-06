@@ -359,10 +359,11 @@ async fn managed_execution(
     backend: &Path,
     client: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use base64::Engine;
     use sha2::Digest;
     use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
     use soda_desktop_runtime::factory_provider::{
-        AttemptPhase, Broker, Budget, ExecutionOutcome, ExecutionStart, LaunchIntent, Policy, Role,
+        AttemptPhase, Broker, ExecutionOutcome, LaunchIntent,
     };
     use std::sync::Arc;
     let digest = |bytes: &[u8]| -> String {
@@ -373,7 +374,8 @@ async fn managed_execution(
     };
     let source = fs::read(std::env::var("SODA_NATIVE_CHECK_BUNDLE")?)?;
     let commit = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
-    let prompt = b"Observe one finite local fixture process.\n";
+    let prompt_storage = vec![b'p'; 64 * 1024];
+    let prompt = prompt_storage.as_slice();
     let profile = root.join("execution-profile");
     let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
     let ready = supervisor.health()?;
@@ -389,6 +391,10 @@ async fn managed_execution(
             Token::new(b"dummy-local-fixture-only".to_vec())?,
         )
         .await?;
+    supervisor.enroll_execution_account(
+        credentials.clone(),
+        credentials.capability(&account.connection).await?,
+    )?;
     let command = |operation: &str, argument: &str| -> Result<(), Box<dyn std::error::Error>> {
         if !Command::new(client)
             .env("SODA_NATIVE_KEEP_PREPARATION", "1")
@@ -465,38 +471,42 @@ async fn managed_execution(
         let intent = LaunchIntent::from_go(&fs::read_to_string(
             profile.join("native-recovery-intent.json"),
         )?)?;
-        let policy = Policy::new(
-            &run,
-            &ready.profile,
-            &digest(&source),
-            &commit,
-            &account.connection,
-            if role == "soda-coder" {
-                Role::Coder
-            } else {
-                Role::Reviewer
-            },
-            Duration::from_secs(60),
-            Budget::new(2, 256 * 1024, 8192)?,
+        command("check-owned-execution", "launch_refused")?;
+        if supervisor.execution_ticket(&intent).is_ok() {
+            return Err("unadmitted Go launch reached native effects".into());
+        }
+        // Native producer admission is declared here. The public Go launch
+        // guard above must refuse these unplaced fixture rows.
+        let scope_digest = "a".repeat(64);
+        let secret = Signer::open(&profile)?.derive(intent.run(), &scope_digest)?;
+        let body = serde_json::to_vec(
+            &serde_json::json!({"operation":"launch","intent":intent.raw(),
+            "prompt":base64::engine::general_purpose::STANDARD.encode(prompt),"capability":intent.run(),
+            "scope_digest":scope_digest,"secret":secret,"tools":["factory.context"]}),
         )?;
-        let mcp = supervisor
-            .worker_mcp(
-                &intent,
-                &["factory.context".into()],
-                intent.run(),
-                &"a".repeat(64),
-            )
-            .await?;
-        let ticket = supervisor.launch_admitted_execution(ExecutionStart {
-            intent: intent.clone(),
-            policy,
-            credentials: credentials.clone(),
-            capability: credentials.capability(&account.connection).await?,
-            bundle: source.clone(),
-            prompt: prompt.to_vec(),
-            executable,
-            mcp,
-        })?;
+        let bearer = fs::read_to_string(profile.join("backend.key"))?;
+        let response = request_authenticated_async(
+            &profile.join("host.sock"),
+            "POST",
+            "/api/native/execution",
+            "soda-native",
+            &body,
+            &bearer,
+            &[("X-Soda-Native-Instance", ready.instance.as_str())],
+            Duration::from_secs(5),
+            Limits {
+                header_bytes: 4096,
+                body_bytes: 512 * 1024,
+            },
+        )
+        .await
+        .map_err(|error| format!("native launch fixture transport: {error:?}"))?;
+        if response.status != 200
+            || serde_json::from_slice::<serde_json::Value>(&response.body)?["accepted"] != true
+        {
+            return Err("declared native launch callback did not accept the owned job".into());
+        }
+        let ticket = supervisor.execution_ticket(&intent)?;
         let deadline = std::time::Instant::now() + Duration::from_secs(12);
         loop {
             match ticket.observe().phase {
@@ -508,6 +518,34 @@ async fn managed_execution(
             }
         }
         command("check-owned-execution", "running")?;
+        let before = ticket.inspect(Duration::from_secs(2))?.started.process;
+        let replay = request_authenticated_async(
+            &profile.join("host.sock"),
+            "POST",
+            "/api/native/execution",
+            "soda-native",
+            &body,
+            &bearer,
+            &[("X-Soda-Native-Instance", ready.instance.as_str())],
+            Duration::from_secs(5),
+            Limits {
+                header_bytes: 4096,
+                body_bytes: 512 * 1024,
+            },
+        )
+        .await
+        .map_err(|error| format!("native launch replay: {error:?}"))?;
+        if replay.status != 200
+            || supervisor
+                .execution_ticket(&intent)?
+                .inspect(Duration::from_secs(2))?
+                .started
+                .process
+                != before
+        {
+            return Err("native launch replay replaced the worker process".into());
+        }
+        println!("PASS: native launch callback admits a retained 64 KiB prompt and replay preserves the actual worker process");
         if mode == "quit" {
             quit_ticket = Some(ticket);
             break;

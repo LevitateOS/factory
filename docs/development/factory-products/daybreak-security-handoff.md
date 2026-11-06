@@ -186,8 +186,32 @@ inside the supervised shell. Interrupted startup/cancelled outcomes still need
 exact custody/resource evidence and Go reconciliation; no proposed recovery fix
 is verified by these passes.
 
-Remaining dependencies: admitted retry/reviewer integration, checkpoint/artifact operations, admitted Go
-launch, current credential/policy/funding and positive MCP activation, followed by
+Go/native launch (`store/factory_native_launch.go`, `runtime/native_launch.go`,
+`factory_provider/launch.rs`, `collaboration.rs` and `supervisor.rs`) now checks
+the recorded packet, current grants/placement/preparation and canonical capability
+state before native effects. The runtime recomputes the defining MCP scope/catalog,
+verifies its scoped secret and rechecks admission after I/O. Native-only account
+enrollment retains a profile-bound Muse capability; the callback renews that exact
+account, obtains source from the preparation registry and starts the existing
+owned execution. No provider token or account capability crosses to Go/browser.
+Replay retains the same worker. The callback carries bounded prompts through the
+shared private channel; a local 64 KiB prompt exercised its increased frame bound.
+
+Actual recorded-packet preflight and withdrawn-grant refusal passed in
+`/home/vince/tmp/flpg6.bgxHLb/run.log`. Native callback finite/replay/export/restart
+passed in `flch6.o9WsX6/run.log`; reviewer finite/replay/cancel/Quit passed in
+`flch6.RHjGYW/run.log` under the same parent. Those native launches declared Go
+admission and used a local CLI/dummy account; the public Go launcher separately
+refused their unadmitted rows before native effects. They do not prove the full
+canonical Go-to-native positive launch, provider identity/spending authority,
+positive MCP activation, production coordinator or product settlement. Existing
+cancelled/interrupted outcomes remain unresolved.
+
+Remaining dependencies: admitted retry/reviewer integration, registered-checkout
+work recovery, checkpoint/artifact operations, shell enrollment of the native
+Muse account and canonical native sponsor/publication actor bindings (legacy
+`ActorBindingRef.TokenID` is not native account authority), current provider policy/
+funding and positive MCP activation, followed by
 single-coordinator execution and durable outcome/restart settlement using the
 prepared environment above. Old-instance preparation re-enrollment and crash/reboot
 reconciliation remain unverified. Adversarial script/receipt/source integrity and
