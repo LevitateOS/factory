@@ -1,6 +1,6 @@
 import {check, id, object} from '../api/models.js';
 import type {PullRequest, PullRef} from '../api/collaboration.js';
-import type {ChangedFile, ReviewAnchor} from '../api/collaboration.js';
+import type {ChangedFile, ReviewAnchor, ReviewLocation} from '../api/collaboration.js';
 import {parseChangedFile, parseReviewAnchor} from '../api/collaboration-response.js';
 
 export type PullItem = Pick<
@@ -105,22 +105,24 @@ export function pullFiles(value: unknown, repository: string, number: string, ba
   return {diff: {base: actualBase, head: actualHead}, ...page};
 }
 
-export function pullChecks(value: unknown, repository: string, number: string, head: string, cursor = '') {
+export function pullChecks(value: unknown, repository: string, number: string, head: string, kind: 'status' | 'job', cursor = '') {
   const result = object(value);
   pullRef(result.pull, repository, number);
-  check(result.commit === head && result.kind === 'status');
+  check(result.commit === head && result.kind === kind);
   const gate = result.status_gate;
   check(['not_required', 'pending', 'success', 'failure', 'error', 'warning', 'unknown'].includes(String(gate)));
   const page = pullPage(result.checks, 20, (value) => {
     const row = object(value);
     available(row.observation);
-    check(row.repository === repository && row.commit === head && row.kind === 'status');
+    check(row.repository === repository && row.commit === head && row.kind === kind);
     check(row.required === null || typeof row.required === 'boolean');
     const state = row.state, conclusion = row.conclusion;
     check(['pending', 'running', 'completed', 'unknown'].includes(String(state)));
     check(['success', 'failure', 'neutral', 'skipped', 'cancelled', 'timed_out', 'action_required', 'stale', 'unknown'].includes(String(conclusion)));
+    const job = row.job === null ? null : object(row.job);
     return {name: text(row.name, 1024), state: state as string, conclusion: conclusion as string,
-      required: row.required as boolean | null, description: text(row.description, 4096)};
+      required: row.required as boolean | null, description: text(row.description, 4096),
+      workflow: job ? text(job.workflow, 1024) : null};
   }, cursor);
   return {gate: gate as string, ...page};
 }
@@ -143,10 +145,22 @@ export interface PullThreadView {
   externalID: string;
   anchor: ReviewAnchor | null;
   currentAnchor: ReviewAnchor | null;
+  recordedLocation: ReviewLocation | null;
   outdated: boolean | null;
   resolution: string;
-  comments: readonly {author: string; body: string; createdAt: string | null}[];
+  comments: readonly PullThreadComment[];
   commentsNext: string;
+}
+export interface PullThreadComment {author: string; body: string; createdAt: string | null}
+function threadComment(value: unknown, repository: string, number: string): PullThreadComment {
+  const entry = object(value), comment = object(entry.comment);
+  available(comment.observation);
+  if (entry.anchor !== null) pullRef(parseReviewAnchor(entry.anchor).diff.pull, repository, number);
+  const author = comment.author === null ? null : object(comment.author);
+  return {author: author ? text(author.login, 256) : 'Unknown author', body: text(comment.body, 4 * 1024 * 1024), createdAt: date(comment.created_at)};
+}
+export function pullThreadComments(value: unknown, repository: string, number: string, cursor = '') {
+  return pullPage(value, 20, item => threadComment(item, repository, number), cursor);
 }
 export function pullThreads(value: unknown, repository: string, number: string, cursor = '') {
   return pullPage(value, 20, (value): PullThreadView => {
@@ -157,15 +171,27 @@ export function pullThreads(value: unknown, repository: string, number: string, 
     check(['resolved', 'unresolved', 'unknown'].includes(String(thread.resolution)));
     const anchor = thread.anchor === null ? null : parseReviewAnchor(thread.anchor);
     const currentAnchor = thread.current_anchor === null ? null : parseReviewAnchor(thread.current_anchor);
+    const location = thread.recorded_location === null ? null : object(thread.recorded_location);
+    if (location) check((location.side === 'old' || location.side === 'new') && Number.isSafeInteger(location.line) && (location.line as number) > 0);
+    const recordedLocation: ReviewLocation | null = location ? {
+      commit: commit(location.commit), path: text(location.path, 4096),
+      side: location.side as 'old' | 'new', line: location.line as number,
+    } : null;
     for (const a of [anchor, currentAnchor]) if (a) pullRef(a.diff.pull, repository, number);
-    const page = pullPage(comments, 10, (value) => {
-      const entry = object(value), comment = object(entry.comment);
-      available(comment.observation);
-      const author = comment.author === null ? null : object(comment.author);
-      return {author: author ? text(author.login, 256) : 'Unknown author', body: text(comment.body, 4 * 1024 * 1024), createdAt: date(comment.created_at)};
-    });
-    return {externalID: text(thread.external_id, 1024), anchor, currentAnchor,
+    const page = pullPage(comments, 10, item => threadComment(item, repository, number));
+    return {externalID: text(thread.external_id, 1024), anchor, currentAnchor, recordedLocation,
       outdated: thread.outdated as boolean | null, resolution: thread.resolution as string,
       comments: page.items, commentsNext: page.next};
+  }, cursor);
+}
+
+export function pullComments(value: unknown, repository: string, number: string, cursor = '') {
+  return pullPage(value, 20, value => {
+    const entry = object(value), comment = object(entry.comment);
+    pullRef(entry.pull, repository, number);
+    available(comment.observation);
+    const author = comment.author === null ? null : object(comment.author);
+    return {externalID: text(comment.external_id, 1024), author: author ? text(author.login, 256) : 'Unknown author',
+      body: text(comment.body, 4 * 1024 * 1024), createdAt: date(comment.created_at)};
   }, cursor);
 }

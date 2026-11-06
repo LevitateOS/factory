@@ -6,12 +6,20 @@ import {
   type FileDiffMetadata,
   type SelectedLineRange,
 } from '@pierre/diffs';
-import type {ChangedFile, ReviewAnchor, ReviewThread} from '../api/collaboration.js';
+import type {ChangedFile, ReviewAnchor, ReviewLocation} from '../api/collaboration.js';
 import {parseChangedFile, parseReviewAnchor} from '../api/collaboration-response.js';
 
 export interface ReviewDraft {
   anchor: ReviewAnchor;
   body: string;
+}
+export interface DiffThread {
+  external_id: string;
+  outdated: boolean | null;
+  resolution: string;
+  anchor: ReviewAnchor | null;
+  recorded_location: ReviewLocation | null;
+  comments: {items: readonly {comment: {body: string}}[] | null; next?: string};
 }
 
 function sameFile(anchor: ReviewAnchor | null, file: ChangedFile): boolean {
@@ -44,14 +52,14 @@ export class SodaFactoryDiff extends LitElement {
     message: {state: true},
   };
   declare file: ChangedFile | null;
-  declare threads: readonly ReviewThread[];
+  declare threads: readonly DiffThread[];
   declare draft: ReviewDraft | null;
   declare allowDraft: boolean;
   declare scheme: 'light' | 'dark';
   declare private layout: 'split' | 'unified';
   declare private selection: ReviewAnchor | null;
   declare private message: string;
-  private renderer: VirtualizedFileDiff<ReviewThread> | undefined;
+  private renderer: VirtualizedFileDiff<DiffThread> | undefined;
   private virtualizer: Virtualizer | undefined;
   private metadata: FileDiffMetadata | undefined;
 
@@ -204,7 +212,7 @@ export class SodaFactoryDiff extends LitElement {
       const virtualizer = new Virtualizer({overscrollSize: 400});
       this.virtualizer = virtualizer;
       virtualizer.setup(viewport, content);
-      const renderer = new VirtualizedFileDiff<ReviewThread>(
+      const renderer = new VirtualizedFileDiff<DiffThread>(
         {
           diffStyle: this.layout,
           theme: {light: 'pierre-light', dark: 'pierre-dark'},
@@ -223,7 +231,7 @@ export class SodaFactoryDiff extends LitElement {
             node.className = 'factory-inline-thread';
             node.setAttribute('role', 'note');
             node.dataset.threadId = thread.external_id;
-            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map((c) => c.comment.body).join('\n') ?? 'Comments unavailable'}`;
+            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map((c) => c.comment.body).join('\n') ?? 'Comments unavailable'}${thread.comments.next ? '\nMore comments in discussion' : ''}`;
             return node;
           },
         },

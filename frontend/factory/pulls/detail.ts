@@ -6,7 +6,8 @@ import type {FactoryTransport} from '../api/transport.js';
 import {getJSON, FactoryReadError} from '../api/read.js';
 import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 import '../review/diff.js';
-import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, type PullItem, type PullThreadView} from './response.js';
+import type {DiffThread} from '../review/diff.js';
+import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
 export interface PullDetailContext {
   readonly transport: FactoryTransport;
@@ -15,17 +16,19 @@ export interface PullDetailContext {
   readonly pull: string;
   readonly actor: string;
   readonly scope: string;
-  readonly initialTab?: 'reviews' | 'threads' | 'files' | 'checks';
+  readonly initialTab?: Tab;
   resolveLink(href: string): string | undefined;
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
-type Tab = 'reviews' | 'threads' | 'files' | 'checks';
+type Tab = 'conversation' | 'reviews' | 'threads' | 'files' | 'checks';
 const empty = () => ({
   busy: false, message: '', pull: undefined as PullItem | undefined,
   files: [] as readonly ChangedFile[], threads: [] as readonly PullThreadView[],
+  comments: [] as ReturnType<typeof pullComments>['items'],
   reviews: [] as ReturnType<typeof pullReviews>['items'],
   checks: [] as ReturnType<typeof pullChecks>['items'], gate: '',
-  next: '', diff: undefined as {base: string; head: string} | undefined,
+  next: '', threadNext: '', threadMessage: '', threadBusy: false,
+  diff: undefined as {base: string; head: string} | undefined,
 });
 
 /** Current PR read, then one bounded page of the selected conversation/files/checks. */
@@ -33,6 +36,7 @@ export class SodaFactoryPull extends LitElement {
   static properties = {view: {state: true}, tab: {state: true}};
   declare private view: ReturnType<typeof empty>;
   declare private tab: Tab;
+  private checkKind: 'status' | 'job' = 'status';
   private current: PullDetailContext | undefined;
   private binding = '';
   private serial = 0;
@@ -44,7 +48,7 @@ export class SodaFactoryPull extends LitElement {
   constructor() {
     super();
     this.view = empty();
-    this.tab = 'reviews';
+    this.tab = 'conversation';
     this.addEventListener('auxclick', event => void this.open(event));
   }
   protected createRenderRoot() { return this; }
@@ -59,7 +63,7 @@ export class SodaFactoryPull extends LitElement {
     check(typeof context.resolveLink === 'function' && typeof context.openLink === 'function');
     this.current = context;
     this.binding = this.key(context);
-    this.tab = context.initialTab ?? 'reviews';
+    this.tab = context.initialTab ?? 'conversation';
     this.requestUpdate('context');
   }
   protected willUpdate(changed: PropertyValues) {
@@ -76,7 +80,7 @@ export class SodaFactoryPull extends LitElement {
     this.lifetime.abort(); this.read.abort();
     this.lifetime = new AbortController(); this.read = new AbortController();
     this.serial++; this.current = undefined; this.binding = ''; this.cursor = ''; this.previous = [];
-    this.tab = 'reviews'; this.view = empty();
+    this.tab = 'conversation'; this.checkKind = 'status'; this.view = empty();
   }
   private live(context: PullDetailContext, serial = this.serial) {
     if (this.current !== context || this.serial !== serial || this.lifetime.signal.aborted) return false;
@@ -87,6 +91,11 @@ export class SodaFactoryPull extends LitElement {
   private select(tab: Tab) {
     if (tab === this.tab || this.view.busy) return;
     this.tab = tab; this.cursor = ''; this.previous = [];
+    void this.load();
+  }
+  private selectChecks(kind: 'status' | 'job') {
+    if (this.checkKind === kind || this.view.busy) return;
+    this.checkKind = kind; this.cursor = ''; this.previous = [];
     void this.load();
   }
   private async load() {
@@ -111,13 +120,21 @@ export class SodaFactoryPull extends LitElement {
         const page = pullFiles(await getJSON(context.transport, path + '/files?' + query, signal), context.repository, context.pull, base || '', head || '', cursor);
         if (!this.live(context, serial)) return;
         this.view = {...empty(), pull, files: page.items, next: page.next, diff: page.diff};
+        void this.loadMoreThreads('');
       } else if (tab === 'checks') {
         const head = pull.head.commit;
         if (!head) { this.view = {...empty(), pull, message: 'The current head commit is unavailable.'}; return; }
         query.set('head', head);
-        const page = pullChecks(await getJSON(context.transport, path + '/checks?' + query, signal), context.repository, context.pull, head, cursor);
+        const kind = this.checkKind;
+        const suffix = kind === 'job' ? '/checks/jobs?' : '/checks?';
+        const page = pullChecks(await getJSON(context.transport, path + suffix + query, signal), context.repository, context.pull, head, kind, cursor);
         if (!this.live(context, serial)) return;
         this.view = {...empty(), pull, checks: page.items, gate: page.gate, next: page.next};
+      } else if (tab === 'conversation') {
+        const raw = await getJSON(context.transport, path + '/comments?' + query, signal);
+        if (!this.live(context, serial)) return;
+        const comments = pullComments(raw, context.repository, context.pull, cursor);
+        this.view = {...empty(), pull, comments: comments.items, next: comments.next};
       } else if (tab === 'threads') {
         const threadsRaw = await getJSON(context.transport, path + '/threads?' + query, signal);
         if (!this.live(context, serial)) return;
@@ -133,6 +150,35 @@ export class SodaFactoryPull extends LitElement {
       if (!this.live(context, serial)) return;
       const hidden = error instanceof FactoryReadError && [401, 403, 404].includes(error.status);
       this.view = {...empty(), message: hidden ? 'This pull request is not available to this account.' : error instanceof FactoryReadError && error.status === 409 ? 'This pull request changed. Refresh to read the current revision.' : 'Pull request details could not be loaded. Try again.'};
+    }
+  }
+  private async loadMoreThreads(cursor: string) {
+    const context = this.current, serial = this.serial;
+    if (!context || !this.live(context, serial) || this.tab !== 'files' || this.view.threadBusy || (cursor && cursor !== this.view.threadNext)) return;
+    this.view = {...this.view, threadBusy: true, threadMessage: ''};
+    const query = new URLSearchParams({limit: '20'});
+    if (cursor) query.set('cursor', cursor);
+    try {
+      const raw = await getJSON(context.transport, `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}/threads?${query}`, AbortSignal.any([this.lifetime.signal, this.read.signal]));
+      if (!this.live(context, serial) || this.tab !== 'files') return;
+      const page = pullThreads(raw, context.repository, context.pull, cursor);
+      this.view = {...this.view, threads: [...this.view.threads, ...page.items], threadNext: page.next, threadBusy: false};
+    } catch {
+      if (this.live(context, serial) && this.tab === 'files') this.view = {...this.view, threadBusy: false, threadMessage: 'Inline discussions could not be loaded. Try again.'};
+    }
+  }
+  private async loadThreadComments(thread: PullThreadView) {
+    const context = this.current, serial = this.serial, cursor = thread.commentsNext;
+    if (!context || !this.live(context, serial) || !cursor || this.view.busy || this.view.threadBusy) return;
+    this.view = {...this.view, threadBusy: true, threadMessage: ''};
+    const query = new URLSearchParams({limit: '20', cursor});
+    try {
+      const raw = await getJSON(context.transport, `factory/collaboration/repositories/${context.repository}/pulls/${context.pull}/threads/${encodeURIComponent(thread.externalID)}/comments?${query}`, AbortSignal.any([this.lifetime.signal, this.read.signal]));
+      if (!this.live(context, serial)) return;
+      const page = pullThreadComments(raw, context.repository, context.pull, cursor);
+      this.view = {...this.view, threadBusy: false, threads: this.view.threads.map(item => item === thread ? {...item, comments: [...item.comments, ...page.items], commentsNext: page.next} : item)};
+    } catch {
+      if (this.live(context, serial)) this.view = {...this.view, threadBusy: false, threadMessage: 'More comments could not be loaded. Try again.'};
     }
   }
   private next() {
@@ -165,6 +211,7 @@ export class SodaFactoryPull extends LitElement {
         <p class="soda-pull-meta">#${pull.ref.number} · ${pull.state}${pull.draft ? ' · Draft' : ''} · ${pull.author?.login || 'Unknown author'} · ${pull.head.name} → ${pull.base.name}</p>
         <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href))) : html`<p>No description provided.</p>`}</article>
         <nav aria-label="Pull request sections">
+          <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} @click=${() => this.select('conversation')}>Conversation</button>
           <button type="button" aria-current=${this.tab === 'reviews' ? 'page' : 'false'} @click=${() => this.select('reviews')}>Reviews</button>
           <button type="button" aria-current=${this.tab === 'threads' ? 'page' : 'false'} @click=${() => this.select('threads')}>Inline discussions</button>
           <button type="button" aria-current=${this.tab === 'files' ? 'page' : 'false'} @click=${() => this.select('files')}>Files</button>
@@ -172,11 +219,29 @@ export class SodaFactoryPull extends LitElement {
         </nav>
         ${this.tab === 'files' ? html`<section aria-label="Changed files">
           ${this.view.diff && this.view.diff.head !== pull.head.commit ? html`<p role="status">This diff uses a different head from the pull request summary. Refresh before reviewing.</p>` : ''}
-          ${this.view.files.length ? this.view.files.map(file => html`<soda-factory-diff .file=${file} .threads=${[]} .allowDraft=${false}></soda-factory-diff>`) : html`<p>No files on this page.</p>`}
+          ${this.view.files.length ? this.view.files.map(file => {
+            const threads: DiffThread[] = this.view.threads.filter(thread => {
+              const anchor = thread.currentAnchor ?? thread.anchor;
+              return anchor ? anchor.old_path === file.old_path && anchor.new_path === file.new_path
+                : thread.recordedLocation?.path === file.old_path || thread.recordedLocation?.path === file.new_path;
+            }).map(thread => ({
+              external_id: thread.externalID, outdated: thread.outdated, resolution: thread.resolution,
+              anchor: thread.currentAnchor ?? thread.anchor,
+              recorded_location: thread.recordedLocation,
+              comments: {items: thread.comments.map(comment => ({comment: {body: comment.body}})), next: thread.commentsNext},
+            }));
+            return html`<soda-factory-diff .file=${file} .threads=${threads} .allowDraft=${false}></soda-factory-diff>`;
+          }) : html`<p>No files on this page.</p>`}
+          <p role="status">${this.view.threadBusy ? 'Loading inline discussions…' : this.view.threadMessage}</p>
+          ${this.view.threadNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadMoreThreads(this.view.threadNext)}>Load more inline discussions</button>` : ''}
         </section>` : this.tab === 'checks' ? html`<section aria-label="Checks">
           <p>Status gate: ${this.view.gate || 'unavailable'}</p>
-          <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.description}</p></li>`)}</ul>
+          <nav aria-label="Check types"><button type="button" aria-current=${this.checkKind === 'status' ? 'page' : 'false'} @click=${() => this.selectChecks('status')}>Statuses</button><button type="button" aria-current=${this.checkKind === 'job' ? 'page' : 'false'} @click=${() => this.selectChecks('job')}>Jobs</button></nav>
+          <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.workflow ? row.workflow + ' · ' : ''}${row.description}</p></li>`)}</ul>
           ${!this.view.checks.length ? html`<p>No checks on this page.</p>` : ''}
+        </section>` : this.tab === 'conversation' ? html`<section aria-label="Conversation">
+          <ol>${this.view.comments.map(comment => html`<li><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([comment.externalID, comment.body, context.resolveLink], () => issueMarkdown(comment.body, href => context.resolveLink(href)))}</div></li>`)}</ol>
+          ${!this.view.comments.length ? html`<p>No comments on this page.</p>` : ''}
         </section>` : this.tab === 'reviews' ? html`<section aria-label="Reviews">
           <ul>${this.view.reviews.map(review => html`<li>${review.author} · ${review.state}${review.stale ? ' · Stale' : ''}<p>${review.body}</p></li>`)}</ul>
           ${!this.view.reviews.length ? html`<p>No reviews on this page.</p>` : ''}
@@ -185,8 +250,9 @@ export class SodaFactoryPull extends LitElement {
             ${thread.anchor?.lines ? html` · ${thread.anchor.side} line ${thread.anchor.lines.start}${thread.anchor.lines.end !== thread.anchor.lines.start ? `–${thread.anchor.lines.end}` : ''}` : ''}
             · ${thread.resolution}${thread.outdated ? ' · Outdated' : ''}
             <ol>${thread.comments.map(comment => html`<li>${comment.author}${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<p>${comment.body}</p></li>`)}</ol>
-            ${thread.commentsNext ? html`<p>More comments are available in this discussion.</p>` : ''}
+            ${thread.commentsNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadThreadComments(thread)}>Load more comments</button>` : ''}
           </li>`)}</ol>
+          <p role="status">${this.view.threadMessage}</p>
           ${!this.view.threads.length ? html`<p>No inline discussions on this page.</p>` : ''}
         </section>`}
         <nav aria-label="Pull request pages"><button type="button" @click=${this.back} ?disabled=${this.view.busy || !this.previous.length}>Previous page</button><button type="button" @click=${this.next} ?disabled=${this.view.busy || !this.view.next}>Next page</button></nav>
