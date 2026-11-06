@@ -30984,3 +30984,9 @@ This is a source-stage Fountain browser journey, not final appliance packaging
 or GitHub-connected desktop qualification. Draft review editing, other verdicts,
 thread resolution and merge controls remain to be exercised through both hosts;
 T08-READ/T08-WRITE stay pending.
+
+The follow-up normal-navigation cutover sends Fountain Feed, work/activity and
+build-summary PR links to the shared route. In a fresh host/browser rerun, a
+relative PR-description link opened the shared issue screen and the prior PR
+review/readback journey still passed (`/home/vince/tmp/fpn-1793962829404/{run.log,host/result.json}`).
+GitHub desktop and installed-product qualification remain open.

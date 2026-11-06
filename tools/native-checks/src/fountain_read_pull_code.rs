@@ -141,7 +141,7 @@ pub(super) fn run(b: &mut Browser, generation: &str, password: &str, api: &str, 
         false,
         b"\0binary\0fixture\xff",
     )?;
-    let body = format!("complete native pull body\n{}", "界".repeat(5000));
+    let body = format!("complete native pull body\n[Related issue](issues/1)\n{}", "界".repeat(5000));
     let pull = Seed { browser: b }.json(
         "POST",
         &format!("{repo}/pulls"),

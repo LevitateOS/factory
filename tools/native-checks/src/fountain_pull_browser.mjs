@@ -35,6 +35,14 @@ try {
   await page.waitForURL(url => url.pathname === detailPath);
   const detail = page.locator('soda-factory-pull');
   await detail.getByRole('heading', {name: 'Native code review', exact: true}).waitFor();
+  await detail.locator('article[aria-label="Pull request description"]')
+    .getByRole('link', {name: 'Related issue', exact: true}).click();
+  await page.waitForURL(url => url.pathname === repository + '/feed/work/issues/1');
+  await page.locator('soda-factory-issue')
+    .getByRole('heading', {name: 'Ordinary issue, not a PR', exact: true}).waitFor();
+  await page.goBack();
+  await page.waitForURL(url => url.pathname === detailPath);
+  await detail.getByRole('heading', {name: 'Native code review', exact: true}).waitFor();
   stage = 'commits';
   await detail.getByRole('button', {name: 'Commits', exact: true}).click();
   await detail.locator('section[aria-label="Commits"] li').first().waitFor();
@@ -66,6 +74,7 @@ try {
   await detail.locator('section[aria-label="Reviews"] li').nth(1).waitFor();
   await save('pull-browser-result.json', {
     result: 'pass', native_header_and_shared_list: true, detail: true,
+    markdown_issue_navigation: true,
     commits: 3, files: 3, checks: true, inline_discussions: 2,
     pending_review_private: true, approval_submitted: true, approval_readback_after_reload: true,
   });
