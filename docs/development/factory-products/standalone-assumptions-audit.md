@@ -32,6 +32,13 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A13 — source correction and UI build verified.** Unknown account/connection
+  failures no longer prescribe signing in or unlocking the keyring. Native error
+  messages retain their reported cause; observed locked/expired/unconfirmed-refresh
+  states receive distinct guidance. A failed status read retains the last observed
+  saved account choices rather than reporting them removed. Every command still
+  rechecks native admission. Typecheck and desktop UI build passed; a connected
+  status-failure journey was not run and no authentication gate is qualified.
 - **A14 — native capability projection verified with declared Read access.**
   Authenticated comment/review presentation no longer requires push permission;
   merge still does. Self-approval, locked/closed subjects, draft verdict limits

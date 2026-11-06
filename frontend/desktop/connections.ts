@@ -205,10 +205,11 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
         ? `Connected to ${value.repository.name}.`
         : 'Connected. Choose a repository to browse its feed and issues.';
       if (!remote) await discover(captured, 1);
-    } catch {
+    } catch (error) {
       if (live(captured)) {
         clear();
-        message = 'Could not connect. Unlock your keyring, check access or sign in again, then reconnect.';
+        message = typeof error === 'string' ? `Could not connect. ${error}` :
+          'Could not connect. Refresh Factory status and try reconnecting.';
       }
     } finally {
       if (serial === captured) {
@@ -319,7 +320,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     },
     accounts(values: readonly Account[]) {
       known = values;
-      if (connection && !known.some((account) => account.connection === connection && account.state === 'stored')) {
+      const account = known.find((account) => account.connection === connection);
+      if (connection && account?.state !== 'stored') {
         ++serial;
         clear();
         busy = false;
@@ -327,7 +329,13 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
         wanted = '';
         discovered = [];
         nextPage = 0;
-        message = 'Your account needs sign-in or was removed. Saved drafts are kept.';
+        message = account?.state === 'locked'
+          ? 'Your saved account is locked. Unlock the desktop keyring before reconnecting. Saved drafts are kept.'
+          : account?.state === 'expired'
+            ? 'Your saved account has expired. Refresh it or sign in again before reconnecting. Saved drafts are kept.'
+            : account?.state === 'refresh_pending'
+              ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
+              : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       render();
     },

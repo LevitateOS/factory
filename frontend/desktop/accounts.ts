@@ -92,8 +92,8 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       }
       const state = {
         stored: 'Saved',
-        expired: 'Sign in again',
-        refresh_pending: 'Sign in again',
+        expired: 'Expired',
+        refresh_pending: 'Refresh unconfirmed',
         locked: 'Unlock your desktop keyring',
         withdrawn: 'Removed',
       }[account.state];
@@ -118,11 +118,10 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       accounts = saved.filter((account) => account.provider === 'github');
       changed(accounts);
       render();
-    } catch {
+    } catch (error) {
       if (captured === generation && capturedInteraction === interaction) {
-        accounts = [];
-        changed(accounts);
-        readError = 'Saved accounts are unavailable. Unlock your desktop keyring and refresh.';
+        readError = typeof error === 'string' ? error :
+          'Could not read saved account status. Refresh Factory status and try again.';
         render();
       }
     } finally {
