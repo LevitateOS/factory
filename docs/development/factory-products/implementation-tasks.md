@@ -30884,3 +30884,15 @@ fixed an erased type-only import that omitted editor registration. Evidence:
 `/home/vince/tmp/factory-review-editor-1106.gdCmhn/final.log`. TypeScript and the
 production UI build passed. This is component integration evidence; actual
 GitHub draft privacy, connected desktop UI and installed qualification stay open.
+
+### T11-WRITES: preserve the single unsent inline draft (2026-11-06)
+
+The shared inline editor no longer lets another file replace existing writing.
+It also rejects a late different-anchor event and exposes explicit local discard
+when the original file/revision is no longer displayed. Saved provider drafts
+and unresolved commands are unaffected. The existing emitted-component Chromium
+journey passed cross-file selection, late replacement refusal, paged-out draft
+retention and explicit discard with zero writes:
+`/home/vince/tmp/factory-inline-editor-1106.lpK4tt/final.log`.
+TypeScript, production UI build and whitespace passed; connected desktop and
+installed qualification remain open.

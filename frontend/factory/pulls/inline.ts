@@ -123,6 +123,13 @@ export class SodaFactoryPullInline extends LitElement {
     event.stopPropagation();
     try {
       const selected = event.detail;
+      const existing = this.writing.draft;
+      if (selected && existing && existing.body !== '' &&
+          JSON.stringify(selected.anchor) !== JSON.stringify(existing.anchor)) {
+        this.message = 'Finish or discard the existing inline draft before starting another.';
+        this.touch();
+        return;
+      }
       check(!selected || validInlineDraftBody(selected.body));
       const draft = selected ? newInlineDraft(selected.anchor, selected.body) : undefined;
       if (draft) humanAnchor(draft.anchor, context.parent);
@@ -198,6 +205,11 @@ export class SodaFactoryPullInline extends LitElement {
     if (!context || this.busy) return;
     this.restore(context, true); this.touch(); void this.refresh();
   }
+  private discardDraft() {
+    const context = this.current;
+    if (!context || !this.live(context, this.lifetime.signal) || this.busy || this.writing.pending || this.saved.blocked) return;
+    if (this.write(context, {}) === 'saved') this.message = 'Unsent inline draft discarded.';
+  }
   render() {
     const context = this.current;
     if (!context) return html``;
@@ -216,12 +228,14 @@ export class SodaFactoryPullInline extends LitElement {
           comments: {items: thread.comments.map(comment => ({comment: {body: comment.body}})), next: thread.commentsNext}}));
         return html`<soda-factory-diff .file=${file} .threads=${threads}
           .draft=${draft && sameFile(draft.anchor, file) ? {anchor: draft.anchor, body: draft.body} : null}
-          .allowDraft=${available} @factory-review-draft-change=${this.changeDraft}></soda-factory-diff>`;
+          .allowDraft=${available && (!draft || sameFile(draft.anchor, file))} @factory-review-draft-change=${this.changeDraft}></soda-factory-diff>`;
       })}
       ${draft && !this.files.some(file => sameFile(draft.anchor, file)) ? html`<section aria-label="Retained inline draft">
         <p>Draft retained at its original diff revision and path. Open that file to edit it.</p>
         <p>${draft.anchor.old_path || draft.anchor.new_path} · ${draft.anchor.diff.head}</p>
         <textarea aria-label="Retained inline comment" readonly .value=${draft.body}></textarea>
+        ${!pending ? html`<button type="button" @click=${this.discardDraft}
+          ?disabled=${this.busy || this.saved.blocked || !this.saved.durable}>Discard unsent inline draft</button>` : ''}
       </section>` : ''}
       ${draft && !pending ? html`<div class="soda-pull-inline-actions">
         <button type="button" @click=${() => this.act('submit', true)} ?disabled=${!available || !validInlineBody(draft.body) || draft.anchor.diff.head !== context.head}>Add to draft review</button>
