@@ -145,52 +145,6 @@ func (s nativeCollaborationReads) ReadRepositories(ctx context.Context, actor co
 	// provider discovery is the native catalogue used to establish that scope.
 	return nativePage(s.observation(items), items, ""), nil
 }
-func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, q factoryservice.CapabilityQuery) (collaboration.Capabilities, error) {
-	var result collaboration.Capabilities
-	if q.Validate() != nil {
-		return result, factoryservice.ErrCapabilitiesQuery
-	}
-	if err := s.admitRead(ctx, actor, repo, factoryservice.ErrCapabilitiesMissing); err != nil {
-		return result, err
-	}
-	result = collaboration.Capabilities{Repository: repo, Actor: actor, Connection: s.binding.Connection.ID, Actions: map[collaboration.Action]collaboration.Capability{}}
-	actions := []collaboration.Action{collaboration.ReadIssues, collaboration.CreateIssue, collaboration.EditIssue, collaboration.CommentIssue, collaboration.ReadPulls, collaboration.CreatePull, collaboration.EditPull, collaboration.CommentPull, collaboration.ReviewPull, collaboration.CommentReview, collaboration.ApproveReview, collaboration.RequestChangesReview, collaboration.ResolveThread, collaboration.MergePull, collaboration.ReadChecks, collaboration.ReadCheckJobs}
-	for _, action := range actions {
-		result.Actions[action] = collaboration.Capability{State: collaboration.Unavailable, Reason: "native_mutation_ports_unavailable"}
-	}
-	for _, action := range []collaboration.Action{collaboration.ReadIssues, collaboration.ReadPulls, collaboration.ReadChecks, collaboration.ReadCheckJobs} {
-		result.Actions[action] = collaboration.Capability{State: collaboration.Unknown, Reason: "read_requires_current_observation"}
-	}
-	switch q.Subject {
-	case "issue":
-		page, err := s.ReadIssues(ctx, actor, repo, factoryservice.CollaborationIssueQuery{Number: q.Number, Limit: 1})
-		if err != nil {
-			return collaboration.Capabilities{}, err
-		}
-		ref := page.Items[0].Ref
-		result.Issue = &ref
-		result.Actions[collaboration.ReadIssues] = collaboration.Capability{State: collaboration.Allowed}
-		result.Observation = s.observation(page)
-	case "pull":
-		page, err := s.ReadPulls(ctx, actor, repo, factoryservice.CollaborationPullQuery{Number: q.Number, Limit: 1})
-		if err != nil {
-			return collaboration.Capabilities{}, err
-		}
-		pull := page.Items[0]
-		result.Pull = &pull.Ref
-		result.Head = pull.Head.Commit
-		result.Base = pull.Base.Commit
-		result.Actions[collaboration.ReadPulls] = collaboration.Capability{State: collaboration.Allowed}
-		result.Observation = s.observation(page)
-	default:
-		raw, err := s.repositoryObservation(ctx, actor, repo)
-		if err != nil {
-			return collaboration.Capabilities{}, err
-		}
-		result.Observation = s.observation(raw)
-	}
-	return result, nil
-}
 func nativeMissing(err, missing error) error {
 	var failure *NativePortError
 	if errors.As(err, &failure) && failure.Status == 404 {

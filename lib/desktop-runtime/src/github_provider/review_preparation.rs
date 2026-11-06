@@ -63,7 +63,18 @@ impl Reader<'_> {
         actor: &str,
         account: &str,
     ) -> Result<Value> {
-        let mut before = self.review_preparation(number, actor, account).await?;
+        let before = self.review_preparation(number, actor, account).await?;
+        self.complete_pending_snapshot(number, actor, account, before)
+            .await
+    }
+
+    pub(super) async fn complete_pending_snapshot(
+        &self,
+        number: u64,
+        actor: &str,
+        account: &str,
+        mut before: Value,
+    ) -> Result<Value> {
         if before["pending"].is_null() {
             before["comments_snapshot"] = Value::Null;
             before["pending_sha256"] = Value::Null;
@@ -398,8 +409,9 @@ impl Reader<'_> {
         if !node_id(actor) {
             return Err(Failure::protocol());
         }
-        let before = self.raw_subject(true, number).await?;
-        let repository = self.get("", &[]).await?.value;
+        let (before, repository) =
+            tokio::try_join!(self.raw_subject(true, number), self.get("", &[]))?;
+        let repository = repository.value;
         let repo = opaque(&repository, "node_id")?;
         let pull = opaque(&before, "node_id")?;
         let external = r::id(&before["id"])?;
@@ -541,7 +553,11 @@ impl Reader<'_> {
         } else {
             Value::Null
         };
-        let current = self.raw_subject(true, number).await?;
+        let (current, (), identity) = tokio::try_join!(
+            self.raw_subject(true, number),
+            self.recheck(),
+            self.client.identity(self.token)
+        )?;
         for key in [
             "id", "node_id", "number", "state", "locked", "draft", "merged", "base", "head",
         ] {
@@ -549,8 +565,7 @@ impl Reader<'_> {
                 return Err(Failure::new(409, "github_review_inputs_changed"));
             }
         }
-        self.recheck().await?;
-        let identity = self.client.identity(self.token).await?;
+
         if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));
         }

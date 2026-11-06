@@ -49,10 +49,6 @@ impl Reader<'_> {
         account: &str,
     ) -> Result<Value> {
         anchor.validate()?;
-        let mut before = self.pending_review_snapshot(number, actor, account).await?;
-        if before["pull"]["head"] != anchor.head {
-            return Err(Failure::new(409, "github_inline_selection_changed"));
-        }
         let mut page = 1u32;
         let mut total = None;
         let mut scope = None;
@@ -70,7 +66,6 @@ impl Reader<'_> {
                 || scope.as_ref().is_some_and(|old| old != diff)
                 || diff["base"] != anchor.base
                 || diff["head"] != anchor.head
-                || diff["pull"]["external_id"] != before["pull"]["external_id"]
                 || diff["pull"]["number"].as_u64() != Some(number)
             {
                 return Err(Failure::new(409, "github_inline_selection_changed"));
@@ -126,16 +121,29 @@ impl Reader<'_> {
             return Err(Failure::new(409, "github_inline_selection_unavailable"));
         }
         let writing = selection(&file, anchor)?;
-        let after = self.pending_review_snapshot(number, actor, account).await?;
-        if after != before {
-            return Err(Failure::new(409, "github_inline_preparation_changed"));
-        }
-        let current_scope = self
-            .diff(
-                &json!({"kind":"pull_diff","number":number,"base":anchor.base,"head":anchor.head}),
-            )
-            .await?;
-        if scope.as_ref() != Some(&current_scope) {
+        let scope_query =
+            json!({"kind":"pull_diff","number":number,"base":anchor.base,"head":anchor.head});
+        // Each reader brackets its own mutable facts. A second complete pending
+        // snapshot around the independently bracketed file catalogue adds no
+        // atomic provider condition; dispatch rechecks this complete capture.
+        let (mut before, current_scope) = tokio::try_join!(
+            async {
+                let before = self.review_preparation(number, actor, account).await?;
+                if before["pending"]["comments_count"]
+                    .as_u64()
+                    .is_some_and(|n| n >= 1000)
+                {
+                    return Err(Failure::new(413, "github_inline_pending_capacity"));
+                }
+                self.complete_pending_snapshot(number, actor, account, before)
+                    .await
+            },
+            self.diff(&scope_query)
+        )?;
+        if scope.as_ref() != Some(&current_scope)
+            || before["pull"]["head"] != anchor.head
+            || current_scope["pull"]["external_id"] != before["pull"]["external_id"]
+        {
             return Err(Failure::new(409, "github_inline_selection_changed"));
         }
         before["selection"] = serde_json::to_value(anchor).map_err(|_| Failure::protocol())?;

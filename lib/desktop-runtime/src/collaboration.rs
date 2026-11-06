@@ -5,8 +5,8 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     BranchCreate, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge, Read, ReviewCreate,
-    ReviewRequestChange, ThreadResolution, WriteOutcome,
+    InlineCreate, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge, Read,
+    ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -346,6 +346,12 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    CreateInline {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        inline: InlineCreate,
+    },
     MergePull {
         command_id: String,
         digest: String,
@@ -432,6 +438,12 @@ enum Effect {
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
         match self {
+            Self::CreateInline {
+                command_id,
+                digest,
+                not_after,
+                inline,
+            } => Some((command_id, digest, *not_after, &inline.repository)),
             Self::MergePull {
                 command_id,
                 digest,
@@ -652,6 +664,7 @@ async fn dispatch(
         &call.call,
         Effect::CreateComment { .. }
             | Effect::MergePull { .. }
+            | Effect::CreateInline { .. }
             | Effect::AppendPendingThread { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
@@ -691,6 +704,7 @@ async fn dispatch(
     }
     if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
         match &call.call {
+            Effect::CreateInline { inline, .. } => inline.validate()?,
             Effect::MergePull { merge, .. } => merge.validate()?,
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::AppendPendingThread { inline, .. } => inline.validate()?,
@@ -810,6 +824,13 @@ async fn mutate(
             provider
                 .merge_account(token, account, merge, Some(deadline))
                 .await,
+        ),
+        Effect::CreateInline { inline, .. } => (
+            "created",
+            provider
+                .inline_create_account(token, account, inline, Some(deadline))
+                .await
+                .into(),
         ),
         Effect::AppendPendingThread { inline, .. } => (
             "created",

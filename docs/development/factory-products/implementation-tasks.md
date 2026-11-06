@@ -30787,3 +30787,36 @@ matching current text never supplies a causal result. A rejected direct diagnost
 mutation was not run; subsequent writes used Factory's fenced native path.
 Remaining: new inline reviews, immediate inline publication, supported capability
 projection and remaining connected write/permission/recovery evidence. T11 stays active.
+
+### T11-WRITES: inline creation and connected product writes (2026-11-06)
+
+Rust now creates line/range and file-level pending reviews through one fixed
+provider mutation; existing pending reviews use the same journaled append owner.
+Go saves the causal primary before separate preservation checks. Native pending
+snapshots retain complete writing and before/after review comparisons; redundant
+snapshots around the independently checked file catalogue were removed. Single-line
+thread ranges accept GitHub's equivalent `startLine == line` representation.
+Current repository/issue/PR capability facts now replace the blanket unavailable
+projection. Rust interprets GitHub fields; Go projects canonical scope and actions.
+These presentation facts grant no write authority.
+
+Connected new line/range draft, append, file-level draft and subsequent publication,
+immediate line/range/file publication, thread resolve/unresolve, normal reads, command replay
+and native restart passed. The general journey passed issue/PR creation, comments,
+edits, close/reopen, lock/unlock and branch creation through production Go HTTP,
+PostgreSQL and native custody. Results are under
+`/home/vince/tmp/fgw-1106.cqnVjg/{inlines5,general1}/`; the affected existing inline
+journal/recovery regression passed in `inline-regression2/` under that same root.
+
+GitHub refuses immediate publication while the viewer has a pending review.
+Factory now refuses that combination before capture and never submits or discards
+the draft implicitly. Earlier indeterminate fixture commands remain fenced;
+matching current writing does not supply their lost causal receipts. Draft and
+immediate publication share the fixed GraphQL review creation owner; historical
+REST receipts remain readable. Go/native builds, boundaries and whitespace passed.
+Positive approval/request-changes and reviewer-request changes,
+cross-account draft visibility/notifications and broader privilege qualification
+remain pending because only the author's authorized GitHub account is available.
+Team reviewer requests also need an authorized organization fixture and test team.
+This uses a gh-sourced grant, not fresh Factory OAuth scope qualification. T11,
+shared UI/installed qualification and all previously open broad gates remain open.

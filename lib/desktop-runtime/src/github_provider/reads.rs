@@ -82,6 +82,15 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "write_capabilities" => {
+                            let Read::WriteCapabilities { number, pull, .. } = query else {
+                                return Err(Failure::invalid());
+                            };
+                            (
+                                "capabilities",
+                                reader.write_capabilities(*number, *pull).await?,
+                            )
+                        }
                         "merge_preparation" => (
                             "preparation",
                             reader

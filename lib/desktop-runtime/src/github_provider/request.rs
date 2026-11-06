@@ -33,6 +33,13 @@ pub enum Read {
         name: String,
         commit: String,
     },
+    WriteCapabilities {
+        repository: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        number: Option<u32>,
+        #[serde(default)]
+        pull: bool,
+    },
     MergePreparation {
         repository: String,
         number: u32,
@@ -291,6 +298,11 @@ impl Read {
             }
         }
         let value = serde_json::to_value(self).map_err(|_| Failure::invalid())?;
+        if let Self::WriteCapabilities { number, pull, .. } = self {
+            if number.is_some_and(|n| n > i32::MAX as u32) || *pull && number.is_none() {
+                return Err(Failure::invalid());
+            }
+        }
         if let Some(repo) = value.get("repository") {
             if !repo.as_str().is_some_and(remote_id) {
                 return Err(Failure::invalid());

@@ -88,19 +88,6 @@ impl Client {
             let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
-            let root = reader.review_preparation(q.number, actor, expected).await?;
-            if root["pending"]["node_id"] != q.review_node_id {
-                return Err(Failure::new(
-                    409,
-                    "github_inline_pending_review_unavailable",
-                ));
-            }
-            if root["pending"]["comments_count"]
-                .as_u64()
-                .is_none_or(|n| n >= 1000)
-            {
-                return Err(Failure::new(413, "github_inline_pending_capacity"));
-            }
             let before = reader
                 .inline_preparation(q.number, &q.anchor, actor, expected)
                 .await?;
@@ -170,6 +157,9 @@ impl Client {
                 || thread["diffSide"] != side
                 || thread["line"] != line
                 || thread["startLine"] != start
+                    && !(start.is_null()
+                        && q.anchor.scope == "lines"
+                        && thread["startLine"] == line)
                 || thread["startDiffSide"]
                     != if start.is_null() {
                         Value::Null
@@ -190,8 +180,7 @@ impl Client {
                 .ok_or_else(Failure::protocol)?;
             if nodes.len() != 1
                 || thread["comments"]["totalCount"].as_u64() != Some(1)
-                || thread["comments"]["pageInfo"]["hasNextPage"].as_bool() != Some(false)
-                || !thread["comments"]["pageInfo"]["endCursor"].is_null()
+                || r::graphql_continuation(&thread["comments"])?.is_some()
             {
                 return Err(Failure::protocol());
             }

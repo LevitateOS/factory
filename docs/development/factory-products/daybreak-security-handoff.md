@@ -3617,3 +3617,38 @@ The provider has no atomic pending-state/body condition; unexpected publication
 remains unfinished. Cross-account draft visibility, privilege matrices, fresh
 Factory OAuth scope and installed admission remain unverified. The gh grant was
 withdrawn from owned local custody after the successful check. Broader gates stay open.
+
+Inline/write update (2026-11-06): `github_provider/inline_create.rs`,
+`inline_draft.rs`, `review_preparation.rs`, Go `native_product_inline_creates.go`
+and the existing connected checker now prove same-account line/range/file draft
+creation, append, submission, line/range/file publication and thread resolution, with causal
+primaries, separate preservation, normal reads, replay and restart. General
+issue/PR/branch/lifecycle writes also passed. Evidence is under
+`/home/vince/tmp/fgw-1106.cqnVjg/{inlines5,general1,inline-regression2}/`.
+Immediate publication with an existing draft is refused before capture after a
+real provider refusal established that restriction; older unknown commands remain
+fenced. Draft and immediate publication now share one GraphQL creation owner;
+historical REST receipts remain readable. Final connected publication/replay/
+restart passed in `inlines5/shared-owner-publication.log` under that same root.
+
+Remaining privacy/permission dependency: only the author's `gh` account is
+authorized. A second authorized account with access to the disposable private
+fixture is needed to observe pending-draft invisibility, submitted visibility,
+notification timing and positive approval/request-changes. Same-account receipts
+and reads do not prove those properties. Relevant files are the native review/
+inline owners above, `native_product_capabilities.go`, and
+`tools/native-checks/src/native_github_pull_branches.rs`. Closure needs a scoped
+connected journey with both actors and actual provider observations; proposed
+behavior, fixtures and source checks are insufficient. Fresh Factory OAuth scope,
+privilege matrices, installed admission and existing broad security gates remain
+unverified. Routine product work remains in the normal queue; no Daybreak or broad
+security gate completion is claimed.
+
+Positive reviewer-request add/remove also remains unqualified in
+`github_provider/{review_requests,review_request_effect}.rs` and
+`native_product_review_requests.go`:
+the personal fixture has no second authorized reviewer or organization test team.
+Closure needs an authorized reviewer and, for teams, an organization fixture/test
+team, with causal results, normal reviewer-list readback, notification observations
+and replay showing no repeated request. Existing fixture/self-refusal evidence
+does not close that connected permission/notification dependency.

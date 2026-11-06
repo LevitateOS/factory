@@ -20,6 +20,8 @@ var errNativeReadScope = errors.New("native collaboration resource outside scope
 // These are decoded, credential-free native facts. Rust owns the defining
 // provider selectors and provider decoding. Go owns canonical IDs/projection.
 type nativeRead struct {
+	WritePull      *bool                       `json:"pull,omitempty"`
+	CommentID      string                      `json:"comment_id,omitempty"`
 	CommentNodeID  string                      `json:"comment_node_id,omitempty"`
 	Anchor         *factory.ReviewThreadAnchor `json:"anchor,omitempty"`
 	Name           string                      `json:"name,omitempty"`
@@ -129,11 +131,13 @@ func (b *nativeProductAccount) read(ctx context.Context, query nativeRead, body 
 }
 func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body any) (NativeIdentity, error) {
 	var envelope struct {
+		Capabilities   json.RawMessage             `json:"capabilities"`
 		Kind           string                      `json:"kind"`
 		Account        collaboration.ObservedActor `json:"account"`
 		Issues         json.RawMessage             `json:"issues"`
 		Pulls          json.RawMessage             `json:"pulls"`
 		Discussion     json.RawMessage             `json:"discussion"`
+		ReviewComments json.RawMessage             `json:"review_comments"`
 		Reviews        json.RawMessage             `json:"reviews"`
 		Threads        json.RawMessage             `json:"threads"`
 		Files          json.RawMessage             `json:"files"`
@@ -159,7 +163,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
+	fields := []json.RawMessage{envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
 	var selected json.RawMessage
 	count := 0
 	for _, field := range fields {
@@ -171,8 +175,8 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if count != 1 {
 		return NativeIdentity{}, errNativeRead
 	}
-	expected := map[string]json.RawMessage{"inline_preservation": envelope.Preservation, "inline_preparation": envelope.Preparation, "branch_creation": envelope.Preparation, "merge_preparation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
-		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
+	expected := map[string]json.RawMessage{"write_capabilities": envelope.Capabilities, "inline_preservation": envelope.Preservation, "inline_preparation": envelope.Preparation, "branch_creation": envelope.Preparation, "merge_preparation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
+		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_review_comment": envelope.ReviewComments, "pull_review_comments": envelope.ReviewComments, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead
 	}

@@ -2261,18 +2261,28 @@ pub(super) async fn branch_expiry(
 
 // This explicit connected mode uses the user's gh grant only inside the native
 // checker/custody owner. Fixture JSON contains repository/PR IDs, never a token.
+pub(super) enum ConnectedWriteCase {
+    Merges,
+    Reviews,
+    Inlines,
+    General,
+}
+
 pub(super) async fn connected_writes(
     production: &Path,
     payload: &Path,
     config: &Path,
     profile: &Path,
-    reviews: bool,
+    scenario: ConnectedWriteCase,
 ) -> Result<()> {
     use soda_desktop_runtime::{
         credentials::{Credentials, Token},
         supervisor::NativeSupervisor,
     };
     use std::{process::Command, sync::Arc};
+    let reviews = matches!(scenario, ConnectedWriteCase::Reviews);
+    let inlines = matches!(scenario, ConnectedWriteCase::Inlines);
+    let general = matches!(scenario, ConnectedWriteCase::General);
     let root = profile.parent().ok_or("fixture parent absent")?;
     let config: serde_json::Value = serde_json::from_slice(&fs::read(config)?)?;
     let repository_id = config["repository"]
@@ -2334,9 +2344,29 @@ pub(super) async fn connected_writes(
     let repository = catalogue.1["items"][0]["id"]
         .as_str()
         .ok_or("canonical repository absent")?;
+    let capabilities = call(
+        &runtime,
+        "GET",
+        &format!("/api/factory/collaboration/repositories/{repository}/capabilities"),
+        &[],
+    )
+    .await?;
+    ensure(
+        capabilities.0 == 200 && capabilities.1["actions"]["issue.create"]["state"] == "allowed",
+        "repository write capability projection failed",
+    )?;
     let cases = config["cases"].as_array().ok_or("fixture cases absent")?;
     let mut saved = Vec::new();
-    for case in cases.iter().filter(|_| !reviews) {
+    let mut incomplete: Vec<serde_json::Value> = if inlines {
+        fs::read(root.join("connected-inline-result.json"))
+            .ok()
+            .and_then(|v| serde_json::from_slice::<serde_json::Value>(&v).ok())
+            .and_then(|v| v["unfinished_commands"].as_array().cloned())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    for case in cases.iter().filter(|_| !reviews && !inlines && !general) {
         let method = case["method"].as_str().ok_or("method absent")?;
         let number = case["number"].as_u64().ok_or("number absent")?;
         let id = format!("{number:032x}");
@@ -2456,6 +2486,473 @@ pub(super) async fn connected_writes(
             println!("PASS: connected review stage {index}, exact writing/readback/replay");
         }
     }
+    if inlines {
+        let fixture = &config["reviews"];
+        let number = fixture["number"].as_u64().ok_or("inline fixture absent")?;
+        let base = format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}");
+        let path = format!("{base}/inline-comments");
+        let caps = call(&runtime, "GET", &format!("{base}/capabilities"), &[]).await?;
+        if caps.0 != 200 {
+            fs::write(
+                root.join("capabilities-failed.json"),
+                serde_json::to_vec_pretty(&caps.1)?,
+            )?;
+            return Err("connected capability read failed".into());
+        }
+        ensure(
+            caps.1["actions"]["pull.review.approve"]["state"] == "denied",
+            "own pull approval eligibility incorrect",
+        )?;
+        println!("PASS: connected current pull capability projection");
+        let anchor = |scope: &str, start: u64, end: u64| json!({"base":fixture["base"],"head":fixture["head"],"path":"review.txt","side":"new","scope":scope,"start_line":start,"end_line":end});
+        let review_path = format!("{base}/reviews");
+        if !root.join("connected-inline-result.json").exists() {
+            for (index, draft, scope, start, end, body) in [
+                (0, true, "lines", 2, 3, "New inline draft 茶"),
+                (1, true, "lines", 4, 4, "Append inline draft 🌋"),
+                (
+                    2,
+                    false,
+                    "lines",
+                    1,
+                    1,
+                    "Publish inline while preserving draft 茶",
+                ),
+                (3, false, "file", 0, 0, "Publish file-level writing 🌋"),
+            ] {
+                let id = format!("{:032x}", 13000 + index);
+                let writing = serde_json::to_vec(
+                    &json!({"command_id":id,"draft":draft,"anchor":anchor(scope,start,end),"body":body}),
+                )?;
+                let lookup = format!("{path}/commands/{id}");
+                let mut result = match call(&runtime, "POST", &path, &writing).await {
+                    Ok(v) => v,
+                    Err(error) => {
+                        println!("Connected inline transport: {error}");
+                        call(&runtime, "GET", &lookup, &[]).await?
+                    }
+                };
+                if result.1["effect"] == "committed" && result.1["finished"] != true {
+                    result = call(&runtime, "GET", &lookup, &[]).await?;
+                }
+                if result.1["effect"] == "indeterminate" {
+                    incomplete.push(json!({"stage":index,"command":id}));
+                    println!("PENDING: inline stage {index} remains fenced and indeterminate");
+                    continue;
+                }
+                if index == 2 || index == 3 {
+                    ensure(
+                        result.0 == 503 && call(&runtime, "GET", &lookup, &[]).await?.0 == 404,
+                        "pending publication was not refused before capture",
+                    )?;
+                    continue;
+                }
+                if result.0 != 200
+                    || result.1["effect"] != "committed"
+                    || result.1["finished"] != true
+                {
+                    fs::write(
+                        root.join("inline-failed-projection.json"),
+                        serde_json::to_vec_pretty(&result.1)?,
+                    )?;
+                    return Err(format!(
+                        "connected inline stage {index} failed with HTTP {}",
+                        result.0
+                    )
+                    .into());
+                }
+                ensure(
+                    call(&runtime, "POST", &path, &writing).await? == result,
+                    "inline replay changed its outcome",
+                )?;
+                let read = call(&runtime, "GET", &format!("{base}/threads?limit=10"), &[]).await?;
+                let found = read.1["items"].as_array().is_some_and(|threads| {
+                    threads.iter().any(|thread| {
+                        thread["comments"]["items"]
+                            .as_array()
+                            .is_some_and(|comments| {
+                                comments
+                                    .iter()
+                                    .any(|comment| comment["comment"]["body"] == body)
+                            })
+                    })
+                });
+                if read.0 != 200 || !found {
+                    fs::write(
+                        root.join("inline-readback-failed.json"),
+                        serde_json::to_vec_pretty(&read.1)?,
+                    )?;
+                    return Err("normal inline thread readback lost writing".into());
+                }
+                saved.push((lookup, result));
+                println!("PASS: connected inline stage {index}, writing/readback/replay");
+            }
+            let id = "fffffffffffffffffffffffffffff001";
+            let writing = serde_json::to_vec(
+                &json!({"command_id":id,"event":"comment","body":"Publish the two pending inline comments"}),
+            )?;
+            let lookup = format!("{review_path}/commands/{id}");
+            let mut result = match call(&runtime, "POST", &review_path, &writing).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            };
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true
+            {
+                fs::write(
+                    root.join("inline-publication-failed.json"),
+                    serde_json::to_vec_pretty(&result.1)?,
+                )?;
+                return Err("pending inline publication failed".into());
+            }
+            saved.push((lookup, result));
+            println!("PASS: connected pending inline review publication preserved both comments");
+            let id = "fffffffffffffffffffffffffffff002";
+            let writing = serde_json::to_vec(
+                &json!({"command_id":id,"draft":true,"anchor":anchor("file",0,0),"body":"New file-level inline draft 茶"}),
+            )?;
+            let lookup = format!("{path}/commands/{id}");
+            let mut result = match call(&runtime, "POST", &path, &writing).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            };
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true
+            {
+                fs::write(
+                    root.join("new-file-draft-failed.json"),
+                    serde_json::to_vec_pretty(&result.1)?,
+                )?;
+                return Err("new file-level inline draft failed".into());
+            }
+            ensure(
+                call(&runtime, "POST", &path, &writing).await? == result,
+                "file draft replay changed result",
+            )?;
+            saved.push((lookup, result));
+            println!("PASS: connected new file-level inline draft and replay");
+            let publication_id = format!("ffffffffffffffffffffffffffff{:04x}", 3);
+            if call(
+                &runtime,
+                "GET",
+                &format!("{review_path}/commands/{publication_id}"),
+                &[],
+            )
+            .await?
+            .0 == 404
+            {
+                let refused_id = "fffffffffffffffffffffffffffff010";
+                let refused=call(&runtime,"POST",&path,&serde_json::to_vec(&json!({"command_id":refused_id,"draft":false,"anchor":anchor("lines",1,1),"body":"Must preserve the existing pending review"}))?).await?;
+                ensure(
+                    refused.0 == 503
+                        && call(
+                            &runtime,
+                            "GET",
+                            &format!("{path}/commands/{refused_id}"),
+                            &[],
+                        )
+                        .await?
+                        .0 == 404,
+                    "unsupported pending publication created a capture",
+                )?;
+                println!(
+                    "PASS: immediate publication with a pending review refused before capture"
+                );
+            }
+        }
+        for (tag, request_path, fields) in [
+            (
+                3,
+                review_path.clone(),
+                json!({"event":"comment","body":"Publish the file-level pending comment"}),
+            ),
+            (
+                4,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("lines",1,1),"body":"Publish a line after draft submission 茶"}),
+            ),
+            (
+                5,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("file",0,0),"body":"Publish a file after draft submission 🌋"}),
+            ),
+            (
+                8,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("lines",2,2),"body":"Independent published line at a second location 茶"}),
+            ),
+            (
+                9,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("lines",3,3),"body":"Independent line publication at a third location 🌋"}),
+            ),
+            (
+                10,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("lines",1,2),"body":"Published range through the shared owner 茶"}),
+            ),
+            (
+                11,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("lines",4,4),"body":"Published single line through the shared owner 🌋"}),
+            ),
+            (
+                12,
+                path.clone(),
+                json!({"draft":false,"anchor":anchor("file",0,0),"body":"Publish a file through the shared GraphQL owner 茶"}),
+            ),
+        ] {
+            let id = format!("ffffffffffffffffffffffffffff{tag:04x}");
+            let mut fields = fields;
+            fields["command_id"] = json!(id);
+            let bytes = serde_json::to_vec(&fields)?;
+            let lookup = format!("{request_path}/commands/{id}");
+            let mut result = match call(&runtime, "POST", &request_path, &bytes).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            };
+            if result.0 != 200 {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            if result.1["effect"] == "indeterminate" {
+                if !incomplete.iter().any(|v| v["command"] == id) {
+                    incomplete.push(json!({"stage":tag,"command":id}));
+                }
+                println!("PENDING: post-submission inline stage {tag} remains fenced");
+                continue;
+            }
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true
+            {
+                fs::write(
+                    root.join("inline-after-submission-failed.json"),
+                    serde_json::to_vec_pretty(&result.1)?,
+                )?;
+                return Err(format!("post-submission inline stage {tag} failed").into());
+            }
+            ensure(
+                call(&runtime, "POST", &request_path, &bytes).await? == result,
+                "post-submission inline replay changed result",
+            )?;
+            let read = call(&runtime, "GET", &format!("{base}/threads?limit=10"), &[]).await?;
+            if tag > 3 {
+                ensure(
+                    read.0 == 200
+                        && read.1["items"].as_array().is_some_and(|rows| {
+                            rows.iter().any(|t| {
+                                t["comments"]["items"].as_array().is_some_and(|comments| {
+                                    comments
+                                        .iter()
+                                        .any(|c| c["comment"]["body"] == fields["body"])
+                                })
+                            })
+                        }),
+                    "published inline normal readback missing writing",
+                )?;
+            }
+            saved.push((lookup, result));
+            println!("PASS: connected post-submission inline stage {tag}, readback/replay");
+        }
+        let read = call(&runtime, "GET", &format!("{base}/threads?limit=10"), &[]).await?;
+        let thread = read.1["items"][0]["external_id"]
+            .as_str()
+            .ok_or("thread ID missing")?;
+        let selected = call(
+            &runtime,
+            "GET",
+            &format!("{base}/threads/{thread}/selection"),
+            &[],
+        )
+        .await?;
+        ensure(selected.0 == 200, "thread selection unavailable")?;
+        for (tag, resolved) in [(6, true), (7, false)] {
+            let id = format!("ffffffffffffffffffffffffffff{tag:04x}");
+            let path = format!("{base}/thread-resolutions");
+            let lookup = format!("{path}/commands/{id}");
+            let bytes = serde_json::to_vec(
+                &json!({"command_id":id,"thread_id":thread,"resolved":resolved,"anchor":selected.1["original_anchor"]}),
+            )?;
+            let mut result = match call(&runtime, "POST", &path, &bytes).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+            };
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", &lookup, &[]).await?;
+            }
+            ensure(
+                result.0 == 200
+                    && result.1["effect"] == "committed"
+                    && result.1["finished"] == true,
+                "thread resolution write failed",
+            )?;
+            ensure(
+                call(&runtime, "POST", &path, &bytes).await? == result,
+                "thread replay changed result",
+            )?;
+            saved.push((lookup, result));
+            println!("PASS: connected thread resolved={resolved}, journal/replay");
+        }
+        let read = call(&runtime, "GET", &format!("{base}/threads/{thread}"), &[]).await?;
+        ensure(
+            read.0 == 200 && read.1["resolution"] == "unresolved",
+            "thread final normal readback failed",
+        )?;
+    }
+    if general {
+        let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+        let submit = async |path: &str,
+                            lookup: &str,
+                            writing: serde_json::Value|
+               -> Result<(String, (u16, serde_json::Value))> {
+            let bytes = serde_json::to_vec(&writing)?;
+            let mut result = match call(&runtime, "POST", path, &bytes).await {
+                Ok(v) => v,
+                Err(_) => call(&runtime, "GET", lookup, &[]).await?,
+            };
+            if result.1["effect"] == "committed" && result.1["finished"] != true {
+                result = call(&runtime, "GET", lookup, &[]).await?;
+            }
+            if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true
+            {
+                fs::write(
+                    root.join("general-write-failed.json"),
+                    serde_json::to_vec_pretty(&json!({"path":path,"result":result.1}))?,
+                )?;
+                return Err("connected general write failed".into());
+            }
+            ensure(
+                call(&runtime, "POST", path, &bytes).await? == result,
+                "general write replay changed result",
+            )?;
+            println!("PASS: connected journaled write {path}");
+            Ok((lookup.into(), result))
+        };
+        let id = format!("{:032x}", 23000);
+        let created=submit(&format!("{root_path}/issues"),&format!("{root_path}/issue-creation/commands/{id}"),json!({"command_id":id,"title":"Factory owned issue 茶","body":"Initial fixture writing 🌋"})).await?;
+        let number = created.1 .1["issue"]["number"]
+            .as_str()
+            .ok_or("created issue number absent")?
+            .to_owned();
+        saved.push(created);
+        let issue = format!("{root_path}/issues/{number}");
+        for (index, operation, fields) in [
+            (1, "comments", json!({"body":"Connected issue comment 茶"})),
+            (
+                2,
+                "edits",
+                json!({"title":"Edited fixture 茶","body":"Edited writing 🌋"}),
+            ),
+            (3, "state", json!({"close":true})),
+            (4, "state", json!({"close":false})),
+            (5, "locks", json!({"lock":true,"reason":"resolved"})),
+            (6, "locks", json!({"lock":false})),
+        ] {
+            let id = format!("{:032x}", 23000 + index);
+            let mut fields = fields;
+            fields["command_id"] = json!(id);
+            let path = format!("{issue}/{operation}");
+            saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
+            let read = call(&runtime, "GET", &issue, &[]).await?;
+            ensure(read.0 == 200, "normal issue read failed")?;
+            let observed = &read.1;
+            match operation {
+                "edits" => ensure(
+                    observed["title"] == "Edited fixture 茶"
+                        && observed["body"] == "Edited writing 🌋",
+                    "normal issue read lost edited writing",
+                )?,
+                "state" => ensure(
+                    observed["state"] == if index == 3 { "closed" } else { "open" },
+                    "normal issue state readback failed",
+                )?,
+                "locks" => ensure(
+                    observed["locked"] == (index == 5),
+                    "normal issue lock readback failed",
+                )?,
+                _ => {
+                    let read =
+                        call(&runtime, "GET", &format!("{issue}/comments?limit=10"), &[]).await?;
+                    ensure(
+                        read.0 == 200
+                            && read.1["items"].as_array().is_some_and(|rows| {
+                                rows.iter()
+                                    .any(|r| r["comment"]["body"] == "Connected issue comment 茶")
+                            }),
+                        "normal issue comment readback lost writing",
+                    )?;
+                }
+            }
+        }
+        let caps = call(&runtime, "GET", &format!("{issue}/capabilities"), &[]).await?;
+        ensure(
+            caps.0 == 200 && caps.1["actions"]["issue.edit"]["state"] == "allowed",
+            "current issue eligibility missing",
+        )?;
+        let id = format!("{:032x}", 23010);
+        saved.push(submit(&format!("{root_path}/branches"),&format!("{root_path}/branch-creation/commands/{id}"),json!({"command_id":id,"name":"factory-product-created-v1","commit":config["reviews"]["head"]})).await?);
+        let id = format!("{:032x}", 23011);
+        let created=submit(&format!("{root_path}/pulls"),&format!("{root_path}/pull-creation/commands/{id}"),json!({"command_id":id,"head_repository":repository,"base_branch":"check-base-inline-v5","head_branch":"factory-product-created-v1","title":"Factory product-created PR 茶","body":"PR fixture writing 🌋","allow_maintainer_edit":false})).await?;
+        let number = created.1 .1["pull"]["number"]
+            .as_str()
+            .ok_or("created pull number absent")?
+            .to_owned();
+        saved.push(created);
+        let pull = format!("{root_path}/pulls/{number}");
+        for (index, operation, fields) in [
+            (12, "comments", json!({"body":"Connected PR comment 茶"})),
+            (
+                13,
+                "edits",
+                json!({"title":"Edited PR fixture 茶","body":"Edited PR writing 🌋"}),
+            ),
+            (14, "state", json!({"close":true})),
+            (15, "state", json!({"close":false})),
+            (16, "locks", json!({"lock":true,"reason":"resolved"})),
+            (17, "locks", json!({"lock":false})),
+        ] {
+            let id = format!("{:032x}", 23000 + index);
+            let mut fields = fields;
+            fields["command_id"] = json!(id);
+            let path = format!("{pull}/{operation}");
+            saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
+            let read = call(&runtime, "GET", &pull, &[]).await?;
+            ensure(read.0 == 200, "normal PR read failed")?;
+            let observed = &read.1;
+            match operation {
+                "edits" => ensure(
+                    observed["title"] == "Edited PR fixture 茶"
+                        && observed["body"] == "Edited PR writing 🌋",
+                    "normal PR read lost edited writing",
+                )?,
+                "state" => ensure(
+                    observed["state"] == if index == 14 { "closed" } else { "open" },
+                    "normal PR state readback failed",
+                )?,
+                "locks" => ensure(
+                    observed["locked"] == (index == 16),
+                    "normal PR lock readback failed",
+                )?,
+                _ => {
+                    let read =
+                        call(&runtime, "GET", &format!("{pull}/comments?limit=10"), &[]).await?;
+                    ensure(
+                        read.0 == 200
+                            && read.1["items"].as_array().is_some_and(|rows| {
+                                rows.iter()
+                                    .any(|r| r["comment"]["body"] == "Connected PR comment 茶")
+                            }),
+                        "normal PR comment readback lost writing",
+                    )?;
+                }
+            }
+        }
+    }
     runtime.stop()?;
     runtime = NativeSupervisor::start(payload, production, profile)?;
     for (lookup, result) in &saved {
@@ -2467,13 +2964,17 @@ pub(super) async fn connected_writes(
     credentials.withdraw(&connection).await?;
     runtime.stop()?;
     fs::write(
-        root.join(if reviews {
+        root.join(if general {
+            "connected-general-result.json"
+        } else if inlines {
+            "connected-inline-result.json"
+        } else if reviews {
             "connected-review-result.json"
         } else {
             "connected-merge-result.json"
         }),
         serde_json::to_vec_pretty(
-            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false}),
+            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if general{json!(["issue_create","issue_edit_comment_state_lock","branch_create","pull_create","pull_edit_comment_state_lock"])}else if inlines{json!(["new_inline_draft","append_draft","publish_line_after_submission","publish_file_after_submission","submit_pending_inline","new_file_draft"])}else if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false,"unfinished_commands":incomplete}),
         )?,
     )?;
     println!("PASS: connected merge records survived native restart; owned local account removed");

@@ -161,7 +161,7 @@ func (s nativeHumanInlines) PrepareHumanInline(ctx context.Context, q factory.Hu
 	if err := s.admit(ctx, q); err != nil {
 		return empty, err
 	}
-	if !q.Draft || q.Anchor.EndLine > 2147483647 {
+	if q.Anchor.EndLine > 2147483647 {
 		return empty, factoryservice.ErrHumanInlineUnavailable
 	}
 	if err := s.visible(ctx, q.Actor, q.Repository); err != nil {
@@ -177,6 +177,9 @@ func (s nativeHumanInlines) PrepareHumanInline(ctx context.Context, q factory.Hu
 	var facts nativeInlinePreparationFacts
 	if nativeDecode(observed.Preparation, &facts) != nil || facts.Repository != s.repository.ExternalID || !nativeReviewNode(facts.RepositoryNodeID, 1024) || !nativeReviewNode(facts.ActorNodeID, 1024) || !nativeRemoteID(facts.Pull.ExternalID) || !nativeReviewNode(facts.Pull.NodeID, 1024) || facts.Pull.Number != uint64(q.Number) || facts.Pull.Head != q.Anchor.Head || facts.Selection != q.Anchor || !nativeCreationDigest(facts.SHA256) || !nativeCreationDigest(facts.SelectionSHA256) || facts.Condition != "bounded_observation" || len(facts.Diff) == 0 || string(facts.Diff) == "null" {
 		return empty, errNativeRead
+	}
+	if !q.Draft || string(facts.Pending) == "null" {
+		return s.prepareCreation(ctx, q, facts)
 	}
 	var pending nativePendingReviewFacts
 	if nativeDecode(facts.Pending, &pending) != nil || !nativeReviewNode(pending.NodeID, 1024) || pending.ExternalID != nil && !nativeRemoteID(*pending.ExternalID) || pending.State != "pending" || pending.Commit == nil || *pending.Commit != q.Anchor.Head || len(pending.Body) > 65536 || !utf8.ValidString(pending.Body) || strings.ContainsRune(pending.Body, 0) || pending.CommentsCount == nil || facts.PendingSHA256 == nil || !nativeCreationDigest(*facts.PendingSHA256) || facts.CommentsSnapshot == nil || !facts.CommentsSnapshot.valid() || facts.CommentsSnapshot.Count != *pending.CommentsCount {
@@ -232,6 +235,9 @@ func validateNativeInlineReceipt(p nativeInlineDraftPreparation, raw json.RawMes
 	return r, nil
 }
 func (s nativeHumanInlines) LookupHumanInline(ctx context.Context, c factory.HumanInlineCapture) (collaboration.OperationLookup, error) {
+	if nativeInlineCreation(c) {
+		return s.lookupCreation(ctx, c)
+	}
 	var empty collaboration.OperationLookup
 	p, err := s.decode(ctx, c)
 	if err != nil {
@@ -280,6 +286,9 @@ func (s nativeHumanInlines) LookupHumanInline(ctx context.Context, c factory.Hum
 	return o, nil
 }
 func (s nativeHumanInlines) SubmitHumanInline(ctx context.Context, c factory.HumanInlineCapture) (collaboration.OperationRecord, error) {
+	if nativeInlineCreation(c) {
+		return s.submitCreation(ctx, c)
+	}
 	var empty collaboration.OperationRecord
 	p, err := s.decode(ctx, c)
 	if err != nil {
@@ -330,7 +339,11 @@ func (s nativeHumanInlines) SubmitHumanInline(ctx context.Context, c factory.Hum
 	return r, r.Validate()
 }
 func (s nativeHumanInlines) CancelHumanInline(ctx context.Context, c factory.HumanInlineCapture) (collaboration.OperationRecord, error) {
-	if _, err := s.decode(ctx, c); err != nil {
+	if nativeInlineCreation(c) {
+		if _, err := s.decodeCreation(ctx, c); err != nil {
+			return collaboration.OperationRecord{}, err
+		}
+	} else if _, err := s.decode(ctx, c); err != nil {
 		return collaboration.OperationRecord{}, err
 	}
 	o, err := s.store.CancelHumanInlineDispatch(ctx, c)

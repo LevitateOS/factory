@@ -55,6 +55,8 @@ pub(super) async fn inline_preparation_port(
         "escaped-path",
         "merge-base",
         "no-pending",
+        "pending-change",
+        "comment-change",
     ] {
         fs::write(io.join("mode"), format!("inline-{name}"))?;
         let mut a = anchor();
@@ -103,6 +105,13 @@ pub(super) async fn inline_preparation_port(
                 && proof["preparation"]["diff"]["catalogue"]["count"] == 13,
             "Go/native inline facts lost exact selection/account/catalogue",
         )?;
+        if name == "pending-change" {
+            ensure(
+                proof["preparation"]["pending"]["body"]
+                    == "Changed pending summary after catalogue",
+                "current pending summary was not captured",
+            )?;
+        }
         if name == "escaped-path" {
             ensure(
                 proof["descriptor_bytes"]
@@ -126,8 +135,6 @@ pub(super) async fn inline_preparation_port(
         ("invalid-repository", 0),
         ("outside-repository", 403),
         ("stale-head", 409),
-        ("pending-change", 409),
-        ("comment-change", 409),
         ("unavailable-patch", 409),
     ] {
         fs::write(io.join("mode"), format!("inline-{name}"))?;
@@ -646,23 +653,7 @@ pub(super) async fn inline_product(
         "full pending review sent an unobservable added member",
     )?;
     cases.push("existing-thousand-member-capacity".into());
-    mode("inline-product-unsupported")?;
-    let unsupported = envelope(
-        "ffffffffffffffffffffffffffffffff",
-        anchor(),
-        "Immediate publication remains unavailable",
-        false,
-    )?;
-    let before = writes()?;
-    ensure(
-        call(&runtime, &store, &connection, "POST", &submit, &unsupported)
-            .await?
-            .0
-            == 503
-            && writes()? == before,
-        "unsupported inline mode sent an effect",
-    )?;
-    cases.push("published-mode-unavailable".into());
+    // Immediate publication now has connected coverage with pending preservation.
     store.withdraw(&connection).await?;
     store.retire();
     runtime.stop()?;
