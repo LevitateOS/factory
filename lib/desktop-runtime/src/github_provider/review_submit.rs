@@ -112,6 +112,7 @@ impl Client {
             let before = reader
                 .pending_review_snapshot(q.number, actor, expected)
                 .await?;
+            super::review_preparation::admit_verdict(&q.event, &before)?;
             if before["repository_node_id"] != q.repository_node_id
                 || before["pull"]["external_id"] != q.pull_id
                 || before["pull"]["node_id"] != q.pull_node_id

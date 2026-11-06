@@ -2833,124 +2833,166 @@ pub(super) async fn connected_writes(
             println!("PASS: connected journaled write {path}");
             Ok((lookup.into(), result))
         };
-        let id = format!("{:032x}", 23000);
-        let created=submit(&format!("{root_path}/issues"),&format!("{root_path}/issue-creation/commands/{id}"),json!({"command_id":id,"title":"Factory owned issue 茶","body":"Initial fixture writing 🌋"})).await?;
-        let number = created.1 .1["issue"]["number"]
-            .as_str()
-            .ok_or("created issue number absent")?
-            .to_owned();
-        saved.push(created);
-        let issue = format!("{root_path}/issues/{number}");
-        for (index, operation, fields) in [
-            (1, "comments", json!({"body":"Connected issue comment 茶"})),
-            (
-                2,
-                "edits",
-                json!({"title":"Edited fixture 茶","body":"Edited writing 🌋"}),
-            ),
-            (3, "state", json!({"close":true})),
-            (4, "state", json!({"close":false})),
-            (5, "locks", json!({"lock":true,"reason":"resolved"})),
-            (6, "locks", json!({"lock":false})),
-        ] {
-            let id = format!("{:032x}", 23000 + index);
-            let mut fields = fields;
-            fields["command_id"] = json!(id);
-            let path = format!("{issue}/{operation}");
-            saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
-            let read = call(&runtime, "GET", &issue, &[]).await?;
-            ensure(read.0 == 200, "normal issue read failed")?;
-            let observed = &read.1;
-            match operation {
-                "edits" => ensure(
-                    observed["title"] == "Edited fixture 茶"
-                        && observed["body"] == "Edited writing 🌋",
-                    "normal issue read lost edited writing",
-                )?,
-                "state" => ensure(
-                    observed["state"] == if index == 3 { "closed" } else { "open" },
-                    "normal issue state readback failed",
-                )?,
-                "locks" => ensure(
-                    observed["locked"] == (index == 5),
-                    "normal issue lock readback failed",
-                )?,
-                _ => {
-                    let read =
-                        call(&runtime, "GET", &format!("{issue}/comments?limit=10"), &[]).await?;
-                    ensure(
-                        read.0 == 200
-                            && read.1["items"].as_array().is_some_and(|rows| {
-                                rows.iter()
-                                    .any(|r| r["comment"]["body"] == "Connected issue comment 茶")
-                            }),
-                        "normal issue comment readback lost writing",
-                    )?;
+        if !root.join("connected-general-result.json").exists() {
+            let id = format!("{:032x}", 23000);
+            let created=submit(&format!("{root_path}/issues"),&format!("{root_path}/issue-creation/commands/{id}"),json!({"command_id":id,"title":"Factory owned issue 茶","body":"Initial fixture writing 🌋"})).await?;
+            let number = created.1 .1["issue"]["number"]
+                .as_str()
+                .ok_or("created issue number absent")?
+                .to_owned();
+            saved.push(created);
+            let issue = format!("{root_path}/issues/{number}");
+            for (index, operation, fields) in [
+                (1, "comments", json!({"body":"Connected issue comment 茶"})),
+                (
+                    2,
+                    "edits",
+                    json!({"title":"Edited fixture 茶","body":"Edited writing 🌋"}),
+                ),
+                (3, "state", json!({"close":true})),
+                (4, "state", json!({"close":false})),
+                (5, "locks", json!({"lock":true,"reason":"resolved"})),
+                (6, "locks", json!({"lock":false})),
+            ] {
+                let id = format!("{:032x}", 23000 + index);
+                let mut fields = fields;
+                fields["command_id"] = json!(id);
+                let path = format!("{issue}/{operation}");
+                saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
+                let read = call(&runtime, "GET", &issue, &[]).await?;
+                ensure(read.0 == 200, "normal issue read failed")?;
+                let observed = &read.1;
+                match operation {
+                    "edits" => ensure(
+                        observed["title"] == "Edited fixture 茶"
+                            && observed["body"] == "Edited writing 🌋",
+                        "normal issue read lost edited writing",
+                    )?,
+                    "state" => ensure(
+                        observed["state"] == if index == 3 { "closed" } else { "open" },
+                        "normal issue state readback failed",
+                    )?,
+                    "locks" => ensure(
+                        observed["locked"] == (index == 5),
+                        "normal issue lock readback failed",
+                    )?,
+                    _ => {
+                        let read =
+                            call(&runtime, "GET", &format!("{issue}/comments?limit=10"), &[])
+                                .await?;
+                        ensure(
+                            read.0 == 200
+                                && read.1["items"].as_array().is_some_and(|rows| {
+                                    rows.iter().any(|r| {
+                                        r["comment"]["body"] == "Connected issue comment 茶"
+                                    })
+                                }),
+                            "normal issue comment readback lost writing",
+                        )?;
+                    }
+                }
+            }
+            let caps = call(&runtime, "GET", &format!("{issue}/capabilities"), &[]).await?;
+            ensure(
+                caps.0 == 200 && caps.1["actions"]["issue.edit"]["state"] == "allowed",
+                "current issue eligibility missing",
+            )?;
+            let id = format!("{:032x}", 23010);
+            saved.push(submit(&format!("{root_path}/branches"),&format!("{root_path}/branch-creation/commands/{id}"),json!({"command_id":id,"name":"factory-product-created-v1","commit":config["reviews"]["head"]})).await?);
+            let id = format!("{:032x}", 23011);
+            let created=submit(&format!("{root_path}/pulls"),&format!("{root_path}/pull-creation/commands/{id}"),json!({"command_id":id,"head_repository":repository,"base_branch":"check-base-inline-v5","head_branch":"factory-product-created-v1","title":"Factory product-created PR 茶","body":"PR fixture writing 🌋","allow_maintainer_edit":false})).await?;
+            let number = created.1 .1["pull"]["number"]
+                .as_str()
+                .ok_or("created pull number absent")?
+                .to_owned();
+            saved.push(created);
+            let pull = format!("{root_path}/pulls/{number}");
+            for (index, operation, fields) in [
+                (12, "comments", json!({"body":"Connected PR comment 茶"})),
+                (
+                    13,
+                    "edits",
+                    json!({"title":"Edited PR fixture 茶","body":"Edited PR writing 🌋"}),
+                ),
+                (14, "state", json!({"close":true})),
+                (15, "state", json!({"close":false})),
+                (16, "locks", json!({"lock":true,"reason":"resolved"})),
+                (17, "locks", json!({"lock":false})),
+            ] {
+                let id = format!("{:032x}", 23000 + index);
+                let mut fields = fields;
+                fields["command_id"] = json!(id);
+                let path = format!("{pull}/{operation}");
+                saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
+                let read = call(&runtime, "GET", &pull, &[]).await?;
+                ensure(read.0 == 200, "normal PR read failed")?;
+                let observed = &read.1;
+                match operation {
+                    "edits" => ensure(
+                        observed["title"] == "Edited PR fixture 茶"
+                            && observed["body"] == "Edited PR writing 🌋",
+                        "normal PR read lost edited writing",
+                    )?,
+                    "state" => ensure(
+                        observed["state"] == if index == 14 { "closed" } else { "open" },
+                        "normal PR state readback failed",
+                    )?,
+                    "locks" => ensure(
+                        observed["locked"] == (index == 16),
+                        "normal PR lock readback failed",
+                    )?,
+                    _ => {
+                        let read = call(&runtime, "GET", &format!("{pull}/comments?limit=10"), &[])
+                            .await?;
+                        ensure(
+                            read.0 == 200
+                                && read.1["items"].as_array().is_some_and(|rows| {
+                                    rows.iter()
+                                        .any(|r| r["comment"]["body"] == "Connected PR comment 茶")
+                                }),
+                            "normal PR comment readback lost writing",
+                        )?;
+                    }
                 }
             }
         }
-        let caps = call(&runtime, "GET", &format!("{issue}/capabilities"), &[]).await?;
-        ensure(
-            caps.0 == 200 && caps.1["actions"]["issue.edit"]["state"] == "allowed",
-            "current issue eligibility missing",
-        )?;
-        let id = format!("{:032x}", 23010);
-        saved.push(submit(&format!("{root_path}/branches"),&format!("{root_path}/branch-creation/commands/{id}"),json!({"command_id":id,"name":"factory-product-created-v1","commit":config["reviews"]["head"]})).await?);
-        let id = format!("{:032x}", 23011);
-        let created=submit(&format!("{root_path}/pulls"),&format!("{root_path}/pull-creation/commands/{id}"),json!({"command_id":id,"head_repository":repository,"base_branch":"check-base-inline-v5","head_branch":"factory-product-created-v1","title":"Factory product-created PR 茶","body":"PR fixture writing 🌋","allow_maintainer_edit":false})).await?;
-        let number = created.1 .1["pull"]["number"]
+        let number = config["reviews"]["number"]
+            .as_u64()
+            .ok_or("review fixture absent")?;
+        let reviews_path = format!("{root_path}/pulls/{number}/reviews");
+        let id = format!("{:032x}", 28000);
+        let body = "Direct comment review from Factory 茶\nPreserve Markdown [link](review.txt).";
+        let result = submit(
+            &reviews_path,
+            &format!("{reviews_path}/commands/{id}"),
+            json!({"command_id":id,"event":"comment","body":body}),
+        )
+        .await?;
+        let review = result.1 .1["review"]["external_id"]
             .as_str()
-            .ok_or("created pull number absent")?
-            .to_owned();
-        saved.push(created);
-        let pull = format!("{root_path}/pulls/{number}");
-        for (index, operation, fields) in [
-            (12, "comments", json!({"body":"Connected PR comment 茶"})),
-            (
-                13,
-                "edits",
-                json!({"title":"Edited PR fixture 茶","body":"Edited PR writing 🌋"}),
-            ),
-            (14, "state", json!({"close":true})),
-            (15, "state", json!({"close":false})),
-            (16, "locks", json!({"lock":true,"reason":"resolved"})),
-            (17, "locks", json!({"lock":false})),
-        ] {
-            let id = format!("{:032x}", 23000 + index);
-            let mut fields = fields;
-            fields["command_id"] = json!(id);
-            let path = format!("{pull}/{operation}");
-            saved.push(submit(&path, &format!("{path}/commands/{id}"), fields).await?);
-            let read = call(&runtime, "GET", &pull, &[]).await?;
-            ensure(read.0 == 200, "normal PR read failed")?;
-            let observed = &read.1;
-            match operation {
-                "edits" => ensure(
-                    observed["title"] == "Edited PR fixture 茶"
-                        && observed["body"] == "Edited PR writing 🌋",
-                    "normal PR read lost edited writing",
-                )?,
-                "state" => ensure(
-                    observed["state"] == if index == 14 { "closed" } else { "open" },
-                    "normal PR state readback failed",
-                )?,
-                "locks" => ensure(
-                    observed["locked"] == (index == 16),
-                    "normal PR lock readback failed",
-                )?,
-                _ => {
-                    let read =
-                        call(&runtime, "GET", &format!("{pull}/comments?limit=10"), &[]).await?;
-                    ensure(
-                        read.0 == 200
-                            && read.1["items"].as_array().is_some_and(|rows| {
-                                rows.iter()
-                                    .any(|r| r["comment"]["body"] == "Connected PR comment 茶")
-                            }),
-                        "normal PR comment readback lost writing",
-                    )?;
-                }
-            }
+            .ok_or("direct review destination absent")?;
+        let read = call(&runtime, "GET", &format!("{reviews_path}/{review}"), &[]).await?;
+        ensure(
+            read.0 == 200 && read.1["body"] == body && read.1["state"] == "commented",
+            "direct review normal readback lost writing",
+        )?;
+        saved.push(result);
+        for (index, event) in [(1, "approve"), (2, "request_changes")] {
+            let id = format!("{:032x}", 28000 + index);
+            let refused=call(&runtime,"POST",&reviews_path,&serde_json::to_vec(&json!({"command_id":id,"event":event,"body":"A self-review must be refused before capture"}))?).await?;
+            ensure(
+                refused.0 == 503
+                    && call(
+                        &runtime,
+                        "GET",
+                        &format!("{reviews_path}/commands/{id}"),
+                        &[],
+                    )
+                    .await?
+                    .0 == 404,
+                "self-review was not refused before capture",
+            )?;
+            println!("PASS: own {event} refused before capture");
         }
     }
     runtime.stop()?;
@@ -2974,7 +3016,7 @@ pub(super) async fn connected_writes(
             "connected-merge-result.json"
         }),
         serde_json::to_vec_pretty(
-            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if general{json!(["issue_create","issue_edit_comment_state_lock","branch_create","pull_create","pull_edit_comment_state_lock"])}else if inlines{json!(["new_inline_draft","append_draft","publish_line_after_submission","publish_file_after_submission","submit_pending_inline","new_file_draft"])}else if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false,"unfinished_commands":incomplete}),
+            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":if general{json!(["issue_create","issue_edit_comment_state_lock","branch_create","pull_create","pull_edit_comment_state_lock","direct_comment_review","own_verdict_refusal"])}else if inlines{json!(["new_inline_draft","append_draft","publish_line_after_submission","publish_file_after_submission","submit_pending_inline","new_file_draft"])}else if reviews{json!(["new_draft","edit_draft","clear_draft","submit_pending"])}else{json!(["merge","squash","rebase"])},"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false,"unfinished_commands":incomplete}),
         )?,
     )?;
     println!("PASS: connected merge records survived native restart; owned local account removed");

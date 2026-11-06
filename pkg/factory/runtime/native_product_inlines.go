@@ -105,6 +105,7 @@ type nativeInlineMember struct {
 	UpdatedAt      *time.Time `json:"updated_at"`
 }
 type nativeInlinePreservation struct {
+	ViewerIsAuthor *bool `json:"viewer_is_author"`
 	// The complete snapshot now has one additional exclusion projection.
 	PendingSHA256       *string                  `json:"pending_sha256"` // absent in the current-only reader
 	Repository          string                   `json:"repository"`

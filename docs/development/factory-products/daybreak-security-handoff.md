@@ -3631,6 +3631,14 @@ fenced. Draft and immediate publication now share one GraphQL creation owner;
 historical REST receipts remain readable. Final connected publication/replay/
 restart passed in `inlines5/shared-owner-publication.log` under that same root.
 
+Review-author follow-up: `review_preparation.rs`, `review_create.rs`,
+`review_submit.rs` and `native_product_review_creates.go` now carry current PR
+authorship and refuse own/unknown-author verdicts before effects. Connected direct
+comment-review writing/readback/replay/restart and own-author pre-capture refusals
+passed in `general1/direct-review.log`. The affected different-author pending
+journal/recovery fixture passed in `pending-author-regression/`. This does not
+qualify real other-actor approval/request-changes or broader privilege boundaries.
+
 Remaining privacy/permission dependency: only the author's `gh` account is
 authorized. A second authorized account with access to the disposable private
 fixture is needed to observe pending-draft invisibility, submitted visibility,

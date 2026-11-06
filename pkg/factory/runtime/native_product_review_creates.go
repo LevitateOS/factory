@@ -60,6 +60,7 @@ type nativeReviewCreateReceipt struct {
 	ProviderResponse nativeCreationResponse `json:"provider_response"`
 }
 type nativeReviewPreparationFacts struct {
+	ViewerIsAuthor      *bool                        `json:"viewer_is_author"`
 	PendingSHA256       *string                      `json:"pending_sha256"`
 	CommentsSnapshot    *nativeReviewCommentSnapshot `json:"comments_snapshot"`
 	Repository          string                       `json:"repository"`
@@ -106,6 +107,9 @@ func (s nativeHumanNewReviews) PrepareHumanReview(ctx context.Context, q factory
 	}
 	if observed.Repository != s.repository.ExternalID || !nativeReviewNode(observed.RepositoryNodeID, 1024) || !nativeReviewNode(observed.ActorNodeID, 1024) || !nativeRemoteID(observed.Pull.ExternalID) || !nativeReviewNode(observed.Pull.NodeID, 1024) || observed.Pull.Number != uint64(q.Number) || !collaboration.ValidCommitID(collaboration.CommitID(observed.Pull.Head)) || observed.VisiblePendingCount == nil || *observed.VisiblePendingCount > 1000 || len(observed.Pending) == 0 {
 		return empty, errNativeRead
+	}
+	if (q.Event == factory.HumanReviewApprove || q.Event == factory.HumanReviewRequestChanges) && (observed.ViewerIsAuthor == nil || *observed.ViewerIsAuthor) {
+		return empty, factoryservice.ErrHumanReviewUnavailable
 	}
 	// This adapter creates a new review. Existing pending records require their
 	// dedicated submission path and cannot be adopted or overwritten here.

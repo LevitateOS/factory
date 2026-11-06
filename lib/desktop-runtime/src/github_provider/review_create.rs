@@ -93,6 +93,7 @@ impl Client {
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let before = reader.review_preparation(q.number, actor, expected).await?;
+            super::review_preparation::admit_verdict(&q.event, &before)?;
             if before["repository_node_id"] != q.repository_node_id
                 || before["pull"]["external_id"] != q.pull_id
                 || before["pull"]["node_id"] != q.pull_node_id

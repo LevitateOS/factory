@@ -30814,6 +30814,13 @@ the draft implicitly. Earlier indeterminate fixture commands remain fenced;
 matching current writing does not supply their lost causal receipts. Draft and
 immediate publication share the fixed GraphQL review creation owner; historical
 REST receipts remain readable. Go/native builds, boundaries and whitespace passed.
+Direct comment-review creation also passed exact normal readback, replay and
+restart (`general1/direct-review.log`). Current PR authorship now reaches Go
+preparation; own/unknown-author approval and request-changes are refused before
+capture, and Rust independently checks the same rule for new/pending verdicts.
+Real own-author refusals passed; the affected existing pending journal/recovery
+regression passed with an explicit different-author dummy fixture in
+`pending-author-regression/` under the same evidence root.
 Positive approval/request-changes and reviewer-request changes,
 cross-account draft visibility/notifications and broader privilege qualification
 remain pending because only the author's authorized GitHub account is available.

@@ -11,6 +11,15 @@ use std::collections::HashSet;
 
 const LIST:&str="query FactoryPendingReviews($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} headRefOid reviews(first:50,after:$after,states:[PENDING]){totalCount pageInfo{hasNextPage endCursor} nodes{id state author{__typename ... on User{id}} pullRequest{id} repository{id}}}}}}";
 const DETAIL:&str="query FactoryPendingReview($review:ID!){node(id:$review){__typename ... on PullRequestReview{id fullDatabaseId state body author{__typename ... on User{id login}} pullRequest{id headRefOid repository{id}} repository{id} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
+
+pub(super) fn admit_verdict(event: &str, preparation: &Value) -> Result<()> {
+    if matches!(event, "approve" | "request_changes")
+        && preparation["viewer_is_author"].as_bool() != Some(false)
+    {
+        return Err(Failure::new(403, "github_review_verdict_unavailable"));
+    }
+    Ok(())
+}
 pub(super) enum PreparationQuery {
     List {
         pull: String,
@@ -102,6 +111,7 @@ impl Reader<'_> {
             "repository",
             "repository_node_id",
             "actor_node_id",
+            "viewer_is_author",
             "archived",
             "disabled",
             "pull",
@@ -569,8 +579,14 @@ impl Reader<'_> {
         if identity.external_id != account || identity.node_id.as_deref() != Some(actor) {
             return Err(Failure::new(409, "github_account_changed"));
         }
+        let author = r::actor(&before["user"])?;
+        let viewer_is_author = if author.is_null() {
+            Value::Null
+        } else {
+            json!(r::text(&author, "external_id")? == account)
+        };
         Ok(
-            json!({"repository":self.repository,"name":self.name,"repository_node_id":repo,"archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,"pull":{"external_id":external,"node_id":pull,"number":number,"state":before["state"],"locked":r::boolean(&before,"locked")?,"draft":r::boolean(&before,"draft")?,"merged":r::boolean(&before,"merged")?,"head":head},"pending":pending,"visible_pending_count":count,"actor_node_id":actor}),
+            json!({"repository":self.repository,"name":self.name,"repository_node_id":repo,"archived":r::boolean(&repository,"archived")?,"disabled":r::boolean(&repository,"disabled")?,"pull":{"external_id":external,"node_id":pull,"number":number,"state":before["state"],"locked":r::boolean(&before,"locked")?,"draft":r::boolean(&before,"draft")?,"merged":r::boolean(&before,"merged")?,"head":head},"pending":pending,"visible_pending_count":count,"actor_node_id":actor,"viewer_is_author":viewer_is_author}),
         )
     }
 }
