@@ -365,3 +365,26 @@ fn project(
         "viewer_can_resolve":can_resolve,"viewer_can_unresolve":can_unresolve,"comments":{"items":items,"next_page":if more{page+1}else{0}}}),
     )
 }
+
+impl Client {
+    pub(super) async fn thread_query(
+        &self,
+        query: super::review_threads::ThreadQuery,
+        token: &[u8],
+    ) -> super::Result<serde_json::Value> {
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        Ok(self
+            .provider_request(
+                move |http| {
+                    let (query, variables) = query.wire();
+                    Ok((
+                        super::transport::graphql(http, &token, &query, variables)?,
+                        8 * 1024 * 1024,
+                    ))
+                },
+                true,
+            )
+            .await?
+            .value)
+    }
+}

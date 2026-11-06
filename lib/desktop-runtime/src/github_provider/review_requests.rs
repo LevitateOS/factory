@@ -321,3 +321,26 @@ fn project(v: &Value, owner: &str) -> Result<Value> {
         }
     }
 }
+
+impl Client {
+    pub(super) async fn reviewer_query(
+        &self,
+        query: super::review_requests::ReviewerQuery,
+        token: &[u8],
+    ) -> super::Result<serde_json::Value> {
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        Ok(self
+            .provider_request(
+                move |http| {
+                    let (query, variables) = query.wire();
+                    Ok((
+                        super::transport::graphql(http, &token, query, variables)?,
+                        8 * 1024 * 1024,
+                    ))
+                },
+                true,
+            )
+            .await?
+            .value)
+    }
+}

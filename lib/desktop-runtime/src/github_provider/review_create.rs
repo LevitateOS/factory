@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const CREATE:&str="mutation FactoryCreateReview($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){pullRequestReview{id fullDatabaseId state body url author{__typename login ... on User{id}} repository{id} pullRequest{id fullDatabaseId number headRefOid repository{id}} commit{oid repository{id}} comments{totalCount} createdAt updatedAt submittedAt}}}";
 #[derive(Clone, Deserialize, Serialize)]
@@ -80,11 +80,8 @@ impl Client {
         q: &ReviewCreate,
         deadline: Option<Instant>,
     ) -> CreateOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
+            let until = mutation.deadline;
             q.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
@@ -92,14 +89,7 @@ impl Client {
             if Instant::now() >= until {
                 return Err(Failure::new(409, "github_review_creation_expired"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let before = reader.review_preparation(q.number, actor, expected).await?;
@@ -127,12 +117,7 @@ impl Client {
             if q.event == "comment" && q.body.trim().is_empty() {
                 return Err(Failure::new(409, "github_review_body_required"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_review_creation_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_review_creation_expired")?;
             let response = self.post_review(q, token).await?;
             let raw = &response.value["data"]["addPullRequestReview"]["pullRequestReview"];
             let id = r::big_id(&raw["fullDatabaseId"])?;
@@ -167,28 +152,45 @@ impl Client {
                 return Err(Failure::protocol());
             }
             let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"event":q.event,"head_condition":"preflight_and_causal_reply","existing_pending":"not_observed_before_send","review":{"external_id":id,"node_id":raw["id"],"state":q.state().to_ascii_lowercase(),"body_sha256":super::transport::sha256(q.body.as_bytes()),"commit":q.head,"comments_count":0,"author_node_id":actor,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted},"provider_response":{"protocol":"github_graphql_create_review","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|v| v);
-        match result {
-            Ok(v) => CreateOutcome::Created(v),
-            Err(f) if attempted => CreateOutcome::Indeterminate(f),
-            Err(f) => CreateOutcome::NotSent(f),
-        }
+        }).await.creation()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_review(
+        &self,
+        q: &super::ReviewCreate,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let pull = q.pull_node_id.clone();
+        let head = q.head.clone();
+        let event = q.wire_event();
+        let body = q.body.clone();
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                let mut input = serde_json::Map::new();
+                input.insert("pullRequestId".into(), serde_json::json!(pull));
+                input.insert("commitOID".into(), serde_json::json!(head));
+                input.insert("body".into(), serde_json::json!(body));
+                if let Some(event) = event {
+                    input.insert("event".into(), serde_json::json!(event));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        CREATE,
+                        serde_json::json!({"input":input}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

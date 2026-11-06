@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const LOCK:&str="mutation FactoryLockDiscussion($input:LockLockableInput!){lockLockable(input:$input){actor{login ... on User{id} ... on Bot{id}} lockedRecord{__typename locked activeLockReason ... on Issue{id fullDatabaseId number url updatedAt repository{id nameWithOwner}} ... on PullRequest{id fullDatabaseId number url updatedAt repository{id nameWithOwner}}}}}";
 pub(super) const UNLOCK:&str="mutation FactoryUnlockDiscussion($input:UnlockLockableInput!){unlockLockable(input:$input){actor{login ... on User{id} ... on Bot{id}} unlockedRecord{__typename locked activeLockReason ... on Issue{id fullDatabaseId number url updatedAt repository{id nameWithOwner}} ... on PullRequest{id fullDatabaseId number url updatedAt repository{id nameWithOwner}}}}}";
@@ -69,24 +69,13 @@ impl Client {
         lock: &DiscussionLock,
         deadline: Option<Instant>,
     ) -> WriteOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             lock.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
             let reason = lock.provider_reason()?;
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &lock.repository).await?;
             let pull = lock.subject == "pull";
@@ -113,12 +102,7 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_lock_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_lock_expired")?;
             let response = self
                 .post_lock(subject_node, lock.lock, reason, token)
                 .await?;
@@ -157,28 +141,47 @@ impl Client {
                 "locked":lock.lock,"reason":lock.reason,"active_lock_reason":raw["activeLockReason"],"url":raw["url"],"updated_at":r::date(&date,"updated_at")?,
                 "actor":{"external_id":identity.external_id,"login":r::nonempty(&payload["actor"],"login")?},"actor_node_id":actor_node,
                 "provider_response":{"protocol":"github_graphql_discussion_lock","mutation":mutation,"status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|r| r);
-        match result {
-            Ok(r) => WriteOutcome::Applied(r),
-            Err(f) if attempted => WriteOutcome::Indeterminate(f),
-            Err(f) => WriteOutcome::NotSent(f),
-        }
+        }).await.update()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_lock(
+        &self,
+        node: &str,
+        lock: bool,
+        reason: Option<&str>,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let node = node.to_owned();
+
+        let reason = reason.map(str::to_owned);
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&node) || !lock && reason.is_some() {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                let mut input = serde_json::Map::new();
+                input.insert("lockableId".into(), serde_json::json!(node));
+                if let Some(reason) = reason {
+                    input.insert("lockReason".into(), serde_json::json!(reason));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        if lock { LOCK } else { UNLOCK },
+                        serde_json::json!({"input":input}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

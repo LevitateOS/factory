@@ -4,7 +4,7 @@ use super::{
     reads::Reader,
     records as r,
     request::{commit, node_id},
-    Failure, Result,
+    Client, Failure, Result,
 };
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -613,4 +613,27 @@ fn publication_detail(
     Ok(
         json!({"external_id":id,"node_id":node,"state":r::text(raw,"state")?.to_ascii_lowercase(),"body_sha256":super::transport::sha256(body.as_bytes()),"commit":oid,"comments_count":count,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted}),
     )
+}
+
+impl Client {
+    pub(super) async fn review_preparation_query(
+        &self,
+        query: super::review_preparation::PreparationQuery,
+        token: &[u8],
+    ) -> super::Result<serde_json::Value> {
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        Ok(self
+            .provider_request(
+                move |http| {
+                    let (query, variables) = query.wire();
+                    Ok((
+                        super::transport::graphql(http, &token, query, variables)?,
+                        1024 * 1024,
+                    ))
+                },
+                true,
+            )
+            .await?
+            .value)
+    }
 }

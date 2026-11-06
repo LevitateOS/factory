@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const QUERY:&str="query FactoryBranchCreation($repository:ID!,$name:String!,$oid:GitObjectID!){node(id:$repository){__typename ... on Repository{id nameWithOwner branch:ref(qualifiedName:$name){id name prefix repository{id} target{__typename oid repository{id}}} commit:object(oid:$oid){__typename oid repository{id}}}}}";
 pub(super) const CREATE:&str="mutation FactoryCreateBranch($input:CreateRefInput!){createRef(input:$input){ref{id name prefix repository{id} target{__typename oid repository{id}}}}}";
@@ -144,23 +144,12 @@ impl Client {
         q: &BranchCreate,
         deadline: Option<Instant>,
     ) -> CreateOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             q.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let observed = reader
@@ -178,12 +167,7 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_branch_write_unavailable"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_branch_creation_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_branch_creation_expired")?;
             let response = self.post_branch(q, token).await?;
             let branch = project_branch(
                 &response.value["data"]["createRef"]["ref"],
@@ -192,28 +176,68 @@ impl Client {
                 Some(&q.commit),
             )?;
             let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"branch":branch,"creation_condition":"new_ref_at_exact_commit","provider_response":{"protocol":"github_graphql_create_ref","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|v| v);
-        match result {
-            Ok(v) => CreateOutcome::Created(v),
-            Err(f) if attempted => CreateOutcome::Indeterminate(f),
-            Err(f) => CreateOutcome::NotSent(f),
-        }
+        }).await.creation()
+    }
+}
+
+impl Client {
+    pub(super) async fn branch_creation_query(
+        &self,
+        repository: &str,
+        name: &str,
+        oid: &str,
+        token: &[u8],
+    ) -> super::Result<serde_json::Value> {
+        let repository: String = repository.into();
+        let name: String = name.into();
+        let oid: String = oid.into();
+        let token: zeroize::Zeroizing<Vec<u8>> = zeroize::Zeroizing::new(token.to_vec());
+        Ok(self.provider_request(move |http| Ok({
+            if !super::request::node_id(&repository)
+                || !super::request::branch_name(&name)
+                || !super::request::commit(&oid)
+            {
+                return Err(Failure::invalid());
+            }
+            (
+                super::transport::graphql(
+                    http,
+                    &token,
+                    QUERY,
+                    serde_json::json!({"repository":repository,"name":format!("refs/heads/{name}"),"oid":oid}),
+                )?,
+                1024 * 1024,
+            )
+        }), true).await?.value)
+    }
+    pub(super) async fn post_branch(
+        &self,
+        q: &super::BranchCreate,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let repository: String = q.repository_node_id.clone();
+        let name: String = q.name.clone();
+        let oid: String = q.commit.clone();
+        let token: zeroize::Zeroizing<Vec<u8>> = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(move |http| Ok({
+            if !super::request::node_id(&repository)
+                || !super::request::branch_name(&name)
+                || !super::request::commit(&oid)
+            {
+                return Err(Failure::new(400, "invalid_native_write"));
+            }
+            (
+                super::transport::graphql(
+                    http,
+                    &token,
+                    CREATE,
+                    serde_json::json!({"input":{"repositoryId":repository,"name":format!("refs/heads/{name}"),"oid":oid}}),
+                )?,
+                1024 * 1024,
+            )
+        }), false).await
     }
 }

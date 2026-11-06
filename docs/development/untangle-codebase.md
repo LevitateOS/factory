@@ -145,7 +145,7 @@ ownership represent separate requirements. Independent review found no worthwhil
 safe sequence consolidation. Keep them explicit. Inspected SodaOS production
 callers still use `LoadFactoryMCPKey` and `TypeSafeKeyReadable`; retain these APIs.
 
-### 4. Rust GitHub connector and admitted effects — pending
+### 4. Rust GitHub connector and admitted effects — complete
 
 One private mutation lifetime owns pacing, account checks, absolute deadline,
 attempt classification and receipt bounds. Each operation owns its request,
@@ -160,7 +160,20 @@ preconditions and decoder. Keep the admitted public surface semantic and fixed.
 - Legacy canonical reads in `github.rs`/`request.rs` appear check-only; migrate
   useful checks to real product paths and verify external callers before removal.
 
-### 5. Native protocol, resources and desktop lifetime — pending
+Implemented one mutation runner/admission permit for all twelve producers and one
+receipt-bound policy. Operations own deferred request builders beside their
+queries/decoders; transport owns bounded HTTP lifetime and fixed origins. Builders
+still execute on the joined HTTP owner after queue admission. Callback outcomes
+normalize once. Independent review preserved early validation, absolute deadlines,
+current-account/pacing/one-claim order, send classification and receipt predicates.
+Offline native builds and existing composed edit (16 cases) and inline (31 cases)
+journeys passed: `/home/vince/tmp/fun.GVtPh3/` and `/home/vince/tmp/fui.BYYuZW/`.
+These use actual Go/PG/native custody with no-forwarding dummy providers; they do
+not qualify GitHub or stronger provider atomicity. Retain active native-check
+canonical-read APIs and explicit flat callback variants: removing them requires
+caller migration or decoding machinery that would obscure strict admission.
+
+### 5. Native protocol, resources and desktop lifetime — active
 
 Define nonsecret broker/worker DTOs, bounds and pure validation once. Keep every
 boundary's peer/process/authority checks independent. Give private filesystem
@@ -251,7 +264,7 @@ or implementation-bound checks after structural replacements work.
 - No initial audit proved any existing test worthless. Do not delete coverage
   from line count alone. Retain real compositor input and connected boundaries.
 
-### 9. Build, assets and active documentation — active
+### 9. Build, assets and active documentation — complete
 
 Stage reported build artifacts and define UI assets/notices together. Make active
 guidance describe this repository; preserve historical evidence without copying
@@ -267,6 +280,18 @@ it into current operating instructions.
   and redundant settings. Preserve the unit-test prohibition itself.
 - Current plan/handoff mix active scope with very large historical evidence;
   keep open gates discoverable and history intact without another verbose ledger.
+
+Implemented Cargo-reported executable staging and symmetric, root-correct payload
+overlap refusal. Production UI copies the canonical diff-library license. Current
+testing/ownership guides describe this checkout; original predecessor text is
+retained verbatim under `history/`. Lit commands, empty current unitban allowlist
+and redundant formatting/lint settings are corrected. Historical product-plan
+evidence remains intact; use its opening status and the handoff for open gates.
+Independent script review, script TypeScript, unitban, actual desktop stage with
+nondefault `CARGO_TARGET_DIR`, byte comparison of staged binary/license and early
+root-overlap refusal passed. The first plain-host stage lacked WebKit development
+libraries; the retained sysroot resolved it. Build log: `.artifacts/untangle-desktop-build.log`.
+This is a cached development build, not fresh or installed qualification.
 
 ## Verification and completion
 

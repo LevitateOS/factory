@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const CREATE: &str = "mutation FactoryAppendPendingThread($input:AddPullRequestReviewThreadInput!){addPullRequestReviewThread(input:$input){thread{id path diffSide startDiffSide line startLine subjectType repository{id} pullRequest{id fullDatabaseId number repository{id}} comments(first:2){totalCount pageInfo{hasNextPage endCursor} nodes{id fullDatabaseId body state path line startLine subjectType author{__typename ... on User{id}} repository{id} pullRequest{id} pullRequestReview{id fullDatabaseId state body commit{oid repository{id}} submittedAt comments{totalCount}} commit{oid repository{id}} originalCommit{oid repository{id}} replyTo{id} createdAt updatedAt publishedAt}}}}}";
 #[derive(Clone, Deserialize, Serialize)]
@@ -80,23 +80,12 @@ impl Client {
         q: &InlineDraft,
         deadline: Option<Instant>,
     ) -> CreateOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             q.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let root = reader.review_preparation(q.number, actor, expected).await?;
@@ -153,12 +142,7 @@ impl Client {
             } else {
                 r::text(file, "new_path")?
             };
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_inline_creation_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_inline_creation_expired")?;
             let response = self.post_inline_draft(q, path, token).await?;
             let thread = &response.value["data"]["addPullRequestReviewThread"]["thread"];
             let side = if q.anchor.side == "old" {
@@ -267,28 +251,36 @@ impl Client {
             }
             let dates = json!({"created":c["createdAt"],"updated":c["updatedAt"],"published":c["publishedAt"],"submitted":review["submittedAt"]});
             let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.anchor.head,"preparation_sha256":q.preparation_sha256,"selection_sha256":super::transport::sha256(&serde_json::to_vec(&q.anchor).map_err(|_|Failure::protocol())?),"selection_condition":"bounded_preflight_and_causal_reply","thread_node_id":thread["id"],"comment":{"node_id":c["id"],"external_id":numeric,"body_sha256":super::transport::sha256(q.body.as_bytes()),"state":comment_state.to_ascii_lowercase(),"created_at":r::date(&dates,"created")?,"updated_at":r::date(&dates,"updated")?,"published_at":r::date(&dates,"published")?},"review":{"node_id":q.review_node_id,"external_id":review_numeric,"state":review_state.to_ascii_lowercase(),"commit":q.anchor.head,"body_sha256":super::transport::sha256(r::text(review,"body")?.as_bytes()),"comments_count":review["comments"]["totalCount"].as_u64().ok_or_else(Failure::protocol)?,"submitted_at":r::date(&dates,"submitted")?},"expected_pending":{"sha256":before["pending_sha256"],"body_sha256":super::transport::sha256(r::text(&before["pending"],"body")?.as_bytes()),"comments_count":before["comments_snapshot"]["count"],"comments_sha256":before["comments_snapshot"]["identity_writing_sha256"]},"preservation_verification":"required","provider_response":{"protocol":"github_graphql_append_pending_thread","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|v| v);
-        match result {
-            Ok(v) => CreateOutcome::Created(v),
-            Err(f) if attempted => CreateOutcome::Indeterminate(f),
-            Err(f) => CreateOutcome::NotSent(f),
-        }
+        }).await.creation()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_inline_draft(
+        &self,
+        q: &super::InlineDraft,
+        path: &str,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let input = q.input(path);
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        CREATE,
+                        serde_json::json!({"input":input}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

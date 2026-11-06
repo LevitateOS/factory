@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 const RESULT: &str = "thread{id isResolved isOutdated resolvedBy{id databaseId login} pullRequest{id fullDatabaseId number url repository{id nameWithOwner}} repository{id}}";
 pub(super) fn mutation(resolved: bool) -> String {
@@ -77,23 +77,12 @@ impl Client {
         q: &ThreadResolution,
         deadline: Option<Instant>,
     ) -> WriteOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             q.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let account_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let pull = reader.raw_subject(true, q.number).await?;
@@ -156,12 +145,7 @@ impl Client {
             if thread[action].as_bool() != Some(true) {
                 return Err(Failure::new(403, "github_thread_resolution_denied"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_thread_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_thread_expired")?;
             let response = self
                 .post_thread_resolution(&q.thread_id, q.resolved, token)
                 .await?;
@@ -203,28 +187,40 @@ impl Client {
             let receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":repository_node,"pull_id":q.pull_id,"pull_node_id":pull_node,"number":q.number,
                 "thread_id":q.thread_id,"resolved":q.resolved,"original_anchor":null,"outdated":raw["isOutdated"],"resolved_by":resolver,"pull_url":raw["pullRequest"]["url"],
                 "provider_response":{"protocol":"github_graphql_thread_resolution","mutation":mutation,"status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|r| r);
-        match result {
-            Ok(r) => WriteOutcome::Applied(r),
-            Err(f) if attempted => WriteOutcome::Indeterminate(f),
-            Err(f) => WriteOutcome::NotSent(f),
-        }
+        }).await.update()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_thread_resolution(
+        &self,
+        node: &str,
+        resolved: bool,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let node = node.to_owned();
+
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&node) {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        &mutation(resolved),
+                        serde_json::json!({"input":{"threadId":node}}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

@@ -4,8 +4,8 @@
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
-    BranchCreate, Client, Comment, CreateOutcome, DiscussionEdit, DiscussionLock, DiscussionState,
-    Failure, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate,
+    BranchCreate, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
+    InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate,
     ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
@@ -425,16 +425,13 @@ enum Effect {
 }
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
-        if let Self::AppendPendingThread {
-            command_id,
-            digest,
-            not_after,
-            inline,
-        } = self
-        {
-            return Some((command_id, digest, *not_after, &inline.repository));
-        }
         match self {
+            Self::AppendPendingThread {
+                command_id,
+                digest,
+                not_after,
+                inline,
+            } => Some((command_id, digest, *not_after, &inline.repository)),
             Self::CreateBranch {
                 command_id,
                 digest,
@@ -720,20 +717,7 @@ async fn dispatch(
                     .read_account(token, &scope.capability.account().account, query)
                     .await
             }
-            Effect::CreateComment { .. }
-            | Effect::AppendPendingThread { .. }
-            | Effect::CreateBranch { .. }
-            | Effect::CreateIssue { .. }
-            | Effect::CreatePull { .. }
-            | Effect::CreateReview { .. }
-            | Effect::SubmitPendingReview { .. }
-            | Effect::SetDiscussionState { .. }
-            | Effect::EditDiscussion { .. }
-            | Effect::SetDiscussionLock { .. }
-            | Effect::SetThreadResolution { .. }
-            | Effect::SetReviewRequest { .. } => {
-                mutate(&state.provider, &scope, token, &call.call).await
-            }
+            effect => mutate(&state.provider, &scope, token, effect).await,
         });
     let observation = tokio::select! {
         biased;
@@ -770,84 +754,91 @@ async fn mutate(
     }
     let deadline = measured + Duration::from_secs(not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
-    let update = match effect {
-        Effect::SubmitPendingReview { review, .. } => Some(
+    let (success, outcome) = match effect {
+        Effect::SubmitPendingReview { review, .. } => (
+            "applied",
             provider
                 .review_submit_account(token, account, review, Some(deadline))
                 .await,
         ),
-        Effect::SetDiscussionState { state, .. } => Some(
+        Effect::SetDiscussionState { state, .. } => (
+            "applied",
             provider
                 .state_account(token, account, state, Some(deadline))
                 .await,
         ),
-        Effect::EditDiscussion { edit, .. } => Some(
+        Effect::EditDiscussion { edit, .. } => (
+            "applied",
             provider
                 .edit_account(token, account, edit, Some(deadline))
                 .await,
         ),
-        Effect::SetDiscussionLock { lock, .. } => Some(
+        Effect::SetDiscussionLock { lock, .. } => (
+            "applied",
             provider
                 .lock_account(token, account, lock, Some(deadline))
                 .await,
         ),
-        Effect::SetThreadResolution { thread, .. } => Some(
+        Effect::SetThreadResolution { thread, .. } => (
+            "applied",
             provider
                 .thread_resolution_account(token, account, thread, Some(deadline))
                 .await,
         ),
-        Effect::SetReviewRequest { request, .. } => Some(
+        Effect::SetReviewRequest { request, .. } => (
+            "applied",
             provider
                 .review_request_account(token, account, request, Some(deadline))
                 .await,
         ),
-        _ => None,
+        Effect::AppendPendingThread { inline, .. } => (
+            "created",
+            provider
+                .inline_draft_account(token, account, inline, Some(deadline))
+                .await
+                .into(),
+        ),
+        Effect::CreateBranch { branch, .. } => (
+            "created",
+            provider
+                .branch_create_account(token, account, branch, Some(deadline))
+                .await
+                .into(),
+        ),
+        Effect::CreateComment { comment, .. } => (
+            "created",
+            provider
+                .comment_account(token, account, comment, Some(deadline))
+                .await
+                .into(),
+        ),
+        Effect::CreateIssue { issue, .. } => (
+            "created",
+            provider
+                .issue_create_account(token, account, issue, Some(deadline))
+                .await
+                .into(),
+        ),
+        Effect::CreatePull { pull, .. } => (
+            "created",
+            provider
+                .pull_create_account(token, account, pull, Some(deadline))
+                .await
+                .into(),
+        ),
+        Effect::CreateReview { review, .. } => (
+            "created",
+            provider
+                .review_create_account(token, account, review, Some(deadline))
+                .await
+                .into(),
+        ),
+        _ => return Err(Failure::invalid()),
     };
-    let (state, receipt, failure) = if let Some(outcome) = update {
-        match outcome {
-            WriteOutcome::Applied(r) => ("applied", Some(r), None),
-            WriteOutcome::NotSent(f) => ("not_sent", None, Some(f)),
-            WriteOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
-        }
-    } else {
-        let outcome = match effect {
-            Effect::AppendPendingThread { inline, .. } => {
-                provider
-                    .inline_draft_account(token, account, inline, Some(deadline))
-                    .await
-            }
-            Effect::CreateBranch { branch, .. } => {
-                provider
-                    .branch_create_account(token, account, branch, Some(deadline))
-                    .await
-            }
-            Effect::CreateComment { comment, .. } => {
-                provider
-                    .comment_account(token, account, comment, Some(deadline))
-                    .await
-            }
-            Effect::CreateIssue { issue, .. } => {
-                provider
-                    .issue_create_account(token, account, issue, Some(deadline))
-                    .await
-            }
-            Effect::CreatePull { pull, .. } => {
-                provider
-                    .pull_create_account(token, account, pull, Some(deadline))
-                    .await
-            }
-            Effect::CreateReview { review, .. } => {
-                provider
-                    .review_create_account(token, account, review, Some(deadline))
-                    .await
-            }
-            _ => return Err(Failure::invalid()),
-        };
-        match outcome {
-            CreateOutcome::Created(r) => ("created", Some(r), None),
-            CreateOutcome::NotSent(f) => ("not_sent", None, Some(f)),
-            CreateOutcome::Indeterminate(f) => ("indeterminate", None, Some(f)),
-        }
+    let (state, receipt, failure) = match outcome {
+        WriteOutcome::Applied(receipt) => (success, Some(receipt), None),
+        WriteOutcome::NotSent(failure) => ("not_sent", None, Some(failure)),
+        WriteOutcome::Indeterminate(failure) => ("indeterminate", None, Some(failure)),
     };
     let failure = failure.map(
         |f| json!({"status":f.status,"code":f.code,"retry_after":f.retry_after,"reset":f.reset}),

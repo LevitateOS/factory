@@ -8,7 +8,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const CREATE_ISSUE:&str="mutation FactoryCreateIssue($repository:ID!,$title:String!,$body:String!){createIssue(input:{repositoryId:$repository,title:$title,body:$body}){issue{id fullDatabaseId number title body url createdAt updatedAt repository{id nameWithOwner} author{login ... on User{id} ... on Bot{id}}}}}";
 
@@ -51,11 +51,8 @@ impl Client {
         issue: &IssueCreate,
         deadline: Option<Instant>,
     ) -> CreateOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
+            let until = mutation.deadline;
             issue.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
@@ -63,14 +60,7 @@ impl Client {
             if Instant::now() >= until {
                 return Err(Failure::new(409, "github_issue_creation_expired"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let repository = self
                 .get(&format!("/repositories/{}", issue.repository), &[], token)
@@ -91,12 +81,7 @@ impl Client {
             if repository["has_issues"].as_bool() != Some(true) {
                 return Err(Failure::new(403, "github_issues_unavailable"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_issue_creation_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_issue_creation_expired")?;
             let response = self
                 .post_issue(repository_node, &issue.title, &issue.body, token)
                 .await?;
@@ -127,28 +112,42 @@ impl Client {
                 "title_sha256":super::transport::sha256(issue.title.as_bytes()),"body_sha256":super::transport::sha256(issue.body.as_bytes()),
                 "created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?},
                 "provider_response":{"protocol":"github_graphql_create_issue","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|result| result);
-        match result {
-            Ok(value) => CreateOutcome::Created(value),
-            Err(failure) if attempted => CreateOutcome::Indeterminate(failure),
-            Err(failure) => CreateOutcome::NotSent(failure),
-        }
+        }).await.creation()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_issue(
+        &self,
+        node: &str,
+        title: &str,
+        body: &str,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let node = node.to_owned();
+        let title = title.to_owned();
+        let body = body.to_owned();
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&node) {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        CREATE_ISSUE,
+                        serde_json::json!({"repository":node,"title":title,"body":body}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

@@ -9,7 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub(super) const EDIT_ISSUE: &str = "mutation FactoryEditIssue($input:UpdateIssueInput!){updateIssue(input:$input){issue{id fullDatabaseId number title body url updatedAt repository{id nameWithOwner}}}}";
 pub(super) const EDIT_PULL: &str = "mutation FactoryEditPull($input:UpdatePullRequestInput!){updatePullRequest(input:$input){pullRequest{id fullDatabaseId number title body url updatedAt repository{id nameWithOwner}}}}";
@@ -72,23 +72,12 @@ impl Client {
         edit: &DiscussionEdit,
         deadline: Option<Instant>,
     ) -> WriteOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             edit.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let reader = Reader::new(self, token, &edit.repository).await?;
             let pull = edit.subject == "pull";
             let subject = reader.raw_subject(pull, edit.number).await?;
@@ -124,12 +113,7 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_edit_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_edit_expired")?;
             let response = self
                 .post_edit(
                     subject_node,
@@ -173,28 +157,55 @@ impl Client {
                 "edited_title":edit.title.is_some(),"edited_body":edit.body.is_some(),"title_sha256":super::transport::sha256(expected_title.as_bytes()),
                 "body_sha256":super::transport::sha256(expected_body.as_bytes()),"url":raw["url"],"updated_at":r::date(&date,"updated_at")?,
                 "provider_response":{"protocol":"github_graphql_discussion_edit","mutation":mutation,"status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|r| r);
-        match result {
-            Ok(r) => WriteOutcome::Applied(r),
-            Err(f) if attempted => WriteOutcome::Indeterminate(f),
-            Err(f) => WriteOutcome::NotSent(f),
-        }
+        }).await.update()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_edit(
+        &self,
+        node: &str,
+        pull: bool,
+        title: Option<&str>,
+        body: Option<&str>,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let node = node.to_owned();
+
+        let title = title.map(str::to_owned);
+        let body = body.map(str::to_owned);
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&node) {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                let mut input = serde_json::Map::new();
+                input.insert(
+                    if pull { "pullRequestId" } else { "id" }.into(),
+                    serde_json::json!(node),
+                );
+                if let Some(title) = title {
+                    input.insert("title".into(), serde_json::json!(title));
+                }
+                if let Some(body) = body {
+                    input.insert("body".into(), serde_json::json!(body));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        if pull { EDIT_PULL } else { EDIT_ISSUE },
+                        serde_json::json!({"input":input}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

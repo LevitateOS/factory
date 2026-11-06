@@ -183,3 +183,42 @@ fn project(raw: &Value, repository: &Value, branch: &str) -> Result<Value> {
     }
     Ok(json!({"name":branch,"node_id":opaque(reference,"id")?,"commit":target["oid"]}))
 }
+
+impl Client {
+    pub(super) async fn pull_branch_query(
+        &self,
+        base: &serde_json::Value,
+        head: &serde_json::Value,
+        base_branch: &str,
+        head_branch: &str,
+        token: &[u8],
+    ) -> super::Result<serde_json::Value> {
+        let base: String = super::records::text(base, "node_id")?.into();
+        let head: String = super::records::text(head, "node_id")?.into();
+        let base_ref: String = format!("refs/heads/{base_branch}");
+        let head_ref: String = format!("refs/heads/{head_branch}");
+        let token: zeroize::Zeroizing<Vec<u8>> = zeroize::Zeroizing::new(token.to_vec());
+        Ok(self.provider_request(move |http| Ok({
+            if !super::request::node_id(&base)
+                || !super::request::node_id(&head)
+                || !base_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(super::request::branch_name)
+                || !head_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(super::request::branch_name)
+            {
+                return Err(Failure::invalid());
+            }
+            (
+                super::transport::graphql(
+                    http,
+                    &token,
+                    QUERY,
+                    serde_json::json!({"base":base,"head":head,"baseRef":base_ref,"headRef":head_ref}),
+                )?,
+                1024 * 1024,
+            )
+        }), true).await?.value)
+    }
+}

@@ -9,10 +9,7 @@ use super::{
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, time::Instant};
 
 pub(super) const REQUEST:&str="mutation FactoryRequestReviewer($input:RequestReviewsInput!){requestReviews(input:$input){actor{login ... on User{id} ... on Bot{id}} pullRequest{id fullDatabaseId number url repository{id nameWithOwner}}}}";
 
@@ -55,23 +52,12 @@ impl Client {
         q: &ReviewRequestChange,
         deadline: Option<Instant>,
     ) -> WriteOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
             q.validate()?;
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let account_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &q.repository).await?;
             let pull = reader.raw_subject(true, q.number).await?;
@@ -131,12 +117,7 @@ impl Client {
             let target_node = r::text(target, "node_id")?;
             let team = matches!(q.target, ReviewerTarget::Team { .. });
             let selector = r::text(target, if team { "slug" } else { "login" })?;
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_review_request_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_review_request_expired")?;
             let response = if q.requested {
                 self.post_review_request(pull_node, target_node, team, token)
                     .await?
@@ -226,28 +207,102 @@ impl Client {
                 "target_selector":if q.requested{"node_id"}else{"name_preflight_and_recheck"},"selector_sha256":super::transport::sha256(selector.as_bytes()),"unrelated_requests_preserved":unrelated,
                 "before_sha256":super::transport::sha256(&serde_json::to_vec(&before).map_err(|_|Failure::protocol())?),"after_sha256":super::transport::sha256(&serde_json::to_vec(&after).map_err(|_|Failure::protocol())?),
                 "provider_response":{"protocol":if q.requested{"github_graphql_request_review"}else{"github_rest_remove_review_request"},"method":if q.requested{"POST"}else{"DELETE"},"status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|r| r);
-        match result {
-            Ok(r) => WriteOutcome::Applied(r),
-            Err(f) if attempted => WriteOutcome::Indeterminate(f),
-            Err(f) => WriteOutcome::NotSent(f),
-        }
+        }).await.update()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_review_request(
+        &self,
+        pull: &str,
+        target: &str,
+        team: bool,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let pull = pull.to_owned();
+        let target = target.to_owned();
+
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&pull) || !super::request::node_id(&target) {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                let mut input = serde_json::Map::new();
+                input.insert("pullRequestId".into(), serde_json::json!(pull));
+                input.insert("union".into(), serde_json::json!(true));
+                input.insert(
+                    if team { "teamIds" } else { "userIds" }.into(),
+                    serde_json::json!([target]),
+                );
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        REQUEST,
+                        serde_json::json!({"input":input}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+    pub(super) async fn remove_review_request(
+        &self,
+        repository: &str,
+        number: u64,
+        selector: &str,
+        team: bool,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let repository = repository.to_owned();
+
+        let selector = selector.to_owned();
+
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::repository_name(&repository)
+                    || number == 0
+                    || number > i64::MAX as u64
+                    || selector.is_empty()
+                    || selector.len() > 512
+                    || selector.chars().any(char::is_control)
+                    || !super::transport::secret(&token)
+                {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                let bytes = zeroize::Zeroizing::new([b"Bearer ", token.as_slice()].concat());
+                let mut authorization = reqwest::header::HeaderValue::from_bytes(&bytes)
+                    .map_err(|_| Failure::new(400, "invalid_native_write"))?;
+                authorization.set_sensitive(true);
+                let body = if team {
+                    serde_json::json!({"reviewers":[],"team_reviewers":[selector]})
+                } else {
+                    serde_json::json!({"reviewers":[selector]})
+                };
+                Ok((
+                    http.delete(format!(
+                    "https://api.github.com/repos/{repository}/pulls/{number}/requested_reviewers"
+                ))
+                    .header(reqwest::header::AUTHORIZATION, authorization)
+                    .header("X-GitHub-Api-Version", super::API_VERSION)
+                    .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+                    .header(reqwest::header::CONTENT_TYPE, "application/json")
+                    .body(
+                        serde_json::to_vec(&body)
+                            .map_err(|_| Failure::new(400, "invalid_native_write"))?,
+                    ),
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }

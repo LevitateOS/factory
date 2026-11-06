@@ -5,7 +5,7 @@ use super::{reads::Reader, records as r, request::remote_id, Client, CreateOutco
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 // A fixed mutation addresses the exact node learned from the same REST subject
 // whose immutable database identity was checked. No owner/name selects a write.
@@ -57,11 +57,8 @@ impl Client {
         comment: &Comment,
         deadline: Option<Instant>,
     ) -> CreateOutcome {
-        let mut attempted = false;
-        let until = deadline
-            .unwrap_or_else(|| Instant::now() + Duration::from_secs(8))
-            .min(Instant::now() + Duration::from_secs(8));
-        let work = async {
+        self.run_mutation(deadline, |mutation| async move {
+            let until = mutation.deadline;
             comment.validate()?;
             if Instant::now() >= until {
                 return Err(Failure::new(409, "github_comment_expired"));
@@ -69,16 +66,7 @@ impl Client {
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }
-            self.current()?;
-            // Serialize mutation operations across clones. Reads keep their
-            // separate concurrency bound. Waits remain inside the total deadline.
-            let mut next = self.mutations.lock().await;
-            self.delay(next.saturating_duration_since(Instant::now()))
-                .await?;
-            let identity = self.identity(token).await?;
-            if identity.external_id != expected {
-                return Err(Failure::new(409, "github_account_changed"));
-            }
+            let (mut permit, identity) = mutation.admit(self, token, expected).await?;
             let actor_node = identity.node_id.as_deref().ok_or_else(Failure::protocol)?;
             let reader = Reader::new(self, token, &comment.repository).await?;
             let pull = comment.subject == "pull";
@@ -106,12 +94,7 @@ impl Client {
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }
-            self.current()?;
-            if Instant::now() >= until {
-                return Err(Failure::new(409, "github_comment_expired"));
-            }
-            *next = Instant::now() + Duration::from_secs(1);
-            attempted = true;
+            permit.dispatch("github_comment_expired")?;
             let response = self
                 .post_comment(subject_node, &comment.body, token)
                 .await?;
@@ -159,27 +142,39 @@ impl Client {
             let receipt = json!({"account":identity,"repository":comment.repository,"subject":comment.subject,
                 "subject_id":comment.subject_id,"subject_node_id":subject_node,"number":comment.number,"comment":projected,
                 "provider_response":{"protocol":"github_graphql_add_comment","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
-            if serde_json::to_vec(&receipt)
-                .map_err(|_| Failure::protocol())?
-                .len()
-                > 4096
-            {
-                return Err(Failure::new(413, "github_receipt_too_large"));
-            }
+            super::writes::check_receipt(&receipt)?;
             Ok(receipt)
-        };
-        let result = self
-            .scope(async {
-                tokio::time::timeout_at(until.into(), work)
-                    .await
-                    .unwrap_or_else(|_| Err(Failure::new(504, "github_deadline")))
-            })
-            .await
-            .and_then(|result| result);
-        match result {
-            Ok(value) => CreateOutcome::Created(value),
-            Err(failure) if attempted => CreateOutcome::Indeterminate(failure),
-            Err(failure) => CreateOutcome::NotSent(failure),
-        }
+        }).await.creation()
+    }
+}
+
+impl Client {
+    pub(super) async fn post_comment(
+        &self,
+        node: &str,
+        body: &str,
+        token: &[u8],
+    ) -> super::Result<super::transport::MutationResponse> {
+        let node = node.to_owned();
+        let body = body.to_owned();
+        let token = zeroize::Zeroizing::new(token.to_vec());
+        self.provider_request(
+            move |http| {
+                if !super::request::node_id(&node) {
+                    return Err(Failure::new(400, "invalid_native_write"));
+                }
+                Ok((
+                    super::transport::graphql(
+                        http,
+                        &token,
+                        CREATE_COMMENT,
+                        serde_json::json!({"subject":node,"body":body}),
+                    )?,
+                    1024 * 1024,
+                ))
+            },
+            false,
+        )
+        .await
     }
 }
