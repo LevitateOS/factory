@@ -31044,6 +31044,13 @@ normal product route. The isolated account was removed. Evidence:
 This one-file fixture does not qualify large/partial/outdated diffs, populated
 check policy, installed products or the remaining T07/T11 dependencies.
 
+The connected GitHub desktop/WebKit also paged over 100 files of a read-only
+public PR that reports 203 changed files through the production UI/IPC/Go/
+PostgreSQL/native connector, including renamed files and unavailable patches.
+The isolated account was removed. Evidence:
+`/home/vince/tmp/factory-large-diff-1106.0skyuC/{run.log,github-ui-write-result.json}`.
+Outdated discussions and installed qualification remain open.
+
 The shared diff now renders inline and fallback discussion bodies through the
 same sanitized Markdown and host link opener as the discussion tab. TypeScript,
 desktop UI and Storybook builds passed; a headless browser verified formatted

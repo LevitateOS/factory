@@ -61,6 +61,34 @@
     await until(() => document.querySelector('#factory-repository').value === fixture.repository && document.querySelector('#connection-status').textContent.includes('Connected to'), 'fixture repository not connected');
     const repo = new URLSearchParams(location.hash.slice(1)).get('repository');
     assert(repo, 'canonical repository missing');
+    if (fixture.diff_edge) {
+      stage = 'large-diff';
+      location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'files'});
+      const detail = () => document.querySelector('soda-factory-pull');
+      await until(() => detail()?.context?.pull === String(fixture.number) && detail()?.view?.files?.length === 10 &&
+        detail()?.view?.diff?.head === fixture.head && detail()?.view?.busy === false,
+      'large public PR first file page unavailable');
+      let files = 0, pages = 0, renamed = 0, partial = 0;
+      for (;;) {
+        const view = detail().view;
+        assert(view.pull?.head?.commit === fixture.head && view.diff?.head === fixture.head, 'large PR changed while paging');
+        files += view.files.length;
+        renamed += view.files.filter(file => file.change === 'renamed').length;
+        partial += view.files.filter(file => file.patch_state !== 'complete').length;
+        pages++;
+        if (files >= 100 && renamed > 0 && partial > 0) break;
+        assert(view.next && pages < 25, 'large PR edge files unavailable');
+        const first = view.files[0].new_path || view.files[0].old_path;
+        await click(detail().querySelector('nav[aria-label="Pull request pages"]'), 'Next page');
+        await until(() => detail()?.view?.busy === false && detail()?.view?.files?.length > 0 &&
+          (detail().view.files[0].new_path || detail().view.files[0].old_path) !== first,
+        'large PR next file page unavailable');
+      }
+      const shown = detail().querySelectorAll('soda-factory-diff');
+      assert(shown.length === detail().view.files.length, 'large PR file page not rendered');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.pull_read_only) {
       stage = 'pull-list';
       location.hash = new URLSearchParams({view: 'pulls', repository: repo});

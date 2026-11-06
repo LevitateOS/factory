@@ -133,6 +133,20 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
+            if fixture["diff_edge"] == true {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "large_file_pagination": true,
+                    "renamed_and_partial_patches": true,
+                    "provider_writes": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["pull_read_only"] == true {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,
