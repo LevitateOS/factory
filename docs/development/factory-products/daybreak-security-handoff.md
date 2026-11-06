@@ -3800,6 +3800,9 @@ records show `github_review_request_readback_changed`, no causal receipt and
 `finished:false`. Keep them fenced; current absence/presence is not evidence of
 their original effects. Settlement would need causal evidence tied to the exact
 original command; otherwise retain the explicit uncertain outcome.
+Direct read-only inspection of both original stopped PostgreSQL journals on
+2026-11-06 confirmed `dispatch_state=reserved`, `effect=indeterminate`,
+`completion=needs_intervention`, empty `finished` and null receipt for each.
 
 `github_provider/review_requests.rs` now observes GitHub's explicit plan features.
 `review_request_effect.rs` checks them before dispatch; Go's defining reviewer
