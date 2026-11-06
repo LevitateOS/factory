@@ -3460,3 +3460,46 @@ shared UI/installed and all other concrete/canonical/broad gates remain unverifi
 Do not infer original historical anchors or full source provenance from current
 diff fragments. Shared writes remain unavailable; no source or dummy observation
 closes the actual gates. No Daybreak work ran or was marked complete.
+
+T11-WRITES exact own pending inline draft producer (2026-11-06):
+`github_provider/{inline_draft,inline_preparation,transport,mod}.rs` adds one fixed
+new-thread mutation on an explicit existing own pending review at the selected
+head. Complete native preparation and selector digests bind the repeat preflight;
+causal identity/writing/position/commit facts bind the created member. This is
+not an atomic expected-head/body/comment-set guard. New pending creation,
+immediate publication, older pending commits and out-of-GraphQL-range indices
+remain separate unsupported intent/semantics dependencies.
+
+A valid causal receipt explicitly requires separate preservation/privacy
+verification and retains actual versus expected summary/count/state/publication.
+Known creation survives concurrent summary/count/publication discrepancies;
+post-send loss/misbind remains indeterminate, with no retry/current-content
+attribution. No native callback effect or Go inline writer was enabled. Original
+provider base/head anchors and full source provenance are not inferred.
+
+The existing native executable passed 38 declared cases, 12 invalid descriptors,
+cloned-handle pacing and checked joined retirement with 37 fixed dummy mutations.
+Maximum escaped path and 64 KiB original control writing were combined. Fifteen
+retained receipts also passed independent standard-crypto exact writing/selector,
+summary/count/nullable-identity assertions. Evidence:
+`/home/vince/tmp/factory-inline-draft-1106/attempt2/inline-draft-result.json`,
+SHA-256 `a596a9821c1cad64fcd552ba0a47ed0f7a5a2f6f9bcc66e6f12cd39e553271af`;
+log SHA-256 `a7956214999395476d1e691ddd5d43da3a83d1ea8351d1179bb597c5e3115d77`;
+independent receipt result SHA-256
+`35520c975dab4e69aee8dbf32a93a41592be88411e76894669e7a2c31061f64f`.
+The plan records exact fixture/binaries/runners/observer and retained first-attempt
+limitations. The TLS fixture never forwards; this explicit-token native component
+run does not qualify custody callback, product journal, live GitHub, privacy,
+permission, notification, IPC, security or installed gates.
+
+Exact next dependency: separately admitted native current observation of the
+known causal member plus the old pending summary/comment-writing set, excluding
+that known new ID when comparing old members. Require continued draft state and
+same review identity; current reads must never attribute a lost reply. Then add
+the fixed callback and Go/schema-91 consumer, persist known causal primary before
+completion reads, and prove full effect/HTTP envelopes, loss/replay/cancel/original
+expiry/custody/replacement/restart and normal readback. Actual schema/permissions/
+rename/original positions/draft privacy/publication/notification require fresh
+specifically scoped owner authorization and real evidence. Shared UI/installed,
+combined longest bounds and all other concrete/canonical/broad gates remain open.
+Shared writes remain unavailable; no Daybreak work ran or was marked complete.

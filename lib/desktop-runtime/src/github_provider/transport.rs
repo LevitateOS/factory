@@ -30,6 +30,10 @@ struct Wire {
     bytes: Zeroizing<Vec<u8>>,
 }
 enum Request {
+    InlineDraft {
+        input: Value,
+        token: Zeroizing<Vec<u8>>,
+    },
     BranchCreation {
         repository: String,
         name: String,
@@ -471,6 +475,18 @@ impl Client {
             .await?
             .value)
     }
+    pub(super) async fn post_inline_draft(
+        &self,
+        q: &super::InlineDraft,
+        path: &str,
+        token: &[u8],
+    ) -> Result<MutationResponse> {
+        self.mutation(Request::InlineDraft {
+            input: q.input(path),
+            token: Zeroizing::new(token.to_vec()),
+        })
+        .await
+    }
     pub(super) async fn post_review(
         &self,
         q: &super::ReviewCreate,
@@ -855,6 +871,15 @@ async fn wire(http: &Http, request: Request) -> Result<Wire> {
             let (query, variables) = query.wire();
             (graphql(http, &token, &query, variables)?, 8 * 1024 * 1024)
         }
+        Request::InlineDraft { input, token } => (
+            graphql(
+                http,
+                &token,
+                super::inline_draft::CREATE,
+                serde_json::json!({"input":input}),
+            )?,
+            1024 * 1024,
+        ),
         Request::ReviewSubmit {
             review,
             event,

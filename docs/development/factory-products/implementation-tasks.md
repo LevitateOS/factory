@@ -30447,3 +30447,99 @@ normal readback remain dependencies. Actual provider permissions/notifications,
 shared UI/installed and all other concrete/canonical/broad gates remain open.
 Shared writes remain unavailable; T11-WRITES/the full product remain unfinished.
 No Daybreak work ran or was marked complete.
+
+### T11-WRITES checkpoint: exact own pending inline draft producer (2026-11-06)
+
+`github_provider/inline_draft.rs` adds fixed `InlineDraft` and
+`Client::append_pending_thread`. The operation appends one new thread to the
+explicitly selected current account's existing pending review. It never creates,
+adopts or submits a different review. Its supported existing review commit must
+match the requested current immutable head. Older pending review commits, new
+pending creation and immediate publication need separate supported semantics.
+GraphQL line integers are bounded to signed 32-bit even though the canonical
+selection model can represent larger indices. File scope carries no line values.
+
+The defining `inline_preparation` reader now returns native `selection_sha256`
+and whole-preparation `sha256` (excluding the latter field itself). The effect
+repeats the complete selection/pending/comment snapshot under the shared mutation
+mutex and requires the exact saved preparation digest, repository/PR and own
+pending identity, with known writable root flags. The requested old-side rename
+path is retained; the wire operation addresses the observed current filename.
+This is bounded preflight, not an expected-head/body/comment-set atomic condition.
+No complete historical provider base/head anchor is inferred from it.
+
+The single fixed `addPullRequestReviewThread` request carries the exact saved
+review Node, body, observed file, side and file/line range. The causal reply must
+bind the new thread and sole initial comment to the repository, PR, own actor,
+same review, exact writing/position and requested commit/original commit. Optional
+comment numeric identity stays nullable. Native receipt fields bind the saved
+selection/preparation, known created thread/comment, actual review/comment
+state/summary/count/publication facts, and the expected old summary/child-writing
+facts. The valid causal primary explicitly requires separate preservation
+verification. Concurrent summary/count changes or a provider-reported publication
+remain visible alongside known creation, never become successful privacy or
+preservation claims. Lost, refused, malformed or misbound post-send replies remain
+indeterminate, with no retry or attribution by current matching content.
+
+The existing eight-second whole deadline, clone-shared mutation serialization,
+one-second start spacing, joined transport retirement, 1 MiB mutation reply,
+16 KiB header and 4 KiB receipt bounds apply. No collaboration callback effect,
+Go inline writer, shared write capability or product route was enabled. A future
+product consumer must persist causal primary before separately observing completion
+through schema 91; source/fixtures do not replace that composition.
+
+The existing native executable's `--github-inline-draft-declared FRESH_PROFILE`
+passed 38 declared cases, 12 invalid descriptors before I/O, a cloned-handle
+pair, in-flight/stopped retirement and 37 dummy mutations in
+`/home/vince/tmp/factory-inline-draft-1106/attempt2/`. Fifteen valid causal cases
+cover multiline/single/file/binary, old-side rename, Unicode, maximum normal/
+escaped paths, maximum writing, nullable/big numeric ID, maximum request ID and
+summary/count/publication discrepancies. The escaped 4,096-byte path and original
+64 KiB control writing were exercised together. Fresh changed-target captures
+prove exact preparation/pending/parent and absent-own-pending refusals. Post-send
+loss/refusal/GraphQL errors and thread/side/range/path/repository/PR/review/body/
+author/commit/original/reply/extra-child/pagination/date mismatches remain unknown.
+The cloned pair respects shared pacing, and retirement's result is checked.
+
+A separate Node standard-crypto observer checked all fifteen retained receipts
+against independent exact input writing/selector digests, expected versus actual
+summary digests, child count and nullable numeric identity. It performs no
+provider I/O. The dummy TLS peer never forwards; the executable's isolated keyring
+precondition is retained, but this producer uses its explicit fixed dummy token.
+This is component evidence, not a custody callback, durable command, real GitHub,
+permission/privacy/notification, security gate or installed qualification.
+
+| Artifact under `/home/vince/tmp/factory-inline-draft-1106/` | SHA-256 |
+| --- | --- |
+| `provider.go` | `a1c12364c42c8365cee8f6f014458e8813148280834f43f0accfd7b0ac7bed1a` |
+| `provider` | `5efaa5fda0b2707ce5f24215c05cf8d5bf4bf30ac530497ea12f875b4fde1775` |
+| `check-bin` | `8494070bdf253dd7751a870452a964f1fcbc1508741caed0e33a7e2ebaf75679` |
+| `run.sh` | `370f84bba9bf507cdb7c3b83f060512cef19514610b61a27dea9599ac1dc0b82` |
+| `session.sh` | `7074efac14d6e60d6549c5996e0a4171bdc359a4a4347218235ee88a1ad18bf2` |
+| `verify-receipts.js` | `842f0e04cadeecc1f7a7006a8bf745a3d48b2f7afd9b66581661e8a2645c6c13` |
+| `attempt2/result.log` | `a7956214999395476d1e691ddd5d43da3a83d1ea8351d1179bb597c5e3115d77` |
+| `attempt2/inline-draft-result.json` | `a596a9821c1cad64fcd552ba0a47ed0f7a5a2f6f9bcc66e6f12cd39e553271af` |
+| `attempt2/independent-receipt-digests.json` | `35520c975dab4e69aee8dbf32a93a41592be88411e76894669e7a2c31061f64f` |
+
+Attempt 1 and its exact `check-bin-attempt1` are retained. It passed an earlier
+matrix but omitted checked stop-result handling, the combined writing/path case,
+fresh refusal captures, binary scope and the cloned pair; attempt 2 closes those
+specific observer gaps. A fixture-only helper name typo was corrected before
+any run. Locked/offline native executable/desktop-feature builds, boundaries and
+whitespace passed. No dependency, Python, new unit-test root/module was added.
+
+Next: a separate native current observation that verifies the causal new member
+and computes the remaining own pending comment-writing digest excluding that
+known causal ID. It must preserve original summary/old members, verify continued
+draft state and exact review identity, and never attribute a lost reply. Then
+bind the fixed callback and Go schema-91 consumer with full effect/HTTP envelopes,
+primary persistence before completion, loss/replay/cancel/original expiry/current
+custody/restart/readback evidence. New-pending and published inline modes remain
+separate unfinished work; old pending commit/GraphQL integer limits must remain
+truthfully unavailable. Fresh specifically authorized actual provider schema/
+permissions/rename/original-position/privacy/notification, shared UI/installed,
+combined longest identity/receipt bounds and all other concrete/canonical/broad
+gates remain open. The current official [review/thread schema](https://docs.github.com/en/graphql/reference/pulls)
+was consulted; documentation and dummy replies do not qualify live semantics.
+Shared writes remain unavailable; T11-WRITES/the whole product remain unfinished.
+No Daybreak work ran or was marked complete.

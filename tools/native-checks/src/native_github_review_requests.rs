@@ -212,6 +212,338 @@ pub(super) async fn inline_preparation_port(
     Ok(())
 }
 
+pub(super) async fn inline_draft(profile: &Path) -> Result<()> {
+    use soda_desktop_runtime::github_provider::{CreateOutcome, InlineAnchor, InlineDraft, Read};
+    prepare(profile)?;
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let io = root.join("io");
+    fs::create_dir(&io)?;
+    let mode = |name: &str| -> Result<()> {
+        fs::write(io.join("mode"), name)?;
+        Ok(())
+    };
+    let writes = || -> Result<u64> {
+        Ok(fs::read_to_string(io.join("writes"))
+            .unwrap_or_else(|_| "0".into())
+            .parse()?)
+    };
+    let token = || Token::new(b"factory-declared-review-preparation".to_vec());
+    let anchor = || InlineAnchor {
+        base: "a".repeat(40),
+        head: "b".repeat(40),
+        path: "src/tea.md".into(),
+        side: "new".into(),
+        scope: "lines".into(),
+        start_line: 2,
+        end_line: 3,
+    };
+    let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
+    let client = owner.client();
+    let mut cases = Vec::new();
+    for name in [
+        "inline-draft-lines",
+        "inline-draft-single",
+        "inline-draft-file",
+        "inline-binary-file",
+        "inline-renamed-old",
+        "inline-unicode-path",
+        "inline-maximum-path",
+        "inline-escaped-path",
+        "inline-draft-max-writing",
+        "inline-draft-null-comment-id",
+        "inline-draft-big-id",
+        "inline-draft-request-id",
+        "inline-draft-summary-change",
+        "inline-draft-count-change",
+        "inline-draft-published",
+    ] {
+        mode(name)?;
+        let mut a = anchor();
+        match name {
+            "inline-draft-single" => a.start_line = 3,
+            "inline-draft-file" | "inline-binary-file" => {
+                a.scope = "file".into();
+                a.start_line = 0;
+                a.end_line = 0;
+            }
+            "inline-renamed-old" => {
+                a.side = "old".into();
+                a.path = "src/old.md".into();
+            }
+            "inline-unicode-path" => a.path = "src/茶/π.md".into(),
+            "inline-maximum-path" => a.path = format!("p/{}", "x".repeat(4094)),
+            "inline-escaped-path" => a.path = format!("p/{}", "\u{0001}".repeat(4094)),
+            _ => (),
+        }
+        let observed = client
+            .observe(
+                token()?,
+                "321",
+                &Read::InlinePreparation {
+                    repository: "123".into(),
+                    number: 7,
+                    anchor: a.clone(),
+                },
+            )
+            .await
+            .map_err(|f| format!("draft preparation {name}: {} {}", f.status, f.code))?;
+        let p = &observed["preparation"];
+        let q = InlineDraft {
+            repository: "123".into(),
+            repository_node_id: "R_123".into(),
+            pull_id: "700".into(),
+            pull_node_id: "P_700".into(),
+            number: 7,
+            anchor: a,
+            review_node_id: "REV_owned".into(),
+            preparation_sha256: p["sha256"]
+                .as_str()
+                .ok_or("preparation digest absent")?
+                .into(),
+            body: if matches!(name, "inline-draft-max-writing" | "inline-escaped-path") {
+                "\u{0001}".repeat(65536)
+            } else {
+                "Exact inline writing 🍵\n[link](relative.md)".into()
+            },
+        };
+        let before = writes()?;
+        let receipt = match client.append_pending_thread(token()?, "321", &q).await {
+            CreateOutcome::Created(v) => v,
+            CreateOutcome::NotSent(f) => {
+                return Err(format!("draft {name} not sent: {} {}", f.status, f.code).into())
+            }
+            CreateOutcome::Indeterminate(f) => {
+                return Err(format!("draft {name} uncertain: {} {}", f.status, f.code).into())
+            }
+        };
+        ensure(
+            writes()? == before + 1
+                && receipt["thread_node_id"] == "T_new"
+                && receipt["comment"]["node_id"] == "C_new"
+                && receipt["review"]["node_id"] == "REV_owned"
+                && receipt["preparation_sha256"] == p["sha256"]
+                && receipt["selection_sha256"] == p["selection_sha256"]
+                && receipt["expected_pending"]["comments_count"] == 3
+                && receipt["expected_pending"]["comments_sha256"]
+                    == p["comments_snapshot"]["identity_writing_sha256"]
+                && receipt["preservation_verification"] == "required"
+                && serde_json::to_vec(&receipt)?.len() <= 4096,
+            "causal inline receipt lost exact identity/writing or claimed preservation",
+        )?;
+        if name == "inline-draft-published" {
+            ensure(
+                receipt["review"]["state"] == "commented"
+                    && receipt["comment"]["state"] == "submitted"
+                    && !receipt["comment"]["published_at"].is_null(),
+                "unexpected publication erased known creation or invented privacy",
+            )?;
+        }
+        if name == "inline-draft-summary-change" {
+            ensure(
+                receipt["review"]["body_sha256"] != receipt["expected_pending"]["body_sha256"],
+                "concurrent summary discrepancy erased",
+            )?;
+        }
+        if name == "inline-draft-count-change" {
+            ensure(
+                receipt["review"]["comments_count"] == 9,
+                "concurrent child count discrepancy erased",
+            )?;
+        }
+        fs::write(
+            root.join(format!("{name}-receipt.json")),
+            serde_json::to_vec(&receipt)?,
+        )?;
+        cases.push(name);
+    }
+    // Capture one real native preparation, then vary only that saved descriptor.
+    mode("inline-draft-invalid")?;
+    let observed = client
+        .observe(
+            token()?,
+            "321",
+            &Read::InlinePreparation {
+                repository: "123".into(),
+                number: 7,
+                anchor: anchor(),
+            },
+        )
+        .await
+        .map_err(|_| "declared preparation failed")?;
+    let saved = InlineDraft {
+        repository: "123".into(),
+        repository_node_id: "R_123".into(),
+        pull_id: "700".into(),
+        pull_node_id: "P_700".into(),
+        number: 7,
+        anchor: anchor(),
+        review_node_id: "REV_owned".into(),
+        preparation_sha256: observed["preparation"]["sha256"]
+            .as_str()
+            .ok_or("digest missing")?
+            .into(),
+        body: "Exact writing".into(),
+    };
+    for i in 0..12 {
+        let mut q = saved.clone();
+        match i {
+            0 => q.repository = "0123".into(),
+            1 => q.review_node_id.clear(),
+            2 => q.body.clear(),
+            3 => q.body = " ".into(),
+            4 => q.body = "\0".into(),
+            5 => q.body = "x".repeat(65537),
+            6 => q.anchor.end_line = i32::MAX as u64 + 1,
+            7 => q.anchor.path = "../other".into(),
+            8 => q.preparation_sha256 = "x".repeat(64),
+            9 => q.number = 0,
+            10 => q.pull_id = "invalid".into(),
+            _ => q.anchor.scope = "other".into(),
+        };
+        let before = fs::read(io.join("gets"))?;
+        ensure(
+            matches!(client.append_pending_thread(token()?,"321",&q).await,CreateOutcome::NotSent(f)if f.status==400)
+                && fs::read(io.join("gets"))? == before,
+            "invalid draft descriptor made provider I/O",
+        )?;
+    }
+    for name in [
+        "inline-draft-stale-preparation",
+        "inline-draft-wrong-pending",
+        "inline-draft-wrong-parent",
+        "inline-no-pending",
+    ] {
+        mode(name)?;
+        let mut q = saved.clone();
+        let current = client
+            .observe(
+                token()?,
+                "321",
+                &Read::InlinePreparation {
+                    repository: "123".into(),
+                    number: 7,
+                    anchor: anchor(),
+                },
+            )
+            .await
+            .map_err(|_| "changed-target preparation unavailable")?;
+        q.preparation_sha256 = current["preparation"]["sha256"]
+            .as_str()
+            .ok_or("changed-target digest absent")?
+            .into();
+        match name {
+            "inline-draft-stale-preparation" => q.preparation_sha256 = "0".repeat(64),
+            "inline-draft-wrong-pending" => q.review_node_id = "REV_other".into(),
+            "inline-draft-wrong-parent" => q.pull_node_id = "P_other".into(),
+            _ => (),
+        };
+        let before = writes()?;
+        ensure(
+            matches!(client.append_pending_thread(token()?,"321",&q).await,CreateOutcome::NotSent(f)if f.status==409)
+                && writes()? == before,
+            "changed pending/preparation sent a mutation",
+        )?;
+        cases.push(name);
+    }
+    for name in [
+        "inline-draft-loss",
+        "inline-draft-denied",
+        "inline-draft-errors",
+        "inline-draft-wrong-thread",
+        "inline-draft-wrong-side",
+        "inline-draft-wrong-range",
+        "inline-draft-wrong-start",
+        "inline-draft-wrong-path",
+        "inline-draft-wrong-repo",
+        "inline-draft-wrong-pull",
+        "inline-draft-wrong-review",
+        "inline-draft-wrong-body",
+        "inline-draft-wrong-author",
+        "inline-draft-wrong-commit",
+        "inline-draft-wrong-original",
+        "inline-draft-reply",
+        "inline-draft-extra-comment",
+        "inline-draft-pagination",
+        "inline-draft-bad-date",
+    ] {
+        mode(name)?;
+        let before = writes()?;
+        ensure(
+            matches!(
+                client.append_pending_thread(token()?, "321", &saved).await,
+                CreateOutcome::Indeterminate(_)
+            ) && writes()? == before + 1,
+            "lost/misbound reply became no-effect or was retried",
+        )?;
+        cases.push(name);
+    }
+    mode("inline-draft-parallel")?;
+    let start = Instant::now();
+    let before = writes()?;
+    let left = client.clone();
+    let right = client.clone();
+    let lq = saved.clone();
+    let rq = saved.clone();
+    let (l, r) = tokio::join!(
+        left.append_pending_thread(token()?, "321", &lq),
+        right.append_pending_thread(token()?, "321", &rq)
+    );
+    ensure(
+        matches!(l, CreateOutcome::Created(_))
+            && matches!(r, CreateOutcome::Created(_))
+            && writes()? == before + 2
+            && start.elapsed() >= Duration::from_secs(1),
+        "cloned inline handles lost shared mutation pacing",
+    )?;
+    mode("inline-draft-pause")?;
+    let task_client = client.clone();
+    let q = saved.clone();
+    let task = tokio::spawn(async move {
+        task_client
+            .append_pending_thread(
+                Token::new(b"factory-declared-review-preparation".to_vec()).unwrap(),
+                "321",
+                &q,
+            )
+            .await
+    });
+    let until = Instant::now() + Duration::from_secs(5);
+    while !io.join("entered").exists() {
+        ensure(
+            Instant::now() < until,
+            "inline retirement did not reach mutation",
+        )?;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let stopped = Instant::now();
+    tokio::task::spawn_blocking(move || owner.stop()).await??;
+    ensure(
+        stopped.elapsed() < Duration::from_secs(3)
+            && matches!(task.await?, CreateOutcome::Indeterminate(_)),
+        "retirement failed to join in-flight inline effect",
+    )?;
+    let before = writes()?;
+    ensure(
+        matches!(
+            client.append_pending_thread(token()?, "321", &saved).await,
+            CreateOutcome::NotSent(_)
+        ) && writes()? == before,
+        "stopped inline producer dispatched",
+    )?;
+    ensure(
+        !io.join("unexpected-request").exists(),
+        "inline effect sent undeclared provider request",
+    )?;
+    fs::write(
+        root.join("inline-draft-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"cases":cases,"invalid_descriptors":12,"provider_mutations":writes()?,"joined_retirement":true,"causal_primary_separate_from_preservation":true,"product_consumer_connected":false,"real_github":false,"privacy_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: exact own pending inline causal creation, writing/selection/identity binding, uncertainty and joined retirement; preservation/privacy still require separate verification");
+    Ok(())
+}
+
 pub(super) async fn inline_preparation(profile: &Path) -> Result<()> {
     use sha2::{Digest, Sha256};
     use soda_desktop_runtime::github_provider::{InlineAnchor, Read};

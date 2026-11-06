@@ -141,6 +141,10 @@ impl Reader<'_> {
         before["selection"] = serde_json::to_value(anchor).map_err(|_| Failure::protocol())?;
         before["diff"] = json!({"scope":scope,"file":file,"file_sha256":sha(&file)?,"selection":writing,"catalogue":{"count":names.len(),"complete":true,"condition":"bounded_observation"}});
         before["condition"] = json!("bounded_observation");
+        before["selection_sha256"] = json!(super::transport::sha256(
+            &serde_json::to_vec(anchor).map_err(|_| Failure::protocol())?
+        ));
+        before["sha256"] = json!(sha(&before)?);
         Ok(before)
     }
 }
