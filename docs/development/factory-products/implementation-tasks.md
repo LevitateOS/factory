@@ -66,6 +66,13 @@ options. Declared browser and composed native bootstrap/readback checks passed.
 Existing-session account discovery/enrollment and connected enablement/execution
 remain unfinished; other provider connectors are unavailable. Hosts without policy
 options retain existing-policy editing with initial setup unavailable.
+For the selected Muse source, the owner now explicitly chooses “this Muse login”
+and lets Muse own its authentication/account choice. Factory must preserve the
+per-role source selection without requiring or claiming a pinned subscription
+identity, importing login secrets or fabricating a token fingerprint. The
+CLI-managed native path, admitted tool/effect scope, finite work and retirement
+remain implementation/qualification dependencies; the audit records the current
+credential-free echo check and its limits.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

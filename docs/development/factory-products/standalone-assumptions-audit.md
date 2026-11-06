@@ -36,6 +36,11 @@ The user started the correction goal and selected these requirements on
   selected (A09).
 - Each role selects its provider, model and paying account/subscription explicitly;
   do not switch spending accounts automatically (A11).
+- For Muse, a role may explicitly select **this Muse login**. Muse owns the saved
+  authentication choice, including changes made inside Muse; Factory does not pin
+  or claim a verified subscription/billing identity for that source. This is the
+  owner's selected exception to account pinning, not permission to copy login
+  credentials or switch between Factory sources automatically (A01/A11/A19).
 - Ship execution first on Linux desktops with systemd and one configured execution
   user per machine. Other environments retain browsing with execution unavailable
   (A18); installed isolation/lifecycle qualification remains required.
@@ -304,6 +309,24 @@ export interface. Public MSP provides session/turn control and model/usage reads
 These establish a supported integration surface, not authenticated inference,
 account/billing proof or an implemented isolated delegation path. No sign-in,
 personal keyring operation or model call ran during this inspection.
+
+**Owner clarification, 2026-11-07:** select “this Muse login”; Muse owns its
+account choice. A verified, pinned subscription identity is no longer a
+prerequisite for this explicitly selected source. Represent it as CLI-managed
+authentication, separate from the existing Factory-token/fingerprint lane.
+Do not fabricate a credential fingerprint or promise a particular billed account.
+The native CLI path must still bound the run and expose only its admitted tools;
+workspace effects must retain their isolated native execution boundary.
+
+A credential-free, private-HOME echo check accepted `--preset empty`,
+`hooks={}`, `managed_hooks_path=null` and `run.toolset=[]`, then exited zero
+(`/home/vince/tmp/fmuse-source7.aQQIGl/output.jsonl`, `stderr.log`). An earlier
+attempt refused `mcpServers={}`: the supported override addresses individual
+servers or fields, not the whole map. This check used no saved login and proves
+neither saved-configuration isolation nor exact nonempty role tool selection.
+Factory's current MCP catalog lacks general workspace file/shell effects; an
+empty-preset CLI outside the worker cannot replace those effects by itself.
+Integration, authenticated finite work and retirement remain unfinished.
 
 ### A02 — Desktop authority requires grants its product routes cannot issue
 

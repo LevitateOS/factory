@@ -76,8 +76,8 @@ Rust/Go/PostgreSQL options and bootstrap/readback passed in
 were excluded, no spending account was invented, later distinct choices survived,
 and remote write refusal stayed intact. Provider facts were declared and only a
 disposable keyring/profile was used; no real provider grant or paid inference ran.
-Closing the existing gates still needs authenticated Muse identity/enrollment and
-finite per-role billing, connected enablement/full-pipeline delivery, fresh
+Closing the existing gates still needs the selected Muse source integration and
+finite per-role usage/allowance accounting, connected enablement/full-pipeline delivery, fresh
 merge-method/branch-rule races and installed lifecycle/IPC/custody proof. Displayed
 merge options and successful configuration never supply mutation authority.
 
@@ -86,8 +86,21 @@ merge options and successful configuration never supply mutation authority.
 with only configured MCP tools; this is a possible supported integration, not an
 implemented custody or execution fix. Existing `muse usage --json` returned
 `server_sent_no_usage` without a model turn; this does not establish an expired
-login or justify another sign-in. Exact scoped configuration, existing-session
-account identity, finite inference, isolation and retirement remain unverified.
+login or justify another sign-in. The owner now selects **this Muse login**, with
+Muse owning account choice; a pinned subscription identity is not required for
+this source and must not be claimed. Preserve explicit per-role source selection.
+Exact scoped configuration, finite inference, isolation and retirement remain
+unverified. A private-HOME echo check accepted empty preset and empty toolset plus
+hook overrides (`/home/vince/tmp/fmuse-source7.aQQIGl/output.jsonl`, `stderr.log`),
+but whole-map `mcpServers={}` was refused. No saved configuration was present:
+this does not prove inherited MCP/hook handling or nonempty role-tool confinement.
+Existing Go MCP tools lack general file/shell effects, so CLI-managed inference
+also depends on preserving isolated native workspace effects. Relevant owners:
+`factory_provider/{launch,run,mcp}.rs`, `pkg/factory/mcp_profile.go` and
+`cmd/soda-factory-worker/src/bin/soda-factory-agent.rs`. Close these dependencies
+with actual selected-source inference, exact admitted tools/effects, bounded
+usage and cancellation/retirement/restart receipts; never substitute an invented
+token fingerprint or expose Muse login files to the worker.
 No authentication store was scraped/imported and no personal keyring was changed.
 
 | Remaining responsibility | Exact blocker/dependency and relevant files | Already established | Still unverified; evidence needed to close |
