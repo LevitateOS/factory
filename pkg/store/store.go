@@ -115,6 +115,9 @@ func configureStore(ctx context.Context, db *sql.DB) (*Store, error) {
 	if err == nil {
 		err = initializeFactoryPlacementSchema(ctx, db)
 	}
+	if err == nil {
+		err = initializeNativeWorkspaceSchema(ctx, db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err

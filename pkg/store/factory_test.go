@@ -100,6 +100,49 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	if _, err := s.SelectPlacement(ctx, host.ID, repository.ID, actor.ID, controller, staleRevision, factory.PlacementRetiring); !errors.Is(err, factory.ErrPlacement) {
 		t.Fatal("stale placement revision admitted", err)
 	}
+	nativeEnvironment := &project.NativeEnvironment{Profile: controller.Profile, Runtime: controller.ID, Generation: placed.Generation}
+	grantResult, err := s.ApplyFactoryGrant(ctx, "native-workspace-fixture", project.EnvironmentGrant{Repository: int64(repository.ID), Owner: int64(actor.ID), Native: nativeEnvironment, Active: true})
+	if err != nil || grantResult.Revision != 1 {
+		t.Fatal("native workspace enrollment", err)
+	}
+	grant, err := s.EnvironmentGrant(ctx, int64(repository.ID))
+	if err != nil || grant.Native == nil || *grant.Native != *nativeEnvironment || grant.Profile != nil || !project.ValidID(grant.Project) {
+		t.Fatal("native environment binding", err)
+	}
+	var appliance bool
+	if err = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM projects WHERE id=$1)`, grant.Project).Scan(&appliance); err != nil || appliance {
+		t.Fatal("native workspace became an appliance Project", err)
+	}
+	requirement := project.RequirementDecision{ID: "d123456789012345678901234", Project: grant.Project, Approver: int64(actor.ID), SourceCommit: strings.Repeat("a", 40), SetupDigest: strings.Repeat("b", 64), InputsDigest: strings.Repeat("c", 64), Native: nativeEnvironment}
+	if err := s.AdmitRequirementDecision(ctx, requirement); err != nil {
+		t.Fatal("native requirement", err)
+	}
+	approval := project.ApprovalDecision{ID: "d223456789012345678901234", Project: grant.Project, Requirement: requirement.ID, Approver: int64(actor.ID), EffectsDigest: strings.Repeat("d", 64), ReadinessDigest: strings.Repeat("e", 64), Verified: true, Native: nativeEnvironment}
+	if err := s.AdmitApprovalDecision(ctx, approval); err != nil {
+		t.Fatal("native approval", err)
+	}
+	wrongEnvironment := *nativeEnvironment
+	wrongEnvironment.Generation--
+	staleRequirement := requirement
+	staleRequirement.ID, staleRequirement.Predecessor, staleRequirement.Native = "d323456789012345678901234", requirement.ID, &wrongEnvironment
+	if err := s.AdmitRequirementDecision(ctx, staleRequirement); !errors.Is(err, factory.ErrPlacement) {
+		t.Fatal("stale native decision admitted", err)
+	}
+	wrongKind := requirement
+	wrongKind.ID, wrongKind.Native = "d423456789012345678901234", nil
+	wrongKindJSON, _ := json.Marshal(wrongKind)
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO project_requirement_decisions(id,project_id,predecessor,data) VALUES($1,$2,'',$3)`, wrongKind.ID, grant.Project, string(wrongKindJSON)); err == nil {
+		t.Fatal("native workspace satisfied appliance foreign key")
+	}
+	grant.Active = false
+	if _, err := s.ApplyFactoryGrant(ctx, "native-workspace-fixture", grant); err != nil {
+		t.Fatal("native permission withdrawal", err)
+	}
+	withdrawnApproval := approval
+	withdrawnApproval.ID, withdrawnApproval.Predecessor = "d523456789012345678901234", approval.ID
+	if err := s.AdmitApprovalDecision(ctx, withdrawnApproval); !errors.Is(err, ErrAdmissionChanged) {
+		t.Fatal("withdrawn environment admitted a decision", err)
+	}
 	r := factoryRun(time.Now().UTC())
 	r.Image, r.Harness, r.Role = "", "muse-fixture-1", project.RoleCoder
 	r.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture-1", SHA256: strings.Repeat("d", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("e", 64), PromptSHA256: strings.Repeat("f", 64), Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: collaboration.ProfileID(factory.NewID()), InstanceID: factory.NewID(), WorktreeID: "owned-checkout", BrokerRun: factory.NewID(), Isolation: &execution.NativeIsolation{DesktopUID: 1000, WorkerUID: 64596}, Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.Running}
@@ -185,6 +228,10 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	retainedPlacement, err := s.Placement(ctx, repository.ID)
 	if err != nil || retainedPlacement != placed {
 		t.Fatal("placement did not survive reopen", err)
+	}
+	retainedGrant, err := s.EnvironmentGrant(ctx, int64(repository.ID))
+	if err != nil || retainedGrant.Native == nil || *retainedGrant.Native != *nativeEnvironment || retainedGrant.Active || retainedGrant.Project != grant.Project {
+		t.Fatal("native enrollment did not survive reopen", err)
 	}
 	saved, err := s.FactoryRun(ctx, r.ID)
 	if err != nil || saved.FinalCheckpoint == nil || !saved.FinalCheckpoint.Request.Equal(request) || saved.Validate() != nil {

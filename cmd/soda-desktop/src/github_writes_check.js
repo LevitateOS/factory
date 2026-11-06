@@ -92,6 +92,21 @@
       await until(() => controls.textContent.includes('This computer · active · generation 1') && !button(controls, 'Retire controller')?.disabled, 'selected controller UI unavailable');
       let p = await get();
       assert(p.coordination === 'local_single_controller' && p.repository === repo && p.generation === '1', 'placement binding differs');
+      const environmentPath = 'repositories/' + repo + '/factory/environment-grant';
+      const getEnvironment = async () => {
+        const response = await transport.request(environmentPath);
+        assert(response.ok, 'native environment read refused');
+        return (await response.json()).environment;
+      };
+      await click(controls, 'Allow isolated workspaces');
+      await until(() => button(controls, 'Withdraw workspace permission') && !button(controls, 'Withdraw workspace permission').disabled, 'workspace permission unavailable');
+      const firstEnvironment = await getEnvironment();
+      assert(firstEnvironment.native?.runtime === p.runtime && firstEnvironment.native.generation === '1' &&
+        firstEnvironment.profile === null && /^p[a-f0-9]{24}$/.test(firstEnvironment.project) && firstEnvironment.active === true,
+      'native enrollment fabricated an appliance environment');
+      await click(controls, 'Withdraw workspace permission');
+      await until(() => button(controls, 'Allow isolated workspaces') && !button(controls, 'Allow isolated workspaces').disabled, 'workspace permission did not withdraw');
+      assert((await getEnvironment()).active === false, 'withdrawn native permission stayed active');
       await change('inactive', p.revision, 409);
       await click(controls, 'Retire controller');
       await until(() => controls.textContent.includes('This computer · retiring · generation 1'), 'retiring controller UI unavailable');
@@ -103,6 +118,13 @@
       await until(() => controls.textContent.includes('This computer · active · generation 2'), 'new controller generation UI unavailable');
       p = await get();
       assert(p.generation === '2', 'placement generation did not advance');
+      await click(controls, 'Allow isolated workspaces');
+      await until(() => button(controls, 'Withdraw workspace permission') && !button(controls, 'Withdraw workspace permission').disabled, 'new generation permission unavailable');
+      const renewed = await getEnvironment();
+      assert(renewed.native?.generation === '2' && renewed.project === firstEnvironment.project && renewed.revision > firstEnvironment.revision,
+        'native workspace enrollment was not retained across controller generations');
+      await click(controls, 'Withdraw workspace permission');
+      await until(() => button(controls, 'Allow isolated workspaces') && !button(controls, 'Allow isolated workspaces').disabled, 'renewed workspace permission did not withdraw');
       await change('retiring', stale, 409);
       await click(controls, 'Retire controller');
       await until(() => controls.textContent.includes('This computer · retiring · generation 2'), 'second controller retirement unavailable');

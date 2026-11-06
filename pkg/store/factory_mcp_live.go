@@ -9,6 +9,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // MCPRunWasObserved retains execution history after capability retirement.
@@ -115,6 +116,16 @@ func checkMCPWorkActiveTx(ctx context.Context, tx *sql.Tx, capability factory.MC
 		native := run.Admission.Native
 		if err := requirePlacementTx(ctx, tx, host, collaboration.RepositoryID(capability.Repository), native.Runtime, native.PlacementGeneration, native.Workspace.Profile); err != nil {
 			return err
+		}
+		var environment project.EnvironmentGrant
+		if err := loadGrantQuery(ctx, tx, "project_environment_grants", "repository", capability.Repository, &environment); err != nil {
+			return err
+		}
+		if environment.Validate() != nil || !environment.Active || environment.Project != run.ProjectID ||
+			environment.Revision != run.Admission.Authority.Environment || environment.Native == nil ||
+			environment.Native.Runtime != native.Runtime || environment.Native.Profile != native.Workspace.Profile ||
+			environment.Native.Generation != native.PlacementGeneration {
+			return ErrAdmissionChanged
 		}
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM project_preparations WHERE id=$1 FOR SHARE`, assignment.Preparation).Scan(&raw); err != nil {

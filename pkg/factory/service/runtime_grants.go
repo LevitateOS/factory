@@ -33,6 +33,7 @@ type EnvironmentGrantChange struct {
 	Project          string           `json:"project,omitempty"`
 	ExpectedRevision int64            `json:"expected_revision"`
 	Active           bool             `json:"active"`
+	Native           bool             `json:"native,omitempty"`
 }
 
 // RuntimeGrants separates admitted canonical attribution from the host's
@@ -44,6 +45,7 @@ type RuntimeGrants struct {
 	OperatorAccess    func(context.Context, collaboration.ActorID) error
 	Visibility        WorkVisibility
 	EnvironmentAccess WorkVisibility
+	NativeEnvironment func(context.Context, collaboration.ActorID, collaboration.RepositoryID, bool) (*project.NativeEnvironment, error)
 }
 
 var (
@@ -104,7 +106,7 @@ func (s RuntimeGrants) ApplyOperatorGrant(ctx context.Context, actor collaborati
 func (s RuntimeGrants) ApplyEnvironmentGrant(ctx context.Context, actor collaboration.ActorID, principal string, repository collaboration.RepositoryID, in EnvironmentGrantChange) (factory.GrantResult, error) {
 	var empty factory.GrantResult
 	grant := project.EnvironmentGrant{Repository: int64(repository), Revision: in.ExpectedRevision, Owner: int64(actor), Profile: in.Profile, Project: in.Project, Active: in.Active}
-	if principal == "" || grant.Validate() != nil {
+	if principal == "" || !in.Native && grant.Validate() != nil || in.Native && (in.Profile != nil || in.Project != "" || in.ExpectedRevision < 0) {
 		return empty, ErrRuntimeEnvironmentInvalid
 	}
 	if s.Writer == nil || s.EnvironmentAccess == nil {
@@ -115,6 +117,19 @@ func (s RuntimeGrants) ApplyEnvironmentGrant(ctx context.Context, actor collabor
 	}
 	if err := s.EnvironmentAccess(ctx, actor, repository); err != nil {
 		return empty, errors.Join(ErrRuntimeGrantAccess, err)
+	}
+	if in.Native {
+		if s.NativeEnvironment == nil {
+			return empty, ErrRuntimeGrantUnavailable
+		}
+		var err error
+		grant.Native, err = s.NativeEnvironment(ctx, actor, repository, in.Active)
+		if err != nil {
+			return empty, err
+		}
+		if grant.Native == nil || grant.Validate() != nil {
+			return empty, ErrRuntimeEnvironmentInvalid
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return empty, err

@@ -13,6 +13,9 @@ import (
 // SaveEnvironmentGrant records the owner's standing environment permission
 // under CAS revision. A withdrawn grant is an inactive row, never deleted.
 func (s *Store) SaveEnvironmentGrant(ctx context.Context, g project.EnvironmentGrant) error {
+	if g.Native != nil {
+		return errors.New("native environment requires transactional placement admission")
+	}
 	if err := g.Validate(); err != nil {
 		return err
 	}
@@ -108,6 +111,30 @@ func (s *Store) admitProjectDecision(ctx context.Context, table, heads, id, pred
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	native := nativeDecisionOwner(decision)
+	if native != nil {
+		// Match dispatch/grant lock order before checking current enrollment.
+		var repository int64
+		if err = tx.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, projectID).Scan(&repository); err != nil {
+			return err
+		}
+		if _, _, _, err = ensureDispatchGateTx(ctx, tx, repository); err != nil {
+			return err
+		}
+		if err = requireNativeDecisionTx(ctx, tx, projectID, native); err != nil {
+			return err
+		}
+		if approval, ok := decision.(project.ApprovalDecision); ok {
+			var raw []byte
+			if err = tx.QueryRowContext(ctx, `SELECT r.data FROM project_requirement_decisions r JOIN project_requirement_heads h ON h.decision=r.id WHERE h.project_id=$1 AND r.id=$2`, projectID, approval.Requirement).Scan(&raw); err != nil {
+				return err
+			}
+			var requirement project.RequirementDecision
+			if json.Unmarshal(raw, &requirement) != nil || requirement.Project != projectID || requirement.Native == nil || *requirement.Native != *native {
+				return ErrAdmissionChanged
+			}
+		}
+	}
 	var head sql.NullString
 	err = tx.QueryRowContext(ctx, `SELECT decision FROM `+heads+` WHERE project_id=$1`, projectID).Scan(&head)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -144,8 +171,8 @@ func (s *Store) admitProjectDecision(ctx context.Context, table, heads, id, pred
 	if _, err = tx.ExecContext(ctx, `INSERT INTO `+table+`(id,project_id,predecessor,data) VALUES($1,$2,$3,$4)`, id, projectID, predecessor, string(data)); err != nil {
 		return fmt.Errorf("decision admission failed: %w", err)
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO `+heads+`(project_id,decision) VALUES($1,$2)
-		ON CONFLICT(project_id) DO UPDATE SET decision=$3 WHERE `+heads+`.decision=$4`, projectID, id, id, predecessor)
+	result, err := tx.ExecContext(ctx, `INSERT INTO `+heads+`(project_id,decision,native) VALUES($1,$2,$5)
+		ON CONFLICT(project_id) DO UPDATE SET decision=$3 WHERE `+heads+`.decision=$4 AND `+heads+`.native=$5`, projectID, id, id, predecessor, native != nil)
 	if err != nil {
 		return fmt.Errorf("decision head advance failed: %w", err)
 	}

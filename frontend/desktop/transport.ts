@@ -85,9 +85,9 @@ export class DesktopTransport implements FactoryTransport {
       if (method === 'PUT') {
         if (path === '/api/factory/feed/subscription') request = {kind: 'subscription', body};
         else {
-          const placement = /^\/api\/repositories\/([1-9][0-9]*)\/factory\/placement$/.exec(path);
-          check(placement && id(placement[1]));
-          request = {kind: 'placement', repository: placement[1], body};
+          const setting = /^\/api\/repositories\/([1-9][0-9]*)\/factory\/(placement|environment-grant)$/.exec(path);
+          check(setting && id(setting[1]));
+          request = {kind: 'repository_setting', repository: setting[1], setting: setting[2], body};
         }
       } else {
         check(method === 'POST');

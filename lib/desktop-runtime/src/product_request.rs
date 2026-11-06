@@ -42,12 +42,30 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
 /// Shared product HTTP operations, never provider requests or native URLs.
 /// Native custody and selected-resource scope are supplied independently.
 #[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RepositorySetting {
+    Placement,
+    EnvironmentGrant,
+}
+
+#[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ProductRequest {
-    Read { path: String },
-    Write { path: String, body: Value },
-    Subscription { body: Value },
-    Placement { repository: String, body: Value },
+    Read {
+        path: String,
+    },
+    Write {
+        path: String,
+        body: Value,
+    },
+    Subscription {
+        body: Value,
+    },
+    RepositorySetting {
+        repository: String,
+        setting: RepositorySetting,
+        body: Value,
+    },
 }
 impl ProductRequest {
     pub fn request(self) -> Result<(&'static str, String, Vec<u8>), String> {
@@ -57,11 +75,26 @@ impl ProductRequest {
             Self::Subscription { body } => {
                 ("PUT", "/api/factory/feed/subscription".into(), Some(body))
             }
-            Self::Placement { repository, body } => {
-                if !repository.parse::<i64>().is_ok_and(|id| id > 0 && id.to_string() == repository) {
-                    return Err("invalid placement repository".into());
+            Self::RepositorySetting {
+                repository,
+                setting,
+                body,
+            } => {
+                if !repository
+                    .parse::<i64>()
+                    .is_ok_and(|id| id > 0 && id.to_string() == repository)
+                {
+                    return Err("invalid configuration repository".into());
                 }
-                ("PUT", format!("/api/repositories/{repository}/factory/placement"), Some(body))
+                let setting = match setting {
+                    RepositorySetting::Placement => "placement",
+                    RepositorySetting::EnvironmentGrant => "environment-grant",
+                };
+                (
+                    "PUT",
+                    format!("/api/repositories/{repository}/factory/{setting}"),
+                    Some(body),
+                )
             }
         };
         let pathname = path.split('?').next().unwrap_or("");

@@ -26,6 +26,19 @@ Close those only with an admitted finite provider run, exact current placement/
 custody/MCP facts, cancellation, settlement and retirement/restart evidence.
 D3 and the broader custody/IPC gates remain open; no hacking-like check ran.
 
+Native enrollment update (2026-11-06): environment grants now capture the native
+profile/runtime/generation and a logical workspace in `factory_native_workspaces`.
+Requirement/approval records retain native ownership; their SQL references keep
+appliance Projects and native workspaces distinct. Current enrollment is checked
+before native decisions and MCP admission. PostgreSQL enrollment, stale generation,
+withdrawal, reopen and appliance compatibility passed in
+`/home/vince/tmp/factory-native-enrollment-1106.ReaRoJ/run.log`. WebKit enrollment,
+withdrawal and generation renewal passed in
+`/home/vince/tmp/factory-native-enrollment-ui-1106.12xpFp/`; the disposable local
+grant was removed. No checkout preparation or agent ran. Native dispatch still
+refuses; atomic dispatch/intent, native execution ports, current credential/MCP
+composition and actual provider/cancellation/retirement evidence remain required.
+
 Untangling update (2026-11-06): nonsecret execution DTOs/bounds now belong to
 `lib/execution-protocol`; private filesystem and parent-death helpers belong to
 `lib/desktop-runtime/src/{private_fs,child_process}.rs`. Independent boundary

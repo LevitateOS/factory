@@ -79,6 +79,34 @@ func loadAuthorityProjectReadiness(ctx context.Context, q grantCommandSQL, repos
 	} else if !errors.Is(err, ErrNotFound) {
 		return err
 	}
+	if environment.Native != nil {
+		var present bool
+		if err := q.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_native_workspaces WHERE id=$1 AND repository=$2 AND runtime=$3 AND profile=$4)`, environment.Project, repository, environment.Native.Runtime, environment.Native.Profile).Scan(&present); err != nil {
+			return err
+		}
+		in.ProjectExists = present
+		if present {
+			encoded, err := json.Marshal(environment.Native)
+			if err != nil {
+				return err
+			}
+			var approved bool
+			if err = q.QueryRowContext(ctx, `SELECT EXISTS(
+ SELECT 1 FROM project_requirement_heads rh JOIN project_requirement_decisions r ON r.id=rh.decision
+ JOIN project_approval_heads ah ON ah.project_id=rh.project_id JOIN project_approval_decisions a ON a.id=ah.decision
+ JOIN factory_placements p ON p.repository=$2
+ WHERE rh.project_id=$1 AND r.data->'native'=$3::jsonb AND a.data->'native'=$3::jsonb
+ AND a.data->>'requirement'=r.id AND a.data->>'verified'='true'
+ AND p.state='active' AND p.runtime=$4 AND p.generation=$5)`, environment.Project, repository, string(encoded), environment.Native.Runtime, environment.Native.Generation).Scan(&approved); err != nil {
+				return err
+			}
+			if !approved {
+				return nil
+			}
+			return scanReadyPreparations(ctx, q, environment.Project, in, environment.Native)
+		}
+		return nil
+	}
 	projectRecord, err := scanProject(q.QueryRowContext(ctx, `SELECT `+nativeProjectCollaborationColumns+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository))
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
@@ -101,7 +129,7 @@ func loadAuthorityProjectReadiness(ctx context.Context, q grantCommandSQL, repos
 			}
 		}
 		if !maintenanceHeld {
-			if err = scanReadyPreparations(ctx, q, projectRecord.ID, in); err != nil {
+			if err = scanReadyPreparations(ctx, q, projectRecord.ID, in, nil); err != nil {
 				return err
 			}
 		}
@@ -111,7 +139,7 @@ func loadAuthorityProjectReadiness(ctx context.Context, q grantCommandSQL, repos
 
 // scanReadyPreparations marks coder/reviewer preparation readiness
 // from recorded preparations.
-func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID string, in *factory.AuthorityInput) error {
+func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID string, in *factory.AuthorityInput, native *project.NativeEnvironment) error {
 	rows, err := q.QueryContext(ctx, `SELECT data FROM project_preparations WHERE project_id=$1 ORDER BY id LIMIT 129`, projectID)
 	if err != nil {
 		return err
@@ -132,7 +160,8 @@ func scanReadyPreparations(ctx context.Context, q grantCommandSQL, projectID str
 			_ = rows.Close()
 			return err
 		}
-		if preparation.Native == nil && preparation.State.Ready {
+		if preparation.State.Ready && !preparation.State.Stopped &&
+			(native == nil && preparation.Native == nil || native != nil && preparation.Native != nil && preparation.Native.Profile == native.Profile) {
 			ready[preparation.Preparation.Role] = true
 		}
 	}
@@ -267,6 +296,13 @@ func (s *Store) ApplyFactoryGrant(ctx context.Context, principal string, change 
 	defer tx.Rollback()
 	if err = lockGrantScopeTx(ctx, tx, scope.repository); err != nil {
 		return result, err
+	}
+	if g, ok := change.(project.EnvironmentGrant); ok && g.Native != nil {
+		g, err = bindNativeEnvironmentTx(ctx, tx, g)
+		if err != nil {
+			return result, err
+		}
+		change = g
 	}
 	if err = saveFactoryGrantChangeTx(ctx, tx, change); err != nil {
 		return result, err

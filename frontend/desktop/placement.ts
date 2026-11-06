@@ -25,10 +25,14 @@ export function mountPlacement(root: HTMLElement) {
     help.textContent = 'Select one computer for this repository. Other installations must be configured separately. Selecting a controller does not enable automation.';
     const action = document.createElement('button');
     const refresh = document.createElement('button');
-    action.type = refresh.type = 'button';
+    const environment = document.createElement('button');
+    const environmentStatus = document.createElement('p');
+    environmentStatus.role = 'status';
+    action.type = refresh.type = environment.type = 'button';
     refresh.textContent = 'Refresh controller';
-    root.append(title, status, help, action, refresh);
+    root.append(title, status, help, action, refresh, environmentStatus, environment);
     let placement: Placement | null = null, runtime = '', canSelect = false, busy = false, known = false;
+    let environmentRevision = 0, environmentActive = false;
     const live = () => epoch === captured;
     const render = () => {
       action.textContent = placement?.state === 'active' ? 'Retire controller' :
@@ -36,6 +40,8 @@ export function mountPlacement(root: HTMLElement) {
       action.disabled = busy || !known || !canSelect ||
         !!placement && placement.state !== 'inactive' && placement.runtime !== runtime;
       refresh.disabled = busy;
+      environment.textContent = environmentActive ? 'Withdraw workspace permission' : 'Allow isolated workspaces';
+      environment.disabled = busy || !known || !canSelect || (!environmentActive && (placement?.state !== 'active' || placement.runtime !== runtime));
     };
     const read = async () => {
       const response = await transport.request(path);
@@ -49,20 +55,42 @@ export function mountPlacement(root: HTMLElement) {
           ['active', 'retiring', 'inactive'].includes(String(p.state)) && /^[a-f0-9]{32}$/.test(String(p.revision)));
         next = p as unknown as Placement;
       }
+      const envResponse = await transport.request(`repositories/${repository}/factory/environment-grant`);
+      check(envResponse.ok);
+      const env = object(await envResponse.json()).environment;
+      let revision = 0, active = false;
+      if (env !== null) {
+        const grant = object(env);
+        check(grant.repository === repository && Number.isSafeInteger(grant.revision) && Number(grant.revision) > 0);
+        revision = Number(grant.revision);
+        if (grant.native) {
+          const owner = object(grant.native);
+          check(/^[a-f0-9]{32}$/.test(String(owner.runtime)) && id(owner.generation) && typeof grant.active === 'boolean');
+          active = owner.runtime === data.runtime && grant.active;
+        }
+      }
       if (!live()) return;
       placement = next; runtime = data.runtime; canSelect = data.can_select; known = true;
+      environmentRevision = revision; environmentActive = active;
+      environmentStatus.textContent = active ? 'Isolated workspace permission is recorded. Execution still requires current policy, funding and worker admission.' : 'Isolated workspaces are not enabled.';
       status.textContent = !canSelect ? 'Controller changes require current repository administration.' :
         !placement || placement.state === 'inactive' ? 'No active controller.' :
         `${placement.runtime === runtime ? 'This computer' : 'Another computer'} · ${placement.state} · generation ${placement.generation}`;
     };
-    const run = async (change: boolean) => {
+    const run = async (change: 'controller' | 'environment' | false) => {
       if (busy || !live()) return;
       busy = true; render();
       try {
-        if (change) {
+        if (change === 'controller') {
           check(known && canSelect);
           const state = placement?.state === 'active' ? 'retiring' : placement?.state === 'retiring' ? 'inactive' : 'active';
           const response = await transport.request(path, {method: 'PUT', body: JSON.stringify({state, expected_revision: placement?.revision ?? ''})});
+          check(response.ok);
+        } else if (change === 'environment') {
+          check(known && canSelect);
+          const response = await transport.request(`repositories/${repository}/factory/environment-grant`, {
+            method: 'PUT', body: JSON.stringify({native: true, active: !environmentActive, expected_revision: environmentRevision}),
+          });
           check(response.ok);
         }
         await read();
@@ -73,7 +101,8 @@ export function mountPlacement(root: HTMLElement) {
         }
       } finally { if (live()) { busy = false; render(); } }
     };
-    action.onclick = () => void run(true);
+    action.onclick = () => void run('controller');
+    environment.onclick = () => void run('environment');
     refresh.onclick = () => void run(false);
     void run(false);
   };

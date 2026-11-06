@@ -31348,3 +31348,19 @@ TypeScript, desktop UI/native, Go builds and dependency boundaries pass.
 T12-PLACEMENT remains Pending until native environment/policy enrollment and its
 dispatch join are qualified. T09-NATIVE-EXECUTOR/T09-EXECUTION and D3 remain open;
 no provider task or coordinator launch is claimed by this checkpoint.
+
+### T12-PLACEMENT/T09: native environment enrollment (2026-11-06)
+
+Added native environment grants, logical workspace registration and native-owned
+requirement/approval records while preserving appliance foreign-key constraints.
+Desktop controls allow/withdraw workspace permission through the bounded native
+configuration bridge and the existing Go grant transaction. Controller selection
+does not enable policy or funding; native dispatch remains fenced.
+
+Actual WebKit allowed/withdrew permission in two controller generations and
+retained the logical workspace: `/home/vince/tmp/factory-native-enrollment-ui-1106.12xpFp/{run.log,github-ui-write-result.json}`.
+PostgreSQL native enrollment/decisions, stale generation, withdrawal, reopen and
+affected appliance/MCP checks pass in `/home/vince/tmp/factory-native-enrollment-1106.ReaRoJ/run.log`.
+TypeScript, desktop/native/Go builds and dependency boundaries pass. No agent or
+provider task ran. T12-PLACEMENT, T09-NATIVE-EXECUTOR, T09-EXECUTION and D3 remain
+open pending native policy/dispatch/port composition and the full execution proof.

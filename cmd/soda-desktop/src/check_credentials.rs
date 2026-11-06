@@ -154,6 +154,7 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "real_github_admin_observation": true,
                     "production_ui_ipc_go_pg_native": true,
                     "placement_cas_generation_retirement_readback": true,
+                    "native_workspace_enrollment_readback": true,
                     "automation_started": false,
                     "owned_account_removed": true,
                 }))?;

@@ -8,7 +8,24 @@ package project
 import (
 	"errors"
 	"maps"
+
+	"github.com/levitateos/factory/pkg/collaboration"
 )
+
+// NativeEnvironment is the configured local controller, not an appliance image
+// or an arbitrary host path. Each preparation captures its own checkout owner.
+type NativeEnvironment struct {
+	Profile    collaboration.ProfileID `json:"profile"`
+	Runtime    collaboration.RuntimeID `json:"runtime"`
+	Generation int64                   `json:"generation,string"`
+}
+
+func (n NativeEnvironment) Validate() error {
+	if !collaboration.ValidID(string(n.Profile)) || !collaboration.ValidID(string(n.Runtime)) || n.Generation <= 0 {
+		return errors.New("invalid native environment")
+	}
+	return nil
+}
 
 // EnvironmentGrant is the current repository owner's standing permission to
 // create and start the Project environment automatically. It creates no
@@ -16,16 +33,19 @@ import (
 // created Project once it exists. Repository and Owner are canonical Factory
 // identities; a native Project retains its separate native owner.
 type EnvironmentGrant struct {
-	Project    string   `json:"project,omitempty"`
-	Repository int64    `json:"repository,string"`
-	Revision   int64    `json:"revision"`
-	Owner      int64    `json:"owner,string"`
-	Profile    *Profile `json:"profile"`
-	Active     bool     `json:"active"`
+	Project    string             `json:"project,omitempty"`
+	Repository int64              `json:"repository,string"`
+	Revision   int64              `json:"revision"`
+	Owner      int64              `json:"owner,string"`
+	Profile    *Profile           `json:"profile"`
+	Active     bool               `json:"active"`
+	Native     *NativeEnvironment `json:"native,omitempty"`
 }
 
 func (g EnvironmentGrant) Validate() error {
-	if g.Repository <= 0 || g.Revision < 0 || g.Owner <= 0 || g.Profile == nil || g.Profile.Validate() != nil {
+	if g.Repository <= 0 || g.Revision < 0 || g.Owner <= 0 ||
+		(g.Native == nil && (g.Profile == nil || g.Profile.Validate() != nil)) ||
+		(g.Native != nil && (g.Profile != nil || g.Native.Validate() != nil)) {
 		return errors.New("invalid environment grant")
 	}
 	if g.Project != "" && !ValidID(g.Project) {
@@ -40,17 +60,21 @@ func (g EnvironmentGrant) Validate() error {
 // Project; only the head authorizes new preparation. It grants neither
 // Project root nor host execution.
 type RequirementDecision struct {
-	ID           string            `json:"id"`
-	Predecessor  string            `json:"predecessor,omitempty"`
-	Project      string            `json:"project"`
-	SourceCommit string            `json:"source_commit"`
-	SetupDigest  string            `json:"setup_digest"`
-	InputsDigest string            `json:"inputs_digest"`
-	Approver     int64             `json:"approver"`
-	SourceInputs map[string]string `json:"source_inputs,omitempty"`
+	ID           string             `json:"id"`
+	Predecessor  string             `json:"predecessor,omitempty"`
+	Project      string             `json:"project"`
+	SourceCommit string             `json:"source_commit"`
+	SetupDigest  string             `json:"setup_digest"`
+	InputsDigest string             `json:"inputs_digest"`
+	Approver     int64              `json:"approver"`
+	SourceInputs map[string]string  `json:"source_inputs,omitempty"`
+	Native       *NativeEnvironment `json:"native,omitempty"`
 }
 
 func (d RequirementDecision) Validate() error {
+	if d.Native != nil && d.Native.Validate() != nil {
+		return errors.New("invalid native requirement owner")
+	}
 	if !ValidDecisionID(d.ID) || (d.Predecessor != "" && !ValidDecisionID(d.Predecessor)) || d.Predecessor == d.ID {
 		return errors.New("invalid requirement decision identity")
 	}
@@ -71,17 +95,21 @@ func (d RequirementDecision) Ref(depth int64) RequirementAcceptance {
 // installed tool/service/resource results and readiness evidence. Verified
 // asserts the administrator inspected the live Project state.
 type ApprovalDecision struct {
-	ID              string `json:"id"`
-	Predecessor     string `json:"predecessor,omitempty"`
-	Project         string `json:"project"`
-	Requirement     string `json:"requirement"`
-	EffectsDigest   string `json:"effects_digest"`
-	ReadinessDigest string `json:"readiness_digest"`
-	Approver        int64  `json:"approver"`
-	Verified        bool   `json:"verified"`
+	ID              string             `json:"id"`
+	Predecessor     string             `json:"predecessor,omitempty"`
+	Project         string             `json:"project"`
+	Requirement     string             `json:"requirement"`
+	EffectsDigest   string             `json:"effects_digest"`
+	ReadinessDigest string             `json:"readiness_digest"`
+	Approver        int64              `json:"approver"`
+	Verified        bool               `json:"verified"`
+	Native          *NativeEnvironment `json:"native,omitempty"`
 }
 
 func (d ApprovalDecision) Validate() error {
+	if d.Native != nil && d.Native.Validate() != nil {
+		return errors.New("invalid native approval owner")
+	}
 	if !ValidDecisionID(d.ID) || (d.Predecessor != "" && !ValidDecisionID(d.Predecessor)) || d.Predecessor == d.ID {
 		return errors.New("invalid privileged-effect approval identity")
 	}
