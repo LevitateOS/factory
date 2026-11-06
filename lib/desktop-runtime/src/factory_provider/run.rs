@@ -520,14 +520,11 @@ impl RunOwner {
             return Err(refused("provider run receipt not durable"));
         }
         self.receipt_persisted = true;
-        // The broker may have returned just before Quit or request loss. Keep
-        // that external cancellation visible through final local/root cleanup.
+        // Cancellation cannot discard an actual terminal receipt. Finish local
+        // custody and root retirement before returning its observed stop reason.
         let retired = self.retire_after_attempt();
         if retired.is_err() {
             return Err(refused("provider run retirement unconfirmed"));
-        }
-        if self.cancellation.cancelled() {
-            return Err(refused("agent execution cancelled"));
         }
         Ok(run)
     }

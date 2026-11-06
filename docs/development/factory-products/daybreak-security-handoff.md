@@ -237,6 +237,23 @@ outcome across those lifecycles. Existing uncertain outcomes and broad gates sta
 open. Relevant files: `native_server.go`, `supervisor.rs`, `product.rs` and
 `cmd/soda-desktop/src/main.rs`.
 
+Cancellation receipt update: `factory_provider/{broker,observation,run}.rs` now
+retains the connection after an attached cancellation, sends one selector-free
+control frame and accepts only the exact worker's verified terminal receipt.
+`execution-protocol` defines the frame; broker/worker `agent_observation.rs`
+forward/consume it on the already bound stream. Missing replies after a bounded
+30-second grace, pre-attachment cancellation and broken connections still remain
+uncertain. Local reviewer finite/cancel/Quit passed in
+`/home/vince/tmp/fcxl6.utivrp/run.log`: Go observed `stopped` with actual retirement,
+and Quit retained the same process's cancelled receipt and released custody.
+This uses local ELFs/dummy credentials, not provider execution. Earlier uncertain
+profiles remain unchanged. Remaining blockers: connected provider cancellation
+needs a currently authorized native account and admitted run; dirty coder recovery
+needs task/checkpoint and retained-work support; stubborn descendants, abrupt host
+death and lost-reply teardown still need exact process/custody/root observations
+and durable Go settlement under those conditions. Hacking-like checks require a
+user-started Daybreak session. No broad D3, credential or IPC gate is closed.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
 checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy

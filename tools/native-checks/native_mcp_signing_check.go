@@ -1169,6 +1169,9 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	if mode == "uncertain" && (observed.Phase != project.FactoryUncertain || observed.Retirement == execution.Retired || observed.OutputComplete) {
 		return errors.New("cancelled native callback invented a complete result")
 	}
+	if mode == "stopped" && (observed.Live || observed.Retirement != execution.Retired || observed.Phase != project.FactoryStopped || observed.Reason != "cancelled" || !observed.OutputComplete || !latest.Native.Settled()) {
+		return errors.New("native cancellation lost its stopped process/custody/retirement receipt")
+	}
 	if mode == "running" {
 		stale := port
 		stale.Instance = factory.NewID()

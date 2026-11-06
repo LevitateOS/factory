@@ -1,7 +1,7 @@
 //! Single-flight current-process queries on the already bound execution stream.
 use super::AgentStarted;
 use soda_execution_protocol::{
-    MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER, OBSERVATION_REQUEST_BYTES,
+    CANCELLATION_MARKER, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER, OBSERVATION_REQUEST_BYTES,
 };
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
@@ -21,6 +21,7 @@ struct State {
     sequence: u64,
     pending: Option<(u64, Option<bool>)>,
     exited: bool,
+    cancelling: bool,
 }
 
 #[derive(Default)]
@@ -68,6 +69,12 @@ impl AgentObserver {
                 started,
                 live: false,
             });
+        }
+        if state.cancelling {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "native cancellation awaits its terminal receipt",
+            ));
         }
         if matches!(state.pending, Some((_, None))) {
             return Err(io::Error::new(
@@ -126,6 +133,28 @@ impl AgentObserver {
                 .map_err(|_| io::Error::other("native observation failed"))?
                 .0;
         }
+    }
+
+    // Serialize with observation writes so cancellation cannot split a frame.
+    // The broker/worker still own actual termination and its bound receipt.
+    pub(super) fn cancel(&self) -> io::Result<()> {
+        let mut state = self
+            .shared
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("native control unavailable"))?;
+        if state.exited || state.cancelling {
+            return Ok(());
+        }
+        let writer = state.writer.as_mut().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::NotConnected, "native process not started")
+        })?;
+        let mut request = [0u8; OBSERVATION_REQUEST_BYTES];
+        request[0] = CANCELLATION_MARKER;
+        writer.set_write_timeout(Some(Duration::from_secs(1)))?;
+        writer.write_all(&request)?;
+        state.cancelling = true;
+        Ok(())
     }
 
     pub(super) fn attach(

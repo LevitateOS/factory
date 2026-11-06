@@ -31505,3 +31505,14 @@ refusal and recovery/restart passed in `/home/vince/tmp/fcst6.cX2nqL/run.log`.
 Missing native task/checkpoint ports, account/sponsor/actor bindings and positive
 MCP/provider execution still prevent the complete admitted journey. This fixture
 does not close T09, D3 or any installed qualification gate.
+
+Native cancellation now sends one fixed control frame through the existing
+bound broker/worker connection and retains the actual terminal receipt before
+custody/root retirement. It serializes with process queries, admits no new
+selector and waits at most 30 seconds before connection-loss uncertainty. Actual
+local reviewer finite execution, Go-requested cancel (`stopped` with retired
+resources), and Quit with the exact retained cancelled-process receipt passed in
+`/home/vince/tmp/fcxl6.utivrp/run.log`. No provider credentials/inference were used.
+Earlier cancelled/interrupted profiles remain unresolved; this does not settle
+their missing receipts. Connected provider cancellation, dirty coder recovery,
+adversarial teardown and the complete admitted coordinator journey remain open.

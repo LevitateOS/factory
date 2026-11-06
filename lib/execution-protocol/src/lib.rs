@@ -16,6 +16,8 @@ pub const MAX_START_REPLY: usize = 1024;
 pub const MAX_OBSERVATION_QUERIES: u64 = 65_536;
 pub const OBSERVATION_REQUEST_BYTES: usize = 9;
 pub const OBSERVATION_MARKER: u8 = b'O';
+// Same fixed-size control frame, with eight zero bytes and no new selector.
+pub const CANCELLATION_MARKER: u8 = b'C';
 pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
 pub const MAX_SETUP_FRAME: usize = 600 * 1024;
 pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;

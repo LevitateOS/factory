@@ -1,6 +1,6 @@
-//! Only sequenced process queries may follow the admitted execution upload.
+//! Only sequenced process queries and one cancellation may follow the upload.
 use soda_execution_protocol::{
-    AgentObserved as Observed, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER,
+    AgentObserved as Observed, CANCELLATION_MARKER, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER,
     OBSERVATION_REQUEST_BYTES,
 };
 use std::io::{self, Write};
@@ -14,6 +14,7 @@ pub struct Queries {
     partial: Option<Instant>,
     sequence: u64,
     pending: Option<u64>,
+    cancelled: bool,
 }
 
 impl Queries {
@@ -52,7 +53,15 @@ impl Queries {
             return Ok(());
         }
         let sequence = u64::from_le_bytes(self.bytes[1..].try_into().unwrap());
-        if self.bytes[0] != OBSERVATION_MARKER
+        if self.bytes[0] == CANCELLATION_MARKER && sequence == 0 && !self.cancelled {
+            worker.write_all(&self.bytes)?;
+            self.cancelled = true;
+            self.length = 0;
+            self.partial = None;
+            return Ok(());
+        }
+        if self.cancelled
+            || self.bytes[0] != OBSERVATION_MARKER
             || sequence != self.sequence + 1
             || sequence > MAX_OBSERVATION_QUERIES
             || self.pending.is_some()

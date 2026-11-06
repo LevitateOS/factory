@@ -363,7 +363,7 @@ async fn managed_execution(
     use sha2::Digest;
     use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
     use soda_desktop_runtime::factory_provider::{
-        AttemptPhase, Broker, ExecutionOutcome, LaunchIntent,
+        read_retained, AttemptPhase, Broker, ExecutionOutcome, LaunchIntent, ReceiptScope, Role,
     };
     use std::sync::Arc;
     let digest = |bytes: &[u8]| -> String {
@@ -547,7 +547,7 @@ async fn managed_execution(
         }
         println!("PASS: native launch callback admits a retained 64 KiB prompt and replay preserves the actual worker process");
         if mode == "quit" {
-            quit_ticket = Some(ticket);
+            quit_ticket = Some((ticket, run.clone(), tool.clone()));
             break;
         }
         if mode == "cancel" {
@@ -579,7 +579,12 @@ async fn managed_execution(
                     }
                     break;
                 }
-                ExecutionOutcome::Uncertain if mode == "cancel" => break,
+                ExecutionOutcome::Complete(result) if mode == "cancel" => {
+                    if result.reason != "cancelled" || !result.output_complete {
+                        return Err("cancelled worker lacks its exact terminal receipt".into());
+                    }
+                    break;
+                }
                 _ => return Err("owned execution result differs".into()),
             }
         }
@@ -588,7 +593,7 @@ async fn managed_execution(
             if mode == "finite" {
                 "complete"
             } else {
-                "uncertain"
+                "stopped"
             },
         )?;
         if mode == "finite" && candidate_check {
@@ -634,11 +639,28 @@ async fn managed_execution(
     if candidate_check {
         supervisor.stop()?;
     } else {
-        // Cancelled local fixtures do not yield a terminal receipt. Quit joins
-        // them and reports the remaining reconciliation.
-        assert!(supervisor.stop().is_err());
-        let ticket = quit_ticket.ok_or("quit fixture missing")?;
+        supervisor.stop()?;
+        let (ticket, run, tool) = quit_ticket.ok_or("quit fixture missing")?;
         assert!(ticket.inspect(Duration::from_secs(1)).is_err());
+        assert_eq!(ticket.observe().phase, AttemptPhase::Retired);
+        let source_digest = digest(&source);
+        let prompt_digest = digest(prompt);
+        let scope = ReceiptScope::new(
+            &run,
+            &ready.profile,
+            &source_digest,
+            &commit,
+            Role::Reviewer,
+            &tool,
+            &prompt_digest,
+        )?;
+        let result = read_retained(&profile, &scope)?.ok_or("Quit terminal receipt missing")?;
+        if result.reason != "cancelled"
+            || !result.output_complete
+            || ticket.observe().started.map(|started| started.process) != Some(result.process)
+        {
+            return Err("Quit lost the exact cancelled process receipt".into());
+        }
         assert!(ticket.custody()?.sealed);
         assert_eq!(
             ticket.custody()?.state,
@@ -684,7 +706,7 @@ async fn managed_execution(
         println!("PASS: exact candidate bundle remains exportable after native restart without the execution registry");
     }
     if !candidate_check {
-        println!("PASS: actual supervisor owns finite/cancel/Quit executions; Go callbacks record exact native facts; cancelled results remain uncertain; shutdown joins workers before child dependencies stop");
+        println!("PASS: actual supervisor owns finite/cancel/Quit executions; Go observes stopped retirement; cancellation and Quit retain exact terminal process receipts and release custody before child dependencies stop");
     }
     Ok(())
 }

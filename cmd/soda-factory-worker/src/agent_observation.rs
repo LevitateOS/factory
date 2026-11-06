@@ -1,6 +1,7 @@
 //! Bounded queries on the one broker-owned execution connection.
 use soda_execution_protocol::{
-    AgentObserved, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER, OBSERVATION_REQUEST_BYTES,
+    AgentObserved, CANCELLATION_MARKER, MAX_OBSERVATION_QUERIES, OBSERVATION_MARKER,
+    OBSERVATION_REQUEST_BYTES,
 };
 use soda_native_process::Process;
 use std::io::{self, Write};
@@ -14,6 +15,7 @@ pub struct Queries {
     length: usize,
     partial: Option<Instant>,
     sequence: u64,
+    cancelled: bool,
 }
 
 impl Queries {
@@ -52,7 +54,14 @@ impl Queries {
             return Ok(false);
         }
         let sequence = u64::from_le_bytes(self.bytes[1..].try_into().unwrap());
-        if self.bytes[0] != OBSERVATION_MARKER
+        if self.bytes[0] == CANCELLATION_MARKER && sequence == 0 && !self.cancelled {
+            self.cancelled = true;
+            self.length = 0;
+            self.partial = None;
+            return Ok(true);
+        }
+        if self.cancelled
+            || self.bytes[0] != OBSERVATION_MARKER
             || sequence != self.sequence + 1
             || sequence > MAX_OBSERVATION_QUERIES
         {
