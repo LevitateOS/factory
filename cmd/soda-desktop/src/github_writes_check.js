@@ -254,6 +254,30 @@
       assert(response.ok, 'normal read refused: ' + suffix);
       return response.json();
     };
+    if (fixture.mode === 'merge_only') {
+      stage = 'merge-' + fixture.merge_method;
+      assert(['squash', 'rebase'].includes(fixture.merge_method), 'unsupported merge fixture');
+      await navigate('reviews');
+      const pull = await read('');
+      assert(pull.ref.external_id === fixture.pull_id && pull.head.commit === fixture.head && pull.state === 'open', 'owned merge fixture changed');
+      const control = () => document.querySelector('soda-factory-pull-merge');
+      let select;
+      await until(() => {
+        select = control()?.querySelector('select[aria-label="Merge method"]');
+        return select && !select.disabled && [...select.options].some(row => row.value === fixture.merge_method);
+      }, 'selected merge method unavailable');
+      assert([...select.options].every(row => ['merge', 'squash', 'rebase'].includes(row.value)), 'unsupported GitHub merge method offered');
+      select.value = fixture.merge_method; select.dispatchEvent(new Event('change', {bubbles: true}));
+      await until(() => (control().querySelector('textarea[aria-label="Merge message"]') !== null) === (fixture.merge_method === 'squash'), 'merge message mode did not change');
+      if (fixture.merge_method === 'squash') {
+        input(control().querySelector('textarea[aria-label="Merge message"]'), fixture.merge_message);
+        assert(control().querySelector('textarea').value === fixture.merge_message && fixture.merge_message.includes('\n\n'), 'merge body lost in editor');
+      }
+      await write('soda-factory-pull-merge', 'Merge pull request', 'Check saved merge', 'pull-merge-saved');
+      assert((await read('')).state === 'merged', 'selected merge readback failed');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.mode === 'reviewer_requests') {
       stage = 'reviewer-requests';
       await navigate('reviews');
@@ -407,8 +431,8 @@
     assert(published.items.some(thread => thread.comments.items.some(row => row.comment.body === 'Native WebKit immediate range 🌋')), 'immediate range readback missing');
     stage = 'merge';
     const merge = document.querySelector('soda-factory-pull-merge');
-    await until(() => merge.querySelector('input[aria-label="Merge message"]') && !merge.querySelector('input').disabled, 'merge eligibility unavailable');
-    input(merge.querySelector('input[aria-label="Merge message"]'), 'Native WebKit fixture merge 茶');
+    await until(() => merge.querySelector('textarea[aria-label="Merge message"]') && !merge.querySelector('textarea').disabled, 'merge eligibility unavailable');
+    input(merge.querySelector('textarea[aria-label="Merge message"]'), 'Native WebKit fixture merge 茶');
     await write('soda-factory-pull-merge', 'Merge pull request', 'Check saved merge', 'pull-merge-saved');
     assert((await read('')).state === 'merged', 'ordinary merge readback missing');
     await invoke('report', {stage: 'github-writes-complete', error: null});

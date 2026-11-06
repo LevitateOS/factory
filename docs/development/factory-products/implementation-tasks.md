@@ -31208,3 +31208,17 @@ scoped provider draft visibility. Organization/team authority still needs an
 authorized organization/team fixture; notification delivery/timing lacks receiver
 observations. Broader privileges, physical input and installed qualification stay
 open. T11 and the full product remain unfinished.
+
+### T11-WRITES: desktop squash/rebase and multiline merge messages (2026-11-06)
+
+The shared merge editor now preserves a title and multiline commit body; its
+single-line input previously removed newlines that the existing native/backend
+contract supports. Actual WebKit selected squash and rebase in owned PR16/PR17,
+required committed UI outcomes and normal merged-state readback, and removed only
+its isolated local accounts. Squash's exact title/body was read from GitHub's
+resulting commit; rebase offered no message field. Evidence:
+`/home/vince/tmp/factory-desktop-merge-modes-1106.Yzig6X/{squash,rebase}/{result.log,github-ui-write-result.json}`.
+TypeScript, desktop assets and native build passed. This completes the missing
+source-built desktop method observations alongside prior ordinary-merge and API
+recovery evidence. Organization/team, notification and installed/physical-input
+qualification remain separate open requirements; T11 stays active.

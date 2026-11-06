@@ -198,7 +198,7 @@ export class SodaFactoryPullMerge extends LitElement {
           }} ?disabled=${this.busy || !this.allowed}>
             ${this.methods.map(method => html`<option value=${method}>${mergeMethodLabel[method]}</option>`)}
           </select></label>
-          ${!noMergeMessage(this.method) ? html`<label>Merge message <input aria-label="Merge message" .value=${this.message} @input=${(event: Event) => { this.message = (event.target as HTMLInputElement).value; this.touch(); }} ?disabled=${this.busy || !this.allowed} /></label>` : ''}
+          ${!noMergeMessage(this.method) ? html`<label>Merge message <textarea aria-label="Merge message" rows="4" .value=${this.message} @input=${(event: Event) => { this.message = (event.target as HTMLTextAreaElement).value; this.touch(); }} ?disabled=${this.busy || !this.allowed}></textarea></label>` : ''}
           <button type="button" @click=${() => this.act('submit')} ?disabled=${this.busy || this.blocked || !this.durable || !this.allowed || !this.methods.includes(this.method) || !validMergeMessage(this.method, noMergeMessage(this.method) ? '' : this.message)}>Merge pull request</button>`}
     </section>`;
   }

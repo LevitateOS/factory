@@ -147,6 +147,21 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
             if !retained {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             }
+            if fixture["mode"] == "merge_only" {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "merge_method": fixture["merge_method"],
+                    "multiline_message": fixture["merge_method"] == "squash",
+                    "message_free_rebase": fixture["merge_method"] == "rebase",
+                    "committed_event_and_normal_readback": true,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["mode"] == "other_actor" || fixture["mode"] == "reviewer_requests" {
                 let oauth = fixture["oauth_source"] == "factory_device";
                 let evidence_name = if fixture["mode"] == "other_actor" {
