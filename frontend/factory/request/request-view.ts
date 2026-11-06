@@ -13,9 +13,6 @@ export interface IntentView {
   // Repository display name when the request is started inside a project
   // (set by the shell through <soda-intent .project>); undefined otherwise.
   project?: string;
-  // Reserved for UI-25: true when planning is known to be unavailable for
-  // this project, so Prepare project can be offered. Always false for now.
-  planningUnavailable: boolean;
   // Focus the review's Desired outcome field. No save and no planning spend.
   editRequest(): void;
   objective: string;

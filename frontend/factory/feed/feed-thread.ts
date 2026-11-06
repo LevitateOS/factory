@@ -3,35 +3,8 @@ import type {FeedCommunication, FeedEntry, FeedJudgment} from './feed-response.j
 // Parent links connect one logical thread. Main-feed placement is independent:
 // starts, handoffs, outcomes and attention surface; routine replies stay inside.
 
-const roleLabels: Readonly<Record<string, string>> = {
-  issue_maker: 'Issue Maker',
-  product_lead: 'Product Lead',
-  architect: 'Architect',
-  builder: 'Builder',
-  inspector: 'Inspector',
-  fixer: 'Fixer',
-  strategist: 'Strategist',
-  test_pilot: 'Test Pilot',
-  jev: 'JEV',
-  systemone: 'JEV',
-  system_one: 'JEV',
-  factory: 'Factory',
-  system: 'Factory',
-};
-
-function roleKey(actor: string | undefined): string {
-  return (actor ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-}
-
-// roleLabel renders a canonical actor id readably; free-form server labels
-// pass through unchanged.
-export function roleLabel(actor: string | undefined): string | undefined {
-  if (actor === undefined) return undefined;
-  return roleLabels[roleKey(actor)] ?? actor;
-}
+import {roleKey, roleLabel} from './roles.js';
+export {roleLabel} from './roles.js';
 
 export type FeedState = 'needs_you' | 'problem' | 'waiting' | 'in_progress' | 'done' | 'decided' | 'info';
 export type FeedLevel = 'post' | 'update' | 'reply';

@@ -1,7 +1,7 @@
 import {html} from 'lit';
 import type {FeedConsultation, FeedContribution} from './feed-response.js';
 import {object} from '../api/models.js';
-import {roleLabel} from './feed-thread.js';
+import {roleLabel} from './roles.js';
 import {renderJevAnswer} from '../shared/jev-answer.js';
 
 function recorded(value: unknown): string {

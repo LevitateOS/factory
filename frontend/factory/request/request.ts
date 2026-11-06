@@ -3520,7 +3520,6 @@ export class SodaIntent extends LitElement {
     const unsaved = this.unsavedSummary();
     return {
       ...(this.project ? {project: this.project} : {}),
-      planningUnavailable: false,
       editRequest: this.editRequest,
       objective: this.objective,
       department: this.department,

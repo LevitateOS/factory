@@ -36,8 +36,8 @@ import {
 import {renderFeedCommunication} from './feed-communication.js';
 import type {FeedArtifactContext} from './feed-artifact.js';
 import {renderConsultation, renderContribution} from './consultation.js';
-import {roleLabel, threadFeed} from './feed-thread.js';
-import {feedRolePortraits} from './feed-portraits.js';
+import {threadFeed} from './feed-thread.js';
+import {feedRolePortraits, roleLabel} from './roles.js';
 import {readRevision, retainRevision, settleRevision, samePendingRevision, sameRevisionWriting, revisionBody} from './revision-record.js';
 import type {RevisionAddress, PendingRevision} from './revision-record.js';
 import {readReview, retainReview, settleReview, sameReview} from './review-record.js';
