@@ -145,6 +145,11 @@ export class SodaFactoryPull extends LitElement {
       const baseView = {...empty(), pull, head: selectedHead};
       const query = new URLSearchParams({limit: tab === 'files' ? '10' : '20'});
       if (cursor) query.set('cursor', cursor);
+      if (cursor && (tab === 'commits' || tab === 'files' || tab === 'checks') && priorHead !== selectedHead) {
+        this.cursor = ''; this.previous = [];
+        this.view = {...baseView, message: 'The PR head changed. Refresh to read its current revision.'};
+        return;
+      }
       if (tab === 'commits') {
         if (!selectedHead) { this.view = {...baseView, message: 'The current head commit is unavailable.'}; return; }
         query.set('head', selectedHead);
