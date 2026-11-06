@@ -172,7 +172,8 @@ export class SodaFactoryDiff extends LitElement {
 
   protected updated(changed: PropertyValues) {
     if (changed.has('file')) this.selection = null;
-    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft')) this.mount();
+    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft'))
+      this.mount(!changed.has('file'));
   }
 
   private dispose() {
@@ -183,9 +184,10 @@ export class SodaFactoryDiff extends LitElement {
     this.metadata = undefined;
   }
 
-  private mount() {
-    this.dispose();
+  private mount(preserveScroll = false) {
     const viewport = this.renderRoot.querySelector<HTMLElement>('.viewport');
+    const scrollTop = preserveScroll ? viewport?.scrollTop ?? 0 : 0;
+    this.dispose();
     const content = this.renderRoot.querySelector<HTMLElement>('.content');
     if (!content || !viewport || !this.file || this.file.patch_state !== 'complete') return;
     content.replaceChildren();
@@ -263,6 +265,7 @@ export class SodaFactoryDiff extends LitElement {
           ];
         }),
       });
+      if (scrollTop > 0) viewport.scrollTop = scrollTop;
       if (this.selection && sameFile(this.selection, file))
         renderer.setSelectedLines(
           {
