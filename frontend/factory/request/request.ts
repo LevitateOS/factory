@@ -3063,8 +3063,8 @@ export class SodaIntent extends LitElement {
         if ((field === 'objective' || field === 'department') && this.revision) this.dirty = true;
         this.rememberDraft();
       },
-      setBound: (field, value) => {
-        this[field] = value;
+      setMaxIssues: (value) => {
+        this.maxIssues = value;
         if (this.revision) this.dirty = true;
         this.rememberDraft();
       },

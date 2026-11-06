@@ -48,7 +48,7 @@ export interface IntentView {
     field: 'objective' | 'department' | 'departmentName' | 'departmentDescription' | 'changeText',
     value: string
   ): void;
-  setBound(field: 'maxIssues', value: number): void;
+  setMaxIssues(value: number): void;
   decide(id: string, decision: ProductIdea['decision'], correction?: string): void;
   toggleChange(open: boolean): void;
   correctProposal(text: string): void;
@@ -80,7 +80,7 @@ function bounds(view: IntentView) {
         max="64"
         .value=${String(view.maxIssues)}
         ?disabled=${locked}
-        @input=${(event: Event) => view.setBound('maxIssues', Number(input(event)))}
+        @input=${(event: Event) => view.setMaxIssues(Number(input(event)))}
     /></label>
     <p>Building is approved and budgeted separately.</p>
   </details>`;
@@ -274,9 +274,6 @@ export function planAcceptBlock(view: IntentView) {
     return 'Correct or clarify the request above for the walkthrough findings (your objective and choices stay), then plan again and check before authorizing work.';
   return '';
 }
-// blockedCheckSummary states the checked state and next action near the top
-// once an explicit Check leaves findings blocking acceptance, with a direct
-// link that moves focus to the real findings below.
 function blockedCheckSummary(view: IntentView) {
   const plan = view.plan;
   if (!plan || plan.revision !== view.revision?.id || plan.state !== 'completed' || !plan.review) return '';
@@ -469,8 +466,6 @@ function primaryDirectionButton(view: IntentView) {
 function planStatusText(view: IntentView, plan: IntentPlanStatus): string {
   return (plan.walkthroughs && planAcceptBlock(view)) || planText(plan);
 }
-// planNextStep is the next-step line beside the planning primary; it stays
-// empty when it would only repeat the status line above it.
 function planNextStep(view: IntentView): string {
   const next = reviewNextStep(view);
   return view.plan && next === planStatusText(view, view.plan) ? '' : next;

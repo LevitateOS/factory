@@ -16,8 +16,6 @@ function generationBinding(task: string, value: unknown): IntentTaskBinding {
   check(typeof value === 'number' && Number.isSafeInteger(value) && value > 0);
   return {task, issue: String(value)};
 }
-// intentGeneration binds one native-work generation record to its exact
-// intent and revision, with task-to-issue mappings as decimal strings.
 export function intentGeneration(value: unknown, intent: string, revision: string): IntentGeneration {
   const data = object(value);
   check(data.intent_id === intent && data.revision_id === revision);

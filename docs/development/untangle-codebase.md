@@ -220,7 +220,7 @@ cases stopped on stale host-link expectations before run-retry/verification help
 chains; those full journeys remain unverified here. No assertions were weakened
 and no test source added. Their unchanged codecs use the exercised shared owner.
 
-### 7. Browser workflow/lifecycle owners — active
+### 7. Browser workflow/lifecycle owners — complete
 
 Replace callback bags with semantic lifecycle owners; compose visible snapshots
 in Lit elements. Extract workflows with their retained state, not loose methods.
@@ -246,6 +246,17 @@ persisted after-state. Independent source review and ten existing UI/history/rep
 browser journeys passed, plus typecheck/Lit. The historical test that accesses the
 removed private fields no longer applies; actual zero/unique/ambiguous successor
 and persisted-repair journeys cover that behavior. Feed workflow extraction remains.
+
+Feed revision writing/command settlement now belongs to `FeedRevisionEditor`, and
+the source-bound change-review transaction to `reviewHandoff`. Timeline reads,
+current HTTP/account admission and navigation remain in Feed. Independent review
+and the existing Chromium revision/review recovery journey passed, with typecheck
+and Lit. Final UI review retained Request's value/action view snapshot and shared
+head/lifetime: planning/generation have distinct archives and receipts, so further
+splitting would introduce controller coordination without a confirmed benefit.
+Removed implementation-narration comments and the one-choice setter parameter;
+preserved lineage, host-lifetime and recovery constraints. No further worthwhile
+UI structural finding remained in the final sweep.
 
 ### 8. Integration checks and test cleanup — pending, cleanup last
 

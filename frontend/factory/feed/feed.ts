@@ -2,7 +2,7 @@ import {LitElement, html, type TemplateResult} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryFeedHost, FactoryRepositoryCatalog, FactoryRepositoryLinks} from '../app/navigation.js';
-import {inspectStored, readStored, writeStored} from '../shared/drafts.js';
+import {readStored, writeStored} from '../shared/drafts.js';
 import {allowanceHolds, allowanceHoldText, type AllowanceHold} from './allowance.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {activityTimestamp} from '../shared/format.js';
@@ -22,7 +22,6 @@ import {
   feedRevisionSource,
   feedRevisionReceipt,
   feedRevisionBodyDigest,
-  feedReviewSource,
 } from './feed-response.js';
 import type {FeedPostDetail, FeedPostBody, FeedEntry, FeedEntryKind, FeedSubscriptionView} from './feed-response.js';
 import {
@@ -38,10 +37,12 @@ import type {FeedArtifactContext} from './feed-artifact.js';
 import {renderConsultation, renderContribution} from './consultation.js';
 import {threadFeed} from './feed-thread.js';
 import {feedRolePortraits, roleLabel} from './roles.js';
-import {readRevision, retainRevision, settleRevision, samePendingRevision, sameRevisionWriting, revisionBody} from './revision-record.js';
-import type {RevisionAddress, PendingRevision} from './revision-record.js';
-import {readReview, retainReview, settleReview, sameReview} from './review-record.js';
-import type {ReviewAddress, PendingReview} from './review-record.js';
+import {readRevision} from './revision-record.js';
+import {FeedRevisionEditor} from './revision-editor.js';
+import type {RevisionAddress} from './revision-record.js';
+import {readReview} from './review-record.js';
+import {reviewHandoff} from './review-handoff.js';
+import type {ReviewAddress} from './review-record.js';
 
 export interface FactoryFeedContext {
   transport: FactoryTransport;
@@ -64,23 +65,6 @@ interface Thread {
   pagedOlder: boolean;
 }
 
-interface Revising {
-  id: string;
-  messageKind: 'post' | 'reply';
-  revision: number;
-  repository: string;
-  body: string;
-  baseBody: string;
-  blocked?: boolean;
-  original?: string;
-  question?: string;
-  // The request text the server holds after a refused stale submit.
-  current?: string;
-  address?: RevisionAddress | undefined;
-  pending?: PendingRevision | undefined;
-  recoveryBlocked?: boolean;
-}
-
 const feedPageSize = 20;
 const postID = /^[a-f0-9]{32}$/;
 
@@ -90,8 +74,6 @@ function failureMessage(status: number | undefined, fallback: string): string {
   return fallback;
 }
 
-// Relative reply age for post rows ("now", "12m", "2h", "3d"); older
-// replies fall back to a short date.
 export function relativeReplyTime(at: number, now = Date.now()): string {
   const seconds = Math.floor((now - at * 1000) / 1000);
   if (seconds < 60) return 'now';
@@ -104,7 +86,6 @@ export function relativeReplyTime(at: number, now = Date.now()): string {
   return new Date(at * 1000).toLocaleDateString(undefined, {month: 'short', day: 'numeric'});
 }
 
-/** Today's clock time, otherwise a short date and time. */
 function shortTime(unix: number): string {
   const date = new Date(unix * 1000);
   const today = new Date().toDateString() === date.toDateString();
@@ -135,15 +116,11 @@ export class SodaFactoryFeed extends LitElement {
   private generation = '';
   private accessFailure: 401 | 403 | undefined;
   private rechecking = false;
-  // One serial: a context switch, filter change or disconnect bumps it, and
-  // every response that lands after a bump is dropped.
   private serial = 0;
-  // The serial whose latest-page read is in flight, if any.
   private reading: number | undefined;
   private refreshTimer: ReturnType<typeof setInterval> | undefined;
   private drafts = new Map<string, string>();
-  private revising: Revising | undefined;
-  private revisionEditor = 0;
+  private revisionEditor = new FeedRevisionEditor('');
   private threads = new Map<string, Thread>();
   private threadReads = new Map<string, Promise<void>>();
   private openDrawers = new Set<string>();
@@ -152,14 +129,12 @@ export class SodaFactoryFeed extends LitElement {
   private viewerID: string | undefined;
   // Verified delivery id → the origin of a Ready app the viewer may open.
   private appOrigins = new Map<string, string>();
-  // The repository post box stays one line until focused.
   private postOpen = false;
   private replyingTo = new Set<string>();
   private composeRequested = false;
   // A post to show alone (the Feed place's ?post=, e.g. a Knowledge item's source).
   private focusPost: string | undefined;
   private librarySourcePending: string | undefined;
-  // A newer source open or leaving the post supersedes a read in flight.
   private librarySerial = 0;
   private focusedEntry: FeedEntry | undefined;
   private filters = {view: 'all', search: '', role: '', current: false};
@@ -170,7 +145,6 @@ export class SodaFactoryFeed extends LitElement {
 
   constructor() {
     super();
-    // The repository post box opens from one line when focused.
     this.addEventListener('focusin', (event) => {
       if (this.postOpen || !(event.target instanceof Element) || !event.target.closest('.soda-feed-post-box')) return;
       this.postOpen = true;
@@ -215,6 +189,7 @@ export class SodaFactoryFeed extends LitElement {
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.current = context;
+    this.revisionEditor = new FeedRevisionEditor(context?.host.draftScope ?? '');
     this.generation = context?.transport.generation ?? '';
     this.accessFailure = undefined;
     this.rechecking = false;
@@ -222,7 +197,7 @@ export class SodaFactoryFeed extends LitElement {
     this.threads.clear();
     this.threadReads.clear();
     this.openDrawers.clear();
-    this.revising = undefined;
+    this.revisionEditor.clear();
     this.librarySerial++;
     this.librarySourcePending = undefined;
     this.viewerID = undefined;
@@ -282,7 +257,7 @@ export class SodaFactoryFeed extends LitElement {
     this.threads.clear();
     this.threadReads.clear();
     this.openDrawers.clear();
-    this.revising = undefined;
+    this.revisionEditor.clear();
     this.librarySerial++;
     this.librarySourcePending = undefined;
     this.focusedEntry = undefined;
@@ -499,7 +474,6 @@ export class SodaFactoryFeed extends LitElement {
       }
     } catch (error) {
       if (this.live(serial))
-        // A failed refresh keeps the last loaded feed and says so.
         this.view = {
           ...this.view,
           busy: false,
@@ -595,7 +569,6 @@ export class SodaFactoryFeed extends LitElement {
       (candidate) => feedEntryKey(candidate) === key
     );
     if (entry) return entry;
-    // A reply row answered from inside a thread.
     for (const [root, thread] of this.threads) {
       const reply = thread.items.find((item) => 'post:' + item.postId === key);
       const parent = reply ? this.entryForKey(root) : undefined;
@@ -629,15 +602,6 @@ export class SodaFactoryFeed extends LitElement {
     writeStored(`soda-feed-draft:v1:${this.storageKey(key)}`, draft);
   }
 
-  private revisionKey(edit: {repository: string; id: string}): string {
-    return `soda-feed-revision:v2:${this.account()}:${edit.repository}:${edit.id}`;
-  }
-
-  private persistRevising() {
-    const edit = this.revising;
-    if (edit) writeStored(this.revisionKey(edit), JSON.stringify({body: edit.body, original: edit.original}));
-  }
-
   private revisionAddress(repository: string, post: string): RevisionAddress | undefined {
     const author = id(this.current?.account) ? this.current.account : this.viewerID;
     if (!this.current?.host.draftScope || !id(author)) return undefined;
@@ -661,12 +625,6 @@ export class SodaFactoryFeed extends LitElement {
       ${saved.pending ? html`<button type="button" data-post-review-retry=${post} data-post-repository=${repository} ?disabled=${busy}>Retry saved change review</button>` : ''}`;
   }
 
-  private syncRevision(edit: Revising) {
-    const stored = edit.address ? readRevision(edit.address) : undefined;
-    edit.pending = stored?.pending;
-    edit.recoveryBlocked = !stored || stored.blocked;
-  }
-
   private renderRevisionRecovery(post: string, repository: string, messageKind: 'post' | 'reply') {
     const address = this.revisionAddress(repository, post);
     if (!address || !postID.test(post) || this.accessFailure) return '';
@@ -679,10 +637,8 @@ export class SodaFactoryFeed extends LitElement {
   private onDraft = (event: Event) => {
     const area = event.target;
     if (!(area instanceof HTMLTextAreaElement)) return;
-    if (this.revising && (area.hasAttribute('data-revision-body') || area.hasAttribute('data-revision-original'))) {
-      if (area.hasAttribute('data-revision-body')) this.revising.body = area.value;
-      else this.revising.original = area.value;
-      this.persistRevising();
+    if (this.revisionEditor.current && (area.hasAttribute('data-revision-body') || area.hasAttribute('data-revision-original'))) {
+      this.revisionEditor.change(area.hasAttribute('data-revision-body') ? 'body' : 'original', area.value);
       return;
     }
     const key = area.dataset.feedDraft;
@@ -977,9 +933,6 @@ export class SodaFactoryFeed extends LitElement {
     }
   }
 
-  // openRoleReply resolves a "Read the role's reply" link inside its
-  // original thread: the thread opens and pages until the target post or
-  // exhaustion, then the row scrolls into view and takes focus.
   private async openRoleReply(link: HTMLElement) {
     const targetId = link.dataset.roleReplyOpen ?? '';
     const key = link.dataset.roleReplyEntry ?? '';
@@ -1032,264 +985,191 @@ export class SodaFactoryFeed extends LitElement {
     this.requestUpdate();
   }
 
-  // A saved handoff is recovered by reading its source-bound draft receipt.
-  // Only a fresh open or an explicit saved retry may create the draft.
-  private async reviewProductChange(post: string, revision: number, repository: string, mode: 'open' | 'recover' | 'retry' = 'open') {
-    const context = this.current, binding = this.lifetime.signal;
-    if (!context || this.accessFailure || !postID.test(post) || !id(repository) ||
-      (!context.global && context.repository !== repository) || !Number.isSafeInteger(revision) || revision < 0 ||
-      this.view.postBusy.includes(post)) return;
+  private async reviewProductChange(
+    post: string,
+    revision: number,
+    repository: string,
+    mode: 'open' | 'recover' | 'retry' = 'open'
+  ) {
+    const context = this.current,
+      binding = this.lifetime.signal;
+    if (
+      !context ||
+      this.accessFailure ||
+      !postID.test(post) ||
+      !id(repository) ||
+      (!context.global && context.repository !== repository) ||
+      !Number.isSafeInteger(revision) ||
+      revision < 0 ||
+      this.view.postBusy.includes(post)
+    )
+      return;
     this.view = {...this.view, postBusy: [...this.view.postBusy, post]};
     try {
       if (!id(context.account) && !this.viewerID) await this.readViewerID(context);
       if (!this.bindingLive(context, binding)) return;
       const address = this.reviewAddress(repository, post);
       check(address);
-      const stored = readReview(address);
-      if (stored.blocked) {
-        this.view = {...this.view, message: 'The saved change review cannot be read safely. Its bytes are kept; check storage and try again.'};
-        return;
+      const result = await reviewHandoff(address, revision, mode, {
+        active: () => this.bindingLive(context, binding),
+        json: (path, init) => this.readJSON(context, path, init),
+        destination: (intent) => this.placesFor(repository)?.request(intent),
+      });
+      if (!result || !this.bindingLive(context, binding)) return;
+      this.view = {...this.view, message: result.message};
+      if (result.path !== undefined) {
+        this.go(result.path);
+        if (this.bindingLive(context, binding)) void this.readLatest(false);
       }
-      let pending = stored.pending;
-      if (mode !== 'open' && !pending) {
-        this.view = {...this.view, message: 'No saved change review was found. No review was submitted.'};
-        return;
-      }
-      const path = 'factory/feed/posts/' + post;
-      let source = feedReviewSource(await this.readJSON(context, path), post, repository);
-      if (!this.bindingLive(context, binding)) return;
-      const captured: PendingReview = {revision: pending?.revision ?? revision,
-        intent: source.change.intent, acceptedRevision: source.change.acceptedRevision};
-      check(source.revision === captured.revision && (!pending || sameReview(pending, captured)));
-      if (source.change.state === 'unavailable') {
-        this.view = {...this.view, message: 'The proposed change detail is currently unavailable. Check progress to reload it.'};
-        return;
-      }
-      if (!source.change.canReview) {
-        this.view = {...this.view, message: 'Current access to the request owner’s review is required. Any saved change review is kept.'};
-        return;
-      }
-      if (source.change.state === 'review_required') {
-        if (pending && mode !== 'retry') {
-          this.view = {...this.view, message: 'No recorded review draft was confirmed. The saved handoff is kept; explicitly retry it to submit the original review.'};
-          return;
-        }
-        pending = pending ?? captured;
-        const retained = retainReview(address, pending);
-        if (retained !== 'saved') {
-          this.view = {...this.view, message: retained === 'unavailable'
-            ? 'The review is kept in this window but could not be saved for recovery. Enable storage, then retry the saved change review. Nothing was submitted.'
-            : 'Another or unreadable change review is saved. Its record is kept; check it before submitting.'};
-          return;
-        }
-        const current = readReview(address);
-        check(current.durable && current.pending && !current.blocked && sameReview(current.pending, pending));
-        source = feedReviewSource(await this.readJSON(context, path + '/review', {
-          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({revision: pending.revision}),
-        }), post, repository);
-        if (!this.bindingLive(context, binding)) return;
-        check(source.revision === pending.revision && source.change.intent === pending.intent && source.change.acceptedRevision === pending.acceptedRevision);
-      }
-      const change = source.change;
-      check(change.canReview && (change.state === 'draft' || change.state === 'accepted') && decisionID(change.draftRevision));
-      if (pending) check(sameReview(pending, {revision: source.revision, intent: change.intent, acceptedRevision: change.acceptedRevision}));
-      const places = this.placesFor(repository);
-      check(places);
-      if (pending) check(settleReview(address, pending));
-      this.view = {...this.view, message: change.state === 'accepted' ? 'Opening the accepted change.' : 'Change saved for review. Review and accept the direction in the same build request.'};
-      this.go(places.request(change.intent));
-      if (this.bindingLive(context, binding)) void this.readLatest(false);
     } catch {
-      if (this.bindingLive(context, binding)) this.view = {...this.view, message:
-        'This change could not be opened. Refresh the conversation to check its current direction and your access; your text is kept.'};
+      if (this.bindingLive(context, binding))
+        this.view = {
+          ...this.view,
+          message:
+            'This change could not be opened. Refresh the conversation to check its current direction and your access; your text is kept.',
+        };
     } finally {
-      if (this.bindingLive(context, binding)) this.view = {...this.view, postBusy: this.view.postBusy.filter(row => row !== post)};
+      if (this.bindingLive(context, binding))
+        this.view = {...this.view, postBusy: this.view.postBusy.filter((row) => row !== post)};
     }
   }
 
-  // openRevision loads one request for revising and restores any unsent
-  // text kept for it.
   private async openRevision(post: string, messageKind: 'post' | 'reply', repository: string) {
     const context = this.current,
       serial = this.serial;
     if (!context || !id(repository) || (!context.global && context.repository !== repository)) return;
-    const editor = ++this.revisionEditor;
+    const writer = this.revisionEditor,
+      editor = writer.beginOpen();
     try {
       const data = feedRevisionSource(await this.readJSON(context, `factory/feed/posts/${post}`), post, repository);
       if (!id(context.account) && !this.viewerID) await this.readViewerID(context);
-      if (!this.live(serial) || editor !== this.revisionEditor) return;
-      const edit: Revising = {
-        id: data.post.postId,
-        messageKind: data.post.parentId ? 'reply' : messageKind,
-        revision: data.revision,
-        repository: data.repository,
-        body: data.post.body,
-        baseBody: data.post.body,
-        blocked: !data.canRetry,
-        address: this.revisionAddress(repository, post),
-      };
-      this.syncRevision(edit);
-      if (!data.canRetry && !edit.pending && !edit.recoveryBlocked) return;
-      if (data.route === 'clarify') {
-        edit.original = edit.body;
-        edit.body = '';
-        edit.question =
-          typeof data.detail === 'string' && data.detail
-            ? data.detail
-            : 'What should change, and where should it apply?';
-      }
-      try {
-        const saved = object(JSON.parse(readStored(this.revisionKey(edit)) || 'null'));
-        if (typeof saved.body === 'string') edit.body = saved.body;
-        if (typeof saved.original === 'string') edit.original = saved.original;
-      } catch {
-        /* Nothing kept for this request. */
-      }
-      // The submitted snapshot is recoverable even when a draft write failed.
-      if (edit.pending && inspectStored(this.revisionKey(edit)).value === '') {
-        edit.body = edit.pending.writing.body;
-        if (edit.pending.writing.original === undefined) delete edit.original;
-        else edit.original = edit.pending.writing.original;
-      }
-      this.revising = edit;
+      if (!this.live(serial) || !writer.isCurrent(editor)) return;
+      if (!writer.open(data, messageKind, this.revisionAddress(repository, post))) return;
       this.requestUpdate();
       await this.updateComplete;
-      if (this.live(serial) && editor === this.revisionEditor)
+      if (this.live(serial) && writer.isCurrent(editor))
         this.querySelector<HTMLElement>('[data-revision-body]')?.focus();
     } catch {
-      if (this.live(serial) && editor === this.revisionEditor)
+      if (this.live(serial) && writer.isCurrent(editor))
         this.view = {...this.view, message: 'Could not load this request. Refresh and try again.'};
     }
   }
 
   // Receipt recovery is an explicit read. It never retries an effect on mount.
   private async recoverRevision() {
-    const edit = this.revising, context = this.current, binding = this.lifetime.signal,
-      editor = this.revisionEditor;
-    if (!edit || !context || this.accessFailure || this.view.busy) return;
-    this.syncRevision(edit);
-    if (!edit.pending || !edit.address) {
-      this.view = {...this.view, message: edit.recoveryBlocked
-        ? 'The saved edit cannot be read safely. Its bytes and your writing are kept. Check storage and try again.'
-        : 'No saved edit was found. Your writing is kept.'};
+    const writer = this.revisionEditor,
+      context = this.current,
+      binding = this.lifetime.signal;
+    if (!writer.current || !context || this.accessFailure || this.view.busy) return;
+    const submission = writer.lookup();
+    if (typeof submission === 'string') {
+      this.view = {...this.view, message: submission};
       return;
     }
-    const pending = edit.pending, address = edit.address;
+    if (!submission) return;
+    const {command: pending, address} = submission;
     this.view = {...this.view, busy: true};
     try {
       const digest = await feedRevisionBodyDigest(pending.body);
       if (!this.bindingLive(context, binding)) return;
-      const response = await this.request(context, 'factory/feed/posts/' + address.post + '/retry/' + pending.command + '?repository=' + address.repository);
+      const response = await this.request(
+        context,
+        'factory/feed/posts/' + address.post + '/retry/' + pending.command + '?repository=' + address.repository
+      );
       const value = await readSodaJSON(response);
       if (!this.bindingLive(context, binding)) return;
       check(response.ok && object(value).author === address.author);
-      const revision = feedRevisionReceipt(value, address.post, address.repository, pending.command, pending.revision, digest, pending.body === pending.baseBody);
-      this.finishRevision(edit, pending, revision, editor);
+      const revision = feedRevisionReceipt(
+        value,
+        address.post,
+        address.repository,
+        pending.command,
+        pending.revision,
+        digest,
+        pending.body === pending.baseBody
+      );
+      this.view = {...this.view, message: writer.finish(submission, revision)};
       void this.readLatest(false);
     } catch {
-      if (this.bindingLive(context, binding)) this.view = {...this.view, message:
-        'The saved edit could not be confirmed. Its exact request and your writing are kept; check again or explicitly retry the saved edit.'};
+      if (this.bindingLive(context, binding))
+        this.view = {
+          ...this.view,
+          message:
+            'The saved edit could not be confirmed. Its exact request and your writing are kept; check again or explicitly retry the saved edit.',
+        };
     } finally {
       if (this.bindingLive(context, binding)) this.view = {...this.view, busy: false};
     }
   }
 
-  private finishRevision(edit: Revising, pending: PendingRevision, revision: number, editor: number) {
-    if (!edit.address || !settleRevision(edit.address, pending)) {
-      if (this.revising) this.syncRevision(this.revising);
-      this.view = {...this.view, message: 'The saved edit changed. Its record and current writing are kept; reopen it to review.'};
-      return;
-    }
-    const live = this.revising;
-    if (live?.id === edit.id) this.syncRevision(live);
-    if (editor !== this.revisionEditor) {
-      this.view = {...this.view, message: 'An earlier edit finished. Current writing is kept; refresh its post to check the result.'};
-      return;
-    }
-    const newer = live?.id === edit.id && !sameRevisionWriting(live, pending.writing);
-    // Do not erase writing replaced in another component/document while awaiting
-    // the receipt. A newer head read also cannot be rebased backwards by recovery.
-    const writing = inspectStored(this.revisionKey(edit)).value;
-    const originalWriting = JSON.stringify(pending.writing);
-    const replaced = writing === undefined || writing !== '' && writing !== originalWriting;
-    if (newer && live) {
-      this.revising = {...live, revision: Math.max(live.revision, revision),
-        baseBody: live.revision > revision ? live.baseBody : pending.body};
-      delete this.revising.current;
-      // Persist only if the stored draft still belongs to this live editor.
-      if (!replaced || writing === JSON.stringify({body: live.body, ...(live.original === undefined ? {} : {original: live.original})})) this.persistRevising();
-    } else {
-      if (!replaced) writeStored(this.revisionKey(edit), '');
-      if (live?.id === edit.id) this.revising = undefined;
-    }
-    this.view = {...this.view, message: newer || replaced
-      ? 'Request updated. Processing will continue here. Your newer edits are kept, ready to send.'
-      : 'Request updated. Processing will continue here.'};
-  }
-
   // Saved retry is a separate explicit action: it sends the retained body and
   // CAS unchanged, never the newer writing currently shown in the editor.
   private async revisePost(saved = false) {
-    const edit = this.revising, context = this.current, binding = this.lifetime.signal,
-      editor = this.revisionEditor;
-    if (!edit || !context || this.accessFailure || this.view.busy) return;
-    this.syncRevision(edit);
-    if (!edit.address || edit.recoveryBlocked || (!saved && (edit.pending || edit.blocked || !edit.body.trim()))) return;
-    let pending = edit.pending;
-    const firstAttempt = !pending;
-    if (saved && !pending) return;
-    if (!pending) {
-      const body = revisionBody(edit);
-      if ([...body].length > 4000) {
-        this.view = {...this.view, message: 'Keep the original request and answer within 4,000 characters. You can shorten the original request below.'};
-        return;
-      }
-      pending = {command: newIdempotencyKey(), revision: edit.revision, body, baseBody: edit.baseBody,
-        writing: {body: edit.body, ...(edit.original === undefined ? {} : {original: edit.original})}};
-    }
-    const command = pending, address = edit.address;
-    const retained = retainRevision(address, command);
-    this.syncRevision(edit);
-    if (retained !== 'saved') {
-      this.view = {...this.view, message: retained === 'unavailable'
-        ? 'The exact edit is kept in this window, but could not be saved for recovery. Enable storage, then retry the saved edit. Nothing was sent.'
-        : 'Another or unreadable edit is already saved. Its record and your writing are kept. Check the saved edit first.'};
+    const writer = this.revisionEditor,
+      context = this.current,
+      binding = this.lifetime.signal;
+    if (!writer.current || !context || this.accessFailure || this.view.busy) return;
+    const submission = writer.prepare(saved);
+    if (typeof submission === 'string') {
+      this.view = {...this.view, message: submission};
       return;
     }
+    if (!submission) return;
+    const {edit, command, address} = submission;
     this.view = {...this.view, busy: true};
     try {
       const digest = await feedRevisionBodyDigest(command.body);
       if (!this.bindingLive(context, binding)) return;
-      const current = readRevision(address);
-      check(!current.blocked && current.durable && current.pending && samePendingRevision(current.pending, command));
+      writer.requireRetained(submission);
       const response = await this.request(context, 'factory/feed/posts/' + edit.id + '/retry', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({command_id: command.command, repository: address.repository, expected_revision: command.revision, body: command.body}),
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          command_id: command.command,
+          repository: address.repository,
+          expected_revision: command.revision,
+          body: command.body,
+        }),
         signal: AbortSignal.timeout(15000),
       });
       if (!this.bindingLive(context, binding)) return;
       if (response.status === 409) {
-        // A newly minted command's explicit refusal is known not to have been
-        // committed. An uncertain saved command must keep its original identity.
-        if (firstAttempt) settleRevision(address, command);
-        const source = feedRevisionSource(await this.readJSON(context, 'factory/feed/posts/' + edit.id), edit.id, edit.repository);
+        writer.refused(submission);
+        const source = feedRevisionSource(
+          await this.readJSON(context, 'factory/feed/posts/' + edit.id),
+          edit.id,
+          edit.repository
+        );
         if (!this.bindingLive(context, binding)) return;
-        if (editor === this.revisionEditor && this.revising?.id === edit.id) {
-          this.revising = {...this.revising, revision: source.revision, baseBody: source.post.body, current: source.post.body, blocked: !source.canRetry};
-          this.syncRevision(this.revising);
-        }
-        this.view = {...this.view, message: 'This request could not be updated against its reviewed state. Current text is shown; your draft is kept.'};
+        writer.showCurrent(submission, source);
+        this.view = {
+          ...this.view,
+          message:
+            'This request could not be updated against its reviewed state. Current text is shown; your draft is kept.',
+        };
         return;
       }
       const value = await readSodaJSON(response);
       if (!this.bindingLive(context, binding)) return;
       check(response.ok && object(value).author === address.author);
-      const revision = feedRevisionReceipt(value, edit.id, edit.repository, command.command, command.revision, digest, command.body === command.baseBody);
-      this.finishRevision(edit, command, revision, editor);
+      const revision = feedRevisionReceipt(
+        value,
+        edit.id,
+        edit.repository,
+        command.command,
+        command.revision,
+        digest,
+        command.body === command.baseBody
+      );
+      this.view = {...this.view, message: writer.finish(submission, revision)};
       void this.readLatest(false);
     } catch {
-      if (this.bindingLive(context, binding)) this.view = {...this.view, message:
-        'The edit could not be confirmed. Its exact request and your writing are kept; check the saved edit before retrying.'};
+      if (this.bindingLive(context, binding))
+        this.view = {
+          ...this.view,
+          message:
+            'The edit could not be confirmed. Its exact request and your writing are kept; check the saved edit before retrying.',
+        };
     } finally {
       if (this.bindingLive(context, binding)) this.view = {...this.view, busy: false};
     }
@@ -1377,12 +1257,7 @@ export class SodaFactoryFeed extends LitElement {
       return;
     }
     if (closest('[data-revision-cancel]')) {
-      this.revisionEditor++;
-      if (this.revising) {
-        this.syncRevision(this.revising);
-        if (!this.revising.pending && !this.revising.recoveryBlocked) writeStored(this.revisionKey(this.revising), '');
-      }
-      this.revising = undefined;
+      this.revisionEditor.cancel();
       this.requestUpdate();
       return;
     }
@@ -1422,8 +1297,6 @@ export class SodaFactoryFeed extends LitElement {
     }
   };
 
-  // loadReplies reads one thread's newest page, or with `older` the page
-  // below what is shown. A second caller joins the read in flight.
   private loadReplies(entry: FeedEntry, older = false): Promise<void> {
     const key = feedEntryKey(entry);
     const running = this.threadReads.get(key);
@@ -1673,7 +1546,7 @@ export class SodaFactoryFeed extends LitElement {
   }
 
   private renderRevision() {
-    const edit = this.revising;
+    const edit = this.revisionEditor.current;
     if (!edit) return '';
     return html`<section class="soda-feed-revision" aria-label=${`Edit ${edit.messageKind}`}>
       ${
@@ -1738,7 +1611,6 @@ export class SodaFactoryFeed extends LitElement {
     const subscription = this.view.subscription;
     if (this.accessFailure || !subscription || !this.current?.global) return html``;
     const candidates = [...this.view.labels.refs.entries()].sort((a, b) => compareRepositoryIDs(a[0], b[0]));
-    // Until a subscription is saved, every candidate shows and is checked.
     const member = new Set(
       subscription.revision === 0 ? candidates.map(([repository]) => repository) : subscription.repositories
     );
@@ -1790,7 +1662,6 @@ export class SodaFactoryFeed extends LitElement {
       id: repository,
       path: places?.repository ?? ref?.path,
       label: ref?.label ?? `repository ${repository}`,
-      // A repository's own feed needs no link back to itself.
       current: !this.current?.global,
       ...(places ? {places} : {}),
     };
@@ -1874,7 +1745,6 @@ export class SodaFactoryFeed extends LitElement {
     const key = feedEntryKey(entry),
       thread = this.threads.get(key);
     if (!thread) return html`<p role="status" class="soda-feed-thread-status">Loading replies…</p>`;
-    // Consecutive JEV calls for one decision fold into one group.
     const groups: {key: string; items: FeedPostDetail[]}[] = [];
     for (const reply of thread.items) {
       const previous = groups.at(-1),
