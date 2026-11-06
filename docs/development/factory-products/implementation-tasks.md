@@ -30990,3 +30990,11 @@ build-summary PR links to the shared route. In a fresh host/browser rerun, a
 relative PR-description link opened the shared issue screen and the prior PR
 review/readback journey still passed (`/home/vince/tmp/fpn-1793962829404/{run.log,host/result.json}`).
 GitHub desktop and installed-product qualification remain open.
+
+The next fresh host/browser run saved a reviewer draft, reopened it through the
+shared Reviews list, edited its body and submitted that same pending review as
+an approval. The list contained one submitted reviewer record after reload;
+the host read the approval through the normal PR API. PR tab controls now show
+their disabled state while a detail read is loading. Evidence:
+`/home/vince/tmp/fpd-1793963416476/{run.log,host/result.json,host/pull-reader/pull-browser-result.json}`.
+Thread resolution, merge controls and GitHub desktop remain to be exercised.

@@ -64,21 +64,38 @@ try {
   stage = 'checks';
   await detail.getByRole('button', {name: 'Checks', exact: true}).click();
   await detail.locator('section[aria-label="Checks"]').waitFor();
-  stage = 'approval';
+  stage = 'draft review';
   const review = detail.locator('soda-factory-pull-review');
+  await review.getByRole('textbox', {name: 'Review Markdown'}).fill('Initial draft review');
+  await review.getByRole('button', {name: 'Save draft review'}).click();
+  await review.getByText('Draft review saved. Edit it here or choose a submission action.', {exact: true}).waitFor();
+  await detail.getByText('Loading pull request…', {exact: true}).waitFor({state: 'hidden'});
+  await detail.getByRole('button', {name: 'Reviews', exact: true}).click();
+  await detail.locator('section[aria-label="Reviews"]').waitFor();
+  const reviewRows = detail.locator('section[aria-label="Reviews"] li');
+  const editDraft = detail.getByRole('button', {name: 'Edit saved draft review'});
+  await editDraft.waitFor({timeout: 5000}).catch(async () => {
+    throw Error('saved draft editor missing: ' + (await reviewRows.allTextContents()).map(row => row.slice(0, 100)).join(' | '));
+  });
+  await editDraft.click();
+  await review.getByRole('textbox', {name: 'Review Markdown'}).fill('Reviewed and approved after draft');
+  stage = 'submit pending review';
   await review.getByRole('button', {name: 'Approve', exact: true}).click();
   await review.getByText('Review submitted.', {exact: true}).waitFor();
-  await detail.getByRole('button', {name: 'Reviews', exact: true}).click();
   await detail.locator('section[aria-label="Reviews"] li').nth(1).waitFor();
+  assert(await detail.locator('section[aria-label="Reviews"] li').count() === 2, 'draft submission created a second review');
+  await detail.locator('section[aria-label="Reviews"] li').filter({hasText: 'Reviewed and approved after draft'}).waitFor();
   await page.reload();
   await detail.locator('section[aria-label="Reviews"] li').nth(1).waitFor();
+  await detail.locator('section[aria-label="Reviews"] li').filter({hasText: 'Reviewed and approved after draft'}).waitFor();
   await save('pull-browser-result.json', {
     result: 'pass', native_header_and_shared_list: true, detail: true,
     markdown_issue_navigation: true,
     commits: 3, files: 3, checks: true, inline_discussions: 2,
-    pending_review_private: true, approval_submitted: true, approval_readback_after_reload: true,
+    pending_review_private: true, draft_reopened_and_submitted: true,
+    approval_submitted: true, approval_readback_after_reload: true,
   });
-  console.log('PASS: real Fountain shared PR list/detail/commits/files/checks/threads and non-author approval');
+  console.log('PASS: real Fountain shared PR reads and draft review reopening/submission');
 } catch (error) {
   await save('pull-browser-error.json', {stage, error_class: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 512)});
   console.error('FAIL: native Fountain PR browser stage=' + stage);

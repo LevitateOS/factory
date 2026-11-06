@@ -264,12 +264,12 @@ export class SodaFactoryPull extends LitElement {
         ></soda-factory-pull-editor>` : ''}
         <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href), `pull-${pull.ref.external_id}`)) : html`<p>No description provided.</p>`}</article>
         <nav aria-label="Pull request sections">
-          <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} @click=${() => this.select('conversation')}>Conversation</button>
-          <button type="button" aria-current=${this.tab === 'commits' ? 'page' : 'false'} @click=${() => this.select('commits')}>Commits</button>
-          <button type="button" aria-current=${this.tab === 'reviews' ? 'page' : 'false'} @click=${() => this.select('reviews')}>Reviews</button>
-          <button type="button" aria-current=${this.tab === 'threads' ? 'page' : 'false'} @click=${() => this.select('threads')}>Inline discussions</button>
-          <button type="button" aria-current=${this.tab === 'files' ? 'page' : 'false'} @click=${() => this.select('files')}>Files</button>
-          <button type="button" aria-current=${this.tab === 'checks' ? 'page' : 'false'} @click=${() => this.select('checks')}>Checks</button>
+          <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('conversation')}>Conversation</button>
+          <button type="button" aria-current=${this.tab === 'commits' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('commits')}>Commits</button>
+          <button type="button" aria-current=${this.tab === 'reviews' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('reviews')}>Reviews</button>
+          <button type="button" aria-current=${this.tab === 'threads' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('threads')}>Inline discussions</button>
+          <button type="button" aria-current=${this.tab === 'files' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('files')}>Files</button>
+          <button type="button" aria-current=${this.tab === 'checks' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.select('checks')}>Checks</button>
         </nav>
         ${this.tab === 'conversation' && context.commandScope ? html`<soda-factory-issue-comment
           .context=${{transport: context.transport, host: context.host, actor: context.actor,
@@ -306,7 +306,7 @@ export class SodaFactoryPull extends LitElement {
           ${this.view.threadNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadMoreThreads(this.view.threadNext)}>Load more inline discussions</button>` : ''}
         </section>` : this.tab === 'checks' ? html`<section aria-label="Checks">
           <p>Status gate: ${this.view.gate || 'unavailable'}</p>
-          <nav aria-label="Check types"><button type="button" aria-current=${this.checkKind === 'status' ? 'page' : 'false'} @click=${() => this.selectChecks('status')}>Statuses</button><button type="button" aria-current=${this.checkKind === 'job' ? 'page' : 'false'} @click=${() => this.selectChecks('job')}>Jobs</button></nav>
+          <nav aria-label="Check types"><button type="button" aria-current=${this.checkKind === 'status' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('status')}>Statuses</button><button type="button" aria-current=${this.checkKind === 'job' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('job')}>Jobs</button></nav>
           <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.workflow ? row.workflow + ' · ' : ''}${row.description}</p></li>`)}</ul>
           ${!this.view.checks.length ? html`<p>No checks on this page.</p>` : ''}
         </section>` : this.tab === 'conversation' ? html`<section aria-label="Conversation">
