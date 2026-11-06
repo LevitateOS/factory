@@ -101,6 +101,25 @@
       await invoke('report', {stage: 'github-writes-complete', error: null});
       return;
     }
+    if (fixture.outdated_thread) {
+      stage = 'outdated-thread';
+      location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'threads'});
+      const detail = () => document.querySelector('soda-factory-pull');
+      await until(() => detail()?.view?.pull?.head?.commit === fixture.head && detail()?.view?.busy === false &&
+        detail()?.view?.threads?.some(thread => thread.externalID === fixture.thread_id && thread.outdated === true),
+      'outdated public discussion unavailable');
+      assert(detail().querySelector('section[aria-label="Inline discussions"]')?.textContent.includes('Outdated'),
+        'outdated discussion not labelled');
+      location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'files'});
+      await until(() => detail()?.view?.files?.length === fixture.files && detail()?.view?.busy === false &&
+        [...detail().querySelectorAll('soda-factory-diff')].some(node =>
+          (node.file?.new_path === fixture.thread_path || node.file?.old_path === fixture.thread_path) &&
+          [...(node.shadowRoot?.querySelectorAll('details.thread') || [])].some(thread =>
+            /Original thread|Recorded thread/.test(thread.textContent) && thread.textContent.includes('Outdated'))),
+      'outdated discussion missing from its original file');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.diff_edge) {
       stage = 'large-diff';
       location.hash = new URLSearchParams({view: 'pull', repository: repo, pull: String(fixture.number), tab: 'files'});

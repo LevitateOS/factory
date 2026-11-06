@@ -170,6 +170,19 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 }))?;
                 return Ok::<(), String>(());
             }
+            if fixture["outdated_thread"] == true {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "outdated_discussion_and_file_fallback": true,
+                    "provider_writes": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["issue_navigation"] == true {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,

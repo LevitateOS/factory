@@ -31066,6 +31066,15 @@ desktop UI and Storybook builds passed; a headless browser verified formatted
 inline text, removed unsafe image markup and a link reaching the host callback.
 T08-READ retains its broader diff and host qualification.
 
+A read-only connected GitHub desktop/WebKit check opened public merged PR
+`rust-lang/rust#165429` and found its resolved outdated thread in both the
+discussion tab and the file's original-location fallback. The first run used
+an overly narrow fallback-label assertion; the corrected affected check passed
+and removed its isolated local account. Evidence:
+`/home/vince/tmp/factory-outdated-ui-1106.NsCRNF/{run2.log,github-ui-write-result.json}`.
+Fountain outdated-thread rendering, installed parity and T07/T11 dependencies
+remain open.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first
