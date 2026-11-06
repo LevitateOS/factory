@@ -97,13 +97,31 @@ pub(super) fn run(b: &mut Browser, generation: &str, api: &str) -> Result<Value>
             browser.child.try_wait()?.is_none(),
             "native issue browser stopped before revocation barrier; inspect private stage/log",
         )?;
-        if root.join("issue-browser-ready").is_file() {
+        if root.join("issue-browser-read-ready").is_file() {
             break;
         }
         require(
             Instant::now() < until,
             "native issue browser readiness deadline",
         )?;
+        thread::sleep(Duration::from_millis(25));
+    }
+    Seed { browser: b }.json(
+        "PUT",
+        &format!("{native}/collaborators/{username}"),
+        Some(json!({"permission":"write"})),
+        204,
+    )?;
+    private_file(&root.join("issue-browser-write-ready"), b"")?;
+    loop {
+        require(
+            browser.child.try_wait()?.is_none(),
+            "native issue browser stopped before write readback; inspect private stage/log",
+        )?;
+        if root.join("issue-browser-ready").is_file() {
+            break;
+        }
+        require(Instant::now() < until, "native issue browser write deadline")?;
         thread::sleep(Duration::from_millis(25));
     }
     Seed { browser: b }.json(
@@ -129,9 +147,11 @@ pub(super) fn run(b: &mut Browser, generation: &str, api: &str) -> Result<Value>
     }
     let result: Value = serde_json::from_slice(&fs::read(root.join("issue-browser-result.json"))?)?;
     require(
-        result["result"] == "pass" && result["access_revocation_retired_facts"] == true,
+        result["result"] == "pass" && result["read_only_before_grant"] == true
+            && result["shared_comment_and_edit_readback"] == true
+            && result["access_revocation_retired_facts"] == true,
         "native issue browser proof incomplete",
     )?;
-    println!("PASS: actual Fountain page/extension/shared issue UI, native reader login, Markdown/conversation/history and access revocation");
+    println!("PASS: actual Fountain shared issue UI, reader denial, comment/edit readback and access revocation");
     Ok(result)
 }

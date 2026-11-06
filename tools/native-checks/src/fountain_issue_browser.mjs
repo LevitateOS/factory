@@ -123,9 +123,32 @@ try {
     ).endsWith(repository + '/issues/' + input.number),
     'native original unavailable'
   );
+  const editor = page.locator('soda-factory-issue-editor');
+  const composer = page.locator('soda-factory-issue-comment');
+  assert(await editor.getByRole('button', {name: 'Edit issue', exact: true}).isDisabled(), 'reader could edit issue');
+  assert(await composer.getByRole('button', {name: 'Post comment', exact: true}).isDisabled(), 'reader could post comment');
   await page.screenshot({path: resolve(root, 'issue-browser.png')});
+  stage = 'write-wait';
+  await save('issue-browser-read-ready', {read: true});
+  await until(async () => {
+    try { await access(resolve(root, 'issue-browser-write-ready')); return true; }
+    catch { return false; }
+  }, 'write grant barrier');
+  stage = 'write';
+  await page.reload();
+  await detail.getByText('Rendered native read', {exact: true}).waitFor();
+  await composer.getByRole('textbox', {name: 'Comment Markdown'}).fill('Written through the shared issue composer.');
+  await composer.getByRole('button', {name: 'Post comment', exact: true}).click();
+  await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
+  await editor.getByRole('button', {name: 'Edit issue', exact: true}).click();
+  await editor.getByRole('textbox', {name: 'Edit issue title'}).fill('Rendered native edit');
+  await editor.getByRole('button', {name: 'Save issue', exact: true}).click();
+  await detail.getByRole('heading', {name: 'Rendered native edit', exact: true}).waitFor();
+  await page.reload();
+  await detail.getByRole('heading', {name: 'Rendered native edit', exact: true}).waitFor();
+  await detail.getByText('Written through the shared issue composer.', {exact: true}).waitFor();
   stage = 'revocation-wait';
-  await save('issue-browser-ready', {read: true});
+  await save('issue-browser-ready', {read: true, comment: true, edit: true});
   await until(async () => {
     try {
       await access(resolve(root, 'issue-browser-revoked'));
@@ -158,12 +181,14 @@ try {
     recorded_factory_facts_read: true,
     deep_link_reload: true,
     native_original_available: true,
+    read_only_before_grant: true,
+    shared_comment_and_edit_readback: true,
     access_revocation_retired_facts: true,
     synthetic_api_or_admission: false,
     installed_release_qualified: false,
   });
   console.log(
-    'PASS: real native Fountain reader/shared issue read, Markdown, history, Factory section and revoked access'
+    'PASS: real Fountain shared issue read, navigation, comment/edit readback and revoked access'
   );
 } catch (error) {
   await save('issue-browser-error.json', {

@@ -30953,3 +30953,15 @@ also passed (`/home/vince/tmp/fhp-1793961998465/{run.log,host/result.json}`).
 Rendered PR browser controls, GitHub-connected desktop use and final packaged
 products remain unverified. T08-READ and its T07-EDIT/T11 prerequisites stay
 pending/active as recorded in the table.
+
+### T07-EDIT: Fountain shared issue browser writes (2026-11-06)
+
+The existing real Fountain host/browser journey passed with current Fountain,
+Soda appliance/extension, Factory and shared browser assets. A read-only
+collaborator first saw disabled comment/edit controls. After its ordinary
+collaboration grant became writable, that same account posted a comment and
+edited the issue title through the shared UI; both persisted across a browser
+reload. Revocation then retired the issue body and optional controls in the
+still-live session. Evidence: `/home/vince/tmp/fhi-1793962172406/{run.log,host/result.json,host/issue-browser.log}`.
+This proves the Fountain source host journey, not GitHub-connected desktop
+writes or a final installed release. T07-EDIT remains pending.
