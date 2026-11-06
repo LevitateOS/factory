@@ -234,7 +234,14 @@ export class SodaFactoryDiff extends LitElement {
             node.className = 'factory-inline-thread';
             node.setAttribute('role', 'note');
             node.dataset.threadId = thread.external_id;
-            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map((c) => c.comment.body).join('\n') ?? 'Comments unavailable'}${thread.comments.next ? '\nMore comments in discussion' : ''}`;
+            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map((c) => c.comment.body).join('\n') ?? 'Comments unavailable'}`;
+            if (thread.comments.next) {
+              const more = document.createElement('button');
+              more.type = 'button';
+              more.textContent = 'Load more comments';
+              more.addEventListener('click', () => this.moreComments(thread));
+              node.append(more);
+            }
             return node;
           },
         },
@@ -332,6 +339,13 @@ export class SodaFactoryDiff extends LitElement {
     this.dispatchEvent(
       new CustomEvent<ReviewDraft | null>('factory-review-draft-change', {detail: draft, bubbles: true, composed: true})
     );
+  }
+
+  private moreComments(thread: DiffThread) {
+    if (thread.comments.next)
+      this.dispatchEvent(new CustomEvent<string>('factory-thread-more', {
+        detail: thread.external_id, bubbles: true, composed: true,
+      }));
   }
 
   private startDraft(anchor: ReviewAnchor | null) {
@@ -434,6 +448,7 @@ export class SodaFactoryDiff extends LitElement {
                 ${t.anchor ? sameFile(t.anchor, file) ? 'This discussion belongs to this file.' : 'This thread belongs to its original diff revision.' : 'Original diff context is unavailable.'}
               </p>
               ${t.comments.items?.map((c) => html`<p>${c.comment.body}</p>`)}
+              ${t.comments.next ? html`<button type="button" @click=${() => this.moreComments(t)}>Load more comments</button>` : ''}
             </details>`
         )}
     `;

@@ -194,6 +194,10 @@ export class SodaFactoryPull extends LitElement {
       if (this.live(context, serial)) this.view = {...this.view, threadBusy: false, threadMessage: 'More comments could not be loaded. Try again.'};
     }
   }
+  private moreThread(event: CustomEvent<string>) {
+    const thread = this.view.threads.find(item => item.externalID === event.detail);
+    if (thread) void this.loadThreadComments(thread);
+  }
   private next() {
     if (this.view.busy || !this.view.next) return;
     this.previous.push(this.cursor); this.cursor = this.view.next; void this.load();
@@ -236,7 +240,7 @@ export class SodaFactoryPull extends LitElement {
             parent: pull.ref, commandScope: context.commandScope}}
           @pull-comment-saved=${() => void this.refresh()}
         ></soda-factory-issue-comment>` : ''}
-        ${this.tab === 'files' ? html`<section aria-label="Changed files">
+        ${this.tab === 'files' ? html`<section aria-label="Changed files" @factory-thread-more=${this.moreThread}>
           ${this.view.diff && this.view.diff.head !== pull.head.commit ? html`<p role="status">This diff uses a different head from the pull request summary. Refresh before reviewing.</p>` : ''}
           ${context.commandScope && pull.head.commit ? html`<soda-factory-pull-inline
             .context=${{transport: context.transport, host: context.host, actor: context.actor,
