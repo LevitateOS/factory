@@ -285,7 +285,8 @@ export class SodaFactoryPull extends LitElement {
           ${context.commandScope && head && this.view.diff?.head === head ? html`<soda-factory-pull-inline
             .context=${{transport: context.transport, host: context.host, actor: context.actor,
               repository: context.repository, pull: context.pull, scope: context.scope,
-              parent: pull.ref, head, commandScope: context.commandScope}}
+              parent: pull.ref, head, commandScope: context.commandScope,
+              resolveLink: context.resolveLink, openLink: context.openLink}}
             .files=${this.view.files} .threads=${this.view.threads}
             @pull-inline-saved=${() => void this.refresh()}
           ></soda-factory-pull-inline>` : this.view.files.length ? this.view.files.map(file => {
@@ -299,7 +300,8 @@ export class SodaFactoryPull extends LitElement {
               recorded_location: thread.recordedLocation,
               comments: {items: thread.comments.map(comment => ({comment})), next: thread.commentsNext},
             }));
-            return html`<soda-factory-diff .file=${file} .threads=${threads} .allowDraft=${false}></soda-factory-diff>`;
+            return html`<soda-factory-diff .file=${file} .threads=${threads} .allowDraft=${false}
+              .resolveLink=${context.resolveLink} .openLink=${context.openLink}></soda-factory-diff>`;
           }) : ''}
           ${!this.view.files.length ? html`<p>No files on this page.</p>` : ''}
           <p role="status">${this.view.threadBusy ? 'Loading inline discussions…' : this.view.threadMessage}</p>

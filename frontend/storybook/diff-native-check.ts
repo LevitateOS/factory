@@ -108,8 +108,10 @@ export async function runNativeDiffCheck() {
     require(component.draft?.anchor.side === 'new' &&
       component.draft.anchor.lines?.start === 2 &&
       component.draft.anchor.lines.end === 3, 'new-anchor');
+    const renderedThread = (root.textContent ?? '') + (code()?.textContent ?? '');
     require(root.querySelector('.factory-inline-thread img') === null &&
-      root.textContent?.includes('<img src=x onerror=alert(1)>'), 'safe-thread');
+      code()?.querySelector('.factory-inline-thread img') === null &&
+      renderedThread.includes('retain') && !renderedThread.includes('<img src=x onerror=alert(1)>'), 'safe-thread');
     component.file = {...diffFiles.renamed, patch: 'invalid patch'};
     await component.updateComplete;
     await wait(() => root.textContent?.includes('could not be rendered safely'), 'invalid patch notice');

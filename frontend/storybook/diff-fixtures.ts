@@ -51,7 +51,7 @@ function thread(id: string, location: ReviewAnchor, body: string): ReviewThread 
   };
 }
 export const reviewThreads = [
-  thread('inline-old', anchor, 'Please retain both old-side requirements. <img src=x onerror=alert(1)>'),
+  thread('inline-old', anchor, 'Please **retain** both old-side requirements. <img src=x onerror=alert(1)>'),
   {
     ...thread(
       'historical',

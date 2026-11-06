@@ -1,4 +1,5 @@
 import {LitElement, css, html, type PropertyValues} from 'lit';
+import {guard} from 'lit/directives/guard.js';
 import {
   Virtualizer,
   VirtualizedFileDiff,
@@ -8,6 +9,7 @@ import {
 } from '@pierre/diffs';
 import type {ChangedFile, ReviewAnchor, ReviewLocation} from '../api/collaboration.js';
 import {parseChangedFile, parseReviewAnchor} from '../api/collaboration-response.js';
+import {issueMarkdown, markdownLink} from '../shared/markdown.js';
 
 export interface ReviewDraft {
   anchor: ReviewAnchor;
@@ -46,6 +48,8 @@ export class SodaFactoryDiff extends LitElement {
     threads: {attribute: false},
     draft: {attribute: false},
     allowDraft: {type: Boolean},
+    resolveLink: {attribute: false},
+    openLink: {attribute: false},
     scheme: {type: String},
     layout: {state: true},
     selection: {state: true},
@@ -55,6 +59,8 @@ export class SodaFactoryDiff extends LitElement {
   declare threads: readonly DiffThread[];
   declare draft: ReviewDraft | null;
   declare allowDraft: boolean;
+  declare resolveLink: ((href: string) => string | undefined) | undefined;
+  declare openLink: ((url: string, signal: AbortSignal) => void | Promise<void>) | undefined;
   declare scheme: 'light' | 'dark';
   declare private layout: 'split' | 'unified';
   declare private selection: ReviewAnchor | null;
@@ -62,6 +68,7 @@ export class SodaFactoryDiff extends LitElement {
   private renderer: VirtualizedFileDiff<DiffThread> | undefined;
   private virtualizer: Virtualizer | undefined;
   private metadata: FileDiffMetadata | undefined;
+  private lifetime = new AbortController();
 
   constructor() {
     super();
@@ -69,10 +76,14 @@ export class SodaFactoryDiff extends LitElement {
     this.threads = [];
     this.draft = null;
     this.allowDraft = true;
+    this.resolveLink = undefined;
+    this.openLink = undefined;
     this.scheme = 'light';
     this.layout = 'split';
     this.selection = null;
     this.message = '';
+    this.addEventListener('click', (event) => void this.openMarkdown(event));
+    this.addEventListener('auxclick', (event) => void this.openMarkdown(event));
   }
 
   static styles = css`
@@ -156,23 +167,29 @@ export class SodaFactoryDiff extends LitElement {
     summary {
       cursor: pointer;
     }
+    .soda-markdown {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
+    if (this.lifetime.signal.aborted) this.lifetime = new AbortController();
     void this.updateComplete.then(() => {
       if (this.isConnected && !this.renderer) this.mount();
     });
   }
 
   disconnectedCallback() {
+    this.lifetime.abort();
     this.dispose();
     super.disconnectedCallback();
   }
 
   protected updated(changed: PropertyValues) {
     if (changed.has('file')) this.selection = null;
-    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft'))
+    if (changed.has('file') || changed.has('threads') || changed.has('layout') || changed.has('scheme') || changed.has('allowDraft') || changed.has('resolveLink'))
       this.mount(!changed.has('file'));
   }
 
@@ -182,6 +199,20 @@ export class SodaFactoryDiff extends LitElement {
     this.renderer = undefined;
     this.virtualizer = undefined;
     this.metadata = undefined;
+  }
+
+  private async openMarkdown(event: MouseEvent) {
+    if (event.button > 1 || !this.openLink) return;
+    const anchor = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    event.preventDefault();
+    const url = markdownLink(anchor.href);
+    if (!url || this.lifetime.signal.aborted) return;
+    try {
+      await this.openLink(url, this.lifetime.signal);
+    } catch {
+      if (!this.lifetime.signal.aborted) this.message = 'This discussion link could not be opened. Try again.';
+    }
   }
 
   private mount(preserveScroll = false) {
@@ -236,7 +267,20 @@ export class SodaFactoryDiff extends LitElement {
             node.className = 'factory-inline-thread';
             node.setAttribute('role', 'note');
             node.dataset.threadId = thread.external_id;
-            node.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}\n${thread.comments.items?.map(({comment}) => `${comment.author}${comment.createdAt ? ` · ${comment.createdAt.slice(0, 10)}` : ''}\n${comment.body}`).join('\n') ?? 'Comments unavailable'}`;
+            const status = document.createElement('p');
+            status.textContent = `${thread.outdated ? 'Outdated · ' : ''}${thread.resolution}`;
+            node.append(status);
+            if (thread.comments.items) thread.comments.items.forEach(({comment}, index) => {
+              const entry = document.createElement('div');
+              const author = document.createElement('strong');
+              author.textContent = comment.author + (comment.createdAt ? ` · ${comment.createdAt.slice(0, 10)}` : '');
+              const body = document.createElement('div');
+              body.className = 'soda-markdown';
+              body.append(issueMarkdown(comment.body, (href) => this.resolveLink?.(href), `pull-thread-${thread.external_id}-${index}`));
+              entry.append(author, body);
+              node.append(entry);
+            });
+            else node.append('Comments unavailable');
             if (thread.comments.next) {
               const more = document.createElement('button');
               more.type = 'button';
@@ -450,7 +494,7 @@ export class SodaFactoryDiff extends LitElement {
               <p>
                 ${t.anchor ? sameFile(t.anchor, file) ? 'This discussion belongs to this file.' : 'This thread belongs to its original diff revision.' : 'Original diff context is unavailable.'}
               </p>
-              ${t.comments.items?.map(({comment}) => html`<p><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<br />${comment.body}</p>`)}
+              ${t.comments.items?.map(({comment}, index) => html`<div><strong>${comment.author}</strong>${comment.createdAt ? html` · <time datetime=${comment.createdAt}>${comment.createdAt.slice(0, 10)}</time>` : ''}<div class="soda-markdown">${guard([t.external_id, index, comment.body, this.resolveLink], () => issueMarkdown(comment.body, (href) => this.resolveLink?.(href), `pull-thread-${t.external_id}-${index}`))}</div></div>`)}
               ${t.comments.next ? html`<button type="button" @click=${() => this.moreComments(t)}>Load more comments</button>` : ''}
             </details>`
         )}

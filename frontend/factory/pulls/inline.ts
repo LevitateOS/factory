@@ -18,6 +18,8 @@ import {
 export interface PullInlineContext extends InlineAddress {
   readonly transport: FactoryTransport;
   readonly head: string;
+  readonly resolveLink?: (href: string) => string | undefined;
+  readonly openLink?: (url: string, signal: AbortSignal) => void | Promise<void>;
   commandScope(signal: AbortSignal): Promise<string>;
 }
 const sameFile = (anchor: ReviewAnchor, file: ChangedFile) =>
@@ -239,6 +241,7 @@ export class SodaFactoryPullInline extends LitElement {
           anchor: thread.currentAnchor ?? thread.anchor, recorded_location: thread.recordedLocation,
           comments: {items: thread.comments.map(comment => ({comment})), next: thread.commentsNext}}));
         return html`<soda-factory-diff .file=${file} .threads=${threads}
+          .resolveLink=${context.resolveLink} .openLink=${context.openLink}
           .draft=${draft && sameFile(draft.anchor, file) ? {anchor: draft.anchor, body: draft.body} : null}
           .allowDraft=${available && (!draft || sameFile(draft.anchor, file))} @factory-review-draft-change=${this.changeDraft}></soda-factory-diff>`;
       })}
