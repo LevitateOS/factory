@@ -89,6 +89,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.Reviews = factoryhttp.CollaborationReviews{Service: factoryservice.CollaborationReviews{Source: reads}}
 	product.Threads = factoryhttp.CollaborationThreads{Service: factoryservice.CollaborationThreads{Source: reads}}
 	product.PullFiles = factoryhttp.CollaborationPullFiles{Service: factoryservice.CollaborationPullFiles{Source: reads}}
+	product.PullCommits = factoryhttp.CollaborationPullCommits{Service: factoryservice.CollaborationPullCommits{Source: reads}}
 	product.Checks = factoryhttp.CollaborationChecks{Service: factoryservice.CollaborationChecks{Source: reads}}
 	product.RepositoryCatalog = factoryhttp.CollaborationRepositories{Service: factoryservice.CollaborationRepositories{Source: reads}}
 	product.CapabilityReads = factoryhttp.CollaborationCapabilities{Service: factoryservice.CollaborationCapabilities{Source: reads}}

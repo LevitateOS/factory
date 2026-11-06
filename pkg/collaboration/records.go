@@ -237,6 +237,19 @@ type PullFiles struct {
 	Diff  DiffRef           `json:"diff"`
 	Files Page[ChangedFile] `json:"files"`
 }
+
+type PullCommit struct {
+	Commit     CommitID  `json:"commit"`
+	Summary    string    `json:"summary"`
+	Author     string    `json:"author"`
+	AuthoredAt time.Time `json:"authored_at"`
+}
+
+type PullCommits struct {
+	Pull    PullRef          `json:"pull"`
+	Head    CommitID         `json:"head"`
+	Commits Page[PullCommit] `json:"commits"`
+}
 type LineRange struct {
 	Start int `json:"start"`
 	End   int `json:"end"`

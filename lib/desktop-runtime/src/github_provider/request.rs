@@ -92,6 +92,14 @@ pub enum Read {
         base: String,
         head: String,
     },
+    PullCommits {
+        repository: String,
+        number: u32,
+        limit: u32,
+        head: String,
+        #[serde(default)]
+        before: String,
+    },
     PullReviews {
         repository: String,
         number: u32,
@@ -392,6 +400,22 @@ impl Read {
                 || files && value["page"] != 1 && base.is_empty())
         {
             return Err(Failure::invalid());
+        }
+        if let Self::PullCommits {
+            head,
+            before,
+            limit,
+            ..
+        } = self
+        {
+            if !commit(head)
+                || *limit == 0
+                || *limit > 20
+                || before.len() > 1024
+                || before.chars().any(char::is_control)
+            {
+                return Err(Failure::invalid());
+            }
         }
         if matches!(
             self,

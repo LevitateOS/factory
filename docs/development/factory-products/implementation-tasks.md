@@ -30936,3 +30936,14 @@ preservation under `/home/vince/tmp/factory-reviewer-lookup-ui-1106.HwOkdj/`.
 Go/native builds, TypeScript and production UI build passed. Real organization-team
 lookup, positive cross-account/team requests and connected desktop/installed
 qualification remain open. T11 remains active.
+
+### T08-READ: shared PR commit history source (2026-11-06)
+
+The PR detail now has a paged Commits tab and a head-pinned shared read route.
+GitHub's native connector reads the PR commit connection through authenticated
+GraphQL; Fountain's extension reads the exact native Git range through its
+existing admitted callback. Both return newest-first summaries and reject a
+changed PR head. Factory Go, Rust, UI and Fountain source builds/typechecks pass;
+the Forgejo extension and SDK build. Actual provider/host browser pagination,
+installed use and stale-head readback remain unverified. T08-READ and its
+T07-EDIT/T11 prerequisites stay pending/active as recorded in the table.

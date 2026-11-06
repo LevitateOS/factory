@@ -283,6 +283,7 @@ impl Client {
                             if kind == "pull_diff" { "diff" } else { "files" },
                             reader.diff(&q).await?,
                         ),
+                        "pull_commits" => ("commits", reader.pull_commits(&q).await?),
                         _ => return Err(Failure::invalid()),
                     };
                     result[field] = value;

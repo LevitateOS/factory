@@ -38,6 +38,7 @@ type nativeRead struct {
 	State          *string                     `json:"state,omitempty"`
 	Base           *string                     `json:"base,omitempty"`
 	Head           *string                     `json:"head,omitempty"`
+	Before         string                      `json:"before,omitempty"`
 	ReviewID       string                      `json:"review_id,omitempty"`
 	ReviewNodeID   string                      `json:"review_node_id,omitempty"`
 	ThreadID       *string                     `json:"thread_id,omitempty"`
@@ -142,6 +143,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 		Reviews        json.RawMessage             `json:"reviews"`
 		Threads        json.RawMessage             `json:"threads"`
 		Files          json.RawMessage             `json:"files"`
+		Commits        json.RawMessage             `json:"commits"`
 		Checks         json.RawMessage             `json:"checks"`
 		Statuses       json.RawMessage             `json:"statuses"`
 		Workflows      json.RawMessage             `json:"workflow_runs"`
@@ -165,7 +167,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	if envelope.Kind != query.Kind || !nativeActor(envelope.Account) || envelope.Account.ExternalID != scope.Connection.Account || scope.Repository != query.Repository {
 		return NativeIdentity{}, errNativeRead
 	}
-	fields := []json.RawMessage{envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
+	fields := []json.RawMessage{envelope.Capabilities, envelope.Issues, envelope.Pulls, envelope.Discussion, envelope.ReviewComments, envelope.Reviews, envelope.Threads, envelope.Files, envelope.Commits, envelope.Checks, envelope.Statuses, envelope.Workflows, envelope.Jobs, envelope.Protection, envelope.ReviewRequests, envelope.ReviewerLookup, envelope.Branches, envelope.Preparation, envelope.Publication, envelope.Preservation}
 	var selected json.RawMessage
 	count := 0
 	for _, field := range fields {
@@ -178,7 +180,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 		return NativeIdentity{}, errNativeRead
 	}
 	expected := map[string]json.RawMessage{"reviewer_lookup": envelope.ReviewerLookup, "write_capabilities": envelope.Capabilities, "inline_preservation": envelope.Preservation, "inline_preparation": envelope.Preparation, "branch_creation": envelope.Preparation, "merge_preparation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
-		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_review_comment": envelope.ReviewComments, "pull_review_comments": envelope.ReviewComments, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
+		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_review_comment": envelope.ReviewComments, "pull_review_comments": envelope.ReviewComments, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_commits": envelope.Commits, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
 	if len(expected) == 0 || nativeDecode(selected, body) != nil {
 		return NativeIdentity{}, errNativeRead
 	}
@@ -312,6 +314,9 @@ func cursorDecode(raw string, expected nativeCursor) (nativeCursor, error) {
 	// even when the detail reader asks for a larger upper bound.
 	if c.Kind == "pull_review_threads_v1" && c.Root != "" && c.Limit <= want.Limit {
 		want.Limit = c.Limit
+	}
+	if c.Kind == "pull_commits" && len(c.Root) > 0 && len(c.Root) <= 1024 {
+		want.Root = c.Root
 	}
 	if c != want {
 		return c, errNativeRead

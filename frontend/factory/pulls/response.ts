@@ -105,6 +105,22 @@ export function pullFiles(value: unknown, repository: string, number: string, ba
   return {diff: {base: actualBase, head: actualHead}, ...page};
 }
 
+export function pullCommits(value: unknown, repository: string, number: string, head: string, cursor = '') {
+  const result = object(value);
+  pullRef(result.pull, repository, number);
+  check(result.head === head);
+  const seen = new Set<string>();
+  return pullPage(result.commits, 20, value => {
+    const row = object(value);
+    const oid = commit(row.commit);
+    check(oid && !seen.has(oid));
+    seen.add(oid);
+    const authoredAt = date(row.authored_at);
+    check(authoredAt);
+    return {commit: oid, summary: text(row.summary, 65536), author: text(row.author, 1024), authoredAt};
+  }, cursor);
+}
+
 export function pullChecks(value: unknown, repository: string, number: string, head: string, kind: 'status' | 'job', cursor = '') {
   const result = object(value);
   pullRef(result.pull, repository, number);

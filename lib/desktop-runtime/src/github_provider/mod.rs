@@ -3,6 +3,7 @@
 mod branch_create;
 mod capabilities;
 mod comments;
+mod commits;
 mod diff;
 mod edits;
 mod evidence;

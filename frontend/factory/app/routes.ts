@@ -58,7 +58,7 @@ export function admitFactoryRoute(route: FactoryRoute): void {
       return;
     case 'pull':
       check(id(route.repository) && id(route.pull) &&
-        (route.tab === undefined || ['conversation', 'reviews', 'threads', 'files', 'checks'].includes(route.tab)));
+        (route.tab === undefined || ['conversation', 'commits', 'reviews', 'threads', 'files', 'checks'].includes(route.tab)));
       return;
     case 'work-detail':
       check(id(route.repository) && id(route.issue));

@@ -16,7 +16,7 @@ import './reviewers.js';
 import '../issues/comment.js';
 import '../issues/editor.js';
 import type {DiffThread} from '../review/diff.js';
-import {pullItem, pullFiles, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
+import {pullItem, pullFiles, pullCommits, pullChecks, pullReviews, pullThreads, pullThreadComments, pullComments, type PullItem, type PullThreadView} from './response.js';
 
 export interface PullDetailContext {
   readonly transport: FactoryTransport;
@@ -31,10 +31,11 @@ export interface PullDetailContext {
   resolveLink(href: string): string | undefined;
   openLink(url: string, signal: AbortSignal): void | Promise<void>;
 }
-export type PullTab = 'conversation' | 'reviews' | 'threads' | 'files' | 'checks';
+export type PullTab = 'conversation' | 'commits' | 'reviews' | 'threads' | 'files' | 'checks';
 const empty = () => ({
   busy: false, message: '', pull: undefined as PullItem | undefined,
   files: [] as readonly ChangedFile[], threads: [] as readonly PullThreadView[],
+  commits: [] as ReturnType<typeof pullCommits>['items'],
   comments: [] as ReturnType<typeof pullComments>['items'],
   reviews: [] as ReturnType<typeof pullReviews>['items'],
   checks: [] as ReturnType<typeof pullChecks>['items'], gate: '',
@@ -144,7 +145,13 @@ export class SodaFactoryPull extends LitElement {
       const baseView = {...empty(), pull, head: selectedHead};
       const query = new URLSearchParams({limit: tab === 'files' ? '10' : '20'});
       if (cursor) query.set('cursor', cursor);
-      if (tab === 'files') {
+      if (tab === 'commits') {
+        if (!selectedHead) { this.view = {...baseView, message: 'The current head commit is unavailable.'}; return; }
+        query.set('head', selectedHead);
+        const page = pullCommits(await getJSON(context.transport, path + '/commits?' + query, signal), context.repository, context.pull, selectedHead, cursor);
+        if (!this.live(context, serial)) return;
+        this.view = {...baseView, commits: page.items, next: page.next};
+      } else if (tab === 'files') {
         const base = cursor ? priorDiff?.base : undefined, head = cursor ? priorDiff?.head : undefined;
         if (cursor) check(base && head && selectedHead && priorHead === selectedHead && head === selectedHead);
         if (base && head) { query.set('base', base); query.set('head', head); }
@@ -253,6 +260,7 @@ export class SodaFactoryPull extends LitElement {
         <article aria-label="Pull request description" class="soda-markdown">${pull.body ? guard([pull.ref.external_id, pull.body, context.resolveLink], () => issueMarkdown(pull.body, href => context.resolveLink(href), `pull-${pull.ref.external_id}`)) : html`<p>No description provided.</p>`}</article>
         <nav aria-label="Pull request sections">
           <button type="button" aria-current=${this.tab === 'conversation' ? 'page' : 'false'} @click=${() => this.select('conversation')}>Conversation</button>
+          <button type="button" aria-current=${this.tab === 'commits' ? 'page' : 'false'} @click=${() => this.select('commits')}>Commits</button>
           <button type="button" aria-current=${this.tab === 'reviews' ? 'page' : 'false'} @click=${() => this.select('reviews')}>Reviews</button>
           <button type="button" aria-current=${this.tab === 'threads' ? 'page' : 'false'} @click=${() => this.select('threads')}>Inline discussions</button>
           <button type="button" aria-current=${this.tab === 'files' ? 'page' : 'false'} @click=${() => this.select('files')}>Files</button>
@@ -264,7 +272,10 @@ export class SodaFactoryPull extends LitElement {
             parent: pull.ref, commandScope: context.commandScope}}
           @pull-comment-saved=${() => void this.refresh()}
         ></soda-factory-issue-comment>` : ''}
-        ${this.tab === 'files' ? html`<section aria-label="Changed files" @factory-thread-more=${this.moreThread}>
+        ${this.tab === 'commits' ? html`<section aria-label="Commits">
+          <ol>${this.view.commits.map(row => html`<li><code title=${row.commit}>${row.commit.slice(0, 12)}</code> · ${row.summary}${row.author ? html` · ${row.author}` : ''} · <time datetime=${row.authoredAt}>${row.authoredAt.slice(0, 10)}</time></li>`)}</ol>
+          ${!this.view.commits.length ? html`<p>No commits on this page.</p>` : ''}
+        </section>` : this.tab === 'files' ? html`<section aria-label="Changed files" @factory-thread-more=${this.moreThread}>
           ${this.view.diff && head && this.view.diff.head !== head ? html`<p role="status">This diff uses a different head from the current pull request. Refresh before reviewing.</p>` : ''}
           ${context.commandScope && head && this.view.diff?.head === head ? html`<soda-factory-pull-inline
             .context=${{transport: context.transport, host: context.host, actor: context.actor,

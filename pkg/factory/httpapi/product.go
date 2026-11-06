@@ -29,6 +29,7 @@ type Product struct {
 	CollaborationIssues CollaborationIssues
 	CollaborationPulls  CollaborationPulls
 	PullFiles           CollaborationPullFiles
+	PullCommits         CollaborationPullCommits
 	Reviews             CollaborationReviews
 	Threads             CollaborationThreads
 	Checks              CollaborationChecks
@@ -68,6 +69,7 @@ const (
 	productCollaborationIssues
 	productCollaborationPulls
 	productPullFiles
+	productPullCommits
 	productReviews
 	productThreads
 	productChecks
@@ -151,6 +153,7 @@ func NewProductRoutes() *ProductRoutes {
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls", productCollaborationPulls)
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}", productCollaborationPulls)
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}/files", productPullFiles)
+	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}/commits", productPullCommits)
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}/checks", productChecks)
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}/checks/jobs", productChecks)
 	mux.Handle("/api/factory/collaboration/repositories/{repository}/pulls/{number}/threads", productThreads)
@@ -282,6 +285,10 @@ func (route productRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		files := s.PullFiles
 		files.Host, files.Actor, files.Current = s.Host, s.Actor, current
 		serve(files.Handler())
+	case productPullCommits:
+		commits := s.PullCommits
+		commits.Host, commits.Actor, commits.Current = s.Host, s.Actor, current
+		serve(commits.Handler())
 	case productReviews:
 		reviews := s.Reviews
 		reviews.Host, reviews.Actor, reviews.Current = s.Host, s.Actor, current
