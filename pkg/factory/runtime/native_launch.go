@@ -91,7 +91,8 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 	}
 	for {
 		observed, observeErr := p.InspectRun(ctx, request.Address())
-		if observeErr == nil || !errors.Is(observeErr, execution.ErrRunNotObserved) {
+		if observeErr == nil && (observed.Live || observed.ExitCode != nil || observed.Retirement == execution.Retired) ||
+			observeErr != nil && !errors.Is(observeErr, execution.ErrRunNotObserved) {
 			return observed, observeErr
 		}
 		select {

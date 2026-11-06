@@ -47,13 +47,27 @@ impl AgentObserver {
                 "observation timeout invalid",
             ));
         }
-        let _query = self.shared.querying.try_lock().map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "native observation already pending",
-            )
-        })?;
         let deadline = Instant::now() + timeout;
+        // Launch polling and first MCP admission may inspect concurrently.
+        // Serialize fresh queries within the caller's original deadline.
+        let _query = loop {
+            match self.shared.querying.try_lock() {
+                Ok(query) => break query,
+                Err(std::sync::TryLockError::Poisoned(_)) => {
+                    return Err(io::Error::other("native observation failed"));
+                }
+                Err(std::sync::TryLockError::WouldBlock) => {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "native observation busy",
+                        ));
+                    }
+                    std::thread::sleep(remaining.min(Duration::from_millis(10)));
+                }
+            }
+        };
         let mut state = self
             .shared
             .state
@@ -92,7 +106,14 @@ impl AgentObserver {
                 "native observation unavailable",
             )
         })?;
-        writer.set_write_timeout(Some(timeout.min(Duration::from_secs(1))))?;
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "native observation timed out",
+            ));
+        }
+        writer.set_write_timeout(Some(remaining.min(Duration::from_secs(1))))?;
         let mut request = [0u8; OBSERVATION_REQUEST_BYTES];
         request[0] = OBSERVATION_MARKER;
         request[1..].copy_from_slice(&sequence.to_le_bytes());

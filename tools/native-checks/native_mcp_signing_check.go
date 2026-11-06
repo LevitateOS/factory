@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1230,6 +1231,8 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" {
+			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 		} else if os.Args[3] == "check-native-observation" {
@@ -1253,6 +1256,193 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// The provider/account/repository permissions are declared fixture facts.
+// Preparation, packet admission, public Go launch, worker and MCP transport,
+// artifact persistence and process/custody receipts use their actual owners.
+func admittedNativeFixture(profile, instance, path string, action string) error {
+	if path != filepath.Join(profile, "admitted-native-fixture.json") {
+		return errors.New("admitted fixture path differs")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var input struct{ Run, Connection, Preparation, Executable string }
+	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
+		return errors.New("admitted fixture input invalid")
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	prep, err := db.Preparation(ctx, input.Preparation)
+	if err != nil || prep.Native == nil || !prep.State.Ready || prep.Preparation.Role != project.RoleCoder {
+		return errors.New("actual native coder preparation unavailable")
+	}
+	p := prep.Preparation
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	var repository int64
+	if err = rawDB.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, p.Project).Scan(&repository); err != nil {
+		return err
+	}
+	if action == "settled-admitted-native" {
+		run, err := db.FactoryRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		cap, err := db.GetMCPCapability(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		assignment, err := db.Assignment(ctx, cap.AssignmentID)
+		if err != nil {
+			return err
+		}
+		terminal, found, err := db.TerminalMCPProposal(ctx, assignment.ID)
+		if err != nil {
+			return err
+		}
+		if !run.Reconciled || run.Native == nil || !run.Native.Settled() || assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman || !found || terminal.State != factory.MCPWorkAccepted {
+			return errors.New("coordinator did not retain the actual incomplete worker result and retired resources")
+		}
+		fmt.Println("PASS: actual coordinator settlement retains the worker's explicit blocked result and exact retired native resources")
+		return nil
+	}
+	if action == "check-admitted-native" {
+		observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: p.Project})
+		if err != nil {
+			return err
+		}
+		if observed.Phase != project.FactoryCompleted || observed.Live || !observed.OutputComplete || observed.Retirement != execution.Retired {
+			return errors.New("admitted worker terminal receipt incomplete")
+		}
+		cap, err := db.GetMCPCapability(ctx, input.Run)
+		if err != nil || cap.State != factory.MCPCapabilityActive {
+			return errors.New("actual worker never activated its MCP capability")
+		}
+		var id string
+		if err = rawDB.QueryRowContext(ctx, `SELECT id FROM factory_feed_artifacts WHERE assignment=$1 AND complete`, cap.AssignmentID).Scan(&id); err != nil {
+			return err
+		}
+		artifact, content, err := db.FeedArtifact(ctx, repository, id)
+		if err != nil || string(content) != "actual admitted native worker artifact\n" || artifact.Size != len(content) {
+			return errors.New("actual worker artifact bytes were not retained")
+		}
+		fmt.Println("PASS: public Go-admitted native launch; live MCP activation, actual worker artifact bytes and terminal process/custody/root receipt")
+		return nil
+	}
+	environment, err := db.EnvironmentGrant(ctx, repository)
+	if err != nil {
+		return err
+	}
+	actor := environment.Owner
+	account, err := port.ExecutionAccount(ctx, input.Connection)
+	if err != nil {
+		return err
+	}
+	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Native source fixture"},
+		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()), Account: "native-source-owner", Login: "native-source-owner"})
+	if err != nil || int64(binding.Actor.ID) != actor {
+		return errors.New("declared native actor mapping changed")
+	}
+	ref := func(kind string) factory.ActorBindingRef {
+		return factory.ActorBindingRef{NativeProfile: config.Profile, NativeConnection: binding.Connection.ID, ActorID: actor, Kind: kind}
+	}
+	roles := map[string]factory.RoleSelection{}
+	for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+		roles[role] = factory.RoleSelection{Harness: project.FactoryHarnessMuse, Model: "muse-spark-1.3-contributor", Profile: factory.ExecutionProfile{Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor}}
+	}
+	policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: actor, Enabled: true, TargetBranch: "refs/heads/main", Roles: roles, Checks: []string{"fixture/check"}, MergeMethod: factory.MergeFastForward,
+		Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	for _, err := range []error{
+		db.SaveRepositoryPolicy(ctx, policy), db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: actor, MaxConcurrentRuns: 1}),
+		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: repository, GrantedBy: actor, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: []string{project.RoleCoder}, AllowanceMinutes: 5, Active: true}),
+	} {
+		if err != nil {
+			return err
+		}
+	}
+	acceptance := factory.Acceptance{ID: "d" + factory.NewID()[:24], Repository: repository, IssueIndex: "3", Approver: actor, NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
+	if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+		return err
+	}
+	queued, _, err := db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: 3, Acceptance: acceptance.ID, NativeRev: 1, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("1", 64), Authority: strings.Repeat("2", 64)}, time.Now())
+	if err != nil {
+		return err
+	}
+	prompt, err := factory.BuildDispatchPrompt(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, Phase: project.ExecutionInvestigate, AcceptanceID: acceptance.ID, TargetBranch: policy.TargetBranch, SourceCommit: p.SourceCommit, Preparation: p.ID,
+		Harness: project.FactoryHarnessMuse, Model: roles[project.RoleCoder].Model, Role: project.RoleCoder, ProviderConnection: input.Connection, RequiredChecks: policy.Checks, AttemptLimits: policy.AttemptLimits,
+		RequirementsID: p.Requirements.ID, ApprovalID: p.Approval.ID, Title: "Native admitted execution fixture", Body: "positive-native-mcp-fixture"})
+	if err != nil {
+		return err
+	}
+	toolBytes, err := os.ReadFile(input.Executable)
+	if err != nil {
+		return err
+	}
+	toolSum := sha256.Sum256(toolBytes)
+	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture", SHA256: hex.EncodeToString(toolSum[:]), Executable: input.Executable}
+	now := time.Now().UTC().Truncate(time.Second)
+	aid := factory.NewID()
+	authority := factory.AuthorityRef{Policy: 1, Operator: 1, Capacity: 1, Sponsorship: 1, SponsorshipConnection: input.Connection, Environment: environment.Revision, RequirementsID: p.Requirements.ID, ApprovalID: p.Approval.ID}
+	a := factory.Assignment{ID: aid, AttemptRoot: aid, PublicationAssignment: aid, ProjectID: p.Project, Role: project.RoleCoder, ActorID: actor, Repository: repository, Issue: 3, NativeRev: 1, Acceptance: acceptance.ID, Preparation: p.ID,
+		Subject: factory.ExecutionSubject{Kind: factory.SubjectIssue, Issue: &factory.IssueSubject{Issue: 3, Acceptance: acceptance.ID}}, Phase: project.ExecutionInvestigate,
+		Harness: "muse-fixture", HarnessVers: tool.Version, NativeTool: &tool, Model: roles[project.RoleCoder].Model, Connection: input.Connection, SourceCommit: p.SourceCommit, Prompt: prompt, PromptSHA: project.FactoryPromptDigest(prompt),
+		Run: input.Run, RunHistory: []string{input.Run}, Stage: factory.AssignmentAssigned, Attempts: 1, CreatedUnix: now.Unix(), Authority: authority}
+	native := execution.NativeLaunch{Workspace: *prep.Native, Tool: tool, BundleSHA256: prep.State.SourceBundleSHA256, PromptSHA256: a.PromptSHA, CredentialSHA256: account.CredentialSHA256,
+		Runtime: environment.Native.Runtime, PlacementGeneration: environment.Native.Generation, TrustMode: "isolated_system_worker", BrokerRun: input.Run}
+	run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: a.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(time.Minute), Harness: a.Harness, Model: a.Model,
+		Native: &execution.NativeRecord{Tool: tool, BundleSHA256: native.BundleSHA256, PromptSHA256: a.PromptSHA, Retirement: execution.NotStarted,
+			Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+	if err = db.RecordNativeDispatchPacket(ctx, queued, a, factory.Reservation{AssignmentID: aid, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: 1}, run,
+		factory.RunView{RunID: run.ID, Repository: repository, Issue: 3, Attempt: aid}, native); err != nil {
+		return err
+	}
+	run, err = db.FactoryRun(ctx, run.ID)
+	if err != nil {
+		return err
+	}
+	cap, err := control.BuildMCPCapability(a, run, prep)
+	if err != nil {
+		return err
+	}
+	if err = db.StageMCPCapability(ctx, cap); err != nil {
+		return err
+	}
+	secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, cap)
+	if err != nil {
+		return err
+	}
+	request, err := run.LaunchRequest(a, project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: p.Project, Role: a.Role, Preparation: p.ID, Harness: tool.Harness, HarnessVers: tool.Version, Model: a.Model,
+		Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor, Assignment: a.PromptSHA, SourceCommit: p.SourceCommit, Connection: input.Connection, Actor: actor, Deadline: run.Deadline, ExecutionPhase: a.Phase}, Prompt: prompt, HarnessSHA256: tool.SHA256,
+		MCP: &project.FactoryMCPBinding{Capability: cap.ID, Secret: secret}})
+	if err != nil {
+		return err
+	}
+	observed, err := port.LaunchRun(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !observed.Live {
+		return errors.New("public Go launch did not observe its actual live worker")
+	}
+	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
+	return nil
 }
 
 // Declared repository visibility; actual native keyring/owner observation,
@@ -1653,7 +1843,7 @@ func workerProfileFixture() error {
 	selected := map[string]string{}
 	for i := 1; i+1 < len(os.Args); i++ {
 		switch os.Args[i] {
-		case "--model", "--reasoning-effort", "--contributor-mode", "--workspace":
+		case "--model", "--reasoning-effort", "--contributor-mode", "--workspace", "--prompt-file":
 			selected[os.Args[i]] = os.Args[i+1]
 		}
 	}
@@ -1676,8 +1866,38 @@ func workerProfileFixture() error {
 		return errors.New("native worker MCP relay unavailable")
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusForbidden {
+	prompt, err := os.ReadFile(selected["--prompt-file"])
+	if err != nil {
+		return err
+	}
+	admitted := strings.Contains(string(prompt), "positive-native-mcp-fixture")
+	if !admitted && response.StatusCode != http.StatusForbidden {
 		return errors.New("native worker without a current Go capability was not refused")
+	}
+	if admitted {
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("admitted native MCP initialize refused: %d", response.StatusCode)
+		}
+		var initialized struct {
+			Error json.RawMessage `json:"error"`
+		}
+		if json.NewDecoder(response.Body).Decode(&initialized) != nil || len(initialized.Error) != 0 {
+			return errors.New("admitted MCP initialization failed")
+		}
+		response.Body.Close()
+		result, err := workerMCPCall(client, "factory.publish_artifact", factory.ArtifactUpload{
+			UploadID: strings.Repeat("1", 32), Name: "native-worker.txt", MediaType: "text/plain", ContentBase64: base64.StdEncoding.EncodeToString([]byte("actual admitted native worker artifact\n")), Final: true})
+		if err != nil {
+			return err
+		}
+		var artifact struct {
+			Complete   bool   `json:"complete"`
+			ArtifactID string `json:"artifact_id"`
+		}
+		if json.Unmarshal(result, &artifact) != nil || !artifact.Complete || !factory.ValidID(artifact.ArtifactID) {
+			return errors.New("worker artifact receipt incomplete")
+		}
+		fmt.Println("actual-admitted-worker-artifact", artifact.ArtifactID)
 	}
 	dependency, readErr := os.ReadFile(filepath.Join(selected["--workspace"], ".factory-build/dependency"))
 	if readErr != nil || string(dependency) != "prepared dependency\n" {
@@ -1700,9 +1920,47 @@ func workerProfileFixture() error {
 			}
 		}
 	}
-	fmt.Println("captured-profile-low-off; native-worker-MCP-missing-capability-refused")
+	if admitted {
+		if _, err := workerMCPCall(client, "factory.finish_incomplete", map[string]any{"outcome": "blocked", "cause": "local_fixture_has_no_provider_result"}); err != nil {
+			return err
+		}
+		fmt.Println("captured-profile-low-off; native-worker-MCP-artifact-and-explicit-incomplete-result")
+	} else {
+		fmt.Println("captured-profile-low-off; native-worker-MCP-missing-capability-refused")
+	}
 	time.Sleep(4 * time.Second)
 	return nil
+}
+
+func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessage, error) {
+	encoded, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": map[string]any{"payload": payload}}})
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:37377/mcp", strings.NewReader(string(encoded)))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", os.Getenv("SODA_FACTORY_RUN_AUTH"))
+	request.Header.Set("Content-Type", "application/json")
+	reply, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer reply.Body.Close()
+	var result struct {
+		Error  json.RawMessage `json:"error"`
+		Result struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+	}
+	if json.NewDecoder(io.LimitReader(reply.Body, factory.MCPMaxResultPayloadBytes+8192)).Decode(&result) != nil || reply.StatusCode != http.StatusOK || len(result.Error) != 0 || result.Result.IsError || len(result.Result.Content) != 1 || !json.Valid([]byte(result.Result.Content[0].Text)) {
+		return nil, fmt.Errorf("actual admitted worker tool failed: %s", tool)
+	}
+	return json.RawMessage(result.Result.Content[0].Text), nil
 }
 
 func ownedToolFixture(profile, instance, mode string) error {

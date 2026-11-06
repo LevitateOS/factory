@@ -31554,3 +31554,18 @@ recorded in `/home/vince/tmp/ftsk6.c9wVRN/run.log`. This is an unavailable-state
 correction, not implementation or qualification of the task runtime. Positive
 admitted Go launch/MCP/artifact consumption and real provider execution remain
 pending; native task/checkpoint ownership is still required for coding phases.
+
+Positive Go/native composition now passed with a local worker: actual ready
+preparation, canonical native packet and role capability, Rust signer, public Go
+launch, live MCP activation, byte-exact artifact persistence, terminal native
+receipt and coordinator settlement of the worker's explicit `finish_incomplete`
+proposal. The assignment correctly needs human attention; no provider result was
+invented. Evidence: `/home/vince/tmp/fglv6.q6q4fo/run.log`. The join exposed process
+query contention during first MCP admission. Rust now serializes those queries
+within the original deadline, and Go launch waits through unknown liveness rather
+than reporting it as a start result. The affected cancel/Quit journey passed in
+`/home/vince/tmp/fgcx6.JNsueu/run.log`. Permissions/accepted inputs/tool selection
+were declared fixture facts and credentials were dummy; real provider inference,
+connected authority, native task/checkpoint execution and installed gates remain
+unfinished. Earlier failed/check-only profiles remain retained for exact
+reconciliation as recorded in the security handoff.

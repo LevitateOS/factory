@@ -18,11 +18,11 @@ browser-supplied runtime. Actual WebKit selection/retirement/readback passed in
 `/home/vince/tmp/factory-placement-controls-1106.0R7m8F/`; PostgreSQL controller
 competition, stale revisions, unfinished-run refusal and reopen passed in
 `/home/vince/tmp/factory-placement-1106.kUZUJM/run2.log`. Native MCP admission now
-checks the captured placement via `factory_mcp_live.go`; its real-worker join is
-still unverified. This is local ledger exclusion, not a cross-machine lease.
-Remaining dependencies: native environment/policy enrollment, atomic native
-dispatch and intent capture, Rust execution ports and coordinator composition.
-Close those only with an admitted finite provider run, exact current placement/
+checks the captured placement via `factory_mcp_live.go`; the admitted local-worker
+join is recorded below. This is local ledger exclusion, not a cross-machine lease.
+Native enrollment, atomic capture and local-worker composition are implemented in
+later entries below. Provider/installed closure still needs a finite provider run,
+exact current placement/
 custody/MCP facts, cancellation, settlement and retirement/restart evidence.
 D3 and the broader custody/IPC gates remain open; no hacking-like check ran.
 
@@ -304,13 +304,41 @@ Go admission and durable settlement on the real path. Interface presence alone
 cannot close it. Real provider execution and positive Go/MCP/artifact composition
 remain unverified, independently of this availability correction.
 
-Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
-checkpoint/artifact operations, shell enrollment of the native
-Muse account and canonical native sponsor/publication actor bindings (legacy
-`ActorBindingRef.TokenID` is not native account authority), current provider policy/
-funding and positive MCP activation, followed by
-single-coordinator execution and durable outcome/restart settlement using the
-prepared environment above. Old-instance preparation re-enrollment and crash/reboot
+Joined Go/native composition update: actual source preparation, canonical native
+dispatch packet/capability, Rust signing, public Go launch, live worker MCP,
+byte-exact artifact persistence and terminal process/custody/root observations
+passed in `/home/vince/tmp/fglv6.q6q4fo/run.log`. The actual coordinator accepted the
+worker's `finish_incomplete` proposal and retained a needs-human assignment with
+retired resources. Rust's observation owner now serializes competing launch/MCP
+queries within each original deadline; Go waits through unknown liveness. The
+affected cancel/Quit journey passed in `/home/vince/tmp/fgcx6.JNsueu/run.log`.
+Relevant files: `factory_provider/observation.rs`, `runtime/native_launch.go`, the
+existing worker MCP/service/store owners and `tools/native-checks` integration
+driver. Permissions, accepted-input facts and tool selection were declared;
+credentials were dummy. These prove local composition, not actual provider
+ownership/spending/inference, installed isolation or the broader admission gate.
+Closing those still needs the same joined observations under current verified
+provider/repository authority and the installed host, including cancellation and
+durable typed outcomes. All broad security gates remain open.
+
+Retained joined-check attempts: `fglv6.HLwIVr` and `fglv6.Lgz5Vu` under
+`/home/vince/tmp` contain the original failed MCP-initialization runs;
+`fglv6.dw9E7j` contains the earlier successful composition before explicit terminal
+proposal/settlement was added. Their `execution-profile/admitted-native-fixture.json`
+names the exact canonical run; native terminal/custody evidence is retained there.
+Canonical settlement of those original rows has not been verified. Blocker:
+old-instance retained output/owner reconciliation, independently of the later
+successful profile. Closure needs original exact receipt/custody/root evidence
+and canonical Go reconciliation of each row; do not substitute the later pass or
+invent a typed result. Earlier uncertain profiles elsewhere in this handoff stay
+unchanged.
+
+Remaining dependencies: admitted retry/reviewer integration, shell checkout
+selection, native task/checkpoint and filesystem artifact capture, verified Muse
+account enrollment/selection, cross-account policy enrollment and background
+publication/review/merge actor resolution, current connected provider authority
+and the real finite provider task with typed outcome, cancellation and durable
+retirement/restart settlement. Old-instance preparation re-enrollment and crash/reboot
 reconciliation remain unverified. Adversarial script/receipt/source integrity and
 worst-case stubborn-child teardown are unqualified; `TimeoutStopSec=2s` alone is
 not teardown evidence. Close these with actual admitted environment/worker facts,

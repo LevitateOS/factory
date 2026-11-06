@@ -421,6 +421,62 @@ async fn managed_execution(
             entries[0].path().join("request.json"),
         )?)?
     };
+    if std::env::var("SODA_NATIVE_CHECK_ADMITTED").as_deref() == Ok("1") {
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random)?;
+        let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        fs::write(root.join("execution-runs.ids"), &run)?;
+        let fixture = profile.join("admitted-native-fixture.json");
+        fs::write(
+            &fixture,
+            serde_json::to_vec(&serde_json::json!({
+                "Run":run,"Connection":account.connection,
+                "Preparation":source_preparation["input"]["preparation"]["id"],
+                "Executable":std::env::var("SODA_NATIVE_CHECK_FINITE")?
+            }))?,
+        )?;
+        command(
+            "launch-admitted-native",
+            fixture.to_str().ok_or("fixture path invalid")?,
+        )?;
+        let intent = LaunchIntent::from_go(&fs::read_to_string(
+            profile
+                .join("native-run-intents")
+                .join(format!("{run}.json")),
+        )?)?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        loop {
+            match supervisor.execution_outcome(&intent)? {
+                ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {
+                    tokio::time::sleep(Duration::from_millis(20)).await
+                }
+                ExecutionOutcome::Complete(result)
+                    if result.exit_code == Some(0) && result.output_complete =>
+                {
+                    break
+                }
+                _ => {
+                    return Err(
+                        "admitted native execution did not finish with a complete actual receipt"
+                            .into(),
+                    )
+                }
+            }
+        }
+        command(
+            "check-admitted-native",
+            fixture.to_str().ok_or("fixture path invalid")?,
+        )?;
+        supervisor.start_execution_coordinator().await?;
+        command(
+            "settled-admitted-native",
+            fixture.to_str().ok_or("fixture path invalid")?,
+        )?;
+        supervisor.stop()?;
+        credentials.withdraw(&account.connection).await?;
+        Broker::retire_bundle(&run, &ready.profile, &digest(&source))?;
+        return Ok(());
+    }
     let mut quit_ticket = None;
     let mut runs = Vec::new();
     let modes: &[&str] = if candidate_check {
