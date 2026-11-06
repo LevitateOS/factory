@@ -191,7 +191,10 @@ export class SodaFactoryDiff extends LitElement {
     content.replaceChildren();
     try {
       const file = parseChangedFile(this.file);
-      if (file.patch === null || file.patch === '') return;
+      if (file.patch === null || file.patch === '') {
+        this.message = 'This patch has no displayable lines. Line comments are unavailable.';
+        return;
+      }
       // GitHub's per-file patch omits file headers. Supply quoted, canonical
       // paths; full git patches must still describe exactly this one file.
       const patch = file.patch.startsWith('@@')
@@ -243,7 +246,7 @@ export class SodaFactoryDiff extends LitElement {
         containerWrapper: content,
         lineAnnotations: this.threads.flatMap((t) => {
           const anchor = t.anchor;
-          if (!anchor || !sameFile(anchor, file)) return [];
+          if (!anchor || anchor.scope !== 'lines' || !sameFile(anchor, file)) return [];
           return [
             {
               side: anchor.side === 'old' ? ('deletions' as const) : ('additions' as const),
@@ -412,21 +415,22 @@ export class SodaFactoryDiff extends LitElement {
           : ''
       }
       ${this.threads
-        .filter((t) => !sameFile(t.anchor, file))
+        .filter((t) => !sameFile(t.anchor, file) || t.anchor?.scope === 'file' || !complete || this.message.includes('Line comments are unavailable.'))
         .map(
           (t) =>
             html`<details class="thread">
               <summary>
                 ${
                   t.anchor
-                    ? html`Original thread · ${t.anchor.old_path || t.anchor.new_path} · ${t.anchor.side}
+                    ? html`${sameFile(t.anchor, file) ? 'File discussion' : 'Original thread'} ·
+                      ${t.anchor.old_path || t.anchor.new_path} · ${t.anchor.side}
                       ${t.anchor.lines?.start ?? 'file'}`
                     : html`Recorded thread · ${t.recorded_location?.path ?? 'Location unobserved'} ·
                       ${t.recorded_location?.line ?? ''}`
-                }
+                } · ${t.resolution}${t.outdated ? ' · Outdated' : ''}
               </summary>
               <p>
-                ${t.anchor ? 'This thread belongs to its original diff revision.' : 'Original diff context is unavailable.'}
+                ${t.anchor ? sameFile(t.anchor, file) ? 'This discussion belongs to this file.' : 'This thread belongs to its original diff revision.' : 'Original diff context is unavailable.'}
               </p>
               ${t.comments.items?.map((c) => html`<p>${c.comment.body}</p>`)}
             </details>`
