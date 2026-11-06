@@ -30,6 +30,8 @@ import type {OverviewScope, RequestOverviewModel, SourceState, WorkOverviewModel
 import {issuePlan, requestOverview, revisionHistory} from '../api/progress-response.js';
 import type {RevisionHistory, IssuePlan, RequestOverview} from '../api/progress-response.js';
 export interface WorkOverviewContext {
+  readonly actor?: string;
+  readonly accountLabel?: string;
   readonly transport: FactoryTransport;
   repository: string;
   readonly links?: FactoryWorkLinks;

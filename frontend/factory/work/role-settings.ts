@@ -5,6 +5,8 @@ import type {FactoryTransport} from '../api/transport.js';
 interface RoleContext {
   readonly transport: FactoryTransport;
   readonly repository: string;
+  readonly actor?: string;
+  readonly accountLabel?: string;
 }
 const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review'} as const;
 type Role = keyof typeof roleNames;
@@ -20,8 +22,35 @@ interface Settings {
   roles?: Selections;
   accounts: Account[];
   editable: boolean;
+  bindings: Record<string, unknown>[];
+  options: {targetBranch: string; mergeMethods: string[]} | undefined;
 }
-class RoleSaveError extends Error {}
+interface SetupDraft {
+  targetBranch: string;
+  checks: string;
+  method: string;
+  useAccount: boolean;
+}
+const mergeLabels: Record<string, string> = {
+  merge: 'Merge commit',
+  squash: 'Squash',
+  rebase: 'Rebase',
+  'fast-forward-only': 'Fast-forward only',
+  'rebase-merge': 'Rebase and merge',
+};
+class RoleSaveError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
+
+function policyActor(value: unknown) {
+  const {kind: _kind, ...binding} = object(value);
+  return binding;
+}
 
 function settings(statusValue: unknown, accessValue: unknown, repository: string): Settings {
   const status = object(statusValue),
@@ -40,7 +69,18 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
     return {connection: account.connection, active: account.active, roles: account.roles as string[]};
   });
   const editable = object(object(access.editable).policy).editable === true;
-  if (status.policy === null) return {policy: null, accounts, editable};
+  const bindings = Array.isArray(status.native_bindings) ? status.native_bindings.map(object) : [];
+  const available = status.policy_options == null ? undefined : object(status.policy_options);
+  const options =
+    available && Array.isArray(available.merge_methods)
+      ? {
+          targetBranch: typeof available.target_branch === 'string' ? available.target_branch : '',
+          mergeMethods: available.merge_methods.filter(
+            (value): value is string => typeof value === 'string' && Object.hasOwn(mergeLabels, value)
+          ),
+        }
+      : undefined;
+  if (status.policy === null) return {policy: null, accounts, editable, bindings, options};
   const policy = object(status.policy);
   check(policy.repository === repository && Number.isSafeInteger(policy.revision) && Number(policy.revision) > 0);
   const stored = object(policy.roles),
@@ -59,16 +99,12 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
       model: selection.model,
     } as Selection;
   }
-  return {policy, roles, accounts, editable};
+  return {policy, roles, accounts, editable, bindings, options};
 }
 
 // The existing policy command owns CAS, current permissions and actor bindings.
 // Preserve the rest of that policy while changing only its role selections.
 function policyChange(policy: Record<string, unknown>, roles: Selections) {
-  const actor = (value: unknown) => {
-    const {kind: _kind, ...binding} = object(value);
-    return binding;
-  };
   const resolve = policy.resolve_actor == null ? {} : object(policy.resolve_actor);
   return {
     expected_revision: policy.revision,
@@ -81,27 +117,35 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     attempt_limits: policy.attempt_limits,
     reassessment_minutes: policy.reassessment_minutes,
     intent_minutes: policy.intent_minutes,
-    publish_actor: actor(policy.publish_actor),
-    create_actor: actor(policy.create_actor),
-    review_actor: actor(policy.review_actor),
-    merge_actor: actor(policy.merge_actor),
-    ...(resolve.actor_id && resolve.actor_id !== '0' ? {resolve_actor: actor(resolve)} : {}),
+    publish_actor: policyActor(policy.publish_actor),
+    create_actor: policyActor(policy.create_actor),
+    review_actor: policyActor(policy.review_actor),
+    merge_actor: policyActor(policy.merge_actor),
+    ...(resolve.actor_id && resolve.actor_id !== '0' ? {resolve_actor: policyActor(resolve)} : {}),
   };
 }
 
 /** Shared editor; saved sponsorship references are nonsecret spending choices.
  * It neither connects an account nor chooses a replacement for a missing one. */
 export class SodaFactoryRoleSettings extends LitElement {
-  static properties = {view: {state: true}, roles: {state: true}, busy: {state: true}, message: {state: true}};
+  static properties = {
+    view: {state: true},
+    roles: {state: true},
+    setup: {state: true},
+    busy: {state: true},
+    message: {state: true},
+  };
   declare private view: Settings | undefined;
   declare private roles: Selections | undefined;
   declare private busy: boolean;
   declare private message: string;
+  declare private setup: SetupDraft;
   private current: RoleContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
   constructor() {
     super();
+    this.setup = {targetBranch: '', checks: '', method: '', useAccount: false};
     this.busy = false;
     this.message = '';
   }
@@ -113,6 +157,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     if (
       context?.transport === this.current?.transport &&
       context?.repository === this.current?.repository &&
+      context?.actor === this.current?.actor &&
       context?.transport.generation === this.generation
     )
       return;
@@ -157,7 +202,12 @@ export class SodaFactoryRoleSettings extends LitElement {
       const view = await this.read(context, signal);
       if (this.live(context, signal)) {
         this.view = view;
-        this.roles = view.roles;
+        this.roles = view.roles ?? {
+          'soda-coder': {account: '', harness: 'muse', model: ''},
+          'soda-reviewer': {account: '', harness: 'muse', model: ''},
+        };
+        if (!view.policy)
+          this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false};
       }
     } catch {
       if (this.live(context, signal)) {
@@ -176,20 +226,59 @@ export class SodaFactoryRoleSettings extends LitElement {
       (source) => source.connection === account && source.active && source.roles.includes(role)
     );
   }
+  private initialActors() {
+    const actor = this.current?.actor;
+    if (!actor || !id(actor)) return;
+    const actors: Record<string, Record<string, unknown>> = {};
+    for (const [slot, kind] of Object.entries({
+      publish_actor: 'git.ref.publish',
+      create_actor: 'pull_request.create',
+      review_actor: 'pull_request.review.submit',
+      merge_actor: 'pull_request.merge',
+    })) {
+      const matches = this.view?.bindings.filter((ref) => ref.actor_id === actor && ref.kind === kind) ?? [];
+      if (matches.length !== 1) return;
+      actors[slot] = policyActor(matches[0]);
+    }
+    return actors;
+  }
+  private checks() {
+    return this.setup.checks
+      .split(/\r?\n/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }
   private async save(event: SubmitEvent) {
     event.preventDefault();
     const context = this.current,
       signal = this.lifetime.signal,
       view = this.view,
       roles = this.roles;
-    if (!context || !view?.policy || !view.editable || !roles || this.busy || !this.live(context, signal)) return;
+    if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal)) return;
+    const initial = view.policy === null,
+      actors = initial ? this.initialActors() : undefined;
     if (
       !(Object.keys(roleNames) as Role[]).every(
-        (role) => roles[role].harness === 'muse' && this.eligible(role, roles[role].account)
+        (role) =>
+          roles[role].harness === 'muse' &&
+          ((initial && !roles[role].account) || this.eligible(role, roles[role].account))
       )
     )
       return;
-    const payload = policyChange(view.policy, roles);
+    if (initial && (!actors || !this.setup.useAccount || !view.options?.mergeMethods.includes(this.setup.method)))
+      return;
+    const payload = view.policy
+      ? policyChange(view.policy, roles)
+      : {
+          expected_revision: 0,
+          roles,
+          enabled: false,
+          paused: false,
+          target_branch: this.setup.targetBranch,
+          merge_method: this.setup.method,
+          required_checks: this.checks(),
+          ...actors,
+        };
     this.busy = true;
     this.message = '';
     try {
@@ -200,11 +289,14 @@ export class SodaFactoryRoleSettings extends LitElement {
       });
       if (!response.ok) {
         throw new RoleSaveError(
-          response.status === 409 || response.status === 412
-            ? 'Policy changed. Refresh before saving again.'
-            : response.status === 403
-              ? 'Permission to change policy is unavailable. Refresh to check current access.'
-              : 'The save could not be confirmed. Refresh before changing roles again.'
+          response.status === 400
+            ? 'Policy settings were rejected. Check the branch, CI checks and role choices.'
+            : response.status === 409 || response.status === 412
+              ? 'Policy changed. Refresh before saving again.'
+              : response.status === 403
+                ? 'Permission to change policy is unavailable. Refresh to check current access.'
+                : 'The save could not be confirmed. Refresh before changing roles again.',
+          response.status
         );
       }
       const confirmed = await this.read(context, signal);
@@ -216,14 +308,21 @@ export class SodaFactoryRoleSettings extends LitElement {
           ['account', 'harness', 'model'].every((key) => confirmed.roles![role][key] === roles[role][key])
         )
       );
+      if (initial)
+        check(
+          confirmed.policy.enabled === false &&
+            confirmed.policy.target_branch === payload.target_branch &&
+            confirmed.policy.merge_method === payload.merge_method &&
+            JSON.stringify(confirmed.policy.required_checks) === JSON.stringify(payload.required_checks)
+        );
       if (this.live(context, signal)) {
         this.view = confirmed;
         this.roles = confirmed.roles;
-        this.message = 'Role selections saved.';
+        this.message = initial ? 'Repository policy saved with automation disabled.' : 'Role selections saved.';
       }
     } catch (error) {
       if (this.live(context, signal)) {
-        this.view = undefined;
+        if (!(error instanceof RoleSaveError && error.status === 400)) this.view = undefined;
         this.message =
           error instanceof RoleSaveError
             ? error.message
@@ -237,12 +336,23 @@ export class SodaFactoryRoleSettings extends LitElement {
     if (!this.current) return html``;
     const view = this.view,
       roles = this.roles;
+    const initial = view?.policy === null;
     const canSave =
       view?.editable &&
       roles &&
       (Object.keys(roleNames) as Role[]).every(
-        (role) => roles[role].harness === 'muse' && this.eligible(role, roles[role].account)
-      );
+        (role) =>
+          roles[role].harness === 'muse' &&
+          !!roles[role].model.trim() &&
+          ((initial && !roles[role].account) || this.eligible(role, roles[role].account))
+      ) &&
+      (!initial ||
+        (!!this.initialActors() &&
+          this.setup.useAccount &&
+          !!this.setup.targetBranch &&
+          this.checks().length > 0 &&
+          this.checks().length <= 32 &&
+          view.options?.mergeMethods.includes(this.setup.method)));
     return html`<section aria-label="Agent role settings">
       <h3>Agent roles</h3>
       <p>
@@ -252,8 +362,68 @@ export class SodaFactoryRoleSettings extends LitElement {
       <p role="status">${this.message}</p>
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh roles</button>
       ${
-        view?.policy && roles
+        view && roles
           ? html`<form @submit=${(event: SubmitEvent) => this.save(event)}>
+              ${
+                initial
+                  ? html`<fieldset ?disabled=${this.busy || !view.editable}>
+                      <legend>Set up repository automation</legend>
+                      <p>
+                        Save the full pipeline policy with automation disabled. Execution setup and funding are still
+                        required.
+                      </p>
+                      <label
+                        >Target branch
+                        <input
+                          aria-label="Automation target branch"
+                          .value=${this.setup.targetBranch}
+                          required
+                          pattern="refs/heads/.+"
+                          maxlength="256"
+                          placeholder="refs/heads/main"
+                          @input=${(event: Event) => {
+                            this.setup = {...this.setup, targetBranch: (event.target as HTMLInputElement).value};
+                          }}
+                      /></label>
+                      <label
+                        >Required CI checks
+                        <textarea
+                          aria-label="Required CI checks"
+                          .value=${this.setup.checks}
+                          required
+                          placeholder="One exact check name per line"
+                          @input=${(event: Event) => {
+                            this.setup = {...this.setup, checks: (event.target as HTMLTextAreaElement).value};
+                          }}
+                        ></textarea>
+                      </label>
+                      <label
+                        >Merge method
+                        <select
+                          aria-label="Automation merge method"
+                          required
+                          @change=${(event: Event) => {
+                            this.setup = {...this.setup, method: (event.target as HTMLSelectElement).value};
+                          }}
+                        >
+                          <option value="" .selected=${!this.setup.method}>Choose an enabled method</option>
+                          ${(view.options?.mergeMethods ?? []).map((method) => html`<option .value=${method} .selected=${method === this.setup.method}>${mergeLabels[method]}</option>`)}
+                        </select></label
+                      >
+                      <label
+                        ><input
+                          type="checkbox"
+                          .checked=${this.setup.useAccount}
+                          @change=${(event: Event) => {
+                            this.setup = {...this.setup, useAccount: (event.target as HTMLInputElement).checked};
+                          }}
+                        />Use ${this.current.accountLabel ?? 'the connected account'} for repository automation.</label
+                      >
+                      <p>Repository permissions, required reviews and CI are checked again before remote actions.</p>
+                      ${!view.options || !view.options.mergeMethods.length || !this.initialActors() ? html`<p>Setup options are unavailable for this connection. Refresh before saving.</p>` : ''}
+                    </fieldset>`
+                  : ''
+              }
               ${(Object.keys(roleNames) as Role[]).map((role) => {
                 const selected = roles[role],
                   accounts = view.accounts.filter((account) => account.active && account.roles.includes(role));
@@ -278,7 +448,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                     >Paying account
                     <select
                       aria-label=${`${roleNames[role]} paying account`}
-                      required
+                      ?required=${!initial}
                       @change=${(event: Event) => this.choose(role, 'account', (event.target as HTMLSelectElement).value)}
                     >
                       <option value="" .selected=${!selected.account}>Choose a saved account</option>
@@ -290,17 +460,17 @@ export class SodaFactoryRoleSettings extends LitElement {
                 </fieldset>`;
               })}
               <p>
-                Only Muse is currently supported. Each role keeps its current execution limits. Saving these choices
-                retains the current automation policy.
+                Only Muse is currently supported.
+                ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Each role keeps its current execution limits. Saving these choices retains the current automation policy.'}
               </p>
-              <button type="submit" ?disabled=${this.busy || !canSave}>Save role selections</button>
+              <button type="submit" ?disabled=${this.busy || !canSave}>
+                ${initial ? 'Save disabled automation policy' : 'Save role selections'}
+              </button>
               ${!view.editable ? html`<p>You cannot change this repository's role settings with the current connection.</p>` : ''}
             </form>`
-          : view?.policy === null
-            ? html`<p>No repository automation policy is saved yet.</p>`
-            : this.busy
-              ? html`<p>Loading role settings…</p>`
-              : ''
+          : this.busy
+            ? html`<p>Loading role settings…</p>`
+            : ''
       }
     </section>`;
   }

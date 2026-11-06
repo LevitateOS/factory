@@ -328,7 +328,7 @@ export class SodaFactoryApp extends LitElement {
         this.own(view, () => {
           view.context = undefined;
         });
-        view.context = ports.context;
+        view.context = {...ports.context, actor: context.actor, accountLabel: context.accountLabel};
         return view;
       }
       case 'work-detail': {

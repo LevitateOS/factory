@@ -25,6 +25,7 @@ type RepositoryPreparation struct {
 }
 
 type RepositoryStatusView struct {
+	PolicyOptions       *RepositoryPolicyOptions     `json:"policy_options,omitempty"`
 	NativeBindings      []factory.ActorBindingRef    `json:"native_bindings"`
 	Policy              *factory.RepositoryPolicy    `json:"policy"`
 	OperatorGrant       *factory.OperatorGrant       `json:"operator_grant"`
@@ -38,12 +39,19 @@ type RepositoryStatusView struct {
 	Repository          string                       `json:"repository"`
 }
 
+// RepositoryPolicyOptions are current provider settings, not mutation authority.
+type RepositoryPolicyOptions struct {
+	TargetBranch string   `json:"target_branch"`
+	MergeMethods []string `json:"merge_methods"`
+}
+
 type RepositoryStatus struct {
-	Store       *store.Store
-	Visibility  WorkVisibility
-	Bindings    func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]factory.ActorBindingRef, error)
-	Preparation func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPreparation, error)
-	Authority   func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (factory.EffectiveAuthority, error)
+	PolicyOptions func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPolicyOptions, error)
+	Store         *store.Store
+	Visibility    WorkVisibility
+	Bindings      func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]factory.ActorBindingRef, error)
+	Preparation   func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPreparation, error)
+	Authority     func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (factory.EffectiveAuthority, error)
 	// Diagnostic is optional and must check current administration itself.
 	// Unknown administration omits private diagnostics, never enables them.
 	Diagnostic func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*control.DispatchObservation, error)
@@ -78,6 +86,13 @@ func (s RepositoryStatus) Read(ctx context.Context, actor collaboration.ActorID,
 		return nil, err
 	}
 	view := &RepositoryStatusView{Repository: strconv.FormatInt(int64(repository), 10), NativeBindings: []factory.ActorBindingRef{}, Sponsorships: []factory.Sponsorship{}}
+	if s.PolicyOptions != nil {
+		// Missing provider options keep initial setup unavailable; they do not
+		// prevent browsing or editing an already recorded policy.
+		if options, err := s.PolicyOptions(ctx, actor, repository); err == nil {
+			view.PolicyOptions = options
+		}
+	}
 	bindings, err := s.Bindings(ctx, actor, repository)
 	if err != nil {
 		return nil, errors.Join(ErrRepositoryStatusBindings, err)

@@ -8,9 +8,14 @@ export const progressIntent = 'd' + 'a'.repeat(24);
 
 /** Declared UI peer; optional policy edits remain in memory. No backend,
  * credentials, provider, model or worker. */
-export function progressStoryPeer(state: ProgressStoryState, repository = progressRepository, editRoles = false) {
+export function progressStoryPeer(
+  state: ProgressStoryState,
+  repository = progressRepository,
+  editRoles: boolean | 'setup' = false
+) {
   let generation = `declared-progress:${state}`;
   let failure = 0;
+  let configured = editRoles !== 'setup';
   let hold = false;
   const pending: {signal: AbortSignal | null | undefined; resolve: () => void}[] = [];
   const calls: string[] = [];
@@ -72,9 +77,12 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
       if (status) return Response.json({error: {message: 'Declared progress read unavailable.'}}, {status});
       if (editRoles && path === `repositories/${repository}/factory/policy` && init?.method === 'PUT') {
         const change = JSON.parse(String(init.body));
-        if (change.expected_revision !== policy.revision) return Response.json({}, {status: 409});
+        if (change.expected_revision !== (configured ? policy.revision : 0)) return Response.json({}, {status: 409});
         policyChanges.push(change);
-        policy = {...policy, roles: change.roles, revision: policy.revision + 1};
+        policy = configured
+          ? {...policy, roles: change.roles, revision: policy.revision + 1}
+          : {...policy, ...change, revision: 1};
+        configured = true;
         return Response.json({state: 'applied'});
       }
       if (init?.method !== 'GET') return Response.json({error: 'read_only'}, {status: 405});
@@ -108,9 +116,25 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
           revisions: [{revision: 'd' + 'b'.repeat(24), repository: repository, state: 'accepted'}],
         });
       if (path === `repositories/${repository}/factory`)
-        return Response.json({repository, policy: editRoles ? policy : null, sponsorships: editRoles ? accounts : []});
+        return Response.json({
+          repository,
+          policy: editRoles && configured ? policy : null,
+          sponsorships: editRoles && editRoles !== 'setup' ? accounts : [],
+          policy_options: editRoles ? {target_branch: 'refs/heads/main', merge_methods: ['squash', 'rebase']} : null,
+          native_bindings: editRoles
+            ? ['git.ref.publish', 'pull_request.create', 'pull_request.review.submit', 'pull_request.merge'].map(
+                (kind) => ({
+                  kind,
+                  actor_id: '7',
+                  native_profile: 'a'.repeat(32),
+                  native_connection: 'b'.repeat(32),
+                  token_id: '0',
+                })
+              )
+            : [],
+        });
       if (path === `repositories/${repository}/factory/access`)
-        return Response.json({repository, editable: {policy: {editable: editRoles}}});
+        return Response.json({repository, editable: {policy: {editable: !!editRoles}}});
       const issuePath = `repositories/${repository}/factory/issues/`;
       if (path.startsWith(issuePath)) {
         if (path.slice(issuePath.length).startsWith('13')) return Response.json({error: 'forbidden'}, {status: 403});
@@ -127,6 +151,8 @@ export function progressStoryPeer(state: ProgressStoryState, repository = progre
     },
   };
   const overview: WorkOverviewContext = {
+    actor: '7',
+    accountLabel: 'Declared owner',
     transport,
     repository: repository,
     intentID: progressIntent,

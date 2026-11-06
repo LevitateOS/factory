@@ -95,8 +95,20 @@ corrections are now active; the old feature queue waits for their resolution.
   in `/home/vince/tmp/froles-native7.xlR4x8/result.log`: local-owner editability
   remains separate from false provider write/admin powers. Native spending-account
   ownership/usage is withheld while authenticated identity discovery is unavailable.
-  Existing-Muse-session discovery/enrollment, initial policy setup through the UI
-  and other AI provider connectors remain unfinished; only Muse is offered.
+  The shared application's first-policy flow now requires the target branch,
+  required CI checks, explicit role models and consent to use its connected
+  collaboration account. It offers only observed enabled merge methods and saves
+  a disabled policy without inventing spending accounts. Chromium bootstrap and
+  rejected-input draft retention passed with a declared peer in
+  `/home/vince/tmp/fpolicy-setup-ui7.GaHZ18/result.log`. Actual composed native
+  options/bootstrap/readback passed in
+  `/home/vince/tmp/fpolicy-setup-native7.QgIhyD/result.log`, including disabled
+  method exclusion and a subsequent separate-account policy update. Provider
+  identity/permissions/options were declared; automation remained disabled and
+  remote writes refused. Other hosts must provide current policy options to use
+  this initial flow. Existing-Muse-session discovery/enrollment, connected
+  enablement/execution and other AI provider connectors remain unfinished;
+  only Muse is offered.
   No connected billing, custody or installed execution gate is qualified here.
 - **A07 — merge-method contract verified; native automation pending.** Policy now
   accepts merge/squash/rebase as well as retained Fountain methods. Immutable

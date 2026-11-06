@@ -470,13 +470,24 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         let settings_path = format!("/api/repositories/{repository}/factory");
         let before = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
         ensure(before.0 == 200, "local settings read unavailable")?;
+        ensure(
+            before.1["policy"].is_null()
+                && before.1["policy_options"]["target_branch"] == "refs/heads/main"
+                && before.1["policy_options"]["merge_methods"] == json!(["squash", "rebase"]),
+            "initial policy options invented a disabled or unsupported merge method",
+        )?;
         let binding = &before.1["native_bindings"][0];
         let actor = json!({"native_profile":binding["native_profile"],
-            "native_connection":binding["native_connection"],"actor_id":binding["actor_id"]});
+            "native_connection":binding["native_connection"],"token_id":binding["token_id"],"actor_id":binding["actor_id"]});
         let role = json!({"account":"declared-coder","harness":"muse","model":"muse-spark-1.3-contributor",
             "profile":{"effort":"high","contributor":false}});
         let mut reviewer = role.clone();
         reviewer["account"] = json!("declared-reviewer");
+        let mut initial_role = role.clone();
+        initial_role
+            .as_object_mut()
+            .ok_or("initial role object missing")?
+            .remove("account");
         let changes = [
             json!({"kind":"capacity","body":{"expected_revision":0,"max_concurrent_runs":2}}),
             json!({"kind":"repository_setting","repository":repository,"setting":"placement",
@@ -487,8 +498,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 "body":{"expected_revision":0,"active":true,"native":true}}),
             json!({"kind":"repository_setting","repository":repository,"setting":"policy",
                 "body":{"expected_revision":0,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
-                    "roles":{"soda-coder":role,"soda-reviewer":reviewer},"required_checks":["fixture/check"],
-                    "merge_method":"fast-forward-only","publish_actor":actor,"create_actor":actor,
+                    "roles":{"soda-coder":initial_role,"soda-reviewer":initial_role},"required_checks":["fixture/check"],
+                    "merge_method":"squash","publish_actor":actor,"create_actor":actor,
                     "review_actor":actor,"merge_actor":actor}}),
         ];
         for change in changes {
@@ -503,6 +514,30 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 ),
             )?;
         }
+        let initial = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        ensure(
+            initial.0 == 200
+                && initial.1["policy"]["revision"] == 1
+                && initial.1["policy"]["enabled"] == false
+                && initial.1["policy"]["roles"]["soda-coder"]["account"].is_null()
+                && initial.1["policy"]["roles"]["soda-reviewer"]["account"].is_null()
+                && initial.1["policy"]["merge_method"] == "squash",
+            "disabled initial policy invented spending choices",
+        )?;
+        let update: ProductRequest = serde_json::from_value(
+            json!({"kind":"repository_setting","repository":repository,"setting":"policy",
+			"body":{"expected_revision":1,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
+				"roles":{"soda-coder":role,"soda-reviewer":reviewer},"required_checks":["fixture/check"],
+				"merge_method":"rebase","publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor}}),
+        )?;
+        let (method, target, body) = update.request()?;
+        ensure(
+            call(&runtime, &store, &connection, method, &target, &body)
+                .await?
+                .0
+                == 200,
+            "role update after initial policy refused",
+        )?;
         let after = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
         ensure(
             after.0 == 200
@@ -546,7 +581,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             root.join("local-resource-result.json"),
             serde_json::to_vec(&json!({
                 "local_owner_controls":true,"run_limit":2,"repository_run_permission":true,
-                "workspace_permission":true,"policy_enabled":false,"provider_write_refused":true,"access_readback":true,
+                "workspace_permission":true,"policy_enabled":false,"provider_write_refused":true,"access_readback":true,"initial_policy_without_spending":true,"enabled_merge_options":true,
             "provider_permissions":"declared push=false and no admin observation; no real provider effects"
             }))?,
         )?;

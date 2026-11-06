@@ -60,8 +60,12 @@ now binds role-specific paying accounts through policy, authority, dispatch/retr
 and atomic admission; PostgreSQL and native settings readback checks passed.
 The shared Work view now edits models and eligible saved paying accounts per role;
 native local-owner access readback is composed without inventing provider powers.
-Existing-session account discovery/enrollment and initial policy setup through the
-UI remain unfinished; other provider connectors are unavailable.
+The initial shared policy form now saves an unfunded, disabled full-pipeline policy
+after explicit branch/check/model/account-consent choices and current enabled merge
+options. Declared browser and composed native bootstrap/readback checks passed.
+Existing-session account discovery/enrollment and connected enablement/execution
+remain unfinished; other provider connectors are unavailable. Hosts without policy
+options retain existing-policy editing with initial setup unavailable.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

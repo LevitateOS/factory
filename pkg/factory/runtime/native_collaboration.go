@@ -55,10 +55,11 @@ type NativeIdentity struct {
 	SelectedRepository string
 }
 type NativeRepository struct {
-	ExternalID    string `json:"external_id"`
-	Name          string `json:"name"`
-	Private       *bool  `json:"private"`
-	DefaultBranch string `json:"default_branch"`
+	MergeMethods  map[string]*bool `json:"merge_methods,omitempty"`
+	ExternalID    string           `json:"external_id"`
+	Name          string           `json:"name"`
+	Private       *bool            `json:"private"`
+	DefaultBranch string           `json:"default_branch"`
 	// Push is a provider observation, not Factory execution or spending authority.
 	Push  *bool `json:"push"`
 	Admin *bool `json:"admin"`

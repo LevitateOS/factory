@@ -5,18 +5,18 @@ import type {ProgressStoryState} from '../../storybook/progress-fixtures.js';
 import './progress.js';
 
 interface Args {
-  view: 'overview' | 'repository' | 'plan' | 'direction' | 'roles';
+  view: 'overview' | 'repository' | 'plan' | 'direction' | 'roles' | 'setup';
   state: ProgressStoryState;
 }
 const meta = {
   title: 'Factory/Work progress',
   args: {view: 'overview', state: 'ready'},
   argTypes: {
-    view: {control: 'select', options: ['overview', 'repository', 'plan', 'direction', 'roles']},
+    view: {control: 'select', options: ['overview', 'repository', 'plan', 'direction', 'roles', 'setup']},
     state: {control: 'select', options: ['ready', 'loading', 'missing', 'denied', 'offline', 'partial']},
   },
   render: ({view, state}) => {
-    const peer = progressStoryPeer(state, undefined, view === 'roles');
+    const peer = progressStoryPeer(state, undefined, view === 'setup' ? 'setup' : view === 'roles');
     if (view === 'plan') return html`<soda-factory-work-plan .context=${peer.plan}></soda-factory-work-plan>`;
     if (view === 'direction')
       return html`<soda-factory-direction-revision .context=${peer.direction}></soda-factory-direction-revision>`;
@@ -36,6 +36,7 @@ export const PartialPlan: Story = {args: {view: 'plan', state: 'partial'}};
 export const DirectionHistory: Story = {args: {view: 'direction'}};
 export const MissingDirection: Story = {args: {view: 'direction', state: 'missing'}};
 export const RoleSettings: Story = {args: {view: 'roles'}};
+export const InitialPolicy: Story = {args: {view: 'setup'}};
 export const Loading: Story = {args: {state: 'loading'}};
 export const PermissionDenied: Story = {args: {state: 'denied'}};
 export const Offline: Story = {args: {state: 'offline'}};

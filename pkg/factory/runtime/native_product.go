@@ -86,7 +86,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 					return nil, factoryservice.ErrSponsorshipBrokerUnavailable
 				}},
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
-				Bindings: bound.policyBindings, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
+				Bindings: bound.policyBindings, PolicyOptions: bound.policyOptions, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Runs:    factoryhttp.Runs{Store: application.Store, Visibility: bound.visible, Status: factoryservice.RunStatus{Store: application.Store}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},

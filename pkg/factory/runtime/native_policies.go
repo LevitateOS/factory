@@ -31,3 +31,20 @@ func (b *nativeProductAccount) policyBindings(ctx context.Context, actor collabo
 	}
 	return refs, nil
 }
+
+func (b *nativeProductAccount) policyOptions(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*factoryservice.RepositoryPolicyOptions, error) {
+	observed, err := b.repositoryObservation(ctx, actor, repository)
+	if err != nil {
+		return nil, err
+	}
+	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}}
+	if branch := "refs/heads/" + observed.DefaultBranch; factory.ValidTargetBranch(branch) {
+		options.TargetBranch = branch
+	}
+	for _, method := range []string{"merge", "squash", "rebase"} {
+		if enabled := observed.MergeMethods[method]; enabled != nil && *enabled {
+			options.MergeMethods = append(options.MergeMethods, method)
+		}
+	}
+	return options, nil
+}

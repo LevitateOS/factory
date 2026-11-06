@@ -96,7 +96,7 @@ fn labels(v: &Value) -> Result<Value> {
 pub(super) fn repository(v: &Value) -> Result<Value> {
     id(&v["owner"]["id"])?;
     Ok(
-        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?,"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?,"admin":boolean(&v["permissions"],"admin")?}),
+        json!({"external_id":id(&v["id"])?,"name":nonempty(v,"full_name")?,"private":boolean(v,"private")?,"default_branch":full_text(v,"default_branch")?,"push":boolean(&v["permissions"],"push")?,"admin":boolean(&v["permissions"],"admin")?,"merge_methods":{"merge":boolean(v,"allow_merge_commit")?,"squash":boolean(v,"allow_squash_merge")?,"rebase":boolean(v,"allow_rebase_merge")?}}),
     )
 }
 pub(super) fn issue(v: &Value) -> Result<Value> {
