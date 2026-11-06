@@ -80,6 +80,12 @@ Disconnect clears that intent. The desktop explicitly starts the
 single Go coordinator after Rust's callback owner is ready. Missing task/provider
 dependencies remain unavailable; startup grants no execution authority. Shared PR
 views and human write qualification have their own recorded evidence.
+The native tool owner discovers an existing Muse launcher through absolute PATH
+entries or `~/.local/bin`, then verifies the adjacent versioned ELF against the
+current official stable manifest. Verification does not run the launcher or read
+its login. Browsing remains available during initial verification; missing/stale
+tools cannot start work. Automatic installation/update activation and execution
+through the existing Muse login remain unfinished.
 The old unbound query/mutation and recorded-run polling IPC surface is absent from
 normal builds; its historical control probes exist only with native-check.
 

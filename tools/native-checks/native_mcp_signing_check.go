@@ -2144,10 +2144,22 @@ func ownedToolFixture(profile, instance, mode string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	timeout := 8 * time.Second
+	if mode == "discovery" {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance}
 	observed, err := port.InspectTool(ctx, project.FactoryHarnessMuse)
+	for mode == "discovery" && err != nil && ctx.Err() == nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+		observed, err = port.InspectTool(ctx, project.FactoryHarnessMuse)
+	}
 	if mode == "unavailable" {
 		if err == nil {
 			return errors.New("unselected native tool became available")

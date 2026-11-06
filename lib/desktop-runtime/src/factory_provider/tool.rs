@@ -1,5 +1,6 @@
 //! Official stable selection and actual installed ELF identity. The native host
-//! supplies the install directory; Go and the webview cannot choose a path.
+//! discovers the installed CLI or supplies its directory; Go and the webview
+//! cannot choose a path. Discovery never executes a launcher or reads its login.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_EXECUTABLE;
@@ -54,6 +55,36 @@ pub struct Tools {
     selected: tokio::sync::Mutex<Option<(Instant, ToolSelection, std::fs::Metadata)>>,
 }
 impl Tools {
+    pub fn discover() -> io::Result<Self> {
+        let mut directories: Vec<PathBuf> = std::env::var_os("PATH")
+            .map(|paths| {
+                std::env::split_paths(&paths)
+                    .filter(|path| path.is_absolute())
+                    .collect()
+            })
+            .unwrap_or_default();
+        if let Some(home) = std::env::var_os("HOME") {
+            let directory = PathBuf::from(home).join(".local/bin");
+            if directory.is_absolute() && !directories.contains(&directory) {
+                directories.push(directory);
+            }
+        }
+        for directory in directories {
+            let launcher = directory.join("muse");
+            if !launcher
+                .metadata()
+                .is_ok_and(|meta| meta.is_file() && meta.mode() & 0o111 != 0)
+            {
+                continue;
+            }
+            // Official launchers keep muse-bin-VERSION beside the launcher.
+            // Resolve symlinks, then use the existing channel/manifest/ELF checks;
+            // neither a shell script nor a reported version is executable proof.
+            let launcher = launcher.canonicalize()?;
+            return Self::new(launcher.parent().ok_or_else(refused)?);
+        }
+        Err(refused())
+    }
     pub fn new(directory: &Path) -> io::Result<Self> {
         let directory = directory.canonicalize()?;
         let meta = directory.symlink_metadata()?;

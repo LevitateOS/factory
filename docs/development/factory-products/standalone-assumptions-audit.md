@@ -30,6 +30,12 @@ The user started the correction goal and selected these requirements on
   dependencies inside isolated workspaces (A17). The current system-tools-only,
   offline preparer does not meet this requirement. Approved provisioning, network
   policy and meaningful resource limits must be implemented and qualified.
+- Automated GitHub delivery must use an enabled GitHub merge/squash/rebase method
+  rather than requiring fast-forward-only delivery (A07).
+- Drafts/history require a GitHub connection; offline profile ownership was not
+  selected (A09).
+- Each role selects its provider, model and paying account/subscription explicitly;
+  do not switch spending accounts automatically (A11).
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -38,6 +44,16 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A16 — installed executable discovery verified.** Native startup discovers
+  Muse through absolute PATH entries or the normal `~/.local/bin` location,
+  resolves its launcher directory and applies the existing official stable
+  manifest/ELF proof. Initial verification runs under the joined native lifecycle
+  owner outside short product RPCs; browsing remains available while it runs.
+  The existing actual Go/native callback check passed without explicit directory
+  enrollment in `/home/vince/tmp/fdiscover-ready6.ukS3ab/result.log` using installed
+  `1.4.14-R7309.1` bytes. No launcher execution, credential read, sign-in or model
+  call ran. Download/update activation, existing-session execution integration
+  and installed distribution qualification remain unfinished.
 - **A23 — active guidance corrected.** README now describes implemented binding
   and human GitHub journeys separately from pending agent execution/installed
   delivery. The milestone summary matches the fifteen pending table rows.

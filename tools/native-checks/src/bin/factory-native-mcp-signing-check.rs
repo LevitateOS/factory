@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Path::new(&args[3]),
         );
     }
-    if args.len() == 5 && args[4] == "tool" {
+    if args.len() == 5 && matches!(args[4].as_str(), "tool" | "tool-discovery") {
         let supervisor = NativeSupervisor::start(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -46,19 +46,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         };
-        check("unavailable")?;
-        let selection_started = std::time::Instant::now();
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?
-            .block_on(supervisor.select_execution_tools(Path::new(&std::env::var(
-                "SODA_NATIVE_CHECK_TOOL_DIRECTORY",
-            )?)))?;
-        println!(
-            "Native official ELF selection: {} ms",
-            selection_started.elapsed().as_millis()
-        );
-        check("current")?;
+        if args[4] == "tool" {
+            if soda_desktop_runtime::factory_provider::Tools::discover().is_err() {
+                check("unavailable")?;
+            }
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(supervisor.select_execution_tools(Path::new(&std::env::var(
+                    "SODA_NATIVE_CHECK_TOOL_DIRECTORY",
+                )?)))?;
+        }
+        check(if args[4] == "tool-discovery" {
+            "discovery"
+        } else {
+            "current"
+        })?;
         supervisor.stop()?;
         return Ok(());
     }

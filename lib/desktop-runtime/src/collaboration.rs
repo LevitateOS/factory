@@ -332,7 +332,7 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
-            tools: RwLock::new(None),
+            tools: RwLock::new(crate::factory_provider::Tools::discover().ok().map(Arc::new)),
             preparations,
             execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
             work,
@@ -352,6 +352,11 @@ impl Owner {
                 if started.send(Ok(())).is_err() { return Ok(()); }
                 let connections = Arc::new(Semaphore::new(MAX_OPERATIONS));
                 let mut tasks = JoinSet::new();
+                if let Some(tools) = state.tools.read().ok().and_then(|tools| tools.clone()) {
+                    // Verify a discovered installation outside bounded product RPCs.
+                    // Browsing stays available while its initial ELF hash is read.
+                    tasks.spawn(async move { let _ = tools.inspect().await; });
+                }
                 let result = loop {
                     tokio::select! {
                         biased;
