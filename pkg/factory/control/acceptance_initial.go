@@ -92,10 +92,10 @@ func (c *Coordinator) readInitialAcceptanceEvidence(ctx context.Context, hint In
 }
 
 // buildInitialAcceptance builds the validated initial decision behind
-// verified evidence with a non-factory creator write.
+// verified evidence with an authorized creator and independent origin evidence.
 func (c *Coordinator) buildInitialAcceptance(ctx context.Context, hint IntakeHint, evidence AcceptanceEvidence) (factory.Acceptance, error) {
 	var empty factory.Acceptance
-	policy, err := c.Store.RepositoryPolicy(ctx, hint.Repository)
+	_, err := c.Store.RepositoryPolicy(ctx, hint.Repository)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			return empty, refuseAcceptance(RefusalCreationUnauthorized)
@@ -105,13 +105,18 @@ func (c *Coordinator) buildInitialAcceptance(ctx context.Context, hint IntakeHin
 	if hint.Creator <= 0 {
 		return empty, refuseAcceptance(RefusalCreationUnverified)
 	}
-	for _, ref := range []factory.ActorBindingRef{policy.Publish, policy.Create, policy.Review, policy.Merge} {
-		if ref.ActorID == hint.Creator {
-			return empty, refuseAcceptance(RefusalCreationFactory)
-		}
-	}
 	if !hint.CreatorWrite {
 		return empty, refuseAcceptance(RefusalCreationUnauthorized)
+	}
+	generated, pending, err := c.Store.AutomaticIssueOrigin(ctx, hint.Repository, hint.Issue)
+	if err != nil {
+		return empty, err
+	}
+	if generated {
+		return empty, refuseAcceptance(RefusalCreationFactory)
+	}
+	if pending {
+		return empty, store.ErrReadinessPending
 	}
 	view := evidence.Issue
 	decision := factory.Acceptance{

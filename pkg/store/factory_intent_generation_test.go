@@ -96,6 +96,9 @@ func TestIntentGenerationPinsParentBeforeEffects(t *testing.T) {
 		t.Fatal("changed operation accepted")
 	}
 	g.ActorID = 9
+	if generated, pending, err := s.AutomaticIssueOrigin(ctx, 42, 1); err != nil || generated || !pending {
+		t.Fatal("unbound graph creation must hold initial intake", generated, pending, err)
+	}
 	g.State = "committed"
 	g.Receipt = json.RawMessage(`{"issues":[1]}`)
 	if err := s.RecordIntentGeneration(ctx, g, factory.GraphReceiptFacts{}); err != nil {
@@ -104,6 +107,12 @@ func TestIntentGenerationPinsParentBeforeEffects(t *testing.T) {
 	b := factory.IntentTaskBinding{RevisionID: r.ID, TaskKey: r.Tasks[0].Key, IssueID: 1, IssueIndex: 1, AcceptanceID: "d555555555555555555555555"}
 	if err := s.BindIntentTaskAcceptance(ctx, b); err != nil {
 		t.Fatal(err)
+	}
+	if generated, pending, err := s.AutomaticIssueOrigin(ctx, 42, 1); err != nil || !generated || pending {
+		t.Fatal("graph-created issue origin was lost after binding", generated, pending, err)
+	}
+	if generated, pending, err := s.AutomaticIssueOrigin(ctx, 43, 1); err != nil || generated || pending {
+		t.Fatal("graph origin escaped its repository", generated, pending, err)
 	}
 	current, found, err := s.GeneratedIntentCurrent(ctx, b.AcceptanceID)
 	if err != nil || !found || !current {

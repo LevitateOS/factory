@@ -1214,6 +1214,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "check-initial-intake" {
+		if err := initialIntakeFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "exec" {
 		if err := workerProfileFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1256,6 +1263,127 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+type initialIntakeSource struct{ view control.AcceptanceIssueView }
+
+func (s *initialIntakeSource) ReadAcceptanceEvidence(context.Context, string, string, []string) (control.AcceptanceEvidence, error) {
+	return control.AcceptanceEvidence{Revision: 1, Issue: s.view}, nil
+}
+
+// Provider creation/permission facts are declared; coordinator admission,
+// causal journals, edit retention and acceptance persistence use real PostgreSQL.
+func initialIntakeFixture() error {
+	dsn, ok := store.TestFixtureDSN()
+	if !ok {
+		return errors.New("private PostgreSQL fixture required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, _, cleanup, err := store.OpenEphemeral(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	policy := factory.RepositoryPolicy{Repository: 42, GrantedBy: 7, TargetBranch: "refs/heads/main", MergeMethod: factory.MergeFastForward, Checks: []string{"fixture/build"},
+		Roles:   map[string]factory.RoleSelection{project.RoleCoder: {Account: "chosen", Harness: project.FactoryHarnessMuse, Model: "declared"}, project.RoleReviewer: {Account: "chosen", Harness: project.FactoryHarnessMuse, Model: "declared"}},
+		Publish: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpRefPublish}, Create: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpPRCreate},
+		Review: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpReviewSubmit}, Merge: factory.ActorBindingRef{TokenID: 11, ActorID: 7, Kind: factory.OpMerge},
+		AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	source := &initialIntakeSource{view: control.AcceptanceIssueView{ID: "101", Index: "1", PosterID: "7", CreatedUnix: 100,
+		TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), LifecycleOccurrence: factory.OriginalOccurrence, Visible: true, Verified: true}}
+	c := control.Coordinator{Store: db, AcceptanceReads: source}
+	hint := control.IntakeHint{Delivery: "initial-intake-fixture", Repository: 42, Issue: 1, Creator: 7, Created: true, CreatorWrite: true, CreationVerified: true, NativeIssueID: 101, CreatedUnix: 100, TitleDigest: source.view.TitleDigest, ContentDigest: source.view.ContentDigest}
+	decision, err := c.AdmitInitialAcceptance(ctx, hint)
+	if err != nil || !decision.Initial || decision.Approver != 7 {
+		return fmt.Errorf("owner's own issue was not admitted: %w", err)
+	}
+	if _, err := c.AdmitInitialAcceptance(ctx, hint); err != nil {
+		return fmt.Errorf("initial acceptance replay: %w", err)
+	}
+	post, _, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: 42, Body: "Create an automated issue", IdempotencyKey: "initial-origin"}, "7", "Declared owner", 100)
+	if err != nil {
+		return err
+	}
+	if err := db.BeginPostIssueCreation(ctx, post, 0); err != nil {
+		return err
+	}
+	source.view.ID, source.view.Index = "102", "2"
+	hint.NativeIssueID, hint.Issue = 102, 2
+	if _, err := c.AdmitInitialAcceptance(ctx, hint); !errors.Is(err, store.ErrReadinessPending) {
+		return fmt.Errorf("unresolved create did not retain pending intake: %v", err)
+	}
+	if _, err := db.EditFeedPost(ctx, post, "7", "Edited while provider result was unknown", 0, 101); err != nil {
+		return err
+	}
+	if err := db.RecordPostIssueCreation(ctx, post, 0, 2); err != nil {
+		return err
+	}
+	if err := db.RecordPostIssueCreation(ctx, post, 0, 3); err == nil {
+		return errors.New("conflicting creation result replaced recorded issue")
+	}
+	_, err = c.AdmitInitialAcceptance(ctx, hint)
+	var refusal *control.AcceptanceRefusal
+	if !errors.As(err, &refusal) || refusal.Reason != control.RefusalCreationFactory {
+		return fmt.Errorf("recorded automated issue was not excluded: %v", err)
+	}
+	if _, err := db.AcceptanceHead(ctx, 42, 2); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("automatic issue unexpectedly acquired an initial acceptance")
+	}
+	source.view.ID, source.view.Index = "103", "3"
+	hint.NativeIssueID, hint.Issue = 103, 3
+	if _, err := c.AdmitInitialAcceptance(ctx, hint); err != nil {
+		return fmt.Errorf("unrelated owner issue remained blocked after reconciliation: %w", err)
+	}
+	if err := db.BeginPostIssueCreation(ctx, post, 1); err != nil {
+		return err
+	}
+	if err := db.RecordPostIssueCreation(ctx, post, 1, -1); err != nil {
+		return err
+	}
+	maker, _, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: 42, Body: "Issue Maker source", IdempotencyKey: "maker-origin"}, "7", "Declared owner", 101)
+	if err != nil {
+		return err
+	}
+	if err := db.RecordIssueMakerIntake(ctx, maker, 0); err != nil {
+		return err
+	}
+	pipe, err := db.PostIntake(ctx, maker)
+	if err != nil {
+		return err
+	}
+	next := pipe
+	next.Judgment, next.Route = factory.PostJudgmentApplied, factory.PostRouteNewIssue
+	if err := db.AdvancePostIntake(ctx, pipe, next); err != nil {
+		return err
+	}
+	postDetail, err := db.FeedPost(ctx, maker)
+	if err != nil {
+		return err
+	}
+	progress, err := db.StartPostIssueMaker(ctx, postDetail)
+	if err != nil {
+		return err
+	}
+	mutation := factory.IssueMakerMutation{Action: "create", Title: "Declared task", Body: "Declared task body"}
+	mutation, err = db.PrepareIssueMakerMutation(ctx, progress.Scope.Post, "create-task", factory.MCPInputDigest([]byte("create task")), "task", mutation)
+	if err != nil {
+		return err
+	}
+	if generated, pending, err := db.AutomaticIssueOrigin(ctx, 42, 4); err != nil || generated || !pending {
+		return fmt.Errorf("Issue Maker pending origin: %t %t %v", generated, pending, err)
+	}
+	if err := db.RecordIssueMakerIssue(ctx, progress.Scope, "task", mutation.Slot, 4, mutation.Title, mutation.Body); err != nil {
+		return err
+	}
+	if generated, pending, err := db.AutomaticIssueOrigin(ctx, 42, 4); err != nil || !generated || pending {
+		return fmt.Errorf("Issue Maker result/refused root origin: %t %t %v", generated, pending, err)
+	}
+	fmt.Println("PASS: same-account human intake, replay, unknown-result hold, retained origin after edit, recursion refusal and unrelated issue admission (declared provider facts; actual coordinator/PostgreSQL)")
+	return nil
 }
 
 // The provider/account/repository permissions are declared fixture facts.

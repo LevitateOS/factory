@@ -198,6 +198,9 @@ func (s *CapturedIssueEffects) CreatePostIssue(ctx context.Context, draft factor
 	if grant.Expires <= time.Now().Unix() {
 		return 0, ErrCapturedIssueAuthority
 	}
+	if err := s.Store.BeginPostIssueCreation(ctx, draft.SourcePost, draft.Revision); err != nil {
+		return 0, err
+	}
 	receipt, err := s.Writer.ApplyIssueIntake(ctx, proof, request)
 	if err != nil {
 		return 0, err
@@ -205,7 +208,7 @@ func (s *CapturedIssueEffects) CreatePostIssue(ctx context.Context, draft factor
 	if err := capturedReceipt(receipt, grant, request); err != nil {
 		return 0, err
 	}
-	return receipt.Issue.Number, nil
+	return receipt.Issue.Number, s.Store.RecordPostIssueCreation(ctx, draft.SourcePost, draft.Revision, receipt.Issue.Number)
 }
 
 func (s *CapturedIssueEffects) Mutate(ctx context.Context, scope factory.IssueMakerScope, action, key, title, body, operation string) (int64, error) {

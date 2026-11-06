@@ -54,6 +54,12 @@ provider result fetching and connected merge qualification remain pending. A11
 now binds role-specific paying accounts through policy, authority, dispatch/retry
 and atomic admission; PostgreSQL and native settings readback checks passed.
 Existing-session account discovery and the role editor still need implementation.
+The owner selected Linux/systemd with one configured execution user per machine
+for the first installed execution release; other platforms retain browsing with
+execution unavailable (A18). Own newly created GitHub issues are eligible (A08).
+Initial intake now uses causal creation journals instead of account inequality;
+unknown creation results hold automatic intake in that repository. Connected
+creation provenance/races and D1 remain unqualified.
 See the audit for
 exact evidence; these corrections do not complete any old queue row.
 

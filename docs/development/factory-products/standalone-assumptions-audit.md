@@ -36,6 +36,11 @@ The user started the correction goal and selected these requirements on
   selected (A09).
 - Each role selects its provider, model and paying account/subscription explicitly;
   do not switch spending accounts automatically (A11).
+- Ship execution first on Linux desktops with systemd and one configured execution
+  user per machine. Other environments retain browsing with execution unavailable
+  (A18); installed isolation/lifecycle qualification remains required.
+- Include the owner's own newly created GitHub issues in automatic intake. Prevent
+  recursion using recorded Factory operations/origin, not account inequality (A08).
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -43,6 +48,15 @@ delivery modes are superseded by the full-pipeline decision above. Execution
 corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
+
+- **A08 — same-account intake and causal loop guard implemented.** Initial
+  acceptance retains verified original-creation, current content and creator-write
+  requirements. Account equality with automation actors no longer excludes human
+  issues. Existing post, Issue Maker and intent-generation journals identify
+  automated creations; unresolved creates hold automatic intake in that repository
+  until reconciliation. Root post results survive source edits/revocation.
+  Coordinator/PostgreSQL evidence and remaining connected limitations are recorded
+  in the security handoff. This does not close D1 or T11-INTAKE.
 
 - **A11 — role-specific funding admission verified; native selection UI pending.**
   Policy role selections now capture an explicit paying `account` beside harness,
@@ -356,21 +370,21 @@ observed native automatic merge failure from an unwired executor.
 
 ### A08 — Original-creation intake assumes human and automation identities differ
 
-**Restriction in automatic initial intake; owner decision.** Initial acceptance
-requires corroborated original, unedited creation and rejects a creator matching
-any configured automation actor. With automation acting as the desktop user,
-that user's own new issue is excluded by this path.
+**Owner decision implemented; connected qualification pending.** The owner selected
+automatic intake of their own new issues. Initial acceptance still requires
+corroborated original, unedited creation and creator write permission. Causal
+operation journals now exclude generated issues and hold unresolved creations;
+sharing an automation actor account no longer excludes a human-created issue.
 
 Evidence: [initial acceptance](../../../pkg/factory/control/acceptance_initial.go#L80),
 [creator exclusion](../../../pkg/factory/control/acceptance_initial.go#L108).
 Explicit maintainer acceptance is a different existing path:
 [acceptance](../../../pkg/factory/control/acceptance.go#L119).
 
-**Correction:** define current-state adoption and prevent recursive automation by
-causal operation/origin evidence, not merely shared account identity. Decide
-whether executable work must originate in a remote issue. Do not claim that all
-self-authored work is rejected or that explicit adoption is already reachable
-through the desktop; D1 remains unresolved.
+**Remaining:** qualify authenticated GitHub creation intake and its operation/result
+races through the full pipeline. Older superseded operations without retained
+origin/result evidence cannot be retroactively classified by this source change.
+Explicit maintainer adoption remains separate; D1 remains unresolved.
 
 ### A09 — Local product ownership depends on live collaboration-provider admission
 
@@ -528,7 +542,9 @@ all normal projects; packed bundles, expanded trees and build output differ.
 
 ### A18 — “Linux desktop” conceals a narrower installed support model
 
-**Decision.** Execution requires systemd/private namespaces, cgroup v2 controllers
+**Selected first-release boundary.** The owner accepted Linux desktops with
+systemd and one configured execution user per machine. Other environments keep
+browsing available and execution unavailable. Execution requires private namespaces, cgroup v2 controllers
 and a conventional runtime directory. Global worker/relay templates embed one
 desktop user/UID. Multiuser installation of the same global units is not supplied.
 
@@ -537,10 +553,10 @@ Evidence: [scope requirements](../../../lib/native-process/src/scope.rs#L15),
 [broker socket](../../../cmd/soda-factory-broker/systemd/soda-factory-broker.socket.in#L5),
 [relay template](../../../cmd/soda-factory-worker/systemd/soda-factory-provider-relay@.service.in#L7).
 
-**Correction:** declare supported distributions/session/service capabilities and
-single-user versus multiuser installation. Keep the documented isolated worker
-choice pending explicit reconsideration. Do not introduce a weaker execution
-fallback or a login remedy for unsupported platform facilities.
+**Remaining:** package and qualify this single-user systemd baseline, including
+required session/controller capabilities and degraded browsing. Multiuser global
+unit installation is outside the selected initial release. Do not introduce a
+weaker execution fallback or a login remedy for missing platform facilities.
 
 ### A19 — CLI integration includes a second provider wire-policy implementation
 

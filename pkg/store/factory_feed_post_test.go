@@ -65,6 +65,9 @@ func TestIssueMakerOpaqueGrantAndMutationJournal(t *testing.T) {
 	if err != nil || first.Slot != 1 || first.Step != 0 {
 		t.Fatal(first, err)
 	}
+	if generated, pending, err := s.AutomaticIssueOrigin(ctx, 7, 1); err != nil || generated || !pending {
+		t.Fatal("unresolved Issue Maker create must hold initial intake", generated, pending, err)
+	}
 	changed := mutation
 	changed.Title = "Recomputed title"
 	changed.Body = "Recomputed body"

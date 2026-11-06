@@ -16,6 +16,8 @@ import (
 type PostEffectStore interface {
 	FeedPost(context.Context, string) (store.FeedPostDetail, error)
 	PostDraft(context.Context, string, int64) (factory.IssueDraft, error)
+	BeginPostIssueCreation(context.Context, string, int64) error
+	RecordPostIssueCreation(context.Context, string, int64, int64) error
 }
 
 type PostEffectGraph interface {
@@ -154,11 +156,23 @@ func (s *PostIssueEffects) CreatePostIssue(ctx context.Context, draft factory.Is
 		AuthRevision: "comment/" + draft.SourcePost + "/r" + strconv.FormatInt(draft.Revision, 10),
 		NotAfter:     time.Now().Add(5 * time.Minute).Unix(), Payload: payload,
 	}
+	if err := s.Store.BeginPostIssueCreation(ctx, draft.SourcePost, draft.Revision); err != nil {
+		return 0, err
+	}
 	outcome, err := s.Graph.SubmitGraph(ctx, generation, repository)
 	if err != nil {
 		return 0, err
 	}
-	return s.receiptIndex(ctx, repository, draft.SourcePost, outcome)
+	if outcome.OperationID == generation.OperationID && outcome.Effect == collaboration.EffectNotCommitted {
+		if err := s.Store.RecordPostIssueCreation(ctx, draft.SourcePost, draft.Revision, -1); err != nil {
+			return 0, err
+		}
+	}
+	issue, err := s.receiptIndex(ctx, repository, draft.SourcePost, outcome)
+	if err != nil {
+		return 0, err
+	}
+	return issue, s.Store.RecordPostIssueCreation(ctx, draft.SourcePost, draft.Revision, issue)
 }
 
 func (s *PostIssueEffects) LookupPostIssue(ctx context.Context, repository int64, id string) (int64, error) {
@@ -178,6 +192,14 @@ func (s *PostIssueEffects) LookupPostIssue(ctx context.Context, repository int64
 	case lookup.State == collaboration.LookupNotObserved && lookup.Record == nil:
 		// Only confirmed absence allows the driver to attempt this same operation.
 	case lookup.State == collaboration.LookupFound && lookup.Record != nil:
+		if lookup.Record.OperationID == postIssueOperationID(id) && lookup.Record.Effect == collaboration.EffectNotCommitted {
+			if err = s.Store.BeginPostIssueCreation(ctx, id, post.Record.Revision); err != nil {
+				return 0, err
+			}
+			if err = s.Store.RecordPostIssueCreation(ctx, id, post.Record.Revision, -1); err != nil {
+				return 0, err
+			}
+		}
 		issue, err = s.receiptIndex(ctx, repository, id, *lookup.Record)
 	default:
 		err = ErrPostEffectUnknown
@@ -187,6 +209,16 @@ func (s *PostIssueEffects) LookupPostIssue(ctx context.Context, repository int64
 	}
 	if _, err = s.current(ctx, post, nil); err != nil {
 		return 0, err
+	}
+	if issue > 0 {
+		// Older operations may predate the origin journal. Establish the same
+		// source record before adopting their reconciled result.
+		if err = s.Store.BeginPostIssueCreation(ctx, id, post.Record.Revision); err != nil {
+			return 0, err
+		}
+		if err = s.Store.RecordPostIssueCreation(ctx, id, post.Record.Revision, issue); err != nil {
+			return 0, err
+		}
 	}
 	return issue, nil
 }

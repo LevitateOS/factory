@@ -18,6 +18,41 @@ security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all
 existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
 
+**A08 / D1 creation-origin update:** own newly created GitHub issues are eligible;
+account inequality is not an authorization rule. `control/acceptance_initial.go`
+now consults `pkg/store/issue_creation_origins.go` and the existing post, Issue
+Maker and graph journals. `service/{post_effects,captured_issue_effects}.go` retain
+root creation results across source edits. Actual coordinator/PostgreSQL check:
+`/home/vince/tmp/fintake-origin6.NE4yq4/result.log` (same-account human acceptance
+and replay, unknown-result hold, result after edit, conflicting-result refusal,
+automated-origin exclusion, independent issue after settlement, Issue Maker
+slot/result adoption and provider-proved refusal). Existing graph/post/Issue Maker
+checks passed in `/home/vince/tmp/fintake-journals6.wilF0s/result.log`. Provider
+creation/permission facts were declared; no connected GitHub creation was tested.
+Unknown creates currently hold automatic intake for that repository until their
+existing operation is reconciled; they are not classified as human by absence of
+a receipt. Older superseded operations that lost origin/result evidence remain
+unverified. Closing D1 still needs authenticated original-creation intake, receipt
+ordering/lost-result reconciliation, current permission/source rechecks and the
+full standing-authorization journey after T12-PLACEMENT/T09-EXECUTION. No D1,
+T11-INTAKE or installed gate is closed here.
+
+**A18 installed boundary:** the owner selected Linux desktop/systemd and one
+configured execution user per machine for the initial execution release. Other
+environments retain browsing with execution unavailable. This resolves the
+support decision; packaging and actual installed isolation, controller/session,
+restart/retirement and degraded-browsing evidence are still required for the
+existing D3/installed gates.
+
+**A01/A19 existing Muse session investigation:** the official CLI
+[changelog](https://dev.meta.ai/docs/muse-code/changelog) documents `--preset empty`
+with only configured MCP tools; this is a possible supported integration, not an
+implemented custody or execution fix. Existing `muse usage --json` returned
+`server_sent_no_usage` without a model turn; this does not establish an expired
+login or justify another sign-in. Exact scoped configuration, existing-session
+account identity, finite inference, isolation and retirement remain unverified.
+No authentication store was scraped/imported and no personal keyring was changed.
+
 | Remaining responsibility | Exact blocker/dependency and relevant files | Already established | Still unverified; evidence needed to close |
 | --- | --- | --- | --- |
 | Supported existing Muse session reuse with scoped native custody | A01/A16/A19: execution accepts Factory-scoped `Credentials`/`TokenCapability`; supported delegation of the existing Muse session is missing. A16 installed executable discovery now uses native PATH/normal install lookup and the official manifest/ELF proof; no credential discovery is implied. Files: `lib/desktop-runtime/src/credentials.rs`, `factory_provider/{launch,owner,tool}.rs`, `factory_provider.rs`. User selected reuse and browser-link fallback, not a mandatory new sign-in/unlock journey. | Source establishes the current custody/layout restrictions and isolated placeholder path. The attempted fresh-login additions were removed before this audit baseline. Actual installed-tool Go/native callback passed without explicit directory enrollment in `/home/vince/tmp/fdiscover-ready6.ukS3ab/result.log`; no launcher, credentials or inference ran. | Supported provider integration; correct account/billing lane; actual authenticated finite work; renewal/withdrawal/restart behavior; secrets remain outside workers and Go/browser DTOs. A successful CLI usage response or a proposed adapter alone cannot close this. |
