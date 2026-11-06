@@ -26,6 +26,19 @@
   so makes the current slice simpler. Do not create a new framework, parallel
   state machine, per-operation fixture suite or speculative edge-case matrix
   without a concrete requirement that the existing owner cannot meet.
+- Use `untangle-codebase` (`/home/vince/.codex/skills/untangle-codebase/SKILL.md`)
+  as ongoing design guidance: ask whether pieces should change together. Put
+  related behavior together, separate independent concerns, hide internals and
+  make dependencies point toward more stable contracts.
+- In code touched by the current slice, look for hidden links, needless links
+  and surplus: duplicated rules, implicit conventions, coupled internals,
+  pass-through wrappers, unused extension points and dead code. Treat special
+  cases as evidence of requirements; fix the underlying design when that removes
+  several problems while preserving intended behavior and necessary exceptions.
+- Applying these principles does not start the skill's full workflow. A whole
+  repository inventory/refactor, new goal, subagent sweep or optional comment/test
+  cleanup needs explicit task scope. Keep ordinary improvements within the
+  authorized slice and use the existing verification and stopping rules.
 - Verify the behavior and risks changed by the slice with the smallest real
   check that can prove them. Fix a failed check and rerun the affected check;
   broaden testing only for a demonstrated gap or required gate. Do not repeat
