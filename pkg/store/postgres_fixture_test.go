@@ -1946,6 +1946,7 @@ func checkNativeHumanMergeJournal(t *testing.T, s *Store, dsn, phase, path strin
 	var saved struct {
 		Captures []factory.HumanMergeCapture
 		Legacy   factory.HumanStateCapture
+		Dispatch factory.HumanMergeCapture
 	}
 	same := func(a, b factory.HumanMergeCapture) bool {
 		return a.Request.SameRequest(b.Request) && a.Authority == b.Authority && a.OperationID == b.OperationID && bytes.Equal(a.ProviderIntent, b.ProviderIntent)
@@ -2172,6 +2173,68 @@ func checkNativeHumanMergeJournal(t *testing.T, s *Store, dsn, phase, path strin
 		if _, err := s.db.ExecContext(ctx, "DROP FUNCTION fail_merge_capture()"); err != nil {
 			t.Fatal(err)
 		}
+		// Reopen a real schema-91 database and preserve unknown dispatch history.
+		old, err := s.FactoryCommand(ctx, base.Request.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		guard91 := strings.Replace(commandGuardDDL, ",'pull_request.merge'", "", 1)
+		if _, err = s.db.ExecContext(ctx, guard91); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = s.db.ExecContext(ctx, "UPDATE schema_version SET version=91"); err != nil {
+			t.Fatal(err)
+		}
+		if err = s.Close(); err != nil {
+			t.Fatal(err)
+		}
+		s, err = Open(dsn)
+		if err != nil {
+			t.Fatal("schema-92 merge dispatch upgrade", err)
+		}
+		defer s.Close()
+		retained, err := s.FactoryCommand(ctx, base.Request.ID)
+		if err != nil || retained != old {
+			t.Fatal("merge upgrade rewrote capture/outcome", err)
+		}
+		if state, err := s.HumanMergeDispatchState(ctx, base); err != nil || state != factory.DispatchLegacyUnknown {
+			t.Fatal("old merge history not fenced", state, err)
+		}
+		if won, err := s.ReserveHumanMergeDispatch(ctx, base); err != nil || won {
+			t.Fatal("legacy merge acquired dispatch", won, err)
+		}
+		fresh := base
+		fresh.Request.ID = factory.NewID()
+		if _, _, err = s.CaptureHumanMerge(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		if won, err := s.ReserveHumanMergeDispatch(ctx, fresh); !errors.Is(err, ErrCommandDispatchNotReady) || won {
+			t.Fatal("merge dispatched without saved lookup", won, err)
+		}
+		lookup := collaboration.OperationLookup{Host: fresh.Request.Host, Authority: fresh.Authority, OperationID: fresh.OperationID, State: collaboration.LookupNotObserved, Reason: "owned_local_check"}
+		if _, err = s.ObserveHumanMerge(ctx, fresh, lookup); err != nil {
+			t.Fatal(err)
+		}
+		type claim struct {
+			won bool
+			err error
+		}
+		claims := make(chan claim, 2)
+		for range 2 {
+			go func() { won, err := s.ReserveHumanMergeDispatch(ctx, fresh); claims <- claim{won, err} }()
+		}
+		leftClaim, rightClaim := <-claims, <-claims
+		if leftClaim.err != nil || rightClaim.err != nil || leftClaim.won == rightClaim.won {
+			t.Fatal("merge one-shot fence split", leftClaim, rightClaim)
+		}
+		cancelled, err := s.CancelHumanMergeDispatch(ctx, fresh)
+		if err != nil || cancelled.Record == nil || cancelled.Record.Effect != collaboration.EffectIndeterminate || cancelled.Record.Cancellation != collaboration.CancellationIndeterminate {
+			t.Fatal("reserved merge cancellation lost uncertainty", err)
+		}
+		if won, err := s.ReserveHumanMergeDispatch(ctx, fresh); err != nil || won {
+			t.Fatal("cancelled reserved merge resent", won, err)
+		}
+		saved.Dispatch = fresh
 		raw, err := json.Marshal(saved)
 		if err != nil {
 			t.Fatal(err)
@@ -2228,6 +2291,15 @@ func checkNativeHumanMergeJournal(t *testing.T, s *Store, dsn, phase, path strin
 	legacy, err := s.HumanStateCapture(ctx, saved.Legacy.Request)
 	if err != nil || legacy.Authority != saved.Legacy.Authority || legacy.OperationID != saved.Legacy.OperationID || !bytes.Equal(legacy.ProviderIntent, saved.Legacy.ProviderIntent) {
 		t.Fatal("legacy command rewritten by merge upgrade", err)
+	}
+	if saved.Dispatch.Request.ID != "" {
+		state, err := s.HumanMergeDispatchState(ctx, saved.Dispatch)
+		if err != nil || state != factory.DispatchReserved {
+			t.Fatal("retained merge reservation lost", state, err)
+		}
+		if won, err := s.ReserveHumanMergeDispatch(ctx, saved.Dispatch); err != nil || won {
+			t.Fatal("retained merge reservation replayed", won, err)
+		}
 	}
 	t.Logf("%s: canonical merge/manual capture, actual PostgreSQL upgrade/immutability/bounds/concurrency/rollback; exact provider bytes retained and no provider outcome invented", phase)
 }

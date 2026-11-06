@@ -1337,6 +1337,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             )
             .await
         }
+        (Some("--github-merges-connected"), 5) => {
+            native_github_pull_branches::connected_merges(Path::new(&args[1]), Path::new(&args[2]), Path::new(&args[3]), Path::new(&args[4])).await
+        }
         (Some("--github-branch-product-declared"), 5) => {
             native_github_pull_branches::branch_product(
                 Path::new(&args[1]),

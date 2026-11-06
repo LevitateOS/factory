@@ -15,9 +15,6 @@ var ErrCommandDispatchNotReady = errors.New("command dispatch requires a saved n
 const humanDispatchQuery = `SELECT id,type,target,principal,digest,payload,outcome,created,finished,dispatch_state FROM factory_commands WHERE id=$1`
 
 func humanDispatchCommand(cmd factory.Command) (humanJournal, error) {
-	if cmd.Type == factory.CommandHumanMerge {
-		return humanJournal{}, ErrCommandConflict
-	}
 	return humanJournalCommand(cmd)
 }
 func scanHumanDispatch(row *sql.Row, want factory.Command) (factory.Command, factory.CommandDispatchState, error) {

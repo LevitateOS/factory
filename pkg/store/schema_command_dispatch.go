@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','pull_request.review.comment.create')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','pull_request.review.comment.create','pull_request.merge')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -118,4 +118,11 @@ var HumanInlineDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.review.comment.create' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=90)`,
 	`UPDATE schema_version SET version=91 WHERE version=90`,
+}
+
+// Earlier merge captures have no reliable local one-shot dispatch history.
+var HumanMergeDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.merge' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=91)`,
+	`UPDATE schema_version SET version=92 WHERE version=91`,
 }

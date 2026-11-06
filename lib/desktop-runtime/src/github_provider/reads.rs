@@ -82,6 +82,14 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "merge_preparation" => (
+                            "preparation",
+                            reader
+                                .merge_preparation(
+                                    q["number"].as_u64().ok_or_else(Failure::invalid)? as u32,
+                                )
+                                .await?,
+                        ),
                         "inline_preservation" => {
                             let Read::InlinePreservation {
                                 number,

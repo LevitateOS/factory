@@ -30740,3 +30740,29 @@ then connected qualification and shared issue/PR UI under the canonical queue.
 Real schema, permissions, original positions, privacy and notification evidence
 remain required before claiming those behaviors. D1/D2/D3 and all other open
 canonical gates remain open; the whole product is unfinished.
+
+### T11-WRITES: supported GitHub merges (2026-11-06)
+
+The admitted native product now supports merge commits, squash and message-free
+rebase through the existing human-merge service/journal. Rust owns current
+repository/PR preparation and the fixed GraphQL merge operation; Go owns the
+capture and one-shot reservation. GitHub enforces `expectedHeadOid`; the base is
+checked during bounded preparation, with no atomic base-condition claim. Merge
+and squash map the first message line to the headline and the remaining paragraph
+to the body. A causal writing discrepancy retains a committed, unfinished primary.
+Manual marking, rebase-merge, fast-forward-only and custom rebase messages remain
+explicitly unavailable. Schema 92 conservatively fences earlier merge captures.
+
+Verification: real merge/squash/rebase through production Go HTTP/PostgreSQL and
+Rust custody, exact command replay, normal PR readback and native restart passed
+in an owner-authorized disposable private repository. A lost squash public reply
+recovered its saved causal result without another merge. The grant came from the
+user's existing gh access; this is not fresh Factory OAuth scope qualification.
+The existing real PG merge-journal case passed write/restart/WAL recovery with
+schema-91 migration, immutable history, concurrent one-shot claims and retained
+cancellation uncertainty. Go/native builds, boundaries and whitespace passed.
+Retained results: `/home/vince/tmp/fgw-1106.cqnVjg/live2/connected-merge-result.json`
+and `/home/vince/tmp/fgw-1106.cqnVjg/pg-merge.log`. Earlier fixture assertion failures
+remain in that owned evidence root. Remaining T11 work is review/inline modes,
+provider condition/capability projection and their connected write/recovery checks;
+shared UI, installed and broader security gates remain open.

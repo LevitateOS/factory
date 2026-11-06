@@ -33,6 +33,10 @@ pub enum Read {
         name: String,
         commit: String,
     },
+    MergePreparation {
+        repository: String,
+        number: u32,
+    },
     InlinePreparation {
         repository: String,
         number: u32,

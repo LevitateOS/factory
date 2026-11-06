@@ -2258,3 +2258,140 @@ pub(super) async fn branch_expiry(
     println!("PASS: real product branch capture survived its original five-minute expiry unclaimed; unchanged intent/deadline, no reprepare or mutation, exact local cancellation and clean retirement");
     Ok(())
 }
+
+// This explicit connected mode uses the user's gh grant only inside the native
+// checker/custody owner. Fixture JSON contains repository/PR IDs, never a token.
+pub(super) async fn connected_merges(
+    production: &Path,
+    payload: &Path,
+    config: &Path,
+    profile: &Path,
+) -> Result<()> {
+    use soda_desktop_runtime::{
+        credentials::{Credentials, Token},
+        supervisor::NativeSupervisor,
+    };
+    use std::{process::Command, sync::Arc};
+    let root = profile.parent().ok_or("fixture parent absent")?;
+    let config: serde_json::Value = serde_json::from_slice(&fs::read(config)?)?;
+    let repository_id = config["repository"]
+        .as_str()
+        .ok_or("fixture repository missing")?;
+    let owner_marker = root.join("connected-fixture-repository");
+    if profile.exists() {
+        ensure(
+            fs::read_to_string(&owner_marker)? == repository_id,
+            "retained profile is not this owned fixture",
+        )?;
+    } else {
+        prepare(profile)?;
+        fs::write(&owner_marker, repository_id)?;
+    }
+    let mut authorization = Command::new("gh")
+        .args(["auth", "token", "--hostname", "github.com"])
+        .output()?;
+    ensure(authorization.status.success(), "gh credential unavailable")?;
+    while authorization
+        .stdout
+        .last()
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        authorization.stdout.pop();
+    }
+    let token = Token::new(authorization.stdout)?;
+    let mut provider = tokio::task::spawn_blocking(Owner::start).await??;
+    let (account, token) = provider.client().verify(token).await?;
+    tokio::task::spawn_blocking(move || provider.stop()).await??;
+    let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    let credentials = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+    ensure(
+        credentials.status().await?.len() <= 1,
+        "unexpected fixture accounts",
+    )?;
+    let connection = credentials.store(account, token).await?.connection;
+    let call = async |runtime: &NativeSupervisor,
+                      method: &str,
+                      path: &str,
+                      body: &[u8]|
+           -> Result<(u16, serde_json::Value)> {
+        let request = runtime.admit_product(
+            credentials.clone(),
+            credentials.capability(&connection).await?,
+            Some(repository_id.into()),
+        )?;
+        let reply = request.request(method, path, body).await?;
+        Ok((reply.status, serde_json::from_slice(&reply.body)?))
+    };
+    let catalogue = call(
+        &runtime,
+        "GET",
+        "/api/factory/collaboration/repositories",
+        &[],
+    )
+    .await?;
+    ensure(catalogue.0 == 200, "connected repository catalogue failed")?;
+    let repository = catalogue.1["items"][0]["id"]
+        .as_str()
+        .ok_or("canonical repository absent")?;
+    let cases = config["cases"].as_array().ok_or("fixture cases absent")?;
+    let mut saved = Vec::new();
+    for case in cases {
+        let method = case["method"].as_str().ok_or("method absent")?;
+        let number = case["number"].as_u64().ok_or("number absent")?;
+        let id = format!("{number:032x}");
+        let path =
+            format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/merges");
+        let body = serde_json::to_vec(
+            &json!({"command_id":id,"method":method,"message":if method=="rebase"{""}else{"Factory connected merge\n\nPreserve Unicode writing: 茶."}}),
+        )?;
+        let lookup = format!("{path}/commands/{id}");
+        let result = match call(&runtime, "POST", &path, &body).await {
+            Ok(result) => result,
+            Err(_) => call(&runtime, "GET", &lookup, &[]).await?,
+        };
+        if result.0 != 200 || result.1["effect"] != "committed" || result.1["finished"] != true {
+            fs::write(
+                root.join("merge-failed-projection.json"),
+                serde_json::to_vec_pretty(&result.1)?,
+            )?;
+            return Err(format!("connected {method} merge failed with HTTP {}", result.0).into());
+        }
+        let replay = call(&runtime, "POST", &path, &body).await?;
+        ensure(replay == result, "connected merge replay changed result")?;
+        ensure(
+            call(&runtime, "GET", &lookup, &[]).await? == result,
+            "connected merge lookup changed result",
+        )?;
+        let read = call(
+            &runtime,
+            "GET",
+            &format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}"),
+            &[],
+        )
+        .await?;
+        ensure(
+            read.0 == 200 && read.1["state"] == "merged",
+            "normal connected pull readback not merged",
+        )?;
+        saved.push((lookup, result));
+        println!("PASS: connected {method} merge, replay and normal readback");
+    }
+    runtime.stop()?;
+    runtime = NativeSupervisor::start(payload, production, profile)?;
+    for (lookup, result) in &saved {
+        ensure(
+            call(&runtime, "GET", lookup, &[]).await? == *result,
+            "restart changed connected merge record",
+        )?;
+    }
+    credentials.withdraw(&connection).await?;
+    runtime.stop()?;
+    fs::write(
+        root.join("connected-merge-result.json"),
+        serde_json::to_vec_pretty(
+            &json!({"real_github":true,"native_custody":true,"go_http_store":true,"methods":["merge","squash","rebase"],"replay_and_restart":true,"normal_readback":true,"owned_account_removed":true,"oauth_source":"user_authorized_gh_grant","factory_device_scope_qualified":false}),
+        )?,
+    )?;
+    println!("PASS: connected merge records survived native restart; owned local account removed");
+    Ok(())
+}

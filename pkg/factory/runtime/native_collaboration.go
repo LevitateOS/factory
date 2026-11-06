@@ -189,7 +189,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	switch effect.(type) {
 	case nativeInlinePreparationEffect:
 		limit = 64 << 10
-	case nativeInlineDraftEffect, nativeCommentEffect, nativeIssueCreateEffect, nativePullCreateEffect, nativeReviewCreateEffect, nativePendingReviewEffect, nativeEditEffect, nativeLockEffect:
+	case nativeMergeEffect, nativeInlineDraftEffect, nativeCommentEffect, nativeIssueCreateEffect, nativePullCreateEffect, nativeReviewCreateEffect, nativePendingReviewEffect, nativeEditEffect, nativeLockEffect:
 		limit = 512 << 10
 	}
 	if err != nil || len(body) > limit {

@@ -31,7 +31,7 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
         && matches!(parts[1], "issues" | "pulls")
         && positive(parts[2])
         && (matches!(parts[3], "comments" | "edits" | "locks")
-            || parts[1] == "pulls" && matches!(parts[3], "reviews" | "inline-comments"))
+            || parts[1] == "pulls" && matches!(parts[3], "reviews" | "inline-comments" | "merges"))
     {
         512 * 1024
     } else {

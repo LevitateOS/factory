@@ -5,7 +5,7 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     BranchCreate, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, Read, ReviewCreate,
+    InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge, Read, ReviewCreate,
     ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
@@ -346,6 +346,12 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    MergePull {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        merge: PullMerge,
+    },
     AppendPendingThread {
         command_id: String,
         digest: String,
@@ -426,6 +432,12 @@ enum Effect {
 impl Effect {
     fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
         match self {
+            Self::MergePull {
+                command_id,
+                digest,
+                not_after,
+                merge,
+            } => Some((command_id, digest, *not_after, &merge.repository)),
             Self::AppendPendingThread {
                 command_id,
                 digest,
@@ -639,6 +651,7 @@ async fn dispatch(
     if !matches!(
         &call.call,
         Effect::CreateComment { .. }
+            | Effect::MergePull { .. }
             | Effect::AppendPendingThread { .. }
             | Effect::CreateIssue { .. }
             | Effect::CreatePull { .. }
@@ -678,6 +691,7 @@ async fn dispatch(
     }
     if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
         match &call.call {
+            Effect::MergePull { merge, .. } => merge.validate()?,
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::AppendPendingThread { inline, .. } => inline.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
@@ -789,6 +803,12 @@ async fn mutate(
             "applied",
             provider
                 .review_request_account(token, account, request, Some(deadline))
+                .await,
+        ),
+        Effect::MergePull { merge, .. } => (
+            "applied",
+            provider
+                .merge_account(token, account, merge, Some(deadline))
                 .await,
         ),
         Effect::AppendPendingThread { inline, .. } => (

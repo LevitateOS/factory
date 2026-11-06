@@ -3592,3 +3592,18 @@ unverified. Shared writes remain unavailable. These concrete T11 limits do not
 rename canonical D5. D1/D2/D3 and all previously open broad security gates remain
 open. Routine implementation remains in the normal queue; no Daybreak work ran
 or was marked complete.
+
+GitHub merge update (2026-11-06): `github_provider/merges.rs` and
+`runtime/native_product_merges.go` now compose ordinary merge, squash and
+message-free rebase with schema-92 one-shot dispatch. Expected head is a provider
+condition; base identity is bounded preflight only. No merge queue, admin bypass,
+manual marking or unsupported method is synthesized. A lost public reply retains
+the journal's causal result; current merged state never attributes an unknown send.
+Real authorized disposable-repository merges, normal readback and restart passed
+using a gh-sourced grant in native custody. Real PG migration/concurrent fence/
+cancellation/restart/WAL checks passed. Evidence:
+`/home/vince/tmp/fgw-1106.cqnVjg/{live2/connected-merge-result.json,pg-merge.log}`.
+This closes the merge implementation dependency, with the stated supported API
+conditions. Fresh Factory OAuth scope, remaining review/inline behavior,
+capability/UI/installed qualification and all previously open broad gates remain
+unverified. No Daybreak work or security gate completion is claimed.
