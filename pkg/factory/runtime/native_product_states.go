@@ -127,32 +127,11 @@ func (s nativeHumanStates) LookupHumanState(ctx context.Context, c factory.Human
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanStateDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanStateObservation(c, prior) != nil {
-			return empty, factory.ErrHumanStateObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativeStateRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func (s nativeHumanStates) SubmitHumanState(ctx context.Context, c factory.HumanStateCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -181,13 +160,9 @@ func (s nativeHumanStates) SubmitHumanState(ctx context.Context, c factory.Human
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeStateEffect{Kind: "set_discussion_state", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, State: p.State}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeStateEffect{Kind: "set_discussion_state", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, State: p.State}, cmd, p.State.Repository, factoryservice.ErrHumanStateConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.State.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanStateConflict
 	}
 	r := nativeStateRecord(c)
 	switch outcome.State {
@@ -213,16 +188,10 @@ func (s nativeHumanStates) SubmitHumanState(ctx context.Context, c factory.Human
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_state_applied"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanStateUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanStateUnavailable
 	}
 	return r, r.Validate()
 }

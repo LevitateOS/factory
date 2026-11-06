@@ -131,35 +131,11 @@ func (s nativeHumanComments) LookupHumanComment(ctx context.Context, c factory.H
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanCommentDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanCommentObservation(c, prior) != nil {
-			return empty, factory.ErrHumanCommentObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	lookup := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupUnknown, Reason: "dispatch_history_unresolved"}
-	if state == factory.DispatchUnclaimed {
-		lookup.State = collaboration.LookupNotObserved
-		lookup.Reason = "local_dispatch_unclaimed"
-	} else {
-		record := nativeCommentRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			record.Reason = "legacy_dispatch_unknown"
-		}
-		lookup.State, lookup.Record = collaboration.LookupFound, &record
-	}
-	return lookup, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func nativeCommentRecord(c factory.HumanCommentCapture) collaboration.OperationRecord {
 	cmd, _ := c.Command()
@@ -192,13 +168,9 @@ func (s nativeHumanComments) SubmitHumanComment(ctx context.Context, c factory.H
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeCommentEffect{Kind: "create_comment", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Comment: p.Comment}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeCommentEffect{Kind: "create_comment", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Comment: p.Comment}, cmd, p.Comment.Repository, factoryservice.ErrHumanCommentConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Comment.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanCommentConflict
 	}
 	r := nativeCommentRecord(c)
 	switch outcome.State {
@@ -215,16 +187,10 @@ func (s nativeHumanComments) SubmitHumanComment(ctx context.Context, c factory.H
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_comment_created"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanCommentUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanCommentUnavailable
 	}
 	return r, r.Validate()
 }

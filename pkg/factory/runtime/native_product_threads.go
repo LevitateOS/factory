@@ -122,32 +122,11 @@ func (s nativeHumanThreads) LookupHumanThread(ctx context.Context, c factory.Hum
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanThreadDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanThreadObservation(c, prior) != nil {
-			return empty, factory.ErrHumanThreadObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativeThreadRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func (s nativeHumanThreads) SubmitHumanThread(ctx context.Context, c factory.HumanThreadCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -176,13 +155,9 @@ func (s nativeHumanThreads) SubmitHumanThread(ctx context.Context, c factory.Hum
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeThreadEffect{Kind: "set_thread_resolution", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Thread: p.Thread}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeThreadEffect{Kind: "set_thread_resolution", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Thread: p.Thread}, cmd, p.Thread.Repository, factoryservice.ErrHumanThreadConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Thread.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanThreadConflict
 	}
 	r := nativeThreadRecord(c)
 	switch outcome.State {
@@ -212,16 +187,10 @@ func (s nativeHumanThreads) SubmitHumanThread(ctx context.Context, c factory.Hum
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_thread_resolution_applied"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanThreadUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanThreadUnavailable
 	}
 	return r, r.Validate()
 }

@@ -156,33 +156,11 @@ func (s nativeHumanNewReviews) LookupHumanReview(ctx context.Context, c factory.
 // A reserved dispatch or an unattributed current review can never authorize a
 // second send. Both preparation versions use the same durable journal fence.
 func (s *nativeProductAccount) humanReviewLookup(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationLookup, error) {
-	var empty collaboration.OperationLookup
-	state, err := s.store.HumanReviewDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
-		return empty, err
+		return collaboration.OperationLookup{}, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanReviewObservation(c, prior) != nil {
-			return empty, factory.ErrHumanReviewObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativeReviewCreateRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeReviewCreatePreparation, raw json.RawMessage) (nativeReviewCreateReceipt, error) {
 	var r nativeReviewCreateReceipt
@@ -223,13 +201,9 @@ func (s nativeHumanNewReviews) SubmitHumanReview(ctx context.Context, c factory.
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeReviewCreateEffect{Kind: "create_review", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Review: p.Review}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeReviewCreateEffect{Kind: "create_review", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Review: p.Review}, cmd, p.Review.Repository, factoryservice.ErrHumanReviewConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Review.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanReviewConflict
 	}
 	r := nativeReviewCreateRecord(c)
 	switch outcome.State {
@@ -242,16 +216,10 @@ func (s nativeHumanNewReviews) SubmitHumanReview(ctx context.Context, c factory.
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_review_created"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanReviewUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanReviewUnavailable
 	}
 	return r, r.Validate()
 }

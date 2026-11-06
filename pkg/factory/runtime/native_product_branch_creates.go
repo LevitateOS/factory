@@ -164,32 +164,11 @@ func (s nativeHumanBranchCreates) LookupHumanBranchCreate(ctx context.Context, c
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanBranchCreateDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanBranchCreateObservation(c, prior) != nil {
-			return empty, factory.ErrHumanBranchCreateObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativeBranchCreateRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c factory.HumanBranchCreateCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -218,13 +197,9 @@ func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeBranchCreateEffect{Kind: "create_branch", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Branch: p.Branch}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeBranchCreateEffect{Kind: "create_branch", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Branch: p.Branch}, cmd, p.Branch.Repository, factoryservice.ErrHumanBranchCreateConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Branch.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanBranchCreateConflict
 	}
 	r := nativeBranchCreateRecord(c)
 	switch outcome.State {
@@ -237,16 +212,10 @@ func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_branch_created"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanBranchCreateUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanBranchCreateUnavailable
 	}
 	return r, r.Validate()
 }

@@ -301,6 +301,46 @@ func sameHumanCommand(saved, want factory.Command) bool {
 	return saved.ID == want.ID && saved.Type == want.Type && saved.Target == want.Target && saved.Principal == want.Principal && saved.Digest == want.Digest && saved.Payload == want.Payload
 }
 
+// LookupHumanCommandDispatch reads local dispatch history only. The adapter must
+// admit its current account and decode the saved provider intent before calling;
+// neither an unclaimed row nor an absent reply grants provider authority.
+func (s *Store) LookupHumanCommandDispatch(ctx context.Context, cmd factory.Command) (collaboration.OperationLookup, error) {
+	var empty collaboration.OperationLookup
+	state, err := s.humanDispatchState(ctx, cmd)
+	if err != nil {
+		return empty, err
+	}
+	stored, err := s.FactoryCommand(ctx, cmd.ID)
+	if err != nil {
+		return empty, err
+	}
+	journal, err := humanJournalCommand(cmd)
+	if err != nil {
+		return empty, err
+	}
+	if stored.Outcome != "" {
+		var prior collaboration.OperationLookup
+		if json.Unmarshal([]byte(stored.Outcome), &prior) != nil || journal.validate(prior) != nil {
+			return empty, journal.invalid
+		}
+		if prior.Record != nil {
+			return prior, nil
+		}
+	}
+	lookup := collaboration.OperationLookup{Host: journal.host, Authority: journal.authority, OperationID: journal.operation, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
+	if state != factory.DispatchUnclaimed {
+		record := &collaboration.OperationRecord{Host: journal.host, Authority: journal.authority, OperationID: journal.operation,
+			Binding: &collaboration.OperationBinding{Repository: journal.repository, Actor: journal.actor, Kind: collaboration.OperationKind(cmd.Type), Atomicity: collaboration.Atomic, IntentDigest: cmd.Digest},
+			Effect:  collaboration.EffectIndeterminate, Cancellation: collaboration.CancellationNone, Completion: collaboration.CompletionNeedsIntervention, Reason: "dispatch_history_unresolved"}
+		if state == factory.DispatchLegacyUnknown {
+			record.Reason = "legacy_dispatch_unknown"
+		}
+		lookup.State, lookup.Record = collaboration.LookupFound, record
+		lookup.Reason = record.Reason
+	}
+	return lookup, nil
+}
+
 // The caller holds the exact captured command's row lock. No network runs in
 // this transaction; terminal receipts and complete outcomes remain immutable.
 func (j humanJournal) saveObservation(ctx context.Context, tx *sql.Tx, stored factory.Command, observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {

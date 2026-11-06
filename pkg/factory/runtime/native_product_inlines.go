@@ -237,30 +237,13 @@ func (s nativeHumanInlines) LookupHumanInline(ctx context.Context, c factory.Hum
 	if err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanInlineDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
+	o, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
 	if err != nil {
 		return empty, err
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanInlineObservation(c, prior) != nil {
-			return empty, factory.ErrHumanInlineObservation
-		}
-		if prior.Record != nil {
-			o = prior
-		}
-	}
-	if o.Record == nil && state != factory.DispatchUnclaimed {
-		r := nativeInlineRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
 	}
 	if o.Record == nil || o.Record.Effect != collaboration.EffectCommitted {
 		return o, nil
@@ -323,13 +306,9 @@ func (s nativeHumanInlines) SubmitHumanInline(ctx context.Context, c factory.Hum
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeInlineDraftEffect{Kind: "append_pending_thread", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Inline: p.Inline}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeInlineDraftEffect{Kind: "append_pending_thread", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Inline: p.Inline}, cmd, p.Inline.Repository, factoryservice.ErrHumanInlineConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Inline.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanInlineConflict
 	}
 	r := nativeInlineRecord(c)
 	switch outcome.State {
@@ -342,16 +321,10 @@ func (s nativeHumanInlines) SubmitHumanInline(ctx context.Context, c factory.Hum
 		}
 		r.Effect, r.Reason = collaboration.EffectCommitted, "native_pending_inline_created"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanInlineUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanInlineUnavailable
 	}
 	// No preservation read occurs before the application commits this primary.
 	return r, r.Validate()

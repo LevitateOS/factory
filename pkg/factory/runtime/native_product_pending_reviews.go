@@ -260,13 +260,9 @@ func (s nativeHumanPendingReviews) SubmitHumanReview(ctx context.Context, c fact
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativePendingReviewEffect{Kind: "submit_pending_review", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Review: p.Review}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativePendingReviewEffect{Kind: "submit_pending_review", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Review: p.Review}, cmd, p.Review.Repository, factoryservice.ErrHumanReviewConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Review.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanReviewConflict
 	}
 	r := nativeReviewCreateRecord(c)
 	switch outcome.State {
@@ -279,16 +275,10 @@ func (s nativeHumanPendingReviews) SubmitHumanReview(ctx context.Context, c fact
 		}
 		r.Effect, r.Reason = collaboration.EffectCommitted, "native_pending_review_submitted"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanReviewUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanReviewUnavailable
 	}
 	// Save this immutable causal primary before any publication read. A later
 	// lookup may finish completion; failed verification must never resend.

@@ -131,32 +131,11 @@ func (s nativeHumanLocks) LookupHumanLock(ctx context.Context, c factory.HumanLo
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanLockDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanLockObservation(c, prior) != nil {
-			return empty, factory.ErrHumanLockObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativeLockRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func (s nativeHumanLocks) SubmitHumanLock(ctx context.Context, c factory.HumanLockCapture) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
@@ -185,13 +164,9 @@ func (s nativeHumanLocks) SubmitHumanLock(ctx context.Context, c factory.HumanLo
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativeLockEffect{Kind: "set_discussion_lock", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Lock: p.Lock}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativeLockEffect{Kind: "set_discussion_lock", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Lock: p.Lock}, cmd, p.Lock.Repository, factoryservice.ErrHumanLockConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Lock.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanLockConflict
 	}
 	r := nativeLockRecord(c)
 	switch outcome.State {
@@ -221,16 +196,10 @@ func (s nativeHumanLocks) SubmitHumanLock(ctx context.Context, c factory.HumanLo
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_lock_applied"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanLockUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanLockUnavailable
 	}
 	return r, r.Validate()
 }

@@ -155,32 +155,11 @@ func (s nativeHumanPullCreates) LookupHumanPullCreate(ctx context.Context, c fac
 	if _, err := s.decode(ctx, c); err != nil {
 		return empty, err
 	}
-	state, err := s.store.HumanPullCreateDispatchState(ctx, c)
+	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	cmd, err := s.store.FactoryCommand(ctx, c.Request.ID)
-	if err != nil {
-		return empty, err
-	}
-	if cmd.Outcome != "" {
-		var prior collaboration.OperationLookup
-		if json.Unmarshal([]byte(cmd.Outcome), &prior) != nil || factory.ValidateHumanPullCreateObservation(c, prior) != nil {
-			return empty, factory.ErrHumanPullCreateObservation
-		}
-		if prior.Record != nil {
-			return prior, nil
-		}
-	}
-	o := collaboration.OperationLookup{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupNotObserved, Reason: "local_dispatch_unclaimed"}
-	if state != factory.DispatchUnclaimed {
-		r := nativePullCreateRecord(c)
-		if state == factory.DispatchLegacyUnknown {
-			r.Reason = "legacy_dispatch_unknown"
-		}
-		o.State, o.Record = collaboration.LookupFound, &r
-	}
-	return o, nil
+	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func validateNativePullCreateReceipt(c factory.HumanPullCreateCapture, p nativePullCreatePreparation, raw json.RawMessage) (nativePullCreateReceipt, error) {
 	var r nativePullCreateReceipt
@@ -219,13 +198,9 @@ func (s nativeHumanPullCreates) SubmitHumanPullCreate(ctx context.Context, c fac
 	if err != nil {
 		return empty, err
 	}
-	var outcome nativeCreationReply
-	scope, err := s.port.call(ctx, nativePullCreateEffect{Kind: "create_pull", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Pull: p.Pull}, &outcome)
+	outcome, err := s.callHumanEffect(ctx, nativePullCreateEffect{Kind: "create_pull", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Pull: p.Pull}, cmd, p.Pull.Repository, factoryservice.ErrHumanPullCreateConflict)
 	if err != nil {
 		return empty, err
-	}
-	if scope.Connection != s.identity.Connection || scope.Repository != p.Pull.Repository || outcome.CommandID != c.OperationID || outcome.Digest != cmd.Digest {
-		return empty, factoryservice.ErrHumanPullCreateConflict
 	}
 	r := nativePullCreateRecord(c)
 	switch outcome.State {
@@ -238,16 +213,10 @@ func (s nativeHumanPullCreates) SubmitHumanPullCreate(ctx context.Context, c fac
 		}
 		r.Effect, r.Completion, r.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_pull_created"
 		r.Receipt = &collaboration.ProviderReceipt{Authority: c.Authority, Reference: c.OperationID, IntentDigest: nativeCreationSHA(c.ProviderIntent), Payload: outcome.Receipt}
-	case "not_sent", "indeterminate":
-		if string(outcome.Receipt) != "null" || outcome.Failure == nil || !nativeErrorCode(outcome.Failure.Code) || outcome.Failure.Status < 400 || outcome.Failure.Status > 599 {
+	default:
+		if !outcome.applyFailure(&r) {
 			return empty, factoryservice.ErrHumanPullCreateUnavailable
 		}
-		r.Reason = outcome.Failure.Code
-		if outcome.State == "not_sent" {
-			r.Effect, r.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
-		}
-	default:
-		return empty, factoryservice.ErrHumanPullCreateUnavailable
 	}
 	return r, r.Validate()
 }

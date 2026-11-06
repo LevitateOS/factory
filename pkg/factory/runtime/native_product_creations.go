@@ -1,9 +1,13 @@
 package runtime
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+
+	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 )
 
 type nativeCreationFailure struct {
@@ -24,6 +28,29 @@ type nativeCreationResponse struct {
 	Status         int     `json:"status"`
 	RequestID      *string `json:"request_id"`
 	ResponseSHA256 string  `json:"response_sha256"`
+}
+
+func (s *nativeProductAccount) callHumanEffect(ctx context.Context, effect any, cmd factory.Command, repository string, conflict error) (nativeCreationReply, error) {
+	var reply nativeCreationReply
+	scope, err := s.port.call(ctx, effect, &reply)
+	if err != nil {
+		return reply, err
+	}
+	if scope.Connection != s.identity.Connection || scope.Repository != repository || reply.CommandID != cmd.ID || reply.Digest != cmd.Digest {
+		return reply, conflict
+	}
+	return reply, nil
+}
+
+func (reply nativeCreationReply) applyFailure(record *collaboration.OperationRecord) bool {
+	if reply.State != "not_sent" && reply.State != "indeterminate" || string(reply.Receipt) != "null" || reply.Failure == nil || !nativeErrorCode(reply.Failure.Code) || reply.Failure.Status < 400 || reply.Failure.Status > 599 {
+		return false
+	}
+	record.Reason = reply.Failure.Code
+	if reply.State == "not_sent" {
+		record.Effect, record.Completion = collaboration.EffectNotCommitted, collaboration.CompletionComplete
+	}
+	return true
 }
 
 func (s *nativeProductAccount) humanAuthority() string {

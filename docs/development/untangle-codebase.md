@@ -18,7 +18,7 @@ security or installed gate.
 
 ## Sections and decisions
 
-### 1. Human-command journal — active
+### 1. Human-command journal — complete
 
 Define capture transactions, immutable observation persistence and atomic outcome
 validation once. Keep operation-specific request shapes, matching, provider
@@ -52,7 +52,11 @@ for all twelve families, and shared service preparation/reconciliation owners.
 Typed request matching, canonical reference checks, provider interfaces, scope
 recovery, destination reads, schema and persisted bytes remain unchanged. Source
 review independently compared all twelve families and retained the edit/merge
-differences. Native product adapter duplication remains to be addressed.
+differences. Native adapters now use the store's defining local dispatch lookup,
+one native reply-envelope check and one failure classifier. Typed preparation,
+causal receipt authentication and separate completion reads remain explicit.
+Newly synthesized found lookups use their record's unresolved/legacy reason;
+saved observations stay unchanged and public projections expose neither reason.
 
 Verification checkpoint: cached/offline Go builds and dependency boundaries;
 existing composed inline journey (31 cases) and edit journey (16 cases); existing
@@ -65,8 +69,12 @@ SDK-file dependencies with exact-maximum opaque JSON. Existing assertions and
 native codec checks remain. Earlier setup failures are retained in that root.
 This proves the changed journal/service behavior, not live providers, freshness,
 installed products or a product security gate. No new tests or test roots added.
+The final adapter extraction also passed independent review, the existing
+16-case composed edit journey and dependency boundaries; retained result:
+`/home/vince/tmp/fua-1106.xbznkH/e/edit-product-result.json`. The dispatch read
+retains its existing two-read ordering; no atomic snapshot claim is added.
 
-### 2. Go contracts and service composition — pending
+### 2. Go contracts and service composition — active
 
 Put stable tool/planning/capability contracts below HTTP and coordinator owners;
 bind dependencies explicitly and define one list/detail read contract.
