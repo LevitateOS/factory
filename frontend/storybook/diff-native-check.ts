@@ -74,6 +74,14 @@ export async function runNativeDiffCheck() {
     await wait(() => code()?.textContent?.includes('next6000'), 'final virtualized line');
     require((code()?.querySelectorAll('[data-line]').length ?? 6000) < 1000 &&
       JSON.stringify(component.draft) === original, 'virtualization');
+    const top = viewport.scrollTop;
+    const retainedEditor = root.querySelector<HTMLTextAreaElement>('textarea');
+    retainedEditor?.focus({preventScroll: true});
+    component.file = {...diffFiles.long};
+    await component.updateComplete;
+    await wait(() => code()?.textContent?.includes('next6000'), 'refreshed virtualized line');
+    require(Math.abs(viewport.scrollTop - top) < 2 && root.activeElement === retainedEditor &&
+      JSON.stringify(component.draft) === original, 'refresh-scroll-focus');
     component.file = {...diffFiles.renamed, diff: {...diffFiles.renamed.diff, head: 'd'.repeat(40)}};
     await component.updateComplete;
     require(JSON.stringify(component.draft) === original &&

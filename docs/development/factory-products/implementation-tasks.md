@@ -745,8 +745,8 @@ cutovers before implementation; its final closure/provider qualification remains
 | 326 | T04-REPO-NATIVE | T04-REPO-UI, T05-LIFECYCLE | Remove the remaining duplicate Factory desktop/runtime/workbench and shared Unix transport Rust owners from Forge; point its retained native acceptance/PG consumers at the defining Factory crates and verify the real managed native lifecycle before distribution. Preserve the original source and unrelated workspace changes. | Complete |
 | 327 | T11-WRITES | T03-APP, T06-GITHUB | Journaled GitHub human issue/comment/branch/PR/review operations and truthfully supported merge actions; preserve partial/indeterminate effects. No agent executor or automatic intake prerequisite. | Complete |
 | 328 | T07-EDIT | T07-READ, T07-ISSUE-COMMENT, T07-ISSUE-CREATE, T07-ISSUE-EDIT-BASE, T07-ISSUE-EDITOR, T10-WRITES, T11-WRITES | Shared issue editor/comment mutations, draft recovery and Fountain normal-navigation route cutover; verify real writes in Fountain and the GitHub-connected desktop. Do not claim the later Fountain desktop journey. | Complete |
-| 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Pending |
-| 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Pending |
+| 329 | T08-READ | T00-DIFF, T07-EDIT | Shared PR list/detail/files/checks and immutable inline threads, reusing issue editor/Markdown/draft owners; verify large/partial/outdated diffs in both current hosts. | Complete |
+| 330 | T08-WRITE | T08-READ, T10-WRITES, T11-WRITES | Submitted versus draft reviews, comments/thread resolution and allowed merge behavior with real provider readback and stale-head refusal. | Complete |
 | 331 | T12-PLACEMENT | T01-RUNTIME, T03-APP, T06-CONNECT | Persist/enforce runtime placement, generation and explicit policy enrollment before dispatch. Prove local GitHub single-controller behavior; preserve appliance admission. Remote Fountain placement is qualified in T10-GATEWAY. Automation stays inactive. | Pending |
 | 332 | T09-NATIVE-PROCESS | T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3 producer: Implement reusable Rust captured native executable/process/PTY ownership with kernel process-tree and resource scopes, hard deadlines, bounded output and joined cancellation/retirement. Qualify actual finite child/descendant execution independently of Go polling; missing delegation refuses launch. No product workflow/SQL or browser process API. | Complete |
 | 333 | T09-NATIVE-EXECUTOR | T09-NATIVE-PROCESS, T05-CONTROL, T01-RUNTIME, T02-ENGINE, T05-CREDENTIALS | N3: Implement a worker with a host identity isolated from the desktop user's files and keyring, plus headless Rust process/tree/PTY/deadline/workspace/Git/artifact/custody operations behind admitted execution contracts. Broker only scoped credentials; qualify actual isolation, finite execution, cancellation and retirement before the execution consumer. | Pending |
@@ -31295,3 +31295,25 @@ and `/home/vince/tmp/factory-issue-restart-1106.rdTwzJ/{phase1.log,phase2.log,gi
 The owned desktop account was removed after the second phase. T07-EDIT is Complete;
 desktop Fountain access, D5 admission and installed qualification remain separate
 open gates.
+
+### T08-READ/T08-WRITE: shared collaboration UI complete (2026-11-06)
+
+The remaining native interaction check passes in actual Linux WebKitGTK with
+trusted compositor keyboard selection and Unicode draft input. The existing
+production diff check proves split/unified layout, 6,000-line virtualization,
+retained draft/original revision, and scroll plus editor focus after an identical
+patch refresh. Binary/truncated/unavailable, added/deleted, safe thread rendering
+and disposal also pass. Evidence: `/home/vince/tmp/factory-diff-native-1106.F0ynXf/{native.log,result2.log}`.
+An initial runner failed before UI startup because host D-Bus loaded cached
+runtime libraries; starting host D-Bus before the library mount corrected it.
+TypeScript, Storybook and native workbench builds pass.
+
+This closes the interaction gap alongside the connected Fountain PR journey,
+Fountain/GitHub large/partial/outdated reads, populated GitHub job rendering,
+and actual-provider review/draft/inline/thread/merge results recorded above.
+The existing Fountain host check retains changed-head refusal and access
+revocation; T11 records the GitHub immutable-head and guarded-operation limits.
+The same shared components define both current host journeys. T07-EDIT, T08-READ
+and T08-WRITE are Complete. This is source-host collaboration qualification;
+T10-GATEWAY desktop Fountain enrollment, T13/T14 installed products and the
+security handoff gates remain open.
