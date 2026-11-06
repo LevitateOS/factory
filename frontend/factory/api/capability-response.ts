@@ -41,7 +41,7 @@ export function pullActionAllowed(
   const row = object(value), observation = object(row.observation), pull = object(row.pull);
   check(row.repository === repository && row.actor === actor && row.issue === null);
   check(pull.kind === 'pull' && pull.repository === parent.repository && pull.number === parent.number && pull.external_id === parent.external_id);
-  check(row.head === head && typeof row.connection === 'string' && !!row.connection);
+  check(row.head === head && typeof row.connection === 'string');
   check(observation.state === 'available' && typeof observation.revision === 'string' && !!observation.revision.trim());
   check(typeof observation.observed_at === 'string' && Number.isFinite(Date.parse(observation.observed_at)));
   const capability = object(object(row.actions)[action]);
