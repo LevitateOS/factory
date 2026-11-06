@@ -30,6 +30,14 @@ These are dependencies for the existing gates, not replacement completion
 criteria. Existing entries retain their recorded evidence scope; the audit names
 contracts that need review before dependent implementation resumes.
 
+A14 follow-up: `runtime/native_product_capabilities.go` now projects authenticated
+comment/review presentation separately from push/merge permission. Actual native
+Rust/Go/PostgreSQL readback passed with declared Read access in
+`/home/vince/tmp/fcap6.HXgTKE/result.log`: self-approval, lock/archive restrictions
+and unavailable merge retained; no provider mutations. The A14 source mismatch
+in the row above is corrected. Actual token/interaction restrictions and the
+connected permission matrix remain unqualified; action admission is unchanged.
+
 Owner follow-up selects local-owner resource/spend control, the full automated
 pipeline and one-account independent agent inspection; a second personal GitHub
 account is not required and cannot stand in for independent human approval.

@@ -32,6 +32,15 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A14 — native capability projection verified with declared Read access.**
+  Authenticated comment/review presentation no longer requires push permission;
+  merge still does. Self-approval, locked/closed subjects, draft verdict limits
+  and archived/disabled repositories retain their restrictions. Existing native
+  Rust/Go/PostgreSQL readback passed in
+  `/home/vince/tmp/fcap6.HXgTKE/result.log`, with no provider mutations or retained
+  owned grant. This follows the linked GitHub role contract; actual token grants,
+  interaction restrictions, required-approval eligibility and the connected
+  permission matrix remain subject to action admission and qualification.
 - **A04 — Go/storage contract verified; native automation pending.** Independent
   review remains bound to its separate reviewer assignment and exact cycle.
   When its provider account also authored the PR, the coordinator records an

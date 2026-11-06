@@ -85,12 +85,12 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 			result.Pull = &collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: target.ExternalID, Number: target.Number}
 			result.Head, result.Base = target.Head, target.Base
 			edit, comment = collaboration.EditPull, collaboration.CommentPull
-			if write && target.State == "open" && !target.Merged && !target.Locked {
+			if target.State == "open" && !target.Merged && !target.Locked {
 				set(collaboration.Allowed, "", collaboration.ReviewPull, collaboration.CommentReview)
 				if !target.Own && !target.Draft {
 					set(collaboration.Allowed, "", collaboration.ApproveReview, collaboration.RequestChangesReview)
 				}
-				if !target.Draft && (facts.Merge || facts.Squash || facts.Rebase) && target.MergeReady {
+				if write && !target.Draft && (facts.Merge || facts.Squash || facts.Rebase) && target.MergeReady {
 					set(collaboration.Allowed, "", collaboration.MergePull)
 				}
 			}
@@ -108,7 +108,7 @@ func (s nativeCollaborationReads) ReadCapabilities(ctx context.Context, actor co
 		} else {
 			set(collaboration.Denied, "provider_cannot_update", edit)
 		}
-		if write && !target.Locked {
+		if !target.Locked {
 			set(collaboration.Allowed, "", comment)
 		}
 		if target.Locked {

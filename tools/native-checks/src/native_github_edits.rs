@@ -340,6 +340,36 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .ok_or("canonical repository absent")?
         .to_owned();
     let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+    if std::env::var("SODA_NATIVE_CHECK_READ_CAPABILITIES").as_deref() == Ok("1") {
+        for mode in ["positive", "own", "locked", "archived"] {
+            set_mode(&io, mode)?;
+            let facts = call(&runtime, &store, &connection, "GET",
+                &format!("{root_path}/pulls/7/capabilities"), &[]).await?;
+            ensure(facts.0 == 200, "read-role capabilities unavailable")?;
+            let actions = &facts.1["actions"];
+            for action in ["pull.comment", "pull.review", "pull.review.comment"] {
+                let expected = if mode == "locked" || mode == "archived" { "denied" } else { "allowed" };
+                ensure(actions[action]["state"] == expected, "read-role comment/review projection differs")?;
+            }
+            for action in ["pull.review.approve", "pull.review.request_changes"] {
+                let expected = if mode == "positive" { "allowed" } else { "denied" };
+                ensure(actions[action]["state"] == expected, "author/lock/archive review restriction differs")?;
+            }
+            ensure(actions["pull.merge"]["state"] != "allowed", "read-role review granted merge capability")?;
+        }
+        set_mode(&io, "positive")?;
+        ensure(posts(&io)? == 0 && !io.join("unexpected-request").exists(), "capability read performed a write or unknown request")?;
+        store.withdraw(&connection).await?;
+        ensure(store.status().await?.is_empty(), "capability check left owned grants")?;
+        store.retire();
+        runtime.stop()?;
+        fs::write(root.join("read-capabilities-result.json"), serde_json::to_vec_pretty(&json!({
+            "read_role_comments_reviews":true,"self_approval_refused":true,"locked_archived_refused":true,
+            "merge_unavailable":true,"provider_mutations":0,"real_github":false
+        }))?)?;
+        println!("PASS: native Rust/Go/PG read-role comment/review capabilities; self-approval, lock/archive and merge restrictions retained; declared peer, no writes");
+        return Ok(());
+    }
     if std::env::var("SODA_NATIVE_CHECK_LOCAL_RESOURCES").as_deref() == Ok("1") {
         let settings_path = format!("/api/repositories/{repository}/factory");
         let before = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
