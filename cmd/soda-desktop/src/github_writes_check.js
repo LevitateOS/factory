@@ -70,6 +70,31 @@
       assert(response.ok, 'normal read refused: ' + suffix);
       return response.json();
     };
+    if (fixture.mode === 'thread_resolution') {
+      stage = 'merged-thread-resolution';
+      await navigate('threads');
+      const pull = await read('');
+      assert(pull.ref.external_id === fixture.pull_id && pull.state === 'merged', 'owned merged PR changed');
+      let control;
+      await until(() => {
+        control = [...document.querySelectorAll('soda-factory-thread-resolution')]
+          .find(node => node.context?.threadID === fixture.thread_id);
+        return control && button(control, 'Manage resolution');
+      }, 'owned thread control missing');
+      control.setAttribute('data-owned-thread-check', '');
+      const selector = 'soda-factory-thread-resolution[data-owned-thread-check]';
+      const state = async () => (await read('/threads?limit=20')).items
+        .find(row => row.external_id === fixture.thread_id)?.resolution;
+      assert(await state() === 'unresolved', 'owned thread must start unresolved');
+      await click(control, 'Manage resolution');
+      await write(selector, 'Resolve discussion', 'Check saved thread change', 'pull-thread-saved');
+      assert(await state() === 'resolved', 'merged thread resolution readback failed');
+      await click(selector, 'Manage resolution');
+      await write(selector, 'Reopen discussion', 'Check saved thread change', 'pull-thread-saved');
+      assert(await state() === 'unresolved', 'merged thread reopen readback failed');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.summary_first && !fixture.resume_pending) {
       stage = 'summary-first';
       await navigate('reviews');

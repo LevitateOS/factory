@@ -82,7 +82,7 @@ export class SodaFactoryThreadResolution extends LitElement {
     ]);
     check(this.live(context, signal));
     const pull = pullItem(raw, context.host, context.repository, context.pull);
-    check(pull.ref.external_id === context.parent.external_id && pull.state === 'open');
+    check(pull.ref.external_id === context.parent.external_id);
     const selected = object(selectedRaw), resolve = object(selected.resolve), unresolve = object(selected.unresolve);
     check(selected.host === context.host && selected.actor === context.actor && selected.repository === context.repository &&
       selected.number === context.pull && selected.thread_id === context.threadID && typeof selected.resolved === 'boolean');

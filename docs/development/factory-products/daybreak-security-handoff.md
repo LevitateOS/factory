@@ -3735,3 +3735,9 @@ proves neither fresh Factory OAuth scope nor other-actor privacy/notifications,
 organization authority, physical input or installed admission. Existing scoped
 closure evidence requirements above remain unchanged; no broad security gate
 or earlier uncertain command is closed by this successful continuation.
+
+The shared UI now accepts provider-allowed thread resolution on merged PRs.
+The owned same-account WebKit resolve/reopen check passed in
+`/home/vince/tmp/factory-webkit-merged-thread-1106.BNnCXa/`; current provider facts,
+causal UI outcomes and readback were checked, and its local account withdrawn.
+This adds no other-actor/organization permission or installed-admission proof.

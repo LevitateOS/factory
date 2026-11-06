@@ -31092,3 +31092,15 @@ using the authorized gh grant. Physical keyboard/focus, fresh Factory OAuth scop
 installed release and cross-account/team/privacy/notification qualification remain
 open. Earlier API/recovery evidence is reused; T11 and the full product remain
 unfinished.
+
+### T11-WRITES: provider-allowed thread actions after merge (2026-11-06)
+
+The shared thread control no longer requires an open PR before consuming the
+provider's exact resolve/reopen facts. Rust/Go already admit the exact thread
+and recheck current permission; the UI's extra state restriction hid supported
+GitHub actions. Actual WebKit resolved then reopened the owned PR13 range thread
+after merge, requiring committed outcomes and normal readback. Result:
+`/home/vince/tmp/factory-webkit-merged-thread-1106.BNnCXa/{result.log,github-ui-write-result.json}`.
+The owned local account was withdrawn. TypeScript, desktop assets and native
+build passed. Existing cross-account/team, fresh OAuth, physical-input and
+installed qualification dependencies remain open; T11 remains active.

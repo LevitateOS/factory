@@ -107,18 +107,20 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 &std::fs::read(root.join("github-write-fixture.json"))
                     .map_err(|_| "owned fixture missing")?,
             ).map_err(|_| "invalid fixture")?;
+            let reviews = fixture["mode"] != "thread_resolution";
             write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                 "real_github": true,
                 "webkit": true,
                 "production_ui_ipc_go_pg_native": true,
-                "inline_draft_created": fixture["resume_pending"] != true || fixture["append_pending"] == true,
-                "summary_first_created": fixture["summary_first"] == true && fixture["resume_pending"] != true,
-                "pending_inline_readback": true,
-                "pending_summary_edit_clear": fixture["summary_first"] == true && fixture["resume_pending"] != true,
-                "inline_only_local_summary": fixture["summary_first"] != true || fixture["resume_pending"] == true,
-                "submit_pending_review": true,
-                "immediate_range": true,
-                "ordinary_merge": true,
+                "inline_draft_created": reviews && (fixture["resume_pending"] != true || fixture["append_pending"] == true),
+                "summary_first_created": reviews && fixture["summary_first"] == true && fixture["resume_pending"] != true,
+                "pending_inline_readback": reviews,
+                "pending_summary_edit_clear": reviews && fixture["summary_first"] == true && fixture["resume_pending"] != true,
+                "inline_only_local_summary": reviews && (fixture["summary_first"] != true || fixture["resume_pending"] == true),
+                "submit_pending_review": reviews,
+                "immediate_range": reviews,
+                "ordinary_merge": reviews,
+                "merged_thread_resolve_reopen": !reviews,
                 "readback": true,
                 "owned_account_removed": true,
                 "oauth_source": "user_authorized_gh_grant",
