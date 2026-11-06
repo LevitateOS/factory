@@ -31036,6 +31036,14 @@ A subsequent real browser run submitted an ordinary comment review and read its
 record back before the existing draft-to-approval, inline, merge and revocation
 journey; all passed (`/home/vince/tmp/fpc-1793964809654/{run.log,host/result.json}`).
 
+The connected GitHub desktop/WebKit read-only journey opened owned PR #12 from
+the shared list and loaded its detail, conversation, commits, changed file,
+submitted review, inline discussion, status and job check tabs through the
+normal product route. The isolated account was removed. Evidence:
+`/home/vince/tmp/factory-pull-read-1106.kyJ1Pu/{run3.log,github-ui-write-result.json}`.
+This one-file fixture does not qualify large/partial/outdated diffs, populated
+check policy, installed products or the remaining T07/T11 dependencies.
+
 ### T11-WRITES: truthful pending-summary availability (2026-11-06)
 
 The actual WebKit journey found a GitHub constraint missed by the summary-first
