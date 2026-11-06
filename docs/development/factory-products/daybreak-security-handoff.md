@@ -3683,5 +3683,21 @@ read/write routes for observed users/teams. Declared-transport browser recovery
 and cancellation passed in
 `/home/vince/tmp/factory-reviewers-ui-1106.iUi7en/final.log`; no actual request or
 notification was sent. This adds no positive connected permission evidence and
-does not close the second-account/organization dependency above. Arbitrary target
-lookup remains implementation work in the normal queue.
+does not close the second-account/organization dependency above.
+
+Exact username/team-slug lookup is now implemented in
+`github_provider/review_requests.rs`, `native_product_review_request_reads.go`,
+the existing reviewer HTTP/service and `pulls/reviewers.ts`. Rust admits the
+current account/repository/PR, scopes teams to the repository owner's organization
+and returns bounded identities; Go records distinct canonical actors/teams.
+This is read-only identity discovery and grants no request/membership authority.
+Live username lookup and stable canonical mapping passed in
+`/home/vince/tmp/fgw-1106.cqnVjg/general1/reviewer-lookup.log`. The existing native
+product fixture passed user/team lookup and invalid queries, plus reviewer
+recovery/cancellation, in `/home/vince/tmp/factory-reviewer-lookup-1106.ydL8bh/`.
+Browser lookup/explicit selection passed with declared transport fixtures in
+`/home/vince/tmp/factory-reviewer-lookup-ui-1106.HwOkdj/result.log`.
+Actual organization-team lookup and positive user/team requests remain unverified
+without the authorized organization/second actor. Their closure still requires
+real selected-grant visibility, canonical identity, request/readback/notification
+and recovery observations; no broad permission gate is closed by lookup.

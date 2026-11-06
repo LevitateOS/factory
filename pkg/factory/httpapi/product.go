@@ -111,6 +111,7 @@ func NewProductRoutes() *ProductRoutes {
 	mux.Handle("POST "+mergeBase+"/commands/{command}/cancel", productHumanMerges)
 	reviewerBase := "/api/factory/collaboration/repositories/{repository}/pulls/{number}/review-requests"
 	mux.Handle("GET "+reviewerBase, productReviewRequestReads)
+	mux.Handle("GET "+reviewerBase+"/lookup", productReviewRequestReads)
 	mux.Handle("POST "+reviewerBase, productHumanReviewRequests)
 	mux.Handle("GET "+reviewerBase+"/commands/{command}", productHumanReviewRequests)
 	mux.Handle("POST "+reviewerBase+"/commands/{command}/cancel", productHumanReviewRequests)

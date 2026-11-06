@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
+	"unicode"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 )
@@ -18,6 +20,36 @@ type CollaborationReviewRequestSource interface {
 }
 type CollaborationReviewRequests struct {
 	Source CollaborationReviewRequestSource
+}
+
+type CollaborationReviewerLookupSource interface {
+	LookupReviewer(context.Context, collaboration.ActorID, collaboration.RepositoryID, int64, string, string) (collaboration.ReviewerLookup, error)
+}
+
+func (s CollaborationReviewRequests) Lookup(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64, kind, name string) (collaboration.ReviewerLookup, error) {
+	var empty collaboration.ReviewerLookup
+	if actor < 1 || repo < 1 || number < 1 || (kind != "user" && kind != "team") || !collaboration.ValidText(name, 512) || strings.TrimSpace(name) != name || strings.ContainsAny(name, "/\\") || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+		return empty, ErrReviewRequestReadQuery
+	}
+	source, ok := s.Source.(CollaborationReviewerLookupSource)
+	if !ok {
+		return empty, ErrReviewRequestReadUnavailable
+	}
+	r, err := source.LookupReviewer(ctx, actor, repo, number, kind, name)
+	if err != nil {
+		return empty, err
+	}
+	if ctx.Err() != nil || r.Pull.Kind != collaboration.SubjectPull || r.Pull.Repository != repo || r.Pull.Number != number || !collaboration.ValidText(r.Pull.ExternalID, 1024) || r.Observation.State != collaboration.ReadAvailable || r.Observation.Revision == "" {
+		return empty, ErrReviewRequestReadUnavailable
+	}
+	if kind == "user" {
+		if r.Actor == nil || r.Team != nil || r.Actor.ID < 1 || !collaboration.ValidText(r.Actor.Login, 256) {
+			return empty, ErrReviewRequestReadUnavailable
+		}
+	} else if r.Team == nil || r.Actor != nil || r.Team.ID < 1 || !collaboration.ValidText(r.Team.Name, 512) {
+		return empty, ErrReviewRequestReadUnavailable
+	}
+	return r, nil
 }
 
 func (s CollaborationReviewRequests) Read(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64) (collaboration.PullReviewRequests, error) {

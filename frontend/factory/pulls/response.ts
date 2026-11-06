@@ -168,6 +168,17 @@ export function pullReviewRequests(value: unknown, host: string, repository: str
   return {pull: parent, items, allTargetsVisible: snapshot.all_targets_visible as boolean};
 }
 
+export function pullReviewerLookup(value: unknown, host: string, repository: string, number: string, kind: 'user' | 'team') {
+  const result = object(value), parent = pullRef(result.pull, repository, number);
+  available(result.observation);
+  check(kind === 'user' ? result.team === null : result.actor === null);
+  const target = object(kind === 'user' ? result.actor : result.team);
+  check(id(target.id) && target.host === host);
+  const label = text(kind === 'user' ? target.login : target.name, 512);
+  check(!!label.trim());
+  return {pull: parent, target: {kind, id: target.id as string, label}};
+}
+
 export interface PullThreadView {
   externalID: string;
   anchor: ReviewAnchor | null;

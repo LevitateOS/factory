@@ -126,6 +126,12 @@ pub enum Read {
         number: u64,
         target: Option<super::ReviewerTarget>,
     },
+    ReviewerLookup {
+        repository: String,
+        number: u32,
+        reviewer_kind: String,
+        name: String,
+    },
     PullReviewPreparation {
         repository: String,
         number: u32,
@@ -298,6 +304,16 @@ impl Read {
             }
         }
         let value = serde_json::to_value(self).map_err(|_| Failure::invalid())?;
+        if let Self::ReviewerLookup {
+            reviewer_kind,
+            name,
+            ..
+        } = self
+        {
+            if !super::review_requests::valid_lookup(reviewer_kind, name) {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::WriteCapabilities { number, pull, .. } = self {
             if number.is_some_and(|n| n > i32::MAX as u32) || *pull && number.is_none() {
                 return Err(Failure::invalid());

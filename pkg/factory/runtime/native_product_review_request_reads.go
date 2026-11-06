@@ -58,6 +58,58 @@ func nativeReviewerText(value *string, bound int) bool {
 	return value != nil && nativeObservedText(*value, bound, false)
 }
 
+func (s nativeCollaborationReads) LookupReviewer(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64, kind, name string) (collaboration.ReviewerLookup, error) {
+	var empty collaboration.ReviewerLookup
+	if !nativeIndex(number) {
+		return empty, factoryservice.ErrReviewRequestReadQuery
+	}
+	if err := s.admitRead(ctx, actor, repo, factoryservice.ErrReviewRequestReadMissing); err != nil {
+		return empty, err
+	}
+	var raw struct {
+		Repository string                       `json:"repository"`
+		Name       string                       `json:"name"`
+		Pull       nativeSubjectRef             `json:"pull"`
+		Actor      *collaboration.ObservedActor `json:"actor"`
+		Team       *collaboration.ObservedTeam  `json:"team"`
+	}
+	if err := s.read(ctx, nativeRead{Kind: "reviewer_lookup", Repository: s.repository.ExternalID, Number: uint32(number), ReviewerKind: kind, Name: name}, &raw); err != nil {
+		return empty, nativeMissing(err, factoryservice.ErrReviewRequestReadMissing)
+	}
+	if raw.Repository != s.repository.ExternalID || !nativeObservedText(raw.Name, 512, false) || raw.Pull.Kind != "pull" || raw.Pull.Number != number || !nativeRemoteID(raw.Pull.ExternalID) {
+		return empty, errNativeRead
+	}
+	actors := []collaboration.ObservedActor{}
+	teams := []collaboration.ObservedTeam{}
+	if kind == "user" {
+		if raw.Team != nil || raw.Actor == nil || !nativeActor(*raw.Actor) {
+			return empty, errNativeRead
+		}
+		actors = append(actors, *raw.Actor)
+	} else if kind == "team" {
+		if raw.Actor != nil || raw.Team == nil || !(nativeReviewerTarget{Kind: "team", ExternalID: raw.Team.ExternalID}).valid() || !nativeObservedText(raw.Team.Name, 512, false) {
+			return empty, errNativeRead
+		}
+		teams = append(teams, *raw.Team)
+	} else {
+		return empty, factoryservice.ErrReviewRequestReadQuery
+	}
+	mapping, err := s.store.ApplyCollaborationObservation(ctx, collaboration.ConnectionObservationBatch{Connection: nativeConnectionObservation(s.port, s.identity), Repository: repo, Repositories: []collaboration.ObservedRepository{{ExternalID: raw.Repository, Name: raw.Name}}, Actors: actors, Teams: teams})
+	if err != nil {
+		return empty, err
+	}
+	result := collaboration.ReviewerLookup{Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Observation: s.observation(raw)}
+	if raw.Actor != nil {
+		ref := mapping.Actors[raw.Actor.ExternalID]
+		result.Actor = &ref
+	}
+	if raw.Team != nil {
+		ref := mapping.Teams[raw.Team.ExternalID]
+		result.Team = &ref
+	}
+	return result, nil
+}
+
 func (s nativeCollaborationReads) ReadReviewRequests(ctx context.Context, actor collaboration.ActorID, repo collaboration.RepositoryID, number int64) (collaboration.PullReviewRequests, error) {
 	var empty collaboration.PullReviewRequests
 	if !nativeIndex(number) {

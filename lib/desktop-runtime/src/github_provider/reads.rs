@@ -1,8 +1,8 @@
 use super::request::remote_id;
 use super::transport::Response;
-use super::{records as r, Client, Failure, Read, Result};
+use super::{Client, Failure, Read, Result, records as r};
 use crate::credentials::Token;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -235,6 +235,21 @@ impl Client {
                                 thread_id: thread_id.clone(),
                             };
                             ("threads", reader.graph_threads(&selector).await?)
+                        }
+                        "reviewer_lookup" => {
+                            let Read::ReviewerLookup {
+                                number,
+                                reviewer_kind,
+                                name,
+                                ..
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            (
+                                "reviewer_lookup",
+                                reader.reviewer_lookup(*number, reviewer_kind, name).await?,
+                            )
                         }
                         "pull_review_requests" => {
                             let Read::PullReviewRequests {

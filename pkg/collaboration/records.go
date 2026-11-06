@@ -179,6 +179,14 @@ type PullReviewRequests struct {
 	AllTargetsVisible bool            `json:"all_targets_visible"`
 }
 
+// ReviewerLookup is an observed identity, not permission to request a review.
+type ReviewerLookup struct {
+	Pull        PullRef     `json:"pull"`
+	Observation Observation `json:"observation"`
+	Actor       *ActorRef   `json:"actor"`
+	Team        *TeamRef    `json:"team"`
+}
+
 type Comment struct {
 	ExternalID  string      `json:"external_id"`
 	Observation Observation `json:"observation"`

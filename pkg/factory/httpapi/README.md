@@ -342,6 +342,15 @@ again. Both lost-reply paths retain the original capture across Store reopen.
 Final session checks withhold a result when the human changes after native commit.
 Shared installed reviewer controls and desktop HTTPS remain subsequent work.
 
+`GET` on the same base plus `/lookup?kind=user&name=USERNAME` or
+`/lookup?kind=team&name=TEAM_SLUG` resolves one observed reviewer identity.
+Exactly one kind and name are required; duplicate/unknown query fields refuse.
+The response binds the parent PR and observation to exactly one canonical actor
+or team. Native GitHub lookup stays in Rust; Go records the canonical identity.
+Teams are scoped to the selected repository owner's organization. Lookup neither
+requests a review nor grants eligibility. The separate journaled POST rechecks
+current provider admission. Hosts without the lookup source return unavailable.
+
 `HumanThreads` owns resolve/unresolve commands under
 `/api/factory/collaboration/repositories/{repository}/pulls/{number}/thread-resolutions`:
 

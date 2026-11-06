@@ -6,7 +6,7 @@ import {pullActionAllowed} from '../api/capability-response.js';
 import {commandOutcome} from '../api/command-response.js';
 import {getJSON} from '../api/read.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {pullItem, pullReviewRequests} from './response.js';
+import {pullItem, pullReviewRequests, pullReviewerLookup} from './response.js';
 import {reviewerRecord, sameReviewer, type PendingReviewer, type ReviewerAddress, type ReviewerTarget} from './reviewer-record.js';
 
 export interface PullReviewersContext extends ReviewerAddress {
@@ -125,6 +125,26 @@ export class SodaFactoryPullReviewers extends LitElement {
       : 'Reviewer access or selection changed. Nothing was submitted.'; }
     finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
   }
+  private async lookup(event: SubmitEvent) {
+    event.preventDefault();
+    const context = this.current, signal = this.lifetime.signal;
+    if (!context || this.busy || this.pending || this.blocked || !this.live(context, signal) || !(event.currentTarget instanceof HTMLFormElement)) return;
+    const form = new FormData(event.currentTarget), kind = form.get('kind'), name = String(form.get('name') ?? '').trim();
+    if ((kind !== 'user' && kind !== 'team') || !name) return;
+    this.busy = true; this.message = ''; this.touch();
+    try {
+      await this.identity(context, signal);
+      const query = new URLSearchParams({kind, name});
+      const raw = await getJSON(context.transport, this.path(context) + '/review-requests/lookup?' + query, signal);
+      check(this.live(context, signal));
+      const found = pullReviewerLookup(raw, context.host, context.repository, context.pull, kind);
+      check(found.pull.external_id === context.parent.external_id);
+      this.known.set(targetKey(found.target), found.target);
+      this.message = kind === 'user' && found.target.id === context.actor
+        ? 'You cannot request your own review.' : `Found ${found.target.label}. Choose Request review to send a request.`;
+    } catch { if (this.live(context, signal)) this.message = 'The reviewer could not be found with this account. No request was sent.'; }
+    finally { if (this.live(context, signal)) { this.busy = false; this.touch(); } }
+  }
   private async deliver(context: PullReviewersContext, signal: AbortSignal, action: 'submit' | 'lookup' | 'cancel') {
     const pending = this.pending;
     check(pending && pending.external === context.parent.external_id && this.live(context, signal));
@@ -158,6 +178,11 @@ export class SodaFactoryPullReviewers extends LitElement {
     const requested = new Set(this.items.flatMap(item => item.target ? [targetKey(item.target)] : []));
     return html`<section class="soda-pull-reviewers" aria-label="Review requests" aria-busy=${this.busy}>
       <h3>Reviewers</h3><p role="status">${this.message}</p>
+      ${!pending ? html`<form @submit=${this.lookup}>
+        <label>Reviewer type <select name="kind" ?disabled=${this.busy || this.blocked}><option value="user">User</option><option value="team">Team</option></select></label>
+        <label>Username or team slug <input name="name" maxlength="512" required ?disabled=${this.busy || this.blocked}></label>
+        <button type="submit" ?disabled=${this.busy || this.blocked}>Find reviewer</button>
+      </form>` : ''}
       <ul>${this.items.map(item => html`<li>${item.label}${!pending && item.target ? html`<button type="button"
         ?disabled=${unavailable} @click=${() => this.act('submit', item.target!, false)}>Remove request for ${item.label}</button>` : ''}</li>`)}</ul>
       ${pending ? html`<p>Saved ${pending.requested ? 'request' : 'removal'} for ${pending.target.label}.</p>

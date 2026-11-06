@@ -1,18 +1,34 @@
 //! Authenticated reviewer observations. Complete bounded traversal is not an
 //! atomic membership snapshot, write permission or attribution of a prior effect.
 use super::{
+    Client, Failure, Result,
     reads::Reader,
     records as r,
     request::{node_id, remote_id},
-    Client, Failure, Result,
 };
 use crate::credentials::Token;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
-const REQUESTS:&str="query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
-const TEAM:&str="query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
+const REQUESTS: &str = "query FactoryReviewRequests($pull:ID!,$after:String){node(id:$pull){__typename ... on PullRequest{id fullDatabaseId number repository{id} reviewRequests(first:50,after:$after){totalCount pageInfo{hasNextPage endCursor} nodes{id asCodeOwner pullRequest{id} requestedReviewer{__typename ... on Node{id} ... on User{databaseId login} ... on Bot{databaseId login} ... on Team{databaseId name slug organization{id login}}}}}}}}";
+const TEAM: &str = "query FactoryReviewTeam($target:ID!){node(id:$target){__typename ... on Team{id databaseId name slug organization{id login}}}}";
+const TEAM_NAME: &str = "query FactoryReviewTeamName($organization:String!,$slug:String!){organization(login:$organization){id team(slug:$slug){__typename id databaseId name slug organization{id login}}}}";
+
+pub(super) fn valid_lookup(kind: &str, name: &str) -> bool {
+    if kind == "user" {
+        !name.is_empty()
+            && name.len() <= 39
+            && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    } else {
+        kind == "team"
+            && !name.is_empty()
+            && name.len() <= 100
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
@@ -57,12 +73,16 @@ impl ReviewerRead {
 pub(super) enum ReviewerQuery {
     Requests { pull: String, after: Option<String> },
     Team { node: String },
+    TeamName { organization: String, slug: String },
 }
 impl ReviewerQuery {
     pub(super) fn wire(&self) -> (&'static str, Value) {
         match self {
             Self::Requests { pull, after } => (REQUESTS, json!({"pull":pull,"after":after})),
             Self::Team { node } => (TEAM, json!({"target":node})),
+            Self::TeamName { organization, slug } => {
+                (TEAM_NAME, json!({"organization":organization,"slug":slug}))
+            }
         }
     }
 }
@@ -86,6 +106,69 @@ impl Client {
     }
 }
 impl Reader<'_> {
+    pub(super) async fn reviewer_lookup(
+        &self,
+        number: u32,
+        kind: &str,
+        name: &str,
+    ) -> Result<Value> {
+        if !valid_lookup(kind, name) {
+            return Err(Failure::invalid());
+        }
+        let pull = self.raw_subject(true, u64::from(number)).await?;
+        let (actor, team) = if kind == "user" {
+            let raw = self
+                .client
+                .get(&format!("/users/{name}"), &[], self.token)
+                .await?
+                .value;
+            if raw["type"] != "User" || !r::text(&raw, "login")?.eq_ignore_ascii_case(name) {
+                return Err(Failure::new(409, "github_reviewer_changed"));
+            }
+            opaque(&raw, "node_id", 1024)?;
+            (r::actor(&raw)?, Value::Null)
+        } else {
+            let repository = self.get("", &[]).await?.value;
+            if r::id(&repository["id"])? != self.repository {
+                return Err(Failure::new(409, "github_repository_changed"));
+            }
+            let owner = &repository["owner"];
+            if owner["type"] != "Organization" {
+                return Err(Failure::new(404, "github_not_visible"));
+            }
+            let organization = text(owner, "login", 256)?;
+            let owner_node = opaque(owner, "node_id", 1024)?;
+            let raw = self
+                .client
+                .reviewer_query(
+                    ReviewerQuery::TeamName {
+                        organization: organization.into(),
+                        slug: name.into(),
+                    },
+                    self.token,
+                )
+                .await?;
+            let found = &raw["data"]["organization"];
+            if found.is_null() || found["team"].is_null() {
+                return Err(Failure::new(404, "github_not_visible"));
+            }
+            if found["id"] != owner_node
+                || found["team"]["__typename"] != "Team"
+                || !text(&found["team"], "slug", 512)?.eq_ignore_ascii_case(name)
+            {
+                return Err(Failure::new(409, "github_reviewer_scope_changed"));
+            }
+            let target = project(&found["team"], owner_node)?;
+            (
+                Value::Null,
+                json!({"external_id":target["external_id"],"name":target["name"]}),
+            )
+        };
+        self.recheck().await?;
+        Ok(
+            json!({"repository":self.repository,"name":self.name,"pull":{"kind":"pull","external_id":r::id(&pull["id"])?,"number":number},"actor":actor,"team":team}),
+        )
+    }
     pub(super) async fn review_requests(&self, q: &ReviewerRead) -> Result<Value> {
         let pull = self.raw_subject(true, q.number).await?;
         let pull_id = r::id(&pull["id"])?;

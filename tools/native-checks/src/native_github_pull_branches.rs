@@ -2813,6 +2813,14 @@ pub(super) async fn connected_writes(
     }
     if general {
         let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+        let review_number = config["reviews"]["number"].as_u64().ok_or("review fixture absent")?;
+        let login = config["name"].as_str().and_then(|s|s.split('/').next()).ok_or("fixture owner absent")?;
+        let lookup = format!("{root_path}/pulls/{review_number}/review-requests/lookup?kind=user&name={login}");
+        let selected = call(&runtime,"GET",&lookup,&[]).await?;
+        ensure(selected.0 == 200 && selected.1["actor"]["login"] == login && selected.1["actor"]["id"].is_string() && selected.1["team"].is_null(),
+            "connected reviewer username lookup failed")?;
+        ensure(call(&runtime,"GET",&lookup,&[]).await?.1["actor"]["id"] == selected.1["actor"]["id"],"reviewer lookup rekeyed canonical actor")?;
+        println!("PASS: connected reviewer lookup preserves canonical actor without requesting a review");
         let submit = async |path: &str,
                             lookup: &str,
                             writing: serde_json::Value|

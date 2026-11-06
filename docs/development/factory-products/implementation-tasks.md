@@ -30916,3 +30916,23 @@ TypeScript and the production UI build passed. This is declared-transport
 component evidence. Arbitrary username/team lookup is still unimplemented;
 positive connected requests need the deferred second account/organization fixture.
 Connected desktop/installed qualification and T11 remain open.
+
+### T11-WRITES: exact reviewer username/team lookup (2026-11-06)
+
+The shared reviewer picker now resolves a username or team slug through the
+existing admitted read service. Rust owns authenticated lookup and repository-owner
+organization binding; Go maps the result to a canonical actor/team. The separate
+request action retains its existing journal and live provider checks. Duplicate
+or unknown query fields refuse; discovery never sends a review request. Hosts
+without the lookup source explicitly report unavailable.
+
+Live username lookup and stable mapping passed in
+`/home/vince/tmp/fgw-1106.cqnVjg/general1/reviewer-lookup.log`; saved writes/restart
+were reused without new reviewer notifications. The existing native product check
+passed 30 declared cases, including user/team lookup and invalid queries, under
+`/home/vince/tmp/factory-reviewer-lookup-1106.ydL8bh/`. The existing emitted-component
+Chromium journey passed lookup, explicit canonical selection and failed-lookup
+preservation under `/home/vince/tmp/factory-reviewer-lookup-ui-1106.HwOkdj/`.
+Go/native builds, TypeScript and production UI build passed. Real organization-team
+lookup, positive cross-account/team requests and connected desktop/installed
+qualification remain open. T11 remains active.

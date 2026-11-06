@@ -2313,6 +2313,17 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .and_then(|r| r["reviewer"]["team"]["id"].as_str())
         .ok_or("observed canonical team absent")?;
     let mut cases = vec!["canonical-catalogue"];
+    for (kind, name, field, canonical) in [("user", "target-user", "actor", user), ("team", "target-team", "team", team)] {
+        let result = call(&runtime,&store,&connection,"GET",&format!("{submit}/lookup?kind={kind}&name={name}"),&[]).await?;
+        ensure(result.0 == 200 && result.1[field]["id"] == canonical && result.1["pull"]["external_id"] == "700" && writes()? == 0,
+            &format!("canonical {kind} lookup failed: {} {}",result.0,result.1))?;
+        cases.push(if kind == "user" { "user-name-lookup" } else { "team-slug-lookup" });
+    }
+    for suffix in ["?kind=user&name=declared-target&name=other", "?kind=user&name=x&extra=x", "?kind=bot&name=x", "?kind=user&name=..%2Fbad"] {
+        ensure(call(&runtime,&store,&connection,"GET",&format!("{submit}/lookup{suffix}"),&[]).await?.0 == 400,
+            "invalid reviewer lookup reached provider")?;
+    }
+    cases.push("invalid-lookup-refused");
     for mode in [
         "catalogue-hidden",
         "catalogue-user-unknown",
