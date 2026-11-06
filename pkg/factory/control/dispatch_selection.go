@@ -8,6 +8,7 @@ import (
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -134,6 +135,11 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 // checkHarnessFor verifies the selected role's tool and runtime kind. Current
 // appliance admission captures the proved bundle without changing retained pins.
 func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string) *planWait {
+	if plan.nativeEnvironment != nil && project.ExecutionManifestRequired(plan.phase) {
+		if _, ready := deps.Host.(execution.TaskRuntime); !ready {
+			return waitFor(WaitHarness, execution.ErrTaskUnavailable.Error())
+		}
+	}
 	selection := plan.policy.Roles[role]
 	if selection.Harness == "" || selection.Model == "" {
 		return waitFor(WaitHarness, "policy has no selection for this role")

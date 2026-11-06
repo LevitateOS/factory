@@ -1118,6 +1118,24 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		if _, err = port.LaunchRun(ctx, request); err == nil {
 			return errors.New("Go launched an unadmitted native fixture")
 		}
+		// A shape-valid immutable manifest must not be silently discarded by
+		// the plain CLI adapter. Task policy/plan authority is not declared here.
+		plan := []byte(`{"fixture":"unexecuted"}`)
+		manifest, err := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: plan, PlanDigest: project.PlanDigest(plan),
+			Invocation: factory.NewID(), Phase: project.ExecutionImplement, Run: run.ID, Deadline: run.Deadline, Effort: intent.Effort, MaxChildren: 1})
+		if err != nil {
+			return err
+		}
+		request.Input.Run.Role, request.Input.Run.ExecutionPhase = project.RoleCoder, project.ExecutionImplement
+		request.Input.ExecutionManifest = manifest
+		request.Input.Run.ManifestDigest = project.ExecutionManifestDigest(manifest)
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		if _, err := port.LaunchRun(ctx, request); !errors.Is(err, execution.ErrTaskUnavailable) {
+			return errors.New("native plain CLI accepted or silently discarded a task manifest")
+		}
+		fmt.Println("PASS: native task-manifest launch remains explicitly unavailable before native effects")
 		fmt.Println("PASS: Go native launch refuses unadmitted work before native effects")
 		return nil
 	}

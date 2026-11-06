@@ -11,6 +11,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory/control"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/factory/mcpserver"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 var _ execution.RunLauncher = NativeExecution{}
@@ -19,6 +20,11 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 	var empty execution.RunObservation
 	if p.Store == nil || request.Validate() != nil || request.Kind != collaboration.Native || request.Native.CredentialSHA256 == "" || request.Native.Workspace.Profile != p.Config.Profile || request.Native.Workspace.InstanceID != p.Instance {
 		return empty, execution.ErrLaunch
+	}
+	if project.ExecutionManifestRequired(request.Input.Run.ExecutionPhase) {
+		if _, ready := any(p).(execution.TaskRuntime); !ready {
+			return empty, errors.Join(execution.ErrLaunch, execution.ErrTaskUnavailable)
+		}
 	}
 	cap, err := p.Store.AuthorizeNativeLaunch(ctx, request)
 	if err != nil {

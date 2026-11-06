@@ -10,6 +10,7 @@ import (
 )
 
 var ErrTask = errors.New("task command differs from its captured runtime binding")
+var ErrTaskUnavailable = errors.New("task and checkpoint runtime unavailable")
 
 // TaskRequest addresses the existing task owner for a running worker. The
 // adapter must condition the command on this exact process/manifest identity;
@@ -68,4 +69,13 @@ func (r TaskReceipt) ValidateFor(request TaskRequest) error {
 
 type TaskCommander interface {
 	CommandTask(context.Context, TaskRequest) (TaskReceipt, error)
+}
+
+// TaskRuntime is the complete effect surface required by a manifest-driven
+// parent. A plain CLI launcher cannot substitute for task/checkpoint ownership.
+// Implementing these ports is availability, not qualification of their behavior.
+type TaskRuntime interface {
+	TaskCommander
+	CheckpointWriter
+	FinalCheckpointReader
 }

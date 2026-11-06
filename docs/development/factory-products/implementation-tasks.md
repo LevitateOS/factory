@@ -31544,3 +31544,13 @@ This does not qualify connected settings permission or execute publication.
 Cross-account policy enrollment, shell account selection and background native
 publication/review/merge authority remain unfinished alongside task/checkpoint
 ports and the real admitted provider journey. T09 and broad security gates stay open.
+
+Native implementation/correction now holds before dispatch while the host lacks
+the complete task-command/checkpoint-write/final-receipt-read surface. The public
+Go launcher separately refuses manifest-driven work instead of dropping the
+manifest into ordinary CLI execution. A shape-valid manifest refusal before
+native effects, with the existing finite CLI/recovery journey still passing, is
+recorded in `/home/vince/tmp/ftsk6.c9wVRN/run.log`. This is an unavailable-state
+correction, not implementation or qualification of the task runtime. Positive
+admitted Go launch/MCP/artifact consumption and real provider execution remain
+pending; native task/checkpoint ownership is still required for coding phases.

@@ -290,6 +290,20 @@ including refusal after account/scope/permission changes and durable outcome
 evidence. Relevant files are those above and the existing publication/review/merge
 ports. No broad security gate is closed by the typed references or fixture pass.
 
+Task-runtime availability correction: `execution/task.go` groups the actual
+task-command, checkpoint-write and final-receipt-read ports. Native dispatch
+(`control/dispatch_selection.go`) holds manifest phases without them; the public
+`runtime/native_launch.go` refuses those phases before native effects. A
+shape-valid manifest request was refused during the existing real native fixture
+in `/home/vince/tmp/ftsk6.c9wVRN/run.log`; finite CLI execution/recovery still passed.
+No task ran and no task/checkpoint gate is qualified by this refusal. The isolated
+worker currently consumes a fixed CLI prompt, not an execution manifest or native
+parent/child control stream. Closing this blocker requires that substantive Rust
+owner, captured manifest delivery, observed task/child/checkpoint receipts, current
+Go admission and durable settlement on the real path. Interface presence alone
+cannot close it. Real provider execution and positive Go/MCP/artifact composition
+remain unverified, independently of this availability correction.
+
 Remaining dependencies: admitted retry/reviewer integration, shell checkout selection,
 checkpoint/artifact operations, shell enrollment of the native
 Muse account and canonical native sponsor/publication actor bindings (legacy
