@@ -415,11 +415,27 @@ impl NativeRecovery {
                 self.record_evidence().await?;
             }
             self.context.current()?;
-            super::Broker::retire_unlaunched(
-                self.broker_run(),
-                &self.context.profile,
-                &self.run.native.bundle_sha256,
-            )?;
+            if intent.has_tasks() {
+                if !result.root_retired {
+                    super::Broker::recover_task_receipts(
+                        &self.context.directory,
+                        &intent.scope()?,
+                        &intent.retained_manifest(&self.context.directory)?,
+                        &soda_execution_protocol::workspace::Parent::from_muse(&result.process),
+                    )?;
+                }
+                super::Broker::retire_bundle(
+                    self.broker_run(),
+                    &self.context.profile,
+                    &self.run.native.bundle_sha256,
+                )?;
+            } else {
+                super::Broker::retire_unlaunched(
+                    self.broker_run(),
+                    &self.context.profile,
+                    &self.run.native.bundle_sha256,
+                )?;
+            }
             super::muse_receipt::mark_retired(&self.context.directory, &intent, &result.process)?;
             return self
                 .record_root(&intent, &result.process.invocation, "")

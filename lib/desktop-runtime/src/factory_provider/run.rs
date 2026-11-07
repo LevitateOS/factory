@@ -88,6 +88,13 @@ impl Staged {
         }
         Ok(())
     }
+    pub(super) fn retire(&mut self) -> io::Result<()> {
+        if self.active {
+            Broker::retire_bundle(&self.run, &self.profile, &self.sha256)?;
+            self.active = false;
+        }
+        Ok(())
+    }
 }
 
 impl Drop for Staged {

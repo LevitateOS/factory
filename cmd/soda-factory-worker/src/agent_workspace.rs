@@ -101,6 +101,7 @@ fn oid(bytes: Vec<u8>) -> io::Result<String> {
 }
 struct Workspace<'a> {
     plan: Plan,
+    phase: String,
     manifest_digest: String,
     invocation: String,
     deadline: Instant,
@@ -118,7 +119,6 @@ impl<'a> Workspace<'a> {
         run: &str,
         candidate: &str,
         expected: &str,
-        invocation: &str,
         identity: &'a RepositoryIdentity,
         processes: &'a mut Processes,
     ) -> io::Result<Self> {
@@ -213,16 +213,11 @@ impl<'a> Workspace<'a> {
             }
             known.insert(task.id.clone());
         }
-        if invocation.is_empty()
-            || invocation.len() > 128
-            || invocation.chars().any(char::is_control)
-        {
-            return Err(refused("workspace observed invocation invalid"));
-        }
         Ok(Self {
             plan,
+            phase: manifest.phase,
             manifest_digest: expected.into(),
-            invocation: invocation.into(),
+            invocation: String::new(),
             deadline: Instant::now() + Duration::from_millis(until.whole_milliseconds() as u64),
             head: candidate.into(),
             active: None,
@@ -425,6 +420,9 @@ impl<'a> Workspace<'a> {
         Ok(results)
     }
     fn command(&mut self, command: Command) -> io::Result<Reply> {
+        if !command.valid_operation_id() {
+            return Err(refused("workspace operation identity invalid"));
+        }
         if Instant::now() >= self.deadline {
             return Err(refused("workspace deadline expired"));
         }
@@ -436,8 +434,34 @@ impl<'a> Workspace<'a> {
             head: self.head.clone(),
             ..Reply::default()
         };
+        if let Command::BindParent { invocation } = &command {
+            if !self.invocation.is_empty()
+                || invocation.is_empty()
+                || invocation.len() > 128
+                || invocation.chars().any(char::is_control)
+            {
+                return Err(refused("workspace observed parent binding invalid"));
+            }
+            self.invocation = invocation.clone();
+            if self.phase == "correct" {
+                let task = self.plan.tasks[0].id.clone();
+                self.event("parent_task_started", &task, String::new())?;
+                self.active = Some(0);
+                reply.events = self.events.clone();
+            }
+            reply.status = "bound".into();
+            return Ok(reply);
+        }
+        if self.invocation.is_empty() {
+            return Err(refused("workspace parent not observed"));
+        }
         match command {
+            Command::BindParent { .. } => unreachable!(),
             Command::Start { task } => {
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) == Some(task.as_str()) {
+                    reply.events = self.events.clone();
+                    return Ok(reply);
+                }
                 if self.active.is_some() || self.completed.contains(&task) {
                     return Err(refused("workspace task already active or complete"));
                 }
@@ -458,10 +482,14 @@ impl<'a> Workspace<'a> {
                 self.active = Some(i);
             }
             Command::Read {
+                task,
                 path,
                 offset,
                 limit,
             } => {
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str()) {
+                    return Err(refused("workspace task not active"));
+                }
                 if !(1..=MAX_TEXT).contains(&limit) {
                     return Err(refused("workspace read bound invalid"));
                 }
@@ -473,6 +501,17 @@ impl<'a> Workspace<'a> {
                 if !meta.is_file() || meta.len() > MAX_FILE || offset as u64 > meta.len() {
                     return Err(refused("workspace read file invalid"));
                 }
+                let mut hash = Sha256::new();
+                let mut chunk = [0; 8192];
+                loop {
+                    let n = file.read(&mut chunk)?;
+                    if n == 0 {
+                        break;
+                    }
+                    hash.update(&chunk[..n]);
+                }
+                reply.file_digest = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+                reply.total_bytes = Some(meta.len());
                 file.seek(SeekFrom::Start(offset as u64))?;
                 let mut bytes = vec![];
                 file.take(limit as u64).read_to_end(&mut bytes)?;
@@ -489,14 +528,20 @@ impl<'a> Workspace<'a> {
                     Err(_) => return Err(refused("workspace text invalid")),
                 };
                 reply.content = Some(text.into());
+                if ((offset + text.len()) as u64) < meta.len() {
+                    reply.next_offset = Some((offset + text.len()) as u64);
+                }
             }
             Command::Edit {
+                operation_id: _,
+                task,
                 path,
                 offset,
                 expected,
                 replacement,
             } => {
-                if self.frozen.is_some()
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
+                    || self.frozen.is_some()
                     || !self.owns(&path)
                     || expected.len() > MAX_TEXT
                     || replacement.len() > MAX_TEXT
@@ -549,6 +594,58 @@ impl<'a> Workspace<'a> {
                 file.write_all(&bytes)?;
                 file.set_len(bytes.len() as u64)?;
                 file.sync_all()?;
+            }
+            Command::MakeDirectory {
+                operation_id: _,
+                task,
+                path,
+            } => {
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
+                    || self.frozen.is_some()
+                    || !self.owns(&format!("{path}/"))
+                {
+                    return Err(refused("workspace directory outside task ownership"));
+                }
+                let path = self.path(&path)?;
+                fs::create_dir(&path)?;
+                std::fs::File::open(
+                    path.parent()
+                        .ok_or_else(|| refused("workspace directory parent missing"))?,
+                )?
+                .sync_all()?;
+            }
+            Command::Remove {
+                operation_id: _,
+                task,
+                path,
+                expected_digest,
+            } => {
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
+                    || self.frozen.is_some()
+                    || !self.owns(&path)
+                {
+                    return Err(refused("workspace removal outside task ownership"));
+                }
+                let path = self.path(&path)?;
+                let file = OpenOptions::new()
+                    .read(true)
+                    .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                    .open(&path)?;
+                let meta = file.metadata()?;
+                if !meta.is_file() || meta.nlink() != 1 || meta.len() > MAX_FILE {
+                    return Err(refused("workspace removal file invalid"));
+                }
+                let mut bytes = Vec::new();
+                file.take(MAX_FILE + 1).read_to_end(&mut bytes)?;
+                if digest(&bytes) != expected_digest {
+                    return Err(refused("workspace removal preimage differs"));
+                }
+                fs::remove_file(&path)?;
+                std::fs::File::open(
+                    path.parent()
+                        .ok_or_else(|| refused("workspace removal parent missing"))?,
+                )?
+                .sync_all()?;
             }
             Command::Release { task } => {
                 if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(&task) {
@@ -688,10 +785,9 @@ pub(super) fn serve(
     run: &str,
     candidate: &str,
     expected: &str,
-    invocation: &str,
     identity: &RepositoryIdentity,
 ) -> io::Result<()> {
-    let mut workspace = Workspace::open(run, candidate, expected, invocation, identity, processes)?;
+    let mut workspace = Workspace::open(run, candidate, expected, identity, processes)?;
     fn send(stream: &mut UnixStream, reply: &Reply) -> io::Result<()> {
         let bytes = serde_json::to_vec(reply)?;
         if bytes.len() > MAX_REPLY {
@@ -708,7 +804,7 @@ pub(super) fn serve(
             ..Reply::default()
         },
     )?;
-    for _ in 0..4096 {
+    for _ in 0..soda_execution_protocol::workspace::MAX_COMMANDS {
         stream.set_read_timeout(Some(
             workspace.deadline.saturating_duration_since(Instant::now()),
         ))?;

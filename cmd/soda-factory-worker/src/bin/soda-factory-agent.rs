@@ -49,7 +49,6 @@ enum Request {
         profile: String,
         candidate: String,
         manifest_digest: String,
-        invocation: String,
     },
     AttestAgent {
         version: u8,
@@ -1000,7 +999,6 @@ fn serve() -> io::Result<()> {
             profile: requested_profile,
             candidate: requested_candidate,
             manifest_digest,
-            invocation,
         } => {
             if version != 1
                 || run != args[1]
@@ -1017,7 +1015,6 @@ fn serve() -> io::Result<()> {
                 &run,
                 &candidate,
                 &manifest_digest,
-                &invocation,
                 candidate_identity
                     .as_ref()
                     .ok_or_else(|| refused("task workspace identity missing"))?,

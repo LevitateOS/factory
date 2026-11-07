@@ -109,8 +109,8 @@ corrections are now active; the old feature queue waits for their resolution.
   The shared token lane's admitted artifact/retained-restart settlement passed in
   `/home/vince/tmp/fmuse-legacy7.xRn8IG/result.log` with its private dummy keyring.
   Source availability now reflects the installed native helper/tool owner; missing
-  support waits without switching sources. Native task phases still require the
-  missing task runtime. Completed-entry acknowledgement now uses the existing
+  support waits without switching sources. Sequential task phases now have a
+  Muse-login runtime; the token task lane stays unavailable. Completed-entry acknowledgement now uses the existing
   progress loop and bounded native inventory after canonical assignment/usage
   settlement. Durable CLI receipts remain readable after release and restart;
   the composed local check passed in `/home/vince/tmp/fmuse-recovery7.hYZb3R/result.log`.
@@ -142,7 +142,7 @@ corrections are now active; the old feature queue waits for their resolution.
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
 
-- **A05/A19 — agent source reads implemented; task execution still pending.**
+- **A05/A19 — agent source reads implemented; pipeline qualification pending.**
   `factory.read_source` exposes the existing Rust isolated preparation reader
   through the Go worker service. The capability selects assignment, preparation
   and immutable source commit; the agent selects a relative path and bounded
@@ -190,7 +190,7 @@ corrections are now active; the old feature queue waits for their resolution.
   or installed/authority-race qualification. Submodule/over-limit listings and
   large-file workload/resource ceilings were not qualified by these checks.
 
-- **A04/A19 — native task manifest binding implemented; task runtime pending.**
+- **A04/A19 — sequential native task runtime composed; qualification pending.**
   New task intents use version 5 to capture the exact phase and manifest digest
   in the Go transaction. Go launch transports the original manifest bytes;
   Rust bounds and binds its run, plan bytes, deadline, profile and child limit,
@@ -205,15 +205,13 @@ corrections are now active; the old feature queue waits for their resolution.
   The current Go-admitted non-task MCP/artifact, retirement and restart journey
   passed in `/home/vince/tmp/ftask-admitted-fixed7.mWt3yM/result.log` after fixing
   duplicate intent publication. Native/Go builds and dependency boundaries passed.
-  No model or GitHub operation ran. Task phases remain explicitly unavailable:
-  isolated task effects, manifest consumption, task/final checkpoints,
-  event journal and their actual Go-admitted lifecycle still need implementation.
+  No model or GitHub operation ran in that manifest/non-task check. Its original
+  scope did not implement task effects or qualify an admitted coding lifecycle.
   Failed earlier fixtures remain unresolved in the security handoff. The owner
   selected sequential Builder execution. New native implement dispatch stages
   zero children; manifest readers retain historical child variants. Go imports
   parent task events across the multi-task plan with a one-active-task limit;
-  Builder output release and context use that captured mode. The isolated native
-  task runtime is not yet composed, so task phases stay unavailable.
+  Builder output release and context use that captured mode.
   Go-produced sequential token/CLI manifests and retained child/correction modes
   passed the existing Rust sidecar readback, changed-byte and pending-marker
   checks in `/home/vince/tmp/fsequential-contract7.LviXGj/result.log`.
@@ -239,11 +237,35 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fworkspace-receipts7.XNzS1t/result.log`. A cancelled checkpoint's
   pending request survives without a fabricated result or effect replay. This
   does not qualify actual lost transport replies or publication interruption.
-  Coding phases remain disabled. Next: compose actual observed parent ownership
-  and worker MCP effects, join the Go task/checkpoint/journal/candidate ports and
-  prove admitted-run recovery. Mutable directory/file removal and
-  larger workload coverage also remain unfinished. These component results do
-  not qualify D3, custody/IPC, the full pipeline or installed execution.
+  The Muse-login run owner now prepares the isolated task workspace before
+  inference and binds it to the actual observed process incarnation. Scoped
+  worker MCP exposes task admission, bounded text read/edit, directory creation,
+  exact-digest file removal and output release. Go implements the task, task/final
+  checkpoint, journal and candidate ports using the existing native callback.
+  Stable mutation identities retain exact replies; current Go admission and
+  independent Rust process queries remain required. Stored receipt uncertainty
+  is not treated as a liveness decision. Native terminal/startup recovery copies
+  completed pending receipts before retiring task roots. Token task sources stay
+  unavailable. Admitted verification and remaining limits are recorded below.
+  Actual admitted investigation produced and settled its plan; the fixture then
+  supplied phase advancement through the canonical plan/dispatch gates. Its
+  implementation used the actual observed parent, role MCP, directory/file
+  operations, exact edit replay, two sequential checks/commits, eight imported
+  events, final integration check and retained candidate export. Evidence:
+  `/home/vince/tmp/fadmitted-tasks7.NgVBjI/result.log`. That log ends at a
+  premature settlement assertion; the original completed run was resumed and
+  passed canonical settlement, exact checkpoint/candidate reads and source usage
+  after restart without task/inference replay:
+  `/home/vince/tmp/fadmitted-tasks7.NgVBjI/recovery-verified.log`.
+  Repository authority and phase advancement were fixture supplied; the local
+  CLI made no model/provider request. Go/native builds, affected existing MCP
+  tests and dependency boundaries passed. No new unit-test suite was introduced.
+  Remaining: real-model coding, actual correction, admitted cancellation and
+  interrupted recovery/publication, broader workloads, connected authority,
+  review/publication/CI/merge and installed qualification. Earlier failed local
+  fixture profiles remain retained; they supply no completion evidence.
+  These changes do not qualify D3, custody/IPC, the full pipeline or installed
+  execution.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

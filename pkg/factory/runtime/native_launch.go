@@ -22,7 +22,7 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 		return empty, execution.ErrLaunch
 	}
 	if project.ExecutionManifestRequired(request.Input.Run.ExecutionPhase) {
-		if _, ready := any(p).(execution.TaskRuntime); !ready {
+		if !p.SupportsTaskSource(request.Native.Authentication) {
 			return empty, errors.Join(execution.ErrLaunch, execution.ErrTaskUnavailable)
 		}
 	}

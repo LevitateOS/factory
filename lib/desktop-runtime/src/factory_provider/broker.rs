@@ -15,7 +15,7 @@ use std::io::{self, Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt};
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -851,7 +851,9 @@ pub struct TaskWorkspace {
     stream: UnixStream,
     _watch: AgentWatch,
     _provider_socket: super::owner::WorkspaceRelaySocket,
-    receipts: super::workspace_receipts::Receipts,
+    receipts: Option<super::workspace_receipts::Receipts>,
+    profile_path: PathBuf,
+    manifest: Vec<u8>,
     address: TaskReceiptAddress,
     usable: bool,
 }
@@ -859,6 +861,9 @@ struct TaskReceiptAddress {
     run: String,
     profile: String,
     source_sha256: String,
+    candidate: String,
+    tool_sha256: String,
+    prompt_sha256: String,
     manifest_digest: String,
     invocation: String,
 }
@@ -868,12 +873,26 @@ impl TaskReceiptAddress {
             run: scope.run.into(),
             profile: scope.profile.into(),
             source_sha256: scope.source_sha256.into(),
+            candidate: scope.candidate.into(),
+            tool_sha256: scope.tool_sha256().into(),
+            prompt_sha256: scope.prompt_sha256().into(),
             manifest_digest: Sha256::digest(manifest)
                 .iter()
                 .map(|b| format!("{b:02x}"))
                 .collect(),
             invocation: invocation.into(),
         }
+    }
+    fn scope(&self) -> io::Result<super::ReceiptScope<'_>> {
+        super::ReceiptScope::new(
+            &self.run,
+            &self.profile,
+            &self.source_sha256,
+            &self.candidate,
+            Role::Coder,
+            &self.tool_sha256,
+            &self.prompt_sha256,
+        )
     }
     fn read(
         &self,
@@ -883,7 +902,7 @@ impl TaskReceiptAddress {
             return Err(refused("workspace command has no retained receipt"));
         }
         let payload = serde_json::to_vec(command)?;
-        exchange_controlled(
+        let reply: soda_execution_protocol::workspace::Reply = exchange_controlled(
             json!({"kind":"read_task_receipt","version":1,"run":self.run,"profile":self.profile,
             "sha256":self.source_sha256,"manifest_digest":self.manifest_digest,"invocation":self.invocation,
             "command_length":payload.len()}),
@@ -891,10 +910,72 @@ impl TaskReceiptAddress {
             ATTEST_TIME,
             None,
             soda_execution_protocol::workspace::MAX_REPLY,
-        )
+        )?;
+        if matches!(reply.status.as_str(), "pending" | "not_requested") {
+            return Err(io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "task outcome remains pending",
+            ));
+        }
+        Ok(reply)
     }
 }
 impl TaskWorkspace {
+    pub(super) fn recover_pending(&self) -> io::Result<()> {
+        let Some(receipts) = &self.receipts else {
+            return Ok(());
+        };
+        for command in receipts.pending()? {
+            match self.address.read(&command) {
+                Ok(reply) => receipts.complete(&command, &reply)?,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => (),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+    /// Bind only the invocation independently observed by the native provider
+    /// owner. Preparation supplies no task authority before this one-time bind.
+    pub fn bind_parent(
+        &mut self,
+        parent: &soda_execution_protocol::workspace::Parent,
+    ) -> io::Result<()> {
+        if self.receipts.is_some() || !self.usable {
+            return Err(refused("workspace parent already bound or unavailable"));
+        }
+        let receipts = super::workspace_receipts::Receipts::create(
+            &self.profile_path,
+            &self.address.scope()?,
+            &self.manifest,
+            parent,
+        )?;
+        self.receipts = Some(receipts);
+        self.address.invocation = parent.invocation.clone();
+        let command = soda_execution_protocol::workspace::Command::BindParent {
+            invocation: parent.invocation.clone(),
+        };
+        let receipts = self
+            .receipts
+            .as_ref()
+            .expect("captured parent receipt owner")
+            .clone();
+        receipts.begin(&command)?;
+        let bytes = serde_json::to_vec(&command)?;
+        let result = (|| {
+            self.stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
+            self.stream.write_all(&bytes)?;
+            let reply = self.reply()?;
+            if reply.status != "bound" || reply.head != self.address.candidate {
+                return Err(refused("workspace parent acknowledgement differs"));
+            }
+            receipts.complete(&command, &reply)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            self.fence();
+        }
+        result
+    }
     fn fence(&mut self) {
         self.usable = false;
         let _ = self.stream.shutdown(std::net::Shutdown::Both);
@@ -903,19 +984,33 @@ impl TaskWorkspace {
         &mut self,
         command: &soda_execution_protocol::workspace::Command,
     ) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        if matches!(
+            command,
+            soda_execution_protocol::workspace::Command::BindParent { .. }
+        ) {
+            return Err(refused("workspace parent is native-owned"));
+        }
+        let receipts = self
+            .receipts
+            .as_ref()
+            .ok_or_else(|| refused("workspace parent not observed"))?
+            .clone();
+        if !command.valid_operation_id() {
+            return Err(refused("workspace operation identity invalid"));
+        }
         let bytes = serde_json::to_vec(command)?;
         if bytes.is_empty() || bytes.len() > soda_execution_protocol::workspace::MAX_COMMAND {
             return Err(refused("workspace command exceeds bound"));
         }
         if command.retains_receipt() {
-            if let Some(reply) = self.receipts.reply(command)? {
+            if let Some(reply) = receipts.reply(command)? {
                 return Ok(reply);
             }
-            if self.receipts.request(command)? {
+            if receipts.request(command)? {
                 // A prior request may have committed before its reply was lost.
                 // Read the broker's result; never send the effect a second time.
                 let reply = self.address.read(command)?;
-                if let Err(error) = self.receipts.complete(command, &reply) {
+                if let Err(error) = receipts.complete(command, &reply) {
                     self.fence();
                     return Err(error);
                 }
@@ -926,7 +1021,7 @@ impl TaskWorkspace {
             return Err(refused("workspace connection outcome uncertain"));
         }
         if command.retains_receipt() {
-            if let Err(error) = self.receipts.begin(command) {
+            if let Err(error) = receipts.begin(command) {
                 self.fence();
                 return Err(error);
             }
@@ -944,7 +1039,7 @@ impl TaskWorkspace {
             }
         };
         if command.retains_receipt() {
-            if let Err(error) = self.receipts.complete(command, &reply) {
+            if let Err(error) = receipts.complete(command, &reply) {
                 self.fence();
                 return Err(error);
             }
@@ -964,11 +1059,10 @@ impl TaskWorkspace {
     }
 }
 impl Broker {
-    pub fn open_task_workspace(
+    pub fn prepare_task_workspace(
         profile: &Path,
         scope: &super::ReceiptScope<'_>,
         manifest: &[u8],
-        invocation: &str,
         cancellation: AgentCancellation,
     ) -> io::Result<TaskWorkspace> {
         if scope.role != Role::Coder
@@ -977,9 +1071,8 @@ impl Broker {
         {
             return Err(refused("workspace manifest declaration invalid"));
         }
-        let receipts =
-            super::workspace_receipts::Receipts::create(profile, scope, manifest, invocation)?;
-        let address = TaskReceiptAddress::new(scope, manifest, invocation);
+        super::receipt::profile(profile, scope.profile)?;
+        let address = TaskReceiptAddress::new(scope, manifest, "");
         let manifest_digest = &address.manifest_digest;
         let provider_socket = super::owner::WorkspaceRelaySocket::bind(scope.run)?;
         Self::attest_provider_relay(
@@ -992,7 +1085,7 @@ impl Broker {
         let bytes = serde_json::to_vec(&json!({"kind":"task_workspace","version":1,
             "run":scope.run,"profile":scope.profile,"sha256":scope.source_sha256,"candidate":scope.candidate,
             "tool_sha256":scope.tool_sha256(),"prompt_sha256":scope.prompt_sha256(),
-            "manifest_length":manifest.len(),"manifest_digest":manifest_digest,"invocation":invocation}))?;
+            "manifest_length":manifest.len(),"manifest_digest":manifest_digest}))?;
         if bytes.len() > MAX_FRAME {
             return Err(refused("workspace declaration exceeds bound"));
         }
@@ -1005,7 +1098,9 @@ impl Broker {
             stream,
             _watch: watch,
             _provider_socket: provider_socket,
-            receipts,
+            receipts: None,
+            profile_path: profile.to_path_buf(),
+            manifest: manifest.to_vec(),
             address,
             usable: true,
         };
@@ -1024,20 +1119,35 @@ impl Broker {
         profile: &Path,
         scope: &super::ReceiptScope<'_>,
         manifest: &[u8],
-        invocation: &str,
+        parent: &soda_execution_protocol::workspace::Parent,
         command: &soda_execution_protocol::workspace::Command,
     ) -> io::Result<soda_execution_protocol::workspace::Reply> {
-        let receipts =
-            super::workspace_receipts::Receipts::open(profile, scope, manifest, invocation)?;
+        let receipts = super::workspace_receipts::Receipts::open(profile, scope, manifest, parent)?;
         if let Some(reply) = receipts.reply(command)? {
             return Ok(reply);
         }
         if !receipts.request(command)? {
             return Err(refused("workspace task was never requested"));
         }
-        let reply = TaskReceiptAddress::new(scope, manifest, invocation).read(command)?;
+        let reply = TaskReceiptAddress::new(scope, manifest, &parent.invocation).read(command)?;
         receipts.complete(command, &reply)?;
         Ok(reply)
+    }
+    pub(super) fn recover_task_receipts(
+        profile: &Path,
+        scope: &super::ReceiptScope<'_>,
+        manifest: &[u8],
+        parent: &soda_execution_protocol::workspace::Parent,
+    ) -> io::Result<()> {
+        let receipts = super::workspace_receipts::Receipts::open(profile, scope, manifest, parent)?;
+        for command in receipts.pending()? {
+            match Self::retained_task_receipt(profile, scope, manifest, parent, &command) {
+                Ok(_) => (),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => (),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
     }
 }
 impl BrokerPreparation {

@@ -14,7 +14,6 @@ pub(super) fn serve<R: Read, W: Write>(
     prompt: &str,
     manifest_digest: &str,
     manifest: &[u8],
-    invocation: &str,
 ) -> io::Result<()> {
     {
         let runs = state()?;
@@ -44,7 +43,6 @@ pub(super) fn serve<R: Read, W: Write>(
             file.write_all(manifest)?;
             file.sync_all()?;
             file.set_permissions(fs::Permissions::from_mode(0o444))?;
-            task_receipts::capture(&directory, manifest_digest, invocation)?;
             File::open(&directory)?.sync_all()
         })();
         let restored = fs::set_permissions(&directory, fs::Permissions::from_mode(0o555));
@@ -80,7 +78,7 @@ pub(super) fn serve<R: Read, W: Write>(
             return Err(denied("task launch socket survived consumption"));
         }
         let request = serde_json::to_vec(&serde_json::json!({"kind":"task_workspace","version":1,
-            "run":run,"profile":profile,"candidate":candidate,"manifest_digest":manifest_digest,"invocation":invocation}))?;
+            "run":run,"profile":profile,"candidate":candidate,"manifest_digest":manifest_digest}))?;
         worker.write_all(&(request.len() as u32).to_le_bytes())?;
         worker.write_all(&request)?;
         let deadline = Instant::now() + Duration::from_secs(4 * 60 * 60);
@@ -101,7 +99,8 @@ pub(super) fn serve<R: Read, W: Write>(
             output.flush()
         }
         send(output, &frame(&mut worker, MAX_REPLY, deadline)?)?;
-        for _ in 0..4096 {
+        let mut invocation = String::new();
+        for _ in 0..soda_execution_protocol::workspace::MAX_COMMANDS {
             if Instant::now() >= deadline {
                 return Err(denied("task session deadline expired"));
             }
@@ -147,6 +146,32 @@ pub(super) fn serve<R: Read, W: Write>(
             read_client_exact(input, &mut bytes, deadline)?;
             let command: WorkspaceCommand =
                 serde_json::from_slice(&bytes).map_err(|_| denied("task command shape invalid"))?;
+            if !command.valid_operation_id() {
+                return Err(denied("task operation identity invalid"));
+            }
+            if let WorkspaceCommand::BindParent { invocation: parent } = &command {
+                if !invocation.is_empty()
+                    || parent.is_empty()
+                    || parent.len() > 128
+                    || parent.chars().any(char::is_control)
+                {
+                    return Err(denied("task parent binding invalid"));
+                }
+                let runs = state()?;
+                let (_lock, _run_lock) = lock_run(&runs, run)?;
+                let source = runs.join(run);
+                verified_profile(&source, profile)?;
+                if !verified_bundle(&source, source_sha)? {
+                    return Err(denied("task source changed"));
+                }
+                fs::set_permissions(&source, fs::Permissions::from_mode(0o700))?;
+                let captured = task_receipts::capture(&source, manifest_digest, parent);
+                let restored = fs::set_permissions(&source, fs::Permissions::from_mode(0o555));
+                captured.and(restored)?;
+                invocation = parent.clone();
+            } else if invocation.is_empty() {
+                return Err(denied("task parent not observed"));
+            }
             if command.retains_receipt() {
                 let runs = state()?;
                 let (_lock, _run_lock) = lock_run(&runs, run)?;
@@ -155,7 +180,7 @@ pub(super) fn serve<R: Read, W: Write>(
                 if !verified_bundle(&source, source_sha)? {
                     return Err(denied("task source changed"));
                 }
-                task_receipts::verify(&source, manifest_digest, invocation)?;
+                task_receipts::verify(&source, manifest_digest, &invocation)?;
                 if let Some(saved) = task_receipts::read(&source, &command)? {
                     send(output, &saved)?;
                     continue;
@@ -173,7 +198,7 @@ pub(super) fn serve<R: Read, W: Write>(
                 if !verified_bundle(&source, source_sha)? {
                     return Err(denied("task source changed"));
                 }
-                task_receipts::verify(&source, manifest_digest, invocation)?;
+                task_receipts::verify(&source, manifest_digest, &invocation)?;
                 task_receipts::complete(&source, &command, &reply)?;
             }
             send(output, &reply)?;

@@ -237,6 +237,8 @@ func catalogTools(deps Dependencies, capability factory.MCPCapability) []factory
 	for _, tool := range factory.MCPTools {
 		if !factory.MCPToolAdmitted(capability.Profile, tool) ||
 			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil) ||
+			(tool == factory.MCPToolStartTask && capability.Profile == factory.MCPProfileFixer && deps.Workspace == nil) ||
+			(tool == factory.MCPToolWorkspace && (deps.Workspace == nil || !deps.sequentialTasks)) ||
 			(tool == factory.MCPToolReadSource && deps.ReadSource == nil) ||
 			(tool == factory.MCPToolListSource && deps.ListSource == nil) ||
 			(tool == factory.MCPToolReleaseOutput && capability.Profile == factory.MCPProfileBuilder && !deps.sequentialTasks) {
@@ -262,6 +264,8 @@ func (s *factoryCatalogServer) serve(ctx context.Context, tool factory.MCPTool, 
 		return s.serveIssueMaker(ctx, tool, args)
 	case factory.MCPToolStartTask, factory.MCPToolReleaseOutput:
 		return s.serveNativeTask(ctx, tool, args)
+	case factory.MCPToolWorkspace:
+		return s.serveWorkspace(ctx, args)
 	case factory.MCPToolPublishArtifact:
 		return s.serveArtifact(ctx, args)
 	case factory.MCPToolVerificationEvidence:

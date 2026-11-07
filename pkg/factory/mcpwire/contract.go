@@ -35,6 +35,12 @@ func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 
 func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	switch tool {
+	case factory.MCPToolWorkspace:
+		return &jsonschema.Schema{Type: "object", Properties: map[string]*jsonschema.Schema{
+			"task_id": {Type: "string", Pattern: "^[a-z][a-z0-9_-]{0,31}$"}, "operation": {Type: "string", Enum: []any{"read", "edit", "mkdir", "remove"}},
+			"path": {Type: "string", MinLength: ptrInt(1), MaxLength: ptrInt(1024)}, "offset": {Type: "integer"}, "limit": {Type: "integer"},
+			"expected": {Type: "string"}, "replacement": {Type: "string"}, "expected_digest": {Type: "string"},
+		}, Required: []string{"task_id", "operation", "path"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}}}
 	case factory.MCPToolReadSource, factory.MCPToolListSource:
 		minLength := 1
 		if tool == factory.MCPToolListSource {

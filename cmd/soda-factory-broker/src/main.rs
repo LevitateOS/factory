@@ -52,7 +52,6 @@ enum Request {
         prompt_sha256: String,
         manifest_length: usize,
         manifest_digest: String,
-        invocation: String,
     },
     CompleteCandidate {
         version: u8,
@@ -2302,8 +2301,20 @@ fn serve() -> io::Result<()> {
                 return Err(denied("task receipt source missing"));
             }
             task_receipts::verify(&directory, &manifest_digest, &invocation)?;
-            task_receipts::read(&directory, &command)?
-                .ok_or_else(|| denied("task receipt pending or missing"))?
+            match task_receipts::read(&directory, &command) {
+                Ok(Some(reply)) => reply,
+                Ok(None) => serde_json::to_vec(&soda_execution_protocol::workspace::Reply {
+                    status: "not_requested".into(),
+                    ..Default::default()
+                })?,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    serde_json::to_vec(&soda_execution_protocol::workspace::Reply {
+                        status: "pending".into(),
+                        ..Default::default()
+                    })?
+                }
+                Err(e) => return Err(e),
+            }
         }
         Request::TaskWorkspace {
             version,
@@ -2315,7 +2326,6 @@ fn serve() -> io::Result<()> {
             prompt_sha256,
             manifest_length,
             manifest_digest,
-            invocation,
         } => {
             if version != 1
                 || !id(&run, 32)
@@ -2326,9 +2336,6 @@ fn serve() -> io::Result<()> {
                 || !id(&prompt_sha256, 64)
                 || !id(&manifest_digest, 64)
                 || !(1..=soda_execution_protocol::MAX_TASK_MANIFEST).contains(&manifest_length)
-                || invocation.is_empty()
-                || invocation.len() > 128
-                || invocation.chars().any(char::is_control)
             {
                 return Err(denied("task workspace declaration invalid"));
             }
@@ -2352,7 +2359,6 @@ fn serve() -> io::Result<()> {
                 &prompt_sha256,
                 &manifest_digest,
                 &manifest,
-                &invocation,
             );
         }
         Request::StagePreparation {

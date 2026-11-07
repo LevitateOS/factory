@@ -17,11 +17,14 @@ import (
 )
 
 // Use this same catalog for prelaunch delivery and the authenticated server.
-// Missing native task/catalog effects stay unavailable until their owners join.
+// Optional catalog effects stay unavailable until their owners join.
 func (p NativeExecution) workerDependencies(lifetime context.Context) mcpserver.Dependencies {
 	admission := service.WorkerAdmission{Store: p.Store, Inspect: p.InspectRun}
+	tasks := service.WorkerTasks{Store: p.Store, Inspect: p.InspectRun, Command: p.CommandTask}
 	return mcpserver.Dependencies{Capabilities: p.Store, Assignments: p.Store, Submissions: p.Store, Runs: p.Store,
 		Prepare:    admission.Prepare,
+		NativeTask: tasks.Execute,
+		Workspace:  tasks.Workspace,
 		ReadSource: (service.WorkerSource{Store: p.Store, Reader: p}).Read,
 		ListSource: (service.WorkerSource{Store: p.Store, Reader: p}).List,
 		Observed: func(cap factory.MCPCapability) (control.MCPRunObservation, error) {

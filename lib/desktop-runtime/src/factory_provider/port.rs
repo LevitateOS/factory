@@ -5,6 +5,7 @@ use super::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
+use soda_execution_protocol::workspace::{Command as TaskCommand, Parent, Reply as TaskReply};
 use std::io;
 use std::path::PathBuf;
 use std::sync::{
@@ -16,6 +17,20 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    Task {
+        intent: String,
+        parent: Parent,
+        command: TaskCommand,
+    },
+    ReadTaskReceipt {
+        intent: String,
+        parent: Parent,
+        command: TaskCommand,
+    },
+    TaskEvents {
+        intent: String,
+        parent: Parent,
+    },
     Completed,
     Acknowledge {
         intent: String,
@@ -66,6 +81,85 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::Task {
+            intent,
+            parent,
+            command,
+        } => {
+            return tokio::task::spawn_blocking(move || {
+                if !alive.load(Ordering::SeqCst)
+                    || matches!(command, TaskCommand::BindParent { .. } | TaskCommand::Close)
+                {
+                    return Err(io::Error::other("native task unavailable"));
+                }
+                let (intent, manifest) = task_binding(&profile, &profile_id, &intent, &parent)?;
+                if command.retains_receipt() {
+                    if let Ok(reply) = super::Broker::retained_task_receipt(
+                        &profile,
+                        &intent.scope()?,
+                        &manifest,
+                        &parent,
+                        &command,
+                    ) {
+                        return task_result(&intent, reply);
+                    }
+                }
+                let ticket = executions
+                    .lock()
+                    .map_err(|_| io::Error::other("native registry unavailable"))?
+                    .ticket(&ExecutionBinding::from_intent(&intent)?)?;
+                let reply = match ticket.task(&parent, &command) {
+                    Ok(reply) => reply,
+                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => TaskReply {
+                        status: "busy".into(),
+                        ..TaskReply::default()
+                    },
+                    Err(e) => return Err(e),
+                };
+                task_result(&intent, reply)
+            })
+            .await
+            .map_err(|_| io::Error::other("native task call failed"))?;
+        }
+        Call::ReadTaskReceipt {
+            intent,
+            parent,
+            command,
+        } => {
+            return tokio::task::spawn_blocking(move || {
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                let (intent, manifest) = task_binding(&profile, &profile_id, &intent, &parent)?;
+                let result = super::Broker::retained_task_receipt(
+                    &profile,
+                    &intent.scope()?,
+                    &manifest,
+                    &parent,
+                    &command,
+                )?;
+                task_result(&intent, result)
+            })
+            .await
+            .map_err(|_| io::Error::other("native task read failed"))?;
+        }
+        Call::TaskEvents { intent, parent } => {
+            return tokio::task::spawn_blocking(move || {
+                if !alive.load(Ordering::SeqCst) {
+                    return Err(io::Error::other("native owner retired"));
+                }
+                let (intent, manifest) = task_binding(&profile, &profile_id, &intent, &parent)?;
+                let receipts = super::workspace_receipts::Receipts::open(
+                    &profile,
+                    &intent.scope()?,
+                    &manifest,
+                    &parent,
+                )?;
+                Ok(json!({"intent_digest":intent.digest(),"events":receipts.events()?}))
+            })
+            .await
+            .map_err(|_| io::Error::other("native journal read failed"))?;
+        }
         Call::Completed => {
             if !alive.load(Ordering::SeqCst) {
                 return Err(io::Error::other("native owner retired"));
@@ -194,6 +288,41 @@ pub(crate) async fn call(
         .map_err(|_| io::Error::other("native execution observation failed"))?
 }
 
+fn task_binding(
+    profile: &std::path::Path,
+    profile_id: &str,
+    raw: &str,
+    parent: &Parent,
+) -> io::Result<(LaunchIntent, Vec<u8>)> {
+    let intent = LaunchIntent::from_go(raw)?;
+    if !intent.muse_login()
+        || !parent.valid()
+        || parent.executable_sha256 != intent.tool_sha256()
+        || intent.scope()?.profile != profile_id
+        || super::read_intent(profile, &intent.scope()?)?.is_none_or(|saved| saved.raw() != raw)
+    {
+        return Err(io::Error::other("native task binding differs"));
+    }
+    let manifest = intent.retained_manifest(profile)?;
+    if manifest.is_empty() {
+        return Err(io::Error::other("native task manifest missing"));
+    }
+    Ok((intent, manifest))
+}
+fn task_result(intent: &LaunchIntent, mut reply: TaskReply) -> io::Result<Value> {
+    use sha2::{Digest, Sha256};
+    let receipt_digest: String = Sha256::digest(serde_json::to_vec(&reply)?)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    // The durable result owns candidate bytes and the complete event stream.
+    // Product checkpoints consume their bounded projection; export/journal
+    // operations read those facts separately without rerunning checks.
+    reply.bundle.clear();
+    reply.events.clear();
+    Ok(json!({"intent_digest":intent.digest(),"receipt_digest":receipt_digest,"result":reply}))
+}
+
 fn snapshot(
     executions: &Mutex<Executions>,
     alive: &AtomicBool,
@@ -289,8 +418,9 @@ fn muse_observation(
     json!({"intent_digest":intent.digest(),"receipt":receipt,
         "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":sealed},
         "live":process.and_then(|process|process.live),"retired":retired,
-        "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|_|"unchanged"),
-        "candidate":null,"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()})
+        "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|result|
+            if result.candidate.is_some() {"captured"} else if intent.has_tasks() {"dirty"} else {"unchanged"}),
+        "candidate":complete.and_then(|result|result.candidate.as_deref()),"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()})
 }
 
 fn observation(

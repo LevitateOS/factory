@@ -108,8 +108,8 @@ the assumptions audit records actual Go/Rust readback for declared token/CLI
 metadata and actual non-task MCP/artifact/retirement/restart regression. No model
 or task executed. The read fixture's pending marker is not a killed-publisher
 experiment; no task or broader admission/custody/IPC gate is closed.
-Exact blocker: the native task runtime is not yet composed. The owner selected one
-Builder executing planned tasks sequentially on 2026-11-07. New native implement
+The owner selected one Builder executing planned tasks sequentially on
+2026-11-07. New native implement
 manifests capture zero children; historical manifests keep their original bounds.
 Go task import and worker context distinguish this captured mode. A04/A19 records
 Go/Rust retained manifest readback for both sequential
@@ -138,22 +138,42 @@ invocation; a foreign invocation was refused. This uses the actual native receip
 paths but does not qualify a killed publisher, filesystem crash or lost transport
 reply. Those interruption windows remain unverified. Relevant additional files:
 broker `task_receipts.rs`, desktop `workspace_receipts.rs` and `private_fs.rs`.
-Remaining dependency: bind operations to the actual observed parent (the staged
-claim is not liveness), compose admitted worker MCP commands and Go task/checkpoint/
-journal/candidate ports, and prove actual admitted-run recovery. The library now
-retains receipts; production run/recovery composition is still absent. Private
-pending publication markers fence readback; they must never be discarded to
-claim completion or authorize an effect retry. Preserve the cancelled fixture's
-pending checkpoint under `cancel/native-profile/native-task-receipts/`.
-No child orchestration is required for the selected mode. Relevant files:
-`cmd/soda-factory-worker/src/agent_workspace.rs`, broker `task_workspace.rs`,
-`lib/execution-protocol/src/workspace.rs`, desktop `factory_provider/{broker,owner}.rs`,
-the native execution registry and Go task/checkpoint ports.
-Evidence needed: actual Go-admitted implement/correct journeys with checks,
-commit/tree/output provenance, exact retries and journal import, withdrawal/stop,
-sequential task/run retirement and retained recovery; version-5 publication interruption and
-missing/changed manifest refusal at the actual effect boundary. Keep task phases
-unavailable until the complete runtime exists and its defining behavior is proved.
+The Muse-login task owner now binds the actual observed process incarnation
+(invocation, system/start identity, PID and executable digest) before task effects.
+Go worker admission and Rust independently query current liveness. Go's retained
+receipt uncertainty is preserved as evidence, rather than used as a liveness claim.
+The existing callback now composes MCP task/workspace effects, Go task/final
+checkpoints, native event import and candidate export. Private event append and
+receipt publication share a native lock; immutable request/reply identities remain.
+Terminal and startup recovery copy completed pending broker replies before exact
+root retirement. Private pending publication markers still fence readback and
+must never be removed to claim completion or authorize a retry. Preserve the
+cancelled component fixture's pending checkpoint under
+`cancel/native-profile/native-task-receipts/`.
+Admitted local proof: `/home/vince/tmp/fadmitted-tasks7.NgVBjI/result.log`
+records actual investigation-derived admission, observed parent, MCP workspace
+operations/exact edit replay, two task commits, final integration, journal import
+and candidate export. Its premature settlement assertion failed; the same original
+run passed settlement, usage and retained checkpoint/candidate reads after restart
+in `recovery-verified.log` under that directory, without task/inference replay.
+The fixture supplied repository authority and phase advancement; no model,
+provider action, credential operation or installed qualification ran. This proves
+normal retained completion across restart, not a killed publisher or lost wire
+reply. Failed earlier `fadmitted-tasks7.*` profiles remain preserved as failures;
+their absence of a completed product result must not be repaired by replay.
+
+Remaining dependencies: actual admitted correction and cancellation/withdrawal,
+interrupted task/receipt publication and transport, unreconciled restart, complete
+Muse role/configuration confinement, larger workloads and installed isolation.
+The token task source has no composed task owner and remains unavailable.
+Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
+`{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,
+desktop `factory_provider/{broker,workspace_receipts,muse_attempt,port,recovery}.rs`,
+Go `runtime/native_tasks.go` and `service/worker_tasks.go`.
+Evidence needed: exact task/checkpoint/candidate provenance under those remaining
+lifecycle windows; unknown outcomes remain pending without effect replay. No
+child orchestration is required. Local fixture results do not close D3,
+custody/IPC, connected, installed or full-pipeline gates.
 
 Preserve two failed prerequisite fixtures for exact reconciliation:
 

@@ -152,6 +152,10 @@ func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, 
 		if _, ready := deps.Host.(execution.TaskRuntime); !ready {
 			return waitFor(WaitHarness, execution.ErrTaskUnavailable.Error())
 		}
+		sources, ready := deps.Host.(execution.NativeTaskSources)
+		if !ready || plan.sponsorship.Native == nil || !sources.SupportsTaskSource(plan.sponsorship.Native.Authentication) {
+			return waitFor(WaitHarness, execution.ErrTaskUnavailable.Error())
+		}
 	}
 	selection := plan.policy.Roles[role]
 	if selection.Harness == "" || selection.Model == "" {

@@ -182,6 +182,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let supervisor =
             NativeSupervisor::start(Path::new(&args[1]), Path::new(&args[2]), &profile)?;
         let ready = supervisor.health()?;
+        let fixture = profile.join("admitted-native-fixture.json");
+        let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+        if captured["Tasks"] == true
+            && captured["ParentRun"].as_str().is_some_and(|s| !s.is_empty())
+        {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(supervisor.start_execution_coordinator())?;
+            for operation in ["check-admitted-native", "settled-admitted-native"] {
+                if !Command::new(&args[3])
+                    .arg(&profile)
+                    .arg(&ready.instance)
+                    .arg(operation)
+                    .arg(&fixture)
+                    .status()?
+                    .success()
+                {
+                    return Err("retained task result or settlement unavailable".into());
+                }
+            }
+            supervisor.stop()?;
+            println!("PASS: original completed admitted task run retained across restart and canonically settled without task or inference replay");
+            return Ok(());
+        }
         if !Command::new(&args[3])
             .arg(&profile)
             .arg(&ready.instance)
@@ -747,6 +772,15 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+fn workspace_parent(tool: &str) -> soda_execution_protocol::workspace::Parent {
+    soda_execution_protocol::workspace::Parent {
+        invocation: "native-workspace-fixture".into(),
+        system_instance: "fixture-system-instance".into(),
+        start_identity: "1".into(),
+        pid: 1,
+        executable_sha256: tool.into(),
+    }
+}
 fn workspace_receipt_readback(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::{Broker, ReceiptScope, Role};
     use soda_execution_protocol::workspace::Command as WorkspaceCommand;
@@ -772,7 +806,7 @@ fn workspace_receipt_readback(root: &Path) -> Result<(), Box<dyn std::error::Err
         &root.join("native-profile"),
         &scope,
         &manifest,
-        "native-workspace-fixture",
+        &workspace_parent(field("tool")?),
         &command,
     );
     if field("mode")? == "cancel" {
@@ -798,7 +832,7 @@ fn workspace_receipt_readback(root: &Path) -> Result<(), Box<dyn std::error::Err
         &root.join("native-profile"),
         &scope,
         &manifest,
-        "native-workspace-fixture",
+        &workspace_parent(field("tool")?),
         &command,
     )?;
     if serde_json::to_vec(&final_result)? != fs::read(root.join("result.json"))?
@@ -880,13 +914,17 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 &prompt,
             )?;
             let cancel = AgentCancellation::default();
-            let mut workspace = Broker::open_task_workspace(
-                &native_profile,
-                &scope,
-                &manifest,
-                "native-workspace-fixture",
-                cancel.clone(),
-            )?;
+            let mut workspace =
+                Broker::prepare_task_workspace(&native_profile, &scope, &manifest, cancel.clone())?;
+            if workspace
+                .command(&WorkspaceCommand::Start {
+                    task: "first".into(),
+                })
+                .is_ok()
+            {
+                return Err("task admitted before parent observation".into());
+            }
+            workspace.bind_parent(&workspace_parent(&tool))?;
             if mode == "dependency" {
                 if workspace
                     .command(&WorkspaceCommand::Start {
@@ -904,6 +942,8 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             if mode == "ownership" {
                 if workspace
                     .command(&WorkspaceCommand::Edit {
+                        task: "first".into(),
+                        operation_id: "unowned".into(),
                         path: "README.md".into(),
                         offset: 0,
                         expected: String::new(),
@@ -916,12 +956,42 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 return Ok(());
             }
             workspace.command(&WorkspaceCommand::Edit {
+                task: "first".into(),
+                operation_id: "first-edit".into(),
                 path: "native-task.txt".into(),
                 offset: 0,
                 expected: String::new(),
                 replacement: "first\n".into(),
             })?;
+            workspace.command(&WorkspaceCommand::MakeDirectory {
+                operation_id: "mkdir".into(),
+                task: "first".into(),
+                path: "native-task-dir".into(),
+            })?;
+            for (name, content) in [("kept.txt", "kept\n"), ("to-remove", "discard\n")] {
+                workspace.command(&WorkspaceCommand::Edit {
+                    operation_id: name.into(),
+                    task: "first".into(),
+                    path: format!("native-task-dir/{name}"),
+                    offset: 0,
+                    expected: String::new(),
+                    replacement: content.into(),
+                })?;
+            }
+            let file = workspace.command(&WorkspaceCommand::Read {
+                task: "first".into(),
+                path: "native-task-dir/to-remove".into(),
+                offset: 0,
+                limit: 1024,
+            })?;
+            workspace.command(&WorkspaceCommand::Remove {
+                operation_id: "remove".into(),
+                task: "first".into(),
+                path: "native-task-dir/to-remove".into(),
+                expected_digest: file.file_digest,
+            })?;
             let read = workspace.command(&WorkspaceCommand::Read {
+                task: "first".into(),
                 path: "native-task.txt".into(),
                 offset: 0,
                 limit: 1024,
@@ -997,7 +1067,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 &native_profile,
                 &scope,
                 &manifest,
-                "native-workspace-fixture",
+                &workspace_parent(&tool),
                 &checkpoint_command,
             )?;
             if serde_json::to_vec(&recovered)?
@@ -1009,7 +1079,10 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 &native_profile,
                 &scope,
                 &manifest,
-                "foreign-invocation",
+                &soda_execution_protocol::workspace::Parent {
+                    pid: 2,
+                    ..workspace_parent(&tool)
+                },
                 &checkpoint_command,
             )
             .is_ok()
@@ -1020,6 +1093,8 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 task: "second".into(),
             })?;
             workspace.command(&WorkspaceCommand::Edit {
+                task: "second".into(),
+                operation_id: "second-edit".into(),
                 path: "native-task.txt".into(),
                 offset: 0,
                 expected: "first".into(),
@@ -1240,6 +1315,10 @@ async fn managed_muse_execution(
     };
     let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
     let withdraw = std::env::var("SODA_NATIVE_CHECK_MUSE_WITHDRAW").as_deref() == Ok("1");
+    let tasks = std::env::var("SODA_NATIVE_CHECK_TASKS").as_deref() == Ok("1");
+    if tasks && (live || withdraw) {
+        return Err("task integration uses the local CLI fixture".into());
+    }
     if withdraw && live {
         return Err("withdrawal check uses only the local CLI fixture".into());
     }
@@ -1262,7 +1341,7 @@ async fn managed_muse_execution(
     fs::write(
         &fixture,
         serde_json::to_vec(
-            &serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,"Withdraw":withdraw,
+            &serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,"Withdraw":withdraw,"Tasks":tasks,
         "Preparation":preparation["input"]["preparation"]["id"],"Executable":client.canonicalize()?}),
         )?,
     )?;
@@ -1286,10 +1365,17 @@ async fn managed_muse_execution(
             .join("native-run-intents")
             .join(format!("{run}.json")),
     )?)?;
-    let until = std::time::Instant::now() + Duration::from_secs(if live { 70 } else { 15 });
+    let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+    let until = std::time::UNIX_EPOCH
+        + Duration::from_secs(
+            captured["DeadlineUnix"]
+                .as_u64()
+                .ok_or("CLI deadline missing")?
+                + 5,
+        );
     loop {
         match supervisor.execution_outcome(&intent)? {
-            ExecutionOutcome::Pending if std::time::Instant::now() < until => {
+            ExecutionOutcome::Pending if std::time::SystemTime::now() < until => {
                 tokio::time::sleep(Duration::from_millis(20)).await
             }
             ExecutionOutcome::MuseComplete(result)
@@ -1332,6 +1418,26 @@ async fn managed_muse_execution(
     if supervisor.execution_outcome(&intent).is_ok() {
         return Err("accounted native entry still occupies delivery capacity".into());
     }
+    if tasks {
+        command(
+            "launch-admitted-tasks",
+            fixture.to_str().ok_or("invalid fixture path")?,
+        )?;
+        let child: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+        let child_run = child["Run"].as_str().ok_or("implementation run missing")?;
+        fs::write(
+            root.join("execution-runs.ids"),
+            format!("{run}\n{child_run}"),
+        )?;
+        command(
+            "check-admitted-native",
+            fixture.to_str().ok_or("invalid fixture path")?,
+        )?;
+        command(
+            "settled-admitted-native",
+            fixture.to_str().ok_or("invalid fixture path")?,
+        )?;
+    }
     command(
         "check-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
@@ -1359,7 +1465,7 @@ async fn managed_muse_execution(
     if Broker::next_profile_run(&ready.profile)?.is_some() {
         return Err("CLI source left an owned broker root".into());
     }
-    println!("PASS: CLI-managed source: actual PostgreSQL admission, Go launcher, native registry, scoped MCP artifact/result, coordinator settlement and process/root retirement; live model={live}; installed/restart qualification remains open");
+    println!("PASS: CLI-managed source: actual PostgreSQL admission, Go launcher, native registry, scoped MCP artifact/result, coordinator settlement and process/root retirement; live model={live}, sequential tasks={tasks}; installed qualification remains open");
     Ok(())
 }
 

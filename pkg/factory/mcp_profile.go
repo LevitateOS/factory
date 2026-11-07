@@ -137,6 +137,7 @@ const (
 	MCPToolRecordJourneyResult  MCPTool = "factory.record_journey_result"
 	MCPToolSubmitTaskOutput     MCPTool = "factory.submit_task_output"
 	MCPToolStartTask            MCPTool = "factory.start_task"
+	MCPToolWorkspace            MCPTool = "factory.workspace"
 	MCPToolReleaseOutput        MCPTool = "factory.release_output"
 )
 
@@ -199,7 +200,8 @@ var mcpToolDefinitions = []mcpToolDefinition{
 		MCPProfileBuilder: true,
 		MCPProfileFixer:   true,
 	}, 0},
-	{MCPToolStartTask, singleMCPProfile(MCPProfileBuilder), mcpDirect},
+	{MCPToolStartTask, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
+	{MCPToolWorkspace, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
 	{MCPToolReleaseOutput, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
 	{MCPToolResolvePost, allMCPProfiles(), 0},
 }

@@ -29,6 +29,36 @@ pub(super) fn export(
     if saved.raw() != raw {
         return Err(denied());
     }
+    if intent.muse_login() {
+        let receipt = super::muse_receipt::retained(profile, &intent)?
+            .filter(|r| r.root_retired)
+            .ok_or_else(denied)?;
+        if receipt.candidate.as_deref() != Some(candidate) {
+            return Ok(json!({"intent_digest":intent.digest(),"status":"candidate_mismatch"}));
+        }
+        let manifest = intent.retained_manifest(profile)?;
+        let result = super::Broker::retained_task_receipt(
+            profile,
+            &scope,
+            &manifest,
+            &soda_execution_protocol::workspace::Parent::from_muse(&receipt.process),
+            &soda_execution_protocol::workspace::Command::Final {
+                expected_head: candidate.into(),
+            },
+        )?;
+        use sha2::{Digest, Sha256};
+        if result.status != "committed" || result.bundle.is_empty() {
+            return Err(denied());
+        }
+        let sha256: String = Sha256::digest(&result.bundle)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        return Ok(
+            json!({"intent_digest":intent.digest(),"status":"exported","candidate":candidate,"sha256":sha256,
+            "bundle":base64::engine::general_purpose::STANDARD.encode(&result.bundle)}),
+        );
+    }
     let receipt = read_retained(profile, &scope)?.ok_or_else(denied)?;
     if receipt.candidate_state != "captured"
         || receipt.result_candidate.as_deref() != Some(candidate)

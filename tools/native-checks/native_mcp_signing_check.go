@@ -1288,7 +1288,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" {
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "launch-admitted-tasks" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -1603,9 +1603,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	var input struct {
-		Run, Connection, Preparation, Executable string
-		MuseLogin, Live, Withdraw                bool
-		DeadlineUnix                             int64
+		Run, Connection, Preparation, Executable, ParentRun string
+		MuseLogin, Live, Withdraw, Tasks                    bool
+		DeadlineUnix                                        int64
 	}
 	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
 		return errors.New("admitted fixture input invalid")
@@ -1614,7 +1614,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	fixtureTimeout := 30 * time.Second
+	if action == "check-admitted-native" && input.Tasks && input.ParentRun != "" {
+		fixtureTimeout = max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5 * time.Second)))
+		if fixtureTimeout > 130*time.Second {
+			return errors.New("task fixture deadline invalid")
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
 	defer cancel()
 	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
@@ -1740,7 +1747,91 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if action == "withdraw-admitted-native" {
 		return withdrawAdmittedNative(ctx, db, rawDB, port, input.Run, repository, input.Connection)
 	}
+	if action == "launch-admitted-tasks" {
+		if !input.Tasks || !input.MuseLogin || input.Live {
+			return errors.New("task fixture requires the local Muse source")
+		}
+		parent, err := db.AssignmentByRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		parentRun, err := db.FactoryRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		if !parentRun.Reconciled || parentRun.Native == nil || !parentRun.Native.Settled() || parent.Stage != factory.AssignmentFinished || parent.Outcome != factory.Succeeded || parent.Result == nil || parent.Result.PhaseResult == nil || parent.Result.PhaseResult.Output == nil || parent.Result.PhaseResult.Output.Plan == nil {
+			return errors.New("actual investigation has not produced and settled its plan")
+		}
+		plan := *parent.Result.PhaseResult.Output.Plan
+		// This local fixture supplies phase advancement and declared repository
+		// authority; the real investigation result and canonical plan gates remain.
+		if err = db.SaveInvestigationPlan(ctx, plan); err != nil {
+			return err
+		}
+		if err = db.AdvancePlanHead(ctx, parent.AttemptRoot, "", plan.ID); err != nil {
+			return err
+		}
+		if _, err = db.AdmitPlanHead(ctx, parent.AttemptRoot, store.PlanBindings{SourceCommit: p.SourceCommit, Preparation: p.ID}); err != nil {
+			return err
+		}
+		head, _, err := db.PlanHead(ctx, parent.AttemptRoot)
+		if err != nil || head != plan.ID {
+			return errors.New("actual investigated plan was not adopted")
+		}
+		child := parent
+		child.ID, err = factory.AdvancementID(parent.ID, factory.ResultDigest(*parent.Result), project.ExecutionImplement)
+		if err != nil {
+			return err
+		}
+		input.ParentRun, input.Run = input.Run, factory.NewID()
+		child.ParentAssignment, child.Phase, child.Run, child.RunHistory = parent.ID, project.ExecutionImplement, input.Run, []string{input.Run}
+		child.Stage, child.Outcome, child.Reason, child.Result, child.FinishedUnix, child.Revision = factory.AssignmentAssigned, "", "", nil, 0, 0
+		child.Attempts = 1
+		child.CreatedUnix = time.Now().Unix()
+		child.Prompt = []byte("positive-native-mcp-fixture\nnative-tasks-implementation-fixture\n")
+		child.PromptSHA = project.FactoryPromptDigest(child.Prompt)
+		native := *parentRun.Admission.Native
+		native.PromptSHA256, native.BrokerRun = child.PromptSHA, input.Run
+		now := time.Now().UTC().Truncate(time.Second)
+		run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: child.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(2 * time.Minute), Harness: child.Harness, Model: child.Model,
+			Native: &execution.NativeRecord{Tool: native.Tool, BundleSHA256: native.BundleSHA256, PromptSHA256: native.PromptSHA256, Retirement: execution.NotStarted,
+				Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
+		planBytes, err := json.Marshal(plan)
+		if err != nil {
+			return err
+		}
+		selection := parentRun.Admission.Policy.Roles[project.RoleCoder]
+		run.ExecutionManifest, err = project.MarshalExecutionManifest(project.ExecutionManifest{Plan: planBytes, PlanDigest: project.PlanDigest(planBytes), Invocation: run.ID, Phase: child.Phase, Run: run.ID, Deadline: run.Deadline, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor, MaxChildren: 0})
+		if err != nil {
+			return err
+		}
+		queued, err := db.IssueControl(ctx, repository, 3)
+		if err != nil {
+			return err
+		}
+		if err = db.RecordNativeDispatchPacket(ctx, queued, child, factory.Reservation{AssignmentID: child.ID, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: 2}, run,
+			factory.RunView{RunID: run.ID, Repository: repository, Issue: 3, Attempt: child.ID}, native); err != nil {
+			return err
+		}
+		input.DeadlineUnix = run.Deadline.Unix()
+		encoded, err := json.Marshal(input)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(path, encoded, 0600); err != nil {
+			return err
+		}
+		return launchNativeFixtureRun(ctx, db, port, run, child, prep)
+	}
 	if action == "settled-admitted-native" {
+		if input.Tasks && input.ParentRun != "" {
+			for {
+				current, err := db.FactoryRun(ctx, input.Run)
+				if err != nil { return err }
+				if current.Reconciled { break }
+				select { case <-ctx.Done(): return ctx.Err(); case <-time.After(time.Second): }
+			}
+		}
 		run, err := db.FactoryRun(ctx, input.Run)
 		if err != nil {
 			return err
@@ -1757,7 +1848,8 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err != nil {
 			return err
 		}
-		if !run.Reconciled || run.Native == nil || !run.Native.Settled() || assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman || !found || terminal.State != factory.MCPWorkAccepted {
+		if !run.Reconciled || run.Native == nil || !run.Native.Settled() || !found || terminal.State != factory.MCPWorkAccepted ||
+			!input.Tasks && (assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman) || input.Tasks && (assignment.Result == nil || assignment.Result.PhaseResult == nil || assignment.Result.PhaseResult.Status != "completed") {
 			return errors.New("coordinator did not retain the actual incomplete worker result and retired resources")
 		}
 		if input.MuseLogin {
@@ -1775,11 +1867,18 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 				return errors.New("CLI usage includes delay after the retained native stop")
 			}
 		}
-		fmt.Println("PASS: actual coordinator settlement retains the worker's explicit blocked result and exact retired native resources")
+		fmt.Println("PASS: actual coordinator settlement retains the recorded worker phase result and exact retired native resources")
 		return port.AcknowledgeSettledRuns(ctx)
 	}
 	if action == "check-admitted-native" {
-		observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: p.Project})
+		var observed execution.RunObservation
+		for {
+			observed, err = port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: p.Project})
+			if !input.Tasks || input.ParentRun == "" || err == nil && observed.Retirement == execution.Retired || ctx.Err() != nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 		if err != nil {
 			return err
 		}
@@ -1790,6 +1889,47 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			if !input.Live && observed.Output != "Declared local CLI fixture; no model request" || input.Live && strings.TrimSpace(observed.Output) == "" || observed.Native.Connector == nil || observed.Native.Connector.UID != os.Geteuid() || observed.Native.Isolation != nil || observed.Native.Custody.State != execution.NotAcquired {
 				return errors.New("CLI source final text or host-process provenance differs")
 			}
+		}
+		if input.Tasks && input.ParentRun != "" {
+			current, err := db.FactoryRun(ctx, input.Run)
+			if err != nil {
+				return err
+			}
+			if current.FinalCheckpoint == nil || current.FinalCheckpoint.Status != "committed" {
+				return errors.New("admitted task run lacks final integration checkpoint")
+			}
+			final, err := port.ReadFinalCheckpoint(ctx, current.FinalCheckpoint.Request)
+			if err != nil || final.Status != "committed" || final.Candidate != current.FinalCheckpoint.Candidate {
+				return fmt.Errorf("admitted final readback: %v", err)
+			}
+			exported, err := port.ExportCandidate(ctx, execution.CandidateRequest{Address: execution.RunAddress{Run: input.Run, Workspace: p.Project}, Preparation: p.ID, Role: project.RoleCoder, Candidate: final.Candidate})
+			if err != nil {
+				return err
+			}
+			if err = os.WriteFile(filepath.Join(profile, "native-task-candidate.bundle"), exported.Bundle, 0600); err != nil {
+				return err
+			}
+			manifest, err := project.ParseExecutionManifest(current.ExecutionManifest)
+			if err != nil {
+				return err
+			}
+			var plan factory.InvestigationPlan
+			if err = json.Unmarshal(manifest.Plan, &plan); err != nil {
+				return err
+			}
+			receipts, err := db.PlanTaskReceipts(ctx, plan.AttemptRoot, plan.ID)
+			if err != nil {
+				return err
+			}
+			if len(receipts) != 2 {
+				return errors.New("admitted task receipts missing")
+			}
+			for _, receipt := range receipts {
+				if receipt.State != store.PlanTaskCompleted || !receipt.Parent || receipt.Commit == "" || len(receipt.Checks) != 1 {
+					return errors.New("admitted sequential task receipt incomplete")
+				}
+			}
+			fmt.Println("PASS: actual investigation-derived Go admission, role MCP edits/readback/retry, sequential task and integration checks, retained final receipt and candidate export")
 		}
 		cap, err := db.GetMCPCapability(ctx, input.Run)
 		if err != nil || cap.State != factory.MCPCapabilityActive {
@@ -1877,6 +2017,18 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if !input.Live && os.Getenv("SODA_NATIVE_CHECK_READ_SOURCE") == "1" {
 		prompt = append(prompt, []byte("\nread-source-fixture\n")...)
 	}
+	if input.Tasks {
+		prompt = append(prompt, []byte("\nnative-tasks-investigation-fixture\n")...)
+	}
+	var acceptedContext *factory.AcceptedContext
+	if input.Tasks {
+		material, err := port.ReadWorkspaceContext(ctx, execution.PreparationContextRequest{Native: prep.Native, Role: p.Role,
+			Input: project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: []string{"README.md"}, NotAfter: time.Now().Add(15 * time.Second)}})
+		if err != nil {
+			return err
+		}
+		acceptedContext = factory.CaptureAcceptedContext(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, AcceptanceID: acceptance.ID, SourceCommit: p.SourceCommit, Preparation: p.ID, Title: "Native admitted execution fixture", Body: "Produce first and second task outputs", RepositoryContext: &material.Material, RequiredChecks: policy.Checks})
+	}
 	toolBytes, err := os.ReadFile(input.Executable)
 	if err != nil {
 		return err
@@ -1896,7 +2048,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	a := factory.Assignment{ID: aid, AttemptRoot: aid, PublicationAssignment: aid, ProjectID: p.Project, Role: project.RoleCoder, ActorID: actor, Repository: repository, Issue: 3, NativeRev: 1, Acceptance: acceptance.ID, Preparation: p.ID,
 		Subject: factory.ExecutionSubject{Kind: factory.SubjectIssue, Issue: &factory.IssueSubject{Issue: 3, Acceptance: acceptance.ID}}, Phase: project.ExecutionInvestigate,
 		Harness: "muse-" + tool.Version, HarnessVers: tool.Version, NativeTool: &tool, Model: roles[project.RoleCoder].Model, Connection: input.Connection, SourceCommit: p.SourceCommit, Prompt: prompt, PromptSHA: project.FactoryPromptDigest(prompt),
-		Run: input.Run, RunHistory: []string{input.Run}, Stage: factory.AssignmentAssigned, Attempts: 1, CreatedUnix: now.Unix(), Authority: authority}
+		Run: input.Run, RunHistory: []string{input.Run}, Stage: factory.AssignmentAssigned, Attempts: 1, CreatedUnix: now.Unix(), Authority: authority, AcceptedContext: acceptedContext}
 	native := execution.NativeLaunch{Workspace: *prep.Native, Tool: tool, BundleSHA256: prep.State.SourceBundleSHA256, PromptSHA256: a.PromptSHA, CredentialSHA256: account.CredentialSHA256,
 		Runtime: environment.Native.Runtime, PlacementGeneration: environment.Native.Generation, TrustMode: "isolated_system_worker", BrokerRun: input.Run}
 	if input.MuseLogin {
@@ -1910,7 +2062,19 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		factory.RunView{RunID: run.ID, Repository: repository, Issue: 3, Attempt: aid}, native); err != nil {
 		return err
 	}
-	run, err = db.FactoryRun(ctx, run.ID)
+	input.DeadlineUnix = run.Deadline.Unix()
+	fixture, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(path, fixture, 0600); err != nil {
+		return err
+	}
+	return launchNativeFixtureRun(ctx, db, port, run, a, prep)
+}
+
+func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, run factory.Run, a factory.Assignment, prep execution.PreparationRecord) error {
+	run, err := db.FactoryRun(ctx, run.ID)
 	if err != nil {
 		return err
 	}
@@ -1921,13 +2085,17 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if err = db.StageMCPCapability(ctx, cap); err != nil {
 		return err
 	}
-	secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, cap)
+	secret, err := factoryruntime.NativeMCPSecretDeriver(port.Config, port.Instance)(ctx, cap)
 	if err != nil {
 		return err
 	}
-	request, err := run.LaunchRequest(a, project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: p.Project, Role: a.Role, Preparation: p.ID, Harness: tool.Harness, HarnessVers: tool.Version, Model: a.Model,
-		Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor, Assignment: a.PromptSHA, SourceCommit: p.SourceCommit, Connection: input.Connection, Actor: actor, Deadline: run.Deadline, ExecutionPhase: a.Phase}, Prompt: prompt, HarnessSHA256: tool.SHA256,
-		MCP: &project.FactoryMCPBinding{Capability: cap.ID, Secret: secret}})
+	manifestDigest := ""
+	if len(run.ExecutionManifest) != 0 {
+		manifestDigest = project.ExecutionManifestDigest(run.ExecutionManifest)
+	}
+	request, err := run.LaunchRequest(a, project.FactoryLaunch{Run: project.FactoryRun{ID: run.ID, Project: a.ProjectID, Role: a.Role, Preparation: a.Preparation, Harness: run.Native.Tool.Harness, HarnessVers: run.Native.Tool.Version, Model: a.Model,
+		Effort: factory.DefaultEffort, Contributor: factory.DefaultContributor, Assignment: a.PromptSHA, SourceCommit: a.SourceCommit, Connection: a.Connection, Actor: a.ActorID, Deadline: run.Deadline, ExecutionPhase: a.Phase, ManifestDigest: manifestDigest}, Prompt: a.Prompt, HarnessSHA256: run.Native.Tool.SHA256,
+		MCP: &project.FactoryMCPBinding{Capability: cap.ID, Secret: secret}, ExecutionManifest: run.ExecutionManifest})
 	if err != nil {
 		return err
 	}
@@ -1937,14 +2105,6 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if !observed.Live {
 		return errors.New("public Go launch did not observe its actual live worker")
-	}
-	input.DeadlineUnix = run.Deadline.Unix()
-	fixture, err := json.Marshal(input)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, fixture, 0600); err != nil {
-		return err
 	}
 	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
 	return nil
@@ -3093,10 +3253,36 @@ func workerProfileFixture() error {
 			time.Sleep(120 * time.Second) // The real native owner must cancel this process.
 			return errors.New("withdrawal fixture was not cancelled")
 		}
-		if _, err := workerMCPCall(client, "factory.finish_incomplete", map[string]any{"outcome": "blocked", "cause": "local_fixture_has_no_provider_result"}); err != nil {
+		if strings.Contains(string(prompt), "native-tasks-investigation-fixture") {
+			plan := nativeWorkspacePlan(strings.Repeat("0", 40))
+			planBytes, err := json.Marshal(plan)
+			if err != nil {
+				return err
+			}
+			var authored map[string]any
+			if err := json.Unmarshal(planBytes, &authored); err != nil {
+				return err
+			}
+			for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
+				delete(authored, field)
+			}
+			if _, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "README.md"}); err != nil {
+				return err
+			}
+			if _, err := workerMCPCall(client, "factory.finish_issue_plan", map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"source:README.md"}}); err != nil {
+				return err
+			}
+		} else if strings.Contains(string(prompt), "native-tasks-implementation-fixture") {
+			if err := workerSequentialTasks(client); err != nil {
+				return err
+			}
+			if _, err := workerMCPCall(client, "factory.finish_implementation", map[string]any{}); err != nil {
+				return err
+			}
+		} else if _, err := workerMCPCall(client, "factory.finish_incomplete", map[string]any{"outcome": "blocked", "cause": "local_fixture_has_no_provider_result"}); err != nil {
 			return err
 		}
-		fmt.Println("CLI fixture completed admitted MCP artifact and explicit incomplete result; no model request")
+		fmt.Println("CLI fixture completed admitted MCP artifact and phase result; no model request")
 		fmt.Println(`{"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":"Declared local CLI fixture; no model request"}}`)
 		time.Sleep(time.Second)
 		return nil
@@ -3134,8 +3320,128 @@ func workerProfileFixture() error {
 	return nil
 }
 
+func workerSequentialTasks(client *http.Client) error {
+	wait := func(task, state string, final bool) error {
+		until := time.Now().Add(25 * time.Second)
+		for {
+			raw, err := workerMCPCall(client, "factory.context", map[string]any{})
+			if err != nil {
+				return err
+			}
+			var context struct {
+				Execution struct {
+					Tasks []struct {
+						ID    string `json:"task_id"`
+						State string `json:"state"`
+					} `json:"tasks"`
+					Integration *struct {
+						Status    string `json:"status"`
+						Candidate string `json:"candidate"`
+					} `json:"integration"`
+				} `json:"execution"`
+			}
+			if err = json.Unmarshal(raw, &context); err != nil {
+				return err
+			}
+			if final && context.Execution.Integration != nil && context.Execution.Integration.Status == "committed" {
+				return nil
+			}
+			for _, item := range context.Execution.Tasks {
+				if item.ID == task && item.State == state {
+					return nil
+				}
+				if item.ID == task && item.State == store.PlanTaskFailed {
+					return errors.New("native task check failed")
+				}
+			}
+			if time.Now().After(until) {
+				return fmt.Errorf("native task wait expired for %s/%s", task, state)
+			}
+			time.Sleep(3 * time.Second)
+		}
+	}
+	for i, id := range []string{"first", "second"} {
+		if _, err := workerMCPCall(client, "factory.start_task", map[string]any{"task_id": id}); err != nil {
+			return err
+		}
+		if i == 0 {
+			for _, operation := range []map[string]any{
+				{"operation": "mkdir", "path": "native-task-dir"},
+				{"operation": "edit", "path": "native-task-dir/kept.txt", "expected": "", "replacement": "kept\n"},
+				{"operation": "edit", "path": "native-task-dir/to-remove", "expected": "", "replacement": "discard\n"},
+			} {
+				operation["task_id"] = id
+				if _, err := workerMCPCallID(client, "factory.workspace", operation, "workspace-"+operation["path"].(string)); err != nil {
+					return err
+				}
+			}
+			read, err := workerMCPCall(client, "factory.workspace", map[string]any{"task_id": id, "operation": "read", "path": "native-task-dir/to-remove"})
+			if err != nil {
+				return err
+			}
+			var file struct {
+				Digest string `json:"file_digest"`
+			}
+			if json.Unmarshal(read, &file) != nil || !factory.ValidDigest(file.Digest) {
+				return errors.New("workspace read omitted its file digest")
+			}
+			if _, err = workerMCPCallID(client, "factory.workspace", map[string]any{"task_id": id, "operation": "remove", "path": "native-task-dir/to-remove", "expected_digest": file.Digest}, "workspace-remove"); err != nil {
+				return err
+			}
+		}
+		expected := ""
+		if i == 1 {
+			expected = "first\n"
+		}
+		payload := map[string]any{"task_id": id, "operation": "edit", "path": "native-task.txt", "expected": expected, "replacement": id + "\n"}
+		key := "native-task-" + id + "-edit"
+		first, err := workerMCPCallID(client, "factory.workspace", payload, key)
+		if err != nil {
+			return err
+		}
+		replay, err := workerMCPCallID(client, "factory.workspace", payload, key)
+		if err != nil || !bytes.Equal(first, replay) {
+			return errors.New("workspace exact edit replay differs")
+		}
+		read, err := workerMCPCall(client, "factory.workspace", map[string]any{"task_id": id, "operation": "read", "path": "native-task.txt"})
+		if err != nil {
+			return err
+		}
+		var content struct {
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(read, &content) != nil || content.Content != id+"\n" {
+			return errors.New("admitted workspace readback differs")
+		}
+		if _, err = workerMCPCall(client, "factory.release_output", map[string]any{"task_id": id}); err != nil {
+			return err
+		}
+		if err = wait(id, store.PlanTaskOutputReady, false); err != nil {
+			return err
+		}
+		if _, err = workerMCPCall(client, "factory.submit_task_output", map[string]any{"task_id": id, "evidence_refs": []string{"native-task.txt"}}); err != nil {
+			return err
+		}
+		if err = wait(id, store.PlanTaskCompleted, false); err != nil {
+			return err
+		}
+	}
+	if err := wait("", "", true); err != nil {
+		return err
+	}
+	fmt.Println("actual-admitted-sequential-native-tasks-and-final-checkpoint")
+	return nil
+}
+
 func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessage, error) {
-	encoded, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": map[string]any{"payload": payload}}})
+	return workerMCPCallID(client, tool, payload, "")
+}
+func workerMCPCallID(client *http.Client, tool string, payload any, operationID string) (json.RawMessage, error) {
+	arguments := map[string]any{"payload": payload}
+	if operationID != "" {
+		arguments["submission_id"] = operationID
+	}
+	encoded, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": arguments}})
 	if err != nil {
 		return nil, err
 	}
@@ -3160,7 +3466,7 @@ func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessa
 		} `json:"result"`
 	}
 	if json.NewDecoder(io.LimitReader(reply.Body, factory.MCPMaxResultPayloadBytes+8192)).Decode(&result) != nil || reply.StatusCode != http.StatusOK || len(result.Error) != 0 || result.Result.IsError || len(result.Result.Content) != 1 || !json.Valid([]byte(result.Result.Content[0].Text)) {
-		return nil, fmt.Errorf("actual admitted worker tool failed: %s", tool)
+		return nil, fmt.Errorf("actual admitted worker tool failed: %s: error=%s content=%v", tool, result.Error, result.Result.Content)
 	}
 	return json.RawMessage(result.Result.Content[0].Text), nil
 }
@@ -3240,16 +3546,11 @@ func ownedToolFixture(profile, instance, mode string) error {
 }
 
 // Cross-language binding fixtures grant no task or provider admission.
-func workspaceManifest(root, run, candidate, mode string) error {
+func nativeWorkspacePlan(candidate string) factory.InvestigationPlan {
 	checks := []factory.CheckSpec{
-		{ID: "first", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
+		{ID: "first", Argv: []string{"/usr/bin/bash", "-eu", "-c", "test -f native-task-dir/kept.txt; test ! -e native-task-dir/to-remove; grep -qx first native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
 		{ID: "second", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
 		{ID: "integration", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true},
-	}
-	if mode == "failed" {
-		checks[0].Argv = []string{"/usr/bin/false"}
-	} else if mode == "cancel" {
-		checks[0].Argv, checks[0].TimeoutSeconds = []string{"/usr/bin/sleep", "30"}, 35
 	}
 	plan := factory.InvestigationPlan{ID: factory.NewID(), AttemptRoot: factory.NewID(),
 		ScopeDigest: strings.Repeat("1", 64), InputDigest: strings.Repeat("2", 64), SourceCommit: candidate,
@@ -3259,11 +3560,21 @@ func workspaceManifest(root, run, candidate, mode string) error {
 	}
 	for i, id := range []string{"first", "second"} {
 		task := factory.PlanTask{ID: id, Objective: "Produce " + id + " text", Outputs: []string{"native-task.txt"},
-			AcceptanceRefs: []string{"native-workspace"}, Lane: "builder", OwnedPaths: []string{"native-task.txt"}, CheckIDs: []string{id}}
+			AcceptanceRefs: []string{"native-workspace"}, Lane: "builder", OwnedPaths: []string{"native-task.txt", "native-task-dir/"}, CheckIDs: []string{id}}
 		if i == 1 {
 			task.DependsOn = []string{"first"}
 		}
 		plan.Tasks = append(plan.Tasks, task)
+	}
+	return plan
+}
+func workspaceManifest(root, run, candidate, mode string) error {
+	plan := nativeWorkspacePlan(candidate)
+	if mode == "failed" {
+		plan.Checks[0].Argv = []string{"/usr/bin/false"}
+	} else if mode == "cancel" {
+		plan.Checks[0].Argv = []string{"/usr/bin/sleep", "30"}
+		plan.Checks[0].TimeoutSeconds = 35
 	}
 	var err error
 	plan.Digest, err = factory.PlanDigest(plan)

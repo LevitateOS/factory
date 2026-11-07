@@ -38,7 +38,9 @@ func (r TaskRequest) Validate() error {
 		}
 	case collaboration.Native:
 		n := r.Native
-		if n == nil || r.Appliance != nil || n.Validate() != nil || n.Sealed || n.Retirement != Running || n.Provenance.Process == nil {
+		// Retained process facts deliberately do not assert live state. Both
+		// the worker admission and the native task owner query current liveness.
+		if n == nil || r.Appliance != nil || n.Validate() != nil || n.Sealed || (n.Retirement != Running && n.Retirement != Uncertain) || n.Provenance.Process == nil {
 			return ErrTask
 		}
 		p := n.Provenance.Process
@@ -78,4 +80,10 @@ type TaskRuntime interface {
 	TaskCommander
 	CheckpointWriter
 	FinalCheckpointReader
+}
+
+// Sources may share the run owner while supplying different native effects.
+// This advertises composition support, never gate qualification.
+type NativeTaskSources interface {
+	SupportsTaskSource(authentication string) bool
 }

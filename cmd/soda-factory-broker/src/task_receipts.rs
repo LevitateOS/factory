@@ -3,7 +3,7 @@
 use super::*;
 use soda_execution_protocol::workspace::{Command as TaskCommand, Reply, MAX_COMMAND, MAX_REPLY};
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_FILES: usize = 512;
+const MAX_FILES: usize = 2 * soda_execution_protocol::workspace::MAX_COMMANDS + 2;
 
 fn read_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     let file = OpenOptions::new()
@@ -108,9 +108,10 @@ pub(super) fn read(directory: &Path, command: &TaskCommand) -> io::Result<Option
             let _: Reply = serde_json::from_slice(&bytes)?;
             Ok(Some(bytes))
         }
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            Err(denied("task outcome remains uncertain"))
-        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            "task outcome remains uncertain",
+        )),
         Err(e) => Err(e),
     }
 }

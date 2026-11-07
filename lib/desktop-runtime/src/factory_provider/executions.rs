@@ -122,6 +122,19 @@ pub struct ExecutionTicket {
 }
 
 impl ExecutionTicket {
+    pub(super) fn task(
+        &self,
+        parent: &soda_execution_protocol::workspace::Parent,
+        command: &soda_execution_protocol::workspace::Command,
+    ) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        match self.view()? {
+            AttemptView::Muse(view) => view.task(parent, command),
+            _ => Err(refused("selected native source has no task workspace")),
+        }
+    }
     pub fn binding(&self) -> &ExecutionBinding {
         &self.binding
     }

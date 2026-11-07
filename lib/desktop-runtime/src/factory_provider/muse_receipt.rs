@@ -191,11 +191,32 @@ fn result(
         Err(e) => return Err(e),
     };
     Ok(MuseRun {
+        candidate: task_candidate(profile, intent, &process),
         product_output: super::muse_attempt::final_text(&output),
         process,
         output,
         root_retired,
     })
+}
+pub(super) fn task_candidate(
+    profile: &Path,
+    intent: &LaunchIntent,
+    process: &MuseObservation,
+) -> Option<String> {
+    if !intent.has_tasks() {
+        return None;
+    }
+    let manifest = intent.retained_manifest(profile).ok()?;
+    let receipts = super::workspace_receipts::Receipts::open(
+        profile,
+        &intent.scope().ok()?,
+        &manifest,
+        &soda_execution_protocol::workspace::Parent::from_muse(process),
+    )
+    .ok()?;
+    let result = receipts.final_receipt().ok()??;
+    (result.status == "committed" && super::hex(&result.head, 40) && !result.bundle.is_empty())
+        .then_some(result.head)
 }
 
 // Earlier connector components retained the same process/output facts in their

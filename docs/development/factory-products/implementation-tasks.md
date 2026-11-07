@@ -127,26 +127,20 @@ The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared
 browser checks are recorded in A01/A11. No Muse credentials are imported or
-fingerprinted. Available native hosts can dispatch supported non-task phases;
-missing helper/tool support and the unimplemented task runtime remain explicit waits.
-Task intents now retain their exact phase/manifest digest and transport the
-original bounded bytes to Rust. A04/A19 records scoped retained readback and the
-non-task regression journey; task effects, checkpoints and journal consumption
-remain unfinished. On 2026-11-07 the owner selected one Builder executing tasks
-sequentially. New native implement manifests capture zero children; historical
-child-mode records remain readable. Preserve task checks/checkpoints, independent
-review, CI and merge. The complete isolated sequential task runtime is still required.
-This does not enable task phases or complete T09.
-The isolated agent now implements sequential workspace edits, declared task
-checks, Git checkpoints, typed events and final checked candidate export. A04/A19
-records the real two-task native/Go journal integration, refusal/failure and
-checkpoint-request cancellation/retirement evidence. This is a native component;
-native task-control requests and completed receipts now survive root retirement,
-with exact retry/readback and pending cancellation proof recorded in A04/A19.
-Observed parent binding, worker MCP composition and admitted-run recovery must
-join the Go task ports before coding dispatch. Actual publication interruption
-and lost transport reply qualification remain pending.
-No T09, D3, connected, installed or full-pipeline gate is closed by that check.
+fingerprinted. Available native hosts can dispatch supported phases; missing
+helper/tool support and unsupported task sources remain explicit waits.
+The owner selected one Builder executing tasks sequentially. New native implement
+manifests capture zero children; historical child-mode records remain readable.
+Task intents retain exact phase/manifest bytes before native effects. The isolated
+worker owns workspace operations, declared checks, Git checkpoints and checked
+candidate export; Go retains task/workflow/SQL admission and imports native events.
+A04/A19 in the assumptions audit retains the component evidence and the admitted
+composition results. The Muse-login runtime now joins observed parent identity,
+worker MCP, task/checkpoint/journal/candidate ports and task-aware root retirement.
+Token task sources remain unavailable. Preserve independent review, CI and merge.
+Publication interruption, lost replies, admitted cancellation/recovery and the
+remaining connected/installed/full-pipeline journeys still require their own proof.
+No T09, D3 or broader gate is closed by local composition.
 The desktop stage now includes the native execution helpers/templates and an
 explicit single-user installer with image mode and existing-file refusal. A18
 records actual desktop staging and image verification; no live installation or

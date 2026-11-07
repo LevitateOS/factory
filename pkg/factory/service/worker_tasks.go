@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -28,9 +29,9 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 		return empty, ErrWorkerBinding
 	}
 	phase := project.ExecutionImplement
-	if action == "release_output" && cap.Profile == factory.MCPProfileFixer {
+	if (action == "start_task" || action == "release_output" || action == "workspace") && cap.Profile == factory.MCPProfileFixer {
 		phase = project.ExecutionCorrect
-	} else if cap.Profile != factory.MCPProfileBuilder || action != "start_task" && action != "release_output" {
+	} else if cap.Profile != factory.MCPProfileBuilder || action != "start_task" && action != "release_output" && action != "workspace" {
 		return empty, errors.New("native task action differs from assigned role")
 	}
 	current, a, run, err := (WorkerAdmission{Store: s.Store}).current(ctx, cap)
@@ -71,6 +72,9 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 	if action == "release_output" && cap.Profile == factory.MCPProfileBuilder && manifest.MaxChildren != 0 {
 		return empty, errors.New("Builder output release requires its sequential execution manifest")
 	}
+	if action == "workspace" && manifest.MaxChildren != 0 {
+		return empty, errors.New("workspace tools require sequential native execution")
+	}
 	var plan factory.InvestigationPlan
 	if json.Unmarshal(manifest.Plan, &plan) != nil || plan.Executable() != nil || plan.AttemptRoot != a.AttemptRoot || plan.Preparation != a.Preparation {
 		return empty, errors.New("native task plan differs from assigned attempt")
@@ -94,8 +98,8 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 	return empty, errors.New("native task is absent from retained plan")
 }
 
-func workerTaskRequest(run factory.Run, observed execution.RunObservation, action, taskID string) (execution.TaskRequest, error) {
-	request := execution.TaskRequest{Input: project.FactoryNativeTask{Project: run.ProjectID, Run: run.ID, InvocationID: run.InvocationID(), ManifestDigest: project.ExecutionManifestDigest(run.ExecutionManifest), Action: action, Arguments: project.FactoryNativeTaskArguments{TaskID: taskID}}, Kind: run.RuntimeKind()}
+func workerTaskRequest(run factory.Run, observed execution.RunObservation, action string, arguments project.FactoryNativeTaskArguments) (execution.TaskRequest, error) {
+	request := execution.TaskRequest{Input: project.FactoryNativeTask{Project: run.ProjectID, Run: run.ID, InvocationID: run.InvocationID(), ManifestDigest: project.ExecutionManifestDigest(run.ExecutionManifest), Action: action, Arguments: arguments}, Kind: run.RuntimeKind()}
 	if err := workerObservation(run, observed); err != nil {
 		return request, err
 	}
@@ -108,10 +112,23 @@ func workerTaskRequest(run factory.Run, observed execution.RunObservation, actio
 			return request, ErrWorkerObservation
 		}
 	}
-	return request, request.Validate()
+	if err := request.Validate(); err != nil {
+		return request, fmt.Errorf("worker task request: %w", err)
+	}
+	return request, nil
 }
 
 func (s WorkerTasks) Execute(ctx context.Context, cap factory.MCPCapability, action, taskID string) (map[string]any, error) {
+	return s.execute(ctx, cap, action, project.FactoryNativeTaskArguments{TaskID: taskID})
+}
+func (s WorkerTasks) Workspace(ctx context.Context, cap factory.MCPCapability, arguments project.FactoryNativeTaskArguments) (map[string]any, error) {
+	if err := arguments.ValidateWorkspace(); err != nil {
+		return nil, err
+	}
+	return s.execute(ctx, cap, "workspace", arguments)
+}
+func (s WorkerTasks) execute(ctx context.Context, cap factory.MCPCapability, action string, arguments project.FactoryNativeTaskArguments) (map[string]any, error) {
+	taskID := arguments.TaskID
 	if s.Inspect == nil || s.Command == nil {
 		return nil, errors.New("live native task controller unavailable")
 	}
@@ -130,7 +147,7 @@ func (s WorkerTasks) Execute(ctx context.Context, cap factory.MCPCapability, act
 	if err != nil {
 		return nil, err
 	}
-	request, err := workerTaskRequest(run, observed, action, taskID)
+	request, err := workerTaskRequest(run, observed, action, arguments)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +155,7 @@ func (s WorkerTasks) Execute(ctx context.Context, cap factory.MCPCapability, act
 	if err != nil {
 		return nil, err
 	}
-	current, err := workerTaskRequest(latest, observed, action, taskID)
+	current, err := workerTaskRequest(latest, observed, action, arguments)
 	if err != nil || !request.Equal(current) || !bytes.Equal(run.ExecutionManifest, latest.ExecutionManifest) {
 		return nil, execution.ErrTask
 	}
@@ -160,12 +177,37 @@ func (s WorkerTasks) Execute(ctx context.Context, cap factory.MCPCapability, act
 	if err != nil {
 		return nil, err
 	}
-	current, err = workerTaskRequest(latest, observed, action, taskID)
+	current, err = workerTaskRequest(latest, observed, action, arguments)
 	if err != nil || !request.Equal(current) {
 		return nil, execution.ErrTask
 	}
 	if err := bounded.Err(); err != nil {
 		return nil, err
+	}
+	if action == "start_task" {
+		manifest, err := project.ParseExecutionManifest(latest.ExecutionManifest)
+		if err != nil {
+			return nil, err
+		}
+		var plan factory.InvestigationPlan
+		if err = json.Unmarshal(manifest.Plan, &plan); err != nil {
+			return nil, err
+		}
+		for _, task := range plan.Tasks {
+			if task.ID == taskID {
+				receipt.Result["task"] = task
+				checks := []factory.CheckSpec{}
+				for _, check := range plan.Checks {
+					for _, id := range task.CheckIDs {
+						if id == check.ID {
+							checks = append(checks, check)
+						}
+					}
+				}
+				receipt.Result["checks"] = checks
+				break
+			}
+		}
 	}
 	return receipt.Result, nil
 }

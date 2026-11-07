@@ -49,6 +49,7 @@ type Dependencies struct {
 	VerificationEvidence func(context.Context, factory.MCPCapability) (map[string]any, error)
 	RepairPreview        func(context.Context, factory.MCPCapability, json.RawMessage) (factory.RepairPreview, error)
 	NativeTask           func(context.Context, factory.MCPCapability, string, string) (map[string]any, error)
+	Workspace            func(context.Context, factory.MCPCapability, project.FactoryNativeTaskArguments) (map[string]any, error)
 	ReadSource           func(context.Context, factory.MCPCapability, project.FactoryContextReadPage) (map[string]any, error)
 	ListSource           func(context.Context, factory.MCPCapability, string) (map[string]any, error)
 }

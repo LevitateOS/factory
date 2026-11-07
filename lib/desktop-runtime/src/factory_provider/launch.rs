@@ -77,6 +77,9 @@ pub(crate) async fn launch(
         .decode(input.manifest)
         .map_err(|_| denied())?;
     intent.validate_manifest(&manifest)?;
+    if !manifest.is_empty() && !intent.muse_login() {
+        return Err(denied());
+    }
     let scope = intent.scope()?;
     if !alive.load(Ordering::SeqCst)
         || intent.instance() != channel.instance

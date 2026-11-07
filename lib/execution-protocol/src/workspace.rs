@@ -5,23 +5,77 @@ use serde::{Deserialize, Serialize};
 pub const MAX_COMMAND: usize = 96 * 1024;
 pub const MAX_REPLY: usize = 17 * 1024 * 1024;
 pub const MAX_TEXT: usize = 32768;
+pub const MAX_COMMANDS: usize = 4096;
+
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Parent {
+    pub invocation: String,
+    pub system_instance: String,
+    pub start_identity: String,
+    pub pid: u32,
+    pub executable_sha256: String,
+}
+impl Parent {
+    pub fn from_muse(process: &crate::MuseObservation) -> Self {
+        Self {
+            invocation: process.invocation.clone(),
+            system_instance: process.system_instance.clone(),
+            start_identity: process.start_identity.clone(),
+            pid: process.pid,
+            executable_sha256: process.executable_sha256.clone(),
+        }
+    }
+    pub fn valid(&self) -> bool {
+        self.pid > 0
+            && [
+                &self.invocation,
+                &self.system_instance,
+                &self.start_identity,
+            ]
+            .iter()
+            .all(|s| !s.is_empty() && s.len() <= 128 && !s.chars().any(char::is_control))
+            && self.executable_sha256.len() == 64
+            && self
+                .executable_sha256
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit())
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    BindParent {
+        invocation: String,
+    },
     Start {
         task: String,
     },
     Read {
+        task: String,
         path: String,
         offset: usize,
         limit: usize,
     },
     Edit {
+        operation_id: String,
+        task: String,
         path: String,
         offset: usize,
         expected: String,
         replacement: String,
+    },
+    MakeDirectory {
+        operation_id: String,
+        task: String,
+        path: String,
+    },
+    Remove {
+        operation_id: String,
+        task: String,
+        path: String,
+        expected_digest: String,
     },
     Release {
         task: String,
@@ -40,7 +94,11 @@ impl Command {
     pub fn retains_receipt(&self) -> bool {
         matches!(
             self,
-            Self::Start { .. }
+            Self::BindParent { .. }
+                | Self::Edit { .. }
+                | Self::MakeDirectory { .. }
+                | Self::Remove { .. }
+                | Self::Start { .. }
                 | Self::Release { .. }
                 | Self::Checkpoint { .. }
                 | Self::Final { .. }
@@ -48,10 +106,33 @@ impl Command {
     }
     pub fn receipt_key(&self) -> Result<String, serde_json::Error> {
         use sha2::{Digest, Sha256};
+        if let Self::Edit { operation_id, .. }
+        | Self::MakeDirectory { operation_id, .. }
+        | Self::Remove { operation_id, .. } = self
+        {
+            return Ok(
+                Sha256::digest(format!("factory-workspace-operation-v1\0{operation_id}"))
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect(),
+            );
+        }
         Ok(Sha256::digest(serde_json::to_vec(self)?)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect())
+    }
+    pub fn valid_operation_id(&self) -> bool {
+        match self {
+            Self::Edit { operation_id, .. }
+            | Self::MakeDirectory { operation_id, .. }
+            | Self::Remove { operation_id, .. } => {
+                !operation_id.is_empty()
+                    && operation_id.len() <= 128
+                    && !operation_id.chars().any(char::is_control)
+            }
+            _ => true,
+        }
     }
 }
 
@@ -107,6 +188,12 @@ pub struct Reply {
     pub output_digest: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub file_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_offset: Option<u64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checks: Vec<CheckResult>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

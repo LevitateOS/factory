@@ -3,6 +3,7 @@
 use super::{
     AgentCancellation, AttemptObservation, AttemptPhase, LaunchIntent, MuseConnector, WorkerMcp,
 };
+use soda_execution_protocol::workspace::{Command as TaskCommand, Parent, Reply as TaskReply};
 use soda_execution_protocol::{MuseInvocation, MuseObservation, PreparedSourceRef, MAX_OUTPUT};
 use std::io;
 use std::path::PathBuf;
@@ -15,6 +16,7 @@ pub struct MuseRun {
     pub output: Vec<u8>,
     pub product_output: Option<String>,
     pub root_retired: bool,
+    pub candidate: Option<String>,
 }
 
 // Keep the bounded native transcript private. Product output is the CLI's
@@ -58,8 +60,56 @@ struct State {
 pub(super) struct MuseView {
     state: Arc<Mutex<State>>,
     query: mpsc::SyncSender<Query>,
+    workspace: Option<Arc<Mutex<Option<super::TaskWorkspace>>>>,
 }
 impl MuseView {
+    fn record_process(&self, process: &MuseObservation) -> io::Result<()> {
+        let first = self
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("Muse state unavailable"))?
+            .process
+            .is_none();
+        if first {
+            if let Some(workspace) = &self.workspace {
+                workspace
+                    .lock()
+                    .map_err(|_| io::Error::other("Muse workspace unavailable"))?
+                    .as_mut()
+                    .ok_or_else(|| io::Error::other("Muse workspace retired"))?
+                    .bind_parent(&Parent::from_muse(process))?;
+            }
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| io::Error::other("Muse state unavailable"))?;
+        state.phase = AttemptPhase::Executing;
+        state.process = Some(process.clone());
+        Ok(())
+    }
+    pub(super) fn task(&self, parent: &Parent, command: &TaskCommand) -> io::Result<TaskReply> {
+        let workspace = self
+            .workspace
+            .as_ref()
+            .ok_or_else(|| io::Error::other("Muse task workspace unavailable"))?;
+        // The process query stays outside the workspace lock. Checks may hold
+        // that lock while ordinary process observation and cancellation proceed.
+        let process = self
+            .inspect(Duration::from_secs(2))?
+            .ok_or_else(|| io::Error::other("Muse parent not observed"))?;
+        if process.live != Some(true) || process.finished || Parent::from_muse(&process) != *parent
+        {
+            return Err(io::Error::other("Muse task parent changed or stopped"));
+        }
+        let mut workspace = workspace
+            .try_lock()
+            .map_err(|_| io::Error::new(io::ErrorKind::WouldBlock, "Muse workspace busy"))?;
+        workspace
+            .as_mut()
+            .ok_or_else(|| io::Error::other("Muse workspace retired"))?
+            .command(command)
+    }
     pub fn observe(&self) -> AttemptObservation {
         AttemptObservation {
             phase: self.state.lock().unwrap_or_else(|e| e.into_inner()).phase,
@@ -137,6 +187,18 @@ impl MuseAttempt {
             cancellation.clone(),
             deadline,
         )?;
+        let workspace = if manifest.is_empty() {
+            None
+        } else {
+            Some(Arc::new(Mutex::new(Some(
+                super::Broker::prepare_task_workspace(
+                    &profile,
+                    &scope,
+                    &manifest,
+                    cancellation.with_deadline(deadline),
+                )?,
+            ))))
+        };
         let state = Arc::new(Mutex::new(State {
             phase: AttemptPhase::Starting,
             process: None,
@@ -144,7 +206,12 @@ impl MuseAttempt {
         let observed = state.clone();
         let cancel = cancellation.clone();
         let (query, queries) = mpsc::sync_channel::<Query>(4);
-        let view = MuseView { state, query };
+        let view = MuseView {
+            state,
+            query,
+            workspace: workspace.clone(),
+        };
+        let recorder = view.clone();
         let thread = thread::Builder::new()
             .name("factory-muse-attempt".into())
             .spawn(move || {
@@ -179,6 +246,14 @@ impl MuseAttempt {
                             connector.cancel()?;
                             cancelling = true;
                         }
+                        if connector.terminal().is_none() {
+                            if let Some(process) = connector.observe(Duration::from_millis(20))? {
+                                recorder.record_process(&process)?;
+                            }
+                        }
+                        if connector.terminal().is_some() {
+                            break;
+                        }
                         while let Ok(query) = queries.try_recv() {
                             let remaining = query.until.saturating_duration_since(Instant::now());
                             let result = if remaining.is_zero() {
@@ -187,32 +262,55 @@ impl MuseAttempt {
                                     "Muse query expired",
                                 ))
                             } else {
-                                connector.inspect(remaining.min(Duration::from_secs(2)))
+                                connector
+                                    .inspect(remaining.min(Duration::from_secs(2)))
+                                    .and_then(|process| {
+                                        if let Some(process) = &process {
+                                            recorder.record_process(process)?;
+                                        }
+                                        Ok(process)
+                                    })
                             };
                             let _ = query.reply.send(result);
                         }
                         if connector.terminal().is_some() {
                             break;
                         }
-                        if let Some(process) = connector.observe(Duration::from_millis(20))? {
-                            let mut state = observed.lock().unwrap_or_else(|e| e.into_inner());
-                            state.phase = AttemptPhase::Executing;
-                            state.process = Some(process);
-                        }
                     }
                     let (process, output) = connector.finish()?;
                     super::muse_receipt::write(&profile, &intent, &process, &output)?;
+                    cancel.cancel();
+                    if let Some(workspace) = &workspace {
+                        let mut workspace = workspace
+                            .lock()
+                            .map_err(|_| io::Error::other("Muse workspace unavailable"))?;
+                        if let Some(owner) = workspace.as_ref() {
+                            owner.recover_pending()?;
+                        }
+                        workspace.take();
+                    }
+                    let candidate =
+                        super::muse_receipt::task_candidate(&profile, &intent, &process);
                     mcp.stop()?;
-                    staged.abort()?;
+                    if workspace.is_some() {
+                        staged.retire()?;
+                    } else {
+                        staged.abort()?;
+                    }
                     super::muse_receipt::mark_retired(&profile, &intent, &process)?;
                     Ok(MuseRun {
                         process,
                         product_output: final_text(&output),
                         output,
                         root_retired: true,
+                        candidate,
                     })
                 }))
                 .unwrap_or_else(|_| Err(io::Error::other("Muse attempt failed")));
+                cancel.cancel();
+                if let Some(workspace) = &workspace {
+                    workspace.lock().unwrap_or_else(|e| e.into_inner()).take();
+                }
                 let mut state = observed.lock().unwrap_or_else(|e| e.into_inner());
                 state.phase = if outcome.is_ok() {
                     AttemptPhase::Retired

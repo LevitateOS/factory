@@ -90,6 +90,9 @@ pub struct LaunchIntent {
 }
 
 impl LaunchIntent {
+    pub(super) fn has_tasks(&self) -> bool {
+        self.wire.version == 5
+    }
     pub fn from_go(raw: &str) -> io::Result<Self> {
         if raw.is_empty() || raw.len() > 16384 {
             return Err(refused("native intent bound exceeded"));
