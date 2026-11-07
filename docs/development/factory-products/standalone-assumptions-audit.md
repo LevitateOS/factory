@@ -499,8 +499,21 @@ corrections are now active; the old feature queue waits for their resolution.
   source refusal in `/home/vince/tmp/fmerge-source-current6.Mlv6gf/result.log`.
   Go build and boundaries passed. No provider mutation ran. Native automated
   merge/receipt composition and connected rules/races remain unqualified.
-  A transformed result is not a coder export: subsequent native preparation
-  still needs supported fetching/verification of the provider-created result.
+  A transformed result is not a coder export. Go now captures `source_merge`
+  with the exact merge/result/repository/target and the original reviewed export.
+  Native preparation rechecks canonical provenance and uses Rust's authenticated
+  `source_bundle` read; the existing isolated importer verifies Git objects and
+  ancestry before approved setup. Historical same-candidate exports keep their
+  original path. Actual native fetch of the existing merge result passed in
+  `/home/vince/tmp/fnative-merged-source7.35KFNW/fetch.log`; isolated import,
+  setup/checks, file/diff readback, replay and retirement passed in
+  `/home/vince/tmp/fmsimport7.mVdcrs/result.log`. PostgreSQL's recorded-source
+  acceptance and different-merge refusal passed in
+  `/home/vince/tmp/fmsguard7.ChBXp5/result.log`. These are separate component
+  checks, not the complete coordinator-to-next-Builder journey. Saved-account
+  withdrawal during fetch, ref/name races and installed source preparation remain
+  unqualified. The existing source-size bound and GitHub namespace-binding
+  limitation remain; no broad gate closes.
 - **A16 — installed executable discovery verified.** Native startup discovers
   Muse through absolute PATH entries or the normal `~/.local/bin` location,
   resolves its launcher directory and applies the existing official stable
@@ -745,7 +758,7 @@ corrections are now active; the old feature queue waits for their resolution.
   withdrawal readback without a provider replay or alternate account.
   Remaining: squash/rebase and complex-rule qualification, rule/base/permission
   races, lost replies/in-flight cancellation, complete automatic workflow,
-  fetching transformed results for subsequent native setup and installed gates.
+  composed merged-result preparation for the next Builder and installed gates.
 
 - **A04/A07/A21 — native automated review submission implemented.** The native
   application supplies `NativeReviews` through the existing review port. It

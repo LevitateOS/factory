@@ -82,7 +82,7 @@ func (c *Coordinator) prepareSourceCoder(ctx context.Context, plan *attemptPlan)
 }
 
 func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, command string, expectedGate *int64) (bool, error) {
-	source, sourceRun, err := c.resolveCoderSource(ctx, plan)
+	source, sourceRun, sourceMerge, err := c.resolveCoderSource(ctx, plan)
 	if err != nil {
 		return false, err
 	}
@@ -99,7 +99,7 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 		Project: plan.projectID, OwnerAssignment: command, ChildAssignment: command, AttemptRoot: command,
 		Connection: plan.sponsorship.Connection, Authority: plan.effective.Authority,
 		GateRevision: plan.gateRev, Control: plan.control, RequestedNotAfter: requested,
-		SourceRun: sourceRun,
+		SourceRun: sourceRun, SourceMerge: sourceMerge,
 	}
 	record, created, err := c.admitCoderPreparation(ctx, plan, prep, registration, command, expectedGate)
 	if err != nil {
@@ -123,24 +123,30 @@ func (c *Coordinator) prepareCoder(ctx context.Context, plan *attemptPlan, comma
 			return ready, err
 		}
 	}
-	return c.authorizeCoderPreparation(ctx, plan, prep, source, stored, sourceRun)
+	return c.authorizeCoderPreparation(ctx, plan, prep, source, stored, sourceRun, sourceMerge)
 }
 
 // resolveCoderSource rebinds one retry preparation to the merged
 // source at the planned tip.
-func (c *Coordinator) resolveCoderSource(ctx context.Context, plan *attemptPlan) (project.Preparation, *project.FactoryExport, error) {
+func (c *Coordinator) resolveCoderSource(ctx context.Context, plan *attemptPlan) (project.Preparation, *project.FactoryExport, *project.FactoryMergedSource, error) {
 	source := plan.prep.Preparation
 	if source.SourceCommit == plan.inputs.Tip {
-		return source, nil, nil
+		return source, nil, nil, nil
 	}
 	if len(source.Requirements.SourceInputs) == 0 {
-		return source, nil, errors.New("accepted effective source input selection is unavailable")
+		return source, nil, nil, errors.New("accepted effective source input selection is unavailable")
 	}
 	bound, err := c.Store.MergedPreparationSource(ctx, plan.control.Repository, plan.projectID, plan.policy.TargetBranch, plan.inputs.Tip)
 	if err != nil {
-		return source, nil, err
+		return source, nil, nil, err
 	}
-	return source, &bound, nil
+	if bound.Commit == bound.Export.Candidate {
+		return source, &bound.Export, nil, nil
+	}
+	if plan.prep.Native == nil {
+		return source, nil, nil, errors.New("host cannot fetch a provider-created merge result")
+	}
+	return source, nil, &bound, nil
 }
 
 // admitCoderPreparation reads the dispatch gate and admits one retry
@@ -218,7 +224,7 @@ func (c *Coordinator) observeInspectedCoderPreparation(ctx context.Context, plan
 
 // authorizeCoderPreparation authorizes and prepares one admitted
 // retry preparation, loading it when ready.
-func (c *Coordinator) authorizeCoderPreparation(ctx context.Context, plan *attemptPlan, prep, source project.Preparation, stored execution.PreparationRecord, sourceRun *project.FactoryExport) (bool, error) {
+func (c *Coordinator) authorizeCoderPreparation(ctx context.Context, plan *attemptPlan, prep, source project.Preparation, stored execution.PreparationRecord, sourceRun *project.FactoryExport, sourceMerge *project.FactoryMergedSource) (bool, error) {
 	notAfter, err := c.Store.AuthorizeCandidatePreparation(ctx, prep.ID)
 	if err != nil {
 		if retryPreparationInvalidated(err) {
@@ -234,7 +240,7 @@ func (c *Coordinator) authorizeCoderPreparation(ctx context.Context, plan *attem
 	}
 	state, err := c.Host.PrepareWorkspaceCandidate(ctx, execution.CandidatePreparationRequest{Native: stored.Native, Input: project.FactoryCandidate{
 		Preparation: prep, SourcePreparation: source.ID, Deadline: time.Unix(notAfter, 0),
-		SourceRun: sourceRun,
+		SourceRun: sourceRun, SourceMerge: sourceMerge,
 	}})
 	if err != nil {
 		return false, err

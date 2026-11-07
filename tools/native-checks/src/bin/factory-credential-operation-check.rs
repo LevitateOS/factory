@@ -1282,7 +1282,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             stopped?;
             outcome
         }
-        (Some("--github-automation-inputs" | "--github-merge-completion"), n) if n >= 6 => {
+        (Some("--github-automation-inputs" | "--github-merge-completion" | "--github-source-bundle"), n) if n >= 6 => {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
             let field = |n: usize| {
@@ -1300,7 +1300,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 tokio::task::spawn_blocking(soda_desktop_runtime::github_provider::Owner::start)
                     .await??;
             let completion=args[0]=="--github-merge-completion";
-            let query=if completion { soda_desktop_runtime::github_provider::Read::MergeCompletion {repository:field(2)?.into(),number:field(3)?.parse()?} } else {
+            let source=args[0]=="--github-source-bundle";
+            let query=if source { soda_desktop_runtime::github_provider::Read::SourceBundle {repository:field(2)?.into(),base:field(3)?.into(),commit:field(4)?.into(),target_ref:field(6)?.into()} }
+            else if completion { soda_desktop_runtime::github_provider::Read::MergeCompletion {repository:field(2)?.into(),number:field(3)?.parse()?} } else {
                 soda_desktop_runtime::github_provider::Read::AutomationInputs {repository:field(2)?.into(),number:field(3)?.parse()?,target_ref:field(4)?.into(),comments:args[6..].iter().map(|s|s.to_str().map(str::to_owned).ok_or("invalid selected comment")).collect::<std::result::Result<_,_>>()?}
             };
             let observed = owner
@@ -1325,7 +1327,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 .open(Path::new(&args[5]))?;
             file.write_all(&serde_json::to_vec(&observed)?)?;
             file.sync_all()?;
-            if completion { println!("PASS: actual native merged PR/base completion read; no write or product admission"); }
+            if source { println!("PASS: actual authenticated native source bundle for the exact observed branch tip; no write or product admission"); }
+            else if completion { println!("PASS: actual native merged PR/base completion read; no write or product admission"); }
             else { println!("PASS: actual native GitHub bounded issue history, selected comments, dependencies and branch snapshot; no write or product admission"); }
             Ok(())
         }

@@ -5,6 +5,12 @@ use serde_json::Value;
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Read {
+    SourceBundle {
+        repository: String,
+        base: String,
+        commit: String,
+        target_ref: String,
+    },
     PublicationRefs {
         repository: String,
         name: String,
@@ -279,6 +285,22 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::SourceBundle {
+            base,
+            commit: oid,
+            target_ref,
+            ..
+        } = self
+        {
+            if !commit(base)
+                || !commit(oid)
+                || !target_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(branch_name)
+            {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::PublicationRefs {
             name, base_branch, ..
         } = self

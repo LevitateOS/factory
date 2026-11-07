@@ -213,6 +213,33 @@ with an unspecified app binding remained unavailable; no fix or qualification of
 that binding is claimed. `retained-result.log` in that root passed actual retained
 restart and exact-account withdrawal, historical receipt/adoption and cancelled
 send readback, without a provider replay or alternate account.
+**Merged source preparation (implemented; composed/installed gate open):**
+`project/factory_candidate.go`, `control/dispatch_preparation.go`,
+`store/factory_{candidate,source}_preparations.go` and
+`runtime/native_preparation.go` retain a distinct merge-source reference, recheck
+its exact recorded merge/result/export and admitted deadline, then use the saved
+merge account. Rust `github_provider/git_fetch.rs` and `transport.rs` perform
+bounded authenticated upload-pack reads for the observed target tip; the existing
+isolated importer owns object/prerequisite/ancestry verification and setup.
+`/home/vince/tmp/fnative-merged-source7.35KFNW/fetch.log` proves actual fetch of
+merged result `987c937481ec321607de68872bad7e5759d992fb`, distinct from reviewed
+head `1f8ccccb544f66f6e4b40c93a782ce5f12944aaf`. Its fetched bundle passed isolated
+import, setup/checks, file/diff readback, replay and retirement in
+`/home/vince/tmp/fmsimport7.mVdcrs/result.log`; native-side admission was declared
+for that importer component. Separate actual PostgreSQL provenance acceptance
+and different-merge refusal passed in `/home/vince/tmp/fmsguard7.ChBXp5/result.log`.
+No model or GitHub write ran; no credential was saved by the direct fetch check.
+
+Exact remaining blocker: these checks do not compose saved-account custody,
+canonical candidate admission, native fetch/import and the next Builder under the
+coordinator in one journey. Close with that actual journey plus matching retained
+scope/result and retirement evidence. In-flight account withdrawal, deadline/
+request interruption, target movement and repository name/ID races remain
+unverified. Repository/ref checks bracket transfer and are bounded observations;
+they do not supply atomic GitHub namespace binding. Preserve the existing
+namespace-binding dependency and historical uncertain publication fences. These
+checks close no custody, IPC, D1/D2/D3/D5 or installed gate.
+
 Remaining blockers: ordinary component evidence cannot close in-flight permission,
 rule/base movement, withdrawal/cancellation or lost-reply gates. Closure needs the
 same frozen intent, exact causal effect/no-effect evidence and matching current

@@ -98,6 +98,11 @@ creation links after the head changes. Native automated merge now joins the same
 command journal, exact reviewed candidate, current selected checks and visible
 provider rules. The actual merge/result/issue-closure component check passed;
 A04/A07/A21 records its declared workflow inputs and supported rule boundary.
+Native source preparation can now fetch the recorded provider-created merge
+result, keeping it distinct from the original coder export. A07 records the
+actual authenticated fetch, isolated import/setup/readback/retirement and separate
+PostgreSQL provenance checks. The complete coordinator-to-next-Builder journey,
+withdrawal/ref races and installed qualification remain pending.
 Full execution-to-publication/coordinator correction, automated dispatch and
 installed qualification remain pending.
 Two historical uncertain sends and the repository-name binding dependency remain

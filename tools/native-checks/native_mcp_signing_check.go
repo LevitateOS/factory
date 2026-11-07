@@ -3965,8 +3965,16 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		setup = []byte("sleep 8\n")
 	}
 	check := []byte("printf 'checked-by-native\\n'\n")
+	candidatePath, candidateText := "docs/note.md", "native-context-change"
+	if selected := os.Getenv("SODA_NATIVE_CANDIDATE_PATH"); selected != "" {
+		candidatePath, candidateText = selected, os.Getenv("SODA_NATIVE_CANDIDATE_TEXT")
+		if candidateText == "" {
+			return errors.New("candidate file needs its independently observed content")
+		}
+	}
 	if os.Getenv("SODA_NATIVE_PREPARE_CANDIDATE") == "1" {
-		check = []byte("printf 'checked-by-native\\n'\ngit rev-parse --verify HEAD\ncat docs/note.md\n")
+		quoted := "'" + strings.ReplaceAll(candidatePath, "'", "'\\''") + "'"
+		check = []byte("printf 'checked-by-native\\n'\ngit rev-parse --verify HEAD\nif test -f " + quoted + "; then cat -- " + quoted + "; fi\n")
 	}
 	if os.Getenv("SODA_NATIVE_KEEP_PREPARATION") == "1" {
 		setup = []byte("mkdir -p .factory-build\nprintf 'prepared dependency\\n' > .factory-build/dependency\nprintf 'prepared HOME\\n' > \"$HOME/factory-env\"\nchmod 600 \"$HOME/factory-env\" .factory-build/dependency\n")
@@ -4248,13 +4256,13 @@ func nativePreparationFixture(profile, instance, mode string) error {
 				return err
 			}
 		}
-		if observed.SourceCommit != candidate.SourceCommit || observed.SetupDigest != candidate.SetupDigest || observed.SourceBundleSHA256 == state.SourceBundleSHA256 || !strings.Contains(observed.Output, candidate.SourceCommit) || !strings.Contains(observed.Output, "native-context-change") {
+		if observed.SourceCommit != candidate.SourceCommit || observed.SetupDigest != candidate.SetupDigest || observed.SourceBundleSHA256 == state.SourceBundleSHA256 || !strings.Contains(observed.Output, candidate.SourceCommit) || !strings.Contains(observed.Output, candidateText) {
 			return errors.New("candidate setup/check did not observe the imported source")
 		}
 		if err = declaredNativePreparation(ctx, config, instance, payload, &observed); err != nil {
 			return err
 		}
-		contextRequest := execution.PreparationContextRequest{Native: &owner, Role: candidate.Role, Input: project.FactoryPreparationContextRequest{Project: candidate.Project, ID: candidate.ID, SourceCommit: candidate.SourceCommit, ApprovedBase: source, DiffBase: source, Candidate: candidate.SourceCommit, Paths: []string{"docs/note.md"}, NotAfter: time.Now().Add(10 * time.Second)}}
+		contextRequest := execution.PreparationContextRequest{Native: &owner, Role: candidate.Role, Input: project.FactoryPreparationContextRequest{Project: candidate.Project, ID: candidate.ID, SourceCommit: candidate.SourceCommit, ApprovedBase: source, DiffBase: source, Candidate: candidate.SourceCommit, Paths: []string{candidatePath}, NotAfter: time.Now().Add(10 * time.Second)}}
 		var material execution.PreparationContext
 		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "context", "request": contextRequest}, &material); err != nil {
 			return err
@@ -4262,8 +4270,17 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if err = material.ValidateFor(contextRequest); err != nil {
 			return err
 		}
-		if !strings.Contains(string(material.Material.Diff), "+native-context-change") {
+		if !strings.Contains(string(material.Material.Diff), "+"+candidateText) {
 			return errors.New("prepared candidate context lost its real diff")
+		}
+		found := false
+		for _, file := range material.Material.Files {
+			if file.Path == candidatePath && strings.Contains(string(file.Content), candidateText) {
+				found = true
+			}
+		}
+		if !found {
+			return errors.New("prepared candidate context lost its actual file contents")
 		}
 		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "retire", "address": derived.Address()}, &observed); err != nil {
 			return err

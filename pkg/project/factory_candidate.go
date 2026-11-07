@@ -13,11 +13,12 @@ import (
 // refreshed source. Its caller supplies no bundle. Corrections retain their
 // original checkout; the native producer verifies unchanged approved setup.
 type FactoryCandidate struct {
-	Preparation       Preparation    `json:"preparation"`
-	SourcePreparation string         `json:"source_preparation"`
-	SourceRun         *FactoryExport `json:"source_run,omitempty"`
-	Bundle            []byte         `json:"bundle"`
-	Deadline          time.Time      `json:"deadline"`
+	Preparation       Preparation          `json:"preparation"`
+	SourcePreparation string               `json:"source_preparation"`
+	SourceRun         *FactoryExport       `json:"source_run,omitempty"`
+	SourceMerge       *FactoryMergedSource `json:"source_merge,omitempty"`
+	Bundle            []byte               `json:"bundle"`
+	Deadline          time.Time            `json:"deadline"`
 }
 
 func (p FactoryCandidate) Validate() error {
@@ -31,6 +32,9 @@ func (p FactoryCandidate) Validate() error {
 		return errors.New("coder retry source must come from the protected preparation")
 	}
 	if p.SourceRun != nil {
+		if p.SourceMerge != nil {
+			return errors.New("candidate preparation has conflicting sources")
+		}
 		if err := p.SourceRun.Validate(); err != nil {
 			return err
 		}
@@ -38,11 +42,34 @@ func (p FactoryCandidate) Validate() error {
 			return errors.New("candidate source run does not bind the coder preparation")
 		}
 	}
+	if p.SourceMerge != nil {
+		m := p.SourceMerge
+		if m.Validate() != nil || p.Preparation.Role != RoleCoder || m.Export.Project != p.Preparation.Project || m.Commit != p.Preparation.SourceCommit {
+			return errors.New("merged source does not bind the coder preparation")
+		}
+	}
 	if p.Preparation.Role == RoleReviewer && (len(p.Bundle) == 0 || len(p.Bundle) > MaxSourceBundle) {
 		return errors.New("candidate source bundle exceeds preparation bounds")
 	}
 	if p.Deadline.IsZero() {
 		return errors.New("candidate preparation requires an absolute deadline")
+	}
+	return nil
+}
+
+// FactoryMergedSource binds a provider-created result to its recorded merge and
+// original reviewed run. The run export never stands in for the merged bytes.
+type FactoryMergedSource struct {
+	Export     FactoryExport `json:"export"`
+	MergeID    string        `json:"merge_id"`
+	Commit     string        `json:"commit"`
+	Repository int64         `json:"repository,string"`
+	Target     string        `json:"target"`
+}
+
+func (s FactoryMergedSource) Validate() error {
+	if s.Export.Validate() != nil || s.Export.Role != RoleCoder || !ValidFactoryRunID(s.MergeID) || !ValidCommit(s.Commit) || s.Repository <= 0 || len(s.Target) <= len("refs/heads/") || len(s.Target) > 256 || s.Target[:len("refs/heads/")] != "refs/heads/" {
+		return errors.New("invalid merged preparation source")
 	}
 	return nil
 }

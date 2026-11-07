@@ -436,8 +436,26 @@ func TestCaptureCompletionLocalAtSourceMergedCoderTip(t *testing.T) {
 				t.Fatalf("candidate/result/method provenance lost: %+v", local.Material.Merges)
 			}
 			exported, err := db.MergedPreparationSource(ctx, 7, p.ProjectID, merged.BaseRef, tip)
-			if err != nil || exported.Candidate != p.Candidate {
+			if err != nil || exported.Export.Candidate != p.Candidate || exported.Commit != tip || exported.MergeID != merged.ID {
 				t.Fatalf("merged result must not invent a coder export: %+v %v", exported, err)
+			}
+			tx, err := db.db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tx.Rollback()
+			registration := CandidatePreparationRegistration{Repository: 7, Project: p.ProjectID, SourceMerge: &exported}
+			if err = checkMergedPreparationSourceTx(ctx, tx, registration, tip, merged.BaseRef); err != nil {
+				t.Fatalf("recorded merged source refused: %v", err)
+			}
+			other := exported
+			other.MergeID = factory.NewID()
+			registration.SourceMerge = &other
+			if err = checkMergedPreparationSourceTx(ctx, tx, registration, tip, merged.BaseRef); !errors.Is(err, ErrCandidatePreparationConflict) {
+				t.Fatalf("another merge identity admitted: %v", err)
+			}
+			if err = tx.Rollback(); err != nil {
+				t.Fatal(err)
 			}
 			if local.Material.Authority.RequirementSourceCommit != base {
 				t.Fatalf("requirement source=%q, want the accepted source to stay distinct", local.Material.Authority.RequirementSourceCommit)

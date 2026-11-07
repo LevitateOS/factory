@@ -156,11 +156,93 @@ impl Drop for Owner {
         let _ = self.stop();
     }
 }
+pub(super) fn packet<'a>(bytes: &mut &'a [u8]) -> Result<Option<&'a [u8]>> {
+    let prefix = bytes.get(..4).ok_or_else(Failure::protocol)?;
+    let size = usize::from_str_radix(
+        std::str::from_utf8(prefix).map_err(|_| Failure::protocol())?,
+        16,
+    )
+    .map_err(|_| Failure::protocol())?;
+    if size == 0 {
+        *bytes = &bytes[4..];
+        return Ok(None);
+    }
+    if !(4..=65520).contains(&size) || bytes.len() < size {
+        return Err(Failure::protocol());
+    }
+    let payload = &bytes[4..size];
+    *bytes = &bytes[size..];
+    Ok(Some(payload))
+}
+pub(super) fn advertised(
+    mut bytes: &[u8],
+    service: GitService,
+) -> Result<std::collections::BTreeMap<String, String>> {
+    if packet(&mut bytes)? != Some(format!("# service={}\n", service.name()).as_bytes())
+        || packet(&mut bytes)?.is_some()
+    {
+        return Err(Failure::protocol());
+    }
+    let mut refs = std::collections::BTreeMap::new();
+    let mut first = true;
+    loop {
+        let Some(line) = packet(&mut bytes)? else {
+            break;
+        };
+        let line = std::str::from_utf8(line)
+            .map_err(|_| Failure::protocol())?
+            .trim_end_matches('\n');
+        let line = if first {
+            first = false;
+            let (line, capabilities) = line.split_once('\0').ok_or_else(Failure::protocol)?;
+            let capabilities: Vec<_> = capabilities.split_ascii_whitespace().collect();
+            if service == GitService::ReceivePack && !capabilities.contains(&"report-status")
+                || !capabilities.contains(&"ofs-delta")
+                || capabilities
+                    .iter()
+                    .any(|v| v.starts_with("object-format=") && *v != "object-format=sha1")
+            {
+                return Err(Failure::new(409, "github_git_capability_unsupported"));
+            }
+            line
+        } else {
+            line
+        };
+        let (oid, name) = line.split_once(' ').ok_or_else(Failure::protocol)?;
+        if !super::request::commit(oid)
+            || name.is_empty()
+            || name.chars().any(char::is_control)
+            || refs.insert(name.into(), oid.into()).is_some()
+        {
+            return Err(Failure::protocol());
+        }
+    }
+    if first || !bytes.is_empty() {
+        return Err(Failure::protocol());
+    }
+    Ok(refs)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum GitService {
+    ReceivePack,
+    UploadPack,
+}
+impl GitService {
+    pub(super) fn name(self) -> &'static str {
+        match self {
+            Self::ReceivePack => "git-receive-pack",
+            Self::UploadPack => "git-upload-pack",
+        }
+    }
+}
+
 impl Client {
     pub(super) async fn git_request(
         &self,
         name: &str,
         token: &[u8],
+        service: GitService,
         body: Option<Vec<u8>>,
     ) -> Result<(Vec<u8>, String)> {
         use base64::Engine;
@@ -179,15 +261,16 @@ impl Client {
         let wire = self
             .request(Request::Provider(Box::new(move |http| {
                 let root = format!("https://github.com/{name}.git");
+                let service = service.name();
                 let request = match body {
                     Some(body) => http
-                        .post(format!("{root}/git-receive-pack"))
+                        .post(format!("{root}/{service}"))
                         .header(
                             header::CONTENT_TYPE,
-                            "application/x-git-receive-pack-request",
+                            format!("application/x-{service}-request"),
                         )
                         .body(body),
-                    None => http.get(format!("{root}/info/refs?service=git-receive-pack")),
+                    None => http.get(format!("{root}/info/refs?service={service}")),
                 };
                 Ok((
                     request
@@ -200,16 +283,16 @@ impl Client {
         if wire.status != 200 {
             return Err(provider_failure(&wire));
         }
-        let expected = if posting {
-            "application/x-git-receive-pack-result"
-        } else {
-            "application/x-git-receive-pack-advertisement"
-        };
+        let expected = format!(
+            "application/x-{}-{}",
+            service.name(),
+            if posting { "result" } else { "advertisement" }
+        );
         if wire
             .headers
             .get(header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            != Some(expected)
+            != Some(expected.as_str())
         {
             return Err(Failure::protocol());
         }

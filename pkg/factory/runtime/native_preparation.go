@@ -2,11 +2,15 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"reflect"
 	"slices"
+	"strconv"
 	"time"
 
+	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
@@ -26,7 +30,7 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	}
 	actual, wanted := request.Input.Preparation, stored.Preparation.Preparation
 	actual.Revision, wanted.Revision = 0, 0
-	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) {
+	if !reflect.DeepEqual(actual, wanted) || stored.Preparation.Native == nil || *stored.Preparation.Native != *request.Native || !reflect.DeepEqual(request.Input.SourceRun, stored.Admission.SourceRun) || !reflect.DeepEqual(request.Input.SourceMerge, stored.Admission.SourceMerge) {
 		return empty, execution.ErrPreparation
 	}
 	source, err := p.Store.Preparation(ctx, request.Input.SourcePreparation)
@@ -44,9 +48,37 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 	if request.Input.Deadline.After(time.Unix(notAfter, 0)) {
 		return empty, execution.ErrPreparation
 	}
-	if request.Input.SourceRun != nil {
+	bounded, cancel := context.WithDeadline(ctx, request.Input.Deadline)
+	defer cancel()
+	if request.Input.SourceMerge != nil {
+		merged := request.Input.SourceMerge
+		bound, err := p.Store.MergedPreparationSource(bounded, stored.Admission.Repository, wanted.Project, merged.Target, wanted.SourceCommit)
+		if err != nil || bound != *merged {
+			return empty, execution.ErrPreparation
+		}
+		account, err := (NativeInputSource{p}).account(bounded, strconv.FormatInt(merged.Repository, 10), factory.OpMerge)
+		if err != nil {
+			return empty, err
+		}
+		var fetched struct {
+			Repository string `json:"repository"`
+			Base       string `json:"base"`
+			Commit     string `json:"commit"`
+			Target     string `json:"target"`
+			SHA256     string `json:"sha256"`
+			Bundle     []byte `json:"bundle"`
+		}
+		if err = account.read(bounded, nativeRead{Kind: "source_bundle", Repository: account.repository.ExternalID, Base: &base.SourceCommit, Commit: merged.Commit, TargetRef: merged.Target}, &fetched); err != nil {
+			return empty, err
+		}
+		sum := sha256.Sum256(fetched.Bundle)
+		if fetched.Repository != account.repository.ExternalID || fetched.Base != base.SourceCommit || fetched.Commit != wanted.SourceCommit || fetched.Target != merged.Target || len(fetched.Bundle) == 0 || len(fetched.Bundle) > project.MaxSourceBundle || fetched.SHA256 != hex.EncodeToString(sum[:]) {
+			return empty, execution.ErrPreparation
+		}
+		request.Input.Bundle = fetched.Bundle
+	} else if request.Input.SourceRun != nil {
 		ref := request.Input.SourceRun
-		exported, exportErr := p.ExportCandidate(ctx, execution.CandidateRequest{Address: execution.RunAddress{Workspace: ref.Project, Run: ref.ID}, Role: ref.Role, Preparation: ref.Preparation, Candidate: ref.Candidate})
+		exported, exportErr := p.ExportCandidate(bounded, execution.CandidateRequest{Address: execution.RunAddress{Workspace: ref.Project, Run: ref.ID}, Role: ref.Role, Preparation: ref.Preparation, Candidate: ref.Candidate})
 		if exportErr != nil {
 			return empty, exportErr
 		}
@@ -55,8 +87,6 @@ func (p NativeExecution) PrepareWorkspaceCandidate(ctx context.Context, request 
 		return empty, execution.ErrPreparation
 	}
 	request.Input.Preparation.Revision = 0
-	bounded, cancel := context.WithDeadline(ctx, request.Input.Deadline)
-	defer cancel()
 	var state execution.PreparationState
 	err = nativeHostCall(bounded, p.Config, p.Instance, "/api/native/preparation", struct {
 		Operation string                                `json:"operation"`

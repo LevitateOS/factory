@@ -10,6 +10,7 @@ mod commits;
 mod diff;
 mod edits;
 mod evidence;
+mod git_fetch;
 mod git_publish;
 mod inline_create;
 mod inline_draft;

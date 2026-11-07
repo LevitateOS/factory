@@ -1,6 +1,7 @@
 //! Transfer the retained candidate pack and conditionally update one Git ref.
 //! Git's receive-pack checks the advertised old OID. The comparison branch is a
 //! bounded observation, not an atomic condition on that second ref.
+use super::transport::{advertised, packet, GitService};
 use super::{
     reads::Reader,
     records as r,
@@ -13,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_STAGE_BUNDLE;
-use std::{collections::BTreeMap, time::Instant};
+use std::time::Instant;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -93,70 +94,6 @@ impl BranchPublish {
     }
 }
 
-fn packet<'a>(bytes: &mut &'a [u8]) -> Result<Option<&'a [u8]>> {
-    let prefix = bytes.get(..4).ok_or_else(Failure::protocol)?;
-    let size = usize::from_str_radix(
-        std::str::from_utf8(prefix).map_err(|_| Failure::protocol())?,
-        16,
-    )
-    .map_err(|_| Failure::protocol())?;
-    if size == 0 {
-        *bytes = &bytes[4..];
-        return Ok(None);
-    }
-    if !(4..=65520).contains(&size) || bytes.len() < size {
-        return Err(Failure::protocol());
-    }
-    let payload = &bytes[4..size];
-    *bytes = &bytes[size..];
-    Ok(Some(payload))
-}
-fn advertised(mut bytes: &[u8]) -> Result<BTreeMap<String, String>> {
-    if packet(&mut bytes)? != Some(b"# service=git-receive-pack\n".as_slice())
-        || packet(&mut bytes)?.is_some()
-    {
-        return Err(Failure::protocol());
-    }
-    let mut refs = BTreeMap::new();
-    let mut first = true;
-    loop {
-        let Some(line) = packet(&mut bytes)? else {
-            break;
-        };
-        let line = std::str::from_utf8(line)
-            .map_err(|_| Failure::protocol())?
-            .trim_end_matches('\n');
-        let line = if first {
-            first = false;
-            let (line, capabilities) = line.split_once('\0').ok_or_else(Failure::protocol)?;
-            let capabilities: Vec<_> = capabilities.split_ascii_whitespace().collect();
-            if !capabilities.contains(&"report-status")
-                || !capabilities.contains(&"ofs-delta")
-                || capabilities
-                    .iter()
-                    .any(|v| v.starts_with("object-format=") && *v != "object-format=sha1")
-            {
-                return Err(Failure::new(409, "github_git_capability_unsupported"));
-            }
-            line
-        } else {
-            line
-        };
-        let (oid, name) = line.split_once(' ').ok_or_else(Failure::protocol)?;
-        if !commit(oid)
-            || name.is_empty()
-            || name.chars().any(char::is_control)
-            || refs.insert(name.into(), oid.into()).is_some()
-        {
-            return Err(Failure::protocol());
-        }
-    }
-    if first || !bytes.is_empty() {
-        return Err(Failure::protocol());
-    }
-    Ok(refs)
-}
-
 impl Reader<'_> {
     pub(super) async fn publication_refs(
         &self,
@@ -171,9 +108,9 @@ impl Reader<'_> {
             }
             let (bytes, _) = self
                 .client
-                .git_request(&self.name, self.token, None)
+                .git_request(&self.name, self.token, GitService::ReceivePack, None)
                 .await?;
-            let refs = advertised(&bytes)?;
+            let refs = advertised(&bytes, GitService::ReceivePack)?;
             Ok(
                 json!({"repository":self.repository,"name":self.name,"repository_node_id":r::text(&raw,"node_id")?,"push":r::boolean(&raw["permissions"],"push")?,"archived":r::boolean(&raw,"archived")?,"disabled":r::boolean(&raw,"disabled")?,"branch":branch,"tip":refs.get(&format!("refs/heads/{branch}")).map(String::as_str).unwrap_or(""),"comparison_branch":base,"comparison":refs.get(&format!("refs/heads/{base}")).map(String::as_str).unwrap_or("")}),
             )
@@ -214,8 +151,8 @@ impl Client {
                 || repository["permissions"]["push"] != true || repository["archived"] != false || repository["disabled"] != false {
                 return Err(Failure::new(403, "github_publication_unavailable"));
             }
-            let (advertisement, _) = self.git_request(&reader.name, token, None).await?;
-            let refs = advertised(&advertisement)?;
+            let (advertisement, _) = self.git_request(&reader.name, token, GitService::ReceivePack, None).await?;
+            let refs = advertised(&advertisement, GitService::ReceivePack)?;
             let target = format!("refs/heads/{}", q.branch);
             let comparison = format!("refs/heads/{}", q.comparison_branch);
             if refs.get(&comparison).map(String::as_str) != Some(q.comparison_oid.as_str())
@@ -228,7 +165,7 @@ impl Client {
             let mut body = format!("{:04x}{command}0000", command.len() + 4).into_bytes();
             body.extend_from_slice(&pack);
             permit.dispatch("github_publication_expired")?;
-            let (reply, response_sha256) = self.git_request(&reader.name, token, Some(body)).await?;
+            let (reply, response_sha256) = self.git_request(&reader.name, token, GitService::ReceivePack, Some(body)).await?;
             let mut bytes = reply.as_slice();
             let unpack = packet(&mut bytes)?;
             let status = packet(&mut bytes)?;

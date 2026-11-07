@@ -585,6 +585,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
             if matches!(
                 query,
                 Read::Identity
+                    | Read::SourceBundle { .. }
                     | Read::PublicationRefs { .. }
                     | Read::PullBranches { .. }
                     | Read::Pull { .. }

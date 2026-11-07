@@ -82,6 +82,7 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "source_bundle" => ("publication", reader.source_bundle(&q).await?),
                         "publication_refs" => ("publication", reader.publication_refs(&q).await?),
                         "merge_completion" => (
                             "publication",
