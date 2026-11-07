@@ -335,5 +335,5 @@ func (p NativeReviews) AdoptReview(ctx context.Context, w factory.ReviewWork, ou
 	if err != nil {
 		return empty, err
 	}
-	return factory.ReviewOutcome{Operation: outcome, ReviewID: id, ReviewerID: w.ActorID, PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, HeadOID: w.HeadOID, BaseOID: receipt.Base, CommitID: receipt.Review.Commit, Event: w.Event}, nil
+	return factory.ReviewOutcome{Operation: outcome, ReviewID: id, ReviewerID: w.ActorID, PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, HeadOID: w.HeadOID, BaseOID: receipt.Base, CommitID: receipt.Review.Commit, MergeBaseOID: receipt.DiffBase, Event: w.Event}, nil
 }

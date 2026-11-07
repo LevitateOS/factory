@@ -608,7 +608,7 @@ func (c *Coordinator) replaySubmittedReview(ctx context.Context, p *factory.Publ
 		if adopted.ReviewerID != op.Work.ActorID || adopted.Event != op.Work.Event || adopted.HeadOID != op.Work.HeadOID {
 			return empty, false, errors.New("review receipt differs from its recorded work")
 		}
-		if err := c.recordReviewCandidateTuple(ctx, *p, adopted); err != nil {
+		if err := c.recordReviewCandidateTuple(ctx, p, adopted); err != nil {
 			return empty, false, err
 		}
 		return adopted, true, nil
@@ -744,7 +744,7 @@ func (c *Coordinator) submitFreshReview(ctx context.Context, p *factory.Publicat
 	if outcome.Completion != factory.OpCompletionComplete || adopted.ReviewerID != w.ActorID || adopted.Event != w.Event || adopted.HeadOID != w.HeadOID {
 		return empty, errors.New("review submission incomplete")
 	}
-	if err := c.recordReviewCandidateTuple(ctx, *p, adopted); err != nil {
+	if err := c.recordReviewCandidateTuple(ctx, p, adopted); err != nil {
 		return empty, err
 	}
 	return adopted, nil
@@ -761,7 +761,7 @@ func (c *Coordinator) submitFreshReview(ctx context.Context, p *factory.Publicat
 // correction flow (R21), and this joint never rewrites acceptance or
 // persists a stale snapshot. An unchanged triple writes nothing:
 // snapshots never churn.
-func (c *Coordinator) recordReviewCandidateTuple(ctx context.Context, p factory.Publication, adopted factory.ReviewOutcome) error {
+func (c *Coordinator) recordReviewCandidateTuple(ctx context.Context, p *factory.Publication, adopted factory.ReviewOutcome) error {
 	if !factory.ValidCommit(adopted.HeadOID) || !factory.ValidCommit(adopted.BaseOID) || !factory.ValidCommit(adopted.MergeBaseOID) {
 		return nil
 	}
@@ -782,9 +782,14 @@ func (c *Coordinator) recordReviewCandidateTuple(ctx context.Context, p factory.
 	if err := tuple.Validate(); err != nil {
 		return err
 	}
-	p.Tuple = &tuple
-	p.Revision++
-	return c.Store.UpdatePublication(ctx, p)
+	next := *p
+	next.Tuple = &tuple
+	next.Revision++
+	if err := c.Store.UpdatePublication(ctx, next); err != nil {
+		return err
+	}
+	*p = next
+	return nil
 }
 
 func sameReviewOperationOutcome(a, b factory.OperationOutcome) bool {
@@ -827,8 +832,23 @@ func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.P
 	for i := range p.ReviewOperations {
 		op := p.ReviewOperations[i]
 		prior := op.Outcome
-		if prior.Effect == factory.OpEffectCommitted && prior.Completion == factory.OpCompletionComplete ||
-			prior.Effect == factory.OpEffectNotCommitted && prior.Cancellation == factory.OpCancelCancelled {
+		if prior.Effect == factory.OpEffectCommitted && prior.Completion == factory.OpCompletionComplete {
+			// A crash can persist the completed review before its candidate tuple.
+			// Reuse that receipt; never submit another review to fill the gap.
+			if c.Reviews != nil && op.Work.HeadOID == p.Candidate && op.Work.BaseOID == p.PRCreate.BaseOID &&
+				(p.Tuple == nil || p.Tuple.Head != op.Work.HeadOID || p.Tuple.Base != op.Work.BaseOID) {
+				adopted, err := c.Reviews.AdoptReview(ctx, op.Work, prior)
+				if err != nil || adopted.ReviewerID != op.Work.ActorID || adopted.Event != op.Work.Event || adopted.HeadOID != op.Work.HeadOID {
+					publicationError(report, op.Work.OperationID, "review_receipt_unattributed")
+					continue
+				}
+				if err := c.recordReviewCandidateTuple(ctx, p, adopted); err != nil {
+					publicationError(report, op.Work.OperationID, "review_tuple_unrecorded")
+				}
+			}
+			continue
+		}
+		if prior.Effect == factory.OpEffectNotCommitted && prior.Cancellation == factory.OpCancelCancelled {
 			continue
 		}
 		if c.Reviews == nil {
@@ -865,6 +885,8 @@ func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.P
 			}
 			if outcome.Completion != factory.OpCompletionComplete {
 				publicationWait(report, op.Work.OperationID, "review_completion_pending")
+			} else if err := c.recordReviewCandidateTuple(ctx, p, adopted); err != nil {
+				publicationError(report, op.Work.OperationID, "review_tuple_unrecorded")
 			}
 		} else if outcome.Effect != factory.OpEffectNotCommitted {
 			publicationWait(report, op.Work.OperationID, "review_effect_pending")

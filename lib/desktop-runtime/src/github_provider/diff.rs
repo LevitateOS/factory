@@ -5,6 +5,24 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 
 impl Reader<'_> {
+    pub(super) async fn merge_base(&self, base: &str, head: &str) -> Result<String> {
+        if !commit(base) || !commit(head) {
+            return Err(Failure::invalid());
+        }
+        let comparison = self
+            .get(
+                &format!("/compare/{base}...{head}"),
+                &[("page", "2".into()), ("per_page", "1".into())],
+            )
+            .await?
+            .value;
+        let merge_base = r::text(&comparison["merge_base_commit"], "sha")?;
+        if comparison["base_commit"]["sha"] != base || !commit(merge_base) {
+            return Err(Failure::protocol());
+        }
+        Ok(merge_base.into())
+    }
+
     pub(super) async fn diff(&self, q: &Value) -> Result<Value> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let pull = self.raw_subject(true, number).await?;
@@ -12,21 +30,9 @@ impl Reader<'_> {
         if q["head"] != "" && q["head"] != before["head"] {
             return Err(Failure::new(409, "github_diff_changed"));
         }
-        let comparison = self
-            .get(
-                &format!(
-                    "/compare/{}...{}",
-                    r::text(&before, "base")?,
-                    r::text(&before, "head")?
-                ),
-                &[("page", "2".into()), ("per_page", "1".into())],
-            )
-            .await?
-            .value;
-        let merge_base = r::text(&comparison["merge_base_commit"], "sha")?;
-        if comparison["base_commit"]["sha"] != before["base"] || !commit(merge_base) {
-            return Err(Failure::protocol());
-        }
+        let merge_base = self
+            .merge_base(r::text(&before, "base")?, r::text(&before, "head")?)
+            .await?;
         if q["base"] != "" && q["base"] != merge_base {
             return Err(Failure::new(409, "github_diff_changed"));
         }

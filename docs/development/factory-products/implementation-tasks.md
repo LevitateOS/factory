@@ -56,8 +56,12 @@ review and retained receipt/cancellation handling; A04/A07/A21 records the actua
 same-account COMMENT fixture and its limits. The Go publication pass now recovers
 registered unclaimed native reviews after restart even without a publication
 writer, preserving their original authorization and holding uncertain/expired
-work. Generic lookup absence still authorizes no send. Actual workflow/model review,
-automatic dispatch/phase advancement, publication and merge remain dependencies.
+work. Generic lookup absence still authorizes no send. New native receipts now
+include the observed merge base; Go recovers a missing candidate tuple from a
+completed receipt without resending the review. Actual distinct head/base/ancestor,
+tuple recovery and retained restart/withdrawal passed in A04/A07/A21. Actual
+workflow/model review and automatic dispatch/phase advancement through publication
+and merge remain dependencies.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

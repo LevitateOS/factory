@@ -121,12 +121,13 @@ impl Client {
             if q.event == "comment" && q.body.trim().is_empty() {
                 return Err(Failure::new(409, "github_review_body_required"));
             }
-            if !q.base.is_empty() {
+            let diff_base = if !q.base.is_empty() {
                 let pull=reader.raw_subject(true,q.number).await?;
                 if pull["head"]["sha"]!=q.head || pull["base"]["sha"]!=q.base {
                     return Err(Failure::new(409,"github_review_inputs_changed"));
                 }
-            }
+                Some(reader.merge_base(&q.base,&q.head).await?)
+            } else { None };
             permit.dispatch("github_review_creation_expired")?;
             let response = self.post_review(q, token).await?;
             let raw = &response.value["data"]["addPullRequestReview"]["pullRequestReview"];
@@ -164,6 +165,7 @@ impl Client {
             }
             let mut receipt = json!({"account":identity,"repository":q.repository,"repository_node_id":q.repository_node_id,"pull_id":q.pull_id,"pull_node_id":q.pull_node_id,"number":q.number,"head":q.head,"event":q.event,"head_condition":"preflight_and_causal_reply","existing_pending":"not_observed_before_send","review":{"external_id":id,"node_id":raw["id"],"state":q.state().to_ascii_lowercase(),"body_sha256":super::transport::sha256(q.body.as_bytes()),"commit":q.head,"comments_count":0,"author_node_id":actor,"created_at":r::date(&dates,"created_at")?,"updated_at":r::date(&dates,"updated_at")?,"submitted_at":submitted},"provider_response":{"protocol":"github_graphql_create_review","status":200,"request_id":response.request_id,"response_sha256":response.response_sha256}});
             if !q.base.is_empty() { receipt["base"]=json!(q.base); }
+            if let Some(diff_base) = diff_base { receipt["diff_base"]=json!(diff_base); }
             super::writes::check_receipt(&receipt)?;
             self.current()?;
             Ok(receipt)

@@ -328,6 +328,22 @@ snapshot selector before send. `/home/vince/tmp/fnative-review-snapshot7.3ejmNO`
 proved the earlier path with base preflight only; neither artifact supplies the
 new causal base proof.
 
+New base-bound receipts include the observed merge base from the shared Rust
+`github_provider/diff.rs` comparison owner. `native_product_review_creates.go`
+validates the optional fact; `native_reviews.go` adopts it, and Go
+`control/review_cycle.go` recovers a missing tuple from an already completed
+receipt without another provider send. Actual nontrivial common-ancestor proof,
+completed-receipt tuple recovery, replay, cancellation/unknown-send holds and
+retained restart/withdrawal passed in
+`/home/vince/tmp/fnative-review-base7.0hKOOP/result.log`; its comparison and native
+review artifacts retain the distinct head/base/ancestor. Publication and verdict
+were declared; no model/full review phase or installed gate was qualified.
+Historical receipts without a merge base remain readable and supply no invented
+fact. Current account/permission, base movement/retarget, in-flight withdrawal
+and lost-reply dependencies below remain open; the new fact supplies no atomic
+head/base condition or broader authority proof. Keep the declared reserved
+operation in this fixture fenced; it is not evidence of an actual provider send.
+
 Exact remaining dependencies/evidence: prove actual settled reviewer/workflow and
 publication registration through the coordinator, then native publication/merge
 and current provider rules. Controlled interruption before send is now proved:

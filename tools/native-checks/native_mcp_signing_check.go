@@ -1951,6 +1951,7 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	var state struct {
 		Work, Cancelled, Uncertain, Expired factory.ReviewWork
 		Outcome                             factory.OperationOutcome
+		MergeBase                           string
 	}
 	preparing := action == "check-background-review-recovery-prepare"
 	recovering := action == "check-background-review-recovery"
@@ -2002,6 +2003,12 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 		}
 		if _, err = port.AdoptReview(ctx, state.Work, prior); err != nil {
 			return err
+		}
+		if state.MergeBase != "" {
+			publication, _, err := db.PublicationReviewOperation(ctx, state.Work.OperationID)
+			if err != nil || publication.Tuple == nil || publication.Tuple.Head != state.Work.HeadOID || publication.Tuple.Base != state.Work.BaseOID || publication.Tuple.DiffBase != state.MergeBase {
+				return fmt.Errorf("retained native review candidate tuple differs: %w", err)
+			}
 		}
 		cancelled, err := port.LookupOp(ctx, state.Cancelled.OperationID)
 		if err != nil || cancelled.Effect != factory.OpEffectNotCommitted || cancelled.Cancellation != factory.OpCancelCancelled {
@@ -2070,6 +2077,7 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 		return err
 	}
 	policy.Enabled = true
+	policy.TargetBranch = target.BaseRef
 	for role, selection := range policy.Roles {
 		selection.Account = "fixture-unavailable"
 		policy.Roles[role] = selection
@@ -2140,7 +2148,7 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 		return fmt.Errorf("native review was not attributable/complete: %s %s %s", outcome.Effect, outcome.Completion, outcome.Reason)
 	}
 	adopted, err := port.AdoptReview(ctx, w, outcome)
-	if err != nil || adopted.ReviewID <= 0 || adopted.Event != "COMMENT" || adopted.ReviewerID != int64(actor) || adopted.BaseOID != w.BaseOID || adopted.CommitID != w.HeadOID {
+	if err != nil || adopted.ReviewID <= 0 || adopted.Event != "COMMENT" || adopted.ReviewerID != int64(actor) || adopted.BaseOID != w.BaseOID || adopted.CommitID != w.HeadOID || !factory.ValidCommit(adopted.MergeBaseOID) {
 		return fmt.Errorf("native comment review adoption differs: %w", err)
 	}
 	replay, err := port.SubmitReview(ctx, w)
@@ -2163,6 +2171,8 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 		return next
 	}
 	state.Work, state.Outcome = w, outcome
+	state.MergeBase = adopted.MergeBaseOID
+	p.ReviewOperations[0].Outcome = outcome
 	state.Cancelled = clone()
 	state.Uncertain = clone()
 	if err = write(); err != nil {
@@ -2219,7 +2229,17 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	if err = os.WriteFile(statePath, raw, 0600); err != nil {
 		return err
 	}
-	fmt.Println("PASS: actual native automatic same-account COMMENT review, exact preflight/receipt, disabled-policy refusal, one-shot replay, pre-send cancellation and unknown-send hold; publication/verdict fixture supplied")
+	coordinator := control.NewCoordinator(db, nil, nil)
+	coordinator.Reviews = nativeReviewWithoutRecovery{port}
+	report := coordinator.PublishPass(ctx)
+	if !report.Unavailable || len(report.Errors) != 0 {
+		return fmt.Errorf("native review tuple recovery: %+v", report)
+	}
+	publication, _, err := db.PublicationReviewOperation(ctx, w.OperationID)
+	if err != nil || publication.Tuple == nil || publication.Tuple.Head != w.HeadOID || publication.Tuple.Base != w.BaseOID || publication.Tuple.DiffBase != adopted.MergeBaseOID {
+		return fmt.Errorf("completed native receipt did not seed its candidate tuple: %w", err)
+	}
+	fmt.Println("PASS: actual native same-account COMMENT review and merge base, completed-receipt tuple recovery, replay, cancellation and unknown-send hold; publication/verdict fixture supplied")
 	return nil
 }
 

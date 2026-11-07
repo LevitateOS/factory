@@ -767,8 +767,19 @@ corrections are now active; the old feature queue waits for their resolution.
   owned entry. Go/Rust builds and dependency boundaries passed. Other-account
   approvals/request changes, actual pending-review refusal, inline finding
   batches, authority/permission races, lost provider replies, Factory OAuth and
-  installed/full-pipeline qualification remain open. No merge-base or separate
-  summary-comment ID is invented from the review receipt.
+  installed/full-pipeline qualification remain open. A separate summary-comment
+  ID is not invented from the review receipt.
+  New base-bound receipts now include the actual merge base from the same Rust
+  comparison owner used by PR diffs. Go adopts it into the existing candidate
+  tuple, including recovery after the completed receipt was saved without a tuple.
+  `/home/vince/tmp/fnative-review-base7.0hKOOP/result.log` passed a real COMMENT,
+  completed-receipt tuple recovery, replay, cancellation/unknown-send holds and
+  retained restart/withdrawal. Its `comparison.json` and `native-review.json`
+  agree on the common ancestor, distinct from both head and current base tip.
+  Publication and verdict remain declared inputs; no model or complete automatic
+  review phase ran. Historical receipts without this observation remain readable
+  and seed no fabricated tuple. Base movement/retarget races and installed review
+  qualification remain open.
   Go recovery now uses the executor's explicit `ReviewRecovery` guarantee;
   generic lookup absence never authorizes resubmission. Native recovery reuses
   the existing command reservation and frozen unexpired work. A missing branch

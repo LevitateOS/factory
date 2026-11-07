@@ -37,6 +37,7 @@ type nativeReviewCreateEffect struct {
 }
 type nativeReviewCreateReceipt struct {
 	Base             string                      `json:"base,omitempty"`
+	DiffBase         string                      `json:"diff_base,omitempty"`
 	Account          collaboration.ObservedActor `json:"account"`
 	Repository       string                      `json:"repository"`
 	RepositoryNodeID string                      `json:"repository_node_id"`
@@ -181,6 +182,9 @@ func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeRev
 		return r, factoryservice.ErrHumanReviewConflict
 	}
 	if r.Base != p.Review.Base || p.Review.Base != "" && !collaboration.ValidCommitID(collaboration.CommitID(p.Review.Base)) {
+		return r, factoryservice.ErrHumanReviewConflict
+	}
+	if r.DiffBase != "" && (p.Review.Base == "" || !collaboration.ValidCommitID(collaboration.CommitID(r.DiffBase))) {
 		return r, factoryservice.ErrHumanReviewConflict
 	}
 	if r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {
