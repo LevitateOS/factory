@@ -63,6 +63,9 @@ func (c *Coordinator) GenerateAcceptedIntentFromRecordedPlan(ctx context.Context
 	}
 	if _, err := c.Store.IntentGeneration(ctx, r.ID); err == nil {
 		g, err := c.GenerateAcceptedIntent(ctx, intentID, expectedRevision, owner)
+		if errors.Is(err, ErrGraphStepsPending) {
+			return g, &DispatchWait{Repository: r.Repository, Reason: "graph_steps_pending", Detail: "Completed issue writes are retained; the remaining graph steps and full verification are pending."}, nil
+		}
 		return g, nil, err
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, nil, err
@@ -72,6 +75,9 @@ func (c *Coordinator) GenerateAcceptedIntentFromRecordedPlan(ctx context.Context
 		return empty, wait, err
 	}
 	g, err := c.GenerateAcceptedIntentFromChoice(ctx, intentID, expectedRevision, owner, chosen)
+	if errors.Is(err, ErrGraphStepsPending) {
+		return g, &DispatchWait{Repository: r.Repository, Reason: "graph_steps_pending", Detail: "Completed issue writes are retained; the remaining graph steps and full verification are pending."}, nil
+	}
 	return g, nil, err
 }
 

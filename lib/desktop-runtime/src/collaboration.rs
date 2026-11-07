@@ -5,7 +5,7 @@
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     BranchCreate, BranchPublish, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState,
-    Failure, InlineCreate, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge,
+    Failure, InlineCreate, InlineDraft, IssueCreate, IssueDependency, PendingReviewSubmit, PullCreate, PullMerge,
     Read, ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
@@ -509,6 +509,7 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    SetIssueDependency { command_id: String, digest: String, not_after: u64, dependency: IssueDependency },
     EditDiscussion {
         command_id: String,
         digest: String,
@@ -557,6 +558,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::SetIssueDependency { command_id, digest, not_after, dependency } => Effect::SetIssueDependency { command_id, digest, not_after, dependency },
         BackgroundEffect::EditDiscussion { command_id, digest, not_after, edit }
             if edit.subject == "issue" => Effect::EditDiscussion { command_id, digest, not_after, edit },
         BackgroundEffect::CreateIssue {
@@ -712,6 +714,7 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    SetIssueDependency { command_id: String, digest: String, not_after: u64, dependency: IssueDependency },
     CreateInline {
         command_id: String,
         digest: String,
@@ -876,6 +879,7 @@ impl Effect {
                 not_after,
                 state,
             } => Some((command_id, digest, *not_after, &state.repository)),
+            Self::SetIssueDependency {command_id,digest,not_after,dependency} => Some((command_id,digest,*not_after,&dependency.repository)),
             Self::EditDiscussion {
                 command_id,
                 digest,
@@ -1289,6 +1293,7 @@ async fn dispatch(
             | Effect::CreatePull { .. }
             | Effect::CreateReview { .. }
             | Effect::SubmitPendingReview { .. }
+            | Effect::SetIssueDependency { .. }
             | Effect::EditDiscussion { .. }
             | Effect::SetDiscussionLock { .. }
     ) && body.len() > descriptor_limit
@@ -1323,6 +1328,7 @@ fn validate_mutation(scope: &Scope, effect: &Effect) -> std::result::Result<(), 
             Effect::CreateReview { review, .. } => review.validate()?,
             Effect::SubmitPendingReview { review, .. } => review.validate()?,
             Effect::SetDiscussionState { state, .. } => state.validate()?,
+            Effect::SetIssueDependency { dependency, .. } => dependency.validate()?,
             Effect::EditDiscussion { edit, .. } => edit.validate()?,
             Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
             Effect::SetThreadResolution { thread, .. } => thread.validate()?,
@@ -1428,6 +1434,7 @@ async fn mutate(
                 .state_account(token, account, state, Some(deadline))
                 .await,
         ),
+        Effect::SetIssueDependency { dependency, .. } => ("applied", provider.dependency_account(token,account,dependency,Some(deadline)).await),
         Effect::EditDiscussion { edit, .. } => (
             "applied",
             provider

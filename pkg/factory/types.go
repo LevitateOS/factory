@@ -73,7 +73,7 @@ func (c Command) Validate() error {
 	if !ValidID(c.ID) {
 		return errors.New("invalid command identity")
 	}
-	if !SettingsCommandType(c.Type) && c.Type != CommandNativeJudgment && c.Type != CommandHumanComment && c.Type != CommandHumanEdit && c.Type != CommandHumanIssueCreate && c.Type != CommandHumanPullCreate && c.Type != CommandRefPublish && c.Type != CommandHumanBranchCreate && c.Type != CommandHumanLock && c.Type != CommandHumanState && c.Type != CommandHumanReview && c.Type != CommandHumanInline && c.Type != CommandHumanThread && c.Type != CommandHumanReviewRequest && c.Type != CommandHumanMerge {
+	if !SettingsCommandType(c.Type) && c.Type != CommandNativeJudgment && c.Type != CommandIssueDependency && c.Type != CommandHumanComment && c.Type != CommandHumanEdit && c.Type != CommandHumanIssueCreate && c.Type != CommandHumanPullCreate && c.Type != CommandRefPublish && c.Type != CommandHumanBranchCreate && c.Type != CommandHumanLock && c.Type != CommandHumanState && c.Type != CommandHumanReview && c.Type != CommandHumanInline && c.Type != CommandHumanThread && c.Type != CommandHumanReviewRequest && c.Type != CommandHumanMerge {
 		return errors.New("command is not a durable mutation")
 	}
 	payloadLimit := 8192

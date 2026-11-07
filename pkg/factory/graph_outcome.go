@@ -27,4 +27,7 @@ type GraphOperationOutcome struct {
 type GraphOperationLookup struct {
 	State  collaboration.LookupState
 	Record *GraphOperationOutcome
+	// Resumable requires known committed prior steps and an unclaimed next step.
+	// It never authorizes replay of an unknown provider send.
+	Resumable bool
 }

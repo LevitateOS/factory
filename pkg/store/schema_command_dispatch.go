@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','git.ref.publish','pull_request.review.comment.create','pull_request.merge')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','git.ref.publish','pull_request.review.comment.create','pull_request.merge','issue.graph.mutate')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;
@@ -125,4 +125,12 @@ var HumanMergeDispatchUpgradeDDL = []string{
 	commandGuardDDL,
 	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='pull_request.merge' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=91)`,
 	`UPDATE schema_version SET version=92 WHERE version=91`,
+}
+
+// A single dependency effect now shares the one-shot command reservation.
+// Older graph-shaped rows cannot acquire dispatch ownership retroactively.
+var IssueDependencyDispatchUpgradeDDL = []string{
+	commandGuardDDL,
+	`UPDATE factory_commands SET dispatch_state='legacy_unknown' WHERE type='issue.graph.mutate' AND dispatch_state='unclaimed' AND EXISTS(SELECT 1 FROM schema_version WHERE version=95)`,
+	`UPDATE schema_version SET version=96 WHERE version=95`,
 }

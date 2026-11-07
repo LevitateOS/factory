@@ -1283,6 +1283,8 @@ func main() {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
 			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
+		} else if strings.HasPrefix(os.Args[3], "native-graph-") {
+			err = nativeGraphFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "check-live-judgment" {
 			err = liveJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "orphan-judgment-result" {
@@ -6050,4 +6052,302 @@ func nativeRequestRefinementFixture(profile, instance, post, phase string) error
 	}
 	fmt.Println("PASS: actual native request-scoped conditional refinement and same-step replay retain the original creation identity and update the existing Issue Maker journal; authoring/provider facts declared, no model")
 	return nil
+}
+
+// Exercises native graph mechanics. Accepted direction and planner ownership are
+// explicit fixture inputs; this does not qualify real planning or task execution.
+func nativeGraphFixture(profile, instance, post, phase string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	detail, err := db.FeedPost(ctx, post)
+	if err != nil {
+		return err
+	}
+	owner, err := strconv.ParseInt(detail.Record.Author, 10, 64)
+	if err != nil {
+		return err
+	}
+	native := factoryruntime.NativeExecution{Store: db, Config: config, Instance: instance}
+	graph := factoryruntime.NativeGraphs{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: native}}
+	decision := func(kind string) string {
+		return "d" + factory.MCPInputDigest([]byte("native-graph-fixture:" + post + ":" + kind))[:24]
+	}
+	revisionID := decision("positive-revision")
+	acceptanceID := decision("partial-acceptance")
+	if phase == "native-graph-partial" {
+		proof, err := db.IssueIntakeGrant(ctx, post, detail.Record.Revision)
+		if err != nil {
+			return err
+		}
+		var grant struct {
+			Connection collaboration.ConnectionID `json:"connection"`
+		}
+		if json.Unmarshal(proof, &grant) != nil || grant.Connection == "" {
+			return errors.New("native graph fixture lacks original captured account")
+		}
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{ActorID: owner, NativeProfile: config.Profile, NativeConnection: grant.Connection, Kind: kind}
+		}
+		policy := factory.RepositoryPolicy{Repository: detail.Record.Repository, GrantedBy: owner, TargetBranch: "refs/heads/main", MergeMethod: "squash", Checks: []string{"fixture/check"}, Roles: map[string]factory.RoleSelection{project.RoleCoder: {Harness: "muse", Model: "fixture-unavailable"}, project.RoleReviewer: {Harness: "muse", Model: "fixture-unavailable"}}, AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge)}
+		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
+		policy, err = db.RepositoryPolicy(ctx, policy.Repository)
+		if err != nil {
+			return err
+		}
+		idea := factory.ProductIdea{ID: decision("idea"), Description: "Two declared fixture outcomes", Consequence: "Create two fixture issues with one dependency.", Decision: "accept", Source: "requested", Provenance: "human", Actor: owner}
+		tasks := []factory.IntentTask{{Key: decision("first"), Objective: "First declared native graph task", Outcomes: []string{"First fixture outcome"}, IdeaIDs: []string{idea.ID}}, {Key: decision("second"), Objective: "Second declared native graph task", Outcomes: []string{"Second fixture outcome"}, IdeaIDs: []string{idea.ID}, DependsOn: []string{decision("first")}}}
+		revision := factory.IntentRevision{ID: revisionID, Intent: decision("positive-intent"), Owner: owner, Repository: policy.Repository, Objective: "Verify the native graph journal", State: "accepted", MaxIssues: 2, CreatedUnix: time.Now().Unix(), Ideas: []factory.ProductIdea{idea}, Tasks: tasks}
+		if err = db.SaveIntentRevision(ctx, revision); err != nil {
+			return err
+		}
+		plan, err := control.IntentGraphPlan(revision)
+		if err != nil {
+			return err
+		}
+		payload, err := graph.EncodeGraph(plan, revision.Repository)
+		if err != nil {
+			return err
+		}
+		generation := factory.IntentGeneration{RevisionID: revision.ID, IntentID: revision.Intent, OperationID: "intent-" + revision.ID, ActorID: owner, NativeRev: policy.Revision, AuthRevision: revision.ID + ":" + revision.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: payload, IntentDigest: revision.Digest(), State: "pending", SubmittedTasks: tasks, PlanAssignment: factory.NewID()}
+		// Planner output/ownership is declared here, not manufactured proof of a
+		// successfully settled model plan. The ordinary native guard/send/read path
+		// and original command journal are exercised below.
+		raw, err := json.Marshal(generation)
+		if err != nil {
+			return err
+		}
+		conn, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, revision.ID, string(raw)); err != nil {
+			return err
+		}
+		outcome, err := graph.SubmitGraph(ctx, generation, revision.Repository)
+		if err != nil {
+			return err
+		}
+		if outcome.Effect != collaboration.EffectIndeterminate || outcome.Reason != "graph_steps_pending" {
+			return errors.New("partial native graph claimed complete or lost its prefix")
+		}
+		lookup, err := graph.LookupGraph(ctx, generation, revision.Repository)
+		if err != nil || !lookup.Resumable {
+			return fmt.Errorf("known partial graph is not resumable: %w", err)
+		}
+		commandID := factory.MCPInputDigest([]byte("factory.native.graph\x00" + generation.OperationID + "\x000"))[:32]
+		cmd, err := db.FactoryCommand(ctx, commandID)
+		if err != nil {
+			return err
+		}
+		observed, err := db.LookupHumanCommandDispatch(ctx, cmd)
+		if err != nil || observed.Record == nil || observed.Record.Receipt == nil {
+			return errors.New("partial native graph lost its original creation receipt")
+		}
+		var created struct {
+			Issue struct {
+				ExternalID string `json:"external_id"`
+				Number     int64  `json:"number"`
+			} `json:"issue"`
+		}
+		if json.Unmarshal(observed.Record.Receipt.Payload, &created) != nil {
+			return errors.New("native graph creation projection absent")
+		}
+		id, err := strconv.ParseInt(created.Issue.ExternalID, 10, 64)
+		if err != nil {
+			return err
+		}
+		if err = db.BindIntentTaskAcceptance(ctx, factory.IntentTaskBinding{RevisionID: revision.ID, TaskKey: tasks[0].Key, IssueID: id, IssueIndex: created.Issue.Number, ContentVersion: 0, AcceptanceID: acceptanceID, CreatedUnix: time.Now().Unix()}); err != nil {
+			return err
+		}
+		current, generated, err := db.GeneratedIntentCurrent(ctx, acceptanceID)
+		if err != nil || !generated || current {
+			return errors.New("partially adopted native graph became executable")
+		}
+		if err = nativeGraphLegacyFixture(ctx, db, config, revision, generation, created.Issue.ExternalID, created.Issue.Number, post, true); err != nil {
+			return err
+		}
+		fmt.Println("PASS: first native graph write is retained, exact prefix is resumable, and a partial task binding stays ineffective; accepted direction/planner facts declared")
+		return nil
+	}
+	generation, err := db.IntentGeneration(ctx, revisionID)
+	if err != nil {
+		return err
+	}
+	if err = nativeGraphLegacyFixture(ctx, db, config, factory.IntentRevision{}, generation, "", 0, post, false); err != nil {
+		return err
+	}
+	lookup, err := graph.LookupGraph(ctx, generation, detail.Record.Repository)
+	if err != nil {
+		return err
+	}
+	if !lookup.Resumable {
+		return errors.New("native graph lost its committed prefix after restart")
+	}
+	for range 2 {
+		outcome, err := graph.ResumeGraph(ctx, generation, detail.Record.Repository)
+		if err != nil {
+			return err
+		}
+		if outcome.Effect == collaboration.EffectCommitted {
+			facts, err := graph.DecodeGraphReceipt(ctx, outcome.Receipt)
+			if err != nil {
+				return err
+			}
+			if len(facts.Creates) != 2 || len(facts.Edits) != 0 {
+				return errors.New("native graph original receipt projection differs")
+			}
+			generation.State, generation.Receipt = "committed", outcome.Receipt
+			if err = db.RecordIntentGeneration(ctx, generation, facts); err != nil {
+				return err
+			}
+		}
+	}
+	if generation.State != "committed" {
+		return errors.New("complete native graph never reached verified commit")
+	}
+	retained, err := graph.SubmitGraph(ctx, generation, detail.Record.Repository)
+	if err != nil || retained.Effect != collaboration.EffectCommitted {
+		return fmt.Errorf("native graph replay lost its receipt: %w", err)
+	}
+	current, generated, err := db.GeneratedIntentCurrent(ctx, acceptanceID)
+	if err != nil || !generated || current {
+		return errors.New("unadopted native graph released execution before completed generation")
+	}
+	raw, _ := json.MarshalIndent(map[string]any{"generation": generation, "execution_held": true, "planner": "declared; no accepted planner qualification", "provider": "declared local fixture"}, "", "  ")
+	if err = os.WriteFile(filepath.Join(profile, "native-graph-fixture-result.json"), raw, 0600); err != nil {
+		return err
+	}
+	fmt.Println("PASS: native graph resumes after supervisor restart, creates only remaining issue, adds its exact dependency through the native connector, verifies complete contents/edges, reuses original receipts without new writes and holds execution until full adoption; planner/provider facts declared, no model or full pipeline")
+	return nil
+}
+
+// Retained-format fixture: declare one unclaimed legacy graph command, restart
+// through the real schema opener, then prove its payload/uncertainty are kept.
+func nativeGraphLegacyFixture(ctx context.Context, db *store.Store, config factoryruntime.NativeConfig, revision factory.IntentRevision, generation factory.IntentGeneration, blockingID string, blockingNumber int64, post string, prepare bool) error {
+	path := filepath.Join(config.Directory, "legacy-graph-command.json")
+	var old factory.Command
+	if !prepare {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &old); err != nil {
+			return err
+		}
+		current, err := db.FactoryCommand(ctx, old.ID)
+		if err != nil {
+			return err
+		}
+		if current.Payload != old.Payload || current.Digest != old.Digest || current.Type != old.Type || current.Finished != "" {
+			return errors.New("legacy graph command changed during upgrade")
+		}
+		captured, err := factory.DecodeIssueDependencyCapture(current)
+		if err != nil {
+			return err
+		}
+		if won, err := db.ReserveIssueDependency(ctx, captured); err != nil || won {
+			return errors.New("legacy graph command acquired new dispatch ownership")
+		}
+		id := "d" + factory.MCPInputDigest([]byte("native-legacy-graph:" + post))[:24]
+		g, err := db.IntentGeneration(ctx, id)
+		if err != nil {
+			return err
+		}
+		graph := factoryruntime.NativeGraphs{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Store: db, Config: config, Instance: os.Args[2]}}}
+		observed, err := graph.LookupGraph(ctx, g, int64(captured.Request.Issue.Repository))
+		if err != nil {
+			return err
+		}
+		if observed.Resumable || observed.Record == nil || observed.Record.Effect != collaboration.EffectIndeterminate || observed.Record.Reason != "graph_step_legacy_dispatch_unknown" {
+			return errors.New("native graph treated legacy send uncertainty as resumable absence")
+		}
+		held, err := graph.ResumeGraph(ctx, g, int64(captured.Request.Issue.Repository))
+		if err != nil || held.Effect != collaboration.EffectIndeterminate {
+			return errors.New("native graph replay failed to hold original uncertainty")
+		}
+		cancelled, err := graph.CancelGraph(ctx, g.OperationID)
+		if err != nil || cancelled.Effect != collaboration.EffectIndeterminate || cancelled.Cancellation != collaboration.CancellationIndeterminate {
+			return errors.New("native graph cancellation erased send uncertainty")
+		}
+		fmt.Println("PASS: actual retained schema-95 upgrade preserves original graph command bytes, fences legacy send history and refuses graph resume/cancellation claims of absence")
+		return nil
+	}
+	originalID := factory.MCPInputDigest([]byte("factory.native.issue-intake\x00" + string(config.Profile) + "\x00" + post + "\x000"))[:32]
+	original, err := db.FactoryCommand(ctx, originalID)
+	if err != nil {
+		return err
+	}
+	capture, err := factory.DecodeHumanIssueCreateCapture(original)
+	if err != nil {
+		return err
+	}
+	lookup, err := db.LookupHumanCommandDispatch(ctx, original)
+	if err != nil || lookup.Record == nil || lookup.Record.Receipt == nil {
+		return errors.New("legacy fixture lacks original issue receipt")
+	}
+	var issue struct {
+		Issue struct {
+			ID     string `json:"external_id"`
+			Number int64  `json:"number"`
+		} `json:"issue"`
+	}
+	if json.Unmarshal(lookup.Record.Receipt.Payload, &issue) != nil {
+		return errors.New("legacy fixture issue identity absent")
+	}
+	revision.ID = "d" + factory.MCPInputDigest([]byte("native-legacy-graph:" + post))[:24]
+	revision.Intent = "d" + factory.MCPInputDigest([]byte("native-legacy-intent:" + post))[:24]
+	if err = db.SaveIntentRevision(ctx, revision); err != nil {
+		return err
+	}
+	root := collaboration.IssueRef{Kind: collaboration.SubjectIssue, Repository: capture.Request.Repository, ExternalID: issue.Issue.ID, Number: issue.Issue.Number}
+	blocking := collaboration.IssueRef{Kind: collaboration.SubjectIssue, Repository: root.Repository, ExternalID: blockingID, Number: blockingNumber}
+	graph := factoryruntime.NativeGraphs{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Store: db, Config: config, Instance: os.Args[2]}}}
+	payload, err := graph.EncodeGraph(collaboration.GraphIntent{Dependencies: []collaboration.GraphDependency{{Issue: collaboration.GraphRef{Issue: &root}, Prerequisite: collaboration.GraphRef{Issue: &blocking}}}}, revision.Repository)
+	if err != nil {
+		return err
+	}
+	generation.RevisionID, generation.IntentID, generation.OperationID, generation.AuthRevision, generation.IntentDigest = revision.ID, revision.Intent, "intent-"+revision.ID, revision.ID+":"+revision.Digest(), revision.Digest()
+	generation.Payload = payload
+	generation.TaskIssueIDs = map[string]int64{}
+	raw, err := json.Marshal(generation)
+	if err != nil {
+		return err
+	}
+	conn, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, revision.ID, string(raw)); err != nil {
+		return err
+	}
+	id := factory.MCPInputDigest([]byte("factory.native.graph\x00" + generation.OperationID + "\x000"))[:32]
+	legacy := factory.IssueDependencyCapture{Request: factory.IssueDependencyCommand{ID: id, Host: capture.Request.Host, Actor: capture.Request.Actor, Issue: root, Blocking: blocking, Expected: []string{}}, Authority: capture.Authority, OperationID: id, ProviderIntent: []byte(`{"declared_legacy_graph_preparation":true}`)}
+	if _, _, err = db.CaptureIssueDependency(ctx, legacy); err != nil {
+		return err
+	}
+	old, err = db.FactoryCommand(ctx, id)
+	if err != nil {
+		return err
+	}
+	raw, _ = json.Marshal(old)
+	if err = os.WriteFile(path, raw, 0600); err != nil {
+		return err
+	}
+	// This private fixture declares retained pre-protocol history; it does not
+	// downgrade a user profile or claim an installed upgrade is qualified.
+	_, err = conn.ExecContext(ctx, `UPDATE schema_version SET version=95`)
+	return err
 }

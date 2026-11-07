@@ -8,6 +8,9 @@ import "github.com/levitateos/factory/pkg/collaboration"
 type GeneratedIssueObservation struct {
 	Issue        *GeneratedIssueFacts
 	Dependencies *GeneratedDependencies
+	// AuthorityRevision brackets the selected account separately when issues
+	// have independent observation revisions rather than a global graph clock.
+	AuthorityRevision int64
 }
 
 type GeneratedIssueFacts struct {

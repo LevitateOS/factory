@@ -343,6 +343,23 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             posts(&io)? == 1,
             "native request did not create exactly one issue",
         )?;
+        if std::env::var("SODA_NATIVE_CHECK_REQUEST_GRAPH").as_deref()==Ok("1") {
+            runtime.stop()?;
+            runtime=NativeSupervisor::start(payload,production,profile)?;
+            store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
+            ensure(call(&runtime,&store,&connection,"GET",&path,&[]).await?.0==200,"retained graph source account unavailable")?;
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("native-graph-partial").arg(&post).status()?.success(),"native graph partial check failed")?;
+            ensure(posts(&io)?==2,"native partial graph sent more than its first creation")?;
+            runtime.stop()?;
+            runtime=NativeSupervisor::start(payload,production,profile)?;
+            store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
+            ensure(call(&runtime,&store,&connection,"GET",&path,&[]).await?.0==200,"native graph restart source account unavailable")?;
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("native-graph-resume").arg(&post).status()?.success(),"native graph resumed verification failed")?;
+            ensure(posts(&io)?==4,"native graph duplicated a creation/dependency or skipped a defining write")?;
+            runtime.stop()?;
+            println!("PASS: real native graph command journal resumes its known prefix across supervisor restart; exactly two task issues and one dependency, full graph readback, original receipts and held execution. Provider/planner facts declared; no model or full pipeline qualification");
+            return Ok(());
+        }
         let refinement=std::env::var("SODA_NATIVE_CHECK_REQUEST_REFINEMENT").as_deref()==Ok("1");
         let refine=|runtime:&NativeSupervisor,phase:&str| -> Result<()> {
             ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg(phase).arg(&post).status()?.success(),"native request refinement check failed")

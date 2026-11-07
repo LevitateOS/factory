@@ -482,7 +482,7 @@ func (s *Store) IntentTaskBindings(ctx context.Context, revision string) ([]fact
 // revision is still the accepted head counts as current.
 func (s *Store) GeneratedIntentCurrent(ctx context.Context, acceptance string) (bool, bool, error) {
 	var generated, current bool
-	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_intent_tasks WHERE data->>'acceptance_id'=$1), EXISTS(SELECT 1 FROM factory_intent_tasks t JOIN factory_intent_revisions r ON r.id=t.revision JOIN factory_intent_heads h ON h.id=r.intent AND h.revision=r.id WHERE t.data->>'acceptance_id'=$1 AND r.data->>'state'='accepted')`, acceptance).Scan(&generated, &current)
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_intent_tasks WHERE data->>'acceptance_id'=$1), EXISTS(SELECT 1 FROM factory_intent_tasks t JOIN factory_intent_revisions r ON r.id=t.revision JOIN factory_intent_heads h ON h.id=r.intent AND h.revision=r.id WHERE t.data->>'acceptance_id'=$1 AND r.data->>'state'='accepted' AND NOT EXISTS(SELECT 1 FROM factory_intent_generations g WHERE g.revision=r.id AND g.data->>'state'<>'completed'))`, acceptance).Scan(&generated, &current)
 	if err != nil {
 		return false, false, err
 	}
@@ -548,4 +548,27 @@ func (s *Store) PreviousGeneratedIntent(ctx context.Context, intent, revision st
 		cursor = r.Predecessor
 	}
 	return factory.IntentRevision{}, ErrNotFound
+}
+
+// IntentGenerationOperation resolves only an original recorded workflow identity.
+func (s *Store) IntentGenerationOperation(ctx context.Context, operation string) (factory.IntentGeneration, error) {
+	var g factory.IntentGeneration
+	var raw []byte
+	err := s.db.QueryRowContext(ctx, `SELECT data FROM factory_intent_generations WHERE data->>'operation_id'=$1`, operation).Scan(&raw)
+	if err == nil {
+		err = json.Unmarshal(raw, &g)
+	}
+	return g, err
+}
+
+// IntentGenerationHead is an internal recovery lookup of the current accepted
+// head behind an already registered generation. It supplies its recorded owner.
+func (s *Store) IntentGenerationHead(ctx context.Context, revision string) (factory.IntentRevision, error) {
+	var r factory.IntentRevision
+	var raw []byte
+	err := s.db.QueryRowContext(ctx, `SELECT r.data FROM factory_intent_heads h JOIN factory_intent_revisions r ON r.id=h.revision WHERE r.id=$1`, revision).Scan(&raw)
+	if err == nil {
+		err = json.Unmarshal(raw, &r)
+	}
+	return r, err
 }

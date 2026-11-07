@@ -28,6 +28,33 @@ type IssueGraphExecutor interface {
 	ReadGeneratedIssue(context.Context, int64, int64, int64) (factory.GeneratedIssueObservation, int64, error)
 }
 
+// ScopedIssueGraph selects the repository's explicit publishing identity.
+// Legacy host graphs retain their configured GraphActorID.
+type ScopedIssueGraph interface {
+	GraphActor(context.Context, int64, int64) (int64, error)
+}
+
+type ResumableIssueGraph interface {
+	ResumeGraph(context.Context, factory.IntentGeneration, int64) (factory.GraphOperationOutcome, error)
+}
+
+var ErrGraphStepsPending = errors.New("native graph has known unfinished steps")
+
+func (c *Coordinator) graphAvailable() bool {
+	_, scoped := c.Graph.(ScopedIssueGraph)
+	return c.Graph != nil && (c.GraphActorID > 0 || scoped)
+}
+
+func (c *Coordinator) graphActor(ctx context.Context, repository, owner int64) (int64, error) {
+	if scoped, ok := c.Graph.(ScopedIssueGraph); ok {
+		return scoped.GraphActor(ctx, repository, owner)
+	}
+	if c.GraphActorID <= 0 {
+		return 0, errors.New("native graph identity is unavailable")
+	}
+	return c.GraphActorID, nil
+}
+
 // IntentGraphPlan renders exact accepted tasks into semantic requirements.
 // Provenance is visible in native issue content and separately retained in
 // Soda's immutable generation ledger; it does not impersonate human authorship.
@@ -209,7 +236,7 @@ type generationPlanValidator func(context.Context, factory.IntentGeneration) (*D
 func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expectedRevision string, owner int64, chosen *ChosenIntentPlan, validate generationPlanValidator) (factory.IntentGeneration, error) {
 	ctx, unlock := c.progressPass(ctx)
 	defer unlock()
-	if c.Store == nil || c.Graph == nil || c.GraphActorID <= 0 {
+	if c.Store == nil || !c.graphAvailable() {
 		return factory.IntentGeneration{}, errors.New("native issue graph is unavailable")
 	}
 	r, err := c.Store.IntentRevision(ctx, intentID, owner)
@@ -222,7 +249,11 @@ func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expe
 	if r.State != "accepted" {
 		return factory.IntentGeneration{}, errors.New("product direction is not accepted")
 	}
-	revision, err := c.Graph.CheckIntentOwner(ctx, r.Repository, r.Owner, c.GraphActorID)
+	actor, err := c.graphActor(ctx, r.Repository, r.Owner)
+	if err != nil {
+		return factory.IntentGeneration{}, err
+	}
+	revision, err := c.Graph.CheckIntentOwner(ctx, r.Repository, r.Owner, actor)
 	if err != nil {
 		return factory.IntentGeneration{}, err
 	}
@@ -258,7 +289,11 @@ func (c *Coordinator) loadAcceptedGeneration(ctx context.Context, r factory.Inte
 	if err != nil {
 		return g, false, err
 	}
-	if err = checkGenerationIdentity(r, g, c.GraphActorID); err != nil {
+	actor, actorErr := c.graphActor(ctx, r.Repository, r.Owner)
+	if actorErr != nil {
+		return g, false, actorErr
+	}
+	if err = checkGenerationIdentity(r, g, actor); err != nil {
 		return g, false, err
 	}
 	if settled, done, serr := settledGenerationResult(g); done {
@@ -278,7 +313,15 @@ func (c *Coordinator) submitAcceptedGeneration(ctx context.Context, r factory.In
 		return g, err
 	}
 	var record factory.GraphOperationOutcome
-	if lookup.Record != nil {
+	if lookup.Resumable {
+		if _, ok := c.Graph.(ResumableIssueGraph); !ok {
+			return g, errors.New("native graph cannot resume its recorded steps")
+		}
+		record, g, err = c.submitUnobservedGeneration(ctx, r, g, validate, lookup)
+		if err != nil {
+			return g, err
+		}
+	} else if lookup.Record != nil {
 		record = *lookup.Record
 	} else if record, g, err = c.submitUnobservedGeneration(ctx, r, g, validate, lookup); err != nil {
 		return g, err
@@ -295,6 +338,9 @@ func (c *Coordinator) recordAcceptedGenerationOutcome(ctx context.Context, g fac
 		g.State = "refused"
 		g.Receipt = record.Receipt
 	default:
+		if record.Reason == "graph_steps_pending" {
+			return g, ErrGraphStepsPending
+		}
 		return g, errors.New("native graph effect is unresolved")
 	}
 	if err := c.recordIntentGeneration(ctx, g); err != nil {
@@ -310,7 +356,7 @@ func (c *Coordinator) recordAcceptedGenerationOutcome(ctx context.Context, g fac
 // before submitting one unobserved generation operation.
 func (c *Coordinator) submitUnobservedGeneration(ctx context.Context, r factory.IntentRevision, g factory.IntentGeneration, validate generationPlanValidator, lookup factory.GraphOperationLookup) (factory.GraphOperationOutcome, factory.IntentGeneration, error) {
 	var record factory.GraphOperationOutcome
-	if lookup.State != collaboration.LookupNotObserved {
+	if lookup.State != collaboration.LookupNotObserved && !lookup.Resumable {
 		return record, g, errors.New("native graph outcome is unknown")
 	}
 	if err := c.currentAcceptedIntent(ctx, r); err != nil {
@@ -333,7 +379,11 @@ func (c *Coordinator) submitUnobservedGeneration(ctx context.Context, r factory.
 	if g, err = c.revalidateGenerationBeforeSubmit(ctx, g, validate); err != nil {
 		return record, g, err
 	}
-	record, err = c.Graph.SubmitGraph(ctx, g, r.Repository)
+	if lookup.Resumable {
+		record, err = c.Graph.(ResumableIssueGraph).ResumeGraph(ctx, g, r.Repository)
+	} else {
+		record, err = c.Graph.SubmitGraph(ctx, g, r.Repository)
+	}
 	return record, g, err
 }
 
@@ -346,7 +396,11 @@ func (c *Coordinator) beginChosenIntentGeneration(ctx context.Context, r factory
 	if e != nil {
 		return factory.IntentGeneration{}, e
 	}
-	fresh, e := c.Graph.CheckIntentOwner(ctx, r.Repository, r.Owner, c.GraphActorID)
+	actor, e := c.graphActor(ctx, r.Repository, r.Owner)
+	if e != nil {
+		return factory.IntentGeneration{}, e
+	}
+	fresh, e := c.Graph.CheckIntentOwner(ctx, r.Repository, r.Owner, actor)
 	if e != nil {
 		return factory.IntentGeneration{}, e
 	}
@@ -361,7 +415,7 @@ func (c *Coordinator) beginChosenIntentGeneration(ctx context.Context, r factory
 	if e != nil {
 		return factory.IntentGeneration{}, e
 	}
-	g := factory.IntentGeneration{RevisionID: r.ID, IntentID: r.Intent, OperationID: "intent-" + r.ID, ActorID: c.GraphActorID, NativeRev: revision, AuthRevision: r.ID + ":" + r.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: raw, TaskIssueIDs: reused, SubmittedTasks: submitted, Delivered: delivered, IntentDigest: r.Digest(), State: "pending", PlanAssignment: chosen.Attempt}
+	g := factory.IntentGeneration{RevisionID: r.ID, IntentID: r.Intent, OperationID: "intent-" + r.ID, ActorID: actor, NativeRev: revision, AuthRevision: r.ID + ":" + r.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: raw, TaskIssueIDs: reused, SubmittedTasks: submitted, Delivered: delivered, IntentDigest: r.Digest(), State: "pending", PlanAssignment: chosen.Attempt}
 	g.VerificationManifest = chosen.VerificationManifest
 	if g.VerificationManifest != nil {
 		g.VerificationManifestDigest = g.VerificationManifest.Digest()
@@ -683,7 +737,7 @@ func (a *intentAdoption) readAdoptEvidence(task factory.IntentTask) (adoptEviden
 	if err != nil {
 		return evidence, err
 	}
-	if nativeRev != ownerRev {
+	if native.AuthorityRevision == 0 && nativeRev != ownerRev || native.AuthorityRevision != 0 && native.AuthorityRevision != ownerRev {
 		return evidence, refuseAcceptance(RefusalStaleEvidence)
 	}
 	return adoptEvidence{task: task, entry: entry, ownerRev: nativeRev, native: native, issue: native.Issue}, nil

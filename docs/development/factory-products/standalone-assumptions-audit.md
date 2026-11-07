@@ -74,7 +74,14 @@ The user started the correction goal and selected these requirements on
   their original identities after partial failure; execution stays blocked until
   the entire intended graph has been verified. This supersedes the inherited
   all-or-nothing provider transaction requirement for that native journey.
-  The native graph implementation and recovery qualification remain pending.
+  Native composition now uses the existing generation/command journals and
+  fixed authenticated connector effects. The actual local restart/readback and
+  schema-95 migration check passed at
+  `/home/vince/tmp/fgraph12.vYXmZU/result.log`: known completed writes survive,
+  only remaining writes run, legacy unknown sends stay blocked, and execution
+  stays held before completed adoption. Provider/planner facts were declared;
+  live GitHub, ordinary planner admission, full adoption/execution, connected
+  edit/removal/withdrawal races and installed upgrades remain unqualified.
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler

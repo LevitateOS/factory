@@ -45,17 +45,25 @@ and full paid Issue Maker admission/settlement. The new background selector stil
 needs actual-channel foreign-scope/withdrawal denial qualification. A25 source
 funding and full authoring are dependencies; no broad custody/auth/IPC gate closes.
 
-**Native graph partial writes — owner decision, implementation pending:**
+**Native graph partial writes — composed; broader qualification pending:**
 The owner permits individually journaled issue/dependency writes with resume,
 while blocking execution until the complete intended graph is verified. Existing
-`control/intent_generation{,_recovery}.go`, `factory/{graph_codec,graph_outcome}.go`
-and `runtime/native_server.go` need a native composition preserving original
-operation/account/source identities. Do not claim provider atomicity. Remaining
-proof: partial-step restart without duplicate writes, lost/unknown result holds,
-source/account/permission/accepted-plan withdrawal, human edit preservation,
-exact dependency traversal and complete-graph verification before acceptance or
-execution. Full generated-plan/workflow and authenticated connector journeys are
-the dependencies; no implementation or security proof is claimed by this decision.
+`control/intent_generation{,_recovery}.go` now composes
+`runtime/native_graph_*.go`, `runtime/native_issue_dependencies.go`, the existing
+generation/command journals and Rust `github_provider/dependencies.rs`.
+`store/schema{,_command_dispatch}.go` owns the 95→96 legacy dispatch fence.
+`/home/vince/tmp/fgraph12.vYXmZU/result.log` passed actual native/Go/PostgreSQL
+partial-step restart without duplicate writes, exact dependency/full-content
+readback, original-receipt replay, held execution and retained legacy-unknown
+dispatch refusal after migration. Provider/planner facts were declared; the
+generation was deliberately left committed, without claiming full adoption.
+Do not claim provider atomicity. Remaining proof: connected add/remove/edit,
+unknown-result recovery, source/account/permission/accepted-plan withdrawal,
+concurrent human edits, cancellation races and complete adoption before execution.
+Closure needs those actual-channel journeys and the ordinary generated-plan
+workflow; Muse planner result encoding currently blocks the latter. Native
+repair/reassessment composition and installed upgrades remain pending. No broad
+custody/authentication/IPC/worker-isolation gate closes from this scoped check.
 
 **A25 judgment spending selection:** `factory/grants.go`, `factory/sponsorship.go`
 and `factory/service/policies.go` under `pkg/` retain an explicit judgment

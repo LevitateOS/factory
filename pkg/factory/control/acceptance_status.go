@@ -48,11 +48,16 @@ func (c *Coordinator) admitAcceptanceCurrency(ctx context.Context, repository, i
 		status.Reasons = []string{"accepted_intent_changed"}
 		return false, nil
 	} else if generated {
-		if c.Graph == nil || c.GraphActorID <= 0 {
+		if !c.graphAvailable() {
 			status.Reasons = []string{"accepted_intent_authority_unavailable"}
 			return false, nil
 		}
-		if _, err := c.Graph.CheckIntentOwner(ctx, repository, decision.Approver, c.GraphActorID); err != nil {
+		actor, err := c.graphActor(ctx, repository, decision.Approver)
+		if err != nil {
+			status.Reasons = []string{"accepted_intent_authority_unavailable"}
+			return false, nil
+		}
+		if _, err := c.Graph.CheckIntentOwner(ctx, repository, decision.Approver, actor); err != nil {
 			status.Reasons = []string{"accepted_intent_authority_unavailable"}
 			return false, nil
 		}

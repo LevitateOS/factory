@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 95
+const schemaFormatVersion = 96
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -625,6 +625,15 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=95`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, err)
+		}
+		version = 95
+	}
+	if version == 95 {
+		for _, statement := range IssueDependencyDispatchUpgradeDDL {
+			if _, err = t.ExecContext(ctx, statement); err != nil {
+				rollback()
+				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate issue dependency dispatch: %w", err))
+			}
 		}
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {

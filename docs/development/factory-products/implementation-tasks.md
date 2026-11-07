@@ -159,8 +159,18 @@ account, the existing conditional edit and slot/step journal. A05/A21 records
 actual native replay/restart and human-edit preservation with declared authoring;
 paid/connected/installed refinement and concurrent-withdrawal proof remain open.
 The owner permits serial journaled native graph writes with resume, while
-requiring complete intended-graph verification before execution. Graph
-composition/recovery remains pending; this decision supplies no atomicity proof.
+requiring complete intended-graph verification before execution. Native graph
+composition now uses the existing generation and command journals, explicit
+repository publishing identity, conditional edits and fixed Rust dependency
+effects. `/home/vince/tmp/fgraph12.vYXmZU/result.log` passed partial creation,
+supervisor restart, remaining issue/dependency creation, complete graph readback,
+original-receipt replay without duplicate writes and held execution. Its owned
+schema-95 fixture also passed the actual 95→96 migration: original command bytes
+remain intact and legacy unknown sends cannot resume. Provider/planner facts were
+declared. This proves no provider atomicity, live GitHub writes, ordinary planner
+admission, full adoption/execution, installed upgrade or broad security gate.
+Connected edits/removals, withdrawal/races and native repair/reassessment remain
+pending; the real Muse planner result encoding remains a pipeline dependency.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

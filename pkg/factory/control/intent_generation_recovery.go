@@ -15,7 +15,7 @@ import (
 // connector). Recovery validates the original binding and never attaches
 // a new plan to an existing operation.
 func (c *Coordinator) RecoverIntentGraphs(ctx context.Context) error {
-	if c.Graph == nil || c.GraphActorID <= 0 {
+	if !c.graphAvailable() {
 		return nil
 	}
 	revisions, err := c.Store.PendingIntentGenerations(ctx, c.intentGenerationCursor, 1)
@@ -39,5 +39,8 @@ func (c *Coordinator) RecoverIntentGraphs(ctx context.Context) error {
 		return err
 	}
 	_, err = c.GenerateAcceptedIntent(ctx, revision.Intent, revision.ID, revision.Owner)
+	if errors.Is(err, ErrGraphStepsPending) {
+		return nil
+	}
 	return err
 }
