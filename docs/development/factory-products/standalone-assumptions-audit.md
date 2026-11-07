@@ -223,6 +223,26 @@ corrections are now active; the old feature queue waits for their resolution.
   qualification remain open. Earlier unresolved launch attempts are preserved
   in the security handoff; this success does not settle them.
 
+- **A17 — ordinary Go/Rust cold project setup verified.** Prepared repository and
+  HOME trees now allow 1 GiB each, accommodating an SDK and build cache. The
+  worker's private tmpfs is 3 GiB with a 4 GiB service ceiling; its approved
+  environment check allows 1 GiB/128 tasks. Preparer memory, full active charge,
+  retained quota and independent free-space admission remain 1 GiB, 1 GiB,
+  4 GiB and the existing reserve. Rust components are extracted directly into
+  the private SDK location to avoid duplicate installer trees. Actual official
+  Go 1.27.3 plus `github.com/google/uuid v1.6.0`, and Rust/Cargo/std 1.99.1 plus
+  `itoa 1.0.18`, were acquired with verified hashes and built from cold public
+  dependencies. Both copied snapshots reran builds offline in the worker, then
+  completed dummy-token MCP/artifact execution, exact retirement and restart
+  settlement: `/home/vince/tmp/fsetup-go-bounded7.GreToE/result.log` and
+  `/home/vince/tmp/fsetup-rust-headers7.qJiQR6/result.log`. Native/Go builds used
+  the current patch compilers in a private cache; the dependency boundary check
+  passed. No user toolchain/login was changed and no model or GitHub write ran.
+  These small projects demonstrate supported provisioning, not all project sizes
+  or installed D3. Repeated public artifact HTTP refusals remain unexplained;
+  lifecycle scripts/private registries, larger builds, saturation and interrupted/
+  overlapping/installed resource retirement remain unqualified.
+
 - **A24 — selected workspace navigation corrected.** The host now supplies
   `selectedRepository` separately from the destination. Desktop passes its admitted
   selection; shared tabs survive New request and Feed links retain the repository.
@@ -803,19 +823,22 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 | --- | --- | --- |
 | Staged source Git bundle, not raw repository size | 512 KiB | `lib/execution-protocol/src/lib.rs:7` |
 | Candidate/result bundle | 4 MiB | `lib/execution-protocol/src/lib.rs:13` |
-| Each copied prepared tree: coder repository or HOME | 256 MiB / 100,000 entries independently | Shared `lib/execution-protocol/src/lib.rs` constants, consumed by preparer and worker |
+| Each copied prepared tree: coder repository or HOME | 1 GiB / 100,000 entries independently | Shared `lib/execution-protocol/src/lib.rs` constants, consumed by preparer and worker |
 | Each approved setup/check script | Reviewed `setup-limits.json`: 1–1800 seconds each; absent file retains 10 seconds | `lib/execution-protocol/src/lib.rs`, `cmd/soda-factory-broker/src/prepared_setup.rs`, `cmd/soda-factory-worker/src/agent_environment.rs` |
-| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 256 MiB, using the shared checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
+| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 1 GiB, using the shared checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Combined setup/check diagnostics | 256 KiB; truncation refuses readiness independently of process exit | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Preparer resources / active reservation | 1 GiB, no swap, 128 tasks; full 1 GiB reserved while active | Preparer unit and `cmd/soda-factory-broker/src/preparation_quota.rs` |
 | Retained preparation material | 4 GiB / one million entries, plus independent `/run` free-space admission | `cmd/soda-factory-broker/src/preparation_quota.rs` |
-| Agent tmpfs | 768 MiB | `cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in:17` |
+| Agent tmpfs / service memory | 3 GiB / 4 GiB | `cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in:17` |
+| Worker environment check | 1 GiB / 128 tasks, reviewed check deadline | `cmd/soda-factory-worker/src/agent_environment.rs` |
 
 **Selected correction:** support ordinary Go/Rust/Node/Bun setup and declared
 dependency installation inside isolated workspaces. Implement approved toolchain
 and dependency provisioning, setup network policy and meaningful bounds, then
-qualify representative cold builds and cleanup. These remain dependencies of
-native executor qualification, not features supplied by the current preparer.
+qualify representative cold builds and cleanup. The correction entries above
+record the implemented public setup path and actual small Node/Bun/Go/Rust
+workloads. Broader workload and installed qualification remain dependencies of
+native executor qualification.
 Keep enforced isolation
 and quotas. These constants are observed restrictions, not measured failures on
 all normal projects; packed bundles, expanded trees and build output differ.

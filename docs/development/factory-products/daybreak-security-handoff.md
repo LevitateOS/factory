@@ -92,8 +92,8 @@ qualify DNS/address policy including mixed and changing answers and special
 ranges. Destinations are resolved then connected numerically, but broad refusal
 coverage remains unverified. DNS request waits have a timeout; OS resolver work
 may outlive its future, so joined runtime retirement under a stalled resolver is
-unverified. Lifecycle scripts, private registries and normal Go/Rust/Bun workloads
-remain unsupported by this evidence. Do not close these dependencies from source
+unverified. Lifecycle scripts and private registries remain unsupported by this evidence;
+A17 now records separate small Go/Rust/Bun provisioning journeys. Do not close these dependencies from source
 inspection or the small npm fixture. Hacking-like probes require user-started
 Daybreak; ordinary implementation checks can continue normally.
 
@@ -139,7 +139,7 @@ source fix or successful fresh run cannot close their original outcomes.
 **A17 resource envelope / D3:** the preparer now enforces 1 GiB memory/no swap and
 128 tasks. The broker reserves its full 1 GiB while active, with a 4 GiB/one
 million-entry retained cap and unchanged independent `/run` reserve. Shared
-`lib/execution-protocol/src/lib.rs` tree constants (256 MiB/100,000 entries) feed
+`lib/execution-protocol/src/lib.rs` tree constants (1 GiB/100,000 entries) feed
 `cmd/soda-factory-broker/src/{bin/soda-factory-preparer,prepared_setup}.rs` and
 `cmd/soda-factory-worker/src/agent_environment.rs`; service/quota ownership remains
 in the preparer unit and `preparation_quota.rs`. The audit records actual setup
@@ -147,9 +147,29 @@ above the historical memory/tree caps, worker transfer/recheck and normal exact
 retirement. No model ran. This is not saturated-resource or installed proof.
 Remaining evidence: OOM/task/namespace/retained-capacity refusal at the new bounds,
 low free-space and overlapping admissions, cancellation/restart/lost-reply
-retirement with larger trees, and representative cold Go/Rust/Node/Bun builds.
+retirement with larger trees, and representative larger Go/Rust/Node/Bun builds.
 These are fixed supported ceilings; broader D3/installed qualification remains
 pending.
+
+**A17 SDK-sized workloads / D3:** the worker now has a 3 GiB private tmpfs and
+4 GiB service ceiling; its approved environment check has 1 GiB/128 tasks. The
+preparer retains its original 1 GiB ceiling/charge and 4 GiB retained quota.
+Shared tree/file bounds are 1 GiB. Relevant owners: shared execution protocol,
+worker `agent_environment.rs`, `bin/soda-factory-agent.rs` and its service unit;
+`tools/native-checks/native_mcp_signing_check.go` extends the existing journey.
+A17 records actual current Go/Rust toolchain/hash acquisition, cold public module/
+crate builds, copied offline worker rechecks, dummy MCP/artifacts, exact retirement
+and retained restart settlement. No provider inference or user login was involved.
+Rust uses direct component extraction, avoiding duplicate SDK staging at the
+retained preparer ceiling. These prove small workloads only. Broad D3 still needs
+OOM/process/storage/entry saturation, concurrent memory admission, interrupted
+copy/check/retirement, lost replies/restart and installed workload evidence at
+these bounds. Public component fetches in
+`/home/vince/tmp/fsetup-rust-bounded7.SM5RJj/result.log` and
+`/home/vince/tmp/fsetup-rust-direct7.0V009L/result.log` received HTTP 403 before
+launch; both retain their preparation retirement receipts. The later passing
+request does not explain those refusals or qualify download reliability. Retain
+that network dependency; do not infer a policy/address or upstream cause.
 
 **A17 time budgets / D3:** approved `setup-limits.json` now controls preparer and
 worker-check deadlines. The audit's A17 correction records the actual long-setup,

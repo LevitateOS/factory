@@ -116,8 +116,8 @@ pub(super) fn check(
             limits: Limits {
                 duration,
                 output_bytes: MAX_SETUP_OUTPUT,
-                memory_bytes: 256 * 1024 * 1024,
-                processes: 32,
+                memory_bytes: 1024 * 1024 * 1024,
+                processes: 128,
                 cpu_percent: 100,
             },
             columns: 80,

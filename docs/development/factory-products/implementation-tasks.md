@@ -136,8 +136,11 @@ once in A17 of the assumptions audit. Preparation and worker transfer now share
 larger bounded trees; the fixed resource envelope and actual worker check above
 the historical limits are recorded there too. A17 also records actual current Bun
 provisioning and launch reuse of a frozen setup snapshot, including worker checks,
-MCP/artifacts, retirement and restart settlement. Go/Rust provisioning, larger cold
-builds, workload resource qualification, interrupted/restart network retirement and installed D3
+MCP/artifacts, retirement and restart settlement. Current Go/Rust SDKs with cold
+public module/crate builds now pass the copied worker and retirement/restart
+journeys under the retained 1 GiB preparer ceiling. SDK-sized trees and worker
+check/storage bounds are implemented. Larger builds, workload resource
+qualification, interrupted/restart network retirement and installed D3
 qualification remain dependencies; this does not complete T09 or A17.
 
 New schema-94 standalone databases omit application hosting and appliance

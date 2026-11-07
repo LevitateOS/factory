@@ -14,7 +14,7 @@ RuntimeDirectoryMode=0700
 TemporaryFileSystem=/run/soda-factory-agent:mode=0700
 # This mount belongs to this service instance. The worker creates its 0700
 # run directory inside it after checking the mount identity and size.
-TemporaryFileSystem=/run/factory-agent-private:mode=1777,size=768M
+TemporaryFileSystem=/run/factory-agent-private:mode=1777,size=3G
 InaccessiblePaths=/tmp /var/tmp /dev/shm /run/lock
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output/repo:/run/factory-source
 BindReadOnlyPaths=/run/soda-factory-broker/preparations/%i/output:/run/factory-prepared
@@ -56,7 +56,7 @@ CPUAccounting=yes
 MemoryAccounting=yes
 TasksAccounting=yes
 CPUQuota=100%
-MemoryMax=1G
+MemoryMax=4G
 MemorySwapMax=0
 TasksMax=128
 TimeoutStartSec=10s

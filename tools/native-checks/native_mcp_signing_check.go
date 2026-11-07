@@ -2114,8 +2114,118 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 	return nil
 }
 
-// Declared Go permissions in a disposable ledger; the native source/setup work
-// and its observation/CAS transactions are real. This is not provider consent.
+// Extend the existing admitted setup journey with an official toolchain and a cold public dependency.
+func nativeProjectToolchain(files map[string][]byte, tools []string) ([]string, error) {
+	path := os.Getenv("SODA_NATIVE_CHECK_PROJECT_TOOLCHAIN")
+	if path == "" {
+		return tools, nil
+	}
+	var selected struct {
+		Kind, Version, Date, Dependency string
+		Assets                          map[string]string
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(data, &selected); err != nil {
+		return nil, err
+	}
+	numeric := func(value string, extra rune) bool {
+		if value == "" || len(value) > 30 {
+			return false
+		}
+		for _, c := range value {
+			if !(c >= '0' && c <= '9' || c == '.' || c == extra) {
+				return false
+			}
+		}
+		return true
+	}
+	if !numeric(selected.Version, '.') {
+		return nil, errors.New("toolchain version invalid")
+	}
+	for _, digest := range selected.Assets {
+		if !project.ValidDigest(digest) {
+			return nil, errors.New("toolchain digest invalid")
+		}
+	}
+	files["setup-network.json"] = []byte(`{"access":"public_https"}`)
+	files["setup-limits.json"] = []byte(`{"setup_seconds":240,"check_seconds":60}`)
+	install := "test ! -e \"$HOME/.factory-setup-once\"\nprintf ready > \"$HOME/.factory-setup-once\"\nmkdir -p \"$HOME/.local/bin\"\n"
+	var check string
+	switch selected.Kind {
+	case "go":
+		if len(selected.Assets) != 1 || !project.ValidDigest(selected.Assets["go"]) || !strings.HasPrefix(selected.Dependency, "v") || !numeric(strings.TrimPrefix(selected.Dependency, "v"), '.') {
+			return nil, errors.New("Go toolchain selection invalid")
+		}
+		tools = append(tools, "curl", "tar", "go")
+		install += fmt.Sprintf(`curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 90 'https://go.dev/dl/go%s.linux-amd64.tar.gz' -o "$TMPDIR/go.tar.gz"
+printf '%%s  %%s\n' '%s' "$TMPDIR/go.tar.gz" | sha256sum --check --status
+tar -xzf "$TMPDIR/go.tar.gz" -C "$HOME/.local"
+ln -s ../go/bin/go "$HOME/.local/bin/go"
+rm "$TMPDIR/go.tar.gz"
+mkdir -p .factory-build/go-project
+cp /run/factory-source/approved/go.mod /run/factory-source/approved/main.go .factory-build/go-project/
+chmod 600 .factory-build/go-project/go.mod .factory-build/go-project/main.go
+cd .factory-build/go-project
+go mod tidy
+go build -trimpath -o app .
+test "$(./app)" = 'go-project-ok'
+`, selected.Version, selected.Assets["go"])
+		files["go.mod"] = []byte(fmt.Sprintf("module factory-setup-fixture\n\ngo 1.27.0\n\nrequire github.com/google/uuid %s\n", selected.Dependency))
+		files["main.go"] = []byte(`package main
+import ("fmt"; "github.com/google/uuid")
+func main() { if uuid.MustParse("00000000-0000-0000-0000-000000000000") != uuid.Nil { panic("uuid") }; fmt.Print("go-project-ok") }
+`)
+		check = fmt.Sprintf(`test "$(go version)" = 'go version go%s linux/amd64'
+cd .factory-build/go-project
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local go build -trimpath -o app .
+test "$(./app)" = 'go-project-ok'
+printf 'checked-by-native private Go toolchain and cold module build\n'
+`, selected.Version)
+	case "rust":
+		if len(selected.Assets) != 3 || !numeric(selected.Date, '-') || !numeric(selected.Dependency, '.') {
+			return nil, errors.New("Rust toolchain selection invalid")
+		}
+		tools = append(tools, "curl", "tar", "cargo", "rustc", "cc")
+		for _, name := range []string{"rustc", "rust-std", "cargo"} {
+			if !project.ValidDigest(selected.Assets[name]) {
+				return nil, errors.New("Rust component digest missing")
+			}
+			install += fmt.Sprintf(`curl --fail --silent --show-error --proto '=https' --max-time 90 --dump-header "$TMPDIR/component-headers" 'https://static.rust-lang.org/dist/%s/%s-%s-x86_64-unknown-linux-gnu.tar.xz' -o "$TMPDIR/component.tar.xz" || { cat "$TMPDIR/component-headers"; exit 1; }
+printf '%%s  %%s\n' '%s' "$TMPDIR/component.tar.xz" | sha256sum --check --status
+tar -xJf "$TMPDIR/component.tar.xz" --strip-components=2 -C "$HOME/.local" "%s-%s-x86_64-unknown-linux-gnu/%s"
+rm "$TMPDIR/component.tar.xz"
+`, selected.Date, name, selected.Version, selected.Assets[name], name, selected.Version, map[string]string{"rustc": "rustc", "cargo": "cargo", "rust-std": "rust-std-x86_64-unknown-linux-gnu"}[name])
+		}
+		files["Cargo.toml"] = []byte(fmt.Sprintf("[package]\nname = \"factory-setup-fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n[dependencies]\nitoa = \"=%s\"\n", selected.Dependency))
+		files["main.rs"] = []byte(`fn main() { assert_eq!(itoa::Buffer::new().format(42), "42"); print!("rust-project-ok"); }
+`)
+		install += `mkdir -p .factory-build/rust-project/src
+cp /run/factory-source/approved/Cargo.toml .factory-build/rust-project/
+cp /run/factory-source/approved/main.rs .factory-build/rust-project/src/
+chmod 600 .factory-build/rust-project/Cargo.toml .factory-build/rust-project/src/main.rs
+cd .factory-build/rust-project
+cargo build
+test "$(./target/debug/factory-setup-fixture)" = 'rust-project-ok'
+`
+		check = fmt.Sprintf(`rustc --version | grep -F 'rustc %s '
+cd .factory-build/rust-project
+cargo build --offline --locked
+test "$(./target/debug/factory-setup-fixture)" = 'rust-project-ok'
+printf 'checked-by-native private Rust toolchain and cold crate build\n'
+`, selected.Version)
+	default:
+		return nil, errors.New("unsupported project toolchain fixture")
+	}
+	files["setup.sh"] = append(files["setup.sh"], []byte(install)...)
+	files["check.sh"] = append(files["check.sh"], []byte(check)...)
+	return tools, nil
+}
+
+// Declared Go permissions; source/setup and observation/CAS transactions are real.
+// This fixture supplies no provider consent.
 func nativePreparationFixture(profile, instance, mode string) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
@@ -2127,6 +2237,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" || os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE") != "" {
 		duration = 90 * time.Second
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_PROJECT_TOOLCHAIN") != "" {
+		duration = 330 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
@@ -2237,6 +2350,10 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		install := fmt.Sprintf("test ! -e \"$HOME/.factory-setup-once\"\nprintf ready > \"$HOME/.factory-setup-once\"\nmkdir -p \"$HOME/.bun/bin\"\ncurl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 45 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\nprintf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\nunzip -q \"$TMPDIR/bun.zip\" -d \"$TMPDIR/bun\"\ncp \"$TMPDIR/bun/bun-linux-x64/bun\" \"$HOME/.bun/bin/bun\"\nrm -rf \"$TMPDIR/bun\" \"$TMPDIR/bun.zip\"\ncp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\nbun install --ignore-scripts --no-progress --no-cache\n", release.Version, release.SHA256)
 		files["setup.sh"] = append(files["setup.sh"], []byte(install)...)
 		files["check.sh"] = append(files["check.sh"], []byte(fmt.Sprintf("test \"$(bun --version)\" = '%s'\nbun -e 'if (!require(\"is-number\")(42)) process.exit(1)'\nprintf 'checked-by-native privately provisioned Bun %s and cold dependency\\n'\n", version, version))...)
+	}
+	tools, err = nativeProjectToolchain(files, tools)
+	if err != nil {
+		return err
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_WORKER_BUDGET") == "1" {
 		files["setup-limits.json"] = []byte(`{"setup_seconds":10,"check_seconds":20}`)
@@ -2353,6 +2470,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {
 		return errors.New("native preparation lacks actual setup/check/source facts")
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_PROJECT_TOOLCHAIN") != "" {
+		fmt.Println("PASS: official private toolchain installed with verified hashes; cold declared dependency and actual project build passed")
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE") != "" {
 		resolved := false

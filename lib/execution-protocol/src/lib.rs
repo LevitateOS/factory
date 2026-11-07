@@ -25,7 +25,7 @@ pub const MAX_APPROVED_BYTES: usize = 128 * 1024;
 pub const MAX_SETUP_FRAME: usize = 600 * 1024;
 pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
 // Shared snapshot envelope: preparation and worker transfer must agree.
-pub const MAX_PREPARED_TREE_BYTES: u64 = 256 * 1024 * 1024;
+pub const MAX_PREPARED_TREE_BYTES: u64 = 1024 * 1024 * 1024;
 pub const MAX_PREPARED_TREE_ENTRIES: usize = 100_000;
 
 // Both preparation and worker use their own isolated HOME. Never borrow the

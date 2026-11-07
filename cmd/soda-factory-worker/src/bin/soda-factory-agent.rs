@@ -30,7 +30,7 @@ const WORKSPACE: &str = "/run/factory-agent-private/run/workspace";
 const ROLE: &str = "/run/factory-role";
 const PRIVATE: &str = "/run/factory-agent-private/run";
 const PRIVATE_MOUNT: &str = "/run/factory-agent-private";
-const PRIVATE_MAX_BYTES: u64 = 768 * 1024 * 1024;
+const PRIVATE_MAX_BYTES: u64 = 3 * 1024 * 1024 * 1024;
 const PRIVATE_TMP: &str = "/run/factory-agent-private/run/tmp";
 const PRIVATE_HOME: &str = "/run/factory-agent-private/run/home";
 const CGROUP: &str = "/sys/fs/cgroup/factory";
@@ -721,7 +721,10 @@ fn execute_agent(
             OsString::from("SODA_FACTORY_RUN_AUTH"),
             OsString::from(format!("Bearer {placeholder}")),
         ),
-        (OsString::from("PATH"), OsString::from(soda_execution_protocol::setup_path(PRIVATE_HOME))),
+        (
+            OsString::from("PATH"),
+            OsString::from(soda_execution_protocol::setup_path(PRIVATE_HOME)),
+        ),
         (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
         (OsString::from("HOME"), OsString::from(PRIVATE_HOME)),
         (
