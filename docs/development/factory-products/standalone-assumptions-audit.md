@@ -680,7 +680,15 @@ corrections are now active; the old feature queue waits for their resolution.
   hold without cursor advancement, pre-admission policy/permission withdrawal, same-
   account acceptance/replay, Factory-origin refusal and serving cursor persistence.
   Provider/permission/authority facts were declared; no model or real GitHub
-  request ran. Discovery covers currently open issues, not deleted/closed history;
+  request ran. The owner explicitly confirmed current verified creator permission
+  plus complete original, unedited issue readback on 2026-11-07; unknown facts hold
+  intake. The connected check in
+  `/home/vince/tmp/fintake-gh16.6y6zMq/result.log` passed actual GitHub discovery,
+  current creator write permission, automatic initial acceptance, supervisor
+  restart/replay and local grant withdrawal against owned disposable issue 18.
+  It used an isolated gh-supplied grant and declared local policy/unfunded roles;
+  no Factory OAuth, model, remote delivery or full pipeline was exercised.
+  Discovery covers currently open issues, not deleted/closed history;
   it bounds membership at 4096 issues/2 MiB of title/body and examines at most 16
   new issue positions per pass. Larger/paginated connected reads, account/source/
   permission withdrawal during I/O, runtime call quotas, retained installed

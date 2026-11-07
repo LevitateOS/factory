@@ -1362,6 +1362,9 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	fixtureTimeout := 35 * time.Second
+	if strings.HasPrefix(action, "check-background-creation") {
+		fixtureTimeout = 120 * time.Second
+	}
 	if action == "check-background-delivery-material" {
 		fixtureTimeout = 150 * time.Second
 	}
@@ -1387,6 +1390,9 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if strings.HasPrefix(action, "check-background-creation") {
+		return connectedCreationFixture(ctx, source, int64(connection.Actor), connection.ID, repository, issue, profile, action)
+	}
 	if action == "check-background-delivery-material" {
 		port := factoryruntime.NativeMerges{NativeInputSource: source}
 		w := factory.MergeWork{Method: "merge", Repository: repository, Issue: issue, PRNumber: input.Checks.PRNumber, PRID: input.Checks.PRID, IssueID: input.Checks.IssueID, ActorID: int64(connection.Actor), PRAuthorID: int64(connection.Actor), ReviewerID: int64(connection.Actor), ReviewEvent: "COMMENT", HeadRef: input.Checks.HeadRef, BaseRef: input.Checks.BaseRef, HeadOID: input.Checks.HeadOID, BaseOID: input.Checks.BaseOID}
@@ -6394,6 +6400,90 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 	fmt.Println("PASS: native graph resumes after supervisor restart, creates only remaining issue, adds its exact dependency through the native connector, verifies complete contents/edges, reuses original receipts without new writes and holds execution until full adoption; planner/provider facts declared, no model or full pipeline")
 	if os.Getenv("SODA_NATIVE_CHECK_GRAPH_REVISION") == "1" {
 		return nativeGraphRevisionFixture(ctx, graph, generation, detail.Record.Repository, profile)
+	}
+	return nil
+}
+
+func connectedCreationFixture(ctx context.Context, input factoryruntime.NativeInputSource, actor int64, connection collaboration.ConnectionID, repository, issue int64, profile, action string) error {
+	path := filepath.Join(profile, "native-creation-connected.json")
+	var saved struct {
+		Hint     control.IntakeHint
+		Decision string
+	}
+	if action != "check-background-creation" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if json.Unmarshal(raw, &saved) != nil {
+			return errors.New("original connected creation result absent")
+		}
+		if action == "check-background-creation-withdrawn" {
+			if _, err = input.ReadCreations(ctx, repository, issue-1, 1); err == nil {
+				return errors.New("withdrawn native account still discovers issues")
+			}
+			if err = input.CheckInitialCreator(ctx, saved.Hint); err == nil {
+				return errors.New("withdrawn native account still grants new initial acceptance")
+			}
+			decision, err := input.Store.AcceptanceDecision(ctx, saved.Decision)
+			if err != nil || decision.ID != saved.Decision {
+				return errors.New("withdrawal changed original acceptance history")
+			}
+			fmt.Println("PASS: withdrawn local native grant refuses discovery/new creator authorization and preserves original acceptance")
+			return nil
+		}
+	} else {
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{ActorID: actor, NativeProfile: input.Config.Profile, NativeConnection: connection, Kind: kind}
+		}
+		policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: actor, Enabled: true, TargetBranch: "refs/heads/main", MergeMethod: "squash", Checks: []string{"fixture/unavailable"}, Roles: map[string]factory.RoleSelection{}, AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge)}
+		for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+			policy.Roles[role] = factory.RoleSelection{Account: factory.NewID(), Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}
+		}
+		if err := input.Store.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
+		page, err := input.ReadCreations(ctx, repository, issue-1, 1)
+		if err != nil {
+			return err
+		}
+		if len(page.Events) != 1 || page.Events[0].Issue != issue || page.NextPosition != issue || !page.ProvenanceComplete {
+			return errors.New("connected original issue did not produce complete creation facts")
+		}
+		event := page.Events[0]
+		if event.Creator != actor || !event.CreatorWrite || !event.Verified {
+			return errors.New("connected creation lacks current native author/write proof")
+		}
+		saved.Hint = control.IntakeHint{Delivery: event.Delivery, Repository: repository, Issue: issue, Created: true, Creator: event.Creator, CreatorWrite: event.CreatorWrite, CreationVerified: event.Verified, NativeIssueID: event.OriginalIssueID, CreatedUnix: event.CreatedUnix, TitleDigest: event.TitleDigest, ContentDigest: event.ContentDigest}
+	}
+	c := control.NewCoordinator(input.Store, input.NativeExecution, input.NativeExecution)
+	c.AcceptanceReads = input
+	accepted, err := c.AdmitInitialAcceptance(ctx, saved.Hint)
+	if err != nil {
+		return err
+	}
+	if action != "check-background-creation" && accepted.ID != saved.Decision {
+		return errors.New("connected retained acceptance changed identity")
+	}
+	saved.Decision = accepted.ID
+	raw, err := json.Marshal(saved)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(path, raw, 0600); err != nil {
+		return err
+	}
+	if action == "check-background-creation" {
+		fmt.Println("PASS: actual GitHub original issue/current creator write permission produce automatic initial acceptance through Rust/Go/PostgreSQL; local policy declared, no model or remote write")
+	} else {
+		page, err := input.ReadCreations(ctx, repository, issue-1, 1)
+		if err != nil {
+			return err
+		}
+		if len(page.Events) != 0 || page.NextPosition != issue {
+			return errors.New("retained explicit acceptance was replaced by discovery")
+		}
+		fmt.Println("PASS: original initial acceptance survives supervisor restart and discovery leaves its retained head intact")
 	}
 	return nil
 }

@@ -937,8 +937,17 @@ PostgreSQL disabled-policy refusal, edited/read-only cases, unknown-permission
 hold without cursor advancement, pre-admission policy/permission withdrawal, same-account
 acceptance/replay, Factory-origin refusal and serving cursor persistence. Provider,
 permission and authority facts were declared; no model or real GitHub request.
-Remaining closure evidence: connected complete pagination and current creator
-identity/permission reads, foreign repository/creator selector denial,
+The owner explicitly confirmed current verified creator permission with complete
+original, unedited readback on 2026-11-07. Connected evidence in
+`/home/vince/tmp/fintake-gh16.6y6zMq/result.log` now passes actual GitHub original
+issue discovery/current creator permission, automatic initial acceptance, retained
+supervisor restart/replay and local grant withdrawal. Relevant checks are
+`tools/native-checks/native_mcp_signing_check.go` (`connectedCreationFixture`) and
+`factory-credential-operation-check.rs` (`creation-discovery`). This used an
+isolated gh-supplied grant, declared local policy and unfunded roles; no Factory
+OAuth, model, remote delivery or complete pipeline was tested.
+Remaining closure evidence: Factory OAuth intake, connected complete pagination,
+foreign repository/creator selector denial,
 account/policy/source withdrawal during I/O, actual
 native-call quota enforcement, retained installed cursor/profile recovery and
 the full standing-authorization issue-to-PR journey. Discovery is limited to

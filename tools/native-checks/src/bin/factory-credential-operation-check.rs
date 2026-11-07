@@ -1187,6 +1187,26 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if args.len()==10 && field(9)?=="creation-discovery" {
+                    let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
+                    fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection}))?)?;
+                    let check=|action:&str,instance:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(instance).arg(action).arg(&background);
+                        async move {ensure(command.status().await?.success(),"connected native creation check failed")}
+                    };
+                    check("check-background-creation",&ready.instance).await?;
+                    runtime.take().expect("owned runtime").stop()?;
+                    runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    ensure(request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?.status==200,"retained creation account unavailable")?;
+                    let instance=runtime.as_ref().expect("owned runtime").health()?.instance;
+                    check("check-background-creation-retained",&instance).await?;
+                    store.withdraw(&saved.connection).await?;
+                    check("check-background-creation-withdrawn",&instance).await?;
+                    println!("PASS: live native GitHub original-issue discovery, current writer permission, automatic initial acceptance, retained restart replay and local grant withdrawal; gh grant/local policy fixture, no Factory OAuth, model or full intake pipeline");
+                    return Ok(());
+                }
                 if args.len()==10 && field(9)?=="checks-view" {
                     let cases:Vec<serde_json::Value>=serde_json::from_slice(&fs::read(&args[8])?)?;
                     ensure(!cases.is_empty() && cases.len()<=10,"bounded nonempty check cases required")?;

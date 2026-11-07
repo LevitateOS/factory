@@ -165,8 +165,13 @@ own source positions and origin exclusion; disabled policy performs no discovery
 `/home/vince/tmp/fintake-policy15.IsasqK/result.log` passed native/Go/PostgreSQL
 same-account acceptance/replay, edited/read-only and Factory-origin cases,
 unknown/withdrawn permission holds and actual serving cursor persistence. Provider/
-permission/authority facts were declared. A08 records the bounded discovery scope;
-connected, quota, installed and full issue-to-PR qualification remain pending.
+permission/authority facts were declared. The owner confirmed current verified
+creator permission with complete original, unedited readback; unknown facts hold.
+`/home/vince/tmp/fintake-gh16.6y6zMq/result.log` additionally passed live GitHub
+discovery/creator permission, automatic initial acceptance, retained restart replay
+and local grant withdrawal using an isolated gh grant and declared local policy/
+unfunded roles. A08 records the bounded scope; Factory OAuth, connected pagination/
+races, quota, installed and full issue-to-PR qualification remain pending.
 The owner permits serial journaled native graph writes with resume, while
 requiring complete intended-graph verification before execution. Native graph
 composition now uses the existing generation and command journals, explicit
