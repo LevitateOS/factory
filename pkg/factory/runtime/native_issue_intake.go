@@ -33,7 +33,7 @@ type nativeIssueEffects struct {
 	NativeInputSource
 }
 
-func newNativeIssueEffects(inputs NativeInputSource) *nativeIssueEffects {
+func NewNativeIssueEffects(inputs NativeInputSource) *nativeIssueEffects {
 	s := &nativeIssueEffects{NativeInputSource: inputs}
 	s.CapturedIssueEffects = &factoryservice.CapturedIssueEffects{Store: inputs.Store, Decode: s.decodeScope, Writer: s}
 	return s
@@ -83,19 +83,13 @@ func (s *nativeIssueEffects) currentSource(ctx context.Context, p nativeIssueInt
 	return nil
 }
 
-// Native issue refinement needs its own conditional-edit binding. Keeping it
-// unavailable prevents a paid Issue Maker run that cannot publish its result.
-func (s *nativeIssueEffects) AuthorizeIssueMaker(context.Context, factory.IssueMakerScope) error {
-	return factoryservice.ErrCapturedIssueUnavailable
-}
-
 func (s *nativeIssueEffects) ApplyIssueIntake(ctx context.Context, raw json.RawMessage, mutation factory.IssueMakerMutation) (factory.IssueMakerReceipt, error) {
 	var empty factory.IssueMakerReceipt
 	p, err := s.proof(raw)
 	if err != nil {
 		return empty, err
 	}
-	if mutation.Validate() != nil || mutation.Action != "create" || mutation.Step != 0 {
+	if mutation.Validate() != nil {
 		return empty, factoryservice.ErrCapturedIssueUnavailable
 	}
 	if err := s.currentSource(ctx, p, raw); err != nil {
@@ -108,8 +102,11 @@ func (s *nativeIssueEffects) ApplyIssueIntake(ctx context.Context, raw json.RawM
 	if account.identity.Account.ExternalID != p.Account || account.repository.ExternalID != p.Repository {
 		return empty, factoryservice.ErrCapturedIssueAuthority
 	}
-	key := sha256.Sum256([]byte("factory.native.issue-intake\x00" + string(p.Profile) + "\x00" + p.Scope.Source + "\x00" + strconv.Itoa(mutation.Slot)))
-	request := factory.HumanIssueCreateCommand{ID: hex.EncodeToString(key[:16]), Host: account.binding.Host.ID, Repository: p.Scope.Repository, Actor: p.Scope.Actor, Title: mutation.Title, Body: mutation.Body}
+	if mutation.Action == "refine" {
+		return s.refineIssue(ctx, p, raw, account, mutation)
+	}
+	request := s.createRequest(p, account, mutation.Slot)
+	request.Title, request.Body = mutation.Title, mutation.Body
 	writer := nativeHumanIssueCreates{account}
 	_, err = s.Store.HumanIssueCreateCapture(ctx, request)
 	if errors.Is(err, store.ErrNotFound) {
@@ -147,4 +144,9 @@ func (s *nativeIssueEffects) ApplyIssueIntake(ctx context.Context, raw json.RawM
 		return empty, err
 	}
 	return factory.IssueMakerReceipt{Issue: issue, Slot: mutation.Slot, Title: mutation.Title, BodyDigest: factory.MCPInputDigest([]byte(mutation.Body))}, nil
+}
+
+func (s *nativeIssueEffects) createRequest(p nativeIssueIntakeProof, account *nativeProductAccount, slot int) factory.HumanIssueCreateCommand {
+	key := sha256.Sum256([]byte("factory.native.issue-intake\x00" + string(p.Profile) + "\x00" + p.Scope.Source + "\x00" + strconv.Itoa(slot)))
+	return factory.HumanIssueCreateCommand{ID: hex.EncodeToString(key[:16]), Host: account.binding.Host.ID, Repository: p.Scope.Repository, Actor: p.Scope.Actor}
 }

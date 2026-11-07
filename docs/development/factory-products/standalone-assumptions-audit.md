@@ -69,6 +69,13 @@ The user started the correction goal and selected these requirements on
   Preserve routing, planning and other judgment prerequisites; no source may be
   chosen or charged automatically (A25).
 
+- On 2026-11-07, native graph generation may journal individual issue and
+  dependency writes and resume remaining steps. Preserve completed writes and
+  their original identities after partial failure; execution stays blocked until
+  the entire intended graph has been verified. This supersedes the inherited
+  all-or-nothing provider transaction requirement for that native journey.
+  The native graph implementation and recovery qualification remain pending.
+
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
 delivery modes are superseded by the full-pipeline decision above. Execution
@@ -199,9 +206,19 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fnative-request-create8.pqfkOs/result.log`: original writing,
   one issue, idempotent replay, restart readback and withdrawn-account refusal.
   Provider facts and the routing answer were declared; no model or real GitHub
-  request ran. Native conditional refinement remains unavailable and starts no
-  paid model. A25 connected inference/other consumers, source edits/expiry and unknown
-  creation recovery, connected and installed qualification remain open.
+  request ran. Native conditional refinement now uses that same captured connection and the
+  existing conditional-edit command. The original creation receipt pins the
+  eligible issue; slot/step pins each edit. Current capability/content preflight
+  precedes paid admission. Unexpected human content is held, and unknown
+  permission reads stay unavailable without an invented credential diagnosis.
+  `/home/vince/tmp/frefine11.C2v8LK/result.log` passed actual native/Go/PostgreSQL
+  conditional edit, repeated/restarted original-step reconciliation, refusal of
+  an unowned key, human-edit preservation and its truthful waiting state. The
+  provider and authoring were declared; no model or real GitHub write ran.
+  Additional created slots, concurrent edits during provider I/O, source
+  edits/expiry, unknown-send recovery and complete connected/installed authoring
+  and refinement remain unqualified. A25 inference and native graph generation
+  remain separate dependencies.
 
 - **A01/A11 — CLI-managed setup and admitted execution implemented; qualification pending.**
   Rust supplies a stable profile-scoped “This Muse login” reference, not a Meta

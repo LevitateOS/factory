@@ -301,7 +301,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             .to_owned();
         let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
         ensure(
-            std::process::Command::new(helper)
+            std::process::Command::new(&helper)
                 .arg(profile)
                 .arg(runtime.health()?.instance)
                 .arg("declare-request-route")
@@ -336,13 +336,22 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             settled["issue"].as_i64().is_some_and(|n| n > 0)
                 && settled["issue_maker"]["detail"]
                     .as_str()
-                    .is_some_and(|s| s.contains("AI refinement is unavailable")),
-            "unsupported refinement appeared executable or mislabeled authentication",
+                    .is_some_and(|s| !s.is_empty()),
+            "request refinement did not retain its actual prerequisite wait",
         )?;
         ensure(
             posts(&io)? == 1,
             "native request did not create exactly one issue",
         )?;
+        let refinement=std::env::var("SODA_NATIVE_CHECK_REQUEST_REFINEMENT").as_deref()==Ok("1");
+        let refine=|runtime:&NativeSupervisor,phase:&str| -> Result<()> {
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg(phase).arg(&post).status()?.success(),"native request refinement check failed")
+        };
+        if refinement {
+            refine(&runtime,"refine-native-request")?;
+            ensure(posts(&io)?==2,"request refinement replay duplicated its write")?;
+        }
+        let expected_writes=if refinement {2}else{1};
         let replay = call(
             &runtime,
             &store,
@@ -353,7 +362,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )
         .await?;
         ensure(
-            matches!(replay.0, 200 | 202) && replay.1["post_id"] == post && posts(&io)? == 1,
+            matches!(replay.0, 200 | 202) && replay.1["post_id"] == post && posts(&io)? == expected_writes,
             "native request replay duplicated its effect",
         )?;
         runtime.stop()?;
@@ -365,9 +374,22 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 && retained.1["issue"] == settled["issue"]
                 && retained.1["effect"] == "verified"
                 && retained.1["body"] == original
-                && posts(&io)? == 1,
+                && posts(&io)? == expected_writes,
             "native request restart lost its exact issue or replayed creation",
         )?;
+        if refinement {
+            refine(&runtime,"refine-native-request")?;
+            ensure(posts(&io)?==2,"retained refinement restart repeated its write")?;
+            let issue_path=format!("{base}/issues/{}",settled["issue"].as_i64().ok_or("created issue number absent")?);
+            let before=call(&runtime,&store,&connection,"GET",&issue_path,&[]).await?;
+            ensure(before.0==200 && before.1["title"]=="Refined request π" && before.1["body"]=="A declared refined task.\nKeep exact bytes 🍵.","refined issue lost exact content")?;
+            let human="Human-authored change: preserve this exact text 🍵.";
+            let body=serde_json::to_vec(&json!({"command_id":"e".repeat(32),"body":human,"expected":{"external_id":before.1["ref"]["external_id"],"title":before.1["title"],"body_digest":sha(before.1["body"].as_str().ok_or("issue body absent")?)}}))?;
+            completed(&call(&runtime,&store,&connection,"POST",&format!("{issue_path}/edits"),&body).await?,"committed")?;
+            refine(&runtime,"refine-native-request-blocked")?;
+            let after=call(&runtime,&store,&connection,"GET",&issue_path,&[]).await?;
+            ensure(after.0==200 && after.1["body"]==human && posts(&io)?==3,"refinement replaced human writing or sent another mutation")?;
+        }
         store.withdraw(&connection).await?;
         ensure(
             call(
@@ -380,17 +402,17 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             )
             .await
             .is_err()
-                && posts(&io)? == 1,
+                && posts(&io)? == if refinement {3}else{1},
             "withdrawn request account admitted another effect",
         )?;
         runtime.stop()?;
         fs::write(
             root.join("request-capture-result.json"),
             serde_json::to_vec_pretty(
-                &json!({"native_post":post,"issue":settled["issue"],"created_once":true,"replay":true,"restart":true,"withdrawal":true,"refinement":"unavailable_no_model","provider_facts":"declared","routing":"declared"}),
+                &json!({"native_post":post,"issue":settled["issue"],"created_once":true,"replay":true,"restart":true,"withdrawal":true,"refinement":if refinement {"conditional_edit_replay_human_change_refusal"}else{"prerequisite_wait"},"provider_facts":"declared","routing":"declared"}),
             )?,
         )?;
-        println!("PASS: native request captures its admitted account/source and creates exactly one issue through the real journal/connector; replay, restart and withdrawal preserve it; unsupported refinement waits without model spending. Provider facts and routing are declared; no connected or installed gate closed.");
+        println!("PASS: native request captures its admitted account/source and creates exactly one issue through the real journal/connector; replay, restart and withdrawal preserve it; conditional refinement checks are explicit in the result. Provider facts and authoring are declared; no model, connected or installed gate closed.");
         return Ok(());
     }
     let submit = format!("{base}/issues");

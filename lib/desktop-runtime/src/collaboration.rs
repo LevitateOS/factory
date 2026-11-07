@@ -509,6 +509,12 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    EditDiscussion {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        edit: DiscussionEdit,
+    },
     CreateIssue {
         command_id: String,
         digest: String,
@@ -551,6 +557,8 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::EditDiscussion { command_id, digest, not_after, edit }
+            if edit.subject == "issue" => Effect::EditDiscussion { command_id, digest, not_after, edit },
         BackgroundEffect::CreateIssue {
             command_id,
             digest,

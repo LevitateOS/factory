@@ -154,6 +154,13 @@ designation are implemented through the shared editor/API/workflow/native send
 checks. A04 records the declared native/browser evidence; connected foreign-
 author COMMENT, dedicated votes, human-veto preservation and full delivery remain
 unqualified. The full automated pipeline remains required.
+Native request refinement now uses its original creation receipt and captured
+account, the existing conditional edit and slot/step journal. A05/A21 records
+actual native replay/restart and human-edit preservation with declared authoring;
+paid/connected/installed refinement and concurrent-withdrawal proof remain open.
+The owner permits serial journaled native graph writes with resume, while
+requiring complete intended-graph verification before execution. Graph
+composition/recovery remains pending; this decision supplies no atomicity proof.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

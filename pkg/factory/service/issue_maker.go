@@ -125,10 +125,16 @@ func (s *IssueMaker) Drive(ctx context.Context, pipe factory.PostIntake, comment
 		return PostResponse(pipe), save("waiting", "The issue exists. Issue Maker is waiting for repository issue-write access.")
 	}
 	if err := s.Effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+		if errors.Is(err, ErrHumanEditBaseChanged) {
+			return PostResponse(pipe), save("waiting", "The issue changed after Factory's last write. Refinement is held to preserve the current content; submit a follow-up request to continue.")
+		}
 		if errors.Is(err, ErrCapturedIssueUnavailable) {
 			return PostResponse(pipe), save("waiting", "The issue exists. AI refinement is unavailable for this connection; no refinement run has started.")
 		}
-		return PostResponse(pipe), save("failed", "The issue exists. Its request-scoped write authorization expired before refinement; submit a follow-up request to continue.")
+		if errors.Is(err, ErrCapturedIssueAuthority) || errors.Is(err, ErrCapturedIssueSource) {
+			return PostResponse(pipe), save("failed", "The issue exists. Its request-scoped write authorization expired or the source changed before refinement; submit a follow-up request to continue.")
+		}
+		return PostResponse(pipe), save("waiting", "The issue exists. Current issue-write access could not be confirmed; no refinement run has started.")
 	}
 	if s.Transport == nil {
 		return PostResponse(pipe), save("waiting", "The initial issue exists. AI refinement is waiting for an available model account.")

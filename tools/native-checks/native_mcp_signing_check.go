@@ -1281,6 +1281,8 @@ func main() {
 		var err error
 		if os.Args[3] == "check-review-policy" {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
+			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "check-live-judgment" {
 			err = liveJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "orphan-judgment-result" {
@@ -5973,5 +5975,79 @@ func nativeReviewPolicyFixture(profile, instance, repository string) error {
 		return err
 	}
 	fmt.Println("PASS: actual Go/PostgreSQL/native dispatch refuses personal, withdrawn and replaced-identity queued votes before capture; explicit designation survives persistence, self votes stay comments, foreign-author inspection preserves its verdict; provider publication declared, no vote or merge qualification")
+	return nil
+}
+
+// Uses the same captured-source and conditional-edit owner as actual Issue Maker
+// work. Only authored content is declared; this starts no model or worker run.
+func nativeRequestRefinementFixture(profile, instance, post, phase string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	detail, err := db.FeedPost(ctx, post)
+	if err != nil {
+		return err
+	}
+	progress, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
+	if err != nil {
+		return err
+	}
+	effects := factoryruntime.NewNativeIssueEffects(factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}})
+	title, body := "Refined request π", "A declared refined task.\nKeep exact bytes 🍵."
+	if phase == "refine-native-request-blocked" {
+		if !errors.Is(effects.AuthorizeIssueMaker(ctx, progress.Scope), factoryservice.ErrHumanEditBaseChanged) {
+			return errors.New("human edit did not stop paid refinement admission")
+		}
+		if _, err = effects.Mutate(ctx, progress.Scope, "refine", "request", "Unwanted replacement", "Must not replace human writing.", "declared-after-human-edit"); err == nil {
+			return errors.New("refinement replaced changed human content")
+		}
+		if _, err = effects.Mutate(ctx, progress.Scope, "refine", "unowned", "Unowned issue", "Must not edit an unowned issue.", "declared-unowned-edit"); err == nil {
+			return errors.New("refinement admitted an issue without request ownership")
+		}
+		pipe, err := db.PostIntake(ctx, post)
+		if err != nil {
+			return err
+		}
+		if _, err = (&factoryservice.IssueMaker{Store: db, Effects: effects}).Drive(ctx, pipe, detail); err != nil {
+			return err
+		}
+		held, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
+		if err != nil || held.State != "waiting" || !strings.Contains(held.Detail, "preserve the current content") {
+			return errors.New("changed issue did not retain its truthful content-preservation wait")
+		}
+		fmt.Println("PASS: request refinement refuses human-edited base before paid admission and conditional submission; unowned issue key refused; no replacement or model")
+		return nil
+	}
+	if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+		return fmt.Errorf("native request refinement admission: %w", err)
+	}
+	for range 2 {
+		number, err := effects.Mutate(ctx, progress.Scope, "refine", "request", title, body, "declared-refinement")
+		if err != nil || number != progress.Scope.Issue {
+			return fmt.Errorf("native conditional refinement/replay: %w", err)
+		}
+	}
+	current, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, issue := range current.Issues {
+		if issue.Key == "request" && issue.Index == progress.Scope.Issue && issue.Title == title && issue.BodyDigest == factory.MCPInputDigest([]byte(body)) {
+			found = true
+		}
+	}
+	if !found {
+		return errors.New("native refinement lost exact scope or resulting body digest")
+	}
+	fmt.Println("PASS: actual native request-scoped conditional refinement and same-step replay retain the original creation identity and update the existing Issue Maker journal; authoring/provider facts declared, no model")
 	return nil
 }

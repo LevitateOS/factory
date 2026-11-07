@@ -30,10 +30,32 @@ with declared provider facts and routing. It closes no broad gate. Remaining:
 prove source edit/deletion/revocation/expiry and withdrawal during native I/O,
 unknown-send recovery without resending, and connected/installed admission. The
 source+slot command identity deliberately survives revisions; revised writing
-must not overwrite or replace an uncertain original command. Native conditional
-refinement is unavailable and launches no model; closing it requires an actual
-provider-supported conditional effect preserving concurrent human text. A25
-judgment source/funding and cancellation/restart proof is a separate dependency.
+must not overwrite or replace an uncertain original command. Native conditional refinement now uses the original request-scoped creation
+receipt, existing slot/step mutation journal and conditional-edit command. Files:
+`runtime/native_issue_{intake,refinement}.go`, `service/issue_maker.go` and Rust
+`desktop-runtime/src/collaboration.rs` (issue-only background edit selector).
+`/home/vince/tmp/frefine11.C2v8LK/result.log` passed the actual native/Go/PostgreSQL
+edit, replay/restart without duplicate effects, unowned-key refusal, human-edit
+base refusal before paid admission/submission and preserved remote text. Provider
+facts and authored output were declared; no model/real GitHub/installed proof.
+These are bounded content guards, not a provider atomic conditional-write fence.
+Remaining: connected effects, additional slots, concurrent human edits and source/
+account/permission withdrawal during I/O, expired/unknown/reserved edit recovery
+and full paid Issue Maker admission/settlement. The new background selector still
+needs actual-channel foreign-scope/withdrawal denial qualification. A25 source
+funding and full authoring are dependencies; no broad custody/auth/IPC gate closes.
+
+**Native graph partial writes — owner decision, implementation pending:**
+The owner permits individually journaled issue/dependency writes with resume,
+while blocking execution until the complete intended graph is verified. Existing
+`control/intent_generation{,_recovery}.go`, `factory/{graph_codec,graph_outcome}.go`
+and `runtime/native_server.go` need a native composition preserving original
+operation/account/source identities. Do not claim provider atomicity. Remaining
+proof: partial-step restart without duplicate writes, lost/unknown result holds,
+source/account/permission/accepted-plan withdrawal, human edit preservation,
+exact dependency traversal and complete-graph verification before acceptance or
+execution. Full generated-plan/workflow and authenticated connector journeys are
+the dependencies; no implementation or security proof is claimed by this decision.
 
 **A25 judgment spending selection:** `factory/grants.go`, `factory/sponsorship.go`
 and `factory/service/policies.go` under `pkg/` retain an explicit judgment

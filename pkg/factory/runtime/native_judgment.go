@@ -82,7 +82,7 @@ func (s NativeJudgments) ReconcilePostJudgments(ctx context.Context) {
 func (s NativeJudgments) JudgePost(ctx context.Context, input factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
 	chooser := nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: input.SourcePost.Record.Repository, subject: input.SourcePost.Record.ID + ":" + strconv.FormatInt(input.SourcePost.Record.Revision, 10), sourcePost: input.SourcePost.Record.ID, sourceRevision: input.SourcePost.Record.Revision}
 	chooser.admit = func(ctx context.Context) error {
-		effects := newNativeIssueEffects(NativeInputSource{s.NativeExecution})
+		effects := NewNativeIssueEffects(NativeInputSource{s.NativeExecution})
 		_, raw, err := effects.Grant(ctx, input.SourcePost.Record.ID, input.SourcePost.Record.Revision)
 		if err != nil {
 			return err
