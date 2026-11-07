@@ -128,6 +128,11 @@ source scope and shared Work now save that selection; A25 records actual native
 and browser configuration checks. Implement admitted inference and exact-source
 accounting before resuming dependent routing/planning;
 the full automated pipeline remains required.
+Native New request planning/exploration commands now share the admitted request
+service and existing coordinator. A05/A21 records the actual draft/preparation
+wait, stale-revision and missing-walkthrough check. This is transport/prerequisite
+proof only; funded inference, completed planning and native graph delivery still
+require their remaining dependencies.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

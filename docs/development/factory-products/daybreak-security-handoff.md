@@ -47,6 +47,16 @@ admission, bounded spend, withdrawal/cancellation, original-result recovery and
 no automatic replacement, including installed scope. No source is implicitly
 authorized by having Coding or Review permission.
 
+**A05/A21 native request-planning commands:** `runtime/native_product.go` and
+`service/request_progress.go` under `pkg/factory/` bind the existing request
+service/coordinator and distinguish an absent walkthrough. A05/A21 records
+the actual native draft/preparation-wait/stale-revision/missing-result check
+(`/home/vince/tmp/fnative-request-plan8.Ig3WGf/result.log`); provider permission
+was declared, with no inference, grant expansion or GitHub mutation. Remaining
+dependency: prove the prepared/funded owner-bound command and retained result
+through current stop/withdrawal/reconnect and installed admission. No full
+execution/IPC gate is closed by reaching a preparation wait.
+
 **A24 navigation scope:** the owner selected repository-local Feed. The optional
 `selectedRepository` in `frontend/factory/app/factory-app.ts` retains navigation
 independently of route shape; `frontend/desktop/product.ts` supplies its admitted

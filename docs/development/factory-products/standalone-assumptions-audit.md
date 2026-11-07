@@ -72,6 +72,18 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A05/A21 — native request-planning transport composed; full journey pending.**
+  Native requests now use the existing coordinator for planning, and their
+  exploration/walkthrough commands share the same admitted request service.
+  Graph generation remains unavailable while its graph port is absent. Reviewing
+  a draft with no planning attempt now reports missing walkthrough, rather than
+  a generic consultation failure. The actual native/Go/PostgreSQL check passed
+  in `/home/vince/tmp/fnative-request-plan8.Ig3WGf/result.log`: saved draft,
+  preparation wait, stale-revision refusal, absent-walkthrough refusal and no
+  fabricated run/provider mutation. GitHub write permission was declared; no
+  inference ran. Prepared/funded planning, successful Muse result encoding, A25
+  judgment inference, graph delivery and connected/installed proof remain open.
+
 - **A25 — explicit judgment configuration implemented; inference pending.**
   Policy `judgments` stores its own provider/model/account choice, separate from
   the two agent roles. The existing sponsorship allows an explicit

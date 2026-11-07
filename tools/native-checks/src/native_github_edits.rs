@@ -343,6 +343,41 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .ok_or("canonical repository absent")?
         .to_owned();
     let root_path = format!("/api/factory/collaboration/repositories/{repository}");
+    if std::env::var("SODA_NATIVE_CHECK_REQUEST_PLANNING").as_deref() == Ok("1") {
+        let intent = format!("d{}", "2".repeat(24));
+        let revision = format!("d{}", "1".repeat(24));
+        let draft = json!({"id":revision,"intent":intent,"repository":repository,
+            "objective":"Inspect this disposable request before planning.","state":"draft",
+            "max_issues":1,"planning_calls":1,"ideas":[],"tasks":[]});
+        let saved = call(&runtime, &store, &connection, "POST", "/api/factory/intents", &serde_json::to_vec(&draft)?).await?;
+        ensure(saved.0 == 201, &format!("native request draft refused: {} {}", saved.0, saved.1))?;
+        let base = format!("/api/factory/intents/{intent}");
+        let plan = call(&runtime, &store, &connection, "POST", &format!("{base}/plan"),
+            &serde_json::to_vec(&json!({"revision":revision,"operation":"propose_intent"}))?).await?;
+        ensure(plan.0 == 202 && plan.1["launched"] == false
+            && plan.1["waits"].as_array().is_some_and(|waits| !waits.is_empty()),
+            &format!("native planning did not reach its actual preparation gate: {} {}", plan.0, plan.1))?;
+        let stale = call(&runtime, &store, &connection, "POST", &format!("{base}/plan"),
+            &serde_json::to_vec(&json!({"revision":format!("d{}", "3".repeat(24)),"operation":"propose_intent"}))?).await?;
+        ensure(stale.0 == 412, "native planning bypassed the current request revision")?;
+        let review = call(&runtime, &store, &connection, "POST", &format!("{base}/plan/review"),
+            &serde_json::to_vec(&json!({"revision":revision}))?).await?;
+        ensure(review.0 == 409 && review.1["error"]["code"] == "walkthrough_unavailable",
+            &format!("native walkthrough review lost its missing result: {} {}", review.0, review.1))?;
+        let status = call(&runtime, &store, &connection, "GET", &format!("{base}/plan"), &[]).await?;
+        ensure(status.0 == 200 && status.1["state"] == "none" && status.1["revision"] == revision,
+            "an unfunded planning command fabricated a run")?;
+        ensure(posts(&io)? == 0 && !io.join("unexpected-request").exists(),
+            "native planning gate check sent an unexpected provider effect")?;
+        fs::write(root.join("request-planning-result.json"), serde_json::to_vec_pretty(&json!({
+            "draft":intent,"planning_wait":plan.1["waits"],"stale_revision_refused":true,
+            "walkthrough_missing":true,"model_requests":0,"github_mutations":0,
+            "provider_permissions":"declared push=true","installed":false}))?)?;
+        store.withdraw(&connection).await?;
+        runtime.stop()?;
+        println!("PASS: native draft planning reaches the real preparation gate, refuses stale revision and absent walkthrough, and records no model run or GitHub effect; provider permission declared, full planning remains pending");
+        return Ok(());
+    }
     if std::env::var("SODA_NATIVE_CHECK_READ_CAPABILITIES").as_deref() == Ok("1") {
         let coordinator_refusal =
             std::env::var("SODA_NATIVE_CHECK_COORDINATOR_REFUSAL").as_deref() == Ok("1");

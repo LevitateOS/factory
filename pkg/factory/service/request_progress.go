@@ -156,6 +156,9 @@ func (s RequestExploration) ReviewWalkthrough(ctx context.Context, actor collabo
 		return nil, err
 	}
 	attempt, err := s.Requests.Store.IntentPlanAttempt(ctx, head.Intent, head.ID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrPlanningWalkthroughUnavailable
+	}
 	if err != nil {
 		return nil, err
 	}
