@@ -128,6 +128,20 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 		if prep.Preparation.Requirements.ID != requirement || prep.Preparation.Approval.ID != approval {
 			continue
 		}
+		if prep.Native != nil {
+			// Stored readiness survives restart; it does not prove that this
+			// native owner can still use the protected workspace.
+			observer, available := deps.Host.(execution.PreparationObserver)
+			if !available {
+				continue
+			}
+			state, observeErr := observer.InspectWorkspacePreparation(ctx, prep.Address())
+			if observeErr != nil || state.ValidateFor(prep.Address()) != nil || !state.Ready || state.Stopped ||
+				state.Role != role || state.SourceCommit != prep.Preparation.SourceCommit || state.SetupDigest != prep.Preparation.SetupDigest {
+				continue
+			}
+			prep.State = state
+		}
 		plan.prep = prep
 		plan.requirement, plan.approval = requirement, approval
 		return nil, nil

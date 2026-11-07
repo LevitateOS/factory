@@ -2970,6 +2970,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			}
 		}
 		fmt.Println("PASS: actual coordinator settlement retains the recorded worker phase result and exact retired native resources")
+		if os.Getenv("SODA_NATIVE_CHECK_REVIEW_CHILD") == "1" && input.Tasks && input.ParentRun != "" {
+			if err := nativeReviewChildFixture(ctx, db, port, assignment, run); err != nil {
+				return err
+			}
+		}
 		return port.AcknowledgeSettledRuns(ctx)
 	}
 	if action == "check-admitted-native" {
@@ -3087,10 +3092,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
+	sponsoredRoles := []string{project.RoleCoder}
+	if os.Getenv("SODA_NATIVE_CHECK_REVIEW_CHILD") == "1" {
+		sponsoredRoles = append(sponsoredRoles, project.RoleReviewer)
+	}
 	for _, err := range []error{
 		db.SaveRepositoryPolicy(ctx, policy), db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: actor, MaxConcurrentRuns: 1}),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: repository, GrantedBy: actor, Active: true}),
-		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: []string{project.RoleCoder}, AllowanceMinutes: 5, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: sponsoredRoles, AllowanceMinutes: 5, Active: true}),
 	} {
 		if err != nil {
 			return err
@@ -3366,6 +3375,239 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 
 // Declared repository visibility; actual native keyring/owner observation,
 // canonical grant transaction and withdrawal after key removal.
+// Provider issue/PR facts are declared; preparation, workspace bytes, SQL
+// admission and the coordinator child producer are real. No model is called.
+type nativeReviewChildReads struct {
+	actor  int64
+	source string
+}
+
+type nativeReviewPreparationHost struct {
+	factoryruntime.NativeExecution
+	tool execution.ToolObservation
+}
+
+func (h nativeReviewPreparationHost) InspectTool(ctx context.Context, family string) (execution.ToolObservation, error) {
+	return h.tool, h.tool.ValidateFor(family)
+}
+func (h nativeReviewPreparationHost) NativeSourceAvailable(ctx context.Context, authentication string) (bool, error) {
+	return authentication == factory.NativeMuseLogin, ctx.Err()
+}
+func (h nativeReviewPreparationHost) PrepareWorkspaceCandidate(ctx context.Context, r execution.CandidatePreparationRequest) (execution.PreparationState, error) {
+	state, err := h.NativeExecution.PrepareWorkspaceCandidate(ctx, r)
+	if err != nil {
+		return state, err
+	}
+	return state, errors.New("local fixture stops after native preparation, before inference")
+}
+
+func (r nativeReviewChildReads) ReadAcceptanceEvidence(ctx context.Context, repository, issue string, comments []string) (control.AcceptanceEvidence, error) {
+	return control.AcceptanceEvidence{Revision: 1, Comments: []control.AcceptanceComment{}, Dependencies: []control.AcceptanceEdge{}, Issue: control.AcceptanceIssueView{ID: "19", Index: issue, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, PosterID: fmt.Sprint(r.actor), CreatedUnix: time.Now().Add(-time.Minute).Unix(), Visible: true, Verified: true}}, ctx.Err()
+}
+func (r nativeReviewChildReads) ReadDispatchInputs(ctx context.Context, repository, issue string, comments []string, target string) (control.DispatchInputs, error) {
+	return control.DispatchInputs{Revision: 1, Tip: r.source, TipRef: target, Comments: []control.DispatchComment{}, Issue: control.DispatchIssue{Title: "Native admitted execution fixture", Body: "positive-native-mcp-fixture", TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, Visible: true}}, ctx.Err()
+}
+
+func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, child factory.Assignment, run factory.Run) error {
+	owner, err := db.Assignment(ctx, child.PublicationAssignment)
+	if err != nil {
+		return err
+	}
+	source, err := db.Preparation(ctx, child.Preparation)
+	if err != nil {
+		return err
+	}
+	if source.Native == nil {
+		return errors.New("native review source has no captured owner")
+	}
+	if source.Native.InstanceID != port.Instance {
+		records, err := db.CandidatePreparations(ctx, owner.Repository, owner.ProjectID, owner.Issue, owner.AttemptRoot, "", 2, 0)
+		if err != nil {
+			return err
+		}
+		if len(records) != 1 {
+			return errors.New("retained review admission missing or ambiguous")
+		}
+		prepared := records[0].Preparation
+		if prepared.Native == nil || prepared.Native.InstanceID != source.Native.InstanceID || prepared.Native.Profile != source.Native.Profile || prepared.Native.WorktreeID != prepared.Preparation.ID || prepared.Preparation.Role != project.RoleReviewer || prepared.Preparation.SourceCommit != child.Result.Candidate || !prepared.State.Ready {
+			return errors.New("retained review admission differs from the original candidate/owner")
+		}
+		fmt.Println("PASS: retained reviewer admission keeps its original candidate and native owner; saved readiness only, no preparation replay or live-resource recovery proof")
+		return nil
+	}
+	var request execution.StandingPreparationRequest
+	entries, err := os.ReadDir(filepath.Join(port.Config.Directory, "native-preparations"))
+	if err != nil {
+		return err
+	}
+	matched := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		raw, e := os.ReadFile(filepath.Join(port.Config.Directory, "native-preparations", entry.Name(), "request.json"))
+		if e != nil {
+			return e
+		}
+		var saved execution.StandingPreparationRequest
+		if e = json.Unmarshal(raw, &saved); e != nil {
+			return e
+		}
+		if saved.Input.Preparation.ID == source.Preparation.ID {
+			request = saved
+			matched++
+		}
+	}
+	if matched != 1 {
+		return errors.New("exact retained source preparation request missing or ambiguous")
+	}
+	reviewer := source
+	reviewer.Preparation.ID, reviewer.Preparation.Revision, reviewer.Preparation.Role = "f"+factory.NewID()[:24], 0, project.RoleReviewer
+	reviewer.State = execution.PreparationState{}
+	ref := *source.Native
+	ref.InstanceID = port.Instance
+	ref.WorktreeID = reviewer.Preparation.ID
+	reviewer.Native = &ref
+	reviewer, _, err = db.AdmitStandingPreparation(ctx, reviewer)
+	if err != nil {
+		return err
+	}
+	request.Input.Preparation, request.Native = reviewer.Preparation, reviewer.Native
+	state, err := port.PrepareWorkspace(ctx, request)
+	for err == nil && !state.Ready && state.Phase == project.PrepareRunning {
+		time.Sleep(100 * time.Millisecond)
+		state, err = port.InspectWorkspacePreparation(ctx, reviewer.Address())
+	}
+	if err != nil {
+		return err
+	}
+	if !state.Ready {
+		return fmt.Errorf("reviewer standing setup: %s %s", state.Phase, state.Output)
+	}
+	reviewer.State = state
+	if err = db.ObservePreparation(ctx, reviewer); err != nil {
+		return err
+	}
+	target := factory.CheckTarget{Repository: owner.Repository, PRNumber: 41, PRID: 43, IssueID: 47, HeadRef: factory.PublishBranchName(owner.ID), BaseRef: "refs/heads/main", HeadOID: child.Result.Candidate, BaseOID: owner.SourceCommit}
+	p := declaredPublishedFixture(target, collaboration.ActorID(owner.ActorID), owner.ID, owner.Issue, owner.NativeRev, run.Deadline.Unix())
+	p.ProjectID, p.Acceptance, p.Preparation, p.Run, p.Authority = owner.ProjectID, owner.Acceptance, child.Preparation, run.ID, owner.Authority
+	prior, priorErr := db.PublicationByAssignment(ctx, owner.ID)
+	declared := priorErr == nil && prior.Stage == factory.PublicationPublished && prior.Run == run.ID && prior.Candidate == target.HeadOID && prior.PRNumber == target.PRNumber && prior.PRID == target.PRID && prior.Publish.Receipt == "declared publication fixture" && prior.PRCreate.Receipt == "declared publication fixture"
+	if declared {
+		p = prior
+	} else if priorErr == nil {
+		if prior.Stage != factory.PublicationOpen || prior.Run != run.ID || prior.Candidate != target.HeadOID || prior.Publish.Attempts != 0 || prior.PRCreate.Attempts != 0 || prior.Publish.Work != nil || prior.PRCreate.Work != nil {
+			return errors.New("existing publication has driven work; preserve its original journal")
+		}
+		p.ID, p.Revision = prior.ID, prior.Revision
+		before, e := json.Marshal(prior)
+		if e != nil {
+			return e
+		}
+		file, e := os.OpenFile(filepath.Join(port.Config.Directory, "review-child-publication-before.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		if e != nil {
+			return e
+		}
+		_, e = file.Write(before)
+		closeErr := file.Close()
+		if e != nil {
+			return e
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	} else if !errors.Is(priorErr, store.ErrNotFound) {
+		return priorErr
+	}
+	if err = p.Validate(); err != nil {
+		return err
+	}
+	conn, err := sql.Open("pgx", port.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	if declared {
+		// Resume the same declared provider boundary without replacing its
+		// subsequently admitted child/cycle history.
+	} else if priorErr == nil {
+		var changed sql.Result
+		changed, err = conn.ExecContext(ctx, `UPDATE factory_publications SET stage=$2,data=$3 WHERE assignment=$1 AND revision=$4`, p.AssignmentID, p.Stage, string(raw), prior.Revision)
+		if err == nil {
+			var count int64
+			count, err = changed.RowsAffected()
+			if err == nil && count != 1 {
+				err = errors.New("publication changed before the declared fixture boundary")
+			}
+		}
+	} else {
+		_, err = conn.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, p.AssignmentID, p.Repository, p.Issue, p.Run, p.Stage, string(raw))
+	}
+	if err != nil {
+		return err
+	}
+	currentTool := run.Native.Tool
+	toolBytes, err := os.ReadFile(currentTool.Executable)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(toolBytes)
+	currentTool.SHA256 = hex.EncodeToString(sum[:])
+	host := nativeReviewPreparationHost{NativeExecution: port, tool: execution.ToolObservation{Kind: collaboration.Native, Native: &currentTool}}
+	c := control.NewCoordinator(db, host, port)
+	c.MCPSecret = factoryruntime.NativeMCPSecretDeriver(port.Config, port.Instance)
+	c.AcceptanceReads, c.DispatchReads = nativeReviewChildReads{owner.ActorID, owner.SourceCommit}, nativeReviewChildReads{owner.ActorID, owner.SourceCommit}
+	c.Publication = factoryruntime.NativePublication{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: port}}
+	c.Reviews = factoryruntime.NativeReviews{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: port}}
+	report := c.PublishPass(ctx)
+	if len(report.Errors) != 0 || len(report.Fenced) != 0 {
+		return fmt.Errorf("native child producer: %+v", report)
+	}
+	var id string
+	if err = conn.QueryRowContext(ctx, `SELECT id FROM project_preparations WHERE data#>>'{factory_admission,publication_id}'=$1`, p.ID).Scan(&id); err != nil {
+		return fmt.Errorf("native child admission absent: %+v: %w", report, err)
+	}
+	prepared, err := db.CandidatePreparation(ctx, id)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Recorded review preparation: current_native_owner=%t phase=%s\n", prepared.Preparation.Native != nil && prepared.Preparation.Native.InstanceID == port.Instance, prepared.Preparation.State.Phase)
+	for !prepared.Preparation.State.Ready {
+		state, err = port.InspectWorkspacePreparation(ctx, prepared.Preparation.Address())
+		if err != nil {
+			return fmt.Errorf("native review candidate inspection: %w", err)
+		}
+		if state.Phase != project.PrepareRunning && !state.Ready {
+			return fmt.Errorf("native review candidate: %s %s", state.Phase, state.Output)
+		}
+		if state.Ready {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+	}
+	prepared.Preparation.State = state
+	if err = db.ObservePreparation(ctx, prepared.Preparation); err != nil {
+		return err
+	}
+	prepared, err = db.CandidatePreparation(ctx, id)
+	if err != nil {
+		return err
+	}
+	n := prepared.Preparation.Native
+	if n == nil || n.Profile != port.Config.Profile || n.InstanceID != port.Instance || n.WorktreeID != id || prepared.Preparation.Preparation.Role != project.RoleReviewer || !prepared.Preparation.State.Ready || prepared.Preparation.Preparation.SourceCommit != target.HeadOID {
+		return errors.New("coordinator did not admit the exact native review candidate")
+	}
+	fmt.Println("PASS: Go publication child producer admits and prepares the actual native candidate for an independent reviewer; provider publication and authority facts declared, no model/complete review")
+	return nil
+}
+
 func nativeSponsorshipFixture(profile, instance, connection string, active bool) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
@@ -4567,7 +4809,8 @@ func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessa
 func workerMCPCallID(client *http.Client, tool string, payload any, operationID string) (json.RawMessage, error) {
 	arguments := map[string]any{"payload": payload}
 	if operationID != "" {
-		arguments["submission_id"] = operationID
+		sum := sha256.Sum256([]byte("native-integration:" + operationID))
+		arguments["submission_id"] = hex.EncodeToString(sum[:16])
 	}
 	encoded, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": arguments}})
 	if err != nil {

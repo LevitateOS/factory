@@ -374,7 +374,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 	if role == project.RoleReviewer {
 		prep, ready, prepErr := c.prepareReviewCandidate(ctx, p, owner, plan, report, expectedPrepID, childID)
 		if prepErr != nil {
-			publicationWait(report, p.ID, "review_preparation_unavailable")
+			report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "review_preparation_unavailable", Detail: prepErr.Error()})
 			return nil, "", execution.PreparationRecord{}, true
 		}
 		if !ready {
@@ -782,9 +782,6 @@ func (c *Coordinator) currentChildCheckAssessment(ctx context.Context, p factory
 }
 
 func buildReviewCandidatePrep(plan *attemptPlan, p factory.Publication, expectedPrepID string) (source, prep project.Preparation, err error) {
-	if plan.prep.Native != nil {
-		return source, prep, errors.New("native preparation requires native review admission")
-	}
 	source = plan.prep.Preparation
 	prep = project.Preparation{
 		ID: expectedPrepID, Project: p.ProjectID, Role: project.RoleReviewer,
@@ -809,7 +806,13 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 		Authority: plan.effective.Authority, GateRevision: plan.gateRev, Control: plan.control,
 		RequestedNotAfter: requested,
 	}
-	storedRecord, created, err := c.Store.AdmitCandidatePreparation(ctx, execution.PreparationRecord{Preparation: prep}, registration)
+	record := execution.PreparationRecord{Preparation: prep}
+	if plan.prep.Native != nil {
+		ref := *plan.prep.Native
+		ref.WorktreeID = prep.ID
+		record.Native = &ref
+	}
+	storedRecord, created, err := c.Store.AdmitCandidatePreparation(ctx, record, registration)
 	if err != nil {
 		// A changed control, lost capacity race or unavailable Store admits
 		// nothing. The same owner retries; only a proved identity conflict

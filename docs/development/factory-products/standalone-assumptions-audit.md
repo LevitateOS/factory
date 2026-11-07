@@ -780,6 +780,19 @@ corrections are now active; the old feature queue waits for their resolution.
   review phase ran. Historical receipts without this observation remain readable
   and seed no fabricated tuple. Base movement/retarget races and installed review
   qualification remain open.
+  The publication child producer now admits the independent review candidate
+  through the existing native preparation owner. Standing workspace selection
+  observes current native readiness; admission compares empty readiness maps and
+  slices by contents across JSON persistence, retaining scalar authority checks.
+  Actual local Builder execution/settlement and reviewer candidate setup passed
+  in `/home/vince/tmp/fnative-review-admission7.ZgUPDO/result.log`, with declared
+  provider publication/authority/tool prerequisites and no reviewer inference.
+  The subsequent fixture restart incorrectly attempted new preparation under
+  another native owner and fenced the publication. That fence is preserved.
+  Corrected readback in `retained-readback.log` passed without replay, proving
+  only the recorded original admission, not live workspace recovery. Reviewer
+  inference/settlement, its resource retirement/recovery and complete automatic
+  phase advancement remain unqualified; no broad gate closes.
   Go recovery now uses the executor's explicit `ReviewRecovery` guarantee;
   generic lookup absence never authorizes resubmission. Native recovery reuses
   the existing command reservation and frozen unexpired work. A missing branch

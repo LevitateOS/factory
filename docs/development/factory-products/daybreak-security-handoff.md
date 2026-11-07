@@ -344,6 +344,39 @@ and lost-reply dependencies below remain open; the new fact supplies no atomic
 head/base condition or broader authority proof. Keep the declared reserved
 operation in this fixture fenced; it is not evidence of an actual provider send.
 
+Native reviewer preparation update (2026-11-07):
+`control/{publication_children,dispatch_selection}.go` now captures native custody
+in the candidate admission and observes standing readiness before selection;
+`store/factory_candidate_preparations.go` compares readiness collection contents
+across JSON persistence, preserving scalar authority/deadline comparisons. The
+existing native check proved actual completed Builder settlement and isolated
+reviewer candidate setup under the current owner in
+`/home/vince/tmp/fnative-review-admission7.ZgUPDO/result.log`. Publication,
+authority and tool/source availability were declared; no reviewer model or
+GitHub effect ran. The subsequent fixture restart attempted another preparation
+for the same child under a new owner and fenced publication
+`78e507a942ef831261d540b57699ad84`. Preserve that fence. The corrected check's
+`retained-readback.log` passed original admission readback without replay; it
+proves saved readiness, not live preparation recovery or canonical retirement.
+
+Exact blocker: a captured candidate preparation cannot be rebound to a later
+runtime. Owner-matched native observation/retirement evidence and canonical
+acknowledgement are needed before recovery can close. Relevant owners are
+`runtime/native_preparation.go`, `control/publication_children.go`,
+`store/factory_candidate_preparations.go` and
+`lib/desktop-runtime/src/factory_provider/preparations.rs`. Also preserve the
+old-owner candidate admission behind publication
+`94a0a5b5a54decf2197fbcae10aee47b` in
+`/home/vince/tmp/fnative-review-child-ids7.OF3PML`; `recovery-scope-result.log`
+proved its owner differed and inspection refused. Its native effect/retirement
+remains unverified. No namespace, deadline or no-effect outcome was invented.
+The false admission-conflict fixtures in `fnative-review-current7.8JwXBf` and
+`fnative-review-diagnostic7.oHR7Ln` remain fenced; their logs retain the failures.
+The earlier dummy-schema failure in `fnative-review-child7.lucggA`, run
+`fe33eb7453bb72df0efe2ab0db88be55`, retains terminal process/root facts but lacks
+verified canonical failure/usage settlement; close that dependency only from its
+original receipt and SQL records, without replay. No broad gate closes here.
+
 Exact remaining dependencies/evidence: prove actual settled reviewer/workflow and
 publication registration through the coordinator, then native publication/merge
 and current provider rules. Controlled interruption before send is now proved:

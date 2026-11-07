@@ -732,6 +732,14 @@ func samePreparationIdentity(left, right execution.PreparationRecord) bool {
 }
 
 func sameCandidatePreparationAdmission(left, right candidatePreparationRegistration, preserveDeadline bool) bool {
+	// JSON omits empty readiness collections. Compare their contents before
+	// comparing the remaining captured admission, including its scalar fields.
+	if !sameControlOutcome(left.Control, right.Control) {
+		return false
+	}
+	left.Control.Blockers, right.Control.Blockers = nil, nil
+	left.Control.EndpointHeads, right.Control.EndpointHeads = nil, nil
+	left.Control.Satisfied, right.Control.Satisfied = nil, nil
 	if preserveDeadline {
 		left.NotAfter = 0
 		right.NotAfter = 0

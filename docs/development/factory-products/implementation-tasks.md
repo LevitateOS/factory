@@ -62,6 +62,14 @@ completed receipt without resending the review. Actual distinct head/base/ancest
 tuple recovery and retained restart/withdrawal passed in A04/A07/A21. Actual
 workflow/model review and automatic dispatch/phase advancement through publication
 and merge remain dependencies.
+The publication child producer now admits native reviewer preparations with their
+captured native owner, observes standing workspace readiness before selection,
+and compares readiness collections consistently across JSON persistence. Actual
+Builder settlement and independent reviewer candidate preparation passed in
+`/home/vince/tmp/fnative-review-admission7.ZgUPDO/result.log`. Its later fixture
+restart failed by attempting another preparation; corrected retained readback
+passed in `retained-readback.log` without replay. A04/A07/A21 and the security
+handoff record the preserved fence and exact remaining recovery limitations.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.
