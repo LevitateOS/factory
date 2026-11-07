@@ -793,6 +793,9 @@ corrections are now active; the old feature queue waits for their resolution.
   only the recorded original admission, not live workspace recovery. Reviewer
   inference/settlement, its resource retirement/recovery and complete automatic
   phase advancement remain unqualified; no broad gate closes.
+  The child launch plan now uses that candidate preparation for native packet
+  capture instead of the standing reviewer source. Go build passed; actual
+  reviewer dispatch/launch remains unqualified by the preparation-only check.
   Go recovery now uses the executor's explicit `ReviewRecovery` guarantee;
   generic lookup absence never authorizes resubmission. Native recovery reuses
   the existing command reservation and frozen unexpired work. A missing branch

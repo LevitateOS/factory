@@ -391,6 +391,7 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 			publicationWait(report, p.ID, "review_preparation_unavailable")
 			return nil, "", execution.PreparationRecord{}, true
 		}
+		plan.prep = contextPreparation
 	}
 	return plan, preparationID, contextPreparation, false
 }
