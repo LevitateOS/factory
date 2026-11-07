@@ -317,6 +317,12 @@ corrections are now active; the old feature queue waits for their resolution.
   restart in `/home/vince/tmp/fnative-output-ready8.tee1ye/result.log`. The
   original real readiness-race run remains failed, accounted and retired without
   replay; the handoff retains its exact identity. Live requalification is pending.
+  The latest post-fix attempt under
+  `/home/vince/tmp/fmuse-ready-admission8.z4gCPL/` again supplied string-valued
+  planning payloads. `recovery.log` proves the original needs-human result,
+  retirement and accounting without replay. The encoding mismatch's origin
+  remains unverified; strict validation stays in place. This journey is pending,
+  and does not block independent product implementation.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

@@ -593,6 +593,19 @@ recording, using the existing canonical receipt owner. The local journey passed
 refusal then normal completion/settlement/restart in
 `/home/vince/tmp/fnative-output-ready8.tee1ye/result.log`. This proves neither
 interrupted publication nor live/installed confinement; those gates stay open.
+Latest post-fix planning run `518ab9643f2a381dd81b4814df003979` under
+`/home/vince/tmp/fmuse-ready-admission8.z4gCPL/` again supplied a string where
+the finish schema requires an object. No terminal proposal was recorded;
+`recovery.log` proves its original needs-human result, consumed reservation,
+exact stop-based usage and process/root retirement without replay. No GitHub
+write or saved credential change ran. The encoding mismatch's origin remains
+unverified. Relevant boundary files are `mcpwire/{contract,role_schema,plan_schema}.go`,
+`service/worker_results.go` and desktop `factory_provider/{mcp,muse_attempt}.rs`.
+Remaining dependency: supported, correctly typed calls from the selected Muse
+source. Closure needs an accepted typed plan, public Builder advancement,
+accepted implementation with exact final checks/candidate, accounting/retirement
+and retained restart proof after these fixes. Keep this journey pending; do not
+weaken schema validation, infer a finish from final text or switch sources.
 The token task source has no composed task owner and remains unavailable.
 Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
 `{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,

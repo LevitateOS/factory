@@ -112,6 +112,12 @@ integration, settlement and restart in
 readiness-race run failed and was accounted/retired without replay; its original
 proposal remains preserved. Tool guidance now explains readiness and automatic
 submission identities. Real Muse completion after these corrections is pending.
+Latest post-fix attempt: `/home/vince/tmp/fmuse-ready-admission8.z4gCPL/result.log`
+was refused because planning supplied a string-valued payload instead of an
+object. `recovery.log` proves its original needs-human result, retirement and
+accounting without replay. The source of that encoding mismatch is unverified;
+do not weaken validation or infer completion from the model's final text.
+Independent product work can continue while this provider journey stays pending.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.
