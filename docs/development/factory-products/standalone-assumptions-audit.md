@@ -112,8 +112,16 @@ corrections are now active; the old feature queue waits for their resolution.
   deleted-source settlement without adoption, command/usage replay and
   withdrawn/unselected-source refusal. Tool admission and provider answers were
   declared; no actual Muse inference, authentication or GitHub mutation ran.
-  Official-tool start/subscription inference, active withdrawal/source revision
-  races, abrupt-crash recovery and installed qualification remain open.
+  One real tool-free judgment now passed through the production private begin
+  callback using the current official Muse tool and existing login, with no new
+  sign-in or credential copying:
+  `/home/vince/tmp/fmuse-live-judgment9.rdMEBZ/result.log`. The disposable README
+  received a typed discussion answer, actual retired-process usage charged its
+  captured source, and the original result/charge survived a supervisor restart
+  without another inference. Local repository/owner authority was declared; this
+  does not qualify Feed account admission, complete planning, worker execution or
+  installed behavior. Active withdrawal/source revision races, abrupt-crash
+  recovery and those remaining journeys stay open.
   Planning/advice and worker context-bundle selection now pass their canonical
   repository to this same native owner. Fixed server chooser implementations
   retain their existing interface; unscoped native calls refuse funding.

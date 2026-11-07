@@ -1279,7 +1279,9 @@ func main() {
 	}
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "orphan-judgment-result" {
+		if os.Args[3] == "check-live-judgment" {
+			err = liveJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "orphan-judgment-result" {
 			err = orphanJudgmentFixture(os.Args[1], os.Args[4])
 		} else if os.Args[3] == "prepare-judgment-result" || os.Args[3] == "check-judgment-result" {
 			err = judgmentResultFixture(os.Args[1], os.Args[4], os.Args[3] == "prepare-judgment-result")
@@ -4322,7 +4324,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		// prove Go retry/publication authority; its normal missing-row refusal ran above.
 		payload := map[string]any{"operation": "candidate", "request": derived, "source": request.Address()}
 		var observed execution.PreparationState
-		if err = declaredNativePreparation(ctx, config, instance, payload, &observed); err != nil {
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", payload, &observed); err != nil {
 			return err
 		}
 		for !observed.Ready {
@@ -4330,19 +4332,19 @@ func nativePreparationFixture(profile, instance, mode string) error {
 				return fmt.Errorf("native candidate preparation: %s %s", observed.Phase, observed.Output)
 			}
 			time.Sleep(30 * time.Millisecond)
-			if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "inspect", "address": derived.Address()}, &observed); err != nil {
+			if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "inspect", "address": derived.Address()}, &observed); err != nil {
 				return err
 			}
 		}
 		if observed.SourceCommit != candidate.SourceCommit || observed.SetupDigest != candidate.SetupDigest || observed.SourceBundleSHA256 == state.SourceBundleSHA256 || !strings.Contains(observed.Output, candidate.SourceCommit) || !strings.Contains(observed.Output, candidateText) {
 			return errors.New("candidate setup/check did not observe the imported source")
 		}
-		if err = declaredNativePreparation(ctx, config, instance, payload, &observed); err != nil {
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", payload, &observed); err != nil {
 			return err
 		}
 		contextRequest := execution.PreparationContextRequest{Native: &owner, Role: candidate.Role, Input: project.FactoryPreparationContextRequest{Project: candidate.Project, ID: candidate.ID, SourceCommit: candidate.SourceCommit, ApprovedBase: source, DiffBase: source, Candidate: candidate.SourceCommit, Paths: []string{candidatePath}, NotAfter: time.Now().Add(10 * time.Second)}}
 		var material execution.PreparationContext
-		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "context", "request": contextRequest}, &material); err != nil {
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "context", "request": contextRequest}, &material); err != nil {
 			return err
 		}
 		if err = material.ValidateFor(contextRequest); err != nil {
@@ -4360,7 +4362,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if !found {
 			return errors.New("prepared candidate context lost its actual file contents")
 		}
-		if err = declaredNativePreparation(ctx, config, instance, map[string]any{"operation": "retire", "address": derived.Address()}, &observed); err != nil {
+		if err = nativeFixtureCall(ctx, config, instance, "/api/native/preparation", map[string]any{"operation": "retire", "address": derived.Address()}, &observed); err != nil {
 			return err
 		}
 		if !observed.Stopped || observed.Retirement != "confirmed" {
@@ -4538,7 +4540,7 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 	return nil
 }
 
-func declaredNativePreparation(ctx context.Context, config factoryruntime.NativeConfig, instance string, payload, result any) error {
+func nativeFixtureCall(ctx context.Context, config factoryruntime.NativeConfig, instance, route string, payload, result any) error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -4547,7 +4549,7 @@ func declaredNativePreparation(ctx context.Context, config factoryruntime.Native
 		return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(config.Directory, "host.sock"))
 	}, DisableKeepAlives: true}
 	defer transport.CloseIdleConnections()
-	request, err := http.NewRequestWithContext(ctx, "POST", "http://soda-native/api/native/preparation", strings.NewReader(string(body)))
+	request, err := http.NewRequestWithContext(ctx, "POST", "http://soda-native"+route, strings.NewReader(string(body)))
 	if err != nil {
 		return err
 	}
@@ -4560,12 +4562,142 @@ func declaredNativePreparation(ctx context.Context, config factoryruntime.Native
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("declared native preparation callback status %d", response.StatusCode)
+		return fmt.Errorf("native fixture callback status %d", response.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(response.Body, 2*1024*1024)).Decode(result)
 }
 
 type declaredPostRouting struct{}
+
+// One paid, tool-free disposable README judgment. This uses the real native
+// begin port and CLI login; only the local repository/owner authority is declared.
+func liveJudgmentFixture(profile, instance, phase string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	path := filepath.Join(profile, "live-judgment-capture.json")
+	var capture factory.NativeJudgmentCapture
+	if phase == "start" {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			return errors.New("original live judgment must not be replaced")
+		}
+		if err := db.InitializeEmptyCollaborationLedger(ctx); err != nil {
+			return err
+		}
+		host, err := db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+		if err != nil {
+			return err
+		}
+		repo, err := db.ObserveCollaborationRepository(ctx, host.ID, "disposable-readme", "fixture/disposable-readme")
+		if err != nil {
+			return err
+		}
+		actor, err := db.ObserveCollaborationActor(ctx, host.ID, "declared-local-owner", "declared-local-owner")
+		if err != nil {
+			return err
+		}
+		source, err := port.MuseLoginSource(ctx)
+		if err != nil || !source.JudgmentAvailable {
+			return fmt.Errorf("live judgment source unavailable: %v", err)
+		}
+		tool, err := port.InspectTool(ctx, project.FactoryHarnessMuse)
+		if err != nil || tool.Native == nil {
+			return fmt.Errorf("official judgment tool unavailable: %v", err)
+		}
+		selection := factory.RoleSelection{Account: source.Connection, Harness: project.FactoryHarnessMuse, Model: "muse-spark-1.3-contributor", Profile: factory.ExecutionProfile{Effort: "low", Contributor: true}}
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{Kind: kind, ActorID: int64(actor.ID), NativeProfile: config.Profile, NativeConnection: collaboration.ConnectionID(factory.NewID())}
+		}
+		policy := factory.RepositoryPolicy{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), TargetBranch: "refs/heads/main", MergeMethod: "merge", Checks: []string{"fixture/check"}, ReassessmentMinutes: factory.DefaultReassessmentMinutes, AttemptLimits: factory.DefaultAttemptLimits(), Judgments: &selection, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge)}
+		if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
+		grant := factory.Sponsorship{Repository: int64(repo.ID), GrantedBy: int64(actor.ID), ActorID: int64(actor.ID), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 1, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}
+		if err := db.SaveSponsorship(ctx, grant); err != nil {
+			return err
+		}
+		prompt, err := factory.NativeJudgmentPrompt(map[string]any{"readme": "This disposable project prints hello."}, "The supplied README contains no requested change. Select its appropriate discussion or new issue route.", map[string]any{"discussion": "Discuss the supplied fact without inventing requested work.", "new_issue": "There is an explicit change request to turn into an issue."})
+		if err != nil {
+			return err
+		}
+		capture = factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, int64(repo.ID), "live-disposable-readme"), Profile: config.Profile, Repository: int64(repo.ID), Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OptionsSHA256: factory.NativeJudgmentOptionsDigest([]string{"discussion", "new_issue"}), ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		command, fresh, err := db.BeginNativeJudgment(ctx, capture)
+		if err != nil || !fresh {
+			return fmt.Errorf("live judgment admission: %v fresh=%v", err, fresh)
+		}
+		raw, _ := json.Marshal(capture)
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			return err
+		}
+		var reply json.RawMessage
+		err = nativeFixtureCall(ctx, config, instance, "/api/native/execution", map[string]any{"operation": "begin_judgment", "request": map[string]any{"id": capture.ID, "digest": command.Digest, "connection": selection.Account, "tool_version": capture.ToolVersion, "tool_sha256": capture.ToolSHA256, "prompt_sha256": capture.PromptSHA256, "harness": map[string]any{"model": selection.Model, "effort": "low", "contributor": true}, "deadline_unix_ms": capture.DeadlineUnixMS, "prompt": prompt}}, &reply)
+		if err != nil {
+			fmt.Println("Live start reply unavailable; reconciling only the original command, never resending")
+		}
+	} else if phase == "restart" {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(raw, &capture); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("unknown live judgment phase")
+	}
+	for {
+		(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcilePostJudgments(ctx)
+		command, err := db.FactoryCommand(ctx, capture.ID)
+		if err != nil {
+			return err
+		}
+		if command.Finished != "" {
+			var outcome struct {
+				Answer *factory.PriorityAnswer `json:"answer"`
+			}
+			if json.Unmarshal([]byte(command.Outcome), &outcome) != nil || outcome.Answer == nil {
+				return errors.New("live judgment retired without an accepted typed answer; original result and usage retained")
+			}
+			request := factory.PriorityRequest{Candidates: []factory.PriorityCandidate{{ID: "discussion"}, {ID: "new_issue"}}}
+			if err := outcome.Answer.Validate(request); err != nil {
+				return err
+			}
+			usage, err := db.RunUsage(ctx, capture.ID)
+			if err != nil || usage.Validate() != nil || usage.Connection != capture.Selection.Account || outcome.Answer.Model != capture.Selection.Model {
+				return errors.New("live judgment lost its original model/source accounting")
+			}
+			var retained struct {
+				State  string `json:"state"`
+				Result struct {
+					ID     string `json:"id"`
+					Digest string `json:"digest"`
+				} `json:"result"`
+			}
+			if err := nativeFixtureCall(ctx, config, instance, "/api/native/execution", map[string]any{"operation": "inspect_judgment", "id": capture.ID, "digest": command.Digest, "cancel": false}, &retained); err != nil {
+				return err
+			}
+			if retained.State != "complete" || retained.Result.ID != capture.ID || retained.Result.Digest != command.Digest {
+				return errors.New("live native judgment lost retained original evidence")
+			}
+			fmt.Println("PASS: live official-tool judgment", phase, "typed answer", outcome.Answer.Selected, "and exact-source charge retained; no new login, GitHub action or worker qualification")
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
 
 func orphanJudgmentFixture(profile, post string) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))

@@ -127,8 +127,12 @@ judgments (A25); a separate TypeSafe/JEV service is no longer required. Policy,
 source scope and shared Work now save that selection. Native Feed assessment now
 uses the existing finite Muse process owner, command journal and exact-source
 usage ledger. A25 records configuration and joined local process/IPC/routing/
-accounting/deleted-source checks with declared tool/provider facts. Actual
-subscription inference remains pending. Planning/advice and worker context-bundle
+accounting/deleted-source checks with declared tool/provider facts. One real
+tool-free judgment through the production native begin callback and existing
+Muse login now passed with typed output, actual source accounting and retained
+readback after supervisor restart (A25); repository/owner authority was declared.
+Full caller admission/planning/worker/installed journeys remain pending.
+Planning/advice and worker context-bundle
 selection now use explicit repository scope on that owner; A25 records the local
 scoped-advice receipt check and its declared-input limits. Complete planning and
 worker context journeys still need qualification. Worker consultation primitives

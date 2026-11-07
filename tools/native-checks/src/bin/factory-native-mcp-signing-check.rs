@@ -54,6 +54,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("PASS: actual standalone startup/restart omits application hosting and retains product storage; retained shared migration preserves rows and hosting verification");
         return Ok(());
     }
+    if args.len() == 5 && args[4] == "judgment-live" {
+        let profile=root.join("judgment-profile");
+        for phase in ["start","restart"] {
+            let supervisor=NativeSupervisor::start(Path::new(&args[1]),Path::new(&args[2]),&profile)?;
+            let ready=supervisor.health()?;
+            if phase=="start" && !Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-owned-tool").arg("discovery").status()?.success() { return Err("official judgment tool unavailable".into()); }
+            let checked=Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-live-judgment").arg(phase).status()?;
+            supervisor.stop()?;
+            if !checked.success() { return Err("live judgment check failed; original command retained, no inference replay".into()); }
+        }
+        println!("PASS: one live official-tool judgment through production private callback, exact-source accounting and retained readback across supervisor restart; repository authority declared, no GitHub writes or worker gate proof");
+        return Ok(());
+    }
     if args.len() == 3 && matches!(args[2].as_str(), "muse-connector" | "muse-login") {
         return muse_connector(&root, Path::new(&args[1]), args[2] == "muse-login");
     }

@@ -569,8 +569,11 @@ that source in one three-question batch per currently admitted role, with source
 allowance preflight and the existing claim/settlement rules. Unavailable sources
 leave assessments unclaimed. Queue and delivery consumers remain unavailable
 until composed. Local fixture checks do not qualify complete planning/context,
-authenticated worker consultations/contributions or connected/installed
-subscription inference.
+authenticated worker consultations/contributions or installed execution. A
+separate live check proved one tool-free official Muse call through the private
+native begin callback, existing-login reuse and original-source accounting/
+retained readback. Its repository/owner authority was declared, so it does not
+qualify the complete connected caller journeys.
 
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and

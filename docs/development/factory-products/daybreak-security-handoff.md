@@ -57,10 +57,19 @@ cancellation/retirement passed in
 `/home/vince/tmp/fnative-judgment-call9.4ge99z/result.log`. No real model, saved
 authentication change or GitHub mutation ran; no broad gate is closed.
 
-Remaining A25 evidence: prove an official-current-tool start through the actual
-private callback and existing Muse subscription, retaining its original answer,
-process/retirement evidence and exact-source charge. Exercise withdrawal and
-source deletion/revocation/revision while active, including pre-start/completion
+A25 live start evidence now passed in
+`/home/vince/tmp/fmuse-live-judgment9.rdMEBZ/result.log`: actual current official
+Muse selection, production private begin callback, one tool-free disposable
+README inference using the existing login, typed Go adoption, retired-process
+usage on the original source and retained result/accounting after supervisor
+restart without replay. Local repository/owner authority was declared; no
+GitHub action, worker, new sign-in or credential copying was involved. This
+proves the start/inference/accounting path, not full caller or installed admission.
+The retained request/result/output, process binding and capture are under that
+root’s `judgment-profile/`; keep this private profile outside the repository.
+
+Remaining A25 evidence: exercise withdrawal and source deletion/revocation/
+revision while active, including pre-start/completion
 races. The joined check covers deletion after process retirement; cancellation
 is only a native component proof. An abrupt crash without a result stays unknown:
 recover the original service/process and accounting without replay or inferring
