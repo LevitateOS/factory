@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 mod agent_observation;
 mod preparation_quota;
 mod source_binding;
+mod task_receipts;
 mod task_workspace;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
@@ -32,6 +33,15 @@ const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    ReadTaskReceipt {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        manifest_digest: String,
+        invocation: String,
+        command_length: usize,
+    },
     TaskWorkspace {
         version: u8,
         run: String,
@@ -1694,6 +1704,7 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
         fs::remove_file(directory.join("bundle"))?;
     }
     source_binding::cleanup(directory)?;
+    task_receipts::cleanup(directory)?;
     match fs::remove_file(directory.join("task.manifest")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -2252,6 +2263,48 @@ fn serve() -> io::Result<()> {
     let request: Request =
         serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
     let response = match request {
+        Request::ReadTaskReceipt {
+            version,
+            run,
+            profile,
+            sha256,
+            manifest_digest,
+            invocation,
+            command_length,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&manifest_digest, 64)
+                || invocation.is_empty()
+                || invocation.len() > 128
+                || invocation.chars().any(char::is_control)
+                || !(1..=soda_execution_protocol::workspace::MAX_COMMAND).contains(&command_length)
+            {
+                return Err(denied("task receipt declaration invalid"));
+            }
+            let mut command = vec![0; command_length];
+            read_client_exact(
+                &mut input,
+                &mut command,
+                Instant::now() + Duration::from_secs(3),
+            )?;
+            let command: soda_execution_protocol::workspace::Command =
+                serde_json::from_slice(&command)
+                    .map_err(|_| denied("task receipt command invalid"))?;
+            let runs = state()?;
+            let (_lock, _run_lock) = lock_run(&runs, &run)?;
+            let directory = runs.join(&run);
+            private_dir(&directory, 0o555)?;
+            verified_profile(&directory, &profile)?;
+            if !verified_bundle(&directory, &sha256)? {
+                return Err(denied("task receipt source missing"));
+            }
+            task_receipts::verify(&directory, &manifest_digest, &invocation)?;
+            task_receipts::read(&directory, &command)?
+                .ok_or_else(|| denied("task receipt pending or missing"))?
+        }
         Request::TaskWorkspace {
             version,
             run,

@@ -851,8 +851,54 @@ pub struct TaskWorkspace {
     stream: UnixStream,
     _watch: AgentWatch,
     _provider_socket: super::owner::WorkspaceRelaySocket,
+    receipts: super::workspace_receipts::Receipts,
+    address: TaskReceiptAddress,
+    usable: bool,
+}
+struct TaskReceiptAddress {
+    run: String,
+    profile: String,
+    source_sha256: String,
+    manifest_digest: String,
+    invocation: String,
+}
+impl TaskReceiptAddress {
+    fn new(scope: &super::ReceiptScope<'_>, manifest: &[u8], invocation: &str) -> Self {
+        Self {
+            run: scope.run.into(),
+            profile: scope.profile.into(),
+            source_sha256: scope.source_sha256.into(),
+            manifest_digest: Sha256::digest(manifest)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            invocation: invocation.into(),
+        }
+    }
+    fn read(
+        &self,
+        command: &soda_execution_protocol::workspace::Command,
+    ) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        if !command.retains_receipt() {
+            return Err(refused("workspace command has no retained receipt"));
+        }
+        let payload = serde_json::to_vec(command)?;
+        exchange_controlled(
+            json!({"kind":"read_task_receipt","version":1,"run":self.run,"profile":self.profile,
+            "sha256":self.source_sha256,"manifest_digest":self.manifest_digest,"invocation":self.invocation,
+            "command_length":payload.len()}),
+            Some(&payload),
+            ATTEST_TIME,
+            None,
+            soda_execution_protocol::workspace::MAX_REPLY,
+        )
+    }
 }
 impl TaskWorkspace {
+    fn fence(&mut self) {
+        self.usable = false;
+        let _ = self.stream.shutdown(std::net::Shutdown::Both);
+    }
     pub fn command(
         &mut self,
         command: &soda_execution_protocol::workspace::Command,
@@ -861,9 +907,49 @@ impl TaskWorkspace {
         if bytes.is_empty() || bytes.len() > soda_execution_protocol::workspace::MAX_COMMAND {
             return Err(refused("workspace command exceeds bound"));
         }
-        self.stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
-        self.stream.write_all(&bytes)?;
-        self.reply()
+        if command.retains_receipt() {
+            if let Some(reply) = self.receipts.reply(command)? {
+                return Ok(reply);
+            }
+            if self.receipts.request(command)? {
+                // A prior request may have committed before its reply was lost.
+                // Read the broker's result; never send the effect a second time.
+                let reply = self.address.read(command)?;
+                if let Err(error) = self.receipts.complete(command, &reply) {
+                    self.fence();
+                    return Err(error);
+                }
+                return Ok(reply);
+            }
+        }
+        if !self.usable {
+            return Err(refused("workspace connection outcome uncertain"));
+        }
+        if command.retains_receipt() {
+            if let Err(error) = self.receipts.begin(command) {
+                self.fence();
+                return Err(error);
+            }
+        }
+        let result = (|| {
+            self.stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
+            self.stream.write_all(&bytes)?;
+            self.reply()
+        })();
+        let reply = match result {
+            Ok(reply) => reply,
+            Err(error) => {
+                self.fence();
+                return Err(error);
+            }
+        };
+        if command.retains_receipt() {
+            if let Err(error) = self.receipts.complete(command, &reply) {
+                self.fence();
+                return Err(error);
+            }
+        }
+        Ok(reply)
     }
     fn reply(&mut self) -> io::Result<soda_execution_protocol::workspace::Reply> {
         let mut header = [0; 4];
@@ -879,6 +965,7 @@ impl TaskWorkspace {
 }
 impl Broker {
     pub fn open_task_workspace(
+        profile: &Path,
         scope: &super::ReceiptScope<'_>,
         manifest: &[u8],
         invocation: &str,
@@ -890,10 +977,10 @@ impl Broker {
         {
             return Err(refused("workspace manifest declaration invalid"));
         }
-        let manifest_digest: String = Sha256::digest(manifest)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        let receipts =
+            super::workspace_receipts::Receipts::create(profile, scope, manifest, invocation)?;
+        let address = TaskReceiptAddress::new(scope, manifest, invocation);
+        let manifest_digest = &address.manifest_digest;
         let provider_socket = super::owner::WorkspaceRelaySocket::bind(scope.run)?;
         Self::attest_provider_relay(
             scope.run,
@@ -918,6 +1005,9 @@ impl Broker {
             stream,
             _watch: watch,
             _provider_socket: provider_socket,
+            receipts,
+            address,
+            usable: true,
         };
         let ready = session.reply()?;
         if ready.status != "ready" || ready.head != scope.candidate {
@@ -927,6 +1017,27 @@ impl Broker {
             .stream
             .set_read_timeout(Some(Duration::from_secs(620)))?;
         Ok(session)
+    }
+    /// Read an exact previously requested native task-control result. If its
+    /// private reply was missed, recover only an already completed broker reply.
+    pub fn retained_task_receipt(
+        profile: &Path,
+        scope: &super::ReceiptScope<'_>,
+        manifest: &[u8],
+        invocation: &str,
+        command: &soda_execution_protocol::workspace::Command,
+    ) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        let receipts =
+            super::workspace_receipts::Receipts::open(profile, scope, manifest, invocation)?;
+        if let Some(reply) = receipts.reply(command)? {
+            return Ok(reply);
+        }
+        if !receipts.request(command)? {
+            return Err(refused("workspace task was never requested"));
+        }
+        let reply = TaskReceiptAddress::new(scope, manifest, invocation).read(command)?;
+        receipts.complete(command, &reply)?;
+        Ok(reply)
     }
 }
 impl BrokerPreparation {

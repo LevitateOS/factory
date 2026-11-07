@@ -2,11 +2,12 @@
 //! root/MCP retirement from a process exit. Startup recovery records those
 //! separate facts only after checking the original service and broker root.
 use super::{LaunchIntent, MuseRun};
+use crate::private_fs::publish_bytes as publish;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::{MuseObservation, MAX_OUTPUT};
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Read};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -41,27 +42,6 @@ fn read(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
         return Err(denied());
     }
     Ok(bytes)
-}
-fn publish(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let pending = path.with_file_name(format!(
-        "{}.pending",
-        path.file_name()
-            .ok_or_else(denied)?
-            .to_str()
-            .ok_or_else(denied)?
-    ));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(&pending)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    fs::hard_link(&pending, path)?;
-    File::open(path.parent().ok_or_else(denied)?)?.sync_all()?;
-    fs::remove_file(&pending)?;
-    File::open(path.parent().ok_or_else(denied)?)?.sync_all()
 }
 fn path(profile: &Path, intent: &LaunchIntent, suffix: &str) -> io::Result<PathBuf> {
     if !intent.muse_login() {

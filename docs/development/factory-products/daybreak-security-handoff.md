@@ -126,11 +126,25 @@ fixture roots were removed and service MainPID values reached zero. No model or
 provider request ran. The invocation came from the fixture, not observed parent
 liveness. The task session uses a non-serving desktop socket solely for existing
 relay namespace/lifetime admission; it has no provider custody or forwarding.
+Task-control requests now persist before effects in the private profile;
+completed broker receipts persist before delivery. The native owner retains the
+reply, typed events and final candidate before returning the result. Exact retries
+and broker readback after withholding only the disposable local copy passed in
+`/home/vince/tmp/fworkspace-receipts7.XNzS1t/result.log`. A new native process read
+the identical task/final receipts and candidate after root retirement. A cancelled
+checkpoint retained its pending request and gained no result or implicit replay.
+The profile and broker records bind the exact scope, manifest and supplied parent
+invocation; a foreign invocation was refused. This uses the actual native receipt
+paths but does not qualify a killed publisher, filesystem crash or lost transport
+reply. Those interruption windows remain unverified. Relevant additional files:
+broker `task_receipts.rs`, desktop `workspace_receipts.rs` and `private_fs.rs`.
 Remaining dependency: bind operations to the actual observed parent (the staged
-claim is not liveness), compose admitted worker MCP commands, retain/read native
-task/final receipts, journals and candidate bytes before root retirement, and
-recover exact outcomes after missed replies/restart. The current journal is local
-to the worker and the fixture retains its replies; production recovery is absent.
+claim is not liveness), compose admitted worker MCP commands and Go task/checkpoint/
+journal/candidate ports, and prove actual admitted-run recovery. The library now
+retains receipts; production run/recovery composition is still absent. Private
+pending publication markers fence readback; they must never be discarded to
+claim completion or authorize an effect retry. Preserve the cancelled fixture's
+pending checkpoint under `cancel/native-profile/native-task-receipts/`.
 No child orchestration is required for the selected mode. Relevant files:
 `cmd/soda-factory-worker/src/agent_workspace.rs`, broker `task_workspace.rs`,
 `lib/execution-protocol/src/workspace.rs`, desktop `factory_provider/{broker,owner}.rs`,

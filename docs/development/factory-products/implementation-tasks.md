@@ -141,8 +141,11 @@ The isolated agent now implements sequential workspace edits, declared task
 checks, Git checkpoints, typed events and final checked candidate export. A04/A19
 records the real two-task native/Go journal integration, refusal/failure and
 checkpoint-request cancellation/retirement evidence. This is a native component;
-observed parent binding, worker MCP composition, retained receipts/candidate and
-missed-reply/restart recovery must join the Go task ports before coding dispatch.
+native task-control requests and completed receipts now survive root retirement,
+with exact retry/readback and pending cancellation proof recorded in A04/A19.
+Observed parent binding, worker MCP composition and admitted-run recovery must
+join the Go task ports before coding dispatch. Actual publication interruption
+and lost transport reply qualification remain pending.
 No T09, D3, connected, installed or full-pipeline gate is closed by that check.
 The desktop stage now includes the native execution helpers/templates and an
 explicit single-user installer with image mode and existing-file refusal. A18

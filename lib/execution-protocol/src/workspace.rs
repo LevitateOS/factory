@@ -36,6 +36,24 @@ pub enum Command {
     },
     Close,
 }
+impl Command {
+    pub fn retains_receipt(&self) -> bool {
+        matches!(
+            self,
+            Self::Start { .. }
+                | Self::Release { .. }
+                | Self::Checkpoint { .. }
+                | Self::Final { .. }
+        )
+    }
+    pub fn receipt_key(&self) -> Result<String, serde_json::Error> {
+        use sha2::{Digest, Sha256};
+        Ok(Sha256::digest(serde_json::to_vec(self)?)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect())
+    }
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

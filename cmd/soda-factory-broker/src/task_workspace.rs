@@ -44,6 +44,7 @@ pub(super) fn serve<R: Read, W: Write>(
             file.write_all(manifest)?;
             file.sync_all()?;
             file.set_permissions(fs::Permissions::from_mode(0o444))?;
+            task_receipts::capture(&directory, manifest_digest, invocation)?;
             File::open(&directory)?.sync_all()
         })();
         let restored = fs::set_permissions(&directory, fs::Permissions::from_mode(0o555));
@@ -83,12 +84,7 @@ pub(super) fn serve<R: Read, W: Write>(
         worker.write_all(&(request.len() as u32).to_le_bytes())?;
         worker.write_all(&request)?;
         let deadline = Instant::now() + Duration::from_secs(4 * 60 * 60);
-        fn frame<W: Write>(
-            input: &mut UnixStream,
-            output: &mut W,
-            max: usize,
-            deadline: Instant,
-        ) -> io::Result<()> {
+        fn frame(input: &mut UnixStream, max: usize, deadline: Instant) -> io::Result<Vec<u8>> {
             let mut header = [0; 4];
             read_preparation(input, &mut header, deadline)?;
             let length = u32::from_le_bytes(header) as usize;
@@ -97,11 +93,14 @@ pub(super) fn serve<R: Read, W: Write>(
             }
             let mut bytes = vec![0; length];
             read_preparation(input, &mut bytes, deadline)?;
-            output.write_all(&header)?;
-            output.write_all(&bytes)?;
+            Ok(bytes)
+        }
+        fn send<W: Write>(output: &mut W, bytes: &[u8]) -> io::Result<()> {
+            output.write_all(&(bytes.len() as u32).to_le_bytes())?;
+            output.write_all(bytes)?;
             output.flush()
         }
-        frame(&mut worker, output, MAX_REPLY, deadline)?;
+        send(output, &frame(&mut worker, MAX_REPLY, deadline)?)?;
         for _ in 0..4096 {
             if Instant::now() >= deadline {
                 return Err(denied("task session deadline expired"));
@@ -148,9 +147,36 @@ pub(super) fn serve<R: Read, W: Write>(
             read_client_exact(input, &mut bytes, deadline)?;
             let command: WorkspaceCommand =
                 serde_json::from_slice(&bytes).map_err(|_| denied("task command shape invalid"))?;
+            if command.retains_receipt() {
+                let runs = state()?;
+                let (_lock, _run_lock) = lock_run(&runs, run)?;
+                let source = runs.join(run);
+                verified_profile(&source, profile)?;
+                if !verified_bundle(&source, source_sha)? {
+                    return Err(denied("task source changed"));
+                }
+                task_receipts::verify(&source, manifest_digest, invocation)?;
+                if let Some(saved) = task_receipts::read(&source, &command)? {
+                    send(output, &saved)?;
+                    continue;
+                }
+                task_receipts::begin(&source, &command)?;
+            }
             worker.write_all(&header)?;
             worker.write_all(&bytes)?;
-            frame(&mut worker, output, MAX_REPLY, deadline)?;
+            let reply = frame(&mut worker, MAX_REPLY, deadline)?;
+            if command.retains_receipt() {
+                let runs = state()?;
+                let (_lock, _run_lock) = lock_run(&runs, run)?;
+                let source = runs.join(run);
+                verified_profile(&source, profile)?;
+                if !verified_bundle(&source, source_sha)? {
+                    return Err(denied("task source changed"));
+                }
+                task_receipts::verify(&source, manifest_digest, invocation)?;
+                task_receipts::complete(&source, &command, &reply)?;
+            }
+            send(output, &reply)?;
             if matches!(command, WorkspaceCommand::Close) {
                 return Ok(());
             }

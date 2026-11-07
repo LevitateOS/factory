@@ -28,6 +28,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() == 3 && args[2] == "workspace" {
         return workspace_check(&root, Path::new(&args[1]));
     }
+    if args.len() == 2 && args[1] == "workspace-readback" {
+        return workspace_receipt_readback(&root);
+    }
     if args.len() == 5 && args[1] == "workspace-retire" {
         soda_desktop_runtime::factory_provider::Broker::retire_bundle(&args[2], &args[3], &args[4])?;
         println!("PASS: exact owned workspace fixture root retired");
@@ -744,6 +747,69 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+fn workspace_receipt_readback(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::factory_provider::{Broker, ReceiptScope, Role};
+    use soda_execution_protocol::workspace::Command as WorkspaceCommand;
+    let binding: serde_json::Value = serde_json::from_slice(&fs::read(root.join("binding.json"))?)?;
+    let field = |key: &str| {
+        binding[key]
+            .as_str()
+            .ok_or("workspace receipt binding missing")
+    };
+    let scope = ReceiptScope::new(
+        field("run")?,
+        field("profile")?,
+        field("source_sha256")?,
+        field("candidate")?,
+        Role::Coder,
+        field("tool")?,
+        field("prompt")?,
+    )?;
+    let command: WorkspaceCommand =
+        serde_json::from_slice(&fs::read(root.join("checkpoint.request.json"))?)?;
+    let manifest = fs::read(root.join("workspace.manifest"))?;
+    let result = Broker::retained_task_receipt(
+        &root.join("native-profile"),
+        &scope,
+        &manifest,
+        "native-workspace-fixture",
+        &command,
+    );
+    if field("mode")? == "cancel" {
+        let request = root
+            .join("native-profile/native-task-receipts")
+            .join(field("run")?)
+            .join(format!("{}.request", command.receipt_key()?));
+        if result.is_ok() || !request.is_file() {
+            return Err(
+                "cancelled task lost its pending request or gained a fabricated result".into(),
+            );
+        }
+        println!("PASS: new native process preserves the cancelled checkpoint's pending request; no result or effect replay");
+        return Ok(());
+    }
+    let first = result?;
+    if serde_json::to_vec(&first)? != fs::read(root.join("checkpoint.result.json"))? {
+        return Err("retained checkpoint result changed".into());
+    }
+    let command: WorkspaceCommand =
+        serde_json::from_slice(&fs::read(root.join("final.request.json"))?)?;
+    let final_result = Broker::retained_task_receipt(
+        &root.join("native-profile"),
+        &scope,
+        &manifest,
+        "native-workspace-fixture",
+        &command,
+    )?;
+    if serde_json::to_vec(&final_result)? != fs::read(root.join("result.json"))?
+        || final_result.bundle != fs::read(root.join("candidate.bundle"))?
+    {
+        return Err("retained final checkpoint or candidate changed".into());
+    }
+    println!("PASS: new native process reads exact task/final receipts, journal and candidate after root retirement; no worker launch");
+    Ok(())
+}
+
 fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error::Error>> {
     use sha2::Digest;
     use soda_desktop_runtime::factory_provider::{AgentCancellation, Broker, ReceiptScope, Role};
@@ -774,7 +840,8 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
         fs::write(
             scratch.join("binding.json"),
             serde_json::to_vec(
-                &serde_json::json!({"run":run,"profile":profile,"source_sha256":source_sha}),
+                &serde_json::json!({"run":run,"profile":profile,"source_sha256":source_sha,
+                    "candidate":candidate,"tool":tool,"prompt":prompt,"mode":mode}),
             )?,
         )?;
         if !Command::new(helper)
@@ -791,6 +858,15 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             return Err("Go workspace manifest failed".into());
         }
         let manifest = fs::read(scratch.join("workspace.manifest"))?;
+        let native_profile = scratch.join("native-profile");
+        DirBuilder::new().mode(0o700).create(&native_profile)?;
+        let mut profile_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(native_profile.join("profile.id"))?;
+        profile_file.write_all(profile.as_bytes())?;
+        profile_file.sync_all()?;
         let result = (|| -> Result<(), Box<dyn std::error::Error>> {
             Broker::stage_bundle(&run, &profile, Role::Coder, &tool, &prompt, &bundle)?;
             Broker::prepare_reviewer(&run, &profile, &source_sha, &candidate)?;
@@ -805,6 +881,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             )?;
             let cancel = AgentCancellation::default();
             let mut workspace = Broker::open_task_workspace(
+                &native_profile,
                 &scope,
                 &manifest,
                 "native-workspace-fixture",
@@ -864,11 +941,16 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 None
             };
             let began = std::time::Instant::now();
-            let checkpoint = workspace.command(&WorkspaceCommand::Checkpoint {
+            let checkpoint_command = WorkspaceCommand::Checkpoint {
                 task: "first".into(),
                 expected_head: candidate.clone(),
                 output_digest: released.output_digest,
-            });
+            };
+            fs::write(
+                scratch.join("checkpoint.request.json"),
+                serde_json::to_vec(&checkpoint_command)?,
+            )?;
+            let checkpoint = workspace.command(&checkpoint_command);
             if let Some(thread) = cancellation {
                 thread.join().map_err(|_| "cancellation thread failed")?;
                 if checkpoint.is_ok() || began.elapsed() > Duration::from_secs(6) {
@@ -877,6 +959,10 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 return Ok(());
             }
             let first = checkpoint?;
+            fs::write(
+                scratch.join("checkpoint.result.json"),
+                serde_json::to_vec(&first)?,
+            )?;
             if mode == "failed" {
                 if first.status != "failed"
                     || first.head != candidate
@@ -894,6 +980,41 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 || !first.checks[0].passed
             {
                 return Err("first task checkpoint incomplete".into());
+            }
+            let replay = workspace.command(&checkpoint_command)?;
+            if serde_json::to_vec(&replay)? != serde_json::to_vec(&first)? {
+                return Err("checkpoint retry changed its result".into());
+            }
+            // Withhold only this disposable profile's completed local copy to
+            // exercise broker readback. This does not qualify a killed publisher
+            // or an actual lost transport reply.
+            let receipt_path = native_profile
+                .join("native-task-receipts")
+                .join(&run)
+                .join(format!("{}.receipt", checkpoint_command.receipt_key()?));
+            fs::rename(&receipt_path, scratch.join("withheld-checkpoint.receipt"))?;
+            let recovered = Broker::retained_task_receipt(
+                &native_profile,
+                &scope,
+                &manifest,
+                "native-workspace-fixture",
+                &checkpoint_command,
+            )?;
+            if serde_json::to_vec(&recovered)?
+                != fs::read(scratch.join("withheld-checkpoint.receipt"))?
+            {
+                return Err("broker readback changed the committed checkpoint".into());
+            }
+            if Broker::retained_task_receipt(
+                &native_profile,
+                &scope,
+                &manifest,
+                "foreign-invocation",
+                &checkpoint_command,
+            )
+            .is_ok()
+            {
+                return Err("foreign checkpoint invocation accepted".into());
             }
             workspace.command(&WorkspaceCommand::Start {
                 task: "second".into(),
@@ -915,9 +1036,14 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             if second.status != "committed" || second.head == first.head {
                 return Err("second task checkpoint incomplete".into());
             }
-            let final_result: Reply = workspace.command(&WorkspaceCommand::Final {
+            let final_command = WorkspaceCommand::Final {
                 expected_head: second.head.clone(),
-            })?;
+            };
+            fs::write(
+                scratch.join("final.request.json"),
+                serde_json::to_vec(&final_command)?,
+            )?;
+            let final_result: Reply = workspace.command(&final_command)?;
             if final_result.status != "committed"
                 || final_result.head != second.head
                 || final_result.bundle.is_empty()
@@ -991,6 +1117,15 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
         result?;
         if !retired? || Broker::next_profile_run(&profile)?.is_some() {
             return Err("workspace root retirement incomplete".into());
+        }
+        if matches!(mode, "ready" | "cancel")
+            && !Command::new(std::env::current_exe()?)
+                .arg(&scratch)
+                .arg("workspace-readback")
+                .status()?
+                .success()
+        {
+            return Err("new-process task receipt readback failed".into());
         }
         println!("PASS: isolated sequential workspace {mode}; exact root retirement, no model or provider request");
     }

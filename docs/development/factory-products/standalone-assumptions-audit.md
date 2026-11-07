@@ -230,11 +230,18 @@ corrections are now active; the old feature queue waits for their resolution.
   No model/provider request or Go-admitted coding run was involved; the parent
   invocation was fixture-supplied. The credential-free session retains the
   existing relay namespace with a non-serving desktop socket, without borrowing
-  credentials or forwarding requests. Coding phases remain disabled. Next:
-  compose actual observed parent ownership and worker MCP effects, retain task/
-  final receipts and candidate bytes before root retirement, recover exact
-  command/checkpoint outcomes after missed replies/restart, and join the Go task,
-  checkpoint, journal and candidate ports. Mutable directory/file removal and
+  credentials or forwarding requests. Task-control requests are now retained in
+  the private native profile before effects; the broker retains completed
+  replies before delivery, and the native owner retains receipts/journal/final
+  candidate bytes before returning them. Exact retries, broker readback after
+  withholding a disposable local copy, foreign invocation refusal, and exact
+  task/final/candidate readback from a new process after root retirement passed:
+  `/home/vince/tmp/fworkspace-receipts7.XNzS1t/result.log`. A cancelled checkpoint's
+  pending request survives without a fabricated result or effect replay. This
+  does not qualify actual lost transport replies or publication interruption.
+  Coding phases remain disabled. Next: compose actual observed parent ownership
+  and worker MCP effects, join the Go task/checkpoint/journal/candidate ports and
+  prove admitted-run recovery. Mutable directory/file removal and
   larger workload coverage also remain unfinished. These component results do
   not qualify D3, custody/IPC, the full pipeline or installed execution.
 

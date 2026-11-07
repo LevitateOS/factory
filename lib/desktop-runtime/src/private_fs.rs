@@ -83,3 +83,21 @@ pub(crate) fn read_bytes(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+
+/// Publish one immutable native record. A pending marker fences interrupted
+/// publication; an existing destination is never replaced.
+pub(crate) fn publish_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("native record parent missing"))?;
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| io::Error::other("native record name invalid"))?;
+    let pending = path.with_file_name(format!("{name}.pending"));
+    write_bytes(&pending, bytes)?;
+    fs::hard_link(&pending, path)?;
+    File::open(parent)?.sync_all()?;
+    fs::remove_file(pending)?;
+    File::open(parent)?.sync_all()
+}

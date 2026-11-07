@@ -647,6 +647,7 @@ impl<'a> Workspace<'a> {
                 reply.checks = self.checks(&ids)?;
                 if reply.checks.iter().any(|c| !c.passed) {
                     reply.status = "failed".into();
+                    reply.events = self.events.clone();
                     return Ok(reply);
                 }
                 if !self
