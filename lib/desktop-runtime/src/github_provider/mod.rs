@@ -4,6 +4,7 @@ mod automation_checks;
 mod automation_inputs;
 mod branch_create;
 mod capabilities;
+mod check_gate;
 mod comments;
 mod commits;
 mod diff;

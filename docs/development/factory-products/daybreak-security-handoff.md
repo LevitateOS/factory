@@ -185,6 +185,18 @@ assessment. Paired equality is bounded observation, not an atomic provider fence
 Factory retains success-only required checks; skipped/neutral do not pass. No
 whole security or installed gate is closed.
 
+The shared PR view now reads `github_provider/check_gate.rs` through
+`runtime/native_product_{observations,protection,evidence}.go`. It binds exact
+head/base, pairs provider policy and latest source observations, and preserves
+unknown source-app/incomplete inputs. Independent reads overlap inside the same
+eight-second bound. Actual canonical unknown/no-required-check observations passed
+in `/home/vince/tmp/fnative-required-parallel7.acDejV/result.log`; a separate
+required approval stayed visible. The first serial-read attempts timed out and
+remain retained failures. Nonempty/app-bound requirements, check-run conclusions,
+concurrent policy/status changes and test-merge selection remain unverified.
+Those exact provider/canonical observations are needed before claiming their
+merge readiness; this read grants no merge authority or broad gate closure.
+
 **Native automated review submission:** `runtime/native_reviews.go` implements
 the existing review port over registered immutable `ReviewWork` and the existing
 command journal, reservation, cancellation and native review creator. Current

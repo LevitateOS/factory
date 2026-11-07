@@ -239,15 +239,13 @@ impl Reader<'_> {
         branch_target: &str,
         encoded: &str,
     ) -> Result<(Option<Value>, Option<Vec<Value>>)> {
-        let classic = self
-            .optional_protection(&format!("{branch_target}/protection"), &[])
-            .await?;
-        let rules = self
-            .optional_protection(
-                &format!("/rules/branches/{encoded}"),
-                &[("page", "1".into()), ("per_page", "100".into())],
-            )
-            .await?;
+        let classic_path = format!("{branch_target}/protection");
+        let rules_path = format!("/rules/branches/{encoded}");
+        let rule_query = [("page", "1".into()), ("per_page", "100".into())];
+        let (classic, rules) = tokio::try_join!(
+            self.optional_protection(&classic_path, &[]),
+            self.optional_protection(&rules_path, &rule_query,)
+        )?;
         let classic = classic
             .map(|response| classic_protection(&response.value))
             .transpose()?;
@@ -278,20 +276,22 @@ impl Reader<'_> {
             .push(r::text(&before, "branch")?);
         let encoded = url.path().trim_start_matches('/');
         let branch_target = format!("/branches/{encoded}");
-        let branch = self.get(&branch_target, &[]).await?.value;
-        let captured_branch = branch_identity(&branch, r::text(&before, "branch")?)?;
-        let (classic, rules) = self.protection_sources(&branch_target, encoded).await?;
+        let (branch, (classic, rules)) = tokio::try_join!(
+            self.get(&branch_target, &[]),
+            self.protection_sources(&branch_target, encoded)
+        )?;
+        let captured_branch = branch_identity(&branch.value, r::text(&before, "branch")?)?;
         if self.protection_sources(&branch_target, encoded).await?
             != (classic.clone(), rules.clone())
         {
             return Err(Failure::new(409, "github_checks_changed"));
         }
-        if self.protection_binding(&self.raw_subject(true, number).await?)? != before
-            || captured_branch
-                != branch_identity(
-                    &self.get(&branch_target, &[]).await?.value,
-                    r::text(&before, "branch")?,
-                )?
+        let (pull, branch) = tokio::try_join!(
+            self.raw_subject(true, number),
+            self.get(&branch_target, &[])
+        )?;
+        if self.protection_binding(&pull)? != before
+            || captured_branch != branch_identity(&branch.value, r::text(&before, "branch")?)?
         {
             return Err(Failure::new(409, "github_checks_changed"));
         }

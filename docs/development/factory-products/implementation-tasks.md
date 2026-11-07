@@ -68,6 +68,11 @@ provider approval: a shared author account posts COMMENT, and merge still needs
 the canonical clear, exact review receipt and satisfied provider rules. Existing
 PostgreSQL checks passed; native automated review/merge composition and connected
 branch-rule qualification remain pending. A second account remains optional.
+The shared native PR check view now projects pinned required-check readiness
+through the existing connector. Actual hidden-policy/visible-no-required-check
+reads passed within the unchanged timeout; A05/A07/A21 retains exact evidence
+and the unverified nonempty/app/test-merge cases. This is separate from overall
+merge eligibility and closes no automated merge or security gate.
 The A14 native presentation correction also passed the existing composed
 capability check with declared Read access; comments/reviews no longer require
 push permission. It grants no write authority or connected permission closure.

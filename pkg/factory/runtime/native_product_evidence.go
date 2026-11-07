@@ -249,15 +249,20 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 		c.Kind = "pull_commit_statuses"
 		next = 1
 	}
-	obs := s.observation(raw)
-	protection, err := s.readProtection(ctx, repo, raw.Pull, raw.Head, raw.Base, raw.Branch)
+	gate, err := s.readRequiredChecks(ctx, repo, raw.Pull, raw.Head, raw.Base, raw.Branch)
 	if err != nil {
 		return result, err
 	}
+	obs := s.observation(struct {
+		Page             nativeCheckPage
+		Policy           collaboration.Revision
+		StatusGate       string
+		Missing, Invalid []string
+	}{raw, gate.Protection.Observation.Revision, gate.StatusGate, gate.MissingRequired, gate.InvalidRequired})
 	result = collaboration.PullChecks{Kind: "status", Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Commit: raw.Head, Observation: obs,
-		Checks: nativePage(obs, items, cursorEncode(c, next)), Protection: protection, MissingRequired: []string{}, InvalidRequired: []string{}, StatusGate: "unknown"}
-	// A complete observation page is not evidence about unobserved branch rules,
-	// workflow jobs, requiredness, merge eligibility or a successful CI gate.
+		Checks: nativePage(obs, items, cursorEncode(c, next)), Protection: gate.Protection, MissingRequired: gate.MissingRequired, InvalidRequired: gate.InvalidRequired, StatusGate: gate.StatusGate}
+	// Required-check readiness is separate from workflow jobs, the selected
+	// Factory checks and all other review/merge prerequisites.
 	return result, nil
 }
 func deref(s *string) string {

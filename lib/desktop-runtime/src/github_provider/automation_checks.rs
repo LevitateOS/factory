@@ -115,19 +115,19 @@ impl Reader<'_> {
             json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,"author":r::actor(&pull["user"])?,"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip}),
         )
     }
-    async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
-        let mut snapshot = self.automation_review_snapshot(number).await?;
-        let head = r::text(&snapshot, "head_tip")?;
-        let checks = self
-            .get(
-                &format!("/commits/{head}/check-runs"),
-                &[
-                    ("per_page", "100".into()),
-                    ("page", "1".into()),
-                    ("filter", "latest".into()),
-                ],
-            )
-            .await?;
+    pub(super) async fn latest_check_sources(&self, head: &str) -> Result<Vec<Value>> {
+        let checks_path = format!("/commits/{head}/check-runs");
+        let statuses_path = format!("/commits/{head}/statuses");
+        let check_query = [
+            ("per_page", "100".into()),
+            ("page", "1".into()),
+            ("filter", "latest".into()),
+        ];
+        let status_query = [("per_page", "100".into()), ("page", "1".into())];
+        let (checks, statuses) = tokio::try_join!(
+            self.get(&checks_path, &check_query),
+            self.get(&statuses_path, &status_query)
+        )?;
         let count = checks.value["total_count"]
             .as_u64()
             .ok_or_else(Failure::protocol)?;
@@ -137,12 +137,6 @@ impl Reader<'_> {
         if check_page.next != 0 || count != check_items.len() as u64 {
             return Err(incomplete());
         }
-        let statuses = self
-            .get(
-                &format!("/commits/{head}/statuses"),
-                &[("per_page", "100".into()), ("page", "1".into())],
-            )
-            .await?;
         let status_items = page_items(&statuses, 1, 100, true)?;
         if statuses.next != 0 {
             return Err(incomplete());
@@ -163,7 +157,7 @@ impl Reader<'_> {
             if !check_names.insert((context.to_owned(), app.clone())) {
                 return Err(incomplete());
             }
-            sources.push(json!({"kind":"check","id":id,"context":context,"app":app,"state":check_state(item)}));
+            sources.push(json!({"kind":"check","id":id,"context":context,"app":app,"state":check_state(item),"provider_status":r::string(item,"status")?,"provider_conclusion":r::string(item,"conclusion")?}));
         }
         let mut latest = BTreeMap::new();
         ids.clear();
@@ -198,6 +192,12 @@ impl Reader<'_> {
                 s["id"].as_str().unwrap_or("").to_owned(),
             )
         });
+        Ok(sources)
+    }
+    pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
+        let mut snapshot = self.automation_review_snapshot(number).await?;
+        let head = r::text(&snapshot, "head_tip")?;
+        let sources = self.latest_check_sources(head).await?;
         let mut contexts = BTreeMap::<String, String>::new();
         for source in &sources {
             let context = r::nonempty(source, "context")?;

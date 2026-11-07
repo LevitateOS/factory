@@ -7,6 +7,12 @@ use serde_json::Value;
 pub enum Read {
     Identity,
     Binding,
+    PullRequiredChecks {
+        repository: String,
+        number: u32,
+        head: String,
+        base: String,
+    },
     AutomationReview {
         repository: String,
         number: u32,
@@ -264,6 +270,11 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::PullRequiredChecks { head, base, .. } = self {
+            if !commit(head) || !commit(base) {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::AutomationInputs {
             number,
             comments,

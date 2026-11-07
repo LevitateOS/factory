@@ -82,6 +82,9 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "pull_required_checks" => {
+                            ("required_checks", reader.required_checks(&q).await?)
+                        }
                         "automation_review" => (
                             "automation_review",
                             reader
@@ -644,7 +647,7 @@ impl<'a> Reader<'a> {
         }
         Ok(result)
     }
-    async fn check_head(&self, number: u64) -> Result<Value> {
+    pub(super) async fn check_head(&self, number: u64) -> Result<Value> {
         let raw = self.raw_subject(true, number).await?;
         self.protection_binding(&raw)
     }

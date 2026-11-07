@@ -679,6 +679,16 @@ corrections are now active; the old feature queue waits for their resolution.
   moving refs/statuses, app-specific branch rules and test-merge requirements
   remain unqualified. Full publication/review/merge journeys and full-pipeline,
   OAuth and installed gates remain open.
+  The shared PR check view now consumes a pinned native required-check gate,
+  keeping GitHub readiness separate from Factory's success-only check policy
+  and overall merge eligibility. Independent source reads overlap within the
+  unchanged eight-second bound; PR/branch/policy and latest sources stay paired.
+  `/home/vince/tmp/fnative-required-parallel7.acDejV/result.log` passed actual
+  canonical reads for hidden classic policy (`unknown`) and visible policy with
+  no required checks (`not_required`), preserving its separate required approval.
+  Nonempty/app-bound requirements, check-run states, test-merge evaluation and
+  concurrent policy/status changes still need connected evidence. Earlier timeout
+  profiles are retained as failures. No workflow or merge ran.
 
 - **A04/A07/A21 — native automated review submission implemented.** The native
   application supplies `NativeReviews` through the existing review port. It

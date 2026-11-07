@@ -1177,6 +1177,22 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if args.len()==10 && field(9)?=="checks-view" {
+                    let cases:Vec<serde_json::Value>=serde_json::from_slice(&fs::read(&args[8])?)?;
+                    ensure(!cases.is_empty() && cases.len()<=10,"bounded nonempty check cases required")?;
+                    for case in cases {
+                        let number=case["number"].as_u64().ok_or("check view PR missing")?;
+                        let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=request.request("GET",&format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/checks?limit=1"),&[]).await?;
+                        let body:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        fs::write(profile.parent().ok_or("profile parent missing")?.join(format!("checks-{number}.json")),&reply.body)?;
+                        ensure(reply.status==200 && body["status_gate"]==case["gate"] && body["protection"]["requirements_complete"]==case["complete"],"connected canonical required-check gate differs")?;
+                        ensure(body["missing_required"]==case["missing"] && body["invalid_required"]==case["invalid"],"connected canonical check requirements differ")?;
+                    }
+                    println!("PASS: actual GitHub required-check gates through canonical Go/native product reads; CI readiness grants no merge eligibility");
+                    return Ok(());
+                }
+
                 let base=format!("/api/repositories/{repository}/factory/issues/{}",field(6)?);
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                 let preview=request.request("GET",&format!("{base}/acceptance-preview"),&[]).await?;

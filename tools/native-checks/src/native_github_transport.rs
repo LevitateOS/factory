@@ -408,7 +408,7 @@ pub(super) async fn run_evidence_declared(
         ensure(
             body["pull"]["repository"] == repository
                 && body["commit"] == "a".repeat(40)
-                && body["status_gate"] == "unknown"
+                && body["status_gate"] == if name == "empty-product" { "not_required" } else { "unknown" }
                 && p["repository"] == repository
                 && p["branch"] == "main"
                 && p["observation"]["state"] == "available",
