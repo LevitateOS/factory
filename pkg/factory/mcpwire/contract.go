@@ -20,7 +20,7 @@ func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 	}
 	schema := &jsonschema.Schema{
 		Type: "object", Properties: map[string]*jsonschema.Schema{
-			"capability_id": {Type: "string"}, "submission_id": {Type: "string"}, "payload": {Type: "object"},
+			"capability_id": {Type: "string"}, "submission_id": {Type: "string", Description: "Omit for new work; Factory generates an identity. Reuse only for an exact retry of the same tool and payload."}, "payload": {Type: "object"},
 		},
 		Required: required, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 	}

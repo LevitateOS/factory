@@ -109,23 +109,23 @@ func (s WorkerResults) Bind(ctx context.Context, capability factory.MCPCapabilit
 // bindTaskOutput fills the observed output digest and native child of the
 // named task from its output-ready plan-task receipt: the same record the
 // checkpoint drive compares the submission against.
-func (s WorkerResults) bindTaskOutput(ctx context.Context, run factory.Run, payload map[string]any) {
+func (s WorkerResults) bindTaskOutput(ctx context.Context, run factory.Run, payload map[string]any) bool {
 	taskID, _ := payload["task_id"].(string)
 	source := s.Receipts
 	if source == nil || taskID == "" || len(run.ExecutionManifest) == 0 {
-		return
+		return false
 	}
 	manifest, err := project.ParseExecutionManifest(run.ExecutionManifest)
 	if err != nil {
-		return
+		return false
 	}
 	var plan factory.InvestigationPlan
 	if json.Unmarshal(manifest.Plan, &plan) != nil {
-		return
+		return false
 	}
 	receipts, err := source.PlanTaskReceipts(ctx, plan.AttemptRoot, plan.ID)
 	if err != nil {
-		return
+		return false
 	}
 	for _, receipt := range receipts {
 		if receipt.TaskID != taskID || receipt.State != store.PlanTaskOutputReady {
@@ -137,7 +137,9 @@ func (s WorkerResults) bindTaskOutput(ctx context.Context, run factory.Run, payl
 		} else {
 			delete(payload, "native_child_ref")
 		}
+		return true
 	}
+	return false
 }
 
 // bindIssuePlan fills the plan fields this assignment already records,
@@ -207,11 +209,25 @@ func (s WorkerResults) checkManifestProposal(ctx context.Context, cap factory.MC
 	return factory.ValidateManifestProposal(proposal, catalog)
 }
 
-// CheckNewFinish refuses a new terminal finish that settlement could not
-// settle, before its immutable proposal freezes the assignment. It runs the
-// settler's own mapping, so the worker sees the exact defect while it can
-// still correct the payload and finish again.
+// CheckNewFinish checks canonical task-output readiness and terminal result
+// gates before recording immutable work, while the worker can still correct it.
 func (s WorkerResults) CheckNewFinish(ctx context.Context, capability factory.MCPCapability, submission factory.MCPSubmission, payload map[string]any) error {
+	if submission.Tool == factory.MCPToolSubmitTaskOutput {
+		if s.Runs == nil {
+			return errors.New("task run unavailable; no task output proposal recorded")
+		}
+		run, err := s.Runs.FactoryRun(ctx, capability.RunID)
+		if err != nil {
+			return err
+		}
+		bound := make(map[string]any, len(payload))
+		for key, value := range payload {
+			bound[key] = value
+		}
+		if !s.bindTaskOutput(ctx, run, bound) || payload["output_digest"] != bound["output_digest"] || payload["native_child_ref"] != bound["native_child_ref"] {
+			return errors.New("task output is not ready; release it, then wait with factory.context after_execution until execution.ready_outputs contains this task before submitting again")
+		}
+	}
 	if !factory.MCPIsTerminal(submission.Tool) {
 		return nil
 	}
@@ -339,7 +355,7 @@ func (s WorkerResults) CheckpointContext(ctx context.Context, read WorkerContext
 		"manifest_digest":  project.ExecutionManifestDigest(run.ExecutionManifest),
 		"parent_only":      manifest.MaxChildren == 0,
 		"integration_head": head, "tasks": tasks, "ready_outputs": ready,
-		"guidance": "In a parent-only run, implement one task yourself and release its output before submitting factory.submit_task_output with its task_id. Factory fills the observed digest and any recorded child identity. Wait for the committed checkpoint before another task. Do not write Git metadata. Finish implementation only after integration.status is committed; Factory fills the candidate from it.",
+		"guidance": "In a parent-only run, implement one task yourself and release its output. Wait until ready_outputs contains its task_id, then call factory.submit_task_output. Factory fills the observed digest and any recorded child identity. Wait for the committed checkpoint before another task. Do not write Git metadata. Finish implementation only after integration.status is committed; Factory fills the candidate from it.",
 	}
 	if run.FinalCheckpoint != nil {
 		execution["integration"] = run.FinalCheckpoint

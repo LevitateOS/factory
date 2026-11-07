@@ -104,6 +104,14 @@ fresh finish and settlement. Its later reviewer assertion raced terminal
 settlement; the observer now waits for both. The original live collision run
 stays blocked, with retained candidate/accounting and no inferred finish; see
 the security handoff. Real completion after this correction remains pending.
+Task-output admission now also waits for the canonical output-ready receipt
+before recording its immutable proposal. The existing local journey passed
+premature-output refusal, release/readiness, ID collision refusal, fresh finish,
+integration, settlement and restart in
+`/home/vince/tmp/fnative-output-ready8.tee1ye/result.log`. The preceding real
+readiness-race run failed and was accounted/retired without replay; its original
+proposal remains preserved. Tool guidance now explains readiness and automatic
+submission identities. Real Muse completion after these corrections is pending.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

@@ -310,6 +310,13 @@ corrections are now active; the old feature queue waits for their resolution.
   native Builder collision-refusal/fresh-finish/settlement check passed; evidence
   and the later reviewer observation race are recorded in the canonical plan.
   The original collision run remains blocked, not retroactively completed.
+  Task-output admission now refuses recording until its canonical output-ready
+  receipt exists, preventing an early release/submission race from freezing a
+  proposal without its digest. The existing local journey passed premature
+  refusal, release/readiness, collision refusal, final checks, settlement and
+  restart in `/home/vince/tmp/fnative-output-ready8.tee1ye/result.log`. The
+  original real readiness-race run remains failed, accounted and retired without
+  replay; the handoff retains its exact identity. Live requalification is pending.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

@@ -2768,18 +2768,20 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("original CLI resources were not recovered")
 		}
 		coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
-		expectedOutcome := factory.Failed
-		completedTasks := input.Tasks && prior.FinalCheckpoint != nil && prior.FinalCheckpoint.Status == "committed"
-		if completedTasks {
-			observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: prior.ProjectID})
-			if err != nil || observed.Phase != project.FactoryCompleted || observed.Retirement != execution.Retired {
-				return fmt.Errorf("retained task completion unavailable: %v", err)
-			}
+		observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: prior.ProjectID})
+		if err != nil || observed.Retirement != execution.Retired {
+			return fmt.Errorf("retained native outcome unavailable: %v", err)
+		}
+		var expectedOutcome factory.Outcome
+		switch observed.Phase {
+		case project.FactoryCompleted:
 			expectedOutcome = factory.Succeeded
+		case project.FactoryFailed:
+			expectedOutcome = factory.Failed
+		default:
+			return errors.New("original native run has no confirmed completed/failed outcome")
 		}
-		if !input.Live {
-			expectedOutcome = factory.Succeeded // Process outcome; the fixture's product result remains blocked.
-		}
+		completedTasks := input.Tasks && prior.FinalCheckpoint != nil && prior.FinalCheckpoint.Status == "committed"
 		stopped, err := coordinator.Stop(ctx, input.Run)
 		if err != nil || !stopped.Confirmed || stopped.Uncertain || stopped.Outcome != string(expectedOutcome) {
 			return fmt.Errorf("original retained run remains unsettled: %v %+v", err, stopped)
@@ -2814,7 +2816,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return err
 		}
 		var usage factory.Usage
-		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || !completedTasks && usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.UsageEnd(time.Now())) || !usage.StartedAt.Equal(prior.Started) {
+		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.UsageEnd(time.Now())) || !usage.StartedAt.Equal(prior.Started) {
 			return errors.New("recovered usage includes offline settlement delay")
 		}
 		if !input.Live {
@@ -2830,10 +2832,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			terminal, found, err := db.TerminalMCPProposal(ctx, a.ID)
 			reservation, reservationErr := db.Reservation(ctx, a.ID)
 			expectedProduct := factory.NeedsHuman
-			if completedTasks && found {
+			if !found && expectedOutcome == factory.Failed {
+				expectedProduct = factory.Failed
+			}
+			if found && (completedTasks && terminal.Tool == factory.MCPToolFinishImplement || terminal.Tool == factory.MCPToolFinishIssuePlan) {
 				expectedProduct = factory.Succeeded
 			}
-			if err != nil || reservationErr != nil || !found && !completedTasks || found && terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != expectedProduct {
+			if err != nil || reservationErr != nil || found && terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != expectedProduct {
 				return fmt.Errorf("original incomplete task result/accounting was not retained: terminal=%s found=%t reservation=%s assignment=%s outcome=%s errors=%v/%v", terminal.State, found, reservation.State, a.Stage, a.Outcome, err, reservationErr)
 			}
 			fmt.Println("PASS: original Muse task settled without inference replay; exact process/root retirement, canonical result, consumed reservation and stop-based source usage retained; outcome", a.Outcome)
@@ -3184,11 +3189,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
 				delete(authored, field)
 			}
-			encoded, err = json.Marshal(authored)
+			encoded, err = json.Marshal(map[string]any{"payload": map[string]any{"approach": "Sequential native task fixture", "evidence_refs": []string{"source:README.md"}, "tasks": authored}})
 			if err != nil {
 				return err
 			}
-			prompt = []byte("Disposable Factory Architect integration task. Read README.md with factory.read_source, inspect factory.context, and read factory.inbox. " + nativeFixtureArtifactPrompt + " Then call factory.finish_issue_plan with approach Sequential native task fixture, evidence_refs [source:README.md], and tasks equal to this exact plan: " + string(encoded) + ". This is a declared one-file test objective and check; do not implement it in the investigation phase. Finish with OK after the terminal tool succeeds.")
+			prompt = []byte("Disposable Factory Architect integration task. Read README.md with factory.read_source, inspect factory.context, and read factory.inbox. " + nativeFixtureArtifactPrompt + " Then call factory.finish_issue_plan with these JSON arguments: " + string(encoded) + ". payload and tasks must be JSON objects, never JSON-encoded strings. Omit submission_id for this new call. This is a declared one-file test objective and check; do not implement it in the investigation phase. Finish with OK after the terminal tool succeeds.")
 		}
 	}
 	var acceptedContext *factory.AcceptedContext
@@ -4940,6 +4945,9 @@ func workerSequentialTasks(client *http.Client) error {
 		}
 		if json.Unmarshal(read, &content) != nil || content.Content != id+"\n" {
 			return errors.New("admitted workspace readback differs")
+		}
+		if _, err := workerMCPCall(client, "factory.submit_task_output", map[string]any{"task_id": id, "output_digest": strings.Repeat("e", 64), "evidence_refs": []string{"native-task.txt"}}); err == nil || !strings.Contains(err.Error(), "task output is not ready") {
+			return errors.New("unreleased task output was not refused before recording")
 		}
 		if _, err = workerMCPCall(client, "factory.release_output", map[string]any{"task_id": id}); err != nil {
 			return err

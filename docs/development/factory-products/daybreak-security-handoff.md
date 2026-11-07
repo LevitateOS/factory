@@ -578,6 +578,21 @@ The existing PostgreSQL transaction check passed; the Builder portion of
 fresh finish and settlement. Its later reviewer assertion raced terminal
 settlement, so the observer now waits for assignment and proposal completion.
 Real Muse completion after this fix and broader lifecycle gates remain pending.
+The subsequent planning attempt `d3a1b4c9e13920494ae78919fa282040` under
+`/home/vince/tmp/fmuse-submit-fixed8.B1UDTT/` sent string-valued finish payloads;
+the schema refused them and no terminal was recorded. `recovery.log` proves its
+needs-human result, exact retirement and usage without replay. The fixture now
+shows object-valued tool arguments explicitly. The next Builder run
+`64db1ba28963011462624755ff006112` under
+`/home/vince/tmp/fmuse-object-call8.roJyBn/` submitted before canonical output
+readiness, leaving a proposal without the observed digest. `recovery-verified.log`
+proves its failed result, consumed reservation, exact stop-based usage and
+process/root retirement without replay. Preserve that original proposal.
+`service/worker_results.go` now refuses such premature submissions before
+recording, using the existing canonical receipt owner. The local journey passed
+refusal then normal completion/settlement/restart in
+`/home/vince/tmp/fnative-output-ready8.tee1ye/result.log`. This proves neither
+interrupted publication nor live/installed confinement; those gates stay open.
 The token task source has no composed task owner and remains unavailable.
 Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
 `{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,
