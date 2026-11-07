@@ -181,6 +181,22 @@ on the still-open production-start/worker journey; source compilation and these
 component checks do not close it. Coding/Review permission grants no
 judgment-source authority.
 
+Native same-repository queue preference is now composed in
+`runtime/native_judgment.go` (`Choose`) and `runtime/native_server.go`. The existing
+`control/priority.go` tournament carries its complete inventory's repository scope
+in `factory.PriorityRequest`, including subgroup calls. It uses
+the repository's explicit judgment source through the existing journal and
+tournament; mixed repositories refuse before selecting a spending source.
+`/home/vince/tmp/fpriority-native17.1onmYK/result.log` passed actual native process,
+private IPC, exact-source accounting and retained native-owner restart/replay,
+plus mixed-repository/duplicate-alternative refusal, including a single-repository
+subgroup with no full-inventory funding owner. Candidate eligibility,
+provider/tool and model answers were declared; no model request or actual queue
+dispatch ran. Remaining: resolve cross-repository funding with the owner, then
+qualify complete scheduler selection with actual admitted candidates/current
+eligibility, source/account withdrawal and interrupted outcomes. These depend on
+the production execution journey; installed admission and broad gates stay open.
+
 **A25/A04 delivery material and human review ownership:**
 `runtime/native_delivery_material.go`, `runtime/native_merges.go`,
 `factory/delivery_material.go` and `control/delivery_judgment_material.go` under

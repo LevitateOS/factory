@@ -4910,6 +4910,8 @@ func orphanJudgmentFixture(profile, post string) error {
 }
 
 func judgmentResultFixture(profile, post string, prepare bool) error {
+	priority := strings.HasPrefix(post, "priority:")
+	post = strings.TrimPrefix(post, "priority:")
 	delivery := strings.HasPrefix(post, "delivery:")
 	post = strings.TrimPrefix(post, "delivery:")
 	consultationKind := ""
@@ -4967,6 +4969,13 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 			return err
 		}
 		expected := "discussion"
+		if priority {
+			var request factory.PriorityRequest
+			if json.Unmarshal(fixture.State, &request) != nil || len(request.Candidates) != 2 {
+				return errors.New("priority fixture request missing")
+			}
+			expected = request.Candidates[0].ID
+		}
 		if delivery {
 			expected = factory.DeliveryReadyToMerge
 		}
@@ -5032,6 +5041,34 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 			}
 			fmt.Println("PASS: repository-scoped purpose advice adopts the exact native result and caches its receipt; unscoped native selection is refused; no additional inference")
 		}
+		if priority {
+			var request factory.PriorityRequest
+			if err := json.Unmarshal(fixture.State, &request); err != nil {
+				return err
+			}
+			native := factoryruntime.NativeJudgments{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}}
+			for range 2 {
+				answer, err := native.Choose(ctx, request)
+				if err != nil || answer.Selected != expected || answer.Model != fixture.Capture.Selection.Model {
+					return fmt.Errorf("repository priority result: %v", err)
+				}
+			}
+			request.Repository = 0
+			if _, err := native.Choose(ctx, request); !errors.Is(err, control.ErrPriorityUnavailable) {
+				return errors.New("same-repository subgroup of a mixed tournament borrowed funding")
+			}
+			request.Repository = fixture.Capture.Repository
+			request.Candidates[1].Control.Repository++
+			if _, err := native.Choose(ctx, request); !errors.Is(err, control.ErrPriorityUnavailable) {
+				return errors.New("mixed repository priority borrowed funding")
+			}
+			request.Candidates[1].Control.Repository--
+			request.Candidates[1].ID = request.Candidates[0].ID
+			if _, err := native.Choose(ctx, request); !errors.Is(err, control.ErrPriorityUnavailable) {
+				return errors.New("duplicate priority alternatives admitted")
+			}
+			fmt.Println("PASS: same-repository native queue preference uses its exact selected judgment source/result across restart and replay; mixed repositories and duplicate alternatives refuse before spending; candidate/provider/answer facts declared, no dispatch")
+		}
 		if delivery {
 			native := factoryruntime.NativeJudgments{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}}
 			chooser, model, revision, err := native.BindDeliveryJudgment(ctx, fixture.Capture.Repository)
@@ -5058,7 +5095,7 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		}
 		if detail.Record.Deleted {
 			fmt.Println("PASS: deleted source's original native result was accounted after restart without adopting its judgment; no inference replay")
-		} else if !purpose && !delivery && consultationKind == "" {
+		} else if !purpose && !delivery && !priority && consultationKind == "" {
 			fmt.Println("PASS: actual native process result crossed private IPC, passed Go choice validation, routed the real Feed post and charged its captured source; CLI/tool/provider answer declared, no model request")
 		}
 		return nil
@@ -5086,7 +5123,8 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	if err != nil {
 		return err
 	}
-	state, options, question := factoryservice.PostJudgeState(input), factoryservice.PostJudgmentChoices(input), factoryservice.PostRouteRubric
+	var state any = factoryservice.PostJudgeState(input)
+	options, question := factoryservice.PostJudgmentChoices(input), factoryservice.PostRouteRubric
 	prompt, err := factory.NativeJudgmentPrompt(state, question, options)
 	if err != nil {
 		return err
@@ -5131,6 +5169,33 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		capture.SourcePost = ""
 		capture.PromptSHA256 = factory.MCPInputDigest([]byte(prompt))
 		capture.OptionsSHA256 = factory.NativeJudgmentOptionsDigest([]string{factory.DeliveryReadyToMerge, factory.DeliveryReviewAgain})
+	}
+	if priority {
+		repository := detail.Record.Repository
+		request := factory.PriorityRequest{Repository: repository, Rubric: factory.PriorityRubric}
+		options = map[string]any{}
+		for _, issue := range []int64{7, 8} {
+			candidate := factory.PriorityCandidate{ID: fmt.Sprintf("%d/%d", repository, issue), Control: factory.IssueControl{Repository: repository, Issue: issue, FirstSeenUnix: time.Now().Unix()}, Acceptance: factory.Acceptance{Repository: repository}, Objective: "Declared eligible disposable queue work"}
+			request.Candidates = append(request.Candidates, candidate)
+			options[candidate.ID] = candidate
+		}
+		request.Snapshot, err = factory.PrioritySnapshot(request.Candidates)
+		if err != nil {
+			return err
+		}
+		state, question = request, request.Rubric
+		fingerprint, err := factory.JudgmentFingerprint(factory.JudgmentNextWork, state, question, options)
+		if err != nil {
+			return err
+		}
+		prompt, err = factory.NativeJudgmentPrompt(state, question, options)
+		if err != nil {
+			return err
+		}
+		capture.ID = factory.NativeJudgmentID(config.Profile, repository, "priority:"+fingerprint)
+		capture.SourcePost = ""
+		capture.PromptSHA256 = factory.MCPInputDigest([]byte(prompt))
+		capture.OptionsSHA256 = factory.NativeJudgmentOptionsDigest([]string{request.Candidates[0].ID, request.Candidates[1].ID})
 	}
 	if consultationKind != "" {
 		criteria := any(nil)

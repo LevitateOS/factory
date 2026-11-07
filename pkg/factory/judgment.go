@@ -33,7 +33,10 @@ type PriorityCandidate struct {
 const PriorityRubric = "Choose the eligible issue whose next execution best advances its accepted objective. Prefer evidenced prerequisite leverage and material user impact, then reduce evidenced delivery risk and effort. Use only provided facts; missing impact, risk and effort are unknown, not zero. Queue age breaks equivalent preferences. Eligibility, acceptance, authority, spending and launch are decided by code, never by this preference."
 
 type PriorityRequest struct {
-	Snapshot   string              `json:"snapshot"`
+	Snapshot string `json:"snapshot"`
+	// Repository is nonzero only when the complete tournament belongs to it.
+	// Candidates may contain one subgroup of that complete inventory.
+	Repository int64               `json:"repository,omitempty"`
 	Candidates []PriorityCandidate `json:"candidates"`
 	Rubric     string              `json:"rubric"`
 	State      json.RawMessage     `json:"state,omitempty"`

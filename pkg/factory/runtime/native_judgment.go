@@ -20,6 +20,33 @@ import (
 // never borrows Coding/Review funding or a server key.
 type NativeJudgments struct{ NativeExecution }
 
+var _ control.PriorityChooser = NativeJudgments{}
+
+// Choose uses the configured judgment source only when every candidate belongs
+// to one repository. Cross-repository spending has no selected funding owner.
+func (s NativeJudgments) Choose(ctx context.Context, request factory.PriorityRequest) (factory.PriorityAnswer, error) {
+	var empty factory.PriorityAnswer
+	if len(request.Candidates) < 2 || len(request.Candidates) > 255 || request.Rubric != factory.PriorityRubric {
+		return empty, control.ErrPriorityUnavailable
+	}
+	repository := request.Repository
+	options := make(map[string]any, len(request.Candidates))
+	for _, candidate := range request.Candidates {
+		if repository <= 0 || candidate.Control.Repository != repository || candidate.Acceptance.Repository != repository || candidate.ID == "" {
+			return empty, control.ErrPriorityUnavailable
+		}
+		if _, duplicate := options[candidate.ID]; duplicate {
+			return empty, control.ErrPriorityUnavailable
+		}
+		options[candidate.ID] = candidate
+	}
+	fingerprint, err := factory.JudgmentFingerprint(factory.JudgmentNextWork, request, request.Rubric, options)
+	if err != nil {
+		return empty, err
+	}
+	return s.SelectScoped(ctx, repository, "priority:"+fingerprint, request, request.Rubric, options)
+}
+
 func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
 	return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
 }

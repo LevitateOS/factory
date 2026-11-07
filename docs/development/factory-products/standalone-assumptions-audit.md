@@ -198,7 +198,17 @@ corrections are now active; the old feature queue waits for their resolution.
   persisted. `/home/vince/tmp/fnative-judgment-capacity9.A7mwQz/result.log` also
   proves refusal when the complete assessment exceeds remaining allowance. Live
   worker/source admission through claim, inference, invitation and reply remains
-  unverified. Queue funding across repositories awaits an owner decision. Native
+  unverified. Native queue preference now uses the explicit judgment source when
+  the complete tournament belongs to one repository, including grouped calls.
+  The production application supplies
+  this chooser to the existing tournament; mixed repositories remain unavailable
+  pending the owner's funding decision. The existing native check passed selected-
+  source result/accounting, retained native-owner restart/replay and refusal of
+  mixed repositories/duplicate alternatives in
+  `/home/vince/tmp/fpriority-native17.1onmYK/result.log`. Candidates, tool and answer
+  were declared; no model request or actual queue dispatch ran. Full scheduler,
+  current eligibility/withdrawal races and installed qualification remain pending.
+  Native
   `ReadDeliveryMaterial` now traverses complete bounded comments/reviews/threads
   twice, pairs accepted input and selected-policy revisions, and reads GitHub’s
   current review decision/latest writer opinions through Rust. It preserves

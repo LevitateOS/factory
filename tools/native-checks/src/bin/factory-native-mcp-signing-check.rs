@@ -401,7 +401,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     } else if prompt.starts_with("Make one Factory product judgment") {
         let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("judgment input absent")?.1)?;
         let options=input["options"].as_object().ok_or("judgment options absent")?;
-        let selected=if options.contains_key("ready_to_merge") {"ready_to_merge"}else{"discussion"};
+        let selected=if options.contains_key("ready_to_merge") {"ready_to_merge"}else if options.contains_key("discussion") {"discussion"}else{options.keys().next().ok_or("judgment alternatives absent")?};
         let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key==selected{1}else{0}))).collect();
         let answer=serde_json::json!({"selected":selected,"confidence":1,"probabilities":probabilities});
         println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
@@ -513,12 +513,22 @@ fn judgment_connector(root: &Path, prepared: bool) -> Result<(), Box<dyn std::er
         {
             return Err("native judgment lost actual process retirement or prompt binding".into());
         }
-        if index == 0
-            && result["result"]["output"]
-                .as_str()
-                .is_none_or(|s| !s.contains(if fixture.as_ref().is_some_and(|f| f["capture"]["output_kind"]=="consultation") {"answers"}else if fixture.as_ref().is_some_and(|f| f["options"].get("ready_to_merge").is_some()) {"ready_to_merge"}else if prepared {"discussion"}else{"new_issue"}))
-        {
-            return Err("native judgment lost its terminal answer".into());
+        if index == 0 {
+            let output: serde_json::Value = serde_json::from_str(
+                result["result"]["output"].as_str().ok_or("native judgment output absent")?,
+            )?;
+            let valid = if let Some(fixture) = &fixture {
+                if fixture["capture"]["output_kind"] == "consultation" {
+                    output["answers"].is_object()
+                } else {
+                    output["selected"].as_str().is_some_and(|selected| fixture["options"].get(selected).is_some())
+                }
+            } else {
+                output["selected"] == "new_issue"
+            };
+            if !valid {
+                return Err("native judgment lost its terminal answer".into());
+            }
         }
         if index == 1 && process["reason"] != "cancelled" {
             return Err("native judgment cancellation was not observed".into());

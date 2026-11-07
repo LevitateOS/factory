@@ -174,7 +174,14 @@ func (t *priorityTournament) runTournament() (string, error) {
 // uncertain preference.
 func (t *priorityTournament) judgePriorityGroup(group []factory.PriorityCandidate) (factory.PriorityCandidate, error) {
 	var none factory.PriorityCandidate
-	request := factory.PriorityRequest{Snapshot: t.snapshot, Candidates: group, Rubric: factory.PriorityRubric}
+	repository := t.candidates[0].Control.Repository
+	for _, candidate := range t.candidates {
+		if candidate.Control.Repository != repository {
+			repository = 0
+			break
+		}
+	}
+	request := factory.PriorityRequest{Snapshot: t.snapshot, Repository: repository, Candidates: group, Rubric: factory.PriorityRubric}
 	bounded, cancel := context.WithTimeout(t.ctx, 30*time.Second)
 	answer, callErr := t.deps.Chooser.Choose(bounded, request)
 	cancel()

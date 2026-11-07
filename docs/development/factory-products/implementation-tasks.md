@@ -141,7 +141,12 @@ records local typed-result/accounting proof and the pending authenticated worker
 journey. Contribution assessments now use sequential role batches with the
 original three questions, selected-source preflight and unchanged invitation
 gates; A25 records local batch/allowance proof and the pending live-worker
-journey. Queue funding across repositories awaits an owner decision. Native
+journey. Native same-repository queue preference now uses the repository's selected
+judgment source through the existing tournament/journal. A25 records the native
+result/accounting/replay and mixed-repository refusal proof, with declared
+candidates/tool/answer and no model or queue dispatch. Cross-repository funding
+awaits an owner decision; full scheduler and installed qualification remain open.
+Native
 delivery now reads paired, complete bounded PR discussion and current provider
 review opinions, preserving unknown facts and captured policy/input revisions.
 A25 records connected read-only evidence and remaining traversal/race limits.
