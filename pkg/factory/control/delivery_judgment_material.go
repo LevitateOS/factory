@@ -166,7 +166,7 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		return nil, emptyCycle, emptyPolicy, err
 	}
 	native, err := source.ReadDeliveryMaterial(ctx, c.mergeWork(merge, policy))
-	if err != nil || native.Revision != revision {
+	if err != nil || native.Revision != revision || native.PolicyRevision != 0 && native.PolicyRevision != policy.Revision {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
 	if err := normalizeExpectedResolutions(p, &native); err != nil {
@@ -180,8 +180,27 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	}
 	for _, blocked := range native.BlockingReviewIDs {
 		found := false
-		for _, item := range native.Reviews {
-			if item.ID == blocked && item.ActorID == strconv.FormatInt(policy.Review.ActorID, 10) {
+		var current *factory.DeliveryNativeReview
+		for i := range native.Reviews {
+			if native.Reviews[i].ID == blocked {
+				current = &native.Reviews[i]
+				break
+			}
+		}
+		// A human can share the configured review account. Only an original
+		// Factory receipt and unchanged observed body identify an agent review.
+		for _, operation := range p.ReviewOperations {
+			if current == nil || current.ActorID != strconv.FormatInt(policy.Review.ActorID, 10) || c.Reviews == nil {
+				break
+			}
+			if operation.Work.ActorID != policy.Review.ActorID || operation.Work.Repository != p.Repository || operation.Work.PRID != p.PRID || operation.Outcome.Effect != factory.OpEffectCommitted || operation.Outcome.Completion != factory.OpCompletionComplete {
+				continue
+			}
+			if operation.Work.Event != "REQUEST_CHANGES" || current.Content != operation.Work.Body || current.Commit != operation.Work.HeadOID {
+				continue
+			}
+			adopted, err := c.Reviews.AdoptReview(ctx, operation.Work, operation.Outcome)
+			if err == nil && adopted.ReviewerID == policy.Review.ActorID && adopted.ReviewID > 0 && strconv.FormatInt(adopted.ReviewID, 10) == blocked {
 				found = true
 			}
 		}

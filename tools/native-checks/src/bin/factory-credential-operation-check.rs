@@ -1228,6 +1228,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
                     (body,accepted,json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id}))
                 };
+                let delivery_check=args.len()==10 && field(9)?=="delivery-material";
                 let correction_check=args.len()==10 && field(9)?=="correction";
                 let merge_check=args.len()==10 && matches!(field(9)?,"merge"|"merge-resume");
                 let publication_check=args.len()==10 && field(9)?=="publication";
@@ -1241,6 +1242,11 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     async move { ensure(command.status().await?.success(),"native background product check failed") }
                 };
                 check("check-background-inputs",&ready.instance).await?;
+                if delivery_check {
+                    check("check-background-delivery-material",&ready.instance).await?;
+                    println!("PASS: connected native delivery discussion/opinions, complete bounded traversal and explicit unknown facts; local policy declared, no GitHub write, model or merge");
+                    return Ok(());
+                }
                 if resume_merge {check("check-background-merge-resume",&ready.instance).await?;}
                 else if merge_check {check("check-background-merge",&ready.instance).await?;}
                 else if correction_check {check("check-background-correction",&ready.instance).await?;}

@@ -35,7 +35,8 @@ func normalizeExpectedResolutions(p factory.Publication, native *factory.Deliver
 			if len(thread.Members) == 0 || thread.Members[0].ID != thread.RootID {
 				return errors.New("resolved conversation root is missing")
 			}
-			thread.Members[0].Resolved = false
+			unresolved := false
+			thread.Members[0].Resolved = &unresolved
 		}
 	}
 	return nil

@@ -22,6 +22,11 @@ The user started the correction goal and selected these requirements on
   the provider's actual rules (A04). A second personal account is not required
   for Factory and cannot substitute for independent human approval. The earlier
   second account was an optional two-user integration fixture.
+- On 2026-11-07, personal GitHub accounts publish AI inspection as COMMENT.
+  Approval/change-request votes require an explicitly designated automation
+  identity, and GitHub approval requirements remain enforced (A04). Designation
+  and automatic-submit admission still need implementation; do not infer it
+  from the reviewer differing from the PR author.
 - Existing Muse session reuse and a browser link only when authentication is
   needed remain the earlier explicit instructions (A01).
 - Hiding/minimizing Factory retains the account/repository choices and reconnects
@@ -155,9 +160,26 @@ corrections are now active; the old feature queue waits for their resolution.
   proves refusal when the complete assessment exceeds remaining allowance. Live
   worker/source admission through claim, inference, invitation and reply remains
   unverified. Queue funding across repositories awaits an owner decision. Native
-  delivery lacks a complete current PR-material reader (`NativeMerges` does not
-  implement `ReadDeliveryMaterial`) and a bound delivery chooser. No native
-  TypeSafe fallback is supplied.
+  `ReadDeliveryMaterial` now traverses complete bounded comments/reviews/threads
+  twice, pairs accepted input and selected-policy revisions, and reads GitHub’s
+  current review decision/latest writer opinions through Rust. It preserves
+  unknown edit counters, official/stale flags and per-comment resolution. The
+  aggregate read has a two-minute bound; individual request/lease limits remain
+  unchanged. Blocking reviews require an original Factory review receipt and unchanged
+  current body/commit; sharing its author account alone grants no exemption
+  (A04). Connected read-only checks
+  passed for the public fixture (one comment/review, no threads) in
+  `/home/vince/tmp/fnative-delivery-complete9.B4QdcH/result.log` and the private
+  fixture (eight comments/reviews, seven single-member threads) in
+  `/home/vince/tmp/fnative-delivery-threads9.ougubf/result.log`. The latter’s
+  `body-comparison.log` also compares title/body and all REST-visible ordinary/
+  inline comment bytes with independent GitHub reads. Local workflow policy was
+  declared; neither fixture proved merge eligibility, and no provider write,
+  model, resolution or full pipeline ran. Multi-page member traversal, changes
+  while reading, withdrawal and the same-account human-blocker path remain
+  unverified. Delivery still needs a bound chooser/full funded journey and
+  support for its complete input bound (native prompts currently stop at 64 KiB).
+  No native TypeSafe fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and
@@ -1157,6 +1179,18 @@ review, human approval and branch protection. Decide the supported single-accoun
 journey and whether separate accounts/bots are optional or required for a
 particular automatic delivery mode. Human GitHub writes are a separate path;
 this finding does not invalidate their completed checks.
+
+**Further confirmed mismatch and owner decision (2026-11-07):**
+`control/review_cycle.go` currently changes automatic votes to COMMENT only when
+reviewer and PR author match. On another author’s PR, Factory can therefore vote
+using a personal identity and supersede that identity’s earlier human vote; a
+delivery-only provenance check occurs too late to prevent that effect. The
+owner selected COMMENT for personal accounts and votes only for an explicitly
+designated automation identity. Implement identity-bound designation and enforce
+it when constructing and admitting automatic review work, including queued work
+and designation withdrawal. This is not yet implemented or qualified. Keep
+GitHub approval prerequisites and independent agent inspection. The provider
+semantics are documented in [GitHub’s review guide](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request).
 
 ### A05 — Draft planning still requires the appliance's Fountain Project mapping
 

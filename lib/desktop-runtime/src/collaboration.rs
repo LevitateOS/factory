@@ -620,6 +620,10 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }
                     | Read::AutomationReview { .. }
+                    | Read::DeliveryOpinions { .. }
+                    | Read::PullComments { .. }
+                    | Read::PullReviews { .. }
+                    | Read::PullThreads { .. }
                     | Read::MergePreparation { .. }
                     | Read::MergeCompletion { .. }
                     | Read::PullRequiredChecks { .. }

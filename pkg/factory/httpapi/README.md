@@ -567,8 +567,15 @@ source. Their existing discussion journal retains actual model/process usage;
 explicit repeats remain separate calls. Native contribution assessments use
 that source in one three-question batch per currently admitted role, with source/
 allowance preflight and the existing claim/settlement rules. Unavailable sources
-leave assessments unclaimed. Queue and delivery consumers remain unavailable
-until composed. Local fixture checks do not qualify complete planning/context,
+leave assessments unclaimed. Native delivery now reads complete bounded PR
+discussion/current opinions with paired input/policy observations. Unknown
+provider fields remain nullable; known legacy JSON booleans/integers still
+decode, and Go producers must supply pointers for known values. Human blocking
+reviews require exact Factory operation provenance even when author accounts
+match. Connected read-only fixtures cover empty and nonempty threads; page/
+mutation/withdrawal and full Fountain integration remain pending. Queue funding
+and delivery chooser/input-bound composition remain unavailable until completed.
+Local fixture checks do not qualify complete planning/context,
 authenticated worker consultations/contributions or installed execution. A
 separate live check proved one tool-free official Muse call through the private
 native begin callback, existing-login reuse and original-source accounting/

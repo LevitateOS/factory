@@ -1356,6 +1356,9 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	fixtureTimeout := 35 * time.Second
+	if action == "check-background-delivery-material" {
+		fixtureTimeout = 150 * time.Second
+	}
 	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") || strings.HasPrefix(action, "check-background-merge") {
 		fixtureTimeout = 120 * time.Second
 	}
@@ -1378,6 +1381,44 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if action == "check-background-delivery-material" {
+		port := factoryruntime.NativeMerges{NativeInputSource: source}
+		w := factory.MergeWork{Method: "merge", Repository: repository, Issue: issue, PRNumber: input.Checks.PRNumber, PRID: input.Checks.PRID, IssueID: input.Checks.IssueID, ActorID: int64(connection.Actor), PRAuthorID: int64(connection.Actor), ReviewerID: int64(connection.Actor), ReviewEvent: "COMMENT", HeadRef: input.Checks.HeadRef, BaseRef: input.Checks.BaseRef, HeadOID: input.Checks.HeadOID, BaseOID: input.Checks.BaseOID}
+		material, err := port.ReadDeliveryMaterial(ctx, w)
+		if err != nil {
+			return err
+		}
+		if material.Revision <= 0 || material.Repository != repository || material.PRID != w.PRID || material.Head != w.HeadOID || material.Base != w.BaseOID || material.Title == "" || material.Comments == nil || material.Reviews == nil || material.Threads == nil {
+			return errors.New("native delivery material lost its exact scope or complete collections")
+		}
+		for _, comment := range material.Comments {
+			if comment.ContentVersion != nil || comment.Invalidated != nil || comment.Digest != factory.MCPInputDigest([]byte(comment.Content)) {
+				return errors.New("GitHub delivery comment invented an edit counter/state or lost body bytes")
+			}
+		}
+		for _, review := range material.Reviews {
+			if review.Official != nil || review.Stale != nil || review.Digest != factory.MCPInputDigest([]byte(review.Content)) {
+				return errors.New("GitHub delivery review invented an unavailable native flag")
+			}
+		}
+		for _, thread := range material.Threads {
+			if thread.ProviderID == "" || thread.OriginalAnchor != nil || thread.Digest == "" || len(thread.Members) == 0 {
+				return errors.New("native delivery thread lost its provider identity or invented an original base")
+			}
+			if _, err := thread.ConversationDigest(material.Comments, true); err == nil {
+				return errors.New("unknown GitHub edit/resolution facts authorized legacy resolution prediction")
+			}
+		}
+		raw, err := json.Marshal(material)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(filepath.Dir(path), "delivery-material.json"), raw, 0600); err != nil {
+			return err
+		}
+		fmt.Printf("PASS: actual native delivery reader: %d comments, %d reviews, %d threads; exact bodies/identities, bounded current opinions and unknown flags retained; no judge or mutation\n", len(material.Comments), len(material.Reviews), len(material.Threads))
+		return nil
+	}
 	if action == "check-background-merge-resume" {
 		if _, e := os.Stat(filepath.Join(filepath.Dir(path), "native-merge.json")); e == nil {
 			return nativeMergeRetained(ctx, db, factoryruntime.NativeMerges{NativeInputSource: source}, path)

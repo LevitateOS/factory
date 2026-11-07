@@ -141,10 +141,15 @@ records local typed-result/accounting proof and the pending authenticated worker
 journey. Contribution assessments now use sequential role batches with the
 original three questions, selected-source preflight and unchanged invitation
 gates; A25 records local batch/allowance proof and the pending live-worker
-journey. Queue funding across repositories awaits an owner decision. Delivery
-still needs complete current PR material (`NativeMerges` has no
-`ReadDeliveryMaterial`), then a bound selected-source chooser. The full automated
-pipeline remains required.
+journey. Queue funding across repositories awaits an owner decision. Native
+delivery now reads paired, complete bounded PR discussion and current provider
+review opinions, preserving unknown facts and captured policy/input revisions.
+A25 records connected read-only evidence and remaining traversal/race limits.
+Delivery still needs a bound selected-source chooser and its full funded journey;
+the existing 64 KiB native prompt cap also cannot admit all material allowed by
+the 256 KiB delivery contract. The owner’s A04 decision additionally requires
+personal-GitHub COMMENT-only review work and an explicitly identity-bound
+automation designation before votes, enforced again at native submission. The full automated pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

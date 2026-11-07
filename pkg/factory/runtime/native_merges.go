@@ -144,35 +144,9 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if len(reviews.Items) != 1 || reviews.Items[0].Pull.ExternalID != strconv.FormatInt(w.PRID, 10) || int64(reviews.Items[0].Author.ID) != w.ReviewerID || reviews.Items[0].Commit != collaboration.CommitID(w.HeadOID) || reviews.Items[0].State != expectedState {
 		return empty, &factory.PublicationWait{Reason: "review_evidence_mismatch"}
 	}
-	var facts nativeMergeFacts
-	if err = account.read(ctx, nativeRead{Kind: "merge_preparation", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &facts); err != nil {
-		return empty, err
-	}
-	if facts.PullID != strconv.FormatInt(w.PRID, 10) || facts.Head != w.HeadOID || facts.Base != w.BaseOID {
-		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
-	}
-	reads := nativeCollaborationReads{account}
-	gate, err := reads.readRequiredChecks(ctx, account.repository.ID, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, collaboration.CommitID(w.HeadOID), collaboration.CommitID(w.BaseOID), w.BaseRef[len("refs/heads/"):])
-	if err != nil {
-		return empty, fmt.Errorf("merge provider rules: %w", err)
-	}
-	summary := gate.Protection
-	complete := summary != nil && summary.RequirementsComplete != nil && *summary.RequirementsComplete && summary.RequiredApprovals != nil && *summary.RequiredApprovals == 0
-	if summary != nil {
-		for _, flag := range []*bool{summary.RequireCodeOwnerReviews, summary.RequireLastPushApproval, summary.RequireSigned, summary.RequireLinearHistory, summary.RequireResolvedThreads, summary.RequireUpToDate} {
-			complete = complete && flag != nil && !*flag
-		}
-	}
-	checks, err := p.ObserveChecks(ctx, factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, w.ActorID)
+	observed, err := p.observeProviderMerge(ctx, w, account)
 	if err != nil {
 		return empty, err
-	}
-	caps, err := reads.ReadCapabilities(ctx, account.binding.Actor.ID, account.repository.ID, factoryservice.CapabilityQuery{Subject: "pull", Number: w.PRNumber})
-	if err != nil {
-		return empty, fmt.Errorf("merge capabilities: %w", err)
-	}
-	if caps.Pull == nil || caps.Pull.ExternalID != facts.PullID || caps.Head == nil || string(*caps.Head) != w.HeadOID || caps.Base == nil || string(*caps.Base) != w.BaseOID || checks.HeadTip != w.HeadOID || checks.BaseTip != w.BaseOID {
-		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 	}
 	after, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
@@ -181,8 +155,9 @@ func (p NativeMerges) ObserveMerge(ctx context.Context, w factory.MergeWork) (fa
 	if before.Revision != after.Revision {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 	}
-	available := facts.Methods[w.Method] && facts.State == "open" && facts.Draft != nil && !*facts.Draft && facts.Merged != nil && !*facts.Merged && facts.Push != nil && *facts.Push && facts.Archived != nil && !*facts.Archived && facts.Disabled != nil && !*facts.Disabled
-	return factory.MergeObservation{Method: w.Method, MethodAvailable: available, Checks: checks, NativeRev: after.Revision, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: review.ReviewID, ReviewEvent: review.Event, ProviderComplete: complete, ProviderEligible: complete && caps.Actions[collaboration.MergePull].State == collaboration.Allowed && (gate.StatusGate == "success" || gate.StatusGate == "not_required")}, nil
+	observed.NativeRev = after.Revision
+	observed.ReviewID, observed.ReviewEvent = review.ReviewID, review.Event
+	return observed, nil
 }
 
 func (p NativeMerges) admit(ctx context.Context, w factory.MergeWork) (*nativeProductAccount, error) {
@@ -408,4 +383,42 @@ func (p NativeMerges) ObserveCompletion(ctx context.Context, w factory.MergeWork
 		return empty, fmt.Errorf("merge original issue closure: %w", err)
 	}
 	return factory.MergeConfirmation{MergedCommit: raw.Commit, BaseTip: raw.BaseTip, BaseContainsMergedCommit: raw.Contains, MergerID: int64(mapped.Actors[raw.Merger.ExternalID].ID), MergedUnix: raw.MergedAt.Unix(), ClosedUnix: raw.ClosedAt.Unix(), NativeRev: original.Revision, ObservedUnix: time.Now().Unix(), IssueClosed: raw.IssueClosed, OriginalClosed: original.Issue.Closed, OriginalClosingOccurrence: original.Issue.ClosingOccurrence, OriginalClosedUnix: original.Issue.ClosedUnix}, nil
+}
+
+// observeProviderMerge reads provider facts without asserting a registered
+// Factory review. Workflow admission remains in ObserveMerge and the coordinator.
+func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeWork, account *nativeProductAccount) (factory.MergeObservation, error) {
+	var empty factory.MergeObservation
+	var facts nativeMergeFacts
+	if err := account.read(ctx, nativeRead{Kind: "merge_preparation", Repository: account.repository.ExternalID, Number: uint32(w.PRNumber)}, &facts); err != nil {
+		return empty, err
+	}
+	if facts.PullID != strconv.FormatInt(w.PRID, 10) || facts.Head != w.HeadOID || facts.Base != w.BaseOID {
+		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
+	}
+	reads := nativeCollaborationReads{account}
+	gate, err := reads.readRequiredChecks(ctx, account.repository.ID, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, collaboration.CommitID(w.HeadOID), collaboration.CommitID(w.BaseOID), w.BaseRef[len("refs/heads/"):])
+	if err != nil {
+		return empty, fmt.Errorf("merge provider rules: %w", err)
+	}
+	summary := gate.Protection
+	complete := summary != nil && summary.RequirementsComplete != nil && *summary.RequirementsComplete && summary.RequiredApprovals != nil && *summary.RequiredApprovals == 0
+	if summary != nil {
+		for _, flag := range []*bool{summary.RequireCodeOwnerReviews, summary.RequireLastPushApproval, summary.RequireSigned, summary.RequireLinearHistory, summary.RequireResolvedThreads, summary.RequireUpToDate} {
+			complete = complete && flag != nil && !*flag
+		}
+	}
+	checks, err := p.ObserveChecks(ctx, factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, w.ActorID)
+	if err != nil {
+		return empty, err
+	}
+	caps, err := reads.ReadCapabilities(ctx, account.binding.Actor.ID, account.repository.ID, factoryservice.CapabilityQuery{Subject: "pull", Number: w.PRNumber})
+	if err != nil {
+		return empty, fmt.Errorf("merge capabilities: %w", err)
+	}
+	if caps.Pull == nil || caps.Pull.ExternalID != facts.PullID || caps.Head == nil || string(*caps.Head) != w.HeadOID || caps.Base == nil || string(*caps.Base) != w.BaseOID || checks.HeadTip != w.HeadOID || checks.BaseTip != w.BaseOID {
+		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
+	}
+	available := facts.Methods[w.Method] && facts.State == "open" && facts.Draft != nil && !*facts.Draft && facts.Merged != nil && !*facts.Merged && facts.Push != nil && *facts.Push && facts.Archived != nil && !*facts.Archived && facts.Disabled != nil && !*facts.Disabled
+	return factory.MergeObservation{Method: w.Method, MethodAvailable: available, Checks: checks, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: complete, ProviderEligible: complete && caps.Actions[collaboration.MergePull].State == collaboration.Allowed && (gate.StatusGate == "success" || gate.StatusGate == "not_required")}, nil
 }

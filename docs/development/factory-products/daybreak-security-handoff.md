@@ -114,9 +114,45 @@ use an actual admitted worker and official Muse start to prove claim → origina
 result/accounting → single invitation → scoped reply, plus source/reply edits,
 worker/source withdrawal, deadline and interrupted-owner refusal. This depends
 on the still-open production-start/worker journey; source compilation and these
-component checks do not close it. Queue funding and complete current delivery
-material/chooser remain pending. Coding/Review permission grants no
+component checks do not close it. Coding/Review permission grants no
 judgment-source authority.
+
+**A25/A04 delivery material and human review ownership:**
+`runtime/native_delivery_material.go`, `runtime/native_merges.go`,
+`factory/delivery_material.go` and `control/delivery_judgment_material.go` under
+`pkg/` now pair complete bounded discussion with accepted-input and selected
+policy observations. `lib/desktop-runtime/src/github_provider/delivery_opinions.rs`
+reads provider-defined current decisions/latest writer opinions; the background
+channel admits only the four required bounded selectors under its existing
+account/repository scope. Two matching traversals are not an atomic/global
+GitHub revision. Unknown counters/flags/member resolution stay nullable and
+cannot authorize legacy resolution prediction. A blocking review can be treated
+as Factory-owned only through its original operation receipt and unchanged
+current body/commit, never author ID alone. Read assembly is capped at two minutes; individual request/credential
+lease deadlines and effect admission remain unchanged.
+Connected read-only evidence: public one-comment/one-review/no-thread case in
+`/home/vince/tmp/fnative-delivery-complete9.B4QdcH/result.log`; private eight-
+comment/eight-review/seven-thread case and independent body comparison in
+`/home/vince/tmp/fnative-delivery-threads9.ougubf/{result,body-comparison}.log`.
+Local policy was declared; no model, provider mutation, resolution or merge ran.
+Both fixtures retained unavailable merge eligibility. Remaining evidence:
+exercise member/page continuation, edited/reordered/oversized/truncated sources,
+selected-policy/credential changes and cancellation during traversal; verify the
+new selectors still refuse foreign scope/withdrawal on the actual channel. Prove
+a human blocking review sharing Factory’s account cannot reach judgment/merge
+without an exact Factory receipt, and that an actual owned review is recognized.
+Traversal/scope checks can continue in existing disposable provider fixtures.
+Full receipt-owned acceptance/merge proof depends on complete caller/workflow
+composition; no new product account requirement is introduced. The owner also selected personal-GitHub COMMENT-only automatic reviews, with
+votes only for an explicitly designated automation identity. This remains to be
+implemented in policy/configuration, `control/review_cycle.go` and native
+automatic-submit admission: a new vote can supersede a prior human vote before
+the delivery guard runs. Bind designation to the exact selected identity, reject
+queued votes after withdrawal/identity changes, and prove personal COMMENT and
+dedicated-identity votes without replacing a human veto. Preserve actual GitHub
+approval gates; no identity is designated by a different PR author alone.
+Funding/chooser composition, native 64 KiB versus delivery 256 KiB input support, original native
+resolution anchors and full funded delivery/installed qualification remain open.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

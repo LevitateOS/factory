@@ -28,6 +28,10 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    DeliveryOpinions {
+        repository: String,
+        number: u32,
+    },
     AutomationChecks {
         repository: String,
         number: u32,

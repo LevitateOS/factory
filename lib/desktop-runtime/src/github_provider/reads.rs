@@ -103,6 +103,10 @@ impl Client {
                                 )
                                 .await?,
                         ),
+                        "delivery_opinions" => (
+                            "delivery_opinions",
+                            reader.delivery_opinions(q["number"].as_u64().ok_or_else(Failure::invalid)?).await?,
+                        ),
                         "automation_checks" => (
                             "automation_checks",
                             reader
