@@ -36,22 +36,32 @@ const desktop = Bun.spawn(
     '--locked',
     '-p',
     'soda-desktop',
+    '-p',
+    'soda-factory-worker',
+    '--bin',
+    'soda-desktop',
+    '--bin',
+    'soda-factory-muse',
     '--features',
-    values.check ? 'native-check' : 'native-ui',
+    values.check ? 'soda-desktop/native-check' : 'soda-desktop/native-ui',
     '--message-format=json-render-diagnostics',
   ],
   {cwd: root, stdout: 'pipe', stderr: 'inherit'}
 );
 const [status, messages] = await Promise.all([desktop.exited, new Response(desktop.stdout).text()]);
-let executable: string | undefined;
+const executables = new Map<string, string>();
 for (const line of messages.split('\n')) {
   if (!line) continue;
   const message = JSON.parse(line);
   if (message.reason === 'compiler-message' && message.message.rendered) process.stderr.write(message.message.rendered);
-  if (message.reason === 'compiler-artifact' && message.target.name === 'soda-desktop' && message.executable)
-    executable = message.executable;
+  if (message.reason === 'compiler-artifact' && message.executable)
+    executables.set(message.target.name, message.executable);
 }
-if (status !== 0 || !executable) throw Error('Native desktop build did not produce an executable');
-await copyFile(executable, resolve(out, 'soda-desktop'));
+if (status !== 0) throw Error('Native desktop build failed');
+for (const name of ['soda-desktop', 'soda-factory-muse']) {
+  const executable = executables.get(name);
+  if (!executable) throw Error('Native desktop build did not produce ' + name);
+  await copyFile(executable, resolve(out, name));
+}
 await cp(payload, resolve(out, 'factory-runtime/postgresql'), {recursive: true, verbatimSymlinks: true});
 console.log('Staged standalone desktop at ' + out);

@@ -103,6 +103,9 @@ ending there after offline delay and PostgreSQL refusing timestamp changes.
 Historical receipts retain their deadline bound. Token-lane early-stop attribution
 after delayed settlement remains unqualified. A01/A19 and the security handoff
 record these scopes and all other retained unresolved attempts.
+The desktop stage now includes the fixed Muse helper beside the app; its actual
+cached development build and byte/permission checks are recorded in A01/A11.
+Installed distribution, Muse installation and privileged service setup remain open.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared

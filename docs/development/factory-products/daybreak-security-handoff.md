@@ -187,6 +187,14 @@ Muse connector/receipt/recovery, Go `execution/native_{observation,record}.go`,
 `execution/provenance.go`, and `store/factory_execution_schema.go`. The token lane
 does not supply this timestamp yet; do not infer one for any historical receipt.
 
+`scripts/build-desktop.ts` now stages the fixed `soda-factory-muse` sibling that
+native helper discovery requires. The cached development stage passed using the
+retained sysroot (`.artifacts/desktop-muse-stage7-build.log`); staged app/helper
+bytes matched Cargo output and both remained executable. Installed distribution,
+helper ownership/admission on an installed host, Muse installation/update and
+privileged service provisioning remain unverified dependencies. Close them with
+the actual installed host journey; this build does not qualify custody/IPC/D3.
+
 Remaining exact dependencies: active-service or incomplete-receipt recovery must
 stay fenced until exact service/process/MCP/root evidence exists; qualify live
 withdrawal/refusal, interrupted publication/lost replies/reboot, token-lane early-stop

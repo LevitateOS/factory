@@ -19,6 +19,9 @@ distribution package. The default profile is `$XDG_DATA_HOME/soda-factory`, or
 options accept absolute paths. The profile must be privately owned, with no
 symlink components. Normal workspace builds omit GTK/WebKit requirements; the
 staging script enables the `native-ui` feature.
+It stages the fixed `soda-factory-muse` connector beside `soda-desktop`; keep both
+files together. This helper uses Muse's existing login and does not install Muse
+or supply the privileged execution services.
 
 Closing windows hides them and keeps the runtime alive. Launching again for the
 same profile activates its main window. Quit stops admission and observations,

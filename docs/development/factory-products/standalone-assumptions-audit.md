@@ -122,6 +122,12 @@ corrections are now active; the old feature queue waits for their resolution.
   is retained there. Exact stop-based usage and database mutation refusal passed.
   Historical receipts without a stop time still use the admitted deadline bound;
   no historical timestamp is invented. The token lane has no stop-time receipt yet.
+  Desktop staging now builds and requires `soda-factory-muse` beside the app,
+  matching the native helper lookup. The actual cached development stage passed
+  with the retained desktop sysroot; both staged executables matched Cargo's
+  output and retained executable permissions. Build log:
+  `.artifacts/desktop-muse-stage7-build.log`. This is not installed qualification
+  or a Muse/toolchain/service installer.
   Active-service/incomplete-receipt recovery, connected withdrawal/refusal, reviewer execution, broader
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
