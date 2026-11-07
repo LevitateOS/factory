@@ -1697,6 +1697,14 @@ observed session limitation requires it. Do not build another fixture framework.
 
 ### A22 — Whole-product completion is broader than an independently usable release
 
+**Fountain dependency inspection (2026-11-08):** the current host at
+`1b523c6e3d` implements public-client PKCE and private SDK admissions, not the
+required desktop HTTPS gateway grant/placement contract. The inspected Forge
+integration is `627c637f`. T10-GATEWAY first needs a defining host/SDK capability
+outside Factory's engine, then its authenticated Rust desktop consumer. The D2
+handoff records exact files, required authority bindings and real closure
+evidence. No login/probe ran and no Fountain or security gate was qualified.
+
 **Release decision.** Packaging and installed GitHub work have independent paths.
 However, upgrade/parity and the definition of complete Linux work require Forge,
 GitHub desktop and Fountain desktop journeys. Fountain does not block implementing

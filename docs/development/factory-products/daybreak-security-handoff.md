@@ -67,6 +67,36 @@ retirements and removal of the authorized fixture. Provider/source facts remain
 declared. Full Test Pilot/delivery, maximum-size aggregation, interrupted reads
 and installed qualification remain open; this closes no broad security gate.
 
+### D2 host capability dependency — source inspection 2026-11-08
+
+The inspected Fountain host (`/home/vince/Projects/forgejo-ext`, `1b523c6e3d`)
+supports public-client PKCE in `routers/web/auth/oauth.go`. Its native operation
+client in `sdk/native.go` requires a private callback socket and opaque host
+admission; `routers/web/extensions/callback.go` issues session-bound admissions.
+This is not a desktop HTTPS gateway grant. No desktop enrollment/gateway route
+or centrally coordinated desktop placement was found in those host routes or
+the current SodaOS integration (`627c637f`). Factory currently has no Fountain
+desktop connector. Existing OAuth support and private SDK operations do not
+establish the missing remote authority.
+
+The next implementation belongs to the Fountain Go host/SDK and its Forge
+integration, outside the standalone engine dependency closure. It must expose
+supported public-client enrollment and a revocable grant binding the authenticated
+account, repository, permitted operations, acting principals and runtime/generation.
+Each HTTPS operation must recheck current native permission, grant lifetime and
+placement. Preserve original operation identities and lookup/cancel receipts;
+candidate upload must bind the pending publication and exact digest, without
+implying publication success. Private callback admissions, service credentials
+and socket access stay on the host. Rust can then own the authenticated desktop
+session and shared UI integration against that implemented contract.
+
+This was read-only source inspection, not login, grant issuance or a security
+probe. D2 remains open. Closure requires actual supported desktop login,
+authenticated reads/operations, revocation/expiry denial, old-generation refusal
+and retained uncertain-operation recovery against the real host. Server contract
+implementation and a live configured host/client registration are dependencies;
+neither a generic OAuth token nor browser presentation fields prove admission.
+
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all

@@ -24390,6 +24390,16 @@ native work. Owner: Go/Fountain with Rust transfer integration. Files:
 necessary Caddy/setup/placement joins. The gateway is not required to construct
 human-operation adapters or to implement GitHub desktop execution.
 
+Source inspection on 2026-11-08 pinned the missing host capability: Fountain
+`1b523c6e3d` supplies PKCE and a private admission-bound SDK callback, but no
+desktop HTTPS grant/enrollment/placement contract was found. The next defining
+implementation is in the Fountain Go host/SDK and Forge integration, followed by
+the Rust desktop session. The D2 section of
+[the security handoff](daybreak-security-handoff.md#d2-host-capability-dependency--source-inspection-2026-11-08)
+records exact files, required bindings and closure evidence. This is a source
+dependency finding, not connected qualification or permission to expose the
+private callback through a generic proxy.
+
 - **C:** Resolve D2 with a real supported human login and revocable grant. Source
   contains PKCE support but the scoped desktop gateway grant is new. Bind account,
   repository, operation kinds, acting service principals and runtime generation.
