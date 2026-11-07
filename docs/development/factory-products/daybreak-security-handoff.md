@@ -540,6 +540,20 @@ as failures; proposed fixes are not closure evidence. This closes no broad gate.
 Remaining dependencies: actual admitted correction and cancellation/withdrawal,
 interrupted task/receipt publication and transport, unreconciled restart, complete
 Muse role/configuration confinement, larger workloads and installed isolation.
+The subsequent authorized public-advancement Muse attempt under
+`/home/vince/tmp/fmuse-auto-phase7.58xBFG/` exposed a missing-file read that closed
+the native task session. Its original run `957e7d26809a57b976a894bcf6e4fd71`
+settled failed with an accepted blocked result, consumed reservation, stop-based
+usage and confirmed process/root retirement in `recovery-verified.log`, without
+inference replay. CLI exit zero was not treated as successful product execution.
+`agent_workspace.rs` now returns typed absence for a missing file; Go projects
+`exists=false` while retaining other errors and existing path/admission checks.
+This fix does not qualify interrupted publication, broader isolation or custody.
+The existing local journey passed in
+`/home/vince/tmp/fnative-missing-read8.CXZcb5/result.log`: real readiness and public
+plan adoption/Builder dispatch, missing read then edits/checkpoints/candidate,
+reviewer incomplete settlement/retirement and retained restart readback. Provider
+facts/tool availability remain declared; real Muse requalification is pending.
 The token task source has no composed task owner and remains unavailable.
 Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
 `{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,

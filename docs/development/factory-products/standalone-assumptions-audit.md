@@ -283,6 +283,16 @@ corrections are now active; the old feature queue waits for their resolution.
   fixture profiles remain retained; they supply no completion evidence.
   These changes do not qualify D3, custody/IPC, the full pipeline or installed
   execution.
+  The public coordinator now replaces fixture-supplied Builder advancement in
+  the existing task check. `/home/vince/tmp/fnative-missing-read8.CXZcb5/result.log`
+  passed actual readiness, plan adoption/dispatch, missing-file read then edits,
+  sequential checkpoints/candidate, reviewer incomplete settlement and retained
+  restart readback. Provider facts/tool availability remain declared; no model
+  ran. The authorized real attempt in `fmuse-auto-phase7.58xBFG` exposed a missing
+  read closing the workspace session; its original blocked run settled without
+  replay in `recovery-verified.log`. Rust now returns typed absence and Go exposes
+  `exists=false`; real Muse requalification remains pending. Other errors and
+  admission/path checks remain unchanged.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

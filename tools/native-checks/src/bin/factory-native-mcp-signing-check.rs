@@ -184,8 +184,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ready = supervisor.health()?;
         let fixture = profile.join("admitted-native-fixture.json");
         let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
-        if captured["Tasks"] == true
-            && captured["ParentRun"].as_str().is_some_and(|s| !s.is_empty())
+        if args[4] == "recover-muse"
+            && captured["Tasks"] == true
+            && captured["ParentRun"]
+                .as_str()
+                .is_some_and(|s| !s.is_empty())
         {
             tokio::runtime::Builder::new_current_thread()
                 .enable_all()

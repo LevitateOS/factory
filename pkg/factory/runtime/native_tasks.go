@@ -123,10 +123,15 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	if err != nil {
 		return empty, err
 	}
-	if reply.Result.Status != "ok" {
+	read := request.Input.Action == "workspace" && args.Operation == "read"
+	missing := read && reply.Result.Status == "missing"
+	if reply.Result.Status != "ok" && !missing {
 		return empty, execution.ErrTaskUnavailable
 	}
 	result := map[string]any{"task_id": args.TaskID, "execution_mode": "sequential_parent", "head": reply.Result.Head}
+	if read {
+		result["exists"] = !missing
+	}
 	if reply.Result.OutputDigest != "" {
 		result["output_digest"] = reply.Result.OutputDigest
 	}

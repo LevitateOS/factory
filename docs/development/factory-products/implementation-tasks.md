@@ -77,6 +77,16 @@ active child's repository slot without being declared retired. The worker's
 explicit incomplete result, retirement and retained admission readback passed
 with declared CI/provider facts and no inference or GitHub effect. Successful
 model review and the complete automated pipeline remain pending.
+The existing task journey now uses public coordinator dispatch for plan adoption
+and Builder advancement instead of constructing that phase in the fixture.
+`/home/vince/tmp/fnative-missing-read8.CXZcb5/result.log` passed actual readiness,
+missing-file read followed by edits, sequential checkpoints, candidate export,
+reviewer incomplete-result retirement and retained restart readback. Provider
+facts/tool availability remain declared; no model or GitHub effect ran. The
+authorized Muse attempt that exposed the missing-file session failure settled
+blocked without replay; its exact evidence and remaining gates are in A16 and
+the security handoff. Missing reads now return `exists=false` without closing the
+task session. Real Muse requalification of this fix remains pending.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

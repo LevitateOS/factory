@@ -2707,10 +2707,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	fixtureTimeout := 30 * time.Second
 	if action == "check-admitted-native" && input.Tasks && input.ParentRun != "" {
-		fixtureTimeout = max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5*time.Second)))
-		if fixtureTimeout > 130*time.Second {
-			return errors.New("task fixture deadline invalid")
-		}
+		fixtureTimeout = min(130*time.Second, max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5*time.Second))))
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
 	defer cancel()
@@ -2809,6 +2806,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 				return fmt.Errorf("database did not enforce the recorded stop timestamp: %v", err)
 			}
 			fmt.Println("PASS: original early-stopped process recovered without inference replay; usage ends at its retained immutable native stop, excluding offline delay; product result remains blocked")
+		} else if input.Tasks {
+			terminal, found, err := db.TerminalMCPProposal(ctx, a.ID)
+			reservation, reservationErr := db.Reservation(ctx, a.ID)
+			if err != nil || reservationErr != nil || !found || terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != factory.NeedsHuman {
+				return errors.New("original incomplete task result/accounting was not retained")
+			}
+			fmt.Println("PASS: original incomplete Muse task settled without inference replay; exact process/root retirement, accepted blocked result, consumed reservation and stop-based source usage retained")
 		} else {
 			fmt.Println("PASS: exact original deadline run recovered and settled failed without relaunch; source usage remains one admitted minute")
 		}
@@ -2853,61 +2857,28 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if !parentRun.Reconciled || parentRun.Native == nil || !parentRun.Native.Settled() || parent.Stage != factory.AssignmentFinished || parent.Outcome != factory.Succeeded || parent.Result == nil || parent.Result.PhaseResult == nil || parent.Result.PhaseResult.Output == nil || parent.Result.PhaseResult.Output.Plan == nil {
 			return errors.New("actual investigation has not produced and settled its plan")
 		}
-		plan := *parent.Result.PhaseResult.Output.Plan
-		// This local fixture supplies phase advancement and declared repository
-		// authority; the real investigation result and canonical plan gates remain.
-		if err = db.SaveInvestigationPlan(ctx, plan); err != nil {
-			return err
-		}
-		if err = db.AdvancePlanHead(ctx, parent.AttemptRoot, "", plan.ID); err != nil {
-			return err
-		}
-		if _, err = db.AdmitPlanHead(ctx, parent.AttemptRoot, store.PlanBindings{SourceCommit: p.SourceCommit, Preparation: p.ID}); err != nil {
-			return err
-		}
-		head, _, err := db.PlanHead(ctx, parent.AttemptRoot)
-		if err != nil || head != plan.ID {
-			return errors.New("actual investigated plan was not adopted")
-		}
-		child := parent
-		child.ID, err = factory.AdvancementID(parent.ID, factory.ResultDigest(*parent.Result), project.ExecutionImplement)
+		childID, err := factory.AdvancementID(parent.ID, factory.ResultDigest(*parent.Result), project.ExecutionImplement)
 		if err != nil {
 			return err
 		}
-		input.ParentRun, input.Run = input.Run, factory.NewID()
-		child.ParentAssignment, child.Phase, child.Run, child.RunHistory = parent.ID, project.ExecutionImplement, input.Run, []string{input.Run}
-		child.Stage, child.Outcome, child.Reason, child.Result, child.FinishedUnix, child.Revision = factory.AssignmentAssigned, "", "", nil, 0, 0
-		child.Attempts = 1
-		child.CreatedUnix = time.Now().Unix()
-		child.Prompt = []byte("positive-native-mcp-fixture\nnative-tasks-implementation-fixture\n")
-		if input.Live {
-			child.Prompt = []byte("Disposable Factory Builder integration task. Use only the available Factory MCP tools. Read factory.context and README.md through factory.read_source. " + nativeFixtureArtifactPrompt + " Start task first using factory.start_task. Use factory.workspace to create native-task.txt: operation edit, task_id first, path native-task.txt, expected an empty string, replacement exactly first followed by one newline, top-level submission_id 22222222222222222222222222222222. Read it back through factory.workspace. Release task first with factory.release_output. Read factory.context, using payload.after_execution with the preceding execution_revision to wait when necessary, until execution.ready_outputs contains first, then call factory.submit_task_output with task_id first and evidence_refs [native-task.txt]. The coordinator advances every ten seconds; stay within sixty tool calls per minute. Continue calling factory.context with payload.after_execution equal to its preceding execution_revision until execution.integration.status is committed, then read factory.inbox and finish with factory.finish_implementation and an empty payload; Factory fills the candidate. Never claim a missing checkpoint. Finish with OK only after the terminal tool succeeds. No shell, child agent, provider permission or GitHub action is needed.")
+		host := nativeReviewPreparationHost{NativeExecution: port, tool: execution.ToolObservation{Kind: collaboration.Native, Native: &parentRun.Native.Tool}}
+		c := control.NewCoordinator(db, host, port)
+		defer c.Close()
+		c.MCPSecret = factoryruntime.NativeMCPSecretDeriver(config, instance)
+		c.AcceptanceReads, c.DispatchReads = nativeReviewChildReads{parent.ActorID, parent.SourceCommit}, nativeReviewChildReads{parent.ActorID, parent.SourceCommit}
+		report := c.Dispatch(ctx)
+		child, err := db.Assignment(ctx, childID)
+		if err != nil {
+			return fmt.Errorf("coordinator did not advance investigation: %+v: %w", report, err)
 		}
-		child.PromptSHA = project.FactoryPromptDigest(child.Prompt)
-		native := *parentRun.Admission.Native
-		native.PromptSHA256, native.BrokerRun = child.PromptSHA, input.Run
-		now := time.Now().UTC().Truncate(time.Second)
-		run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: child.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(2 * time.Minute), Harness: child.Harness, Model: child.Model,
-			Native: &execution.NativeRecord{Tool: native.Tool, BundleSHA256: native.BundleSHA256, PromptSHA256: native.PromptSHA256, Retirement: execution.NotStarted,
-				Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
-		planBytes, err := json.Marshal(plan)
+		run, err := db.FactoryRun(ctx, child.Run)
 		if err != nil {
 			return err
 		}
-		selection := parentRun.Admission.Policy.Roles[project.RoleCoder]
-		run.ExecutionManifest, err = project.MarshalExecutionManifest(project.ExecutionManifest{Plan: planBytes, PlanDigest: project.PlanDigest(planBytes), Invocation: run.ID, Phase: child.Phase, Run: run.ID, Deadline: run.Deadline, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor, MaxChildren: 0})
-		if err != nil {
-			return err
+		if child.ParentAssignment != parent.ID || child.AttemptRoot != parent.AttemptRoot || child.Phase != project.ExecutionImplement || run.Native == nil || len(run.ExecutionManifest) == 0 || run.Native.Intent == "" {
+			return errors.New("coordinator advancement did not capture and launch its actual native Builder")
 		}
-		queued, err := db.IssueControl(ctx, repository, 3)
-		if err != nil {
-			return err
-		}
-		if err = db.RecordNativeDispatchPacket(ctx, queued, child, factory.Reservation{AssignmentID: child.ID, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: 2}, run,
-			factory.RunView{RunID: run.ID, Repository: repository, Issue: 3, Attempt: child.ID}, native); err != nil {
-			return err
-		}
-		input.DeadlineUnix = run.Deadline.Unix()
+		input.ParentRun, input.Run, input.DeadlineUnix = input.Run, child.Run, run.Deadline.Unix()
 		encoded, err := json.Marshal(input)
 		if err != nil {
 			return err
@@ -2915,7 +2886,8 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err = os.WriteFile(path, encoded, 0600); err != nil {
 			return err
 		}
-		return launchNativeFixtureRun(ctx, db, port, run, child, prep)
+		fmt.Println("PASS: actual public coordinator dispatch admits the investigated plan, advances to Builder and launches its native manifest without declared phase advancement")
+		return nil
 	}
 	if action == "settled-admitted-native" {
 		if input.Tasks && input.ParentRun != "" {
@@ -3109,9 +3081,23 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
 		return err
 	}
-	queued, _, err := db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: 3, Acceptance: acceptance.ID, NativeRev: 1, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("1", 64), Authority: strings.Repeat("2", 64)}, time.Now())
-	if err != nil {
-		return err
+	var queued factory.IssueControl
+	if input.Tasks {
+		if err = nativeStandingReviewer(ctx, db, port, prep); err != nil {
+			return err
+		}
+		assessment := control.NewCoordinator(db, port, port)
+		assessment.AcceptanceReads = nativeReviewChildReads{actor, p.SourceCommit}
+		queued, _, err = assessment.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: factory.NewID(), Repository: repository, Issue: 3})
+		assessment.Close()
+		if err != nil || queued.Readiness != factory.ReadinessQueued {
+			return fmt.Errorf("actual native issue readiness: %s %s: %v", queued.Readiness, queued.Reason, err)
+		}
+	} else {
+		queued, _, err = db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: 3, Acceptance: acceptance.ID, NativeRev: 1, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("1", 64), Authority: strings.Repeat("2", 64)}, time.Now())
+		if err != nil {
+			return err
+		}
 	}
 	prompt, err := factory.BuildDispatchPrompt(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, Phase: project.ExecutionInvestigate, AcceptanceID: acceptance.ID, TargetBranch: policy.TargetBranch, SourceCommit: p.SourceCommit, Preparation: p.ID,
 		Harness: project.FactoryHarnessMuse, Model: roles[project.RoleCoder].Model, Role: project.RoleCoder, ProviderConnection: input.Connection, RequiredChecks: policy.Checks, AttemptLimits: policy.AttemptLimits,
@@ -3373,8 +3359,6 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	return port.AcknowledgeSettledRuns(ctx)
 }
 
-// Declared repository visibility; actual native keyring/owner observation,
-// canonical grant transaction and withdrawal after key removal.
 // Provider issue/PR facts are declared; preparation, workspace bytes, SQL
 // admission and the coordinator child producer are real. No model is called.
 type nativeReviewChildReads struct {
@@ -3400,42 +3384,23 @@ func (r nativeReviewChildReads) ReadDispatchInputs(ctx context.Context, reposito
 	return control.DispatchInputs{Revision: 1, Tip: r.source, TipRef: target, Comments: []control.DispatchComment{}, Issue: control.DispatchIssue{Title: "Native admitted execution fixture", Body: "positive-native-mcp-fixture", TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, Visible: true}}, ctx.Err()
 }
 
-func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, child factory.Assignment, run factory.Run) error {
-	owner, err := db.Assignment(ctx, child.PublicationAssignment)
+func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, source execution.PreparationRecord) error {
+	if source.Native == nil || source.Native.InstanceID != port.Instance {
+		return errors.New("standing reviewer requires the current native source owner")
+	}
+	records, err := db.StandingProjectPreparations(ctx, source.Preparation.Project)
 	if err != nil {
 		return err
 	}
-	source, err := db.Preparation(ctx, child.Preparation)
-	if err != nil {
-		return err
-	}
-	if source.Native == nil {
-		return errors.New("native review source has no captured owner")
-	}
-	if source.Native.InstanceID != port.Instance {
-		records, err := db.ProjectPreparations(ctx, owner.ProjectID)
-		if err != nil {
-			return err
+	for _, record := range records {
+		p := record.Preparation
+		if p.Role != project.RoleReviewer || p.SourceCommit != source.Preparation.SourceCommit || p.SetupDigest != source.Preparation.SetupDigest || !p.Requirements.Equal(source.Preparation.Requirements) || p.Approval != source.Preparation.Approval || record.Native == nil || record.Native.Profile != source.Native.Profile || record.Native.InstanceID != port.Instance {
+			continue
 		}
-		var matches []execution.PreparationRecord
-		for _, record := range records {
-			if record.Preparation.Role == project.RoleReviewer && record.Preparation.SourceCommit == child.Result.Candidate {
-				matches = append(matches, record)
-			}
+		state, err := port.InspectWorkspacePreparation(ctx, record.Address())
+		if err == nil && state.Ready && !state.Stopped && state.ValidateFor(record.Address()) == nil {
+			return nil
 		}
-		if len(matches) != 1 {
-			return errors.New("retained review admission missing or ambiguous")
-		}
-		prepared := matches[0]
-		admitted, err := db.CandidatePreparation(ctx, prepared.Preparation.ID)
-		if err != nil {
-			return err
-		}
-		if admitted.Admission.OwnerAssignment != owner.ID || admitted.Admission.AttemptRoot != owner.AttemptRoot || prepared.Native == nil || prepared.Native.InstanceID != source.Native.InstanceID || prepared.Native.Profile != source.Native.Profile || prepared.Native.WorktreeID != prepared.Preparation.ID || !(prepared.State.Ready || admitted.Stopped && admitted.Retirement == "confirmed") {
-			return errors.New("retained review admission differs from the original candidate/owner")
-		}
-		fmt.Println("PASS: retained reviewer admission keeps its original candidate, native owner and recorded setup/retirement facts; no preparation replay or live-resource recovery proof")
-		return nil
 	}
 	var request execution.StandingPreparationRequest
 	entries, err := os.ReadDir(filepath.Join(port.Config.Directory, "native-preparations"))
@@ -3490,6 +3455,50 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 	if err = db.ObservePreparation(ctx, reviewer); err != nil {
 		return err
 	}
+	return nil
+}
+
+func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, child factory.Assignment, run factory.Run) error {
+	owner, err := db.Assignment(ctx, child.PublicationAssignment)
+	if err != nil {
+		return err
+	}
+	source, err := db.Preparation(ctx, child.Preparation)
+	if err != nil {
+		return err
+	}
+	if source.Native == nil {
+		return errors.New("native review source has no captured owner")
+	}
+	if source.Native.InstanceID != port.Instance {
+		records, err := db.ProjectPreparations(ctx, owner.ProjectID)
+		if err != nil {
+			return err
+		}
+		var matches []execution.PreparationRecord
+		for _, record := range records {
+			if record.Preparation.Role == project.RoleReviewer && record.Preparation.SourceCommit == child.Result.Candidate {
+				matches = append(matches, record)
+			}
+		}
+		if len(matches) != 1 {
+			return errors.New("retained review admission missing or ambiguous")
+		}
+		prepared := matches[0]
+		admitted, err := db.CandidatePreparation(ctx, prepared.Preparation.ID)
+		if err != nil {
+			return err
+		}
+		if admitted.Admission.OwnerAssignment != owner.ID || admitted.Admission.AttemptRoot != owner.AttemptRoot || prepared.Native == nil || prepared.Native.InstanceID != source.Native.InstanceID || prepared.Native.Profile != source.Native.Profile || prepared.Native.WorktreeID != prepared.Preparation.ID || !(prepared.State.Ready || admitted.Stopped && admitted.Retirement == "confirmed") {
+			return errors.New("retained review admission differs from the original candidate/owner")
+		}
+		fmt.Println("PASS: retained reviewer admission keeps its original candidate, native owner and recorded setup/retirement facts; no preparation replay or live-resource recovery proof")
+		return nil
+	}
+	if err = nativeStandingReviewer(ctx, db, port, source); err != nil {
+		return err
+	}
+	var state execution.PreparationState
 	target := factory.CheckTarget{Repository: owner.Repository, PRNumber: 41, PRID: 43, IssueID: 47, HeadRef: factory.PublishBranchName(owner.ID), BaseRef: "refs/heads/main", HeadOID: child.Result.Candidate, BaseOID: owner.SourceCommit}
 	p := declaredPublishedFixture(target, collaboration.ActorID(owner.ActorID), owner.ID, owner.Issue, owner.NativeRev, run.Deadline.Unix())
 	p.ProjectID, p.Acceptance, p.Preparation, p.Run, p.Authority = owner.ProjectID, owner.Acceptance, child.Preparation, run.ID, owner.Authority
@@ -3664,6 +3673,8 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 	return nil
 }
 
+// Declared repository visibility; actual native keyring/owner observation,
+// canonical grant transaction and withdrawal after key removal.
 func nativeSponsorshipFixture(profile, instance, connection string, active bool) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
@@ -4528,6 +4539,7 @@ func workerProfileFixture() error {
 		return err
 	}
 	admitted := strings.Contains(string(prompt), "positive-native-mcp-fixture")
+	var serverName string
 	if !admitted && response.StatusCode != http.StatusForbidden {
 		return errors.New("native worker without a current Go capability was not refused")
 	}
@@ -4536,11 +4548,17 @@ func workerProfileFixture() error {
 			return fmt.Errorf("admitted native MCP initialize refused: %d", response.StatusCode)
 		}
 		var initialized struct {
-			Error json.RawMessage `json:"error"`
+			Error  json.RawMessage `json:"error"`
+			Result struct {
+				ServerInfo struct {
+					Name string `json:"name"`
+				} `json:"serverInfo"`
+			} `json:"result"`
 		}
 		if json.NewDecoder(response.Body).Decode(&initialized) != nil || len(initialized.Error) != 0 {
 			return errors.New("admitted MCP initialization failed")
 		}
+		serverName = initialized.Result.ServerInfo.Name
 		response.Body.Close()
 		if strings.Contains(string(prompt), "read-source-fixture") {
 			head, err := exec.Command("/usr/bin/git", "-C", selected["--workspace"], "rev-parse", "HEAD").Output()
@@ -4715,7 +4733,7 @@ func workerProfileFixture() error {
 			if _, err := workerMCPCall(client, "factory.finish_issue_plan", map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"source:README.md"}}); err != nil {
 				return err
 			}
-		} else if strings.Contains(string(prompt), "native-tasks-implementation-fixture") {
+		} else if serverName == "soda-factory-"+string(factory.MCPProfileBuilder) {
 			if err := workerSequentialTasks(client); err != nil {
 				return err
 			}
@@ -4808,6 +4826,17 @@ func workerSequentialTasks(client *http.Client) error {
 			return err
 		}
 		if i == 0 {
+			missingRead, readErr := workerMCPCall(client, "factory.workspace", map[string]any{"task_id": id, "operation": "read", "path": "native-task.txt"})
+			if readErr != nil {
+				return readErr
+			}
+			var missing struct {
+				Exists  *bool   `json:"exists"`
+				Content *string `json:"content"`
+			}
+			if json.Unmarshal(missingRead, &missing) != nil || missing.Exists == nil || *missing.Exists || missing.Content != nil {
+				return errors.New("missing workspace file did not return explicit absence")
+			}
 			for _, operation := range []map[string]any{
 				{"operation": "mkdir", "path": "native-task-dir"},
 				{"operation": "edit", "path": "native-task-dir/kept.txt", "expected": "", "replacement": "kept\n"},

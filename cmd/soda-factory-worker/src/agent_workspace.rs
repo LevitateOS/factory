@@ -503,10 +503,20 @@ impl<'a> Workspace<'a> {
                 if !(1..=MAX_TEXT).contains(&limit) {
                     return Err(refused("workspace read bound invalid"));
                 }
-                let mut file = OpenOptions::new()
-                    .read(true)
-                    .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-                    .open(self.path(&path)?)?;
+                let open = self.path(&path).and_then(|path| {
+                    OpenOptions::new()
+                        .read(true)
+                        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                        .open(path)
+                });
+                let mut file = match open {
+                    Ok(file) => file,
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        reply.status = "missing".into();
+                        return Ok(reply);
+                    }
+                    Err(error) => return Err(error),
+                };
                 let meta = file.metadata()?;
                 if !meta.is_file() || meta.len() > MAX_FILE || offset as u64 > meta.len() {
                     return Err(refused("workspace read file invalid"));
