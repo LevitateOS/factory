@@ -62,8 +62,20 @@ unknown-result recovery, source/account/permission/accepted-plan withdrawal,
 concurrent human edits, cancellation races and complete adoption before execution.
 Closure needs those actual-channel journeys and the ordinary generated-plan
 workflow; Muse planner result encoding currently blocks the latter. Native
-repair/reassessment composition and installed upgrades remain pending. No broad
-custody/authentication/IPC/worker-isolation gate closes from this scoped check.
+repair/reassessment now composes scoped publishing identities and confirmed
+individual-step effects through `factory/graph_prefix.go`,
+`runtime/native_graph_prefix.go` and `control/{completion,repair}_adoption*.go`.
+Only original confirmed command receipts contribute effects; unknown sends never
+authorize resume or normalize an unverified mutation. Current source-qualified
+inventory capture owns the freshness bracket, replacing the redundant old-source
+capture. `/home/vince/tmp/fgprefix-edit14.hVWhHq/result.log` passed actual native
+prefix inventories across restart, conditional edits, dependency removal, unknown
+legacy exclusion and replay with the exact seven fixture writes. Accepted plan/
+provider facts were declared; no funded protected cycle, full adoption or installed
+upgrade was qualified. Closing the remaining gate requires actual source/policy/
+account/permission withdrawal and concurrent-human-edit journeys through the
+protected driver, plus complete acceptance and lifecycle release. No broad
+custody/authentication/IPC/worker-isolation gate closes from these scoped checks.
 
 **Native completion observations — scoped proof; lifecycle gates open:**
 The owner permits two matching complete bounded issue/dependency reads bracketed
@@ -83,7 +95,8 @@ Remaining: actual-channel account/source/permission withdrawal during these
 new reads, foreign repository denial for the background selectors, connected
 complete pagination/dependency traversal and full funded completion/repair/
 reassessment workflow. Closure needs those current-scope and lifecycle journeys;
-native protected graph adoption and the real Muse planner remain dependencies.
+native protected graph adoption qualification and the real Muse planner remain
+dependencies.
 No broad D3/custody/authentication/IPC gate closes from this check.
 
 **A25 judgment spending selection:** `factory/grants.go`, `factory/sponsorship.go`

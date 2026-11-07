@@ -38,6 +38,10 @@ type ResumableIssueGraph interface {
 	ResumeGraph(context.Context, factory.IntentGeneration, int64) (factory.GraphOperationOutcome, error)
 }
 
+type IssueGraphPrefix interface {
+	ReadGraphPrefix(context.Context, factory.IntentGeneration, int64) (factory.GraphPrefixFacts, error)
+}
+
 var ErrGraphStepsPending = errors.New("native graph has known unfinished steps")
 
 func (c *Coordinator) graphAvailable() bool {

@@ -108,7 +108,7 @@ func (c *Coordinator) driveReassessmentAdoption(ctx context.Context, deps Comple
 		c.holdCompletion(ctx, record, "reassessment_journal_invalid", report, false)
 		return
 	}
-	if c.Graph == nil || c.GraphActorID <= 0 {
+	if !c.graphAvailable() {
 		c.holdCompletion(ctx, record, "reassessment_native_graph_unavailable", report, false)
 		return
 	}
@@ -128,7 +128,7 @@ func (c *Coordinator) driveReassessmentAdoption(ctx context.Context, deps Comple
 				c.holdCompletion(ctx, record, "reassessment_operation_unresolved", report, false)
 				return
 			}
-			if lookup.Record != nil {
+			if lookup.Record != nil && !lookup.Resumable {
 				if _, err := c.recordAcceptedGenerationOutcome(ctx, generation, *lookup.Record); err != nil {
 					c.holdCompletion(ctx, record, "reassessment_operation_refused", report, false)
 					return
@@ -150,7 +150,12 @@ func (c *Coordinator) driveReassessmentAdoption(ctx context.Context, deps Comple
 	}
 	entry := progress.Intents[progress.Journal.Cursor]
 	if step.State == reassessmentStepStaged {
-		nativeRev, err := c.Graph.CheckIntentOwner(ctx, entry.Revision.Repository, entry.Revision.Owner, c.GraphActorID)
+		actor, err := c.graphActor(ctx, entry.Revision.Repository, entry.Revision.Owner)
+		if err != nil {
+			c.holdCompletion(ctx, record, "reassessment_owner_unavailable", report, false)
+			return
+		}
+		nativeRev, err := c.Graph.CheckIntentOwner(ctx, entry.Revision.Repository, entry.Revision.Owner, actor)
 		if err != nil {
 			c.holdCompletion(ctx, record, "reassessment_owner_unavailable", report, false)
 			return
@@ -162,7 +167,7 @@ func (c *Coordinator) driveReassessmentAdoption(ctx context.Context, deps Comple
 		}
 		generation := factory.IntentGeneration{
 			RevisionID: entry.Revision.ID, IntentID: entry.Revision.Intent, OperationID: step.OperationID,
-			ActorID: c.GraphActorID, NativeRev: nativeRev, AuthRevision: entry.Revision.ID + ":" + entry.Revision.Digest(),
+			ActorID: actor, NativeRev: nativeRev, AuthRevision: entry.Revision.ID + ":" + entry.Revision.Digest(),
 			NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: payload, SubmittedTasks: entry.Revision.Tasks,
 			TaskIssueIDs: entry.TaskIssueIDs, IntentDigest: entry.Revision.Digest(), State: "pending",
 			ReassessmentCycle: record.Cycle.CycleID, CopiedBindings: entry.Packet.CopiedBindings,
@@ -189,6 +194,10 @@ func (c *Coordinator) driveReassessmentAdoption(ctx context.Context, deps Comple
 	// exact readback and per-task acceptance. Its cycle validator below
 	// prevents generic recovery from running any later staged successor.
 	generation, err := c.GenerateAcceptedIntent(ctx, entry.Revision.Intent, entry.Revision.ID, entry.Revision.Owner)
+	if errors.Is(err, ErrGraphStepsPending) {
+		c.holdCompletion(ctx, record, "reassessment_graph_steps_pending", report, false)
+		return
+	}
 	if err != nil || generation.State != "completed" {
 		c.holdCompletion(ctx, record, "reassessment_adoption_deferred", report, false)
 		return
@@ -224,19 +233,16 @@ func (c *Coordinator) validateReassessmentGeneration(ctx context.Context, genera
 	}
 	entry := progress.Intents[progress.Journal.Cursor]
 	step := progress.Journal.Steps[progress.Journal.Cursor]
+	actor, err := c.graphActor(ctx, entry.Revision.Repository, entry.Revision.Owner)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := canonicalGraphPacket(c.Graph, entry.Packet.Payload)
-	if err != nil || step.State != reassessmentStepActive || generation.RevisionID != entry.Revision.ID || generation.IntentDigest != entry.Revision.Digest() || generation.OperationID != step.OperationID || generation.ActorID != c.GraphActorID || !reflect.DeepEqual(generation.SubmittedTasks, entry.Revision.Tasks) || !maps.Equal(generation.TaskIssueIDs, entry.TaskIssueIDs) || !reflect.DeepEqual(generation.CopiedBindings, entry.Packet.CopiedBindings) || !reflect.DeepEqual(generation.RetainedBindings, entry.RetainedBindings) || generation.LocalOnly != entry.Packet.NoEffect || !sameEncodedJSON(generation.Payload, raw) {
+	if err != nil || step.State != reassessmentStepActive || generation.RevisionID != entry.Revision.ID || generation.IntentDigest != entry.Revision.Digest() || generation.OperationID != step.OperationID || generation.ActorID != actor || !reflect.DeepEqual(generation.SubmittedTasks, entry.Revision.Tasks) || !maps.Equal(generation.TaskIssueIDs, entry.TaskIssueIDs) || !reflect.DeepEqual(generation.CopiedBindings, entry.Packet.CopiedBindings) || !reflect.DeepEqual(generation.RetainedBindings, entry.RetainedBindings) || generation.LocalOnly != entry.Packet.NoEffect || !sameEncodedJSON(generation.Payload, raw) {
 		return nil, errors.New("reassessment generation differs from its approved current step")
 	}
 	if err := c.currentAcceptedIntent(ctx, entry.Revision); err != nil {
 		return nil, err
-	}
-	current, err := c.Store.CaptureCompletionLocal(ctx, record.Cycle.Repository)
-	if err != nil {
-		return &DispatchWait{Reason: WaitInputsUnavailable, Detail: "reassessment authority unreadable"}, nil
-	}
-	if current.SourceCommit != record.Local.SourceCommit || current.PreparationDigest != record.Local.PreparationDigest || current.AuthorityFingerprint != record.Local.AuthorityFingerprint {
-		return nil, errors.New("reassessment source, preparation or authority changed")
 	}
 	// Generic graph recovery uses this same validator, so it also proves
 	// complete inventory freshness before submission/adoption and cannot

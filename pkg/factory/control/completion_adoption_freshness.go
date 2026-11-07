@@ -123,6 +123,27 @@ func (c *Coordinator) matchGraphRepairEffects(ctx context.Context, baseline fact
 		}
 		newScopes[entry.Revision.ID] = scope
 		activated[entry.Revision.Intent] = true
+		if reader, ok := c.Graph.(IssueGraphPrefix); ok && !generation.LocalOnly {
+			prefix, err := reader.ReadGraphPrefix(ctx, generation, entry.Revision.Repository)
+			if err != nil || prefix.Repository != entry.Revision.Repository || prefix.Actor != generation.ActorID {
+				return errors.New("reassessment graph prefix is unbound")
+			}
+			baseline := make([]factory.CompletionIssueEvidence, 0, len(expectedBodies))
+			for _, body := range expectedBodies {
+				baseline = append(baseline, body)
+			}
+			updated, err := prefix.ApplyTo(baseline)
+			if err != nil {
+				return err
+			}
+			for _, body := range updated {
+				expectedBodies[body.Index] = body
+			}
+			if len(prefix.Effects) > 0 {
+				nativeEffect = true
+			}
+			continue
+		}
 		if !committed || generation.LocalOnly {
 			continue
 		}

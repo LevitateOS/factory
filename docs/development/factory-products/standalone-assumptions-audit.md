@@ -104,9 +104,17 @@ corrections are now active; the old feature queue waits for their resolution.
   issue with no dependencies was observed. No model, real GitHub, funded decision,
   completed lifecycle or installed distribution was qualified. Connected larger/
   paginated inventories, withdrawal during reads and complete decision/reassessment/
-  repair journeys remain open. Native protected graph adoption still needs its
-  scoped-actor and partial-effect integration; the Muse planner encoding blocker
-  remains separate.
+  repair journeys remain open. Protected graph adoption now resolves the selected
+  publishing actor, treats known remaining steps as pending, and predicts only
+  confirmed original step effects against the retained baseline. It uses the same
+  current-source inventory capture, without a second plain/old-source capture.
+  `/home/vince/tmp/fgprefix-edit14.hVWhHq/result.log` passed actual native prefix
+  projection at each create/dependency step and across restart, conditional edits,
+  dependency removal, exact intermediate inventory comparison, unknown legacy
+  send exclusion and original-receipt replay. Provider/accepted-plan facts were
+  declared; no funded protected cycle or complete adoption was exercised. The
+  full current-source/policy/plan-withdrawal and repair/reassessment lifecycle
+  journeys, installed behavior and Muse planner encoding remain dependencies.
 
 - **A05/A21 — native request-planning transport composed; full journey pending.**
   Native requests now use the existing coordinator for planning, and their

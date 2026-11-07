@@ -6274,12 +6274,26 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 		if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, revision.ID, string(raw)); err != nil {
 			return err
 		}
+		baseline, err := graph.NativeInputSource.ReadCompletionIssues(ctx, revision.Repository)
+		if err != nil {
+			return err
+		}
+		baselineJSON, err := json.Marshal(baseline)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(filepath.Join(profile, "native-graph-prefix-"+generation.RevisionID+".json"), baselineJSON, 0600); err != nil {
+			return err
+		}
 		outcome, err := graph.SubmitGraph(ctx, generation, revision.Repository)
 		if err != nil {
 			return err
 		}
 		if outcome.Effect != collaboration.EffectIndeterminate || outcome.Reason != "graph_steps_pending" {
 			return errors.New("partial native graph claimed complete or lost its prefix")
+		}
+		if err = nativeGraphPrefixFixture(ctx, graph, generation, revision.Repository, profile, 1); err != nil {
+			return err
 		}
 		lookup, err := graph.LookupGraph(ctx, generation, revision.Repository)
 		if err != nil || !lookup.Resumable {
@@ -6334,9 +6348,15 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 	if !lookup.Resumable {
 		return errors.New("native graph lost its committed prefix after restart")
 	}
-	for range 2 {
+	if err = nativeGraphPrefixFixture(ctx, graph, generation, detail.Record.Repository, profile, 1); err != nil {
+		return err
+	}
+	for index := range 2 {
 		outcome, err := graph.ResumeGraph(ctx, generation, detail.Record.Repository)
 		if err != nil {
+			return err
+		}
+		if err = nativeGraphPrefixFixture(ctx, graph, generation, detail.Record.Repository, profile, index+2); err != nil {
 			return err
 		}
 		if outcome.Effect == collaboration.EffectCommitted {
@@ -6369,6 +6389,152 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 		return err
 	}
 	fmt.Println("PASS: native graph resumes after supervisor restart, creates only remaining issue, adds its exact dependency through the native connector, verifies complete contents/edges, reuses original receipts without new writes and holds execution until full adoption; planner/provider facts declared, no model or full pipeline")
+	if os.Getenv("SODA_NATIVE_CHECK_GRAPH_REVISION") == "1" {
+		return nativeGraphRevisionFixture(ctx, graph, generation, detail.Record.Repository, profile)
+	}
+	return nil
+}
+
+func nativeGraphPrefixFixture(ctx context.Context, graph factoryruntime.NativeGraphs, g factory.IntentGeneration, repository int64, profile string, steps int) error {
+	encoded, err := os.ReadFile(filepath.Join(profile, "native-graph-prefix-"+g.RevisionID+".json"))
+	if err != nil {
+		return err
+	}
+	var raw []control.NativeInventoryIssue
+	if json.Unmarshal(encoded, &raw) != nil {
+		return errors.New("native graph baseline absent")
+	}
+	baseline := []factory.CompletionIssueEvidence{}
+	for _, issue := range raw {
+		body, e := factory.ParseCompletionIssueEvidence(issue.Data)
+		if e != nil {
+			return e
+		}
+		baseline = append(baseline, body)
+	}
+	prefix, err := graph.ReadGraphPrefix(ctx, g, repository)
+	if err != nil || prefix.Repository != repository || prefix.Actor != g.ActorID || len(prefix.Effects) != steps {
+		return fmt.Errorf("native graph prefix identity/count: steps=%d err=%v", len(prefix.Effects), err)
+	}
+	expected, err := prefix.ApplyTo(baseline)
+	if err != nil {
+		return err
+	}
+	current, err := graph.NativeInputSource.ReadCompletionIssues(ctx, repository)
+	if err != nil {
+		return err
+	}
+	actual := []factory.CompletionIssueEvidence{}
+	for _, issue := range current {
+		body, e := factory.ParseCompletionIssueEvidence(issue.Data)
+		if e != nil {
+			return e
+		}
+		actual = append(actual, body)
+	}
+	a, _ := json.Marshal(actual)
+	b, _ := json.Marshal(expected)
+	if !bytes.Equal(a, b) {
+		return errors.New("original graph step receipts do not predict the exact current inventory")
+	}
+	if steps == 3 {
+		fmt.Println("PASS: original confirmed graph steps predict exact native inventories without adopting partial tasks or replacing the baseline; provider/planner declared")
+	}
+	return nil
+}
+
+func nativeGraphRevisionFixture(ctx context.Context, graph factoryruntime.NativeGraphs, prior factory.IntentGeneration, repository int64, profile string) error {
+	revision, err := graph.Store.IntentGenerationHead(ctx, prior.RevisionID)
+	if err != nil {
+		return err
+	}
+	facts, err := graph.DecodeGraphReceipt(ctx, prior.Receipt)
+	if err != nil {
+		return err
+	}
+	next := revision
+	next.ID = "d" + factory.NewID()[:24]
+	next.Predecessor = revision.ID
+	next.CreatedUnix = time.Now().Unix()
+	next.Tasks = append([]factory.IntentTask(nil), revision.Tasks...)
+	next.Tasks[1].Objective = "Revised second native graph task"
+	next.Tasks[1].DependsOn = nil
+	if err = graph.Store.SaveIntentRevision(ctx, next); err != nil {
+		return err
+	}
+	desired, err := control.IntentGraphPlan(next)
+	if err != nil {
+		return err
+	}
+	plan := collaboration.GraphIntent{}
+	refs := []collaboration.IssueRef{}
+	ids := map[string]int64{}
+	for index, task := range next.Tasks {
+		identity := facts.Creates[task.Key]
+		observed, _, e := graph.ReadGeneratedIssue(ctx, repository, identity.IssueIndex, prior.ActorID)
+		if e != nil {
+			return e
+		}
+		ref := collaboration.IssueRef{Kind: collaboration.SubjectIssue, Repository: collaboration.RepositoryID(repository), ExternalID: strconv.FormatInt(identity.IssueID, 10), Number: identity.IssueIndex}
+		refs = append(refs, ref)
+		ids[task.Key] = identity.IssueID
+		plan.Edits = append(plan.Edits, collaboration.GraphEdit{Issue: ref, Expected: collaboration.IssueContent{Title: observed.Issue.Title, Body: observed.Issue.Content, Revision: collaboration.Revision(strconv.Itoa(observed.Issue.ContentVersion))}, Title: desired.Creates[index].Title, Body: desired.Creates[index].Body})
+	}
+	plan.Dependencies = []collaboration.GraphDependency{{Issue: collaboration.GraphRef{Issue: &refs[1]}, Prerequisite: collaboration.GraphRef{Issue: &refs[0]}, Remove: true}}
+	payload, err := graph.EncodeGraph(plan, repository)
+	if err != nil {
+		return err
+	}
+	g := factory.IntentGeneration{RevisionID: next.ID, IntentID: next.Intent, OperationID: "intent-" + next.ID, ActorID: prior.ActorID, NativeRev: prior.NativeRev, AuthRevision: next.ID + ":" + next.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: payload, IntentDigest: next.Digest(), State: "pending", SubmittedTasks: next.Tasks, TaskIssueIDs: ids, PlanAssignment: factory.NewID()}
+	raw, _ := json.Marshal(g)
+	conn, err := sql.Open("pgx", graph.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_intent_generations(revision,data) VALUES($1,$2)`, g.RevisionID, string(raw)); err != nil {
+		return err
+	}
+	baseline, err := graph.NativeInputSource.ReadCompletionIssues(ctx, repository)
+	if err != nil {
+		return err
+	}
+	raw, _ = json.Marshal(baseline)
+	if err = os.WriteFile(filepath.Join(profile, "native-graph-prefix-"+g.RevisionID+".json"), raw, 0600); err != nil {
+		return err
+	}
+	for index := range 3 {
+		outcome, e := graph.ResumeGraph(ctx, g, repository)
+		if e != nil {
+			return e
+		}
+		if err = nativeGraphPrefixFixture(ctx, graph, g, repository, profile, index+1); err != nil {
+			return err
+		}
+		if index < 2 && outcome.Reason != "graph_steps_pending" {
+			return errors.New("partial native edit graph claimed complete")
+		}
+		if index == 2 {
+			if outcome.Effect != collaboration.EffectCommitted {
+				return errors.New("native revised graph did not verify")
+			}
+			receipt, e := graph.DecodeGraphReceipt(ctx, outcome.Receipt)
+			if e != nil {
+				return e
+			}
+			if len(receipt.Edits) != 2 || len(receipt.Creates) != 0 {
+				return errors.New("native revised graph receipt differs")
+			}
+			g.State, g.Receipt = "committed", outcome.Receipt
+			if err = graph.Store.RecordIntentGeneration(ctx, g, receipt); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err = graph.SubmitGraph(ctx, g, repository); err != nil {
+		return err
+	}
+	fmt.Println("PASS: native conditional edits and dependency removal retain exact original baseline/receipts, predict every intermediate inventory and verify the revised graph without duplicate writes; accepted plan/provider declared, no full protected lifecycle")
 	return nil
 }
 
@@ -6411,6 +6577,10 @@ func nativeGraphLegacyFixture(ctx context.Context, db *store.Store, config facto
 		}
 		if observed.Resumable || observed.Record == nil || observed.Record.Effect != collaboration.EffectIndeterminate || observed.Record.Reason != "graph_step_legacy_dispatch_unknown" {
 			return errors.New("native graph treated legacy send uncertainty as resumable absence")
+		}
+		prefix, err := graph.ReadGraphPrefix(ctx, g, int64(captured.Request.Issue.Repository))
+		if err != nil || len(prefix.Effects) != 0 {
+			return errors.New("legacy unknown send became a confirmed graph effect")
 		}
 		held, err := graph.ResumeGraph(ctx, g, int64(captured.Request.Issue.Repository))
 		if err != nil || held.Effect != collaboration.EffectIndeterminate {

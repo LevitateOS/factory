@@ -9,7 +9,8 @@ import (
 // GraphOperationOutcome is the result consumed by the existing generation
 // journal. The adapter checks its provider namespace and known actor/repository
 // binding before returning it. A pre-submit cancellation may have no binding.
-// Receipt is original provider evidence; it is never re-encoded for storage.
+// Receipt is opaque operation evidence retained verbatim. A non-atomic adapter
+// can bind its original per-step provider receipts through the command journal.
 // This narrow port does not invent the HostID required by the general
 // collaboration.OperationRecord before the identity cutover.
 type GraphOperationOutcome struct {

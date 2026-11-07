@@ -366,7 +366,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
             ensure(call(&runtime,&store,&connection,"GET",&path,&[]).await?.0==200,"native graph restart source account unavailable")?;
             ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("native-graph-resume").arg(&post).status()?.success(),"native graph resumed verification failed")?;
-            ensure(posts(&io)?==4,"native graph duplicated a creation/dependency or skipped a defining write")?;
+            let expected=if std::env::var("SODA_NATIVE_CHECK_GRAPH_REVISION").as_deref()==Ok("1") {7}else{4};
+            ensure(posts(&io)?==expected,"native graph duplicated or skipped a defining write")?;
             runtime.stop()?;
             println!("PASS: real native graph command journal resumes its known prefix across supervisor restart; exactly two task issues and one dependency, full graph readback, original receipts and held execution. Provider/planner facts declared; no model or full pipeline qualification");
             return Ok(());

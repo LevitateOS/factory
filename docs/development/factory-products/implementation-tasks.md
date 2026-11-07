@@ -169,8 +169,15 @@ schema-95 fixture also passed the actual 95→96 migration: original command byt
 remain intact and legacy unknown sends cannot resume. Provider/planner facts were
 declared. This proves no provider atomicity, live GitHub writes, ordinary planner
 admission, full adoption/execution, installed upgrade or broad security gate.
-Connected edits/removals, withdrawal/races and native repair/reassessment remain
-pending; the real Muse planner result encoding remains a pipeline dependency.
+Connected edits/removals, withdrawal/races and native repair/reassessment
+qualification remain pending; Muse planner result encoding remains a pipeline
+dependency. Protected adoption now selects the repository publishing identity
+and accounts for confirmed individual graph steps against its retained baseline.
+`/home/vince/tmp/fgprefix-edit14.hVWhHq/result.log` passed actual native prefix
+projection/readback across restart, two conditional edits and dependency removal,
+legacy-unknown exclusion and replay without extra writes. Accepted plans/provider
+facts were declared; this does not qualify a funded protected cycle, complete
+adoption, source/policy withdrawal races or installed behavior.
 Native completion now uses the owner's selected pair of matching complete
 bounded issue/dependency observations, with unchanged local policy/source material,
 instead of a fabricated GitHub global revision/idle signal. The current target

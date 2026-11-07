@@ -24,7 +24,7 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 		cause.hold(ctx, c, cycle, "repair_adoption_journal_invalid")
 		return
 	}
-	if c.Graph == nil || c.GraphActorID <= 0 {
+	if !c.graphAvailable() {
 		cause.hold(ctx, c, cycle, "repair_native_graph_unavailable")
 		return
 	}
@@ -43,7 +43,7 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 				cause.hold(ctx, c, cycle, "repair_operation_unresolved")
 				return
 			}
-			if lookup.Record != nil {
+			if lookup.Record != nil && !lookup.Resumable {
 				if _, e = c.recordAcceptedGenerationOutcome(ctx, generation, *lookup.Record); e != nil {
 					cause.hold(ctx, c, cycle, "repair_operation_refused")
 					return
@@ -81,7 +81,12 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 			cause.hold(ctx, c, cycle, "repair_sponsor_grant_unavailable")
 			return
 		}
-		nativeRev, e := c.Graph.CheckIntentOwner(ctx, cause.repository(), entry.Revision.Owner, c.GraphActorID)
+		actor, e := c.graphActor(ctx, cause.repository(), entry.Revision.Owner)
+		if e != nil {
+			cause.hold(ctx, c, cycle, "repair_owner_unavailable")
+			return
+		}
+		nativeRev, e := c.Graph.CheckIntentOwner(ctx, cause.repository(), entry.Revision.Owner, actor)
 		if e != nil {
 			cause.hold(ctx, c, cycle, "repair_owner_unavailable")
 			return
@@ -90,7 +95,7 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 		if e != nil {
 			return
 		}
-		generation := factory.IntentGeneration{RevisionID: entry.Revision.ID, IntentID: entry.Revision.Intent, OperationID: step.OperationID, ActorID: c.GraphActorID, NativeRev: nativeRev, AuthRevision: entry.Revision.ID + ":" + entry.Revision.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: payload, SubmittedTasks: entry.Revision.Tasks, TaskIssueIDs: entry.TaskIssueIDs, IntentDigest: entry.Revision.Digest(), State: "pending", RepairCycle: cycle.ID, CopiedBindings: entry.Packet.CopiedBindings, RetainedBindings: entry.RetainedBindings, LocalOnly: step.NoEffect}
+		generation := factory.IntentGeneration{RevisionID: entry.Revision.ID, IntentID: entry.Revision.Intent, OperationID: step.OperationID, ActorID: actor, NativeRev: nativeRev, AuthRevision: entry.Revision.ID + ":" + entry.Revision.Digest(), NotAfter: time.Now().Add(5 * time.Minute).Unix(), Payload: payload, SubmittedTasks: entry.Revision.Tasks, TaskIssueIDs: entry.TaskIssueIDs, IntentDigest: entry.Revision.Digest(), State: "pending", RepairCycle: cycle.ID, CopiedBindings: entry.Packet.CopiedBindings, RetainedBindings: entry.RetainedBindings, LocalOnly: step.NoEffect}
 		if e = c.inheritGraphVerification(ctx, entry.Revision, &generation); e != nil {
 			cause.hold(ctx, c, cycle, "repair_verification_manifest_changed")
 			return
@@ -111,6 +116,10 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 		return
 	}
 	generation, err := c.GenerateAcceptedIntent(ctx, entry.Revision.Intent, entry.Revision.ID, entry.Revision.Owner)
+	if errors.Is(err, ErrGraphStepsPending) {
+		cause.hold(ctx, c, cycle, "repair_graph_steps_pending")
+		return
+	}
 	if err != nil || generation.State != "completed" {
 		cause.hold(ctx, c, cycle, "repair_adoption_deferred")
 		return
@@ -165,8 +174,12 @@ func (c *Coordinator) validateRepairAdoptionGeneration(ctx context.Context, gene
 	}
 	entry := progress.Intents[progress.Journal.Cursor]
 	step := progress.Journal.Steps[progress.Journal.Cursor]
+	actor, err := c.graphActor(ctx, entry.Revision.Repository, entry.Revision.Owner)
+	if err != nil {
+		return nil, err
+	}
 	raw, err := canonicalGraphPacket(c.Graph, entry.Packet.Payload)
-	if err != nil || step.State != reassessmentStepActive || generation.RevisionID != entry.Revision.ID || generation.IntentDigest != entry.Revision.Digest() || generation.OperationID != step.OperationID || generation.ActorID != c.GraphActorID || !reflect.DeepEqual(generation.SubmittedTasks, entry.Revision.Tasks) || !maps.Equal(generation.TaskIssueIDs, entry.TaskIssueIDs) || !reflect.DeepEqual(generation.CopiedBindings, entry.Packet.CopiedBindings) || !reflect.DeepEqual(generation.RetainedBindings, entry.RetainedBindings) || generation.LocalOnly != entry.Packet.NoEffect || !sameEncodedJSON(generation.Payload, raw) {
+	if err != nil || step.State != reassessmentStepActive || generation.RevisionID != entry.Revision.ID || generation.IntentDigest != entry.Revision.Digest() || generation.OperationID != step.OperationID || generation.ActorID != actor || !reflect.DeepEqual(generation.SubmittedTasks, entry.Revision.Tasks) || !maps.Equal(generation.TaskIssueIDs, entry.TaskIssueIDs) || !reflect.DeepEqual(generation.CopiedBindings, entry.Packet.CopiedBindings) || !reflect.DeepEqual(generation.RetainedBindings, entry.RetainedBindings) || generation.LocalOnly != entry.Packet.NoEffect || !sameEncodedJSON(generation.Payload, raw) {
 		return nil, errors.New("repair operation differs from its approved current step")
 	}
 	if err = c.currentAcceptedIntent(ctx, entry.Revision); err != nil {
