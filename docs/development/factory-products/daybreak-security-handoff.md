@@ -162,6 +162,13 @@ normal retained completion across restart, not a killed publisher or lost wire
 reply. Failed earlier `fadmitted-tasks7.*` profiles remain preserved as failures;
 their absence of a completed product result must not be repaired by replay.
 
+Exact-file task ownership now admits creation/reuse of containing directories;
+file edits remain bounded by the declared files. The actual existing workspace
+check passed under exact nested file ownership in
+`/home/vince/tmp/fworkspace-parent7.1n7a8K/result.log`, including unchanged
+ownership/dependency refusals, checkpoints, cancellation and exact root retirement.
+This is routine local scope evidence; no broader gate is closed.
+
 Remaining dependencies: actual admitted correction and cancellation/withdrawal,
 interrupted task/receipt publication and transport, unreconciled restart, complete
 Muse role/configuration confinement, larger workloads and installed isolation.

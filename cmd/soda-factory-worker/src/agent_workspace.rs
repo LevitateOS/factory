@@ -316,6 +316,16 @@ impl<'a> Workspace<'a> {
                 .any(|owned| owned == path || owned.ends_with('/') && path.starts_with(owned))
         })
     }
+    fn owns_directory(&self, path: &str) -> bool {
+        let prefix = format!("{path}/");
+        self.owns(&prefix)
+            || self.active.is_some_and(|i| {
+                self.plan.tasks[i]
+                    .owned_paths
+                    .iter()
+                    .any(|owned| owned.starts_with(&prefix))
+            })
+    }
     fn tree(&mut self) -> io::Result<String> {
         if &agent_candidate::repository_identity(Path::new(WORKSPACE))? != self.identity
             || oid(self.git(&["rev-parse", "HEAD"])?)? != self.head
@@ -602,12 +612,18 @@ impl<'a> Workspace<'a> {
             } => {
                 if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
                     || self.frozen.is_some()
-                    || !self.owns(&format!("{path}/"))
+                    || !self.owns_directory(&path)
                 {
                     return Err(refused("workspace directory outside task ownership"));
                 }
                 let path = self.path(&path)?;
-                fs::create_dir(&path)?;
+                if let Err(error) = fs::create_dir(&path) {
+                    if error.kind() != io::ErrorKind::AlreadyExists
+                        || !path.symlink_metadata()?.is_dir()
+                    {
+                        return Err(error);
+                    }
+                }
                 std::fs::File::open(
                     path.parent()
                         .ok_or_else(|| refused("workspace directory parent missing"))?,

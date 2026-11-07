@@ -968,6 +968,11 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 task: "first".into(),
                 path: "native-task-dir".into(),
             })?;
+            workspace.command(&WorkspaceCommand::MakeDirectory {
+                operation_id: "existing-directory".into(),
+                task: "first".into(),
+                path: "native-task-dir".into(),
+            })?;
             for (name, content) in [("kept.txt", "kept\n"), ("to-remove", "discard\n")] {
                 workspace.command(&WorkspaceCommand::Edit {
                     operation_id: name.into(),

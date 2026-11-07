@@ -3560,7 +3560,7 @@ func nativeWorkspacePlan(candidate string) factory.InvestigationPlan {
 	}
 	for i, id := range []string{"first", "second"} {
 		task := factory.PlanTask{ID: id, Objective: "Produce " + id + " text", Outputs: []string{"native-task.txt"},
-			AcceptanceRefs: []string{"native-workspace"}, Lane: "builder", OwnedPaths: []string{"native-task.txt", "native-task-dir/"}, CheckIDs: []string{id}}
+			AcceptanceRefs: []string{"native-workspace"}, Lane: "builder", OwnedPaths: []string{"native-task.txt", "native-task-dir/kept.txt", "native-task-dir/to-remove"}, CheckIDs: []string{id}}
 		if i == 1 {
 			task.DependsOn = []string{"first"}
 		}

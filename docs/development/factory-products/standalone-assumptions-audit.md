@@ -260,6 +260,12 @@ corrections are now active; the old feature queue waits for their resolution.
   Repository authority and phase advancement were fixture supplied; the local
   CLI made no model/provider request. Go/native builds, affected existing MCP
   tests and dependency boundaries passed. No new unit-test suite was introduced.
+  Exact file ownership now also permits creating its containing directory, and
+  mkdir accepts an already existing valid directory without broadening file-edit
+  ownership. The existing isolated workspace check passed with exact nested file
+  paths, directory reuse, both checkpoints, journal replay, retained receipts and
+  its affected failure/cancellation/retirement cases:
+  `/home/vince/tmp/fworkspace-parent7.1n7a8K/result.log`. No provider request ran.
   Remaining: real-model coding, actual correction, admitted cancellation and
   interrupted recovery/publication, broader workloads, connected authority,
   review/publication/CI/merge and installed qualification. Earlier failed local
