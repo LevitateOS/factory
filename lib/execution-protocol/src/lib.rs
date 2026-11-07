@@ -1,8 +1,11 @@
-//! Nonsecret wire shapes and pure bounds. Callers independently admit peers,
-//! processes and authority before using these observations.
+//! Bounded wire shapes and pure bounds. Product observations are nonsecret;
+//! private Muse input may carry only an ephemeral run MCP capability, never an
+//! account credential. Callers independently admit peers, processes and authority.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+mod muse;
+pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT};
 
 pub const MAX_STAGE_BUNDLE: usize = 512 * 1024;
 pub const MAX_PROMPT: usize = 320 * 1024;

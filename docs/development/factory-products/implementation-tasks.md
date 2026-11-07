@@ -78,9 +78,14 @@ For the selected Muse source, the owner now explicitly chooses “this Muse logi
 and lets Muse own its authentication/account choice. Factory must preserve the
 per-role source selection without requiring or claiming a pinned subscription
 identity, importing login secrets or fabricating a token fingerprint. The
-CLI-managed native path, admitted tool/effect scope, finite work and retirement
-remain implementation/qualification dependencies; the audit records the current
-credential-free echo check and its limits.
+CLI-managed native connector now performs one actual saved-login model request
+with bounded process/output lifetime and exact retirement facts. It uses a trusted
+desktop-user service and does not claim isolated-worker or token-custody proof.
+The owner also delegates provider request/token internals to Muse; Factory keeps
+source/allowance, deadline, model-step and captured-output limits. Go admitted
+source/intent/receipt composition, nonempty role-tool/configuration scope, isolated
+workspace effects, allowance settlement and installed/restart qualification remain
+dependencies. A01/A19 and the security handoff record the component evidence.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared

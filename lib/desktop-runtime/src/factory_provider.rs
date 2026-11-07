@@ -10,6 +10,7 @@ mod intent;
 pub(crate) mod launch;
 pub(crate) mod work;
 mod mcp;
+mod muse;
 mod observation;
 mod owner;
 pub(crate) mod port;
@@ -30,6 +31,7 @@ pub use executions::{
 };
 pub use intent::{read_intent, LaunchIntent};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
+pub use muse::MuseConnector;
 pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};

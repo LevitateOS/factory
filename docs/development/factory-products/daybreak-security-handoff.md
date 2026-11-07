@@ -126,6 +126,34 @@ with actual selected-source inference, exact admitted tools/effects, bounded
 usage and cancellation/retirement/restart receipts; never substitute an invented
 token fingerprint or expose Muse login files to the worker.
 No authentication store was scraped/imported and no personal keyring was changed.
+The supported direct CLI subsequently completed one saved-authentication model
+request (`OK`, exit zero, one completed request) in
+`/home/vince/tmp/fmuse-login7.UGvmC3/result.json` and `output.jsonl`, without an
+inherited `META_API_KEY`, new sign-in or keyring changes. This is component login
+evidence only; Factory admission, scoped role tools, isolation, cancellation and
+restart remain unverified. The owner approved Muse owning provider request/token
+limits for this source. Factory still owes exact source/allowance, wall deadline,
+model-step and captured-output enforcement; the old relay token cap is not an
+equivalent guarantee of this source and must not be claimed.
+
+The fixed native connector is implemented in
+`factory_provider/muse.rs`, `execution-protocol/src/muse.rs` and
+`cmd/soda-factory-worker/src/bin/soda-factory-muse.rs`. It retains an exact private
+service binding before launch and uses the existing `native-process` owner for
+sealed executable capture, process identity, deadlines/output caps and tree
+retirement. The helper runs as the desktop user to let Muse own its saved login;
+it is **not** the isolated workspace worker. No token custody/release or isolated
+worker identity is invented. Local fixture completion/cancellation with a child
+process and fresh kernel liveness passed in
+`/home/vince/tmp/fmuse-connector7.GGkebr/result.log`; real saved-login inference also passed
+in `/home/vince/tmp/fmuse-owned-login7.co8TBb/result.log` (one request, `OK`, captured
+output, retired tree, stopped owned service). No new login or credential copying.
+Remaining exact dependencies: compose this connector into the existing execution
+registry and Go admitted source/intent/receipt path; admit only that run's nonempty
+role tools despite saved CLI configuration; keep workspace effects in the isolated
+worker; settle source-specific allowance/usage and withdrawal; qualify lost replies,
+Quit/restart/recovery and installed helper packaging. Source configuration still
+refuses production dispatch. Component receipts cannot close these gates.
 
 Source configuration now has an explicit CLI-managed variant in
 `pkg/factory/sponsorship.go`, `runtime/native_sponsorship.go`, native

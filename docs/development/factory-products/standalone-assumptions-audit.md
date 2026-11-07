@@ -41,6 +41,10 @@ The user started the correction goal and selected these requirements on
   or claim a verified subscription/billing identity for that source. This is the
   owner's selected exception to account pinning, not permission to copy login
   credentials or switch between Factory sources automatically (A01/A11/A19).
+- For that CLI-managed source, Muse owns provider token/request limits. Factory
+  enforces the selected source, run allowance, deadline, model-step cap and
+  captured-output limit. The owner approved this change from the historical
+  relay's per-request token cap; do not claim equivalent provider limits (A19).
 - Ship execution first on Linux desktops with systemd and one configured execution
   user per machine. Other environments retain browsing with execution unavailable
   (A18); installed isolation/lifecycle qualification remains required.
@@ -66,8 +70,25 @@ corrections are now active; the old feature queue waits for their resolution.
   passed in `/home/vince/tmp/fmuse-source-native7.fPtpBb/result.log`; actual shared
   Chromium interactions passed against a declared peer in
   `/home/vince/tmp/fmuse-source-ui7.SX4Qoc/result.log`. Neither check accessed Muse
-  authentication or ran a model. Supported login reuse, scoped effects, finite
-  inference/usage, cancellation/restart and installed qualification remain pending.
+  authentication or ran a model. Admitted Factory execution, scoped effects,
+  per-role usage, cancellation/restart and installed qualification remain pending.
+  A separate supported CLI call using the existing saved authentication completed
+  one model request and returned `OK` in
+  `/home/vince/tmp/fmuse-login7.UGvmC3/result.json` (`output.jsonl`, `stderr.log`).
+  It inherited no `META_API_KEY`, used no new sign-in and changed no personal
+  keyring. This proves saved-login inference, not Factory execution, billing
+  identity, role-tool confinement or isolated/installed qualification.
+  The native CLI connector now reuses the existing process owner in a dedicated
+  delegated user service, seals the selected ELF, applies the selected model,
+  effort/contributor/step/deadline/output choices and retains exact process facts.
+  Built-in file/shell/web tools and hooks are disabled; inherited API-key
+  variables are excluded. Local finite/cancel/fresh-liveness and tree/service
+  retirement checks passed in `/home/vince/tmp/fmuse-connector7.GGkebr/result.log`.
+  Real saved-login inference through
+  that connector passed in `/home/vince/tmp/fmuse-owned-login7.co8TBb/result.log`:
+  one request, `OK`, exact captured output, process tree retired and service stopped.
+  This is a native connector component, not a Go-admitted run or an isolated
+  worker. Production dispatch stays unavailable until those boundaries are joined.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
@@ -361,7 +382,10 @@ servers or fields, not the whole map. This check used no saved login and proves
 neither saved-configuration isolation nor exact nonempty role tool selection.
 Factory's current MCP catalog lacks general workspace file/shell effects; an
 empty-preset CLI outside the worker cannot replace those effects by itself.
-Integration, authenticated finite work and retirement remain unfinished.
+The native connector component's saved-login inference and retirement are now
+proved as recorded above. Go admission, exact nonempty role-tool/configuration
+handling, isolated workspace effects, usage settlement and installed/restart
+qualification remain unfinished.
 
 ### A02 — Desktop authority requires grants its product routes cannot issue
 
@@ -666,6 +690,10 @@ Evidence: [request policy](../../../lib/desktop-runtime/src/factory_provider.rs#
 preserves role authority, spending limits and secret custody. Justify retained
 wire rewriting explicitly. CLI flags alone were previously insufficient for role
 enforcement; removing the relay without an equivalent boundary is not a correction.
+The selected CLI-managed source delegates provider request/token internals to
+Muse, as approved above. Its remaining boundaries are exact admitted role tools,
+isolated workspace effects, Factory run limits and truthful lifecycle receipts;
+the historical token-bound relay keeps its existing limits.
 
 ### A20 — Shared database initialization still includes appliance application state
 

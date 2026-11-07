@@ -14,7 +14,20 @@ use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "exec") {
+        return muse_fixture(&args);
+    }
+    if args
+        .first()
+        .is_some_and(|arg| arg == "muse-fixture-descendant")
+    {
+        std::thread::sleep(Duration::from_secs(120));
+        return Ok(());
+    }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 3 && matches!(args[2].as_str(), "muse-connector" | "muse-login") {
+        return muse_connector(&root, Path::new(&args[1]), args[2] == "muse-login");
+    }
     if args.len() == 2 && args[1] == "preparation" {
         return preparation_check(&root);
     }
@@ -189,6 +202,203 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(&key_path)?;
     assert!(Signer::open(&legacy).is_err());
     println!("PASS: native MCP private key, scoped derivation, restart, interrupted creation, pre-marker adoption, changed-key and missing-key refusal");
+    Ok(())
+}
+
+fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let option = |name: &str| -> Result<&str, Box<dyn std::error::Error>> {
+        args.iter()
+            .position(|arg| arg == name)
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+            .ok_or_else(|| format!("missing fixed CLI option {name}").into())
+    };
+    for flag in [
+        "--disable-shell",
+        "--disable-write",
+        "--disable-web-tools",
+        "--no-session-log",
+        "--disable-request-user-input",
+        "--no-foreign-personal-context",
+    ] {
+        if !args.iter().any(|arg| arg == flag) {
+            return Err(format!("missing fixed CLI flag {flag}").into());
+        }
+    }
+    if option("--preset")? != "empty"
+        || option("--max-model-steps")? != "3"
+        || option("--model")? != "muse-spark-1.3-contributor"
+        || option("--reasoning-effort")? != "low"
+        || option("--contributor-mode")? != "on"
+        || !args.iter().any(|arg| arg == "run.toolset=[]")
+        || !args.iter().any(|arg| arg == "hooks={}")
+        || !args.iter().any(|arg| arg == "managed_hooks_path=null")
+        || std::env::var_os("META_API_KEY").is_some()
+        || std::env::var_os("SODA_FACTORY_RUN_AUTH").is_some()
+        || args
+            .iter()
+            .any(|arg| matches!(arg.as_str(), "--api-key-stdin" | "--base-url"))
+    {
+        return Err("fixed Muse CLI source contract differs".into());
+    }
+    let prompt = fs::read_to_string(option("--prompt-file")?)?;
+    if prompt == "wait" {
+        let mut child = Command::new("/proc/self/exe")
+            .arg("muse-fixture-descendant")
+            .spawn()?;
+        fs::write("child.pid", child.id().to_string())?;
+        println!("fixture_wait_ready");
+        std::io::stdout().flush()?;
+        let _ = child.wait()?;
+    } else if prompt == "finish" {
+        println!("{{\"fixture\":\"ok\"}}");
+    } else {
+        return Err("unknown connector fixture prompt".into());
+    }
+    Ok(())
+}
+
+fn muse_connector(
+    root: &Path,
+    helper: &Path,
+    live: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::factory_provider::{MuseConnector, Tools};
+    use soda_execution_protocol::{HarnessProfile, MuseInvocation};
+    let (executable, sha256) = if live {
+        let selection = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(Tools::discover()?.inspect())?;
+        (selection.tool.executable, selection.tool.sha256)
+    } else {
+        let executable = std::env::current_exe()?;
+        let sha256 = sha2::Sha256::digest(fs::read(&executable)?)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        // This dummy value belongs only to this check process. The launched
+        // connector must exclude it rather than choosing another source.
+        std::env::set_var("META_API_KEY", "fixture-not-a-provider-credential");
+        (executable, sha256)
+    };
+    let modes: &[&str] = if live {
+        &["login"]
+    } else {
+        &["finish", "cancel"]
+    };
+    for mode in modes {
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random)?;
+        let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        let mut connector = MuseConnector::start(
+            root,
+            helper,
+            MuseInvocation {
+                run,
+                service: String::new(),
+                executable: executable.to_string_lossy().into_owned(),
+                executable_sha256: sha256.clone(),
+                prompt: if live {
+                    "Reply with exactly OK. Do not use any tools."
+                } else if *mode == "cancel" {
+                    "wait"
+                } else {
+                    "finish"
+                }
+                .into(),
+                harness: HarnessProfile {
+                    model: "muse-spark-1.3-contributor".into(),
+                    effort: "low".into(),
+                    contributor: true,
+                },
+                duration_ms: if live { 30_000 } else { 10_000 },
+                max_model_steps: if live { 1 } else { 3 },
+                output_bytes: 1024 * 1024,
+                mcp: None,
+            },
+        )?;
+        let directory = connector.directory().to_path_buf();
+        let until = std::time::Instant::now() + Duration::from_secs(if live { 40 } else { 12 });
+        if *mode == "cancel" {
+            while !directory.join("work/child.pid").exists() {
+                if std::time::Instant::now() >= until {
+                    return Err("connector child fixture not observed".into());
+                }
+                connector.observe(Duration::from_millis(20))?;
+                if connector.terminal().is_some() {
+                    return Err("connector fixture exited before cancellation".into());
+                }
+            }
+            if !connector
+                .inspect(Duration::from_secs(1))?
+                .is_some_and(|state| state.sequence > 0 && state.live == Some(true))
+            {
+                return Err("connector fresh process liveness was not observed".into());
+            }
+            connector.cancel()?;
+        }
+        while connector.terminal().is_none() {
+            if std::time::Instant::now() >= until {
+                return Err("connector result timed out".into());
+            }
+            connector.observe(Duration::from_millis(100))?;
+        }
+        let (result, output) = connector.finish()?;
+        if !result.tree_retired
+            || !result.output_complete
+            || result.uid != unsafe { libc::geteuid() }
+            || result.reason.as_deref()
+                != Some(if *mode == "cancel" {
+                    "cancelled"
+                } else {
+                    "exited"
+                })
+            || *mode != "cancel" && result.exit_code != Some(0)
+        {
+            return Err("connector native result differs".into());
+        }
+        fs::write(directory.join("check-output.log"), &output)?;
+        let output = String::from_utf8(output)?;
+        if live {
+            let events: Vec<serde_json::Value> = output
+                .lines()
+                .filter_map(|line| serde_json::from_str(line).ok())
+                .collect();
+            if !events.iter().any(|event| {
+                event["payload_type"] == "run.terminal.completed"
+                    && event["payload"]["terminal"] == "completed"
+                    && event["payload"]["text"] == "OK"
+            }) || !events.iter().any(|event| {
+                event["payload_type"] == "run.usage"
+                    && event["payload"]["calls"] == 1
+                    && event["payload"]["completed_calls"] == 1
+                    && event["payload"]["failed_calls"] == 0
+                    && event["payload"]["cancelled_calls"] == 0
+            }) || !events.iter().any(|event| {
+                event["payload_type"] == "run.model.configured"
+                    && event["payload"]["provider_id"] == "meta"
+                    && event["payload"]["model_id"] == "muse-spark-1.3-contributor"
+            }) {
+                return Err("saved-login connector has no completed model terminal".into());
+            }
+        } else if *mode == "finish" && !output.contains("\"fixture\":\"ok\"") {
+            return Err("connector fixture contract failed".into());
+        }
+        let binding: serde_json::Value =
+            serde_json::from_slice(&fs::read(directory.join("binding.json"))?)?;
+        let unit = binding["unit"].as_str().ok_or("connector unit missing")?;
+        let state = Command::new("/usr/bin/systemctl")
+            .args(["--user", "show", unit, "--property=MainPID", "--value"])
+            .output()?;
+        if !String::from_utf8_lossy(&state.stdout).trim().is_empty()
+            && String::from_utf8_lossy(&state.stdout).trim() != "0"
+        {
+            return Err("connector user service still has a process".into());
+        }
+        println!("PASS: {mode}: fixed CLI source, exact process/output receipt, tree retired and service MainPID zero ({})",directory.display());
+    }
     Ok(())
 }
 

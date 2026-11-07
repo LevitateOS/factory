@@ -1,5 +1,7 @@
 //! Headless Linux process/resource primitive. It executes as its own caller UID;
-//! callers must supply an isolated worker identity before using it for agents.
+//! callers must supply an isolated worker identity for untrusted workspace
+//! commands. A trusted provider connector may use its caller's saved login with
+//! a fixed CLI/tool contract; that is not an isolated workspace worker.
 //! This crate is deliberately absent from the desktop runtime dependency graph.
 mod storage;
 use sha2::{Digest, Sha256};
