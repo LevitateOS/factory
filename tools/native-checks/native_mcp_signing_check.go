@@ -1320,7 +1320,10 @@ func main() {
 // This check declares only disabled local policy; account, issue history and
 // branch evidence come from the production native connector, without a view.
 func backgroundInputsFixture(profile, instance, action, path string) error {
-	var input struct{ Repository, Issue, Connection, Decision string }
+	var input struct {
+		Repository, Issue, Connection, Decision string
+		Checks                                  factory.CheckTarget
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -1351,6 +1354,45 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if action == "check-background-ci" {
+		target := input.Checks
+		target.Repository = repository
+		observed, err := source.ObserveChecks(ctx, target, int64(connection.Actor))
+		if err != nil {
+			return err
+		}
+		if !observed.Complete || observed.NativeRev <= 0 || observed.HeadTip != target.HeadOID || observed.BaseTip != target.BaseOID || len(observed.Checks) != 2 {
+			return errors.New("native CI observation binding differs")
+		}
+		policy, err := db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		policy.TargetBranch = target.BaseRef
+		for name, expected := range map[string]string{"factory-native-observer/pass": factory.CheckPass, "factory-native-observer/fail": factory.CheckFailed, "factory-native-observer/missing": factory.CheckPending} {
+			policy.Checks = []string{name}
+			adopted := factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}
+			assessment, err := factory.VerifyChecks(target, adopted, policy, observed, time.Now().Unix())
+			if err != nil || assessment.Verdict != expected {
+				return fmt.Errorf("native CI %s verdict %s: %w", name, assessment.Verdict, err)
+			}
+			if _, err = db.RecordCheckAssessment(ctx, assessment); err != nil {
+				return err
+			}
+		}
+		changed := target
+		changed.HeadOID = strings.Repeat("c", 40)
+		policy.Checks = []string{"factory-native-observer/pass"}
+		assessment, err := factory.VerifyChecks(changed, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed, time.Now().Unix())
+		if err != nil || assessment.Verdict != factory.CheckRefused || assessment.Reason != factory.CheckReasonStaleHead {
+			return errors.New("native CI evidence admitted a different candidate")
+		}
+		if _, err = source.ObserveChecks(ctx, target, int64(connection.Actor)+1); err == nil {
+			return errors.New("native CI accepted another assessor actor")
+		}
+		fmt.Println("PASS: exact native GitHub PR/branch/status evidence, latest status selection, Go/PostgreSQL pass/failure/missing verdicts, stale-candidate and foreign-actor refusal; no workflow or merge proof")
+		return nil
+	}
 	if action == "check-background-inputs" {
 		ref := func(kind string) factory.ActorBindingRef {
 			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}

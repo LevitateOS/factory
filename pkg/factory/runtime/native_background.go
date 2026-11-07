@@ -15,8 +15,8 @@ import (
 // a registered identity or cached observation supplies no provider authority.
 type NativeInputSource struct{ NativeExecution }
 
-func (p NativeInputSource) source(ctx context.Context, repository string) (nativeIssueInputs, error) {
-	var empty nativeIssueInputs
+func (p NativeInputSource) account(ctx context.Context, repository, kind string) (*nativeProductAccount, error) {
+	var empty *nativeProductAccount
 	id, err := strconv.ParseInt(repository, 10, 64)
 	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != repository || p.Store == nil {
 		return empty, errNativeReadScope
@@ -26,7 +26,12 @@ func (p NativeInputSource) source(ctx context.Context, repository string) (nativ
 		return empty, err
 	}
 	ref := policy.Publish
-	if ref.Validate() != nil || ref.Kind != factory.OpRefPublish || ref.NativeProfile != p.Config.Profile || ref.NativeConnection == "" || ref.TokenID != 0 {
+	if kind == factory.OpMerge {
+		ref = policy.Merge
+	} else if kind != factory.OpRefPublish {
+		return empty, errNativeReadScope
+	}
+	if ref.Validate() != nil || ref.Kind != kind || ref.NativeProfile != p.Config.Profile || ref.NativeConnection == "" || ref.TokenID != 0 {
 		return empty, errors.New("native background account is not configured")
 	}
 	connection, err := p.Store.CollaborationConnection(ctx, ref.NativeConnection)
@@ -59,19 +64,19 @@ func (p NativeInputSource) source(ctx context.Context, repository string) (nativ
 	if err = bound.current(ctx); err != nil {
 		return empty, err
 	}
-	return nativeIssueInputs{bound}, nil
+	return bound, nil
 }
 func (p NativeInputSource) ReadAcceptanceEvidence(ctx context.Context, repository, issue string, comments []string) (control.AcceptanceEvidence, error) {
-	source, err := p.source(ctx, repository)
+	source, err := p.account(ctx, repository, factory.OpRefPublish)
 	if err != nil {
 		return control.AcceptanceEvidence{}, err
 	}
-	return source.ReadAcceptanceEvidence(ctx, repository, issue, comments)
+	return (nativeIssueInputs{source}).ReadAcceptanceEvidence(ctx, repository, issue, comments)
 }
 func (p NativeInputSource) ReadDispatchInputs(ctx context.Context, repository, issue string, comments []string, target string) (control.DispatchInputs, error) {
-	source, err := p.source(ctx, repository)
+	source, err := p.account(ctx, repository, factory.OpRefPublish)
 	if err != nil {
 		return control.DispatchInputs{}, err
 	}
-	return source.ReadDispatchInputs(ctx, repository, issue, comments, target)
+	return (nativeIssueInputs{source}).ReadDispatchInputs(ctx, repository, issue, comments, target)
 }

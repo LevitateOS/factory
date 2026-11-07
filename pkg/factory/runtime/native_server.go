@@ -68,7 +68,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	instance := collaboration.NewID()
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
 	inputs := NativeInputSource{native}
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, AcceptanceReads: inputs, DispatchReads: inputs}, binding)
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {
@@ -85,7 +85,10 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	var closing atomic.Bool
 	server := &http.Server{Handler: nativeHandler(ctx, config, instance, application, nativeProvider, &closing),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
-		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384,
+		// The native product bridge bounds its complete request at 20 seconds.
+		// Binding and paired provider reads can exceed one 8-second port call;
+		// leave time to return their outcome instead of closing the socket at 10s.
+		WriteTimeout: 25 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384,
 		BaseContext: func(net.Listener) context.Context { return ctx }, ConnContext: nativePeerContext,
 	}
 	served := make(chan error, 1)

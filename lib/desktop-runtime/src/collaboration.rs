@@ -514,7 +514,10 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         BackgroundEffect::Read { query }
             if matches!(
                 query,
-                Read::Identity | Read::Repository { .. } | Read::AutomationInputs { .. }
+                Read::Identity
+                    | Read::Repository { .. }
+                    | Read::AutomationInputs { .. }
+                    | Read::AutomationChecks { .. }
             ) =>
         {
             Effect::Read { query }

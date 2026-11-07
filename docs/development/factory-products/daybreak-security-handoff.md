@@ -149,6 +149,39 @@ bounded observed consistency, not an atomic GitHub transaction. The current
 history and dependency cases must supply their exact provider/canonical bindings
 before closure. Keep existing D1/D2/D3/D5, custody/IPC and installed gates open.
 
+**Native automated CI observation:** `github_provider/automation_checks.rs`
+owns paired PR/branch/check/status reads and provider-local latest-state
+projection. `runtime/native_checks.go` binds the policy's saved merge connection,
+assessor, exact PR/issue IDs and refs; `store/factory_native_inputs.go` versions
+that observation separately from issue inputs. The native application now
+supplies this existing `CheckObserver` port. The private background route adds
+only this read; no write authority or global GitHub revision is introduced.
+Actual native account/connector/Go/PostgreSQL evidence:
+`/home/vince/tmp/fnative-ci-budget7.nfbspU/result.log`. Three labeled commit statuses in
+`veighnsche/factory-write-check-20261106` exercised older-failure/latest-success,
+current-failure and missing-check verdicts; stale candidate and different assessor
+refused. Local disabled policy/check definitions were declared. No workflow,
+model, merge or personal credential change ran; the owned keyring entry was removed.
+The earlier `/home/vince/tmp/fnative-ci7.PdXtMU` profile passed CI observation but
+lost its restart replay HTTP response. Its log/profile remain retained and its
+owned credential was removed. The server's 10-second write cutoff conflicted with
+the existing 20-second product bridge window; it now allows 25 seconds for a
+response while the bridge remains bounded at 20 seconds. The affected connected
+check passed afterward. The first transport failure's exact cause was not traced;
+it supplies no restart qualification.
+
+Exact remaining dependencies/evidence: native publication/review/merge adapters
+and actual coordinator publication assessment are not qualified. Current source
+supports open non-draft same-repository PRs, at most 100 latest check runs and
+100 status history entries, 50 normalized contexts; larger/ambiguous sets refuse.
+Nonempty check runs, same-name cross-provider/app evidence, changing/deleted refs,
+concurrent status replacement, Factory OAuth and installed-peer/withdrawal races
+need their actual retained observations. Branch-rule source-app restrictions and
+test-merge checks remain merge dependencies, not proved by a green Factory status
+assessment. Paired equality is bounded observation, not an atomic provider fence.
+Factory retains success-only required checks; skipped/neutral do not pass. No
+whole security or installed gate is closed.
+
 **A04/A19 task manifest dependency:** version-5 task intents now bind phase and
 manifest digest in `pkg/factory/execution/native_intent.go`,
 `pkg/store/factory_native_dispatch.go` and `pkg/factory/run.go`. The Go launch

@@ -47,8 +47,12 @@ actual stable issue/account/PostgreSQL/restart check is recorded in A05/A21;
 background reads now use the policy's saved connection and current Rust custody.
 The actual application refreshed issue readiness without a view, kept disabled
 execution unauthorized, and refused the withdrawn account; restart and branch
-input reads also passed. Automatic dispatch/phase advancement and publication
-remain dependencies. Controlled root installation of the execution
+input reads also passed. Native automated CI now uses the exact saved merge
+account, paired PR/ref/check/status reads and the existing Go assessment owner.
+Actual fixture-status pass/failure/missing and stale-candidate/actor refusal
+passed; A05/A07/A21 records the evidence and unqualified workflow/rule cases.
+Automatic dispatch/phase advancement, publication, review and merge remain
+dependencies. Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need

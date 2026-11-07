@@ -1140,7 +1140,7 @@ async fn run_rotation(profile: &Path) -> Result<()> {
 }
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
-        (Some("--github-automation-acceptance"), 8) => {
+        (Some("--github-automation-acceptance"), n) if n == 8 || n == 9 => {
             use serde_json::json;
             use soda_desktop_runtime::supervisor::NativeSupervisor;
             let field = |n: usize| {
@@ -1195,13 +1195,16 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 let accepted:serde_json::Value=serde_json::from_slice(&admitted.body)?;
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
                 let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
-                fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id}))?)?;
+                let mut fixture=json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id});
+                if args.len()==9 { fixture["Checks"]=serde_json::from_slice(&fs::read(&args[8])?)?; }
+                fs::write(&background,serde_json::to_vec(&fixture)?)?;
                 let check = |action: &str, instance: &str| {
                     let mut command=tokio::process::Command::new(&args[7]);
                     command.arg(profile).arg(instance).arg(action).arg(&background);
                     async move { ensure(command.status().await?.success(),"native background product check failed") }
                 };
                 check("check-background-inputs",&ready.instance).await?;
+                if args.len()==9 { check("check-background-ci",&ready.instance).await?; }
                 runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
                 check("check-background-readiness",&ready.instance).await?;
                 runtime.take().expect("owned runtime").stop()?;

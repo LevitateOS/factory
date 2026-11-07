@@ -650,6 +650,25 @@ corrections are now active; the old feature queue waits for their resolution.
   nonempty dependencies/comments, UI and installed journeys remain unqualified.
   Native/Go builds and dependency boundaries passed. No broad gate is closed.
 
+- **A05/A07/A21 — native automated CI observations connected.** The application
+  now supplies its check observer from the policy's exact saved merge account.
+  Rust reads two complete bounded PR/branch/check/status projections; Go maps
+  the exact PR and issue IDs, stores a local observation revision and applies
+  the existing required-check verdict. This revision is not a global GitHub
+  barrier. Latest commit statuses supersede older ones; different providers
+  with the same context must all pass. Factory retains its strict success-only
+  policy, including non-passing skipped/neutral results. Same-repository open,
+  non-draft PRs are supported; ambiguous, incomplete or changing reads wait.
+  `/home/vince/tmp/fnative-ci-budget7.nfbspU/result.log` passed actual account/PR/ref
+  reads, latest-status selection, Go/PostgreSQL pass/failure/missing verdicts,
+  stale-candidate and different-actor refusal, plus retained restart/withdrawal.
+  Three labeled statuses were published on the disposable fixture commit;
+  check definitions and disabled local policy were fixture supplied. No model,
+  workflow, merge or personal credential change ran. Nonempty check-run sources,
+  moving refs/statuses, app-specific branch rules and test-merge requirements
+  remain unqualified. Publication/review/merge composition and full-pipeline,
+  OAuth and installed gates remain open.
+
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.
   Local-owner admission replaces remote-admin admission for local resource and

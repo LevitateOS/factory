@@ -31,7 +31,7 @@ func (c ObservedCheck) Validate() error {
 }
 
 // ObservedChecks is one bracketed native observation for a check target:
-// the bound idle revision, the observed head/base tips, the latest status
+// the source observation revision, the observed head/base tips, the latest status
 // per context on the exact head, and whether anything required was hidden.
 type ObservedChecks struct {
 	Checks           []ObservedCheck `json:"checks,omitempty"`
