@@ -78,9 +78,10 @@ type NativeRecoveryCandidate struct {
 	SourceSHA string `json:"source_sha256"`
 }
 
-// NativeRecoveryCandidates includes fact-recorded rows whose root-retirement
-// acknowledgement may have been lost after root removal. It excludes unobserved
-// intent-only history rather than fabricating a process or cleanup observation.
+// NativeRecoveryCandidates includes observed processes even when Go missed the
+// final native receipt before root removal. Native recovery must still verify
+// retained terminal/custody facts and acknowledge exact root retirement. An
+// unobserved intent alone does not establish that a worker existed.
 func (s *Store) NativeRecoveryCandidates(ctx context.Context, profile collaboration.ProfileID, after int64) ([]NativeRecoveryCandidate, string, error) {
 	if !collaboration.ValidID(string(profile)) || after < 0 {
 		return nil, "", ErrAdmissionChanged
@@ -88,7 +89,8 @@ func (s *Store) NativeRecoveryCandidates(ctx context.Context, profile collaborat
 	rows, err := s.db.QueryContext(ctx, `SELECT seq,id,data FROM factory_runs
 	 WHERE seq>$1 AND data#>>'{native,provenance,profile}'=$2
 	 AND coalesce(data#>>'{native,intent}','')!=''
-	 AND ((data#>>'{native,sealed}'='true' AND data#>>'{native,retirement}' IN ('exited','uncertain'))
+	 AND (((data#>>'{native,sealed}'='true' OR jsonb_typeof(data#>'{native,provenance,process}')='object')
+	 AND data#>>'{native,retirement}' IN ('running','exited','uncertain'))
 	 OR (data#>>'{native,provenance,trust_mode}'='cli_managed_provider' AND
 	 (data#>>'{native,retirement}'!='retired' OR data->>'reconciled'!='true')))
 	 ORDER BY seq LIMIT 33`, after, string(profile))

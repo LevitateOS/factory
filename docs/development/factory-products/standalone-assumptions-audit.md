@@ -174,8 +174,11 @@ corrections are now active; the old feature queue waits for their resolution.
   retirement and restart settlement passed in
   `/home/vince/tmp/fsource-pages-final7.04RK9B/result.log`. The existing integration
   observer now uses the canonical admitted deadline plus retirement grace; its
-  old independent 15-second cutoff cancelled an earlier run, still preserved
-  pending canonical retirement/reconciliation in the security handoff.
+  old independent 15-second cutoff cancelled an earlier run. That original was
+  separately recovered without relaunch after correcting the Go recovery
+  inventory to include observed processes whose final callback was missed.
+  The security handoff records original before/after and durable accounting/
+  blocked-result proof; missing-evidence and other retained profiles remain open.
   Native/Go builds, affected existing MCP tests and boundaries passed. No model
   request, saved-login change or GitHub action ran. These are immutable source
   reads/listings, not mutable task access, directory paging, native task execution

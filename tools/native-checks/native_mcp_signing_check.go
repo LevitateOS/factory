@@ -1635,6 +1635,42 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err != nil {
 			return err
 		}
+		if !input.MuseLogin {
+			if prior.Native == nil {
+				return errors.New("original native binding missing")
+			}
+			fmt.Printf("Original native recovery state: retirement=%s sealed=%t process=%t custody=%s reconciled=%t\n", prior.Native.Retirement, prior.Native.Sealed, prior.Native.Provenance.Process != nil, prior.Native.Provenance.Custody.State, prior.Reconciled)
+			if !prior.Native.Settled() || prior.Native.Provenance.Process == nil {
+				return errors.New("original native resources were not recovered")
+			}
+			coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
+			stopped, err := coordinator.Stop(ctx, input.Run)
+			if err != nil || !stopped.Confirmed || stopped.Uncertain {
+				return fmt.Errorf("original native run remains unsettled: %v %+v", err, stopped)
+			}
+			current, err := db.FactoryRun(ctx, input.Run)
+			if err != nil || !current.Reconciled || current.Native == nil || !current.Native.Settled() || current.Native.Intent != prior.Native.Intent || !reflect.DeepEqual(current.Native.Provenance.Process, prior.Native.Provenance.Process) {
+				return errors.New("native recovery changed or did not settle the original process")
+			}
+			assignment, err := db.AssignmentByRun(ctx, input.Run)
+			if err != nil || assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman {
+				return errors.New("native recovery did not preserve the recorded blocked product result")
+			}
+			reservation, err := db.Reservation(ctx, assignment.ID)
+			if err != nil || reservation.State != factory.ReservationConsumed {
+				return errors.New("native recovery left its reservation unsettled")
+			}
+			usage, err := db.RunUsage(ctx, input.Run)
+			if err != nil || usage.Validate() != nil || usage.Connection != assignment.Connection || usage.Minutes != 1 || !usage.StartedAt.Equal(current.Started) || !usage.EndedAt.Equal(current.UsageEnd(time.Now())) {
+				return errors.New("native recovery usage differs from the original admitted source/run")
+			}
+			terminal, found, err := db.TerminalMCPProposal(ctx, assignment.ID)
+			if err != nil || !found || terminal.State != factory.MCPWorkAccepted {
+				return errors.New("native recovery lost the original terminal proposal")
+			}
+			fmt.Println("PASS: exact original native run reconciled without relaunch; retained process/retirement, blocked product result, consumed reservation and original-source usage preserved; outcome", stopped.Outcome)
+			return port.AcknowledgeSettledRuns(ctx)
+		}
 		if prior.Native == nil || !prior.Native.Settled() || prior.Native.Provenance.TrustMode != execution.NativeCLIProvider || prior.Native.Provenance.Process == nil {
 			return errors.New("original CLI resources were not recovered")
 		}

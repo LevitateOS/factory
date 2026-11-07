@@ -58,16 +58,21 @@ Preserve `/home/vince/tmp/fsource-pages7.XIprjB`, run
 are in the retained receipt; the old integration observer's 15-second cutoff
 cancelled it during its final sleep. The receipt records signal 9, complete
 output and a captured candidate, and local custody seal/release markers exist.
-Those facts do not prove canonical root retirement or settlement. The attempted
-restart/reconciliation in `recovery.log` refused because the original native
-record was not settled; the underlying missing acknowledgement remains
-undiagnosed. Exact blocker: canonical retirement/reconciliation of that original
-run is unconfirmed. Relevant files: `factory_provider/recovery.rs`,
-`pkg/factory/runtime/native_execution.go`, `pkg/store/factory_native_retirement.go`
-and the existing broker retirement owner. Closure needs the original retained
-Go/native binding, actual root-retirement acknowledgement, and canonical
-run/assignment/usage settlement without relaunch or invented facts. The fresh
-successful paging fixture proves the deadline correction, not this old outcome.
+The first restart/reconciliation in `recovery.log` refused because the original
+native record was not settled. `recovery-before.log` then proved the missed
+inventory case: Go retained an observed process with `uncertain` retirement,
+unsealed custody still `held`. `pkg/store/factory_native_retirement.go` now
+includes observed processes whose final receipt was missed, while excluding
+unobserved intent-only history. The existing `factory_provider/recovery.rs` owner
+still validates exact terminal/custody evidence and acknowledges broker retirement;
+no gate or evidence requirement was removed. The original profile, without worker
+relaunch, reached retired/sealed/released in `recovery-after.log`.
+`recovery-verified.log` proves its exact process/intent, cancelled run outcome,
+blocked product result, consumed reservation, accepted original terminal and one
+minute of original-source usage survived reconciliation and another restart.
+This original run's retirement/settlement dependency is resolved. Missing terminal
+or custody evidence, unobserved intent-only histories, other retained profiles,
+in-flight withdrawal and installed recovery still require their own proof.
 
 **A18 installation payload dependency:** `scripts/build-desktop.ts` stages all
 seven privileged execution helpers, twelve service/socket templates and the

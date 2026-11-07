@@ -166,7 +166,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Path::new(&args[3]),
             ));
     }
-    if args.len() == 5 && args[4] == "recover-muse" {
+    if args.len() == 5 && matches!(args[4].as_str(), "recover-muse" | "recover-admitted") {
         let profile = root.join("execution-profile");
         let supervisor =
             NativeSupervisor::start(Path::new(&args[1]), Path::new(&args[2]), &profile)?;
@@ -179,7 +179,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .status()?
             .success()
         {
-            return Err("original retained CLI reconciliation failed".into());
+            return Err("original retained execution reconciliation failed".into());
         }
         supervisor.stop()?;
         return Ok(());
