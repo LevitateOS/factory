@@ -71,6 +71,11 @@ pub enum ProductRequest {
         setting: RepositorySetting,
         body: Value,
     },
+    Sponsorship {
+        repository: String,
+        connection: String,
+        body: Value,
+    },
 }
 impl ProductRequest {
     pub fn request(self) -> Result<(&'static str, String, Vec<u8>), String> {
@@ -81,6 +86,27 @@ impl ProductRequest {
                 ("PUT", "/api/factory/feed/subscription".into(), Some(body))
             }
             Self::Capacity { body } => ("PUT", "/api/factory/capacity".into(), Some(body)),
+            Self::Sponsorship {
+                repository,
+                connection,
+                body,
+            } => {
+                if !repository
+                    .parse::<i64>()
+                    .is_ok_and(|id| id > 0 && id.to_string() == repository)
+                    || connection.len() != 32
+                    || !connection
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                {
+                    return Err("invalid native spending source selector".into());
+                }
+                (
+                    "PUT",
+                    format!("/api/repositories/{repository}/factory/sponsorships/{connection}"),
+                    Some(body),
+                )
+            }
             Self::RepositorySetting {
                 repository,
                 setting,

@@ -16,11 +16,19 @@ interface Account {
   connection: string;
   active: boolean;
   roles: string[];
+  revision: number;
+  minutes: number;
+}
+interface SpendingSource {
+  connection: string;
+  label: string;
+  available: boolean;
 }
 interface Settings {
   policy: Record<string, unknown> | null;
   roles?: Selections;
   accounts: Account[];
+  sources: SpendingSource[];
   editable: boolean;
   bindings: Record<string, unknown>[];
   options: {targetBranch: string; mergeMethods: string[]} | undefined;
@@ -66,8 +74,31 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
         Array.isArray(account.roles) &&
         account.roles.every((role) => typeof role === 'string')
     );
-    return {connection: account.connection, active: account.active, roles: account.roles as string[]};
+    return {
+      connection: account.connection,
+      active: account.active,
+      roles: account.roles as string[],
+      revision: Number(account.revision),
+      minutes: Number(account.allowance_minutes),
+    };
   });
+  const sources = Array.isArray(status.spending_sources)
+    ? status.spending_sources.map((value) => {
+        const source = object(value),
+          native = object(source.native);
+        check(
+          typeof source.connection === 'string' &&
+            /^[0-9a-f]{32}$/.test(source.connection) &&
+            source.label === 'This Muse login' &&
+            native.authentication === 'muse_login' &&
+            typeof native.profile === 'string' &&
+            /^[0-9a-f]{32}$/.test(native.profile) &&
+            native.credential_sha256 === undefined &&
+            typeof source.execution_available === 'boolean'
+        );
+        return {connection: source.connection as string, label: source.label, available: source.execution_available};
+      })
+    : [];
   const editable = object(object(access.editable).policy).editable === true;
   const bindings = Array.isArray(status.native_bindings) ? status.native_bindings.map(object) : [];
   const available = status.policy_options == null ? undefined : object(status.policy_options);
@@ -80,7 +111,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
           ),
         }
       : undefined;
-  if (status.policy === null) return {policy: null, accounts, editable, bindings, options};
+  if (status.policy === null) return {policy: null, accounts, sources, editable, bindings, options};
   const policy = object(status.policy);
   check(policy.repository === repository && Number.isSafeInteger(policy.revision) && Number(policy.revision) > 0);
   const stored = object(policy.roles),
@@ -99,7 +130,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
       model: selection.model,
     } as Selection;
   }
-  return {policy, roles, accounts, editable, bindings, options};
+  return {policy, roles, accounts, sources, editable, bindings, options};
 }
 
 // The existing policy command owns CAS, current permissions and actor bindings.
@@ -225,6 +256,66 @@ export class SodaFactoryRoleSettings extends LitElement {
     return !!this.view?.accounts.some(
       (source) => source.connection === account && source.active && source.roles.includes(role)
     );
+  }
+  private async saveFunding(event: SubmitEvent) {
+    event.preventDefault();
+    const context = this.current,
+      signal = this.lifetime.signal,
+      view = this.view;
+    if (!context || !view?.editable || this.busy || !this.live(context, signal)) return;
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) return;
+    const values = new FormData(form),
+      connection = String(values.get('source') ?? ''),
+      minutes = Number(values.get('minutes')),
+      active = event.submitter?.getAttribute('value') !== 'withdraw';
+    const source = view.sources.find((source) => source.connection === connection);
+    if (!source || !Number.isSafeInteger(minutes) || minutes < 1 || minutes > 10080) return;
+    const stored = view.accounts.find((account) => account.connection === connection);
+    if (stored && (!Number.isSafeInteger(stored.revision) || stored.revision < 1)) return;
+    this.busy = true;
+    this.message = '';
+    try {
+      const response = await context.transport.request(
+        `repositories/${context.repository}/factory/sponsorships/${connection}`,
+        {
+          method: 'PUT',
+          signal,
+          body: JSON.stringify({
+            expected_revision: stored?.revision ?? 0,
+            roles: Object.keys(roleNames),
+            allowance_minutes: minutes,
+            active,
+          }),
+        }
+      );
+      if (!response.ok)
+        throw new RoleSaveError(
+          'The source allowance could not be saved. Refresh before trying again.',
+          response.status
+        );
+      const confirmed = await this.read(context, signal),
+        account = confirmed.accounts.find((account) => account.connection === connection);
+      check(
+        account?.active === active &&
+          account.minutes === minutes &&
+          account.roles.length === 2 &&
+          Object.keys(roleNames).every((role) => account.roles.includes(role))
+      );
+      if (this.live(context, signal)) {
+        this.view = confirmed;
+        this.message = active
+          ? 'Source allowance saved. Select it separately for each role.'
+          : 'Source allowance withdrawn. Existing work may still need retirement.';
+      }
+    } catch {
+      if (this.live(context, signal)) {
+        this.view = undefined;
+        this.message = 'The source allowance could not be confirmed. Refresh before changing it again.';
+      }
+    } finally {
+      if (this.live(context, signal)) this.busy = false;
+    }
   }
   private initialActors() {
     const actor = this.current?.actor;
@@ -356,11 +447,50 @@ export class SodaFactoryRoleSettings extends LitElement {
     return html`<section aria-label="Agent role settings">
       <h3>Agent roles</h3>
       <p>
-        Choose the provider, model and saved paying account for each role. Factory does not switch spending accounts
+        Choose the provider, model and saved spending source for each role. Factory does not switch sources
         automatically.
       </p>
       <p role="status">${this.message}</p>
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh roles</button>
+      ${
+        view?.sources.length
+          ? html`<form @submit=${(event: SubmitEvent) => this.saveFunding(event)}>
+              <fieldset ?disabled=${this.busy || !view.editable}>
+                <legend>Allow a spending source</legend>
+                <p>
+                  Muse manages its saved login and account choice. Factory does not copy its credentials or pin a
+                  subscription.
+                </p>
+                <label
+                  >Source
+                  <select name="source" aria-label="Spending source" required>
+                    <option value="">Choose a source</option>
+                    ${view.sources.map((source) => html`<option .value=${source.connection}>${source.label}</option>`)}
+                  </select></label
+                >
+                <label
+                  >Run allowance in minutes
+                  <input
+                    name="minutes"
+                    aria-label="Source allowance in minutes"
+                    type="number"
+                    min="1"
+                    max="10080"
+                    step="1"
+                    value="30"
+                    required
+                /></label>
+                <p>
+                  This repository shares the allowance across Coding and Review. It is Factory's run-time allowance, not
+                  a provider invoice limit.
+                </p>
+                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this Muse login source is not available yet. You can save its allowance and role choices.</p>` : ''}
+                <button type="submit" value="save">Save source allowance</button>
+                <button type="submit" value="withdraw">Withdraw source allowance</button>
+              </fieldset>
+            </form>`
+          : ''
+      }
       ${
         view && roles
           ? html`<form @submit=${(event: SubmitEvent) => this.save(event)}>
@@ -445,18 +575,18 @@ export class SodaFactoryRoleSettings extends LitElement {
                       @input=${(event: Event) => this.choose(role, 'model', (event.target as HTMLInputElement).value)}
                   /></label>
                   <label
-                    >Paying account
+                    >Spending source
                     <select
-                      aria-label=${`${roleNames[role]} paying account`}
+                      aria-label=${`${roleNames[role]} spending source`}
                       ?required=${!initial}
                       @change=${(event: Event) => this.choose(role, 'account', (event.target as HTMLSelectElement).value)}
                     >
-                      <option value="" .selected=${!selected.account}>Choose a saved account</option>
+                      <option value="" .selected=${!selected.account}>Choose a saved source</option>
                       ${selected.account && !this.eligible(role, selected.account) ? html`<option .value=${selected.account} .selected=${true} disabled>${selected.account} — unavailable for this role</option>` : ''}
-                      ${accounts.map((account) => html`<option .value=${account.connection} .selected=${account.connection === selected.account}>${account.connection}</option>`)}
+                      ${accounts.map((account) => html`<option .value=${account.connection} .selected=${account.connection === selected.account}>${view.sources.find((source) => source.connection === account.connection)?.label ?? account.connection}</option>`)}
                     </select></label
                   >
-                  ${accounts.length === 0 ? html`<p>No active saved paying account is available for this role.</p>` : ''}
+                  ${accounts.length === 0 ? html`<p>No active saved spending source is available for this role.</p>` : ''}
                 </fieldset>`;
               })}
               <p>

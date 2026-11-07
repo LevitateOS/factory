@@ -332,7 +332,11 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
-            tools: RwLock::new(crate::factory_provider::Tools::discover().ok().map(Arc::new)),
+            tools: RwLock::new(
+                crate::factory_provider::Tools::discover()
+                    .ok()
+                    .map(Arc::new),
+            ),
             preparations,
             execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
             work,
@@ -817,6 +821,18 @@ async fn dispatch(
     if execution {
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if matches!(&call, crate::factory_provider::port::Call::InspectMuseLogin) {
+            use sha2::{Digest, Sha256};
+            let connection: String =
+                Sha256::digest(format!("factory_muse_login\n{}", state.channel.profile))
+                    .iter()
+                    .take(16)
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect();
+            return Ok(json!({"connection":connection,"label":"This Muse login",
+                "native":{"profile":state.channel.profile,"authentication":"muse_login"},
+                "execution_available":false}));
+        }
         if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
             && state
                 .execution_error

@@ -20,7 +20,8 @@ type SponsorshipChange struct {
 
 // SponsorshipCustody contains current nonsecret custody facts. Appliance grants
 // retain the broker execution actor and generation. Native binds an enrolled
-// desktop credential revision and uses the admitted canonical sponsor as actor.
+// desktop credential revision or CLI-managed source and uses the admitted sponsor
+// as actor. A CLI source does not attest a provider billing identity.
 // Project is the repository's exact workspace; the host resolves account ownership.
 type SponsorshipCustody struct {
 	Native     *factory.NativeSponsorship

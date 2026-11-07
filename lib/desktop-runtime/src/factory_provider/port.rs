@@ -16,6 +16,7 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    InspectMuseLogin,
     InspectAccount {
         connection: String,
     },
@@ -58,6 +59,7 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::InspectMuseLogin => return Err(io::Error::other("native source owner required")),
         Call::InspectAccount { .. } => {
             return Err(io::Error::other("native account owner required"))
         }

@@ -549,6 +549,89 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 && after.1["policy"]["roles"]["soda-reviewer"]["account"] == "declared-reviewer",
             "local resource readback changed permission, limit or disabled automation",
         )?;
+        let source = &after.1["spending_sources"][0];
+        let source_id = source["connection"]
+            .as_str()
+            .ok_or("Muse source reference absent")?;
+        ensure(
+            source["label"] == "This Muse login"
+                && source["native"]["authentication"] == "muse_login"
+                && source["native"]["credential_sha256"].is_null()
+                && source["execution_available"] == false,
+            "Muse login source invented credential/account or execution proof",
+        )?;
+        let funding: ProductRequest = serde_json::from_value(
+            json!({"kind":"sponsorship","repository":repository,"connection":source_id,
+            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer"],"allowance_minutes":30,"active":true}}),
+        )?;
+        let (method, target, body) = funding.request()?;
+        let granted = call(&runtime, &store, &connection, method, &target, &body).await?;
+        ensure(
+            granted.0 == 200,
+            &format!("Muse source allowance failed: {} {}", granted.0, granted.1),
+        )?;
+        let funded = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        let saved = &funded.1["sponsorships"][0];
+        ensure(
+            saved["connection"] == source_id
+                && saved["native"]["authentication"] == "muse_login"
+                && saved["native"]["credential_sha256"].is_null()
+                && saved["allowance_minutes"] == 30
+                && saved["active"] == true,
+            "Muse source allowance lost CLI-managed authentication",
+        )?;
+        let mut selected_role = role.clone();
+        selected_role["account"] = json!(source_id);
+        let selected = json!({"expected_revision":2,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
+            "roles":{"soda-coder":selected_role,"soda-reviewer":selected_role},"required_checks":["fixture/check"],"merge_method":"rebase",
+            "publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor});
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "PUT",
+                &format!("{settings_path}/policy"),
+                &serde_json::to_vec(&selected)?,
+            )
+            .await?
+            .0 == 200,
+            "explicit per-role Muse login selection refused",
+        )?;
+        let selected = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        ensure(
+            selected.1["policy"]["roles"]["soda-coder"]["account"] == source_id
+                && selected.1["policy"]["roles"]["soda-reviewer"]["account"] == source_id
+                && selected.1["policy"]["enabled"] == false,
+            "saved Muse role choice changed source or enabled automation",
+        )?;
+        ensure(
+            call(&runtime, &store, &connection, "PUT", &target, &body)
+                .await?
+                .0
+                == 412,
+            "stale Muse source allowance overwrote current funding",
+        )?;
+        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer"],"allowance_minutes":30,"active":false});
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "PUT",
+                &target,
+                &serde_json::to_vec(&withdrawal)?,
+            )
+            .await?
+            .0 == 200,
+            "Muse source withdrawal required a new login",
+        )?;
+        let withdrawn = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        ensure(
+            withdrawn.1["sponsorships"][0]["active"] == false,
+            "Muse source withdrawal was not retained",
+        )?;
+        println!("PASS: explicit CLI-managed Muse source allowance, per-role selection, CAS/readback and withdrawal without a Muse credential or billing identity; execution remains unavailable");
         let access = call(
             &runtime,
             &store,

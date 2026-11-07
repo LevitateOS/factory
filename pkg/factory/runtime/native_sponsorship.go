@@ -8,12 +8,15 @@ import (
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
-// ExecutionAccount reads only the enrolled native account's current nonsecret
-// credential binding. It grants neither repository access nor spending authority.
+// ExecutionAccount reads the current native authentication source, without
+// copying credentials or granting repository access or spending authority.
 func (p NativeExecution) ExecutionAccount(ctx context.Context, connection string) (factory.NativeSponsorship, error) {
 	var empty factory.NativeSponsorship
 	if !collaboration.ValidID(connection) {
 		return empty, factoryservice.ErrSponsorshipConnectionMissing
+	}
+	if source, err := p.MuseLoginSource(ctx); err == nil && source.Connection == connection {
+		return source.Native, nil
 	}
 	var observed struct {
 		factory.NativeSponsorship
@@ -31,9 +34,48 @@ func (p NativeExecution) ExecutionAccount(ctx context.Context, connection string
 	return observed.NativeSponsorship, ctx.Err()
 }
 
+func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.SpendingSource, error) {
+	var source factoryservice.SpendingSource
+	if err := nativeHostCall(ctx, p.Config, p.Instance, "/api/native/execution", struct {
+		Operation string `json:"operation"`
+	}{"inspect_muse_login"}, &source); err != nil {
+		return source, err
+	}
+	if !collaboration.ValidID(source.Connection) || source.Native.Profile != p.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || source.Native.Validate() != nil || source.Label != "This Muse login" || source.ExecutionAvailable {
+		return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
+	}
+	return source, ctx.Err()
+}
+
+func (b *nativeProductAccount) spendingSources(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.SpendingSource, error) {
+	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		return nil, err
+	}
+	source, err := (NativeExecution{Config: b.port.operation.config, Instance: b.port.operation.instance}).MuseLoginSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err = b.current(ctx); err != nil {
+		return nil, err
+	}
+	return []factoryservice.SpendingSource{source}, nil
+}
+
+func (b *nativeProductAccount) spendingConnections(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (map[string]bool, error) {
+	sources, err := b.spendingSources(ctx, actor, repository)
+	if err != nil {
+		return nil, err
+	}
+	owned := make(map[string]bool, len(sources))
+	for _, source := range sources {
+		owned[source.Connection] = true
+	}
+	return owned, nil
+}
+
 func (b *nativeProductAccount) sponsorship(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, connection string) (factoryservice.SponsorshipCustody, error) {
 	var empty factoryservice.SponsorshipCustody
-	if err := b.visible(ctx, actor, repository); err != nil {
+	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return empty, err
 	}
 	workspace, native, err := b.store.ExecutionWorkspace(ctx, repository)

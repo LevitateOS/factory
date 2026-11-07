@@ -71,8 +71,8 @@ native local-owner access readback is composed without inventing provider powers
 The initial shared policy form now saves an unfunded, disabled full-pipeline policy
 after explicit branch/check/model/account-consent choices and current enabled merge
 options. Declared browser and composed native bootstrap/readback checks passed.
-Existing-session account discovery/enrollment and connected enablement/execution
-remain unfinished; other provider connectors are unavailable. Hosts without policy
+Actual existing-session use and connected enablement/execution remain unfinished;
+other provider connectors are unavailable. Hosts without policy
 options retain existing-policy editing with initial setup unavailable.
 For the selected Muse source, the owner now explicitly chooses “this Muse login”
 and lets Muse own its authentication/account choice. Factory must preserve the
@@ -81,6 +81,11 @@ identity, importing login secrets or fabricating a token fingerprint. The
 CLI-managed native path, admitted tool/effect scope, finite work and retirement
 remain implementation/qualification dependencies; the audit records the current
 credential-free echo check and its limits.
+The CLI-managed source can now be configured in shared Work: its native-profile
+reference, local minute allowance, independent role choices and withdrawal use
+the existing sponsorship/policy commands. Actual composed native and declared
+browser checks are recorded in A01/A11. No Muse credentials are imported or
+fingerprinted, and execution through that source remains explicitly unavailable.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

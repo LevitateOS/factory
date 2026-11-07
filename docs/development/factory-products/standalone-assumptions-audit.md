@@ -54,6 +54,21 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A01/A11 — CLI-managed Muse source setup implemented; execution pending.**
+  Rust supplies a stable profile-scoped “This Muse login” reference, not a Meta
+  account ID. Go records `authentication: muse_login` without a credential
+  fingerprint; the historical token-bound lane retains its exact binding.
+  Shared Work configures/withdraws the source's local minute allowance and saves
+  explicit independent role choices. No source is selected automatically. Native
+  product requests admit the exact source selector; dispatch and credential-bound
+  launch admission explicitly refuse this source until its executor is integrated.
+  Actual Rust/Go/PostgreSQL setup, readback, stale-revision refusal and withdrawal
+  passed in `/home/vince/tmp/fmuse-source-native7.fPtpBb/result.log`; actual shared
+  Chromium interactions passed against a declared peer in
+  `/home/vince/tmp/fmuse-source-ui7.SX4Qoc/result.log`. Neither check accessed Muse
+  authentication or ran a model. Supported login reuse, scoped effects, finite
+  inference/usage, cancellation/restart and installed qualification remain pending.
+
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
   files use the existing 64 MiB checkout envelope instead of the 256 KiB log cap.
@@ -131,7 +146,7 @@ corrections are now active; the old feature queue waits for their resolution.
   method exclusion and a subsequent separate-account policy update. Provider
   identity/permissions/options were declared; automation remained disabled and
   remote writes refused. Other hosts must provide current policy options to use
-  this initial flow. Existing-Muse-session discovery/enrollment, connected
+  this initial flow. Actual existing-Muse-session use, connected
   enablement/execution and other AI provider connectors remain unfinished;
   only Muse is offered.
   No connected billing, custody or installed execution gate is qualified here.

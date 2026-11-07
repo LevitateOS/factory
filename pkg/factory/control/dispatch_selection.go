@@ -138,6 +138,9 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 // checkHarnessFor verifies the selected role's tool and runtime kind. Current
 // appliance admission captures the proved bundle without changing retained pins.
 func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string) *planWait {
+	if plan.sponsorship.Native != nil && plan.sponsorship.Native.Authentication == factory.NativeMuseLogin {
+		return waitFor(WaitHarness, "execution through the selected Muse login source is not available yet")
+	}
 	if plan.nativeEnvironment != nil && project.ExecutionManifestRequired(plan.phase) {
 		if _, ready := deps.Host.(execution.TaskRuntime); !ready {
 			return waitFor(WaitHarness, execution.ErrTaskUnavailable.Error())

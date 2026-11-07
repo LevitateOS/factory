@@ -10,8 +10,8 @@ import (
 
 // Sponsorship authorizes factory use of one provider connection for one
 // repository and its assigned roles within an explicit allowance. It
-// records either an appliance broker grant or an exact native credential
-// binding, together with its execution actor and workspace. It never copies
+// records either an appliance broker grant or a native authentication source,
+// together with its execution actor and workspace. It never copies
 // credential custody. GrantedBy remains the policy sponsor.
 type Sponsorship struct {
 	Native           *NativeSponsorship `json:"native,omitempty"`
@@ -35,17 +35,32 @@ type Sponsorship struct {
 	Collections []string `json:"collections,omitempty"`
 }
 
-// NativeSponsorship binds a desktop account's exact credential revision. The
-// connection and canonical sponsor live on Sponsorship; no appliance grant or
-// execution actor is invented for a local keyring account.
+// NativeSponsorship binds a desktop credential revision or an explicitly
+// selected CLI-managed login source. The connection and canonical sponsor live
+// on Sponsorship; no appliance grant or provider billing identity is invented.
 type NativeSponsorship struct {
 	Profile          collaboration.ProfileID `json:"profile"`
-	CredentialSHA256 string                  `json:"credential_sha256"`
+	Authentication   string                  `json:"authentication,omitempty"`
+	CredentialSHA256 string                  `json:"credential_sha256,omitempty"`
 }
 
+const NativeMuseLogin = "muse_login"
+
 func (n NativeSponsorship) Validate() error {
-	if !collaboration.ValidID(string(n.Profile)) || !ValidDigest(n.CredentialSHA256) {
+	if !collaboration.ValidID(string(n.Profile)) {
 		return errors.New("invalid native sponsorship credential binding")
+	}
+	switch n.Authentication {
+	case "":
+		if !ValidDigest(n.CredentialSHA256) {
+			return errors.New("invalid native sponsorship credential binding")
+		}
+	case NativeMuseLogin:
+		if n.CredentialSHA256 != "" {
+			return errors.New("CLI-managed authentication cannot pin a credential")
+		}
+	default:
+		return errors.New("unsupported native authentication source")
 	}
 	return nil
 }

@@ -25,6 +25,7 @@ type RepositoryPreparation struct {
 }
 
 type RepositoryStatusView struct {
+	SpendingSources     []SpendingSource             `json:"spending_sources,omitempty"`
 	PolicyOptions       *RepositoryPolicyOptions     `json:"policy_options,omitempty"`
 	NativeBindings      []factory.ActorBindingRef    `json:"native_bindings"`
 	Policy              *factory.RepositoryPolicy    `json:"policy"`
@@ -39,6 +40,14 @@ type RepositoryStatusView struct {
 	Repository          string                       `json:"repository"`
 }
 
+// A selectable native source is configuration, not authenticated billing proof.
+type SpendingSource struct {
+	Connection         string                    `json:"connection"`
+	Label              string                    `json:"label"`
+	Native             factory.NativeSponsorship `json:"native"`
+	ExecutionAvailable bool                      `json:"execution_available"`
+}
+
 // RepositoryPolicyOptions are current provider settings, not mutation authority.
 type RepositoryPolicyOptions struct {
 	TargetBranch string   `json:"target_branch"`
@@ -46,12 +55,13 @@ type RepositoryPolicyOptions struct {
 }
 
 type RepositoryStatus struct {
-	PolicyOptions func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPolicyOptions, error)
-	Store         *store.Store
-	Visibility    WorkVisibility
-	Bindings      func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]factory.ActorBindingRef, error)
-	Preparation   func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPreparation, error)
-	Authority     func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (factory.EffectiveAuthority, error)
+	SpendingSources func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]SpendingSource, error)
+	PolicyOptions   func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPolicyOptions, error)
+	Store           *store.Store
+	Visibility      WorkVisibility
+	Bindings        func(context.Context, collaboration.ActorID, collaboration.RepositoryID) ([]factory.ActorBindingRef, error)
+	Preparation     func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*RepositoryPreparation, error)
+	Authority       func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (factory.EffectiveAuthority, error)
 	// Diagnostic is optional and must check current administration itself.
 	// Unknown administration omits private diagnostics, never enables them.
 	Diagnostic func(context.Context, collaboration.ActorID, collaboration.RepositoryID) (*control.DispatchObservation, error)
@@ -86,6 +96,11 @@ func (s RepositoryStatus) Read(ctx context.Context, actor collaboration.ActorID,
 		return nil, err
 	}
 	view := &RepositoryStatusView{Repository: strconv.FormatInt(int64(repository), 10), NativeBindings: []factory.ActorBindingRef{}, Sponsorships: []factory.Sponsorship{}}
+	if s.SpendingSources != nil {
+		if sources, err := s.SpendingSources(ctx, actor, repository); err == nil {
+			view.SpendingSources = sources
+		}
+	}
 	if s.PolicyOptions != nil {
 		// Missing provider options keep initial setup unavailable; they do not
 		// prevent browsing or editing an already recorded policy.
