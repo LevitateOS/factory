@@ -19,6 +19,11 @@ profile/provider/account scope, display account, selected route and typed
 `resolve`/`navigate` ports. Each new context retires the previous view. Returned
 ports must match the selected route, transport and relevant actor/repository/
 issue/run scope. A mismatched binding renders unavailable before mounting a child.
+Hosts retaining a selected workspace supply `selectedRepository` independently
+of the route. Its repository navigation remains available on New request; Feed
+links keep that repository. Desktop supplies its admitted selection. Other hosts
+may omit this optional field and retain their route-derived navigation; adopting
+it does not grant access to another repository or enable aggregate Feed reads.
 
 The `issues` screen receives list read ports; the frame supplies selection through
 its typed `issue` destination. `issue` mounts the shared description/conversation

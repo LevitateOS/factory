@@ -52,6 +52,9 @@ The user started the correction goal and selected these requirements on
   (A18); installed isolation/lifecycle qualification remains required.
 - Include the owner's own newly created GitHub issues in automatic intake. Prevent
   recursion using recorded Factory operations/origin, not account inequality (A08).
+- On 2026-11-07, retain repository navigation independently of the current route
+  and keep Feed scoped to the selected repository. Aggregate Feed was not selected
+  (A24).
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -199,6 +202,19 @@ corrections are now active; the old feature queue waits for their resolution.
   per-run memory budgets or proof of normal Go/Rust/Bun toolchain provisioning.
   Saturated capacity/low-free-space refusal and installed workload evidence
   remain open. Reviewed time/network choices retain their existing semantics.
+
+- **A24 — selected workspace navigation corrected.** The host now supplies
+  `selectedRepository` separately from the destination. Desktop passes its admitted
+  selection; shared tabs survive New request and Feed links retain the repository.
+  The browser check also exposed Request state fields shadowing Lit's update
+  accessors; their declarations/defaults are corrected. Actual shared-frame
+  Request → Work → Feed navigation, visible Request rendering, desktop context
+  selection and retirement on Disconnect passed against the existing declared
+  peer in `/home/vince/tmp/fnav-workspace7.b4HkPN/result-fixed.log`. Typechecking
+  and shared/desktop UI bundle builds passed. No provider/native request or
+  authority qualification ran. Other hosts
+  must supply the optional selection field to retain navigation on routes without
+  a repository; actual Fountain/installed host parity remains unqualified.
 
 - **A20 — standalone initialization separated; migration qualification pending.**
   Native startup now uses `OpenStandaloneContext`. Schema 93 records the
@@ -909,6 +925,11 @@ Evidence: [shared frame](../../../frontend/factory/app/factory-app.ts#L445),
 **Correction:** define selected workspace/navigation independently of destination
 routes. Decide repository-local versus aggregate Feed behavior. Do not broaden
 the current admitted repository scope implicitly to implement aggregation.
+
+**Selected correction:** the owner selected repository-local Feed on 2026-11-07.
+Desktop now supplies its selected workspace independently of route shape; shared
+navigation retains it on New request. See the verified-corrections entry for the
+browser evidence and remaining host parity scope.
 
 ## What remains justified
 

@@ -111,6 +111,7 @@ export function appStoryPeer(state: AppStoryState = 'ready', account = 'Alex') {
     host: 'a'.repeat(32),
     scope,
     accountLabel: account,
+    selectedRepository: appRepository,
     route,
     async resolve(selected, signal) {
       resolved.push(selected);

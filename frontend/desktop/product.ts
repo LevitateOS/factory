@@ -56,6 +56,7 @@ export class DesktopProduct {
       scope: this.scope,
       ...this.selected.identity,
       accountLabel: this.selected.account_label,
+      ...(this.selected.repository ? {selectedRepository: this.selected.repository.id} : {}),
       route,
       resolve: (route, signal) => this.resolve(route, AbortSignal.any([this.lifetime.signal, signal])),
       navigate: (route) => {

@@ -144,6 +144,11 @@ Retained databases preserve their components and verification. A20 records actua
 startup/restart, retained upgrade, observation and composed native execution.
 Broader migration, admission and installed qualification remain pending.
 
+The owner selected repository-local Feed (A24). Desktop now supplies workspace
+selection separately from destination routes; shared navigation retains it on
+New request. The affected Request rendering and actual declared-browser journey
+are verified in A24. Fountain consumer adoption/installed parity remains pending.
+
 ## Remaining product milestones (2026-11-06)
 
 T11-WRITES and T07-EDIT/T08-READ/T08-WRITE are complete in their recorded scopes;

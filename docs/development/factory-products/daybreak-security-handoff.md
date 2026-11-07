@@ -18,6 +18,14 @@ security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all
 existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
 
+**A24 navigation scope:** the owner selected repository-local Feed. The optional
+`selectedRepository` in `frontend/factory/app/factory-app.ts` retains navigation
+independently of route shape; `frontend/desktop/product.ts` supplies its admitted
+selection. A24 records the actual declared-browser navigation/rendering check.
+It supplies no provider or IPC admission proof. Existing account/repository switch,
+reconnect and installed/Fountain parity gates still need their actual host
+journeys with this metadata; navigation must never grant a wider transport scope.
+
 **A20 retained schema obligations:** schema 94 records application hosting and
 appliance compatibility. `pkg/store/{store,schema,schema_application_hosting,
 schema_appliance_compatibility}.go` omit both for new native profiles and retain

@@ -61,6 +61,8 @@ export interface FactoryAppContext {
   readonly host: string;
   readonly actor: string;
   readonly accountLabel: string;
+  /** Host-selected workspace, retained independently of the current destination. */
+  readonly selectedRepository?: string;
   readonly route: FactoryRoute;
   resolve(route: FactoryRoute, signal: AbortSignal): Promise<FactoryScreen>;
   navigate(route: FactoryRoute): void;
@@ -113,6 +115,9 @@ export class SodaFactoryApp extends LitElement {
           typeof context.navigate === 'function'
       );
       admitFactoryRoute(context.route);
+      check(context.selectedRepository === undefined || id(context.selectedRepository));
+      if (context.selectedRepository !== undefined && 'repository' in context.route && context.route.repository !== undefined)
+        check(context.selectedRepository === context.route.repository);
       this.current = context;
       this.generation = context.transport.generation;
       void this.load(context);
@@ -442,9 +447,9 @@ export class SodaFactoryApp extends LitElement {
   };
   protected render() {
     const context = this.current;
-    const repository = context && 'repository' in context.route ? context.route.repository : undefined;
+    const repository = context?.selectedRepository ?? (context && 'repository' in context.route ? context.route.repository : undefined);
     const links: {label: string; route: FactoryRoute}[] = [
-      {label: 'Feed', route: {kind: 'feed'}},
+      {label: 'Feed', route: {kind: 'feed', ...(repository ? {repository} : {})}},
       {label: 'New request', route: {kind: 'request'}},
       ...(repository
         ? [
