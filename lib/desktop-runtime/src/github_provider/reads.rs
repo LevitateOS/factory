@@ -83,6 +83,14 @@ impl Client {
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
                         "publication_refs" => ("publication", reader.publication_refs(&q).await?),
+                        "merge_completion" => (
+                            "publication",
+                            reader
+                                .merge_completion(
+                                    q["number"].as_u64().ok_or_else(Failure::invalid)?,
+                                )
+                                .await?,
+                        ),
                         "pull_required_checks" => {
                             ("required_checks", reader.required_checks(&q).await?)
                         }

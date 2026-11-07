@@ -189,9 +189,8 @@ func (s nativeHumanMerges) SubmitHumanMerge(ctx context.Context, c factory.Human
 	}
 	r := nativeMergeRecord(c)
 	if reply.State == "applied" {
-		var receipt nativeMergeReceipt
-		w := p.Merge
-		if reply.Failure != nil || len(reply.Receipt) > 4096 || nativeDecode(reply.Receipt, &receipt) != nil || !nativeActor(receipt.Account) || receipt.Account.ExternalID != p.Account || receipt.Repository != w.Repository || receipt.RepositoryNodeID != w.RepositoryNodeID || receipt.PullID != w.PullID || receipt.PullNodeID != w.PullNodeID || receipt.Number != w.Number || receipt.Head != w.Head || receipt.Base != w.Base || receipt.Method != w.Method || receipt.MessageSHA256 != nativeCreationSHA([]byte(w.Message)) || receipt.WritingMatches == nil || receipt.HeadCondition != "expected_head_oid" || receipt.BaseCondition != "bounded_preflight" || !collaboration.ValidCommitID(collaboration.CommitID(receipt.Commit)) || receipt.MergedAt == nil || receipt.ProviderResponse.Protocol != "github_graphql_merge_pull" || receipt.ProviderResponse.Status != 200 || !nativeCreationDigest(receipt.ProviderResponse.ResponseSHA256) || receipt.ProviderResponse.RequestID != nil && !nativeObservedText(*receipt.ProviderResponse.RequestID, 256, false) {
+		receipt, receiptErr := validateNativeMergeReceipt(p, reply.Receipt)
+		if reply.Failure != nil || receiptErr != nil {
 			return empty, factoryservice.ErrHumanMergeConflict
 		}
 		r.Effect, r.Reason = collaboration.EffectCommitted, "native_pull_merged"
@@ -203,6 +202,14 @@ func (s nativeHumanMerges) SubmitHumanMerge(ctx context.Context, c factory.Human
 		return empty, factoryservice.ErrHumanMergeUnavailable
 	}
 	return r, r.Validate()
+}
+func validateNativeMergeReceipt(p nativeMergePreparation, raw json.RawMessage) (nativeMergeReceipt, error) {
+	var receipt nativeMergeReceipt
+	w := p.Merge
+	if len(raw) > 4096 || nativeDecode(raw, &receipt) != nil || !nativeActor(receipt.Account) || receipt.Account.ExternalID != p.Account || receipt.Repository != w.Repository || receipt.RepositoryNodeID != w.RepositoryNodeID || receipt.PullID != w.PullID || receipt.PullNodeID != w.PullNodeID || receipt.Number != w.Number || receipt.Head != w.Head || receipt.Base != w.Base || receipt.Method != w.Method || receipt.MessageSHA256 != nativeCreationSHA([]byte(w.Message)) || receipt.WritingMatches == nil || receipt.HeadCondition != "expected_head_oid" || receipt.BaseCondition != "bounded_preflight" || !collaboration.ValidCommitID(collaboration.CommitID(receipt.Commit)) || receipt.MergedAt == nil || receipt.ProviderResponse.Protocol != "github_graphql_merge_pull" || receipt.ProviderResponse.Status != 200 || !nativeCreationDigest(receipt.ProviderResponse.ResponseSHA256) || receipt.ProviderResponse.RequestID != nil && !nativeObservedText(*receipt.ProviderResponse.RequestID, 256, false) {
+		return receipt, factoryservice.ErrHumanMergeConflict
+	}
+	return receipt, nil
 }
 func (s nativeHumanMerges) CancelHumanMerge(ctx context.Context, c factory.HumanMergeCapture) (collaboration.OperationRecord, error) {
 	if _, err := s.decode(ctx, c); err != nil {

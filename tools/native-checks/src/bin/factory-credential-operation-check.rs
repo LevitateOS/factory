@@ -1156,7 +1156,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     .ok_or("invalid acceptance fixture argument")
             };
             let profile = Path::new(&args[3]);
-            prepare(profile)?;
+            let resume_merge=args.len()==10 && field(9)?=="merge-resume";
+            if resume_merge {
+                ensure(profile.starts_with("/home") && profile.join("profile.id").is_file(),"retained private merge profile required")?;
+            } else { prepare(profile)?; }
             let mut secret = Vec::new();
             std::io::stdin().take(65537).read_to_end(&mut secret)?;
             if secret.last() == Some(&b'\n') {
@@ -1200,7 +1203,13 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     return Ok(());
                 }
 
+                let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
                 let base=format!("/api/repositories/{repository}/factory/issues/{}",field(6)?);
+                let (body,accepted,mut fixture)=if resume_merge {
+                    let mut fixture:serde_json::Value=serde_json::from_slice(&fs::read(&background)?)?;
+                    fixture["Connection"]=json!(saved.connection);
+                    (Vec::new(),serde_json::Value::Null,fixture)
+                } else {
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                 let preview=request.request("GET",&format!("{base}/acceptance-preview"),&[]).await?;
                 fs::write(profile.parent().ok_or("profile parent missing")?.join("preview.json"),&preview.body)?;
@@ -1217,9 +1226,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(admitted.status==201,"connected native acceptance admission unavailable")?;
                 let accepted:serde_json::Value=serde_json::from_slice(&admitted.body)?;
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
-                let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
-                let mut fixture=json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id});
+                    (body,accepted,json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id}))
+                };
                 let correction_check=args.len()==10 && field(9)?=="correction";
+                let merge_check=args.len()==10 && matches!(field(9)?,"merge"|"merge-resume");
                 let publication_check=args.len()==10 && field(9)?=="publication";
                 let recovery_check=args.len()==10 && field(9)?=="review-recovery";
                 let review_check=args.len()==10 && (field(9)?=="review" || recovery_check);
@@ -1231,7 +1241,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     async move { ensure(command.status().await?.success(),"native background product check failed") }
                 };
                 check("check-background-inputs",&ready.instance).await?;
-                if correction_check {check("check-background-correction",&ready.instance).await?;}
+                if resume_merge {check("check-background-merge-resume",&ready.instance).await?;}
+                else if merge_check {check("check-background-merge",&ready.instance).await?;}
+                else if correction_check {check("check-background-correction",&ready.instance).await?;}
                 else if publication_check {check("check-background-publication",&ready.instance).await?;}
                 else if recovery_check {check("check-background-review-recovery-prepare",&ready.instance).await?;}
                 else if review_check {check("check-background-review",&ready.instance).await?;}
@@ -1243,17 +1255,21 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 runtime.take().expect("owned runtime").stop()?;
                 runtime=Some(NativeSupervisor::start(payload,production,profile)?);
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
-                let replay=request.request("POST",&format!("{base}/acceptances"),&body).await?;
-                ensure(replay.status==201 && serde_json::from_slice::<serde_json::Value>(&replay.body)?==accepted,"native acceptance changed after retained restart replay")?;
+                if !merge_check {
+                    let replay=request.request("POST",&format!("{base}/acceptances"),&body).await?;
+                    ensure(replay.status==201 && serde_json::from_slice::<serde_json::Value>(&replay.body)?==accepted,"native acceptance changed after retained restart replay")?;
+                }
                 let restarted=runtime.as_ref().expect("owned runtime").health()?;
                 if recovery_check {check("check-background-review-recovery",&restarted.instance).await?;}
                 check("check-background-restarted",&restarted.instance).await?;
                 if publication_check {check("check-background-publication-retained",&restarted.instance).await?;}
                 if correction_check {check("check-background-correction-retained",&restarted.instance).await?;}
+                if merge_check {check("check-background-merge-retained",&restarted.instance).await?;}
                 if review_check {check("check-background-review-retained",&restarted.instance).await?;}
                 store.withdraw(&saved.connection).await?;
                 check("check-background-withdrawn",&restarted.instance).await?;
-                if correction_check {check("check-background-correction-retained",&restarted.instance).await?;println!("PASS: actual native correction ref update/replay and retained restart/withdrawal; original workflow/run inputs declared, no model or merge");}
+                if merge_check {check("check-background-merge-retained",&restarted.instance).await?;println!("PASS: actual native merge/result/completion, command replay and retained restart/withdrawal; local workflow inputs declared, no model/full coordinator");}
+                else if correction_check {check("check-background-correction-retained",&restarted.instance).await?;println!("PASS: actual native correction ref update/replay and retained restart/withdrawal; original workflow/run inputs declared, no model or merge");}
                 else if publication_check {check("check-background-publication-retained",&restarted.instance).await?;println!("PASS: actual native Git pack/branch and PR publication, command replay, retained restart and credential withdrawal; run/authority inputs declared, no model or merge");}
                 else if recovery_check {check("check-background-review-recovery-retained",&restarted.instance).await?;println!("PASS: connected native coordinator review recovery across restart/withdrawal; generic absence, expired and unknown sends remain held; one COMMENT review, no model or execution");}
                 else if review_check {check("check-background-review-retained",&restarted.instance).await?;println!("PASS: connected native review fixture/restart/withdrawal; one labeled COMMENT review, no model or execution");}
@@ -1266,7 +1282,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             stopped?;
             outcome
         }
-        (Some("--github-automation-inputs"), n) if n >= 6 => {
+        (Some("--github-automation-inputs" | "--github-merge-completion"), n) if n >= 6 => {
             use std::io::Write;
             use std::os::unix::fs::OpenOptionsExt;
             let field = |n: usize| {
@@ -1283,24 +1299,16 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let mut owner =
                 tokio::task::spawn_blocking(soda_desktop_runtime::github_provider::Owner::start)
                     .await??;
+            let completion=args[0]=="--github-merge-completion";
+            let query=if completion { soda_desktop_runtime::github_provider::Read::MergeCompletion {repository:field(2)?.into(),number:field(3)?.parse()?} } else {
+                soda_desktop_runtime::github_provider::Read::AutomationInputs {repository:field(2)?.into(),number:field(3)?.parse()?,target_ref:field(4)?.into(),comments:args[6..].iter().map(|s|s.to_str().map(str::to_owned).ok_or("invalid selected comment")).collect::<std::result::Result<_,_>>()?}
+            };
             let observed = owner
                 .client()
                 .observe(
                     token,
                     field(1)?,
-                    &soda_desktop_runtime::github_provider::Read::AutomationInputs {
-                        repository: field(2)?.into(),
-                        number: field(3)?.parse()?,
-                        target_ref: field(4)?.into(),
-                        comments: args[6..]
-                            .iter()
-                            .map(|s| {
-                                s.to_str()
-                                    .map(str::to_owned)
-                                    .ok_or("invalid selected comment")
-                            })
-                            .collect::<std::result::Result<_, _>>()?,
-                    },
+                    &query,
                 )
                 .await;
             owner.stop()?;
@@ -1317,7 +1325,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 .open(Path::new(&args[5]))?;
             file.write_all(&serde_json::to_vec(&observed)?)?;
             file.sync_all()?;
-            println!("PASS: actual native GitHub bounded issue history, selected comments, dependencies and branch snapshot; no write or product admission");
+            if completion { println!("PASS: actual native merged PR/base completion read; no write or product admission"); }
+            else { println!("PASS: actual native GitHub bounded issue history, selected comments, dependencies and branch snapshot; no write or product admission"); }
             Ok(())
         }
         (Some("--github-evidence-declared"), 4) => {

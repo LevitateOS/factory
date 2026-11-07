@@ -197,6 +197,33 @@ concurrent policy/status changes and test-merge selection remain unverified.
 Those exact provider/canonical observations are needed before claiming their
 merge readiness; this read grants no merge authority or broad gate closure.
 
+**Native automatic merge (connected component; broad gate open):**
+`pkg/factory/runtime/native_merges.go`, `native_product_merges.go`,
+`pkg/store/factory_merges.go`, and Rust `github_provider/merges.rs` /
+`collaboration.rs` now join the canonical merge intent to the existing command
+journal and current saved-account owner. `/home/vince/tmp/fnative-merge7.p2RoFZ/recovery-result.log`
+proves the original completed command, actual exact-head merge, distinct result
+receipt/adoption, base/PR/original issue closure, replay and cancellation before
+send. The pinned REST response omitted the merge SHA; current readback uses
+identity-bound GraphQL `mergeCommit`. Recovery read the original journal and never
+resent the merge. Local workflow/generation authority and independent verdict
+were declared; CI success was a labeled synthetic status, not a runner/model pass.
+The positive case required no provider status checks or approvals. A classic check
+with an unspecified app binding remained unavailable; no fix or qualification of
+that binding is claimed. `retained-result.log` in that root passed actual retained
+restart and exact-account withdrawal, historical receipt/adoption and cancelled
+send readback, without a provider replay or alternate account.
+Remaining blockers: ordinary component evidence cannot close in-flight permission,
+rule/base movement, withdrawal/cancellation or lost-reply gates. Closure needs the
+same frozen intent, exact causal effect/no-effect evidence and matching current
+provider observations through those cases, plus installed/full-workflow evidence.
+Required approvals, code owners, last-push approvals, signatures, linear history,
+resolved threads and up-to-date policies remain unsupported, not bypassed. The
+base condition is still a bounded preflight, not an atomic expected-base fence.
+Squash/rebase, base advancement/ancestry readback and fetching provider-created
+results for later native work remain unqualified. Existing D1/D2/D3/D5,
+credential-custody, authentication/IPC and installed gates stay open.
+
 **Native initial publication integration (connected component verified):** Rust's
 `github_provider/git_publish.rs` transfers the retained candidate pack over Git
 HTTP; `runtime/native_publications.go` joins the existing branch/PR command

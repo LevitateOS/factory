@@ -1345,7 +1345,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	fixtureTimeout := 35 * time.Second
-	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") {
+	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") || strings.HasPrefix(action, "check-background-merge") {
 		fixtureTimeout = 120 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
@@ -1367,6 +1367,66 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if action == "check-background-merge-resume" {
+		if _, e := os.Stat(filepath.Join(filepath.Dir(path), "native-merge.json")); e == nil {
+			return nativeMergeRetained(ctx, db, factoryruntime.NativeMerges{NativeInputSource: source}, path)
+		} else if !errors.Is(e, os.ErrNotExist) {
+			return e
+		}
+		conn, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		var raw []byte
+		if err = conn.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE repository=$1 AND data->>'pr_number'=$2`, repository, fmt.Sprint(input.Checks.PRNumber)).Scan(&raw); err != nil {
+			return err
+		}
+		var p factory.Publication
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return err
+		}
+		if err = p.Validate(); err != nil {
+			return err
+		}
+		if _, err = db.MergeByPublication(ctx, p.ID); !errors.Is(err, store.ErrNotFound) {
+			m, e := db.MergeByPublication(ctx, p.ID)
+			if e != nil {
+				return e
+			}
+			if m.Operation.Work == nil {
+				return errors.New("original merge has no frozen work")
+			}
+			w := m.Operation.Work.Apply(factory.MergeWork{MergeID: m.ID, PublicationID: m.PublicationID, Issue: m.Issue})
+			port := factoryruntime.NativeMerges{NativeInputSource: source}
+			out, e := port.LookupOp(ctx, w.OperationID)
+			if e != nil {
+				return e
+			}
+			if out.Effect != factory.OpEffectCommitted || out.Completion != factory.OpCompletionComplete {
+				return errors.New("original merge is not attributable/complete; preserve its fence without resubmission")
+			}
+			fmt.Println("PASS: original command journal proves the completed merge; recovery performs no merge submit")
+			return finishNativeMergeFixture(ctx, db, port, m, nativeMergeFixtureState{Work: w, Outcome: out}, path)
+		}
+		if len(p.ReviewOperations) != 1 {
+			return errors.New("one original review required for merge resume")
+		}
+		op := p.ReviewOperations[0]
+		review, err := (factoryruntime.NativeReviews{NativeInputSource: source}).AdoptReview(ctx, op.Work, op.Outcome)
+		if err != nil {
+			return err
+		}
+		return nativeMergeFixture(ctx, db, factoryruntime.NativeMerges{NativeInputSource: source}, p, review, path)
+	}
+	if action == "check-background-merge-retained" {
+		return nativeMergeRetained(ctx, db, factoryruntime.NativeMerges{NativeInputSource: source}, path)
+	}
+	if action == "check-background-merge" {
+		target := input.Checks
+		target.Repository = repository
+		return nativeReviewFixture(ctx, db, factoryruntime.NativeReviews{NativeInputSource: source}, connection.Actor, issue, target, path, action)
+	}
 	if strings.HasPrefix(action, "check-background-correction") {
 		target := input.Correction.Target
 		target.Repository = repository
@@ -1378,7 +1438,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	if strings.HasPrefix(action, "check-background-review") {
 		target := input.Checks
 		target.Repository = repository
-		return nativeReviewFixture(ctx, db, factoryruntime.NativeReviews{NativeInputSource: source}, connection.Actor, target, path, action)
+		return nativeReviewFixture(ctx, db, factoryruntime.NativeReviews{NativeInputSource: source}, connection.Actor, issue, target, path, action)
 	}
 	if action == "check-background-ci" {
 		target := input.Checks
@@ -1423,12 +1483,20 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		ref := func(kind string) factory.ActorBindingRef {
 			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}
 		}
-		if err = db.SaveRepositoryPolicy(ctx, factory.RepositoryPolicy{
+		policy := factory.RepositoryPolicy{
 			Repository: repository, GrantedBy: int64(connection.Actor), TargetBranch: "refs/heads/main", MergeMethod: "merge",
 			ReassessmentMinutes: factory.DefaultReassessmentMinutes, AttemptLimits: factory.DefaultAttemptLimits(), Checks: []string{"fixture/check"},
 			Roles:   map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}},
 			Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge),
-		}); err != nil {
+		}
+		previous, e := db.RepositoryPolicy(ctx, repository)
+		if e == nil {
+			previous.Publish, previous.Create, previous.Review, previous.Merge = policy.Publish, policy.Create, policy.Review, policy.Merge
+			policy = previous
+		} else if !errors.Is(e, store.ErrNotFound) {
+			return e
+		}
+		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 			return err
 		}
 	}
@@ -1878,7 +1946,7 @@ func declaredPublishedFixture(target factory.CheckTarget, actor collaboration.Ac
 	return p
 }
 
-func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeReviews, actor collaboration.ActorID, target factory.CheckTarget, path, action string) error {
+func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeReviews, actor collaboration.ActorID, originalIssue int64, target factory.CheckTarget, path, action string) error {
 	statePath := filepath.Join(filepath.Dir(path), "native-review.json")
 	var state struct {
 		Work, Cancelled, Uncertain, Expired factory.ReviewWork
@@ -1886,7 +1954,7 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	}
 	preparing := action == "check-background-review-recovery-prepare"
 	recovering := action == "check-background-review-recovery"
-	if action != "check-background-review" && !preparing {
+	if action != "check-background-review" && action != "check-background-merge" && !preparing {
 		raw, err := os.ReadFile(statePath)
 		if err != nil {
 			return err
@@ -1956,7 +2024,7 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	if w.Validate() != nil || observed.PRAuthorID != int64(actor) || observed.HeadOID != target.HeadOID || observed.BaseOID != target.BaseOID {
 		return errors.New("native review preflight binding differs")
 	}
-	p := declaredPublishedFixture(target, actor, assignment, 9, w.NativeRev, w.NotAfter)
+	p := declaredPublishedFixture(target, actor, assignment, originalIssue, w.NativeRev, w.NotAfter)
 	p.ReviewOperations = []factory.ReviewOperation{{RunID: run, Work: w}}
 	now := time.Now().Unix()
 	if preparing {
@@ -2079,6 +2147,13 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	if err != nil || !reflect.DeepEqual(replay, outcome) {
 		return fmt.Errorf("native review replay changed or retried: %w", err)
 	}
+	if action == "check-background-merge" {
+		p.ReviewOperations[0].Outcome = outcome
+		if err = write(); err != nil {
+			return err
+		}
+		return nativeMergeFixture(ctx, db, factoryruntime.NativeMerges{NativeInputSource: port.NativeInputSource}, p, adopted, path)
+	}
 	clone := func() factory.ReviewWork {
 		next := w
 		r := factory.NewID()
@@ -2145,6 +2220,167 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 		return err
 	}
 	fmt.Println("PASS: actual native automatic same-account COMMENT review, exact preflight/receipt, disabled-policy refusal, one-shot replay, pre-send cancellation and unknown-send hold; publication/verdict fixture supplied")
+	return nil
+}
+
+type nativeMergeFixtureState struct {
+	Work, Cancelled factory.MergeWork
+	Outcome         factory.OperationOutcome
+	Adopted         factory.MergeOutcome
+	Confirmation    factory.MergeConfirmation
+}
+
+func nativeMergeRetained(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, path string) error {
+	var state nativeMergeFixtureState
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(path), "native-merge.json"))
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(raw, &state); err != nil {
+		return err
+	}
+	out, err := port.LookupOp(ctx, state.Work.OperationID)
+	if err != nil || !reflect.DeepEqual(out, state.Outcome) {
+		return errors.New("retained merge receipt differs")
+	}
+	adopted, err := port.AdoptMerge(ctx, state.Work, out)
+	if err != nil || !reflect.DeepEqual(adopted, state.Adopted) {
+		return fmt.Errorf("retained merge adoption differs: %w", err)
+	}
+	cancelled, err := port.SubmitMerge(ctx, state.Cancelled)
+	if err != nil || cancelled.Effect != factory.OpEffectNotCommitted || cancelled.Cancellation != factory.OpCancelCancelled {
+		return fmt.Errorf("cancelled merge acquired another send: %w", err)
+	}
+	fmt.Println("PASS: native merge receipt/adoption and pre-send cancellation survive restart/credential withdrawal without provider replay")
+	return nil
+}
+
+func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, p factory.Publication, review factory.ReviewOutcome, path string) error {
+	policy, err := db.RepositoryPolicy(ctx, p.Repository)
+	if err != nil {
+		return err
+	}
+	policy.Checks = []string{"factory-native/merge"}
+	policy.Enabled = true
+	for role, selection := range policy.Roles {
+		selection.Account = "fixture-unavailable"
+		policy.Roles[role] = selection
+	}
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	policy, err = db.RepositoryPolicy(ctx, p.Repository)
+	if err != nil {
+		return err
+	}
+	w := factory.MergeWork{Method: "merge", MergeID: factory.NewID(), PublicationID: p.ID, OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared-native-merge-fixture", Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: review.ReviewerID, ReviewerID: review.ReviewerID, ActorID: review.ReviewerID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, ReviewID: review.ReviewID, ReviewEvent: "COMMENT", NotAfter: time.Now().Add(5 * time.Minute).Unix()}
+	observed, err := port.ObserveMerge(ctx, w)
+	if err != nil {
+		return err
+	}
+	if !observed.MethodAvailable || !observed.ProviderComplete || !observed.ProviderEligible {
+		return fmt.Errorf("native merge evidence unavailable: method=%v complete=%v eligible=%v", observed.MethodAvailable, observed.ProviderComplete, observed.ProviderEligible)
+	}
+	w.NativeRev = observed.NativeRev
+	target := factory.CheckTarget{Repository: w.Repository, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}
+	assessment, err := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed.Checks, time.Now().Unix())
+	if err != nil || assessment.Verdict != factory.CheckPass {
+		return fmt.Errorf("native merge check evidence: %s %w", assessment.Verdict, err)
+	}
+	assessment, err = db.RecordCheckAssessment(ctx, assessment)
+	if err != nil {
+		return err
+	}
+	w.AssessmentRevision = assessment.Revision
+	m := factory.Merge{ID: w.MergeID, PublicationID: p.ID, AssignmentID: p.AssignmentID, ProjectID: p.ProjectID, Role: p.Role, Acceptance: p.Acceptance, Authority: p.Authority, Repository: w.Repository, Issue: w.Issue, PRNumber: w.PRNumber, PRID: w.PRID, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, ReviewerID: w.ReviewerID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, Stage: factory.MergeOpen, CreatedUnix: time.Now().Unix(), NativeRev: w.NativeRev, ObservedUnix: time.Now().Unix()}
+	// Local generation/phase admission is declared. Provider rules, review,
+	// check evidence, conditional mutation and causal receipts are real.
+	m.Authority.Policy = policy.Revision
+	m.Authorization = factory.MergeAuthorization{Generation: factory.MergeGeneration{Authority: m.Authority, PublicationID: p.ID, Generation: 1, NativeOperationID: factory.MergeGenerationOperationID(p.ID, 1), Fingerprint: strings.Repeat("a", 64), Head: w.HeadOID, Base: w.BaseOID, DiffBase: w.BaseOID, ReviewRound: 1, AssessmentRevision: assessment.Revision, ChecksDigest: factory.ChecksDigest(policy.Checks), ObservedNativeRev: w.NativeRev, NotAfter: w.NotAfter, AcceptanceID: factory.NewID(), AcceptanceKind: factory.AcceptanceCleanReview, AttemptRoot: p.AssignmentID, OriginReceipt: factory.NewID()}, ResolutionsConfirmed: true}
+	intent := w.Intent()
+	m.Operation = factory.MergeOperation{Kind: factory.OpMerge, OperationID: w.OperationID, Attempts: 1, UpdatedUnix: time.Now().Unix(), Work: &intent}
+	if err = writeDeclaredNativeMerge(ctx, port, m); err != nil {
+		return err
+	}
+	changed := w
+	changed.HeadOID = strings.Repeat("c", 40)
+	if _, err = port.SubmitMerge(ctx, changed); err == nil {
+		return errors.New("native merge accepted changed frozen intent")
+	}
+	state := nativeMergeFixtureState{Work: w}
+	state.Outcome, err = port.SubmitMerge(ctx, w)
+	if err != nil {
+		return err
+	}
+	if state.Outcome.Effect != factory.OpEffectCommitted || state.Outcome.Completion != factory.OpCompletionComplete {
+		return fmt.Errorf("native merge effect: %s %s %s", state.Outcome.Effect, state.Outcome.Completion, state.Outcome.Reason)
+	}
+	return finishNativeMergeFixture(ctx, db, port, m, state, path)
+}
+
+func writeDeclaredNativeMerge(ctx context.Context, port factoryruntime.NativeMerges, m factory.Merge) error {
+	if err := m.Validate(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	conn, err := sql.Open("pgx", port.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.ExecContext(ctx, `INSERT INTO factory_merges(publication,repository,issue,pr,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, m.PublicationID, m.Repository, m.Issue, m.PRNumber, m.Stage, string(raw))
+	return err
+}
+
+func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, m factory.Merge, state nativeMergeFixtureState, path string) error {
+	w := state.Work
+	var err error
+	state.Adopted, err = port.AdoptMerge(ctx, w, state.Outcome)
+	if err != nil {
+		return err
+	}
+	if state.Adopted.MergedCommit == w.HeadOID {
+		return errors.New("merge fixture did not capture the generated result separately")
+	}
+	replay, err := port.SubmitMerge(ctx, w)
+	if err != nil || !reflect.DeepEqual(replay, state.Outcome) {
+		return errors.New("native merge replay changed")
+	}
+	state.Confirmation, err = port.ObserveCompletion(ctx, w)
+	if err != nil {
+		return err
+	}
+	if state.Confirmation.MergedCommit != state.Adopted.MergedCommit || !state.Confirmation.BaseContainsMergedCommit || !state.Confirmation.IssueClosed || !state.Confirmation.OriginalClosed || state.Confirmation.OriginalClosingOccurrence == "" {
+		return fmt.Errorf("native merge completion differs: %+v", state.Confirmation)
+	}
+	cancelled := m
+	cancelled.ID, cancelled.PublicationID = factory.NewID(), factory.NewID()
+	cancelled.Authorization.Generation.PublicationID = cancelled.PublicationID
+	cancelled.Authorization.Generation.NativeOperationID = factory.MergeGenerationOperationID(cancelled.PublicationID, 1)
+	state.Cancelled = w
+	state.Cancelled.MergeID, state.Cancelled.PublicationID, state.Cancelled.OperationID = cancelled.ID, cancelled.PublicationID, factory.MergeOperationIDForGeneration(cancelled.PublicationID, 1)
+	cancelledIntent := state.Cancelled.Intent()
+	cancelled.Operation.OperationID, cancelled.Operation.Work = state.Cancelled.OperationID, &cancelledIntent
+	if err = writeDeclaredNativeMerge(ctx, port, cancelled); err != nil {
+		return err
+	}
+	if _, err = port.CancelOp(ctx, state.Cancelled.OperationID); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(filepath.Join(filepath.Dir(path), "native-merge.json"), raw, 0600); err != nil {
+		return err
+	}
+	if err = nativeMergeRetained(ctx, db, port, path); err != nil {
+		return err
+	}
+	fmt.Println("PASS: actual native exact-head merge, distinct result adoption, issue/base completion, replay and cancellation; local workflow authorization declared, no model/full coordinator")
 	return nil
 }
 

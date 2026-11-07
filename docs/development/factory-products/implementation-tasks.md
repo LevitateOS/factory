@@ -75,8 +75,12 @@ A05/A07/A21 retains its evidence and declared run/authority limitations. Native
 corrections now update the existing PR branch through a leased ref-publish command
 in the same journal; actual update/replay, cancellation and retained readback passed.
 Schema 95 preserves existing commands and historical PR adoption now uses recorded
-creation links after the head changes. Full execution-to-publication/coordinator
-correction, merge and installed qualification remain pending.
+creation links after the head changes. Native automated merge now joins the same
+command journal, exact reviewed candidate, current selected checks and visible
+provider rules. The actual merge/result/issue-closure component check passed;
+A04/A07/A21 records its declared workflow inputs and supported rule boundary.
+Full execution-to-publication/coordinator correction, automated dispatch and
+installed qualification remain pending.
 Two historical uncertain sends and the repository-name binding dependency remain
 open in the security handoff. This closes no T09 or broad security/installed gate.
 The shared native PR check view now projects pinned required-check readiness

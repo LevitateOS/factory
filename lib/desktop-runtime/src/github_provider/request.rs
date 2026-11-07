@@ -70,6 +70,10 @@ pub enum Read {
         repository: String,
         number: u32,
     },
+    MergeCompletion {
+        repository: String,
+        number: u32,
+    },
     InlinePreparation {
         repository: String,
         number: u32,

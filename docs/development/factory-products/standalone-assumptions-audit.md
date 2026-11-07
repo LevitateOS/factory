@@ -725,6 +725,28 @@ corrections are now active; the old feature queue waits for their resolution.
   and permission/withdrawal races, merge and installed qualification. No broad
   gate is closed.
 
+- **A04/A07/A21 — native automated merge connected.**
+  `runtime/native_merges.go` composes the existing human merge writer and command
+  journal with Go's automatic merge owner. It binds the frozen workflow intent,
+  actual review receipt/current review, current checks, enabled method and visible
+  provider rules. Unsupported rule combinations stay unavailable: required
+  approvals, code owners, last-push approvals, signatures, linear history, resolved
+  threads and up-to-date requirements are not qualified by this implementation.
+  `/home/vince/tmp/fnative-merge7.p2RoFZ/recovery-result.log` proves the original
+  command's actual completed merge, distinct result adoption, base/PR/original
+  issue closure, replay and cancellation before send. Public disposable PR 6 closed
+  issue 5. Local generation/phase authority and the independent agent verdict were
+  declared; the selected CI success was synthetic, with no actual model/CI runner
+  or full coordinator qualification. The final provider rule case required no
+  external status checks; an earlier unspecified classic app binding correctly
+  remained unavailable. The pinned REST API omitted `merge_commit_sha`; readback
+  now uses identity-bound GraphQL `mergeCommit`. The original merge was never
+  resubmitted. `retained-result.log` in that root passed retained restart and
+  withdrawal readback without a provider replay or alternate account.
+  Remaining: squash/rebase and complex-rule qualification, rule/base/permission
+  races, lost replies/in-flight cancellation, complete automatic workflow,
+  fetching transformed results for subsequent native setup and installed gates.
+
 - **A04/A07/A21 — native automated review submission implemented.** The native
   application supplies `NativeReviews` through the existing review port. It
   binds registered immutable workflow work to the policy's exact saved review

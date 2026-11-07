@@ -48,6 +48,38 @@ func (s *Store) RecordMerge(ctx context.Context, m factory.Merge) error {
 	return nil
 }
 
+// MergeByOperation resolves only the current canonical operation. Superseded
+// generations never gain permission to send through this lookup.
+func (s *Store) MergeByOperation(ctx context.Context, id string) (factory.Merge, error) {
+	var m factory.Merge
+	if !factory.ValidPublicationOperationID(id) {
+		return m, ErrNotFound
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_merges WHERE data->'operation'->>'operation_id'=$1 LIMIT 2`, id)
+	if err != nil {
+		return m, err
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var data []byte
+		if err = rows.Scan(&data); err != nil {
+			return m, err
+		}
+		if err = json.Unmarshal(data, &m); err != nil {
+			return m, err
+		}
+		count++
+	}
+	if err = rows.Err(); err != nil {
+		return m, err
+	}
+	if count != 1 {
+		return factory.Merge{}, ErrNotFound
+	}
+	return m, m.Validate()
+}
+
 // MergeByPublication returns one publication's merge.
 func (s *Store) MergeByPublication(ctx context.Context, publicationID string) (factory.Merge, error) {
 	var m factory.Merge

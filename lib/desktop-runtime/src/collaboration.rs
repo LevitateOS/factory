@@ -500,6 +500,12 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    MergePull {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        merge: PullMerge,
+    },
     PublishBranch {
         command_id: String,
         digest: String,
@@ -530,6 +536,17 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::MergePull {
+            command_id,
+            digest,
+            not_after,
+            merge,
+        } => Effect::MergePull {
+            command_id,
+            digest,
+            not_after,
+            merge,
+        },
         BackgroundEffect::Current => Effect::Current,
         BackgroundEffect::PublishBranch {
             command_id,
@@ -576,6 +593,11 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }
                     | Read::AutomationReview { .. }
+                    | Read::MergePreparation { .. }
+                    | Read::MergeCompletion { .. }
+                    | Read::PullRequiredChecks { .. }
+                    | Read::WriteCapabilities { .. }
+                    | Read::PullReview { .. }
                     | Read::PullPendingReviewSnapshot { .. }
             ) =>
         {
@@ -585,7 +607,10 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
     };
     if !matches!(
         &effect,
-        Effect::CreateReview { .. } | Effect::PublishBranch { .. } | Effect::CreatePull { .. }
+        Effect::CreateReview { .. }
+            | Effect::PublishBranch { .. }
+            | Effect::CreatePull { .. }
+            | Effect::MergePull { .. }
     ) && body.len() > 8192
     {
         return Err(Failure::invalid());
