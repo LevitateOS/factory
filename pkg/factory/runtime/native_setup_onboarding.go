@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
+	"sort"
 	"strconv"
 	"unicode/utf8"
 
@@ -60,8 +62,56 @@ func (b nativeWorkspaceSetup) setupGrant(ctx context.Context, actor collaboratio
 	return grant, target, nil
 }
 
-func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (factoryservice.WorkspaceSetup, error) {
-	view := factoryservice.WorkspaceSetup{Files: map[string]string{}, Tools: []string{"git", "bash"}, Preparations: []factoryservice.WorkspaceSetupPreparation{}}
+type nativeSetupSource struct {
+	Repository  string            `json:"repository"`
+	Commit      string            `json:"commit"`
+	Target      string            `json:"target_ref"`
+	Files       map[string][]byte `json:"files"`
+	SourceFiles map[string][]byte `json:"source_files"`
+}
+
+func setupPaths(inputs map[string]string) []string {
+	paths := make([]string, 0, len(inputs))
+	for name := range inputs {
+		paths = append(paths, name)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func (b nativeWorkspaceSetup) setupSource(ctx context.Context, commit, target string, paths []string) (nativeSetupSource, error) {
+	var source nativeSetupSource
+	if len(paths) > project.MaxSourceInputs {
+		return source, execution.ErrPreparation
+	}
+	selected := make(map[string]bool, len(paths))
+	for _, name := range paths {
+		if !project.ValidFactoryContextPath(name) || !utf8.ValidString(name) || selected[name] {
+			return source, execution.ErrPreparation
+		}
+		selected[name] = true
+	}
+	if err := b.read(ctx, nativeRead{Kind: "setup_source", Repository: b.repository.ExternalID, Commit: commit, TargetRef: target, Paths: paths}, &source); err != nil {
+		return source, err
+	}
+	if source.Repository != b.repository.ExternalID || source.Commit != commit || source.Target != target {
+		return source, errNativeReadScope
+	}
+	total := 0
+	for name, contents := range source.SourceFiles {
+		total += len(contents)
+		if !selected[name] || len(contents) > project.MaxFactoryContextFileBytes || !utf8.Valid(contents) {
+			return source, errNativeRead
+		}
+	}
+	if total > project.MaxFactoryContextBytes {
+		return source, errNativeRead
+	}
+	return source, nil
+}
+
+func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, paths []string) (factoryservice.WorkspaceSetup, error) {
+	view := factoryservice.WorkspaceSetup{Files: map[string]string{}, SourceFiles: map[string]string{}, SourceInputs: map[string]string{}, SelectedPaths: []string{}, MissingPaths: []string{}, Tools: []string{"git", "bash"}, Preparations: []factoryservice.WorkspaceSetupPreparation{}}
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return view, err
 	}
@@ -82,22 +132,38 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 	if err != nil {
 		return view, err
 	}
-	account := b.nativeProductAccount
-	tip, err := account.targetTip(ctx, target)
+	var saved *project.SetupRecipe
+	if view.Requirement != "" {
+		decision, err := b.store.RequirementDecision(ctx, view.Requirement)
+		if err != nil {
+			return view, err
+		}
+		saved = decision.Recipe
+		if paths == nil && len(decision.SourceInputs) != 0 {
+			paths = setupPaths(decision.SourceInputs)
+		}
+	}
+	if paths == nil {
+		paths = []string{"README.md"}
+	}
+	tip, err := b.targetTip(ctx, target)
 	if err != nil {
 		return view, err
 	}
-	var source struct {
-		Repository string            `json:"repository"`
-		Commit     string            `json:"commit"`
-		Target     string            `json:"target_ref"`
-		Files      map[string][]byte `json:"files"`
-	}
-	if err = account.read(ctx, nativeRead{Kind: "setup_source", Repository: account.repository.ExternalID, Commit: tip.Tip, TargetRef: target}, &source); err != nil {
+	source, err := b.setupSource(ctx, tip.Tip, target, paths)
+	if err != nil {
 		return view, err
 	}
-	if source.Repository != account.repository.ExternalID || source.Commit != tip.Tip || source.Target != target {
-		return view, errNativeReadScope
+	view.SelectedPaths = append([]string{}, paths...)
+	for _, name := range paths {
+		contents, exists := source.SourceFiles[name]
+		if !exists {
+			view.MissingPaths = append(view.MissingPaths, name)
+			continue
+		}
+		view.SourceFiles[name] = string(contents)
+		sum := sha256.Sum256(contents)
+		view.SourceInputs[name] = hex.EncodeToString(sum[:])
 	}
 	for name, contents := range source.Files {
 		if !project.ValidApprovedName(name) || len(contents) > project.MaxApprovedFileSize || !utf8.Valid(contents) {
@@ -105,19 +171,13 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 		}
 		view.Files[name] = string(contents)
 	}
-	if view.Requirement != "" {
-		decision, err := b.store.RequirementDecision(ctx, view.Requirement)
-		if err != nil {
-			return view, err
+	if saved != nil {
+		view.Files = map[string]string{}
+		for name, contents := range saved.Files {
+			view.Files[name] = string(contents)
 		}
-		if decision.Recipe != nil {
-			view.Files = map[string]string{}
-			for name, contents := range decision.Recipe.Files {
-				view.Files[name] = string(contents)
-			}
-			view.Tools = decision.Recipe.Tools
-			view.SavedRecipe = true
-		}
+		view.Tools = saved.Tools
+		view.SavedRecipe = true
 	}
 	view.Source, view.Available = tip.Tip, true
 	preparations, err := b.store.StandingProjectPreparations(ctx, grant.Project)
@@ -151,7 +211,7 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 
 func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, in factoryservice.WorkspaceSetupApproval) (factoryservice.WorkspaceSetup, error) {
 	var empty factoryservice.WorkspaceSetup
-	if !factory.ValidID(in.ID) || !project.ValidCommit(in.Source) || !factory.ValidTargetBranch(in.Target) || len(in.Tools) > project.MaxPrepareTools {
+	if !factory.ValidID(in.ID) || !project.ValidCommit(in.Source) || !factory.ValidTargetBranch(in.Target) || len(in.Tools) > project.MaxPrepareTools || len(in.SourceInputs) == 0 || project.ValidateSourceInputs(in.SourceInputs) != nil {
 		return empty, execution.ErrPreparation
 	}
 	files := make(map[string][]byte, len(in.Files))
@@ -180,19 +240,33 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 	if grant.Revision != in.EnvironmentRevision || target != in.Target {
 		return empty, store.ErrStaleRevision
 	}
+	paths := setupPaths(in.SourceInputs)
+	preview, err := b.setupSource(ctx, in.Source, target, paths)
+	if err != nil {
+		return empty, err
+	}
+	observedInputs := make(map[string]string, len(preview.SourceFiles))
+	for name, contents := range preview.SourceFiles {
+		sum := sha256.Sum256(contents)
+		observedInputs[name] = hex.EncodeToString(sum[:])
+	}
+	if !maps.Equal(observedInputs, in.SourceInputs) {
+		return empty, store.ErrStaleRevision
+	}
 	identity := func(prefix, kind string) string {
 		sum := sha256.Sum256([]byte("native-workspace-setup/v1:" + string(b.binding.Profile.ID) + ":" + strconv.FormatInt(int64(repository), 10) + ":" + in.ID + ":" + kind))
 		return prefix + hex.EncodeToString(sum[:12])
 	}
-	requirement := project.RequirementDecision{ID: identity("d", "requirements"), Predecessor: in.Requirement, Project: grant.Project, SourceCommit: in.Source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf(names, nil, in.Tools), Approver: int64(actor), Native: grant.Native, Recipe: &project.SetupRecipe{Files: files, Tools: in.Tools}}
+	requirement := project.RequirementDecision{ID: identity("d", "requirements"), Predecessor: in.Requirement, Project: grant.Project, SourceCommit: in.Source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf(names, in.SourceInputs, in.Tools), SourceInputs: in.SourceInputs, Approver: int64(actor), Native: grant.Native, Recipe: &project.SetupRecipe{Files: files, Tools: in.Tools}}
 	// Consent binds the complete intended recipe and execution owner. Actual
 	// setup/check exits and worker readiness come only from native observations.
 	effects, err := json.Marshal(struct {
-		Source string
-		Files  map[string][]byte
-		Tools  []string
-		Native *project.NativeEnvironment
-	}{in.Source, files, in.Tools, grant.Native})
+		Source       string
+		SourceInputs map[string]string
+		Files        map[string][]byte
+		Tools        []string
+		Native       *project.NativeEnvironment
+	}{in.Source, in.SourceInputs, files, in.Tools, grant.Native})
 	if err != nil {
 		return empty, err
 	}
@@ -260,5 +334,5 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 			return empty, err
 		}
 	}
-	return b.ReadSetup(ctx, actor, repository)
+	return b.ReadSetup(ctx, actor, repository, paths)
 }

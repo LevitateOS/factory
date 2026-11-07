@@ -156,7 +156,7 @@ func ValidateSourceInputs(inputs map[string]string) error {
 		return errors.New("approved source inputs exceed bounds")
 	}
 	for name, digest := range inputs {
-		if !validFactoryContextPath(name) || !utf8.ValidString(name) || strings.ContainsAny(name, "\x00\r\n") || !ValidDigest(digest) {
+		if !ValidFactoryContextPath(name) || !utf8.ValidString(name) || strings.ContainsAny(name, "\x00\r\n") || !ValidDigest(digest) {
 			return errors.New("invalid approved source input")
 		}
 		for _, component := range strings.Split(name, "/") {

@@ -80,7 +80,9 @@ export class DesktopTransport implements FactoryTransport {
       check(init.body === undefined);
       request = {kind: 'read', path};
     } else {
-      check(typeof init.body === 'string' && new TextEncoder().encode(init.body).byteLength <= 65536);
+      const bodyLimit =
+        method === 'PUT' && /^\/api\/repositories\/[1-9][0-9]*\/factory\/setup$/.test(path) ? 1024 * 1024 : 65536;
+      check(typeof init.body === 'string' && new TextEncoder().encode(init.body).byteLength <= bodyLimit);
       const body = object(JSON.parse(init.body));
       if (method === 'PUT') {
         if (path === '/api/factory/feed/subscription') request = {kind: 'subscription', body};

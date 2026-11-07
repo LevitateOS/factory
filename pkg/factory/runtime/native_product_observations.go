@@ -20,6 +20,7 @@ var errNativeReadScope = errors.New("native collaboration resource outside scope
 // These are decoded, credential-free native facts. Rust owns the defining
 // provider selectors and provider decoding. Go owns canonical IDs/projection.
 type nativeRead struct {
+	Paths          []string                    `json:"paths,omitempty"`
 	Creator        string                      `json:"creator,omitempty"`
 	Comments       []string                    `json:"comments,omitempty"`
 	TargetRef      string                      `json:"target_ref,omitempty"`

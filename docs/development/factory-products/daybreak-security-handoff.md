@@ -39,6 +39,18 @@ maximum source/resource limits and actual dependency-download isolation. Closure
 needs those actual-channel observations plus retained recovery without replay;
 the complete model-driven pipeline also depends on the separate Muse encoding
 failure. This check is not broad D3/custody/authentication/IPC qualification.
+The initial missing planning-source selection is now supplied by the same setup
+screen and native pinned-file reader. `runtime/native_setup_onboarding.go`,
+`service/workspace_setup.go`, Rust `github_provider/{request,git_fetch}.rs` and
+the shared editor bind exact source digests into existing approval inputs/effects;
+browser contents cannot substitute for native file evidence. The existing check
+at `/home/vince/tmp/fsetup-source19.hljasE/result.log` proved nested-path source
+capture, missing/traversal/substituted-digest refusal and exact approved context
+readback from both actual prepared workspaces. Provider identity/source remain
+declared; no funded/model planning or live GitHub ran. `cleanup.log` confirms all
+temporary fixture helpers/registrations/socket were removed. The remaining
+withdrawal/recovery/connected/installed dependencies above are unchanged; merged
+source refresh and full automated progression remain unqualified.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.

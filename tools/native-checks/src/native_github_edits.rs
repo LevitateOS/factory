@@ -557,10 +557,19 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 preview.0 == 200 && preview.1["available"] == true,
                 "initial source setup preview unavailable",
             )?;
+            ensure(preview.1["source_inputs"]["README.md"].as_str().is_some_and(|digest|digest.len()==64),"default planning source not captured")?;
+            let selected=call(&runtime,&store,&connection,"POST",&target,&serde_json::to_vec(&json!({"paths":["README.md","docs/Planning context.md","missing.txt"]}))?).await?;
+            ensure(selected.0==200 && selected.1["missing_paths"]==json!(["missing.txt"]) && selected.1["source_files"]["docs/Planning context.md"].as_str().is_some(),"selected source preview lost exact paths or missing-file state")?;
+            let invalid=call(&runtime,&store,&connection,"POST",&target,br#"{"paths":["../README.md"]}"#).await?;
+            ensure(invalid.0==400,"setup accepted a non-repository path")?;
+            let preview=call(&runtime,&store,&connection,"POST",&target,&serde_json::to_vec(&json!({"paths":["README.md","docs/Planning context.md"]}))?).await?;
+            ensure(preview.0==200 && preview.1["source_inputs"].as_object().is_some_and(|inputs|inputs.len()==2),"planning source selection unavailable")?;
             let mut files = preview.1["files"].clone();
             files["setup-network.json"] = json!("{\"access\":\"none\"}");
             files["setup-limits.json"] = json!("{\"setup_seconds\":10,\"check_seconds\":10}");
-            let approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            let approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"source_inputs":preview.1["source_inputs"],"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            let mut mismatched=approval.clone();mismatched["source_inputs"]["README.md"]=json!("0".repeat(64));
+            ensure(call(&runtime,&store,&connection,"PUT",&target,&serde_json::to_vec(&mismatched)?).await?.0==412,"source approval accepted a substituted file digest")?;
             let approved = call(
                 &runtime,
                 &store,
@@ -659,7 +668,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             store.withdraw(&connection).await?;
             store.retire();
             runtime.stop()?;
-            println!("PASS: actual shared product HTTP -> current native source preview/fetch -> local owner review -> both isolated role preparations, unchanged approval replay, canonical readiness, withdrawal and retirement; HTTPS identity/source fixture declared, no model/GitHub write/installed qualification");
+            println!("PASS: actual shared product HTTP -> selected native source preview/fetch -> exact owner review -> both isolated role preparations and approved planning source readback, missing-path/traversal/substituted-digest refusal, unchanged approval replay, canonical readiness, withdrawal and retirement; HTTPS identity/source fixture declared, no model/GitHub write/installed qualification");
             return Ok(());
         }
         ensure(

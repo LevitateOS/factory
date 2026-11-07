@@ -1631,11 +1631,30 @@ owned preparations were retired through the normal broker, recorded in
 `/home/vince/tmp/fsetup-onboarding18.a6LJjq/retire-owned.log`. Cleanup now accepts
 a missing optional service only when systemd confirms it absent and inactive.
 
+The initial implementation recorded no `SourceInputs`, which the existing
+planner requires even for its first request. The same screen now loads an
+explicit repository-relative selection (README.md is the editable initial
+suggestion), displays its immutable source contents and refuses missing files at
+approval. Rust fetches the selected files at the exact target commit, with 32 KiB
+per-file/128 KiB aggregate bounds. Go rechecks their digests before admitting the
+existing requirement/approval and binds them into the input/effect digests.
+No source contents are accepted from the browser as provider evidence.
+`/home/vince/tmp/fsetup-source19.hljasE/result.log` passed actual native/Go/SQL
+selection including a nested path with spaces, missing-file readback, traversal
+and substituted-digest refusal, both prepared workspaces' exact approved planning
+source reads, immutable replay, withdrawal and retirement. The same declared
+HTTPS/dummy-grant scope applies. `ui/result.log` passed the real shared component
+and desktop bridge, including the larger bounded setup request above 64 KiB;
+`cleanup.log` confirms the authorized temporary deployment was removed. Go/helper/
+Rust builds, UI typecheck/build and the language-boundary check passed. This
+proves planning material is reachable, not successful model planning or merged
+source refresh.
+
 **Remaining:** connected/installed onboarding and current-account/placement/
 approval withdrawal during I/O, changed-source consent, retained restart and
 reactivation, maximum source/resource bounds and ordinary dependency-download
-journeys. The initial recipe selects the exact source only; reviewed source-input
-refresh and complete automated progression still require qualification. The Muse
+journeys. Reviewed source-input refresh after merge and complete automated
+progression still require qualification. The Muse
 encoding failure remains a separate execution dependency. No broad isolation,
 credential-custody, authentication or IPC gate closes from this scoped proof.
 

@@ -14,6 +14,10 @@ interface Setup {
   source?: string;
   target?: string;
   files: Record<string, string>;
+  source_files: Record<string, string>;
+  source_inputs: Record<string, string>;
+  selected_paths: string[];
+  missing_paths: string[];
   tools: string[];
   saved_recipe: boolean;
   requirement: string;
@@ -24,7 +28,9 @@ interface Setup {
 
 function setupResponse(raw: unknown): Setup {
   const value = object(raw),
-    files = object(value.files);
+    files = object(value.files),
+    sourceFiles = object(value.source_files),
+    sourceInputs = object(value.source_inputs);
   check(
     typeof value.available === 'boolean' &&
       typeof value.requirement === 'string' &&
@@ -34,6 +40,12 @@ function setupResponse(raw: unknown): Setup {
       Array.isArray(value.tools) &&
       value.tools.every((tool) => typeof tool === 'string') &&
       typeof value.saved_recipe === 'boolean' &&
+      Array.isArray(value.selected_paths) &&
+      value.selected_paths.every((path) => typeof path === 'string') &&
+      Array.isArray(value.missing_paths) &&
+      value.missing_paths.every((path) => typeof path === 'string') &&
+      Object.values(sourceFiles).every((file) => typeof file === 'string') &&
+      Object.values(sourceInputs).every((digest) => typeof digest === 'string' && /^[0-9a-f]{64}$/.test(digest)) &&
       Object.values(files).every((file) => typeof file === 'string')
   );
   if (value.available)
@@ -109,13 +121,16 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   private live(context: Context, signal: AbortSignal) {
     return this.current === context && !signal.aborted;
   }
-  private async refresh() {
+  private async refresh(paths?: string[]) {
     const context = this.current,
       signal = this.lifetime.signal;
     if (!context || this.busy) return;
     this.busy = true;
     try {
-      const response = await context.transport.request(`repositories/${context.repository}/factory/setup`, {signal});
+      const response = await context.transport.request(
+        `repositories/${context.repository}/factory/setup`,
+        paths ? {signal, method: 'POST', body: JSON.stringify({paths})} : {signal}
+      );
       if (!response.ok)
         throw new Error('Workspace setup could not be read. Check the repository connection and refresh.');
       const view = setupResponse(await readSodaJSON(response));
@@ -130,6 +145,20 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     } finally {
       if (this.live(context, signal)) this.busy = false;
     }
+  }
+  private async preview(event: SubmitEvent) {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) return;
+    const paths = String(new FormData(form).get('paths') ?? '')
+      .split(/\r?\n/)
+      .map((path) => path.trim())
+      .filter(Boolean);
+    if (paths.length > 64) {
+      this.message = 'Select at most 64 source files.';
+      return;
+    }
+    await this.refresh(paths);
   }
   private async approve(event: SubmitEvent) {
     event.preventDefault();
@@ -152,6 +181,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       source: view.source,
       target: view.target,
       files,
+      source_inputs: view.source_inputs,
       tools: String(values.get('tools') ?? '')
         .split(/[\s,]+/)
         .filter(Boolean),
@@ -221,11 +251,36 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       ${
         view?.available
           ? html`<p>Source: <code>${view.target}</code> at <code>${view.source}</code></p>
+              <form @submit=${(event: SubmitEvent) => this.preview(event)}>
+                <label
+                  >Source files for planning (one repository-relative path per line)
+                  <textarea
+                    name="paths"
+                    rows="4"
+                    maxlength="16384"
+                    required
+                    .value=${view.selected_paths.join('\n')}
+                  ></textarea>
+                </label>
+                <p>
+                  Load and review this selection before editing setup. Each file is limited to 32 KiB; the complete
+                  selection to 128 KiB.
+                </p>
+                <button type="submit" ?disabled=${this.busy}>Load selected files</button>
+              </form>
+              ${view.missing_paths.length ? html`<p role="status">Selected files not found: ${view.missing_paths.join(', ')}. Update the selection before approving.</p>` : ''}
+              ${Object.entries(view.source_files).map(
+                ([name, content]) =>
+                  html`<details>
+                    <summary>${name}</summary>
+                    <pre>${content}</pre>
+                  </details>`
+              )}
               <p>
                 ${view.saved_recipe ? 'These scripts and tools are from your saved approval. Review them for the selected source.' : 'Scripts are read from the selected source when present. Supply the setup and checks this project needs.'}
               </p>
               ${keyed(
-                `${view.source}:${view.requirement}:${view.approval}`,
+                `${view.source}:${view.requirement}:${view.approval}:${JSON.stringify(view.source_inputs)}`,
                 html`<form @submit=${(event: SubmitEvent) => this.approve(event)}>
                   ${[
                     ...new Set([
@@ -282,9 +337,14 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                   /></label>
                   <label
                     ><input type="checkbox" required /> I approve these scripts, tools, network access and limits for
-                    this source.</label
+                    this source and the loaded source-file selection.</label
                   >
-                  <button type="submit" ?disabled=${this.busy}>Approve and prepare both roles</button>
+                  <button
+                    type="submit"
+                    ?disabled=${this.busy || view.missing_paths.length > 0 || Object.keys(view.source_inputs).length === 0}
+                  >
+                    Approve and prepare both roles
+                  </button>
                 </form>`
               )} `
           : ''

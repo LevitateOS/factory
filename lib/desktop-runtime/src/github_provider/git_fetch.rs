@@ -16,14 +16,21 @@ impl Reader<'_> {
         let target = r::text(q, "target_ref")?;
         self.source_tip(target, commit).await?;
         let mut files = serde_json::Map::new();
-        for name in [
+        let mut source_files = serde_json::Map::new();
+        let paths:Vec<_>=q["paths"].as_array().into_iter().flatten().map(|path|path.as_str().ok_or_else(Failure::invalid)).collect::<Result<_>>()?;
+        let mut names:std::collections::BTreeSet<&str>=[
             "setup.sh",
             "check.sh",
             "setup-network.json",
             "setup-limits.json",
-        ] {
+        ].into_iter().collect();
+        names.extend(paths.iter().copied());
+        let mut total=0usize;
+        for name in names {
+            let mut path=url::Url::parse("https://api.github.com/contents/").map_err(|_|Failure::invalid())?;
+            path.path_segments_mut().map_err(|_|Failure::invalid())?.pop_if_empty().extend(name.split('/'));
             let response = match self
-                .get(&format!("/contents/{name}"), &[("ref", commit.into())])
+                .get(path.path(), &[("ref", commit.into())])
                 .await
             {
                 Ok(response) => response,
@@ -47,13 +54,16 @@ impl Reader<'_> {
             {
                 return Err(Failure::new(413, "github_setup_file_unavailable"));
             }
-            files.insert(
-                name.into(),
-                json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
-            );
+            let encoded=json!(base64::engine::general_purpose::STANDARD.encode(&bytes));
+            if paths.contains(&name) {
+                total+=bytes.len();
+                if total>128*1024 {return Err(Failure::new(413,"github_setup_source_too_large"));}
+                source_files.insert(name.into(),encoded.clone());
+            }
+            if ["setup.sh","check.sh","setup-network.json","setup-limits.json"].contains(&name) { files.insert(name.into(),encoded); }
         }
         self.source_tip(target, commit).await?;
-        Ok(json!({"repository":self.repository,"commit":commit,"target_ref":target,"files":files}))
+        Ok(json!({"repository":self.repository,"commit":commit,"target_ref":target,"files":files,"source_files":source_files}))
     }
 
     async fn source_tip(&self, target: &str, commit: &str) -> Result<()> {

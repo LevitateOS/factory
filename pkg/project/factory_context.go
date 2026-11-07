@@ -54,11 +54,11 @@ func (r FactoryPreparationContextRequest) Validate() error {
 		return errors.New("invalid factory preparation context request")
 	}
 	seen := make(map[string]bool, len(r.Paths))
-	if r.Directory != nil && *r.Directory != "" && !validFactoryContextPath(*r.Directory) {
+	if r.Directory != nil && *r.Directory != "" && !ValidFactoryContextPath(*r.Directory) {
 		return errors.New("invalid factory preparation context directory")
 	}
 	for _, name := range r.Paths {
-		if !validFactoryContextPath(name) || seen[name] {
+		if !ValidFactoryContextPath(name) || seen[name] {
 			return errors.New("invalid factory preparation context path")
 		}
 		seen[name] = true
@@ -76,7 +76,7 @@ type FactoryContextReadPage struct {
 }
 
 func (r FactoryContextReadPage) Validate() error {
-	if !validFactoryContextPath(r.Path) || r.Offset < 0 || r.Offset > MaxFactorySourceFileBytes || r.Limit < 4 || r.Limit > MaxFactoryContextFileBytes {
+	if !ValidFactoryContextPath(r.Path) || r.Offset < 0 || r.Offset > MaxFactorySourceFileBytes || r.Limit < 4 || r.Limit > MaxFactoryContextFileBytes {
 		return errors.New("invalid factory source file page")
 	}
 	return nil
@@ -150,7 +150,7 @@ func (c FactoryPreparationContext) ValidateContent(role string) error {
 	total := len(c.Setup) + len(c.Check) + len(c.Diff)
 	if c.Page != nil {
 		page := c.Page
-		if c.Directory != nil || !validFactoryContextPath(page.Path) || page.Offset < 0 || page.TotalBytes < page.Offset || page.TotalBytes > MaxFactorySourceFileBytes {
+		if c.Directory != nil || !ValidFactoryContextPath(page.Path) || page.Offset < 0 || page.TotalBytes < page.Offset || page.TotalBytes > MaxFactorySourceFileBytes {
 			return errors.New("invalid native source page")
 		}
 		found := false
@@ -168,7 +168,7 @@ func (c FactoryPreparationContext) ValidateContent(role string) error {
 			return errors.New("native source page file missing")
 		}
 	}
-	if len(c.Entries) > MaxFactoryContextEntries || c.Directory == nil && len(c.Entries) != 0 || c.Directory != nil && *c.Directory != "" && !validFactoryContextPath(*c.Directory) {
+	if len(c.Entries) > MaxFactoryContextEntries || c.Directory == nil && len(c.Entries) != 0 || c.Directory != nil && *c.Directory != "" && !ValidFactoryContextPath(*c.Directory) {
 		return errors.New("invalid native factory context directory")
 	}
 	seen := make(map[string]bool, len(c.Entries))
@@ -177,7 +177,7 @@ func (c FactoryPreparationContext) ValidateContent(role string) error {
 		if parent == "." {
 			parent = ""
 		}
-		if c.Directory == nil || parent != *c.Directory || !validFactoryContextPath(entry.Path) || seen[entry.Path] {
+		if c.Directory == nil || parent != *c.Directory || !ValidFactoryContextPath(entry.Path) || seen[entry.Path] {
 			return errors.New("invalid native factory context entry")
 		}
 		switch entry.Kind {
@@ -189,7 +189,7 @@ func (c FactoryPreparationContext) ValidateContent(role string) error {
 		total += len(entry.Path) + len(entry.Kind)
 	}
 	for _, file := range c.Files {
-		if !validFactoryContextPath(file.Path) || len(file.Content) > MaxFactoryContextFileBytes || !utf8.Valid(file.Content) {
+		if !ValidFactoryContextPath(file.Path) || len(file.Content) > MaxFactoryContextFileBytes || !utf8.Valid(file.Content) {
 			return errors.New("invalid native factory context file")
 		}
 		total += len(file.Content)
@@ -200,7 +200,8 @@ func (c FactoryPreparationContext) ValidateContent(role string) error {
 	return nil
 }
 
-func validFactoryContextPath(name string) bool {
+// ValidFactoryContextPath accepts a bounded canonical repository-relative path.
+func ValidFactoryContextPath(name string) bool {
 	return name != "" && len(name) <= MaxFactoryContextPathBytes && !strings.ContainsRune(name, '\\') &&
 		!strings.HasPrefix(name, "/") && path.Clean(name) == name && name != "." && name != ".." &&
 		!strings.HasPrefix(name, "../")

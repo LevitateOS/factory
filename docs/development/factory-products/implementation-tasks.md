@@ -33,7 +33,9 @@ A21 initial workspace onboarding now fetches the selected target commit through
 the native connector, presents editable setup/check scripts, tools, network and
 limits in the shared settings UI, and records local-owner review before starting
 both role preparations through `StartPreparation`. Consent does not fabricate
-installed readiness. The actual native product check passed source fetch, both
+installed readiness. The same screen now captures an explicit source-file
+selection with native readback and exact digests, supplying the existing planning
+input contract. The actual native product check passed source fetch, both
 isolated setup/checks, immutable replay, canonical readiness, withdrawal and
 retirement; A21 records its declared-provider scope and retained evidence.
 Connected/installed onboarding, withdrawal races and retained reactivation remain

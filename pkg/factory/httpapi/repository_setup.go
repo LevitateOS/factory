@@ -24,7 +24,16 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 	var view factoryservice.WorkspaceSetup
 	var err error
 	if r.Method == http.MethodGet {
-		view, err = s.Setup.ReadSetup(r.Context(), s.Actor, repository)
+		view, err = s.Setup.ReadSetup(r.Context(), s.Actor, repository, nil)
+	} else if r.Method == http.MethodPost {
+		var in struct {
+			Paths []string `json:"paths"`
+		}
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 65536), &in) != nil || in.Paths == nil {
+			writeError(w, 400, "invalid_setup", "Select repository-relative source paths to preview.")
+			return
+		}
+		view, err = s.Setup.ReadSetup(r.Context(), s.Actor, repository, in.Paths)
 	} else {
 		var in factoryservice.WorkspaceSetupApproval
 		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 1024*1024), &in) != nil {

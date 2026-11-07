@@ -1392,6 +1392,31 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 		} else if !state.Ready || state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" {
 			return errors.New("onboarding readiness lacks native source/setup/check observations")
 		}
+		if !retire {
+			p := prep.Preparation
+			if len(p.Requirements.SourceInputs) != 2 {
+				return errors.New("onboarding lost reviewed planning source selection")
+			}
+			paths := []string{"README.md", "docs/Planning context.md"}
+			request := execution.PreparationContextRequest{Native: prep.Native, Role: p.Role, Input: project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: paths, NotAfter: time.Now().Add(20 * time.Second)}}
+			observed, readErr := port.ReadWorkspaceContext(ctx, request)
+			if readErr != nil {
+				return readErr
+			}
+			seen := map[string]bool{}
+			for _, file := range observed.Material.Files {
+				if wanted, selected := p.Requirements.SourceInputs[file.Path]; selected {
+					sum := sha256.Sum256(file.Content)
+					if hex.EncodeToString(sum[:]) != wanted {
+						return errors.New("prepared planning context differs from reviewed source")
+					}
+					seen[file.Path] = true
+				}
+			}
+			if len(seen) != 2 {
+				return errors.New("prepared planning context omitted reviewed source")
+			}
+		}
 		prep.State = state
 		if err = db.ObservePreparation(ctx, prep); err != nil {
 			return err

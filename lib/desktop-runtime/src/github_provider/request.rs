@@ -24,6 +24,8 @@ pub enum Read {
         repository: String,
         commit: String,
         target_ref: String,
+        #[serde(default)]
+        paths: Vec<String>,
     },
     PublicationRefs {
         repository: String,
@@ -327,8 +329,10 @@ impl Read {
                 return Err(Failure::invalid());
             }
         }
-        if let Self::SetupSource { commit: oid, target_ref, .. } = self {
-            if !commit(oid) || !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name) {
+        if let Self::SetupSource { commit: oid, target_ref, paths, .. } = self {
+            let mut seen=std::collections::BTreeSet::new();
+            if !commit(oid) || !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name)
+                || paths.len()>64 || paths.iter().any(|path|path.is_empty() || path.len()>256 || path.chars().any(char::is_control) || path.contains('\\') || path.split('/').any(|part|part.is_empty()||part=="."||part=="..") || !seen.insert(path)) {
                 return Err(Failure::invalid());
             }
         }

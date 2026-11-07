@@ -77,6 +77,7 @@ func (s Repositories) Handler() http.Handler {
 	register(http.MethodPut, base+"/activity", s.activity)
 	register(http.MethodPut, base+"/policy", s.policy)
 	register(http.MethodGet, base+"/setup", s.workspaceSetup)
+	register(http.MethodPost, base+"/setup", s.workspaceSetup)
 	register(http.MethodPut, base+"/setup", s.workspaceSetup)
 	register(http.MethodPut, base+"/operator-grant", s.operatorGrant)
 	register(http.MethodPut, base+"/environment-grant", s.environmentGrant)
