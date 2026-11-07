@@ -29,6 +29,28 @@ It supplies no provider or IPC admission proof. Existing account/repository swit
 reconnect and installed/Fountain parity gates still need their actual host
 journeys with this metadata; navigation must never grant a wider transport scope.
 
+**A18 installation payload dependency:** `scripts/build-desktop.ts` stages all
+seven privileged execution helpers, twelve service/socket templates and the
+build's install inventory. `scripts/install-native-execution.sh` binds one
+explicit non-root OS user, installs helper/unit files, and enables the broker
+socket for a live root installation. Image mode performs no service activation.
+The installer refuses existing files before writes and preserves existing
+parent-directory permissions. Pre-activation copy failures remove only files
+created by that invocation; activation failures leave the complete payload for
+diagnosis. A18 records the real development build and ordinary image checks:
+actual Cargo bytes/modes, rendered user/UID and unchanged files/directories after
+repeat refusal. Those images were created by the development user, so they prove
+no live root ownership or service admission. No host service or credential changed.
+Exact remaining dependencies: supported-host installation and root metadata,
+activation/readiness, executable provenance/distribution integrity, interrupted
+copy/activation and cleanup, retained-run-safe upgrade/uninstall, and installed
+app/provider lifecycle. Prove installed broker/worker peer and namespace/cgroup
+behavior, cancellation/retirement/restart and preservation of profiles and active
+runs before closing D3, IPC/custody or installed gates. The retained GTK/WebKit
+sysroot and PostgreSQL payload are historical build inputs, not a fresh release.
+Hacking-like installer investigations require user-started Daybreak; ordinary
+installation engineering remains in the normal queue.
+
 **A04/A19 task manifest dependency:** version-5 task intents now bind phase and
 manifest digest in `pkg/factory/execution/native_intent.go`,
 `pkg/store/factory_native_dispatch.go` and `pkg/factory/run.go`. The Go launch

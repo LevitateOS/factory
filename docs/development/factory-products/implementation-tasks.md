@@ -125,6 +125,10 @@ non-task regression journey; task commands/children, checkpoints and journal
 consumption remain unfinished. The inherited mandatory parent/child requirement
 awaits the owner decision; the sequential-Builder alternative has not been adopted.
 This does not enable task phases or complete T09.
+The desktop stage now includes the native execution helpers/templates and an
+explicit single-user installer with image mode and existing-file refusal. A18
+records actual desktop staging and image verification; no live installation or
+installed gate is qualified.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

@@ -20,8 +20,31 @@ options accept absolute paths. The profile must be privately owned, with no
 symlink components. Normal workspace builds omit GTK/WebKit requirements; the
 staging script enables the `native-ui` feature.
 It stages the fixed `soda-factory-muse` connector beside `soda-desktop`; keep both
-files together. This helper uses Muse's existing login and does not install Muse
-or supply the privileged execution services.
+files together. This helper uses Muse's existing login; the native tool owner
+can acquire the current verified executable in Factory's private cache.
+
+### Linux execution services
+
+The stage also contains `factory-runtime/execution`: seven native helpers,
+twelve systemd service/socket templates, their install inventory and
+`install.sh`. On the selected Linux/systemd baseline, install for one explicit
+non-root desktop account:
+
+```sh
+sudo /home/USER/factory-stage/factory-runtime/execution/install.sh --user USER
+```
+
+This writes helpers to `/usr/libexec`, renders the account/UID into units under
+`/etc/systemd/system`, and enables the broker socket. Existing installation
+files cause refusal before writes; retained-run-safe upgrades and uninstall are
+unfinished. Native readiness still checks execution dependencies after installation.
+
+For packaging inspection, create an empty image directory and pass
+`--root /absolute/image` with the same explicit `--user`. Image mode writes
+under that directory without activating host services. The inventory selects
+only this build's execution files. Existing directory permissions are preserved.
+A development stage/image does not qualify live root ownership, activation,
+isolation, installed recovery or a signed distribution package.
 
 Closing windows hides them and keeps the runtime alive. Launching again for the
 same profile activates its main window. Quit stops admission and observations,

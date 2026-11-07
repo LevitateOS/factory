@@ -1,6 +1,6 @@
 import {buildDesktopUI} from './build-desktop-ui.js';
 import {isAbsolute, relative, resolve, sep} from 'node:path';
-import {cp, copyFile, mkdir} from 'node:fs/promises';
+import {chmod, cp, copyFile, mkdir, readdir, writeFile} from 'node:fs/promises';
 import {parseArgs} from 'node:util';
 const root = resolve(import.meta.dir, '..');
 const {values} = parseArgs({
@@ -38,10 +38,9 @@ const desktop = Bun.spawn(
     'soda-desktop',
     '-p',
     'soda-factory-worker',
-    '--bin',
-    'soda-desktop',
-    '--bin',
-    'soda-factory-muse',
+    '-p',
+    'soda-factory-broker',
+    '--bins',
     '--features',
     values.check ? 'soda-desktop/native-check' : 'soda-desktop/native-ui',
     '--message-format=json-render-diagnostics',
@@ -58,10 +57,27 @@ for (const line of messages.split('\n')) {
     executables.set(message.target.name, message.executable);
 }
 if (status !== 0) throw Error('Native desktop build failed');
-for (const name of ['soda-desktop', 'soda-factory-muse']) {
+const execution = resolve(out, 'factory-runtime/execution');
+await mkdir(resolve(execution, 'libexec'), {recursive: true});
+await mkdir(resolve(execution, 'systemd'), {recursive: true});
+const executionFiles: string[] = [];
+for (const name of ['soda-desktop', 'soda-factory-muse', 'soda-factory-broker', 'soda-factory-preparer',
+  'soda-factory-preparation-cleaner', 'soda-factory-agent', 'soda-factory-provider-relay', 'soda-factory-reviewer', 'soda-factory-worker']) {
   const executable = executables.get(name);
   if (!executable) throw Error('Native desktop build did not produce ' + name);
-  await copyFile(executable, resolve(out, name));
+  if (name !== 'soda-desktop' && name !== 'soda-factory-muse') executionFiles.push('libexec\t' + name);
+  await copyFile(executable, resolve(name === 'soda-desktop' || name === 'soda-factory-muse' ? out : resolve(execution, 'libexec'), name));
 }
+for (const owner of ['soda-factory-broker', 'soda-factory-worker']) {
+  const directory = resolve(root, 'cmd', owner, 'systemd');
+  for (const name of await readdir(directory)) {
+    if (!/\.(service|socket)(\.in)?$/.test(name)) throw Error('Unknown execution service asset: ' + name);
+    await copyFile(resolve(directory, name), resolve(execution, 'systemd', name));
+    executionFiles.push('systemd\t' + name);
+  }
+}
+await writeFile(resolve(execution, 'files.list'), executionFiles.join('\n') + '\n');
+await copyFile(resolve(root, 'scripts/install-native-execution.sh'), resolve(execution, 'install.sh'));
+await chmod(resolve(execution, 'install.sh'), 0o755);
 await cp(payload, resolve(out, 'factory-runtime/postgresql'), {recursive: true, verbatimSymlinks: true});
 console.log('Staged standalone desktop at ' + out);

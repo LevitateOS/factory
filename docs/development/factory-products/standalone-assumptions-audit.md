@@ -408,6 +408,23 @@ corrections are now active; the old feature queue waits for their resolution.
   passed with a declared peer in `/home/vince/tmp/fmuse-tool-status-ui7.HFKUai/result.log`.
   Typecheck, desktop UI build and boundaries passed. Real in-flight update/status
   failure races and installed UX remain unqualified.
+- **A18 — execution installation payload implemented; installed gate pending.**
+  The real desktop stager now builds and includes the broker, preparer/cleaner,
+  agent, relay, reviewer and generic worker, plus all twelve service/socket
+  templates. Its inventory drives a single-user installer that renders the
+  explicit OS account/UID, preserves existing directory permissions, refuses
+  existing installation files before writing, and can stage an image without
+  activating host services. The normal desktop/Go/helper build passed using the
+  retained GTK/WebKit sysroot and PostgreSQL payload, not a fresh distribution
+  baseline: `.artifacts/desktop-execution-stage7-build.log`. Actual image
+  installation preserved exact Cargo helper bytes and modes, rendered all units,
+  and refused repeat installation without changing file metadata/content:
+  `.artifacts/execution-image-inventory7-{result,repeat}.log` and the matching
+  before/after inventories. No host service, profile, credential or model changed.
+  Live root installation/activation, supported-host isolation and lifecycle,
+  distribution integrity, failure/interruption, upgrades/uninstall and installed
+  app/provider journeys remain unqualified. This does not complete A18 or D3.
+
 - **A23 — active guidance corrected.** README now describes implemented binding
   and human GitHub journeys separately from pending agent execution/installed
   delivery. The milestone summary matches the fifteen pending table rows.
