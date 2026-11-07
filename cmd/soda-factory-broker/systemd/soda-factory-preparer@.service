@@ -8,6 +8,7 @@ DynamicUser=yes
 EnvironmentFile=/run/soda-factory-broker/preparations/%i/manifest.env
 ExecStart=/usr/libexec/soda-factory-preparer %i ${FACTORY_CANDIDATE} ${FACTORY_BUNDLE_SHA256}
 BindReadOnlyPaths=/run/soda-factory-broker/runs/%i:/run/factory-source
+BindReadOnlyPaths=-/run/soda-factory-broker/runs/%i/prepared:/run/factory-prepared
 BindPaths=/run/soda-factory-broker/preparations/%i/output:/run/factory-output
 UMask=0022
 ProtectHome=yes

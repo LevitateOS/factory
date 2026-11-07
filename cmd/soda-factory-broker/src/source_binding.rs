@@ -1,13 +1,15 @@
 //! Root-owned source variants. Preparation inputs never masquerade as an agent
 //! executable/prompt binding; both variants share staging and exact retirement.
 use super::*;
-use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
+use soda_execution_protocol::{
+    ApprovedFiles, CapturedSetup, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT,
+};
 
 pub(super) enum Binding<'a> {
     Agent {
         tool: &'a str,
         prompt: &'a str,
-        setup: Option<&'a ApprovedFiles>,
+        setup: Option<&'a (ApprovedFiles, CapturedSetup)>,
     },
     Preparation(&'a ApprovedFiles),
 }
@@ -57,7 +59,10 @@ impl Binding<'_> {
                 setup,
             } => {
                 match setup {
-                    Some(expected) if approved(directory)? != **expected => {
+                    Some(expected)
+                        if approved(directory)? != expected.0
+                            || captured(directory)?.as_ref() != Some(&expected.1) =>
+                    {
                         return Err(denied("agent setup differs"))
                     }
                     None if directory.join("owner.setup_sha256").try_exists()? => {
@@ -95,7 +100,15 @@ impl Binding<'_> {
                     format!("{prompt}\n").as_bytes(),
                 )?;
                 if let Some(input) = setup {
-                    write_approved(directory, input)?;
+                    write_approved(directory, &input.0)?;
+                    write(
+                        &directory.join("owner.prepared.json"),
+                        &serde_json::to_vec(&input.1)?,
+                    )?;
+                    std::os::unix::fs::symlink(
+                        prepared_path(&input.1.source.run)?,
+                        directory.join("prepared"),
+                    )?;
                 }
                 Ok(())
             }
@@ -133,6 +146,7 @@ fn write_approved(directory: &Path, input: &ApprovedFiles) -> io::Result<()> {
     File::open(files)?.sync_all()
 }
 pub(super) fn verify(directory: &Path) -> io::Result<()> {
+    captured(directory)?;
     let setup = directory.join("owner.setup_sha256").try_exists()?;
     if setup {
         approved(directory)?;
@@ -152,17 +166,9 @@ pub(super) fn agent_setup(
     digest: &str,
     role: &str,
     desktop_uid: u32,
-) -> io::Result<ApprovedFiles> {
+) -> io::Result<(ApprovedFiles, CapturedSetup)> {
     if !id(&source.run, 32) || !id(&source.candidate, 40) {
         return Err(denied("agent preparation selector invalid"));
-    }
-    let proof = receipt(&source.run, profile, digest, &source.candidate, desktop_uid)?;
-    if proof.output_truncated
-        || proof.setup_exit != Some(0)
-        || proof.check_exit != Some(0)
-        || !proof.missing.is_empty()
-    {
-        return Err(denied("agent preparation is not ready"));
     }
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, &source.run)?;
@@ -170,11 +176,101 @@ pub(super) fn agent_setup(
     private_dir(&directory, 0o555)?;
     verified_profile(&directory, profile)?;
     verified_role(&directory, role)?;
-    if !verified_bundle(&directory, digest)? {
-        return Err(denied("agent prepared source differs"));
+    if directory.join("owner.tool_sha256").try_exists()? {
+        return Err(denied("agent snapshot must come from a pure preparation"));
     }
-    approved(&directory)
+    let proof = receipt_locked(&source.run, profile, digest, &source.candidate, desktop_uid)?;
+    if proof.output_truncated
+        || proof.setup_exit != Some(0)
+        || proof.check_exit != Some(0)
+        || !proof.missing.is_empty()
+        || proof.prepared_source.is_some()
+    {
+        return Err(denied("agent preparation is not ready"));
+    }
+    let meta = directory.symlink_metadata()?;
+    Ok((
+        approved(&directory)?,
+        CapturedSetup {
+            source: source.clone(),
+            source_device: meta.dev(),
+            source_inode: meta.ino(),
+            receipt: proof,
+        },
+    ))
 }
+fn prepared_path(run: &str) -> io::Result<PathBuf> {
+    if !id(run, 32) {
+        return Err(denied("snapshot selector invalid"));
+    }
+    Ok(preparations()?.join(run).join("output"))
+}
+pub(super) fn captured(directory: &Path) -> io::Result<Option<CapturedSetup>> {
+    let path = directory.join("owner.prepared.json");
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            if directory.join("prepared").symlink_metadata().is_ok() {
+                return Err(denied("snapshot descriptor missing"));
+            }
+            return Ok(None);
+        }
+        Err(error) => return Err(error),
+    };
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != 0
+        || meta.mode() & 0o7777 != 0o444
+        || meta.len() > 2 * 1024 * 1024
+    {
+        return Err(denied("snapshot descriptor metadata invalid"));
+    }
+    let mut bytes = Vec::new();
+    file.take(2 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
+    let value: CapturedSetup =
+        serde_json::from_slice(&bytes).map_err(|_| denied("snapshot descriptor invalid"))?;
+    if bytes.len() as u64 != meta.len()
+        || !id(&value.source.candidate, 40)
+        || fs::read_link(directory.join("prepared"))? != prepared_path(&value.source.run)?
+    {
+        return Err(denied("snapshot descriptor scope invalid"));
+    }
+    Ok(Some(value))
+}
+// Caller holds both directory locks and the global admission lock.
+pub(super) fn verify_captured(
+    value: &CapturedSetup,
+    profile: &str,
+    digest: &str,
+    role: &str,
+    desktop_uid: u32,
+) -> io::Result<()> {
+    let directory = state()?.join(&value.source.run);
+    let meta = directory.symlink_metadata()?;
+    if meta.dev() != value.source_device
+        || meta.ino() != value.source_inode
+        || directory.join("owner.tool_sha256").try_exists()?
+    {
+        return Err(denied("prepared snapshot was replaced"));
+    }
+    verified_role(&directory, role)?;
+    if receipt_locked(
+        &value.source.run,
+        profile,
+        digest,
+        &value.source.candidate,
+        desktop_uid,
+    )? != value.receipt
+    {
+        return Err(denied("prepared snapshot receipt changed"));
+    }
+    Ok(())
+}
+
 pub(super) fn cleanup(directory: &Path) -> io::Result<()> {
     let files = directory.join("approved");
     match files.symlink_metadata() {
@@ -200,7 +296,13 @@ pub(super) fn cleanup(directory: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    for name in ["approved.json", "owner.setup_sha256", "network.env"] {
+    for name in [
+        "approved.json",
+        "owner.setup_sha256",
+        "network.env",
+        "owner.prepared.json",
+        "prepared",
+    ] {
         match fs::remove_file(directory.join(name)) {
             Ok(()) => (),
             Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -218,6 +320,16 @@ pub(super) fn receipt(
 ) -> io::Result<SetupReceipt> {
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
+    receipt_locked(run, profile, digest, candidate, desktop_uid)
+}
+fn receipt_locked(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    desktop_uid: u32,
+) -> io::Result<SetupReceipt> {
+    let runs = state()?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -250,7 +362,9 @@ pub(super) fn receipt(
     file.take(2 * 1024 * 1024 + 1).read_to_end(&mut bytes)?;
     let receipt: SetupReceipt =
         serde_json::from_slice(&bytes).map_err(|_| denied("setup receipt invalid"))?;
-    if receipt.worker_uid != owner
+    let captured = captured(&source)?;
+    if receipt.prepared_source.as_ref() != captured.as_ref().map(|value| &value.source)
+        || receipt.worker_uid != owner
         || receipt.worker_uid == 0
         || receipt.worker_uid == desktop_uid
         || bytes.len() as u64 != meta.len()

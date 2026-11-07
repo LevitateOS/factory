@@ -3,8 +3,10 @@
 //! commands. A trusted provider connector may use its caller's saved login with
 //! a fixed CLI/tool contract; that is not an isolated workspace worker.
 //! This crate is deliberately absent from the desktop runtime dependency graph.
+mod snapshot;
 mod storage;
 use sha2::{Digest, Sha256};
+pub use snapshot::copy_snapshot;
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::File;

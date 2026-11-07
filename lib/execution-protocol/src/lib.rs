@@ -27,7 +27,13 @@ pub const MAX_SETUP_OUTPUT: usize = 256 * 1024;
 // Shared snapshot envelope: preparation and worker transfer must agree.
 pub const MAX_PREPARED_TREE_BYTES: u64 = 256 * 1024 * 1024;
 pub const MAX_PREPARED_TREE_ENTRIES: usize = 100_000;
-#[derive(Clone, Deserialize, Serialize)]
+
+// Both preparation and worker use their own isolated HOME. Never borrow the
+// desktop's PATH or tool configuration when replaying an approved environment.
+pub fn setup_path(home: &str) -> String {
+    format!("{home}/.local/bin:{home}/.cargo/bin:{home}/.bun/bin:/usr/bin:/bin:/usr/local/bin")
+}
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct PreparedSourceRef {
     pub run: String,
@@ -216,6 +222,8 @@ impl ApprovedFiles {
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SetupReceipt {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_source: Option<PreparedSourceRef>,
     pub worker_uid: u32,
     pub setup_sha256: String,
     pub source_commit: String,
@@ -226,6 +234,16 @@ pub struct SetupReceipt {
     pub output: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub output_truncated: bool,
+}
+
+/// Root-owned reference to a successful immutable setup, fenced against replacement.
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CapturedSetup {
+    pub source: PreparedSourceRef,
+    pub source_device: u64,
+    pub source_inode: u64,
+    pub receipt: SetupReceipt,
 }
 
 /// Captured run choices, never inherited from a CLI home or machine default.

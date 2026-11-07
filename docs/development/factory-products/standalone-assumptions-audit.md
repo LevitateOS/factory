@@ -203,6 +203,26 @@ corrections are now active; the old feature queue waits for their resolution.
   Saturated capacity/low-free-space refusal and installed workload evidence
   remain open. Reviewed time/network choices retain their existing semantics.
 
+- **A17 — private toolchain provisioning and prepared launch reuse implemented.**
+  Approved setup can install tools into its isolated HOME; preparation discovers
+  required tools after setup. Preparation, worker checks and model children use
+  the same private tool directories without inheriting desktop configuration.
+  Launch copies the verified, frozen repository/HOME into its own snapshot and
+  reruns the check offline instead of repeating setup downloads. Root ownership,
+  source inode/receipt matching and a source directory lock fence that copy;
+  launch receipts identify the original preparation. Contained absolute HOME
+  cache links become relative before publication; escaping links remain refused.
+  Actual current Bun 1.4.4 acquisition with official SHA verification, cold
+  dependency install, one-time setup, worker recheck, dummy-token MCP/artifact,
+  exact retirement and retained restart settlement passed in
+  `/home/vince/tmp/fsetup-bun-final7.sTBBZv/result.log`. Native builds and the
+  Go/native boundary check passed. No model, personal credential or GitHub write
+  ran. An intervening cold tarball request received proxy 403; its exact cause
+  remains unverified. Normal Go/Rust provisioning, larger projects, snapshot
+  cancellation/replacement/restart races, network failures and installed D3
+  qualification remain open. Earlier unresolved launch attempts are preserved
+  in the security handoff; this success does not settle them.
+
 - **A24 — selected workspace navigation corrected.** The host now supplies
   `selectedRepository` separately from the destination. Desktop passes its admitted
   selection; shared tabs survive New request and Feed links retain the repository.

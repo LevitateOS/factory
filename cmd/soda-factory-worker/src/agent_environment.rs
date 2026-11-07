@@ -9,9 +9,9 @@ use soda_execution_protocol::{
 };
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::fs::{self, OpenOptions};
-use std::io::{self, Read, Write};
-use std::os::unix::fs::{symlink, MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::fs::OpenOptions;
+use std::io::{self, Read};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::Path;
 use std::time::Duration;
 
@@ -57,64 +57,12 @@ pub(super) fn approved() -> io::Result<Option<ApprovedFiles>> {
     Ok(Some(input))
 }
 pub(super) fn copy(source: &Path, target: &Path) -> io::Result<()> {
-    let root = source.symlink_metadata()?;
-    if !root.is_dir() || root.uid() == 0 || !super::readonly(source)? {
-        return Err(refused("worker prepared snapshot is not read-only"));
-    }
-    let canonical = source.canonicalize()?;
-    let mut pending = vec![(source.to_path_buf(), target.to_path_buf(), 0usize)];
-    let mut total = 0u64;
-    let mut entries = 0;
-    while let Some((from, to, depth)) = pending.pop() {
-        if entries > MAX_PREPARED_TREE_ENTRIES || depth > 64 {
-            return Err(refused("worker environment inventory exceeds bounds"));
-        }
-        for entry in fs::read_dir(from)? {
-            entries += 1;
-            if entries > MAX_PREPARED_TREE_ENTRIES {
-                return Err(refused("worker environment inventory exceeds bounds"));
-            }
-            let entry = entry?;
-            let from = entry.path();
-            let to = to.join(entry.file_name());
-            let meta = from.symlink_metadata()?;
-            if meta.is_dir() {
-                fs::create_dir(&to)?;
-                fs::set_permissions(&to, fs::Permissions::from_mode(0o700))?;
-                pending.push((from, to, depth + 1));
-            } else if meta.is_file() {
-                total = total
-                    .checked_add(meta.len())
-                    .ok_or_else(|| refused("worker environment size invalid"))?;
-                if total > MAX_PREPARED_TREE_BYTES {
-                    return Err(refused("worker environment byte bound exceeded"));
-                }
-                let file = OpenOptions::new()
-                    .read(true)
-                    .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-                    .open(&from)?;
-                let mut output = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .mode(0o600 | (meta.mode() & 0o111))
-                    .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-                    .open(&to)?;
-                if io::copy(&mut file.take(meta.len() + 1), &mut output)? != meta.len() {
-                    return Err(refused("worker environment file changed"));
-                }
-                output.flush()?;
-            } else if meta.file_type().is_symlink() {
-                let link = fs::read_link(&from)?;
-                if link.is_absolute() || !from.canonicalize()?.starts_with(&canonical) {
-                    return Err(refused("worker environment link escapes snapshot"));
-                }
-                symlink(link, to)?;
-            } else {
-                return Err(refused("worker environment has special file"));
-            }
-        }
-    }
-    Ok(())
+    soda_native_process::copy_snapshot(
+        source,
+        target,
+        MAX_PREPARED_TREE_BYTES,
+        MAX_PREPARED_TREE_ENTRIES,
+    )
 }
 pub(super) fn check(
     processes: &mut Processes,
@@ -127,8 +75,9 @@ pub(super) fn check(
     )?;
     let executable = Executable::capture(Path::new("/usr/bin/bash"))
         .map_err(|_| refused("worker check interpreter unavailable"))?;
+    let tool_path = soda_execution_protocol::setup_path(PRIVATE_HOME);
     let environment = BTreeMap::from([
-        ("PATH", "/usr/bin:/bin"),
+        ("PATH", tool_path.as_str()),
         ("LANG", "C.UTF-8"),
         ("HOME", PRIVATE_HOME),
         ("TMPDIR", PRIVATE_TMP),

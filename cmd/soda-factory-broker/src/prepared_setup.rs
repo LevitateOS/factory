@@ -1,7 +1,9 @@
 //! Execute only the approved, root-owned entrypoints inside preparer@.service.
 //! Only reviewed setup may use public HTTPS; no provider account or desktop HOME enters.
 use super::{git, refused, CHECKOUT, MAX_CHECKOUT_BYTES, OUTPUT, SOURCE};
-use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
+use soda_execution_protocol::{
+    ApprovedFiles, CapturedSetup, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT,
+};
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -38,7 +40,10 @@ fn entry(name: &str, seconds: u32, output: &File, network: bool) -> io::Result<(
     let mut command = Command::new("/usr/bin/timeout");
     command
         .env_clear()
-        .env("PATH", "/usr/bin:/bin")
+        .env(
+            "PATH",
+            soda_execution_protocol::setup_path(&format!("{OUTPUT}/home")),
+        )
         .env("LANG", "C.UTF-8")
         .env("HOME", format!("{OUTPUT}/home"))
         .env("TMPDIR", format!("{OUTPUT}/tmp"))
@@ -115,7 +120,57 @@ fn entry(name: &str, seconds: u32, output: &File, network: bool) -> io::Result<(
         truncated,
     ))
 }
-pub(super) fn run(candidate: &str) -> io::Result<()> {
+fn resolve_tools(approved: &ApprovedFiles) -> (BTreeMap<String, String>, Vec<String>) {
+    let home = Path::new(OUTPUT).join("home");
+    let search = soda_execution_protocol::setup_path(&home.to_string_lossy());
+    let mut tools = BTreeMap::new();
+    let mut missing = Vec::new();
+    for name in &approved.tools {
+        let resolved = std::env::split_paths(&search).find_map(|directory| {
+            let path = directory.join(name).canonicalize().ok()?;
+            ((path.starts_with("/usr") || path.starts_with(&home))
+                && path
+                    .metadata()
+                    .is_ok_and(|meta| meta.is_file() && meta.mode() & 0o111 != 0))
+            .then_some(path)
+        });
+        match resolved {
+            Some(path) => {
+                tools.insert(name.clone(), path.to_string_lossy().into_owned());
+            }
+            None => missing.push(name.clone()),
+        }
+    }
+    (tools, missing)
+}
+
+pub(super) fn captured(candidate: &str) -> io::Result<Option<CapturedSetup>> {
+    let path = Path::new(SOURCE).join("owner.prepared.json");
+    if !path.try_exists()? {
+        return Ok(None);
+    }
+    let value: CapturedSetup = serde_json::from_slice(&root_file(&path, 2 * 1024 * 1024)?)
+        .map_err(|_| refused("captured setup descriptor invalid"))?;
+    let approved: ApprovedFiles = serde_json::from_slice(&root_file(
+        &Path::new(SOURCE).join("approved.json"),
+        MAX_SETUP_FRAME,
+    )?)
+    .map_err(|_| refused("captured approved inputs invalid"))?;
+    if !approved.valid()
+        || value.source.candidate != candidate
+        || value.receipt.source_commit != candidate
+        || value.receipt.setup_sha256 != approved.digest()
+        || value.receipt.prepared_source.is_some()
+        || value.receipt.setup_exit != Some(0)
+        || value.receipt.check_exit != Some(0)
+        || value.receipt.output_truncated
+        || !value.receipt.missing.is_empty()
+    {
+        return Err(refused("captured setup is not ready for this source"));
+    }
+    Ok(Some(value))
+}
+pub(super) fn run(candidate: &str, captured: Option<&CapturedSetup>) -> io::Result<()> {
     let input = Path::new(SOURCE).join("approved.json");
     match input.symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -143,25 +198,12 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
     for directory in ["home", "tmp"] {
+        if directory == "home" && captured.is_some() {
+            continue;
+        }
         let path = Path::new(OUTPUT).join(directory);
         fs::create_dir(&path)?;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
-    }
-    let mut tools = BTreeMap::new();
-    let mut missing = Vec::new();
-    for name in &approved.tools {
-        let path = Path::new("/usr/bin").join(name);
-        match path.canonicalize() {
-            Ok(path)
-                if path.starts_with("/usr")
-                    && path
-                        .metadata()
-                        .is_ok_and(|meta| meta.is_file() && meta.mode() & 0o111 != 0) =>
-            {
-                tools.insert(name.clone(), path.to_string_lossy().into_owned());
-            }
-            _ => missing.push(name.clone()),
-        }
     }
     let output_path = Path::new(OUTPUT).join("setup-output");
     let mut output = OpenOptions::new()
@@ -172,26 +214,30 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(&output_path)?;
     let mut receipt = SetupReceipt {
+        prepared_source: captured.map(|value| value.source.clone()),
         worker_uid: unsafe { libc::geteuid() },
         setup_sha256: approved.digest(),
         source_commit: candidate.into(),
         setup_exit: None,
         check_exit: None,
-        tools,
-        missing,
+        tools: BTreeMap::new(),
+        missing: Vec::new(),
         output: String::new(),
         output_truncated: false,
     };
-    if receipt.missing.is_empty() {
-        let network = approved.public_https() == Some(true);
-        let (setup, truncated) = entry("setup.sh", limits.setup_seconds, &output, network)?;
-        receipt.setup_exit = Some(setup);
+    let network = captured.is_none() && approved.public_https() == Some(true);
+    let (setup, truncated) = if captured.is_some() {
+        (0, false)
+    } else {
+        entry("setup.sh", limits.setup_seconds, &output, network)?
+    };
+    receipt.setup_exit = Some(setup);
+    receipt.output_truncated = truncated;
+    (receipt.tools, receipt.missing) = resolve_tools(&approved);
+    if setup == 0 && !truncated && receipt.missing.is_empty() {
+        let (check, truncated) = entry("check.sh", limits.check_seconds, &output, network)?;
+        receipt.check_exit = Some(check);
         receipt.output_truncated = truncated;
-        if setup == 0 && !truncated {
-            let (check, truncated) = entry("check.sh", limits.check_seconds, &output, network)?;
-            receipt.check_exit = Some(check);
-            receipt.output_truncated = truncated;
-        }
     }
     output.flush()?;
     drop(output);
@@ -234,7 +280,29 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
                 &path,
                 fs::Permissions::from_mode((meta.mode() & 0o777) | 0o444),
             )?;
-        } else if !meta.file_type().is_symlink() {
+        } else if meta.file_type().is_symlink() {
+            let link = fs::read_link(&path)?;
+            if link.is_absolute() {
+                // Package managers may write absolute cache links within HOME.
+                // Make those portable before the snapshot changes mount path.
+                let home = Path::new(OUTPUT).join("home");
+                let parent = path
+                    .parent()
+                    .and_then(|parent| parent.strip_prefix(&home).ok())
+                    .ok_or_else(|| refused("absolute setup link outside private HOME"))?;
+                let resolved = path.canonicalize()?;
+                let destination = resolved
+                    .strip_prefix(&home)
+                    .map_err(|_| refused("setup HOME link escapes snapshot"))?;
+                let mut relative = std::path::PathBuf::new();
+                for _ in parent.components() {
+                    relative.push("..");
+                }
+                relative.push(destination);
+                fs::remove_file(&path)?;
+                std::os::unix::fs::symlink(relative, &path)?;
+            }
+        } else {
             return Err(refused("setup output has special files"));
         }
     }

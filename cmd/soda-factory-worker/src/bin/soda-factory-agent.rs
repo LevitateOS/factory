@@ -721,6 +721,7 @@ fn execute_agent(
             OsString::from("SODA_FACTORY_RUN_AUTH"),
             OsString::from(format!("Bearer {placeholder}")),
         ),
+        (OsString::from("PATH"), OsString::from(soda_execution_protocol::setup_path(PRIVATE_HOME))),
         (OsString::from("TMPDIR"), OsString::from(PRIVATE_TMP)),
         (OsString::from("HOME"), OsString::from(PRIVATE_HOME)),
         (

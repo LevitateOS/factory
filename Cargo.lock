@@ -3822,6 +3822,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "soda-execution-protocol",
+ "soda-native-process",
 ]
 
 [[package]]

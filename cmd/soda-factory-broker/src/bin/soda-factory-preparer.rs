@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 #[path = "../prepared_candidate.rs"]
@@ -449,19 +449,34 @@ fn prepare() -> io::Result<()> {
     if fs::read_dir(OUTPUT)?.next().is_some() {
         return Err(refused("preparer output is not empty"));
     }
-    let clone = git(&[
-        "clone",
-        "--quiet",
-        "--no-local",
-        "--no-checkout",
-        "--",
-        BUNDLE,
-        CHECKOUT,
-    ])
-    .stdout(Stdio::null())
-    .status()?;
-    if !clone.success() {
-        return Err(refused("reviewer bundle clone failed"));
+    let captured = prepared_setup::captured(&args[2])?;
+    if captured.is_some() {
+        for directory in ["repo", "home"] {
+            let target = Path::new(OUTPUT).join(directory);
+            fs::create_dir(&target)?;
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o700))?;
+            soda_native_process::copy_snapshot(
+                &Path::new("/run/factory-prepared").join(directory),
+                &target,
+                soda_execution_protocol::MAX_PREPARED_TREE_BYTES,
+                soda_execution_protocol::MAX_PREPARED_TREE_ENTRIES,
+            )?;
+        }
+    } else {
+        let clone = git(&[
+            "clone",
+            "--quiet",
+            "--no-local",
+            "--no-checkout",
+            "--",
+            BUNDLE,
+            CHECKOUT,
+        ])
+        .stdout(Stdio::null())
+        .status()?;
+        if !clone.success() {
+            return Err(refused("reviewer bundle clone failed"));
+        }
     }
     let mut head = git(&["-C", CHECKOUT, "rev-parse", "--verify", "HEAD^{commit}"])
         .stdout(Stdio::piped())
@@ -482,21 +497,23 @@ fn prepare() -> io::Result<()> {
     if !status.success() || output != format!("{}\n", args[2]).as_bytes() {
         return Err(refused("reviewer checkout HEAD differs"));
     }
-    preflight_tree()?;
-    let checkout = git(&["-C", CHECKOUT, "reset", "--hard", "--quiet", "HEAD"])
-        .stdout(Stdio::null())
-        .status()?;
-    if !checkout.success() {
-        return Err(refused("reviewer tree checkout failed"));
-    }
-    let clean = git(&["-C", CHECKOUT, "diff", "--quiet", "HEAD", "--"])
-        .stdout(Stdio::null())
-        .status()?;
-    if !clean.success() {
-        return Err(refused("reviewer checkout is dirty"));
+    if captured.is_none() {
+        preflight_tree()?;
+        let checkout = git(&["-C", CHECKOUT, "reset", "--hard", "--quiet", "HEAD"])
+            .stdout(Stdio::null())
+            .status()?;
+        if !checkout.success() {
+            return Err(refused("reviewer tree checkout failed"));
+        }
+        let clean = git(&["-C", CHECKOUT, "diff", "--quiet", "HEAD", "--"])
+            .stdout(Stdio::null())
+            .status()?;
+        if !clean.success() {
+            return Err(refused("reviewer checkout is dirty"));
+        }
     }
     check_tree(Path::new(CHECKOUT))?;
-    prepared_setup::run(&args[2])?;
+    prepared_setup::run(&args[2], captured.as_ref())?;
     check_tree(Path::new(CHECKOUT))?;
     println!("reviewer checkout prepared for run {}", args[1]);
     Ok(())

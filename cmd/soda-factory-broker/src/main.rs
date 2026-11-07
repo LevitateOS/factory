@@ -904,7 +904,13 @@ fn runtime_capacity(extra: u64) -> io::Result<()> {
     Ok(())
 }
 
-fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Result<()> {
+fn prepare(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    candidate: &str,
+    desktop_uid: u32,
+) -> io::Result<()> {
     let runs = state()?;
     let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
@@ -946,6 +952,21 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
         }
         clean_preparation(&preparations, run)?;
     }
+    let captured = source_binding::captured(&source)?;
+    // Only pure preparations can be referenced, so directory locks cannot cycle.
+    // Keep the original frozen until its independent copy has finished.
+    drop(_lock);
+    let (_lock, _source_lock) = if let Some(value) = &captured {
+        if value.source.run == run || value.source.candidate != candidate {
+            return Err(denied("prepared snapshot selector differs"));
+        }
+        let locks = lock_run(&runs, &value.source.run)?;
+        source_binding::verify_captured(value, profile, digest, &read_role(&source)?, desktop_uid)?;
+        locks
+    } else {
+        (lock(&runs)?, None)
+    };
+    preparation_caller_current()?;
     let reserved = preparation_quota::capacity(&preparations, MAX_PREPARATION_CHARGE)?;
     runtime_capacity(reserved + MAX_PREPARATION_CHARGE)?;
     let directory = preparations.join(run);
@@ -2551,7 +2572,7 @@ fn serve() -> io::Result<()> {
             {
                 return Err(denied("broker reviewer preparation declaration invalid"));
             }
-            prepare(&run, &profile, &sha256, &candidate)?;
+            prepare(&run, &profile, &sha256, &candidate, desktop_uid)?;
             serde_json::to_vec(&Prepared {
                 kind: "prepared",
                 version: 1,

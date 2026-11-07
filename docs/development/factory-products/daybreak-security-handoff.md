@@ -97,6 +97,45 @@ remain unsupported by this evidence. Do not close these dependencies from source
 inspection or the small npm fixture. Hacking-like probes require user-started
 Daybreak; ordinary implementation checks can continue normally.
 
+**A17 toolchain snapshots / D3:** approved setup now discovers private tools after
+installation and launch reuses the verified repository/HOME without rerunning
+network setup. Relevant files: broker `{main,source_binding,prepared_setup}.rs`,
+`src/bin/soda-factory-preparer.rs`, its service unit, worker
+`{agent_environment,bin/soda-factory-agent}.rs`, shared execution protocol and
+`lib/native-process/src/snapshot.rs`. The broker fences the original source by
+profile/role/bundle/candidate/approval, directory device/inode and ready receipt,
+holding its directory lock during copy. Copied receipts carry source provenance.
+Contained absolute HOME links become relative before freezing; the bounded copy
+still refuses escaping links. A17 records actual current Bun/cold dependency,
+one-time setup, copied worker check, dummy MCP/artifact, exact retirement and
+restart settlement. No broad gate is closed. Remaining evidence: cancellation,
+replacement/retirement waiters, interrupted copy and lost replies/restart,
+retained snapshots, full link/resource boundary coverage and installed behavior.
+An intervening fixture `/home/vince/tmp/fsetup-bun-transfer7.DVFt2d/result.log`
+received proxy 403 downloading the public tarball. Preparation
+`8aa73db5db561acd647e16621e29d4eb` has its exact retirement receipt; the refusal's
+cause remains unverified. The later success does not qualify network reliability.
+
+Preserve two earlier Bun launch uncertainties, without replaying their pending
+launches or inferring settlement from absent root directories:
+
+- `/home/vince/tmp/fsetup-bun7.dADijj`, run
+  `b8aae5bf47e9b8b3337378ea456a95b2`: source preparation passed, but launch
+  observation expired and supervisor retirement required reconciliation. The
+  exact units later had MainPID 0/inactive, and root run/preparation paths were
+  absent. Acquisition remains without durable terminal/release acknowledgement.
+  Source preparation `e9274bf87dd7626a02b959b3999ea545` has its retirement receipt.
+- `/home/vince/tmp/fsetup-bun-snapshot7.Z5MoiD`, run
+  `b26844f17589809ce5b6be39a11e6e58`: source preparation passed; the exact preparer
+  journal reported `prepared environment link escapes snapshot`, then exited 1.
+  Root paths were removed, but the original acquisition still lacks a terminal/
+  release acknowledgement and supervisor retirement required reconciliation.
+  Source preparation `67148d14027ca371f9348f3a7bb3fc67` has its retirement receipt.
+
+Both depend on exact retained intent, native process outcome/custody release and
+retirement reconciliation. Preserve their profiles/fences; a proposed cleanup,
+source fix or successful fresh run cannot close their original outcomes.
+
 **A17 resource envelope / D3:** the preparer now enforces 1 GiB memory/no swap and
 128 tasks. The broker reserves its full 1 GiB while active, with a 4 GiB/one
 million-entry retained cap and unchanged independent `/run` reserve. Shared

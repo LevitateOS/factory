@@ -2125,8 +2125,8 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_SETUP_BUDGET") == "1" {
 		duration = 50 * time.Second
 	}
-	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
-		duration = 60 * time.Second
+	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" || os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE") != "" {
+		duration = 90 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
@@ -2186,10 +2186,13 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_SETUP_RESOURCES") == "1" {
 		tools = append(tools, "node")
 	}
-	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
-		tools = append(tools, "node", "npm", "curl")
+	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" || os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE") != "" {
 		files["package.json"] = []byte(`{"name":"factory-setup-fixture","version":"1.0.0","private":true,"dependencies":{"is-number":"7.0.0"}}`)
 		files["package-lock.json"] = []byte(`{"name":"factory-setup-fixture","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"factory-setup-fixture","version":"1.0.0","dependencies":{"is-number":"7.0.0"}},"node_modules/is-number":{"version":"7.0.0","resolved":"https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz","integrity":"sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==","engines":{"node":">=0.12.0"}}}}`)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
+		tools = append(tools, "node", "npm", "curl")
+
 		prefix := ""
 		if mode != "network-off" {
 			files["setup-network.json"] = []byte(`{"access":"public_https"}`)
@@ -2206,6 +2209,34 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if mode == "output-limit" {
 			files["setup.sh"] = []byte("node -e 'process.stdout.write(\"x\".repeat(262145))'\n")
 		}
+	}
+	if metadata := os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE"); metadata != "" {
+		var release struct {
+			Version string
+			SHA256  string
+		}
+		data, err := os.ReadFile(metadata)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(data, &release); err != nil {
+			return err
+		}
+		version := strings.TrimPrefix(release.Version, "bun-v")
+		if version == release.Version || len(version) < 5 || len(version) > 24 || !project.ValidDigest(release.SHA256) {
+			return errors.New("Bun release fixture metadata invalid")
+		}
+		for _, c := range version {
+			if !(c >= '0' && c <= '9' || c == '.') {
+				return errors.New("Bun version fixture invalid")
+			}
+		}
+		tools = append(tools, "curl", "unzip", "bun")
+		files["setup-network.json"] = []byte(`{"access":"public_https"}`)
+		files["setup-limits.json"] = []byte(`{"setup_seconds":75,"check_seconds":10}`)
+		install := fmt.Sprintf("test ! -e \"$HOME/.factory-setup-once\"\nprintf ready > \"$HOME/.factory-setup-once\"\nmkdir -p \"$HOME/.bun/bin\"\ncurl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 45 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\nprintf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\nunzip -q \"$TMPDIR/bun.zip\" -d \"$TMPDIR/bun\"\ncp \"$TMPDIR/bun/bun-linux-x64/bun\" \"$HOME/.bun/bin/bun\"\nrm -rf \"$TMPDIR/bun\" \"$TMPDIR/bun.zip\"\ncp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\nbun install --ignore-scripts --no-progress --no-cache\n", release.Version, release.SHA256)
+		files["setup.sh"] = append(files["setup.sh"], []byte(install)...)
+		files["check.sh"] = append(files["check.sh"], []byte(fmt.Sprintf("test \"$(bun --version)\" = '%s'\nbun -e 'if (!require(\"is-number\")(42)) process.exit(1)'\nprintf 'checked-by-native privately provisioned Bun %s and cold dependency\\n'\n", version, version))...)
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_WORKER_BUDGET") == "1" {
 		files["setup-limits.json"] = []byte(`{"setup_seconds":10,"check_seconds":20}`)
@@ -2322,6 +2353,18 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {
 		return errors.New("native preparation lacks actual setup/check/source facts")
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_BUN_RELEASE") != "" {
+		resolved := false
+		for _, tool := range state.Tools {
+			if tool.Name == "bun" && tool.Path == "/run/factory-output/home/.bun/bin/bun" {
+				resolved = true
+			}
+		}
+		if !resolved {
+			return errors.New("Bun setup did not retain its actual private installed tool path")
+		}
+		fmt.Println("PASS: current Bun acquired by approved setup; exact SHA verified; required tool discovered after install; cold package install and actual check passed in private HOME")
 	}
 	record, err = db.Preparation(ctx, prep.ID)
 	if err != nil {

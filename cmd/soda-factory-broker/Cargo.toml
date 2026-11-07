@@ -12,3 +12,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 soda-execution-protocol = { path = "../../lib/execution-protocol" }
+soda-native-process = { path = "../../lib/native-process" }

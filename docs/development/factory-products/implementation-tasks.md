@@ -134,7 +134,9 @@ native owner. The actual cold npm install/check, loopback/plain-HTTP refusals,
 offline refusal, normal retirement and affected legacy relay evidence are recorded
 once in A17 of the assumptions audit. Preparation and worker transfer now share
 larger bounded trees; the fixed resource envelope and actual worker check above
-the historical limits are recorded there too. Toolchain provisioning, larger cold
+the historical limits are recorded there too. A17 also records actual current Bun
+provisioning and launch reuse of a frozen setup snapshot, including worker checks,
+MCP/artifacts, retirement and restart settlement. Go/Rust provisioning, larger cold
 builds, workload resource qualification, interrupted/restart network retirement and installed D3
 qualification remain dependencies; this does not complete T09 or A17.
 
