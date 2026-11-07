@@ -25,7 +25,7 @@ func (c *Coordinator) stageStallRepair(ctx context.Context, event factory.StallE
 }
 
 func (c *Coordinator) driveStallRepairs(ctx context.Context, stalled map[int64]bool) {
-	if c.Host == nil || c.Broker == nil || c.CompletionEnumerator == nil || c.CompletionLocalCapture == nil {
+	if c.Host == nil || c.Broker == nil || !c.completionDriveDeps().available() {
 		return
 	}
 	records, err := c.Store.PendingStallRepairRecords(ctx, 16)
@@ -50,7 +50,7 @@ func (c *Coordinator) driveStallRepairs(ctx context.Context, stalled map[int64]b
 					saved = &progress
 				}
 			}
-			bracket := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, record.Repository, record.ProgressGeneration, saved)
+			bracket := bracketMaterialCollect(ctx, c.completionDriveDeps(), record.Repository, record.ProgressGeneration, saved)
 			cycle.Reason = bracket.hold
 			cycle.CollectorProgress = nil
 			if bracket.progress != nil {

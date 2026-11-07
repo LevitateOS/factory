@@ -241,7 +241,7 @@ func (c *Coordinator) validateReassessmentGeneration(ctx context.Context, genera
 	// Generic graph recovery uses this same validator, so it also proves
 	// complete inventory freshness before submission/adoption and cannot
 	// bypass the completion driver's prefix accounting.
-	deps := CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}
+	deps := c.completionDriveDeps()
 	fresh := bracketMaterialCollect(ctx, deps, record.Cycle.Repository, record.Cycle.Generation, nil)
 	if fresh.hold != "" {
 		return &DispatchWait{Reason: WaitInputsUnavailable, Detail: fresh.hold}, nil

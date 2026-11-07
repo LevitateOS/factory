@@ -89,6 +89,7 @@ type Coordinator struct {
 	// evidence. FW32 binds them to the FW29 snapshot family and the
 	// local store capture.
 	CompletionEnumerator   CompletionIssueEnumerator
+	CompletionIssues       func(context.Context, int64) ([]NativeInventoryIssue, error)
 	CompletionLocalCapture func(ctx context.Context, repository int64) (factory.CompletionLocal, error)
 	// CommentDrive advances durable feed-comment pipelines at Start and
 	// on each progress pass. The shared application service owns collaborators;

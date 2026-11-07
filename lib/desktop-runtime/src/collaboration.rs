@@ -621,11 +621,13 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
             if matches!(
                 query,
                 Read::Identity
+                    | Read::TargetTip { .. }
                     | Read::SourceBundle { .. }
                     | Read::PublicationRefs { .. }
                     | Read::PullBranches { .. }
                     | Read::Pull { .. }
                     | Read::Issue { .. }
+                    | Read::Issues { .. }
                     | Read::Repository { .. }
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }

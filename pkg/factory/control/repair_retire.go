@@ -45,7 +45,7 @@ func (c *Coordinator) nextStallRepairCycle(ctx context.Context, record store.Sta
 	if previous.Number >= factory.DefaultRepairCyclesPerEpisode {
 		return
 	}
-	fresh := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, record.Repository, record.ProgressGeneration, nil)
+	fresh := bracketMaterialCollect(ctx, c.completionDriveDeps(), record.Repository, record.ProgressGeneration, nil)
 	if fresh.hold != "" {
 		return
 	}

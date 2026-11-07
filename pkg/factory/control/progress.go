@@ -223,7 +223,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	// honestly instead of sealing from partial evidence. There is no
 	// automatic store-local fallback: a nil production callback holds
 	// with completion wiring, never with an unqualified capture.
-	deps := CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}
+	deps := c.completionDriveDeps()
 	c.observeProgressStage("completions")
 	_ = c.DriveCompletions(ctx, deps)
 	c.observeProgressStage("delivery_verification")

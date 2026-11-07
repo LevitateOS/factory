@@ -101,7 +101,7 @@ func (c *Coordinator) driveStallRepairResult(ctx context.Context, record store.S
 		c.holdRepair(ctx, record, cycle, "real_stall_needs_changed_graph_or_owner_attention", true)
 		return
 	}
-	fresh := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, record.Repository, record.ProgressGeneration, nil)
+	fresh := bracketMaterialCollect(ctx, c.completionDriveDeps(), record.Repository, record.ProgressGeneration, nil)
 	if fresh.hold != "" {
 		c.holdRepair(ctx, record, cycle, fresh.hold, false)
 		return

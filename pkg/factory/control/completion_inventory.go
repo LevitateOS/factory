@@ -148,8 +148,12 @@ func checkInventoryPage(page NativeInventoryPage, cursor string, collected int, 
 			return errors.New(HoldInventoryPage)
 		}
 	}
+	return checkInventoryIssues(page.Issues, base, collected, evidence)
+}
+
+func checkInventoryIssues(issues []NativeInventoryIssue, base int64, collected, evidence int) error {
 	prior := base
-	for _, issue := range page.Issues {
+	for _, issue := range issues {
 		if issue.Index <= prior {
 			return errors.New(HoldInventoryPage)
 		}
@@ -159,7 +163,7 @@ func checkInventoryPage(page NativeInventoryPage, cursor string, collected int, 
 			return errors.New(HoldInventoryOversize)
 		}
 	}
-	if collected+len(page.Issues) > factory.MaxReassessmentIssues {
+	if collected+len(issues) > factory.MaxReassessmentIssues {
 		return errors.New(HoldInventoryOversize)
 	}
 	return nil

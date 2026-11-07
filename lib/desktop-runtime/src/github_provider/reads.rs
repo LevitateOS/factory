@@ -82,6 +82,7 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "target_tip" => ("publication", reader.target_tip(r::text(&q, "target_ref")?).await?),
                         "source_bundle" => ("publication", reader.source_bundle(&q).await?),
                         "publication_refs" => ("publication", reader.publication_refs(&q).await?),
                         "merge_completion" => (
@@ -362,6 +363,25 @@ pub(super) struct Reader<'a> {
     pub prefix: String,
 }
 impl<'a> Reader<'a> {
+    async fn target_tip(&self, target: &str) -> Result<Value> {
+        let branch = target.strip_prefix("refs/heads/").ok_or_else(Failure::invalid)?;
+        let path = format!("/git/ref/heads/{branch}");
+        let observe = async || -> Result<Value> {
+            let response = self.get(&path, &[]).await?;
+            let raw = &response.value;
+            let tip = r::text(&raw["object"], "sha")?;
+            if raw["ref"] != target || raw["object"]["type"] != "commit" || !super::request::commit(tip) {
+                return Err(Failure::protocol());
+            }
+            Ok(json!({"repository":self.repository,"target_ref":target,"tip":tip}))
+        };
+        let before = observe().await?;
+        self.recheck().await?;
+        if observe().await? != before {
+            return Err(Failure::new(409, "github_target_tip_changed"));
+        }
+        Ok(before)
+    }
     pub(super) async fn new(
         client: &'a Client,
         token: &'a [u8],

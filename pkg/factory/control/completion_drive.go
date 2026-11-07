@@ -23,7 +23,16 @@ const HoldCompletionWiring = "completion_reads_unwired"
 // never seals, decides or releases.
 type CompletionDriveDeps struct {
 	Enumerator   CompletionIssueEnumerator
+	ReadIssues   func(context.Context, int64) ([]NativeInventoryIssue, error)
 	CaptureLocal func(ctx context.Context, repository int64) (factory.CompletionLocal, error)
+}
+
+func (d CompletionDriveDeps) available() bool {
+	return d.CaptureLocal != nil && (d.Enumerator != nil || d.ReadIssues != nil)
+}
+
+func (c *Coordinator) completionDriveDeps() CompletionDriveDeps {
+	return CompletionDriveDeps{Enumerator: c.CompletionEnumerator, ReadIssues: c.CompletionIssues, CaptureLocal: c.CompletionLocalCapture}
 }
 
 // CompletionDriveReport is the durable outcome of one completion
@@ -196,8 +205,11 @@ func chargeBracketCapturesAndObserves(ctx context.Context) bool {
 // and out of scope here. An incomplete collection is never charged on
 // the funded-decision path.
 func bracketMaterialCollect(ctx context.Context, deps CompletionDriveDeps, repository, generation int64, saved *InventoryCollector) bracketResult {
-	if deps.Enumerator == nil || deps.CaptureLocal == nil {
+	if !deps.available() {
 		return bracketResult{hold: HoldCompletionWiring, progress: saved}
+	}
+	if deps.ReadIssues != nil {
+		return bracketIssueObservations(ctx, deps, repository, generation)
 	}
 	// Both bracket observations plus both serving captures are
 	// reserved upfront: with fewer than eight units free this holds
@@ -368,7 +380,7 @@ func (d *decidingDrive) drive() {
 		d.attend("decision_not_actionable")
 		return
 	}
-	if d.deps.Enumerator == nil || d.deps.CaptureLocal == nil {
+	if !d.deps.available() {
 		d.attend("freshness_unavailable")
 		return
 	}

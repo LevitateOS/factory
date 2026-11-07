@@ -37,7 +37,7 @@ func (c *Coordinator) driveDeliveryRepairResult(ctx context.Context, record stor
 		c.saveDeliveryRepair(ctx, record, factory.RepairAttention, "failed application needs in-scope changed work or owner attention")
 		return
 	}
-	fresh := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, record.Cause.Repository, 0, nil)
+	fresh := bracketMaterialCollect(ctx, c.completionDriveDeps(), record.Cause.Repository, 0, nil)
 	if fresh.hold != "" {
 		return
 	}

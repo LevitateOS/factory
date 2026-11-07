@@ -343,6 +343,17 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             posts(&io)? == 1,
             "native request did not create exactly one issue",
         )?;
+        if std::env::var("SODA_NATIVE_CHECK_COMPLETION").as_deref()==Ok("1") {
+            runtime.stop()?;
+            runtime=NativeSupervisor::start(payload,production,profile)?;
+            store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
+            ensure(call(&runtime,&store,&connection,"GET",&path,&[]).await?.0==200,"completion source account unavailable")?;
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("check-native-preparation").arg("completion").env("SODA_NATIVE_CHECK_COMPLETION_POST",&post).env("SODA_NATIVE_CHECK_COMPLETION_TIP_FILE",io.join("completion-tip")).status()?.success(),"native completion reads check failed")?;
+            ensure(posts(&io)?==1,"completion read check performed a provider write")?;
+            runtime.stop()?;
+            println!("PASS: native completion reads join the selected account, actual approved source/preparation and complete issue/dependency evidence; provider facts declared, no model or full lifecycle qualification");
+            return Ok(());
+        }
         if std::env::var("SODA_NATIVE_CHECK_REQUEST_GRAPH").as_deref()==Ok("1") {
             runtime.stop()?;
             runtime=NativeSupervisor::start(payload,production,profile)?;

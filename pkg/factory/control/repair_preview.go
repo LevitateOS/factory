@@ -127,7 +127,7 @@ func (c *Coordinator) PreviewRepair(ctx context.Context, cap factory.MCPCapabili
 	}
 	out = factory.RepairPreview{Subject: cap.Subject, InputDigest: cap.ScopeDigest(), SourceCommit: local.SourceCommit, InventoryDigest: inventory, Effects: []factory.RepairPreviewEffect{}, NextStep: "Structural feedback only; submit the typed report for the existing judgment and adoption process. No readiness or graph change is confirmed."}
 	observe := func() ([]factory.CompletionIssueEvidence, error) {
-		fresh := bracketMaterialCollect(bounded, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, cap.Repository, generation, nil)
+		fresh := bracketMaterialCollect(bounded, c.completionDriveDeps(), cap.Repository, generation, nil)
 		if fresh.hold != "" || fresh.sealed == nil {
 			return nil, errors.New("repair preview inventory is unavailable or unstable")
 		}

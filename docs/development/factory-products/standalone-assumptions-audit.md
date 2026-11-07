@@ -90,6 +90,24 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A05/A21 — native completion inventory/source capture composed; lifecycle pending.**
+  On 2026-11-07 the owner replaced GitHub's inherited global-revision/idle
+  prerequisite with two matching complete bounded issue/dependency reads,
+  bracketed by unchanged local policy/source material. The native adapter now
+  supplies these reads and captures the current target tip through Rust before
+  using the existing source-qualified SQL material owner. The existing completion
+  drive retains one seal/journal; Fountain's revision-based adapter is unchanged.
+  `/home/vince/tmp/fcomplete13.YTjyXi/result.log` passed actual isolated setup,
+  current-tip/local capture, changed-unapproved-source refusal, changed second
+  inventory holding without a seal, and matching whole-inventory persistence in
+  PostgreSQL. The prior completion and provider facts were declared; one open
+  issue with no dependencies was observed. No model, real GitHub, funded decision,
+  completed lifecycle or installed distribution was qualified. Connected larger/
+  paginated inventories, withdrawal during reads and complete decision/reassessment/
+  repair journeys remain open. Native protected graph adoption still needs its
+  scoped-actor and partial-effect integration; the Muse planner encoding blocker
+  remains separate.
+
 - **A05/A21 — native request-planning transport composed; full journey pending.**
   Native requests now use the existing coordinator for planning, and their
   exploration/walkthrough commands share the same admitted request service.

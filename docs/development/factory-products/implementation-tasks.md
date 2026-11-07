@@ -171,6 +171,15 @@ declared. This proves no provider atomicity, live GitHub writes, ordinary planne
 admission, full adoption/execution, installed upgrade or broad security gate.
 Connected edits/removals, withdrawal/races and native repair/reassessment remain
 pending; the real Muse planner result encoding remains a pipeline dependency.
+Native completion now uses the owner's selected pair of matching complete
+bounded issue/dependency observations, with unchanged local policy/source material,
+instead of a fabricated GitHub global revision/idle signal. The current target
+tip is read through Rust and the existing source-qualified SQL capture.
+`/home/vince/tmp/fcomplete13.YTjyXi/result.log` passed actual preparation/capture,
+unapproved-source refusal, differing-observation hold and matching inventory seal.
+Its provider/prior completion were declared; no funded decision, live GitHub,
+protected repair/reassessment adoption or complete lifecycle was qualified.
+The audit register records the exact remaining traversal/withdrawal dependencies.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

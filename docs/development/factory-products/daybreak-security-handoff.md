@@ -65,6 +65,27 @@ workflow; Muse planner result encoding currently blocks the latter. Native
 repair/reassessment composition and installed upgrades remain pending. No broad
 custody/authentication/IPC/worker-isolation gate closes from this scoped check.
 
+**Native completion observations — scoped proof; lifecycle gates open:**
+The owner permits two matching complete bounded issue/dependency reads bracketed
+by unchanged local policy/source state, replacing the inherited global GitHub
+revision/idle prerequisite. Files: `runtime/native_completion.go`,
+`control/completion_observations.go`, shared completion/repair dependency wiring,
+and Rust `github_provider/{request,reads}.rs` / `collaboration.rs`. Rust supplies
+a fixed authenticated target-tip selector; background issue-list reads use the
+saved publishing account and selected repository. Go retains local SQL capture,
+whole-inventory equality and the original completion seal/journal.
+`/home/vince/tmp/fcomplete13.YTjyXi/result.log` passed real native preparation,
+current-tip/source capture, unapproved changed-source refusal, changed-second-read
+hold and matching inventory persistence. Provider facts and the prior completion
+were declared; one issue/no dependencies, no model or live GitHub. The temporary
+broker was removed (`broker.log`); this is no installed/security qualification.
+Remaining: actual-channel account/source/permission withdrawal during these
+new reads, foreign repository denial for the background selectors, connected
+complete pagination/dependency traversal and full funded completion/repair/
+reassessment workflow. Closure needs those current-scope and lifecycle journeys;
+native protected graph adoption and the real Muse planner remain dependencies.
+No broad D3/custody/authentication/IPC gate closes from this check.
+
 **A25 judgment spending selection:** `factory/grants.go`, `factory/sponsorship.go`
 and `factory/service/policies.go` under `pkg/` retain an explicit judgment
 provider/model/source and the separate `factory-judgment` sponsorship scope.

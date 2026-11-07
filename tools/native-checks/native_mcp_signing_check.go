@@ -4041,6 +4041,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return err
 	}
 	duration := 25 * time.Second
+	if mode == "completion" {
+		duration = 55 * time.Second
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_SETUP_BUDGET") == "1" {
 		duration = 50 * time.Second
 	}
@@ -4060,17 +4063,55 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if err = db.InitializeEmptyCollaborationLedger(ctx); err != nil {
 		return err
 	}
-	host, err := db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
-	if err != nil {
-		return err
-	}
-	repo, err := db.ObserveCollaborationRepository(ctx, host.ID, "native-source-fixture", "fixture/native-source")
-	if err != nil {
-		return err
-	}
-	actor, err := db.ObserveCollaborationActor(ctx, host.ID, "native-source-owner", "native-source-owner")
-	if err != nil {
-		return err
+	var host collaboration.Host
+	var repo collaboration.RepositoryRef
+	var actor collaboration.ActorRef
+	var completionConnection collaboration.ConnectionID
+	if mode == "completion" {
+		detail, e := db.FeedPost(ctx, os.Getenv("SODA_NATIVE_CHECK_COMPLETION_POST"))
+		if e != nil {
+			return e
+		}
+		repo, err = db.CollaborationRepository(ctx, collaboration.RepositoryID(detail.Record.Repository))
+		if err != nil {
+			return err
+		}
+		host, err = db.CollaborationHost(ctx, repo.Host)
+		if err != nil {
+			return err
+		}
+		id, e := strconv.ParseInt(detail.Record.Author, 10, 64)
+		if e != nil {
+			return e
+		}
+		actor, err = db.CollaborationActor(ctx, collaboration.ActorID(id))
+		if err != nil {
+			return err
+		}
+		proof, e := db.IssueIntakeGrant(ctx, detail.Record.ID, detail.Record.Revision)
+		if e != nil {
+			return e
+		}
+		var grant struct {
+			Connection collaboration.ConnectionID `json:"connection"`
+		}
+		if json.Unmarshal(proof, &grant) != nil || grant.Connection == "" {
+			return errors.New("completion fixture lacks captured account")
+		}
+		completionConnection = grant.Connection
+	} else {
+		host, err = db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
+		if err != nil {
+			return err
+		}
+		repo, err = db.ObserveCollaborationRepository(ctx, host.ID, "native-source-fixture", "fixture/native-source")
+		if err != nil {
+			return err
+		}
+		actor, err = db.ObserveCollaborationActor(ctx, host.ID, "native-source-owner", "native-source-owner")
+		if err != nil {
+			return err
+		}
 	}
 	if err = db.PutCollaborationProfile(ctx, collaboration.Profile{ID: config.Profile, Name: "Native source fixture"}); err != nil {
 		return err
@@ -4312,7 +4353,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		return err
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_REQUEST_SETUP") == "1" {
-		if err := nativeRequestSetupFixture(ctx, db, port, host.ID, actor.ID, int64(repo.ID), record, request); err != nil {
+		if err := nativeRequestSetupFixture(ctx, db, port, host.ID, actor.ID, int64(repo.ID), record, request, completionConnection); err != nil {
 			return err
 		}
 	}
@@ -4435,7 +4476,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	return nil
 }
 
-func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, host collaboration.HostID, actor collaboration.ActorID, repository int64, record execution.PreparationRecord, request execution.StandingPreparationRequest) error {
+func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, host collaboration.HostID, actor collaboration.ActorID, repository int64, record execution.PreparationRecord, request execution.StandingPreparationRequest, completionConnection collaboration.ConnectionID) error {
 	requests := factoryservice.Requests{Store: db, Setup: port.RequestSetup,
 		WriteAccess: func(ctx context.Context, selected collaboration.ActorID, repo int64) error {
 			if selected != actor || repo != repository {
@@ -4525,11 +4566,21 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 	}
 	// Completion material needs an explicit repository policy. This fixture
 	// declares its account authority; it never enables automated dispatch.
-	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{
+	observation := collaboration.ConnectionObservation{
 		Profile:  collaboration.Profile{ID: port.Config.Profile, Name: "Native source fixture"},
 		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()),
 		Account: "native-source-owner", Login: "native-source-owner",
-	})
+	}
+	if completionConnection != "" {
+		observedActor, e := db.CollaborationActor(ctx, actor)
+		if e != nil {
+			return e
+		}
+		observation.Connection = completionConnection
+		observation.Account = observedActor.ExternalID
+		observation.Login = observedActor.Login
+	}
+	binding, err := db.BindCollaborationConnection(ctx, observation)
 	if err != nil || binding.Actor.ID != actor {
 		return errors.New("completion fixture account mapping changed")
 	}
@@ -4552,6 +4603,40 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 	}
 	if _, err := db.CaptureCompletionLocalAtSource(ctx, repository, authority, record.Preparation.SourceCommit); err != nil {
 		return fmt.Errorf("native completion source material: %w", err)
+	}
+	if completionConnection != "" {
+		tipFile := os.Getenv("SODA_NATIVE_CHECK_COMPLETION_TIP_FILE")
+		if tipFile == "" {
+			return errors.New("completion fixture requires its declared provider tip file")
+		}
+		if err := os.WriteFile(tipFile, []byte(record.Preparation.SourceCommit), 0600); err != nil {
+			return err
+		}
+		input := factoryruntime.NativeInputSource{NativeExecution: port}
+		captured, err := input.CaptureCompletionLocal(ctx, repository)
+		if err != nil || captured.SourceCommit != record.Preparation.SourceCommit {
+			return fmt.Errorf("native current completion capture: %w", err)
+		}
+		issues, err := input.ReadCompletionIssues(ctx, repository)
+		if err != nil || len(issues) != 1 {
+			return fmt.Errorf("native complete issue inventory: count=%d err=%w", len(issues), err)
+		}
+		if _, err := factory.ParseCompletionIssueEvidence(issues[0].Data); err != nil {
+			return err
+		}
+		if err := os.WriteFile(tipFile, []byte(strings.Repeat("d", 40)), 0600); err != nil {
+			return err
+		}
+		if _, err := input.CaptureCompletionLocal(ctx, repository); !errors.Is(err, store.ErrCompletionSourceHold) {
+			return fmt.Errorf("unapproved completion source did not hold: %v", err)
+		}
+		if err := os.WriteFile(tipFile, []byte(record.Preparation.SourceCommit), 0600); err != nil {
+			return err
+		}
+		if err := nativeCompletionInventoryFixture(ctx, db, input, repository, record.Preparation.SourceCommit, tipFile); err != nil {
+			return err
+		}
+		fmt.Println("PASS: native current-tip completion capture uses actual approved workspace/preparation, complete issue/dependency read and refuses changed unapproved source; provider facts declared")
 	}
 	fmt.Println("PASS: native draft planning reads actual approved source and completion capture resolves native workspace without appliance Project")
 	stale := port
@@ -4584,6 +4669,60 @@ func nativeRequestSetupFixture(ctx context.Context, db *store.Store, port factor
 		return errors.New("setup overview changed the saved request")
 	}
 	fmt.Println("PASS: saved native request HTTP overview remains readable with absent setup port; actual coder/reviewer setup, stale-instance/profile refusal and retirement retain truthful readiness without changing the draft")
+	return nil
+}
+
+// Only the prior merge/completion is declared. Inventory capture, source reads,
+// mismatch holds and the existing SQL seal transition run through real owners.
+func nativeCompletionInventoryFixture(ctx context.Context, db *store.Store, input factoryruntime.NativeInputSource, repository int64, source, tipFile string) error {
+	event := factory.CompletionEvent{ID: factory.NewID(), PublicationID: factory.NewID(), Repository: repository, Issue: 17, Generation: 1, MergedCommit: source, ClosingOccurrence: "declared-prior-completion", AcceptanceID: "d" + strings.Repeat("7", 24)}
+	if err := event.Validate(); err != nil {
+		return err
+	}
+	cycle := factory.ReassessmentCycle{EventID: event.ID, CycleID: factory.NewID(), State: factory.ReassessmentCollecting, Repository: repository, Generation: 1}
+	record := store.ReassessmentRecord{Cycle: cycle, Completion: event, Issue: 17}
+	if err := record.Validate(); err != nil {
+		return err
+	}
+	conn, err := sql.Open("pgx", input.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	eventJSON, _ := json.Marshal(event)
+	recordJSON, _ := json.Marshal(record)
+	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_completions(repository,generation,event,publication,occurrence,data) VALUES($1,1,$2,$3,$4,$5)`, repository, event.ID, event.PublicationID, event.ClosingOccurrence, string(eventJSON)); err != nil {
+		return err
+	}
+	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_reassessments(cycle,repository,generation,event,state,data) VALUES($1,$2,1,$3,$4,$5)`, cycle.CycleID, repository, event.ID, cycle.State, string(recordJSON)); err != nil {
+		return err
+	}
+	coordinator := control.NewCoordinator(db, nil, nil)
+	calls := 0
+	changeFile := filepath.Join(filepath.Dir(tipFile), "completion-body-change")
+	deps := control.CompletionDriveDeps{CaptureLocal: input.CaptureCompletionLocal, ReadIssues: func(ctx context.Context, repo int64) ([]control.NativeInventoryIssue, error) {
+		issues, err := input.ReadCompletionIssues(ctx, repo)
+		calls++
+		if calls == 1 && err == nil {
+			err = os.WriteFile(changeFile, []byte("declared concurrent edit"), 0600)
+		}
+		return issues, err
+	}}
+	coordinator.DriveCompletions(ctx, deps)
+	held, err := db.ReassessmentRecord(ctx, cycle.CycleID)
+	if err != nil || held.Cycle.State != factory.ReassessmentCollecting || held.WaitReason != control.HoldInventoryRevision || held.InventoryDigest != "" {
+		return fmt.Errorf("changed complete inventory did not hold: state=%s reason=%s err=%v", held.Cycle.State, held.WaitReason, err)
+	}
+	if err = os.Remove(changeFile); err != nil {
+		return err
+	}
+	deps.ReadIssues = input.ReadCompletionIssues
+	report := coordinator.DriveCompletions(ctx, deps)
+	sealed, err := db.ReassessmentRecord(ctx, cycle.CycleID)
+	if err != nil || len(report.Sealed) != 1 || sealed.Cycle.State != factory.ReassessmentDeciding || sealed.InventoryDigest == "" || sealed.EvidenceIssues != 1 || len(sealed.Evidence) != 1 || sealed.Local.SourceCommit != source {
+		return fmt.Errorf("matching complete inventories did not seal: report=%+v state=%s reason=%s err=%v", report, sealed.Cycle.State, sealed.WaitReason, err)
+	}
+	fmt.Println("PASS: actual native complete issue reads through the canonical completion drive hold on a changed second observation, then persist the matching whole inventory and local source in PostgreSQL; prior completion/provider declared, no funded decision")
 	return nil
 }
 

@@ -58,7 +58,7 @@ func (c *Coordinator) saveDeliveryRepair(ctx context.Context, record store.Deliv
 }
 
 func (c *Coordinator) driveDeliveryRepairs(ctx context.Context) {
-	if c.Store == nil || c.Host == nil || c.Broker == nil || c.CompletionEnumerator == nil || c.CompletionLocalCapture == nil {
+	if c.Store == nil || c.Host == nil || c.Broker == nil || !c.completionDriveDeps().available() {
 		return
 	}
 	records, next, err := c.Store.PendingDeliveryRepairRecords(ctx, c.deliveryRepairCursor, 16)
@@ -75,7 +75,7 @@ func (c *Coordinator) driveDeliveryRepairs(ctx context.Context) {
 		}
 		switch record.Cycle.State {
 		case factory.RepairCollecting:
-			sealed := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, record.Cause.Repository, 0, nil)
+			sealed := bracketMaterialCollect(ctx, c.completionDriveDeps(), record.Cause.Repository, 0, nil)
 			if sealed.sealed == nil {
 				c.saveDeliveryRepair(ctx, record, factory.RepairCollecting, sealed.hold)
 				continue

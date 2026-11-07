@@ -51,7 +51,7 @@ func (c *Coordinator) driveRepairAdoption(ctx context.Context, cause repairAdopt
 			}
 		}
 	}
-	fresh := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, cause.repository(), cause.progressGeneration(), nil)
+	fresh := bracketMaterialCollect(ctx, c.completionDriveDeps(), cause.repository(), cause.progressGeneration(), nil)
 	if fresh.hold != "" {
 		cause.hold(ctx, c, cycle, fresh.hold)
 		return
@@ -172,7 +172,7 @@ func (c *Coordinator) validateRepairAdoptionGeneration(ctx context.Context, gene
 	if err = c.currentAcceptedIntent(ctx, entry.Revision); err != nil {
 		return nil, err
 	}
-	fresh := bracketMaterialCollect(ctx, CompletionDriveDeps{Enumerator: c.CompletionEnumerator, CaptureLocal: c.CompletionLocalCapture}, cause.repository(), cause.progressGeneration(), nil)
+	fresh := bracketMaterialCollect(ctx, c.completionDriveDeps(), cause.repository(), cause.progressGeneration(), nil)
 	if fresh.hold != "" {
 		return &DispatchWait{Reason: WaitInputsUnavailable, Detail: fresh.hold}, nil
 	}
