@@ -199,8 +199,13 @@ func TestFactoryMCPTransactions(t *testing.T) {
 	}
 	changed := submission
 	changed.Payload = []byte(`{"outcome":"blocked"}`)
-	if same, err := db.RecordMCPSubmission(ctx, changed); err != nil || same != first {
-		t.Fatal("repeated post key changed the submitted result", same, err)
+	if _, err := db.RecordMCPSubmission(ctx, changed); !errors.Is(err, ErrMCPSubmissionConflict) {
+		t.Fatal("changed payload under the same submission identity was not refused", err)
+	}
+	changed = submission
+	changed.Tool = factory.MCPToolFinishIncomplete
+	if _, err := db.RecordMCPSubmission(ctx, changed); !errors.Is(err, ErrMCPSubmissionConflict) {
+		t.Fatal("different tool under the same submission identity was not refused", err)
 	}
 	recovered, err := db.MCPWorkStatus(ctx, capability.AssignmentID, submission.SubmissionID)
 	if err != nil {

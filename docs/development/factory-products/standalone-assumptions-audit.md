@@ -304,6 +304,12 @@ corrections are now active; the old feature queue waits for their resolution.
   settlement/retirement/accounting without replay in
   `/home/vince/tmp/fmuse-public-task8.NLRcUJ/recovery-final.log`. Its model-reported
   task commit is not a verified final candidate. Real requalification is pending.
+  A subsequent live run reached the final candidate but its finish collided with
+  a task-output ID. Storage now refuses changed tool/payload under an existing
+  ID; exact retries remain valid. The existing PostgreSQL transaction check and
+  native Builder collision-refusal/fresh-finish/settlement check passed; evidence
+  and the later reviewer observation race are recorded in the canonical plan.
+  The original collision run remains blocked, not retroactively completed.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

@@ -2706,6 +2706,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	fixtureTimeout := 30 * time.Second
+	if action == "settled-admitted-native" && input.Tasks && input.ParentRun != "" {
+		fixtureTimeout = 60 * time.Second
+	}
 	if action == "check-admitted-native" && input.Tasks && input.ParentRun != "" {
 		fixtureTimeout = min(130*time.Second, max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5*time.Second))))
 	}
@@ -2766,6 +2769,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 		coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
 		expectedOutcome := factory.Failed
+		completedTasks := input.Tasks && prior.FinalCheckpoint != nil && prior.FinalCheckpoint.Status == "committed"
+		if completedTasks {
+			observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: prior.ProjectID})
+			if err != nil || observed.Phase != project.FactoryCompleted || observed.Retirement != execution.Retired {
+				return fmt.Errorf("retained task completion unavailable: %v", err)
+			}
+			expectedOutcome = factory.Succeeded
+		}
 		if !input.Live {
 			expectedOutcome = factory.Succeeded // Process outcome; the fixture's product result remains blocked.
 		}
@@ -2803,7 +2814,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return err
 		}
 		var usage factory.Usage
-		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.UsageEnd(time.Now())) || !usage.StartedAt.Equal(prior.Started) {
+		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || !completedTasks && usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.UsageEnd(time.Now())) || !usage.StartedAt.Equal(prior.Started) {
 			return errors.New("recovered usage includes offline settlement delay")
 		}
 		if !input.Live {
@@ -2818,10 +2829,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		} else if input.Tasks {
 			terminal, found, err := db.TerminalMCPProposal(ctx, a.ID)
 			reservation, reservationErr := db.Reservation(ctx, a.ID)
-			if err != nil || reservationErr != nil || !found || terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != factory.NeedsHuman {
+			expectedProduct := factory.NeedsHuman
+			if completedTasks && found {
+				expectedProduct = factory.Succeeded
+			}
+			if err != nil || reservationErr != nil || !found && !completedTasks || found && terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != expectedProduct {
 				return fmt.Errorf("original incomplete task result/accounting was not retained: terminal=%s found=%t reservation=%s assignment=%s outcome=%s errors=%v/%v", terminal.State, found, reservation.State, a.Stage, a.Outcome, err, reservationErr)
 			}
-			fmt.Println("PASS: original incomplete Muse task settled without inference replay; exact process/root retirement, accepted blocked result, consumed reservation and stop-based source usage retained")
+			fmt.Println("PASS: original Muse task settled without inference replay; exact process/root retirement, canonical result, consumed reservation and stop-based source usage retained; outcome", a.Outcome)
 		} else {
 			fmt.Println("PASS: exact original deadline run recovered and settled failed without relaunch; source usage remains one admitted minute")
 		}
@@ -2906,7 +2921,26 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 					return err
 				}
 				if current.Reconciled {
-					break
+					assignment, err := db.AssignmentByRun(ctx, input.Run)
+					if err != nil {
+						return err
+					}
+					if assignment.Stage == factory.AssignmentAssigned {
+						if _, err = control.SettleMCPTerminalProposal(ctx, db, assignment.ID, time.Now()); err != nil {
+							return fmt.Errorf("original terminal settlement: %w", err)
+						}
+						assignment, err = db.Assignment(ctx, assignment.ID)
+						if err != nil {
+							return err
+						}
+					}
+					terminal, found, err := db.TerminalMCPProposal(ctx, assignment.ID)
+					if err != nil {
+						return err
+					}
+					if assignment.Stage == factory.AssignmentFinished && found && terminal.State == factory.MCPWorkAccepted {
+						break
+					}
 				}
 				select {
 				case <-ctx.Done():
@@ -2933,7 +2967,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 		if !run.Reconciled || run.Native == nil || !run.Native.Settled() || !found || terminal.State != factory.MCPWorkAccepted ||
 			!input.Tasks && (assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman) || input.Tasks && (assignment.Result == nil || assignment.Result.PhaseResult == nil || assignment.Result.PhaseResult.Status != "completed") {
-			return errors.New("coordinator did not retain the actual incomplete worker result and retired resources")
+			return fmt.Errorf("coordinator did not retain the worker result and retired resources: reconciled=%t terminal=%s assignment=%s outcome=%s reason=%s", run.Reconciled, terminal.State, assignment.Stage, assignment.Outcome, assignment.Reason)
 		}
 		if input.MuseLogin {
 			used, err := db.UsageTotal(ctx, repository, input.Connection)
@@ -3672,10 +3706,15 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 				return err
 			}
 			terminal, found, err := db.TerminalMCPProposal(ctx, review.ID)
-			if err != nil || !found || terminal.State != factory.MCPWorkAccepted || review.Stage != factory.AssignmentFinished || review.Outcome != factory.NeedsHuman || !reviewerRun.Native.Settled() {
-				return fmt.Errorf("actual incomplete reviewer did not settle: %w", err)
+			if err != nil {
+				return err
 			}
-			break
+			if found && terminal.State == factory.MCPWorkAccepted && review.Stage == factory.AssignmentFinished {
+				if review.Outcome != factory.NeedsHuman || !reviewerRun.Native.Settled() {
+					return errors.New("incomplete reviewer result or native retirement differs")
+				}
+				break
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -4908,7 +4947,7 @@ func workerSequentialTasks(client *http.Client) error {
 		if err = wait(id, store.PlanTaskOutputReady, false); err != nil {
 			return err
 		}
-		if _, err = workerMCPCall(client, "factory.submit_task_output", map[string]any{"task_id": id, "evidence_refs": []string{"native-task.txt"}}); err != nil {
+		if _, err = workerMCPCallID(client, "factory.submit_task_output", map[string]any{"task_id": id, "evidence_refs": []string{"native-task.txt"}}, "native-task-"+id+"-output"); err != nil {
 			return err
 		}
 		if err = wait(id, store.PlanTaskCompleted, false); err != nil {
@@ -4917,6 +4956,9 @@ func workerSequentialTasks(client *http.Client) error {
 	}
 	if err := wait("", "", true); err != nil {
 		return err
+	}
+	if _, err := workerMCPCallID(client, "factory.finish_implementation", map[string]any{}, "native-task-second-output"); err == nil || !strings.Contains(err.Error(), "submission_id already records different work") {
+		return errors.New("different tool under an existing task output identity was not refused")
 	}
 	fmt.Println("actual-admitted-sequential-native-tasks-and-final-checkpoint")
 	return nil

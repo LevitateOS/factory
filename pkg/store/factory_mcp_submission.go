@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -16,6 +17,7 @@ var (
 	ErrMCPSubmissionCapabilityInactive = errors.New("factory capability is not active for this assignment")
 	ErrMCPSubmissionCapabilityExpired  = errors.New("factory capability is expired")
 	ErrMCPSubmissionAssignmentFinished = errors.New("assignment already finished")
+	ErrMCPSubmissionConflict           = errors.New("submission_id already records different work; use a new identity for a different tool or payload")
 )
 
 // mcpSubmittedWork is the work attached to a post. State and Checkpoint are the
@@ -60,9 +62,12 @@ func (s *Store) RecordMCPSubmission(ctx context.Context, submission factory.MCPS
 	var raw []byte
 	err = tx.QueryRowContext(ctx, mcpWorkPostLookup, submission.AssignmentID, submission.SubmissionID).Scan(&id, &key, &raw)
 	if err == nil {
-		_, result, err := decodeMCPWorkPost(submission.AssignmentID, key, id, raw)
+		saved, result, err := decodeMCPWorkPost(submission.AssignmentID, key, id, raw)
 		if err != nil {
 			return result, err
+		}
+		if saved.Tool != submission.Tool || saved.CapabilityID != submission.CapabilityID || !bytes.Equal(saved.Payload, submission.Payload) {
+			return factory.MCPWorkStatus{}, ErrMCPSubmissionConflict
 		}
 		return result, tx.Commit()
 	}

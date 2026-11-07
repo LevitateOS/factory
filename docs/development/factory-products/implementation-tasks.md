@@ -84,7 +84,7 @@ missing-file read followed by edits, sequential checkpoints, candidate export,
 reviewer incomplete-result retirement and retained restart readback. Provider
 facts/tool availability remain declared; no model or GitHub effect ran. The
 authorized Muse attempt that exposed the missing-file session failure settled
-blocked without replay; its exact evidence and remaining gates are in A16 and
+blocked without replay; its exact evidence and remaining gates are in A04/A19 and
 the security handoff. Missing reads now return `exists=false` without closing the
 task session. Real Muse requalification of this fix remains pending.
 The next live attempt exposed premature terminal admission before final
@@ -95,6 +95,15 @@ passed refusal-before-work followed by normal completion in
 without final evidence now settle blocked through the canonical terminal owner;
 the original live run passed this recovery without replay in
 `/home/vince/tmp/fmuse-public-task8.NLRcUJ/recovery-final.log`.
+The subsequent real task reached final integration but reused its task-output
+submission ID for the finish. PostgreSQL now refuses a different tool or payload
+under an existing ID. `TestFactoryMCPTransactions` passed against the disposable
+native PostgreSQL fixture; the Builder portion of
+`/home/vince/tmp/fnative-submission8.l9U9GP/result.log` passed collision refusal,
+fresh finish and settlement. Its later reviewer assertion raced terminal
+settlement; the observer now waits for both. The original live collision run
+stays blocked, with retained candidate/accounting and no inferred finish; see
+the security handoff. Real completion after this correction remains pending.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

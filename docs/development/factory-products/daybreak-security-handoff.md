@@ -565,6 +565,19 @@ blocks reconciled runs whose final evidence cannot arrive. The existing local
 journey passed early refusal then completion in
 `/home/vince/tmp/fnative-finish-barrier8.sowIzi/result.log`. Live requalification,
 interrupted receipt publication and broader isolation remain open.
+The subsequent live run `c77a31f57e7b2aba88b2dfb8698fd52b` under
+`/home/vince/tmp/fmuse-final-barrier8.E4boNa/` proved missing read/edit, task and
+final checks and candidate `326dddd2e8f00766d69b3d2542d5735cce6e1755`, but the
+finish reused a task-output ID and received that unrelated receipt. No terminal
+proposal exists. `recovery-final.log` proves its unchanged canonical needs-human
+result, retired process/root, consumed reservation and exact stop-based usage;
+it was not replayed or marked successful. `store/factory_mcp_submission.go`
+now refuses changed tool, capability or payload under an existing submission ID.
+The existing PostgreSQL transaction check passed; the Builder portion of
+`/home/vince/tmp/fnative-submission8.l9U9GP/result.log` proved collision refusal,
+fresh finish and settlement. Its later reviewer assertion raced terminal
+settlement, so the observer now waits for assignment and proposal completion.
+Real Muse completion after this fix and broader lifecycle gates remain pending.
 The token task source has no composed task owner and remains unavailable.
 Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
 `{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,
