@@ -24400,6 +24400,15 @@ records exact files, required bindings and closure evidence. This is a source
 dependency finding, not connected qualification or permission to expose the
 private callback through a generic proxy.
 
+The first host component is committed locally in Fountain `778e08aa98` on
+`codex/fountain-desktop-gateway`: public-OAuth-bound repository/runtime enrollment,
+exact replay, retained withdrawal and bounded repository read. Actual S256/HTTP/
+PostgreSQL enrollment, replay and withdrawal/refusal passed in
+`/home/vince/tmp/fgateway22.FdH1nJ/result-grant-fixed.log`; the server build passed.
+The original Fountain checkout is unchanged. This is a fixture-account component
+check, not a deployed gateway or desktop D2 qualification. Central placement,
+operation principals/journals, transfer and the Rust/UI consumer remain pending.
+
 - **C:** Resolve D2 with a real supported human login and revocable grant. Source
   contains PKCE support but the scoped desktop gateway grant is new. Bind account,
   repository, operation kinds, acting service principals and runtime generation.

@@ -79,10 +79,32 @@ the current SodaOS integration (`627c637f`). Factory currently has no Fountain
 desktop connector. Existing OAuth support and private SDK operations do not
 establish the missing remote authority.
 
-The next implementation belongs to the Fountain Go host/SDK and its Forge
-integration, outside the standalone engine dependency closure. It must expose
-supported public-client enrollment and a revocable grant binding the authenticated
-account, repository, permitted operations, acting principals and runtime/generation.
+The first host component is now implemented in local Fountain commit
+`778e08aa98`, branch `codex/fountain-desktop-gateway`, isolated checkout
+`/home/vince/.codex/worktrees/factory-native-executor/factory/.artifacts/fountain-desktop-gateway`.
+Files: `sdk/desktop_grants.go`, `models/desktopgrant/grant.go`, migration
+`v17d_add-native-desktop-grant.go`, `routers/api/v1/repo/desktop_grants.go`, API
+routes and `services/auth/method/{oauth2,auth_result_oauth}.go`. It binds a
+repository/runtime enrollment to the already validated public OAuth grant and
+account, supports exact replay and retained withdrawal, and admits only a bounded
+repository read. The enrollment ID is not a bearer credential. Existing token
+validation remains its defining owner; the desktop supplies no actor or private
+callback admission. This component grants no execution, placement or publication.
+
+`/home/vince/tmp/fgateway22.FdH1nJ/result-grant-fixed.log` passed the actual S256
+exchange, read-scoped enrollment/replay, repository read, withdrawal, subsequent
+403 and inactive readback through the real HTTP handlers and PostgreSQL. The
+accounts and OAuth application are fixtures; no personal login or deployed host
+was used. The owned database stopped afterward. The server build passed. The
+unchanged native reservation initializer also logged a handled concurrent
+first-insert duplicate (`models/nativeoperation/store.go`); startup concurrency
+remains unqualified and needs concurrent first-read/transaction evidence. No
+reservation or ownership behavior was changed by this slice.
+
+Remaining implementation belongs to the Fountain Go host/SDK and its Forge
+integration, outside the standalone engine dependency closure. Extend the read
+enrollment with supported operation kinds, acting principals and centrally
+verified runtime/generation before admitting their effects.
 Each HTTPS operation must recheck current native permission, grant lifetime and
 placement. Preserve original operation identities and lookup/cancel receipts;
 candidate upload must bind the pending publication and exact digest, without
@@ -90,11 +112,11 @@ implying publication success. Private callback admissions, service credentials
 and socket access stay on the host. Rust can then own the authenticated desktop
 session and shared UI integration against that implemented contract.
 
-This was read-only source inspection, not login, grant issuance or a security
-probe. D2 remains open. Closure requires actual supported desktop login,
+The baseline inspection was read-only; the later component check issued only
+fixture grants. D2 remains open. Closure requires actual supported desktop login,
 authenticated reads/operations, revocation/expiry denial, old-generation refusal
-and retained uncertain-operation recovery against the real host. Server contract
-implementation and a live configured host/client registration are dependencies;
+and retained uncertain-operation recovery against the real host. Remaining server
+operations/placement, a Rust desktop consumer and a live configured host/client registration are dependencies;
 neither a generic OAuth token nor browser presentation fields prove admission.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no

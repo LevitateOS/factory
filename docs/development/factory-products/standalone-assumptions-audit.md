@@ -1704,6 +1704,16 @@ integration is `627c637f`. T10-GATEWAY first needs a defining host/SDK capabilit
 outside Factory's engine, then its authenticated Rust desktop consumer. The D2
 handoff records exact files, required authority bindings and real closure
 evidence. No login/probe ran and no Fountain or security gate was qualified.
+The first corrective host component is now local commit `778e08aa98` on the
+isolated Fountain branch `codex/fountain-desktop-gateway`: current public OAuth
+authorization binds repository/runtime read enrollment, with exact replay and
+retained withdrawal. The existing integration harness passed actual S256 login
+exchange, read-scoped HTTP enrollment/read, withdrawal/refusal and inactive
+readback against owned PostgreSQL in
+`/home/vince/tmp/fgateway22.FdH1nJ/result-grant-fixed.log`; the server build passed.
+Accounts/application were fixtures and no personal login or deployed host was
+used. D2, central placement, private operation delegation, the Rust desktop
+consumer and installed/upgrade qualification remain open.
 
 **Release decision.** Packaging and installed GitHub work have independent paths.
 However, upgrade/parity and the definition of complete Linux work require Forge,
