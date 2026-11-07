@@ -38,6 +38,7 @@ export function progressStoryPeer(
     required_checks: ['build'],
     reassessment_minutes: 30,
     intent_minutes: 12,
+    judgments: null as Record<string, unknown> | null,
     attempt_limits: {active_minutes: 30, correction_cycles: 2, review_rounds: 2, max_children: 1},
     roles: {
       'soda-coder': {
@@ -103,7 +104,7 @@ export function progressStoryPeer(
         if (change.expected_revision !== (configured ? policy.revision : 0)) return Response.json({}, {status: 409});
         policyChanges.push(change);
         policy = configured
-          ? {...policy, roles: change.roles, revision: policy.revision + 1}
+          ? {...policy, roles: change.roles, judgments: change.judgments, revision: policy.revision + 1}
           : {...policy, ...change, revision: 1};
         configured = true;
         return Response.json({state: 'applied'});

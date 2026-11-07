@@ -20,6 +20,7 @@ type PolicyActor struct {
 type PolicyChange struct {
 	AttemptLimits       *factory.AttemptLimits           `json:"attempt_limits"`
 	Roles               map[string]factory.RoleSelection `json:"roles"`
+	Judgments           *factory.RoleSelection           `json:"judgments,omitempty"`
 	PublishActor        PolicyActor                      `json:"publish_actor"`
 	CreateActor         PolicyActor                      `json:"create_actor"`
 	ReviewActor         PolicyActor                      `json:"review_actor"`
@@ -118,7 +119,7 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 	}
 	policy := factory.RepositoryPolicy{
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
-		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: in.Roles,
+		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: in.Roles, Judgments: in.Judgments,
 		Checks: in.RequiredChecks, MergeMethod: in.MergeMethod,
 		Publish: publish, Create: create, Review: review, Resolve: resolve, Merge: merge,
 		AttemptLimits:       factory.EffectiveAttemptLimits(in.AttemptLimits),

@@ -550,6 +550,14 @@ account. Historical policies remain readable and can be disabled without making
 new spending choices; they cannot dispatch with an omitted account. This adds
 no provider connector: native execution currently supports Muse only.
 
+`judgments` separately records a `harness`, `model` and explicit sponsorship
+`account` for product judgments. Omission keeps judgments unconfigured; no agent
+role or server key is selected on the owner's behalf. A sponsorship must include
+the `factory-judgment` spending scope before that source can fund judgments; this
+is not a workspace agent role. Shared Work saves these choices through the same
+policy revision/CAS, independently of Coding and Review. Native judgment
+execution remains unavailable until the selected source has an admitted connector.
+
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and
 current admission before persistence. Existing services retain current

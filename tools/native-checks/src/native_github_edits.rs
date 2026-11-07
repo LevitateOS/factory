@@ -521,6 +521,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 && initial.1["policy"]["enabled"] == false
                 && initial.1["policy"]["roles"]["soda-coder"]["account"].is_null()
                 && initial.1["policy"]["roles"]["soda-reviewer"]["account"].is_null()
+                && initial.1["policy"]["judgments"].is_null()
                 && initial.1["policy"]["merge_method"] == "squash",
             "disabled initial policy invented spending choices",
         )?;
@@ -562,7 +563,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let funding: ProductRequest = serde_json::from_value(
             json!({"kind":"sponsorship","repository":repository,"connection":source_id,
-            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer"],"allowance_minutes":30,"active":true}}),
+            "body":{"expected_revision":0,"roles":["soda-coder","soda-reviewer","factory-judgment"],"allowance_minutes":30,"active":true}}),
         )?;
         let (method, target, body) = funding.request()?;
         let granted = call(&runtime, &store, &connection, method, &target, &body).await?;
@@ -582,8 +583,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let mut selected_role = role.clone();
         selected_role["account"] = json!(source_id);
+        let mut judgment = selected_role.clone();
+        judgment["model"] = json!("declared-judgment-model");
         let selected = json!({"expected_revision":2,"enabled":false,"paused":false,"target_branch":"refs/heads/main",
-            "roles":{"soda-coder":selected_role,"soda-reviewer":selected_role},"required_checks":["fixture/check"],"merge_method":"rebase",
+            "roles":{"soda-coder":selected_role,"soda-reviewer":selected_role},"judgments":judgment,"required_checks":["fixture/check"],"merge_method":"rebase",
             "publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor});
         ensure(
             call(
@@ -602,6 +605,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         ensure(
             selected.1["policy"]["roles"]["soda-coder"]["account"] == source_id
                 && selected.1["policy"]["roles"]["soda-reviewer"]["account"] == source_id
+                && selected.1["policy"]["judgments"]["account"] == source_id
+                && selected.1["policy"]["judgments"]["model"] == "declared-judgment-model"
+                && selected.1["sponsorships"][0]["roles"]
+                    .as_array().is_some_and(|roles| roles.contains(&json!("factory-judgment")))
                 && selected.1["policy"]["enabled"] == false,
             "saved Muse role choice changed source or enabled automation",
         )?;
@@ -612,7 +619,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 == 412,
             "stale Muse source allowance overwrote current funding",
         )?;
-        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer"],"allowance_minutes":30,"active":false});
+        let withdrawal = json!({"expected_revision":saved["revision"],"roles":["soda-coder","soda-reviewer","factory-judgment"],"allowance_minutes":30,"active":false});
         ensure(
             call(
                 &runtime,
@@ -628,10 +635,12 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let withdrawn = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
         ensure(
-            withdrawn.1["sponsorships"][0]["active"] == false,
-            "Muse source withdrawal was not retained",
+            withdrawn.1["sponsorships"][0]["active"] == false
+                && withdrawn.1["policy"]["judgments"]["account"] == source_id
+                && withdrawn.1["policy"]["judgments"]["model"] == "declared-judgment-model",
+            "Muse source withdrawal was not retained or replaced the judgment selection",
         )?;
-        println!("PASS: explicit CLI-managed Muse source allowance, per-role selection, CAS/readback and withdrawal without a Muse credential or billing identity; execution remains unavailable");
+        println!("PASS: explicit CLI-managed Muse source allowance, per-role and judgment selection, CAS/readback and withdrawal without a Muse credential or billing identity; judgment execution remains unavailable");
         let access = call(
             &runtime,
             &store,

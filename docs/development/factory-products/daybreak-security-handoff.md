@@ -35,6 +35,18 @@ refinement is unavailable and launches no model; closing it requires an actual
 provider-supported conditional effect preserving concurrent human text. A25
 judgment source/funding and cancellation/restart proof is a separate dependency.
 
+**A25 judgment spending selection:** `factory/grants.go`, `factory/sponsorship.go`
+and `factory/service/policies.go` under `pkg/` retain an explicit judgment
+provider/model/source and the separate `factory-judgment` sponsorship scope.
+`frontend/factory/work/role-settings.ts` uses existing policy CAS and source
+allowance commands. A25 records actual native/Go/PostgreSQL and declared-browser
+configuration checks; they prove no inference or broad authority gate. Exact
+remaining blocker: no admitted native judgment connector or exact-source charge
+and retirement receipt is composed. Before enabling it, prove selected-source
+admission, bounded spend, withdrawal/cancellation, original-result recovery and
+no automatic replacement, including installed scope. No source is implicitly
+authorized by having Coding or Review permission.
+
 **A24 navigation scope:** the owner selected repository-local Feed. The optional
 `selectedRepository` in `frontend/factory/app/factory-app.ts` retains navigation
 independently of route shape; `frontend/desktop/product.ts` supplies its admitted

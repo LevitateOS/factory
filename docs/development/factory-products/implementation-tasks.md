@@ -123,8 +123,10 @@ original request through the existing native issue journal. A05/A21 records the
 actual local one-creation/replay/restart/withdrawal check and declared-provider/
 routing limits. AI refinement remains unavailable without conditional delivery.
 The owner selected explicit provider/model/account configuration for product
-judgments (A25); a separate TypeSafe/JEV service is no longer required. Implement
-that selection and admitted inference before resuming dependent routing/planning;
+judgments (A25); a separate TypeSafe/JEV service is no longer required. Policy,
+source scope and shared Work now save that selection; A25 records actual native
+and browser configuration checks. Implement admitted inference and exact-source
+accounting before resuming dependent routing/planning;
 the full automated pipeline remains required.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining

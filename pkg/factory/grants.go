@@ -194,6 +194,7 @@ func EffectiveReassessmentMinutes(minutes int) int {
 // provider sponsorship or environment permission.
 type RepositoryPolicy struct {
 	Roles               map[string]RoleSelection `json:"roles"`
+	Judgments           *RoleSelection           `json:"judgments,omitempty"`
 	Publish             ActorBindingRef          `json:"publish_actor"`
 	Create              ActorBindingRef          `json:"create_actor"`
 	Review              ActorBindingRef          `json:"review_actor"`
@@ -221,6 +222,9 @@ func (p RepositoryPolicy) Validate() error {
 	}
 	if len(p.Roles) != 2 || p.Roles[project.RoleCoder].Validate() != nil || p.Roles[project.RoleReviewer].Validate() != nil {
 		return errors.New("policy must select exactly the coding and review roles")
+	}
+	if p.Judgments != nil && (p.Judgments.Validate() != nil || p.Judgments.Account == "") {
+		return errors.New("judgments require an explicit provider, model and paying source")
 	}
 	if err := checkPolicyCheckNames(p); err != nil {
 		return err

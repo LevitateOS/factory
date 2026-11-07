@@ -47,6 +47,10 @@ type NativeSponsorship struct {
 
 const NativeMuseLogin = execution.NativeMuseLogin
 
+// RoleJudgment is a spending scope, not a workspace execution role. It cannot
+// substitute for a Builder or Reviewer assignment.
+const RoleJudgment = "factory-judgment"
+
 func (n NativeSponsorship) Validate() error {
 	if !collaboration.ValidID(string(n.Profile)) {
 		return errors.New("invalid native sponsorship credential binding")
@@ -84,12 +88,12 @@ func (s Sponsorship) Validate() error {
 	} else if s.Generation <= 0 || s.GrantID == "" || len(s.GrantID) > 128 {
 		return errors.New("invalid sponsorship broker grant")
 	}
-	if len(s.Roles) == 0 || len(s.Roles) > 2 {
-		return errors.New("sponsorship must permit one or both factory roles")
+	if len(s.Roles) == 0 || len(s.Roles) > 3 {
+		return errors.New("sponsorship must permit a supported role or product judgments")
 	}
 	seen := make(map[string]bool, len(s.Roles))
 	for _, role := range s.Roles {
-		if !project.ValidFactoryRole(role) || seen[role] {
+		if (!project.ValidFactoryRole(role) && role != RoleJudgment) || seen[role] {
 			return errors.New("invalid sponsorship role")
 		}
 		seen[role] = true

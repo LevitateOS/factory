@@ -8,7 +8,8 @@ interface RoleContext {
   readonly actor?: string;
   readonly accountLabel?: string;
 }
-const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review'} as const;
+const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review', 'factory-judgment': 'Judgments'} as const;
+const judgmentRole = 'factory-judgment';
 const toolStatusLabels = {
   checking: 'Checking Muse for the current release.',
   downloading: 'Downloading the current Muse release.',
@@ -149,7 +150,9 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
   const stored = object(policy.roles),
     roles = {} as Selections;
   for (const role of Object.keys(roleNames) as Role[]) {
-    const selection = object(stored[role]);
+    const selection = role === judgmentRole
+      ? policy.judgments == null ? {account: '', harness: 'muse', model: ''} : object(policy.judgments)
+      : object(stored[role]);
     check(
       typeof selection.harness === 'string' &&
         typeof selection.model === 'string' &&
@@ -171,7 +174,7 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
   const resolve = policy.resolve_actor == null ? {} : object(policy.resolve_actor);
   return {
     expected_revision: policy.revision,
-    roles,
+    ...policySelections(roles),
     enabled: policy.enabled,
     paused: policy.paused,
     target_branch: policy.target_branch,
@@ -186,6 +189,11 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     merge_actor: policyActor(policy.merge_actor),
     ...(resolve.actor_id && resolve.actor_id !== '0' ? {resolve_actor: policyActor(resolve)} : {}),
   };
+}
+
+function policySelections(roles: Selections) {
+  const {[judgmentRole]: judgments, ...agents} = roles;
+  return {roles: agents, judgments: judgments.account || judgments.model ? judgments : null};
 }
 
 /** Shared editor; saved sponsorship references are nonsecret spending choices.
@@ -268,6 +276,7 @@ export class SodaFactoryRoleSettings extends LitElement {
         this.roles = view.roles ?? {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
+          [judgmentRole]: {account: '', harness: 'muse', model: ''},
         };
         if (!view.policy)
           this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false};
@@ -288,6 +297,13 @@ export class SodaFactoryRoleSettings extends LitElement {
     return !!this.view?.accounts.some(
       (source) => source.connection === account && source.active && source.roles.includes(role)
     );
+  }
+  private validSelection(role: Role, initial: boolean) {
+    const selected = this.roles?.[role];
+    if (!selected) return false;
+    if (role === judgmentRole && !selected.model && !selected.account) return true;
+    return selected.harness === 'muse' && !!selected.model.trim() &&
+      ((initial && role !== judgmentRole && !selected.account) || this.eligible(role, selected.account));
   }
   private async saveFunding(event: SubmitEvent) {
     event.preventDefault();
@@ -331,7 +347,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       check(
         account?.active === active &&
           account.minutes === minutes &&
-          account.roles.length === 2 &&
+          account.roles.length === Object.keys(roleNames).length &&
           Object.keys(roleNames).every((role) => account.roles.includes(role))
       );
       if (this.live(context, signal)) {
@@ -382,9 +398,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       actors = initial ? this.initialActors() : undefined;
     if (
       !(Object.keys(roleNames) as Role[]).every(
-        (role) =>
-          roles[role].harness === 'muse' &&
-          ((initial && !roles[role].account) || this.eligible(role, roles[role].account))
+        (role) => this.validSelection(role, initial)
       )
     )
       return;
@@ -394,7 +408,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       ? policyChange(view.policy, roles)
       : {
           expected_revision: 0,
-          roles,
+          ...policySelections(roles),
           enabled: false,
           paused: false,
           target_branch: this.setup.targetBranch,
@@ -464,10 +478,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       view?.editable &&
       roles &&
       (Object.keys(roleNames) as Role[]).every(
-        (role) =>
-          roles[role].harness === 'muse' &&
-          !!roles[role].model.trim() &&
-          ((initial && !roles[role].account) || this.eligible(role, roles[role].account))
+        (role) => this.validSelection(role, initial)
       ) &&
       (!initial ||
         (!!this.initialActors() &&
@@ -477,7 +488,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           this.checks().length <= 32 &&
           view.options?.mergeMethods.includes(this.setup.method)));
     return html`<section aria-label="Agent role settings">
-      <h3>Agent roles</h3>
+      <h3>Agent roles and judgments</h3>
       <p>
         Choose the provider, model and saved spending source for each role. Factory does not switch sources
         automatically.
@@ -513,7 +524,7 @@ export class SodaFactoryRoleSettings extends LitElement {
                     required
                 /></label>
                 <p>
-                  This repository shares the allowance across Coding and Review. It is Factory's run-time allowance, not
+                  This repository shares the allowance across Coding, Review and Judgments. It is Factory's run-time allowance, not
                   a provider invoice limit.
                 </p>
                 ${view.sources.map((source) => source.tool
@@ -600,6 +611,11 @@ export class SodaFactoryRoleSettings extends LitElement {
                   accounts = view.accounts.filter((account) => account.active && account.roles.includes(role));
                 return html`<fieldset ?disabled=${this.busy || !view.editable}>
                   <legend>${roleNames[role]}</legend>
+                  ${role === judgmentRole ? html`<p>
+                    Select a source for routing, planning and other product judgments. Leave both fields empty to keep
+                    judgments unconfigured. The full pipeline waits for admitted judgment execution.
+                    Judgment execution through this source is not available yet.
+                  </p>` : ''}
                   <label
                     >Provider
                     <select aria-label=${`${roleNames[role]} provider`} disabled>
@@ -612,14 +628,14 @@ export class SodaFactoryRoleSettings extends LitElement {
                       aria-label=${`${roleNames[role]} model`}
                       .value=${selected.model}
                       maxlength="128"
-                      required
+                      ?required=${role !== judgmentRole || !!selected.account}
                       @input=${(event: Event) => this.choose(role, 'model', (event.target as HTMLInputElement).value)}
                   /></label>
                   <label
                     >Spending source
                     <select
                       aria-label=${`${roleNames[role]} spending source`}
-                      ?required=${!initial}
+                      ?required=${role === judgmentRole ? !!selected.model : !initial}
                       @change=${(event: Event) => this.choose(role, 'account', (event.target as HTMLSelectElement).value)}
                     >
                       <option value="" .selected=${!selected.account}>Choose a saved source</option>

@@ -72,6 +72,21 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
+- **A25 — explicit judgment configuration implemented; inference pending.**
+  Policy `judgments` stores its own provider/model/account choice, separate from
+  the two agent roles. The existing sponsorship allows an explicit
+  `factory-judgment` scope; it does not become a workspace execution role. Shared
+  Work exposes this selection without choosing a source automatically. Actual
+  native/Go/PostgreSQL save/readback, source CAS and withdrawal preserving the
+  chosen judgment model/source passed in
+  `/home/vince/tmp/fjudgment-source-native8.o6qQyS/result.log`.
+  Actual Chromium interactions with the shared Lit editor passed in
+  `/home/vince/tmp/fjudgment-source-ui8.0Nfj5y/result.log` against the existing
+  declared peer. Automation remained disabled, agent roles stayed separate and
+  withdrawal retained the selection without fallback. No model request or
+  real provider call ran. Admitted inference, exact-source allowance charging,
+  cancellation, restart and connected/installed qualification remain pending.
+
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and
   issue context. Background creation reacquires that captured connection through
