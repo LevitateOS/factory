@@ -650,7 +650,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let joined_judgment = std::env::var("SODA_NATIVE_CHECK_JUDGMENT_EXECUTABLE").ok();
         if let Some(executable) = &joined_judgment {
-          for mode in ["feed","orphan","purpose","consultation-choice","consultation-noul","consultation-score"] {
+          let selected_mode=std::env::var("SODA_NATIVE_CHECK_JUDGMENT_MODE").ok();
+          for mode in ["feed","orphan","purpose","consultation-choice","consultation-noul","consultation-score","delivery"].into_iter().filter(|mode| selected_mode.as_ref().is_none_or(|selected| selected==mode)) {
             let orphan=mode=="orphan";
             let purpose=mode=="purpose";
             let consultation=mode.strip_prefix("consultation-");
@@ -676,7 +677,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 "judgment fixture post was refused",
             )?;
             let post = saved.1["post_id"].as_str().ok_or("judgment post absent")?;
-            let scoped_post=if let Some(kind)=consultation {format!("consultation:{kind}:{post}")}else if purpose {format!("purpose:{post}")}else{post.into()};
+            let scoped_post=if mode=="delivery" {format!("delivery:{post}")}else if let Some(kind)=consultation {format!("consultation:{kind}:{post}")}else if purpose {format!("purpose:{post}")}else{post.into()};
             let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
             ensure(
                 std::process::Command::new(&helper)
@@ -707,7 +708,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             }
             runtime.start_execution_coordinator().await?;
             let until = Instant::now() + Duration::from_secs(15);
-            while !orphan && !purpose && consultation.is_none() {
+            while !orphan && !purpose && mode!="delivery" && consultation.is_none() {
                 let read = call(
                     &runtime,
                     &store,
@@ -781,7 +782,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         println!("PASS: explicit CLI-managed Muse source allowance, per-role and judgment selection, CAS/readback and withdrawal without a Muse credential or billing identity; judgment execution remains unavailable");
         // Exercise the ordinary shared policy API, keeping native identity
         // references explicit rather than carrying a boolean to a new account.
-        let mut review_policy = selected.1["policy"].clone();
+        let current_policy=call(&runtime,&store,&connection,"GET",&settings_path,&[]).await?;
+        let mut review_policy = current_policy.1["policy"].clone();
         for designated in [true, false] {
             review_policy["expected_revision"] = review_policy["revision"].clone();
             for field in ["repository", "revision", "granted_by"] {

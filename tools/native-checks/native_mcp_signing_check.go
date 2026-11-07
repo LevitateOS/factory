@@ -4761,6 +4761,8 @@ func orphanJudgmentFixture(profile, post string) error {
 }
 
 func judgmentResultFixture(profile, post string, prepare bool) error {
+	delivery := strings.HasPrefix(post, "delivery:")
+	post = strings.TrimPrefix(post, "delivery:")
 	consultationKind := ""
 	if strings.HasPrefix(post, "consultation:") {
 		consultationKind, post, _ = strings.Cut(strings.TrimPrefix(post, "consultation:"), ":")
@@ -4815,8 +4817,12 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		if err != nil {
 			return err
 		}
+		expected := "discussion"
+		if delivery {
+			expected = factory.DeliveryReadyToMerge
+		}
 		if cmd.Finished == "" || json.Unmarshal([]byte(cmd.Outcome), &result) != nil ||
-			(consultationKind == "" && !detail.Record.Deleted && (result.Answer == nil || result.Answer.Selected != "discussion" || result.Answer.Model != fixture.Capture.Selection.Model)) ||
+			(consultationKind == "" && !detail.Record.Deleted && (result.Answer == nil || result.Answer.Selected != expected || result.Answer.Model != fixture.Capture.Selection.Model)) ||
 			(detail.Record.Deleted && result.Answer != nil) {
 			return errors.New("actual native result was not adopted by the Go judgment owner")
 		}
@@ -4877,9 +4883,33 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 			}
 			fmt.Println("PASS: repository-scoped purpose advice adopts the exact native result and caches its receipt; unscoped native selection is refused; no additional inference")
 		}
+		if delivery {
+			native := factoryruntime.NativeJudgments{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}}
+			chooser, model, revision, err := native.BindDeliveryJudgment(ctx, fixture.Capture.Repository)
+			if err != nil || model != fixture.Capture.Selection.Model || revision < 1 {
+				return errors.New("delivery source/model binding differs")
+			}
+			for range 2 {
+				answer, err := chooser.Select(ctx, fixture.State, fixture.Question, fixture.Options)
+				if err != nil || answer.Selected != factory.DeliveryReadyToMerge || answer.Model != model {
+					return fmt.Errorf("bound delivery retained result: %w", err)
+				}
+			}
+			policy, err := db.RepositoryPolicy(ctx, fixture.Capture.Repository)
+			if err != nil {
+				return err
+			}
+			if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+				return err
+			}
+			if _, err = chooser.Select(ctx, fixture.State, fixture.Question, fixture.Options); err == nil {
+				return errors.New("stale bound delivery policy reused a result")
+			}
+			fmt.Println("PASS: 256 KiB declared delivery state through the native tool-free process, private IPC result, exact repository/model/source binding, retained result reuse and stale-policy refusal; material/workflow/tool/answer declared, no paid judgment or merge")
+		}
 		if detail.Record.Deleted {
 			fmt.Println("PASS: deleted source's original native result was accounted after restart without adopting its judgment; no inference replay")
-		} else if !purpose && consultationKind == "" {
+		} else if !purpose && !delivery && consultationKind == "" {
 			fmt.Println("PASS: actual native process result crossed private IPC, passed Go choice validation, routed the real Feed post and charged its captured source; CLI/tool/provider answer declared, no model request")
 		}
 		return nil
@@ -4932,6 +4962,26 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	capture := factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, detail.Record.Repository, subject), Profile: config.Profile, Repository: detail.Record.Repository, SourcePost: post, SourceRevision: detail.Record.Revision, Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OptionsSHA256: factory.NativeJudgmentOptionsDigest(keys), ToolVersion: "fixture", ToolSHA256: hex.EncodeToString(sum[:]), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
 	if purpose {
 		capture.SourcePost = ""
+	}
+	if delivery {
+		state = map[string]any{"declared_delivery_material": strings.Repeat("\\", 131000), "end": "complete", "policy_revision": policy.Revision + 1}
+		raw, _ := json.Marshal(state)
+		if len(raw) > 256*1024 {
+			return errors.New("declared material exceeds delivery contract")
+		}
+		question, options = factory.DeliveryRubric, factory.DeliveryOptions()
+		prompt, err = factory.NativeJudgmentPrompt(state, question, options)
+		if err != nil {
+			return err
+		}
+		wire, _ := json.Marshal(map[string]any{"prompt": prompt})
+		if len(prompt) <= 64*1024 || len(wire) <= 512*1024 {
+			return errors.New("delivery fixture does not cover previous prompt/wire ceilings")
+		}
+		capture.ID = factory.NativeJudgmentID(config.Profile, detail.Record.Repository, "delivery:"+factory.MCPInputDigest([]byte(prompt)))
+		capture.SourcePost = ""
+		capture.PromptSHA256 = factory.MCPInputDigest([]byte(prompt))
+		capture.OptionsSHA256 = factory.NativeJudgmentOptionsDigest([]string{factory.DeliveryReadyToMerge, factory.DeliveryReviewAgain})
 	}
 	if consultationKind != "" {
 		criteria := any(nil)

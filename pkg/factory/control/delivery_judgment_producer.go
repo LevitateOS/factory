@@ -109,16 +109,16 @@ func (c *Coordinator) plannedDeliveryResolutions(ctx context.Context, p factory.
 }
 
 func (c *Coordinator) advisePublicationDelivery(ctx context.Context, p factory.Publication, review ResolvedReviewVerdict) (factory.DeliveryDecision, string, error) {
-	if c.Planning == nil {
-		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
-	}
-	chooser, ok := c.Planning.Chooser.(deliveryProductionChooser)
-	if !ok {
+	chooser, boundRevision, err := c.deliveryChooser(ctx, p.Repository)
+	if err != nil {
 		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
 	}
 	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel())
 	if err != nil {
 		return factory.DeliveryDecision{}, "", err
+	}
+	if boundRevision != 0 && boundRevision != policy.Revision {
+		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
 	}
 	planned, err := c.plannedDeliveryResolutions(ctx, p, cycle, material, policy)
 	if err != nil {
@@ -251,13 +251,16 @@ func (c *Coordinator) currentFundedDeliveryAcceptance(ctx context.Context, p fac
 	if !ready || pending || refused || review.Review == nil || c.Planning == nil {
 		return nil, factory.DeliveryDecision{}, nil
 	}
-	chooser, ok := c.Planning.Chooser.(deliveryProductionChooser)
-	if !ok {
+	chooser, boundRevision, err := c.deliveryChooser(ctx, p.Repository)
+	if err != nil {
 		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
-	material, cycle, _, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel())
+	material, cycle, policy, err := c.deliveryMaterial(ctx, p, review, chooser.DeliveryModel())
 	if err != nil {
 		return nil, factory.DeliveryDecision{}, err
+	}
+	if boundRevision != 0 && boundRevision != policy.Revision {
+		return nil, factory.DeliveryDecision{}, ErrDeliveryUnavailable
 	}
 	if err := material.validate(); err != nil {
 		return nil, factory.DeliveryDecision{}, err

@@ -176,9 +176,20 @@ corrections are now active; the old feature queue waits for their resolution.
   declared; neither fixture proved merge eligibility, and no provider write,
   model, resolution or full pipeline ran. Multi-page member traversal, changes
   while reading, withdrawal and the same-account human-blocker path remain
-  unverified. Delivery still needs a bound chooser/full funded journey and
-  support for its complete input bound (native prompts currently stop at 64 KiB).
-  No native TypeSafe fallback is supplied.
+  unverified. Delivery now binds the repository’s exact judgment selection and
+  policy revision before fingerprinting material. The existing native command
+  journal keys calls by the complete prompt, reuses retained results and checks
+  current policy/source authority before adoption. Go and Rust admit a 320 KiB
+  tool-free prompt, including the complete 256 KiB material; the private wire and
+  retained-request bounds include JSON escaping. Existing consultation and MCP
+  limits are unchanged. `/home/vince/tmp/fdeliverysource10.p1ZkQq/result.log`
+  passed a near-256 KiB declared state (wire over the former 512 KiB ceiling),
+  actual native process/retirement, private-IPC result adoption, exact selected
+  source/model, repeated retained results and stale-policy refusal. Tool, answer,
+  publication material and workflow were declared. The complete production
+  semantic material → paid delivery judgment → funded receipt/acceptance →
+  resolution/merge journey and long-input production Begin callback remain
+  unqualified. No native TypeSafe fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and

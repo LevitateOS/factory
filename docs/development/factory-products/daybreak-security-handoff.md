@@ -158,8 +158,19 @@ Remaining dependency/evidence: use disposable connected PRs to prove personal
 foreign-author COMMENT, designated-identity votes, original human veto retention,
 withdrawal/restart and complete approval/CI/merge behavior. Do not designate an
 identity merely because it differs from the author. No broader gate is closed.
-Funding/chooser composition, native 64 KiB versus delivery 256 KiB input support, original native
-resolution anchors and full funded delivery/installed qualification remain open.
+Selected-source/model/policy binding and complete bounded input support are now
+implemented in `control/delivery_chooser.go`, `runtime/native_delivery_judgment.go`,
+`factory/native_judgment.go` and Rust `factory_provider/judgment.rs`. The private
+execution wire uses the existing bounded protocol allowance for JSON escaping.
+`/home/vince/tmp/fdeliverysource10.p1ZkQq/result.log` proves the near-256 KiB
+declared state through actual native execution, retained request/result/restart,
+private IPC adoption, original source/model and stale-policy refusal. The
+provider/tool/semantic material/workflow were declared; no paid delivery or merge
+ran. Still needed: production long-input Begin, complete semantic composition,
+original funded receipt/acceptance, human-blocker and source/policy withdrawal
+races, original native resolution anchors and full funded delivery/installed
+qualification. These depend on the completed worker/review/delivery journey;
+no broad IPC, custody, spending or delivery gate is closed.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

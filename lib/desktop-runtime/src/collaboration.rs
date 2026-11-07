@@ -1010,7 +1010,7 @@ async fn dispatch(
     let body_limit = if preparation {
         1024 * 1024
     } else if execution {
-        512 * 1024
+        soda_execution_protocol::MAX_MUSE_INPUT
     } else if background {
         1024 * 1024
     } else if signing || verifying {

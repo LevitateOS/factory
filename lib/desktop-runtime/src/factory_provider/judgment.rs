@@ -5,7 +5,7 @@ use crate::private_fs::{private_dir, publish_bytes, read_bytes};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use soda_execution_protocol::{HarnessProfile, MuseInvocation};
+use soda_execution_protocol::{HarnessProfile, MuseInvocation, MAX_MUSE_INPUT, MAX_PROMPT};
 use std::collections::BTreeMap;
 use std::io;
 use std::path::Path;
@@ -69,7 +69,7 @@ impl Judgments {
         let directory = profile.join("native-judgments");
         private_dir(&directory).map_err(|_| denied())?;
         let binding = directory.join(format!("{}.request", request.id));
-        match read_bytes(&binding, 512 * 1024) {
+        match read_bytes(&binding, MAX_MUSE_INPUT) {
             Ok(bytes) => {
                 if serde_json::from_slice::<Request>(&bytes)? != request {
                     return Err(denied());
@@ -94,7 +94,7 @@ impl Judgments {
             || request.deadline_unix_ms <= current
             || request.deadline_unix_ms > current.saturating_add(30_000)
             || request.prompt.is_empty()
-            || request.prompt.len() > 64 * 1024
+            || request.prompt.len() > MAX_PROMPT
         {
             return Err(denied());
         }
@@ -147,7 +147,7 @@ impl Judgments {
         }
         let directory = profile.join("native-judgments");
         let request: Request =
-            match read_bytes(&directory.join(format!("{id}.request")), 512 * 1024) {
+            match read_bytes(&directory.join(format!("{id}.request")), MAX_MUSE_INPUT) {
                 Ok(bytes) => serde_json::from_slice(&bytes)?,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     return Ok(json!({"state":"unknown"}))

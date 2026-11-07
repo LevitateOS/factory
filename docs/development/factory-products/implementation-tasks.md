@@ -145,9 +145,11 @@ journey. Queue funding across repositories awaits an owner decision. Native
 delivery now reads paired, complete bounded PR discussion and current provider
 review opinions, preserving unknown facts and captured policy/input revisions.
 A25 records connected read-only evidence and remaining traversal/race limits.
-Delivery still needs a bound selected-source chooser and its full funded journey;
-the existing 64 KiB native prompt cap also cannot admit all material allowed by
-the 256 KiB delivery contract. The owner’s A04 personal-GitHub COMMENT policy and exact automation identity
+Delivery now binds its selected source/model/policy revision and uses the
+existing native command journal. Its bounded tool-free input and private wire
+can carry the complete 256 KiB material; A25 records the declared large-input
+process/reuse/stale-policy check. Complete semantic-material/paid-receipt/
+acceptance/resolution/merge and installed qualification remain open. The owner’s A04 personal-GitHub COMMENT policy and exact automation identity
 designation are implemented through the shared editor/API/workflow/native send
 checks. A04 records the declared native/browser evidence; connected foreign-
 author COMMENT, dedicated votes, human-veto preservation and full delivery remain

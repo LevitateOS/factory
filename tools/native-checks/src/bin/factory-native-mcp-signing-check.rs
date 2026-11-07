@@ -401,8 +401,9 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     } else if prompt.starts_with("Make one Factory product judgment") {
         let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("judgment input absent")?.1)?;
         let options=input["options"].as_object().ok_or("judgment options absent")?;
-        let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key=="discussion"{1}else{0}))).collect();
-        let answer=serde_json::json!({"selected":"discussion","confidence":1,"probabilities":probabilities});
+        let selected=if options.contains_key("ready_to_merge") {"ready_to_merge"}else{"discussion"};
+        let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key==selected{1}else{0}))).collect();
+        let answer=serde_json::json!({"selected":selected,"confidence":1,"probabilities":probabilities});
         println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
     } else if prompt.starts_with("Answer the independent Factory consultation") {
         let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("consultation input absent")?.1)?;
@@ -515,7 +516,7 @@ fn judgment_connector(root: &Path, prepared: bool) -> Result<(), Box<dyn std::er
         if index == 0
             && result["result"]["output"]
                 .as_str()
-                .is_none_or(|s| !s.contains(if fixture.as_ref().is_some_and(|f| f["capture"]["output_kind"]=="consultation") {"answers"}else if prepared {"discussion"}else{"new_issue"}))
+                .is_none_or(|s| !s.contains(if fixture.as_ref().is_some_and(|f| f["capture"]["output_kind"]=="consultation") {"answers"}else if fixture.as_ref().is_some_and(|f| f["options"].get("ready_to_merge").is_some()) {"ready_to_merge"}else if prepared {"discussion"}else{"new_issue"}))
         {
             return Err("native judgment lost its terminal answer".into());
         }

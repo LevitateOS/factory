@@ -690,3 +690,11 @@ Worker definitions and payload contracts live in
 [mcpwire](../mcpwire/README.md); the shared role-filtered SDK server and tool
 routing live in [mcpserver](../mcpserver/README.md). Hosts compose those owners
 with their current runtime/service ports.
+
+Native delivery judgments bind the repository’s explicit `judgments` selection
+and policy revision before composing their semantic fingerprint. They use the
+existing native command/source allowance journal, without a server-provider
+fallback. Complete delivery material remains bounded at 256 KiB; tool-free
+prompts allow 320 KiB including rubric/options, with a bounded private wire
+allowance for JSON escaping. Completed inspection, current provider rules and
+CI remain prerequisites; this does not qualify the full connected pipeline.

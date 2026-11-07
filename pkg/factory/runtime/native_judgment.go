@@ -164,6 +164,11 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 	if err != nil {
 		return empty, err
 	}
+	return s.selectPrompt(ctx, prompt, optionKeys, request)
+}
+
+func (s nativeRepositoryJudgment) selectPrompt(ctx context.Context, prompt string, optionKeys []string, request factory.PriorityRequest) (factory.PriorityAnswer, error) {
+	var empty factory.PriorityAnswer
 	outcome, err := s.infer(ctx, prompt, factory.NativeJudgmentOptionsDigest(optionKeys), "", &request)
 	if err != nil {
 		return empty, err
