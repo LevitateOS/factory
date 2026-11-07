@@ -924,6 +924,29 @@ ordering/lost-result reconciliation, current permission/source rechecks and the
 full standing-authorization journey after T12-PLACEMENT/T09-EXECUTION. No D1,
 T11-INTAKE or installed gate is closed here.
 
+Native discovery now supplies original visible issue facts through
+`runtime/native_creation_discovery.go`, the existing creation/readiness cursor and
+`runtime/native_server.go`. Rust `github_provider/{request,reads}.rs` supplies a
+fixed issue/creator-bound current permission read, admitted for background reads
+in `collaboration.rs`; no credential reaches Go. `control/acceptance_initial.go`
+rechecks current permission immediately before initial acceptance. This uses
+current permission, not an invented historical permission record; see GitHub's
+[permission endpoint](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).
+`/home/vince/tmp/fintake-policy15.IsasqK/result.log` passed actual native/Go/
+PostgreSQL disabled-policy refusal, edited/read-only cases, unknown-permission
+hold without cursor advancement, pre-admission policy/permission withdrawal, same-account
+acceptance/replay, Factory-origin refusal and serving cursor persistence. Provider,
+permission and authority facts were declared; no model or real GitHub request.
+Remaining closure evidence: connected complete pagination and current creator
+identity/permission reads, foreign repository/creator selector denial,
+account/policy/source withdrawal during I/O, actual
+native-call quota enforcement, retained installed cursor/profile recovery and
+the full standing-authorization issue-to-PR journey. Discovery is limited to
+currently open issues (4096 issues/2 MiB title/body; 16 new positions per pass),
+without deleted/closed event history. Unknown permission stays unknown, never
+read-only or authorized by default. D1, custody/authentication/IPC and installed
+gates remain open; real Muse planning/execution is still a pipeline dependency.
+
 **A18 installed boundary:** the owner selected Linux desktop/systemd and one
 configured execution user per machine for the initial execution release. Other
 environments retain browsing with execution unavailable. This resolves the

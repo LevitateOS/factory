@@ -46,8 +46,8 @@ type GeneratedDependency struct {
 	Complete     bool
 }
 
-// CreationRecoveryBatch is a retained, sequence-bearing original-creation
-// scan. End means the retained end, never complete historical coverage. These
+// CreationRecoveryBatch is a bounded, source-positioned original-creation
+// scan. End means the observed source end, never complete historical coverage. These
 // facts do not grant execution or assert current acceptance. Providers without
 // original author/permission evidence must not fabricate this source from polls.
 // Numeric positions and original issue IDs retain the existing journal's domain;

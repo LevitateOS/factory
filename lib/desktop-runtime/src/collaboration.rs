@@ -628,6 +628,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                     | Read::Pull { .. }
                     | Read::Issue { .. }
                     | Read::Issues { .. }
+                    | Read::IssueCreatorPermission { .. }
                     | Read::Repository { .. }
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }

@@ -158,6 +158,15 @@ Native request refinement now uses its original creation receipt and captured
 account, the existing conditional edit and slot/step journal. A05/A21 records
 actual native replay/restart and human-edit preservation with declared authoring;
 paid/connected/installed refinement and concurrent-withdrawal proof remain open.
+Native original-issue discovery now composes bounded current open-issue reads,
+original-content checks and current creator permission through Rust, with a final
+permission check before Go initial acceptance. Existing creation/readiness journals
+own source positions and origin exclusion; disabled policy performs no discovery.
+`/home/vince/tmp/fintake-policy15.IsasqK/result.log` passed native/Go/PostgreSQL
+same-account acceptance/replay, edited/read-only and Factory-origin cases,
+unknown/withdrawn permission holds and actual serving cursor persistence. Provider/
+permission/authority facts were declared. A08 records the bounded discovery scope;
+connected, quota, installed and full issue-to-PR qualification remain pending.
 The owner permits serial journaled native graph writes with resume, while
 requiring complete intended-graph verification before execution. Native graph
 composition now uses the existing generation and command journals, explicit

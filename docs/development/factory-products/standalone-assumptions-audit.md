@@ -671,8 +671,21 @@ corrections are now active; the old feature queue waits for their resolution.
   issues. Existing post, Issue Maker and intent-generation journals identify
   automated creations; unresolved creates hold automatic intake in that repository
   until reconciliation. Root post results survive source edits/revocation.
-  Coordinator/PostgreSQL evidence and remaining connected limitations are recorded
-  in the security handoff. This does not close D1 or T11-INTAKE.
+  Native original-issue discovery is now composed through the saved publishing
+  account. It compares bounded open-issue observations, checks complete original
+  content/history and current creator permission, and rechecks permission before
+  initial acceptance. Positions are issue numbers, not a provider event clock.
+  `/home/vince/tmp/fintake-policy15.IsasqK/result.log` passed actual native/Go/
+  PostgreSQL disabled-policy refusal, edited/read-only cases, unknown-permission
+  hold without cursor advancement, pre-admission policy/permission withdrawal, same-
+  account acceptance/replay, Factory-origin refusal and serving cursor persistence.
+  Provider/permission/authority facts were declared; no model or real GitHub
+  request ran. Discovery covers currently open issues, not deleted/closed history;
+  it bounds membership at 4096 issues/2 MiB of title/body and examines at most 16
+  new issue positions per pass. Larger/paginated connected reads, account/source/
+  permission withdrawal during I/O, runtime call quotas, retained installed
+  profiles and full issue-to-PR execution remain unqualified. This does not close
+  D1 or T11-INTAKE.
 
 - **A11 — role-specific funding admission and saved-account editor verified.**
   Policy role selections now capture an explicit paying `account` beside harness,
@@ -1322,7 +1335,7 @@ observed native automatic merge failure from an unwired executor.
 
 ### A08 — Original-creation intake assumes human and automation identities differ
 
-**Owner decision implemented; connected qualification pending.** The owner selected
+**Eligibility and native discovery composed; connected pipeline pending.** The owner selected
 automatic intake of their own new issues. Initial acceptance still requires
 corroborated original, unedited creation and creator write permission. Causal
 operation journals now exclude generated issues and hold unresolved creations;
@@ -1332,6 +1345,10 @@ Evidence: [initial acceptance](../../../pkg/factory/control/acceptance_initial.g
 [creator exclusion](../../../pkg/factory/control/acceptance_initial.go#L108).
 Explicit maintainer acceptance is a different existing path:
 [acceptance](../../../pkg/factory/control/acceptance.go#L119).
+
+Native discovery now supplies those facts and current creator permission through
+the selected Rust connector; the verified-corrections entry above records the
+local scope. It does not claim historical permission at issue creation.
 
 **Remaining:** qualify authenticated GitHub creation intake and its operation/result
 races through the full pipeline. Older superseded operations without retained

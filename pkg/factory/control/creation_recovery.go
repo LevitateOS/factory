@@ -8,8 +8,9 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
-// CreationRecoverySource observes retained original native issue-open tasks
-// under an enrolled actor's credential. It grants no provider authority.
+// CreationRecoverySource observes original issues under an enrolled actor.
+// Positions belong to the source: retained host task sequence or GitHub issue
+// number. They imply neither complete provider event history nor authority.
 type CreationRecoverySource interface {
 	ReadCreations(ctx context.Context, repository, after int64, limit int) (factory.CreationRecoveryBatch, error)
 }

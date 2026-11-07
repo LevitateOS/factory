@@ -82,6 +82,7 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "issue_creator_permission" => ("capabilities", reader.issue_creator_permission(q["number"].as_u64().ok_or_else(Failure::invalid)?, r::text(&q,"creator")?).await?),
                         "target_tip" => ("publication", reader.target_tip(r::text(&q, "target_ref")?).await?),
                         "source_bundle" => ("publication", reader.source_bundle(&q).await?),
                         "publication_refs" => ("publication", reader.publication_refs(&q).await?),
@@ -363,6 +364,25 @@ pub(super) struct Reader<'a> {
     pub prefix: String,
 }
 impl<'a> Reader<'a> {
+    async fn issue_creator_permission(&self, number: u64, creator: &str) -> Result<Value> {
+        let issue = self.raw_subject(false, number).await?;
+        let issue_id = r::id(&issue["id"])?;
+        if r::id(&issue["user"]["id"])? != creator { return Err(Failure::new(409,"github_issue_creator_changed")); }
+        let login = r::text(&issue["user"],"login")?;
+        if login.is_empty() || login.len()>100 || !login.bytes().all(|b|b.is_ascii_alphanumeric() || matches!(b,b'-'|b'['|b']')) { return Err(Failure::protocol()); }
+        let response = self.get(&format!("/collaborators/{login}/permission"), &[]).await?;
+        let raw = &response.value;
+        if r::id(&raw["user"]["id"])? != creator { return Err(Failure::protocol()); }
+        let write = match r::text(raw,"permission")? {
+            "admin"|"write" => true,
+            "read"|"none" => false,
+            _ => return Err(Failure::new(409,"github_creator_permission_unknown")),
+        };
+        self.recheck().await?;
+        let after = self.raw_subject(false, number).await?;
+        if r::id(&after["id"])? != issue_id || r::id(&after["user"]["id"])? != creator { return Err(Failure::new(409,"github_issue_creator_changed")); }
+        Ok(json!({"repository":self.repository,"issue_id":issue_id,"number":number,"creator":creator,"write":write}))
+    }
     async fn target_tip(&self, target: &str) -> Result<Value> {
         let branch = target.strip_prefix("refs/heads/").ok_or_else(Failure::invalid)?;
         let path = format!("/git/ref/heads/{branch}");

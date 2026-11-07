@@ -6222,7 +6222,7 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 	}
 	revisionID := decision("positive-revision")
 	acceptanceID := decision("partial-acceptance")
-	if phase == "native-graph-partial" {
+	if phase == "native-graph-partial" || phase == "native-graph-discovery" {
 		proof, err := db.IssueIntakeGrant(ctx, post, detail.Record.Revision)
 		if err != nil {
 			return err
@@ -6243,6 +6243,9 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 		policy, err = db.RepositoryPolicy(ctx, policy.Repository)
 		if err != nil {
 			return err
+		}
+		if phase == "native-graph-discovery" {
+			return nativeCreationDiscoveryFixture(ctx, graph.NativeInputSource, policy, profile)
 		}
 		idea := factory.ProductIdea{ID: decision("idea"), Description: "Two declared fixture outcomes", Consequence: "Create two fixture issues with one dependency.", Decision: "accept", Source: "requested", Provenance: "human", Actor: owner}
 		tasks := []factory.IntentTask{{Key: decision("first"), Objective: "First declared native graph task", Outcomes: []string{"First fixture outcome"}, IdeaIDs: []string{idea.ID}}, {Key: decision("second"), Objective: "Second declared native graph task", Outcomes: []string{"Second fixture outcome"}, IdeaIDs: []string{idea.ID}, DependsOn: []string{decision("first")}}}
@@ -6392,6 +6395,125 @@ func nativeGraphFixture(profile, instance, post, phase string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_GRAPH_REVISION") == "1" {
 		return nativeGraphRevisionFixture(ctx, graph, generation, detail.Record.Repository, profile)
 	}
+	return nil
+}
+
+func nativeCreationDiscoveryFixture(ctx context.Context, input factoryruntime.NativeInputSource, policy factory.RepositoryPolicy, profile string) error {
+	disabled, err := input.ReadCreations(ctx, policy.Repository, 0, 16)
+	if err != nil || len(disabled.Events) != 0 || disabled.NextPosition != 0 {
+		return errors.New("disabled native intake observed new work")
+	}
+	policy.Enabled = true
+	for role, selection := range policy.Roles {
+		selection.Account = factory.NewID()
+		policy.Roles[role] = selection
+	}
+	if err = input.Store.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	policy, err = input.Store.RepositoryPolicy(ctx, policy.Repository)
+	if err != nil {
+		return err
+	}
+	page, err := input.ReadCreations(ctx, policy.Repository, 0, 16)
+	if err != nil {
+		return err
+	}
+	if len(page.Events) != 3 || page.NextPosition != 20 || !page.ReachedRetainedEnd || !page.ProvenanceComplete {
+		return fmt.Errorf("native creation discovery facts differ: count=%d cursor=%d", len(page.Events), page.NextPosition)
+	}
+	byNumber := map[int64]factory.OriginalCreationEvent{}
+	for _, event := range page.Events {
+		byNumber[event.Issue] = event
+	}
+	if _, found := byNumber[19]; found || !byNumber[18].CreatorWrite || byNumber[20].CreatorWrite {
+		return errors.New("native discovery invented original/writer evidence")
+	}
+	hint := func(event factory.OriginalCreationEvent) control.IntakeHint {
+		return control.IntakeHint{Delivery: event.Delivery, Repository: event.Repository, Issue: event.Issue, Created: true, Creator: event.Creator, CreatorWrite: event.CreatorWrite, CreationVerified: event.Verified, NativeIssueID: event.OriginalIssueID, CreatedUnix: event.CreatedUnix, TitleDigest: event.TitleDigest, ContentDigest: event.ContentDigest}
+	}
+	c := control.NewCoordinator(input.Store, input.NativeExecution, input.NativeExecution)
+	c.AcceptanceReads = input
+	c.Creations = input
+	refuse := func(event factory.OriginalCreationEvent, reason string) error {
+		_, err := c.AdmitInitialAcceptance(ctx, hint(event))
+		var refusal *control.AcceptanceRefusal
+		if !errors.As(err, &refusal) || refusal.Reason != reason {
+			return fmt.Errorf("native initial acceptance refused incorrectly: reason=%s err=%v", reason, err)
+		}
+		return nil
+	}
+	if err = refuse(byNumber[17], control.RefusalCreationFactory); err != nil {
+		return err
+	}
+	if err = refuse(byNumber[20], control.RefusalCreationUnauthorized); err != nil {
+		return err
+	}
+	policy.Enabled = false
+	if err = input.Store.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	policy, err = input.Store.RepositoryPolicy(ctx, policy.Repository)
+	if err != nil {
+		return err
+	}
+	if err = refuse(byNumber[18], control.RefusalCreationUnauthorized); err != nil {
+		return err
+	}
+	if _, err = input.Store.AcceptanceHead(ctx, policy.Repository, 18); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("disabled policy left a queued initial acceptance")
+	}
+	policy.Enabled = true
+	if err = input.Store.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	permissionFile := filepath.Join(filepath.Dir(profile), "io", "creator-permission")
+	if err = os.WriteFile(permissionFile, []byte("read"), 0600); err != nil {
+		return err
+	}
+	if err = refuse(byNumber[18], control.RefusalCreationUnauthorized); err != nil {
+		return err
+	}
+	if _, err = input.Store.AcceptanceHead(ctx, policy.Repository, 18); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("withdrawn creator permission left an acceptance")
+	}
+	if err = os.WriteFile(permissionFile, []byte("unknown"), 0600); err != nil {
+		return err
+	}
+	if _, err = input.ReadCreations(ctx, policy.Repository, 17, 1); err == nil {
+		return errors.New("unknown creator permission became an intake fact")
+	}
+	if cursor, err := input.Store.CreationRecoveryCursor(ctx, policy.Repository); err != nil || cursor != 0 {
+		return errors.New("unverified native discovery advanced cursor")
+	}
+	if err = os.WriteFile(permissionFile, []byte("write"), 0600); err != nil {
+		return err
+	}
+	accepted, err := c.AdmitInitialAcceptance(ctx, hint(byNumber[18]))
+	if err != nil {
+		return err
+	}
+	replay, err := c.AdmitInitialAcceptance(ctx, hint(byNumber[18]))
+	if err != nil || replay.ID != accepted.ID {
+		return errors.New("native original acceptance replay changed identity")
+	}
+	if err = c.Start(ctx, filepath.Join(profile, "native-intake-check.lock")); err != nil {
+		return err
+	}
+	if err = c.Close(); err != nil {
+		return err
+	}
+	if cursor, err := input.Store.CreationRecoveryCursor(ctx, policy.Repository); err != nil || cursor != 20 {
+		return fmt.Errorf("native serving discovery cursor did not settle: cursor=%d err=%v", cursor, err)
+	}
+	remaining, err := input.ReadCreations(ctx, policy.Repository, 20, 16)
+	if err != nil || len(remaining.Events) != 0 || remaining.NextPosition != 20 {
+		return errors.New("native discovery replay changed retained position")
+	}
+	if _, err = input.Store.AcceptanceHead(ctx, policy.Repository, 17); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("native intake accepted its own generated issue")
+	}
+	fmt.Println("PASS: native original-issue discovery/current creator permission, disabled-policy refusal, edited/read-only exclusion, unknown-permission hold, pre-admission withdrawal, same-account acceptance/replay, factory-origin refusal and actual serving cursor persistence; provider/authority declared, no model or full issue-to-PR pipeline")
 	return nil
 }
 

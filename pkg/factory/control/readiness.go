@@ -38,7 +38,7 @@ type IntakeHint struct {
 	ContentDigest    string
 }
 
-// Validate rejects malformed hints. Delivery IDs are native task UUIDs;
+// Validate rejects malformed hints. Delivery IDs are scoped source identities;
 // creator fields ride creation observations only.
 func (h IntakeHint) Validate() error {
 	if err := checkIntakeDelivery(h); err != nil {

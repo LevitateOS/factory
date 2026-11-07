@@ -343,6 +343,17 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             posts(&io)? == 1,
             "native request did not create exactly one issue",
         )?;
+        if std::env::var("SODA_NATIVE_CHECK_CREATION_DISCOVERY").as_deref()==Ok("1") {
+            runtime.stop()?;
+            runtime=NativeSupervisor::start(payload,production,profile)?;
+            store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
+            ensure(call(&runtime,&store,&connection,"GET",&path,&[]).await?.0==200,"creation source account unavailable")?;
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("native-graph-discovery").arg(&post).status()?.success(),"native creation discovery check failed")?;
+            ensure(posts(&io)?==1,"native discovery performed a provider write")?;
+            runtime.stop()?;
+            println!("PASS: actual native/Go/PostgreSQL original issue discovery and acceptance with the retained selected account; provider/permissions declared, no model or full intake pipeline");
+            return Ok(());
+        }
         if std::env::var("SODA_NATIVE_CHECK_COMPLETION").as_deref()==Ok("1") {
             runtime.stop()?;
             runtime=NativeSupervisor::start(payload,production,profile)?;

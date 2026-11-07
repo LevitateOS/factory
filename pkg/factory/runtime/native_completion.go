@@ -8,10 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
-	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 )
 
 type nativeTargetTip struct {
@@ -71,38 +69,9 @@ func (s NativeInputSource) ReadCompletionIssues(ctx context.Context, repository 
 	if err != nil {
 		return nil, err
 	}
-	reads := nativeCollaborationReads{account}
-	query := factoryservice.CollaborationIssueQuery{State: "open", Limit: 50}
-	items := []collaboration.Issue{}
-	seen := map[string]bool{}
-	for page := 0; ; page++ {
-		if page >= 256 {
-			return nil, errors.New(control.HoldInventoryOversize)
-		}
-		observed, err := reads.ReadIssues(ctx, account.binding.Actor.ID, account.repository.ID, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, issue := range observed.Items {
-			if seen[issue.Ref.ExternalID] || issue.State != "open" {
-				return nil, errNativeRead
-			}
-			seen[issue.Ref.ExternalID] = true
-			items = append(items, issue)
-			if len(items) > factory.MaxReassessmentIssues {
-				return nil, errors.New(control.HoldInventoryOversize)
-			}
-		}
-		if observed.Complete {
-			if observed.Next != "" {
-				return nil, errNativeRead
-			}
-			break
-		}
-		if observed.Next == "" || observed.Next == query.Cursor {
-			return nil, errNativeRead
-		}
-		query.Cursor = observed.Next
+	items, err := account.openIssues(ctx)
+	if err != nil {
+		return nil, err
 	}
 	result := make([]control.NativeInventoryIssue, 0, len(items))
 	bytes := 0

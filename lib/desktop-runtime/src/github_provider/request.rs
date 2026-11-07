@@ -5,6 +5,11 @@ use serde_json::Value;
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Read {
+    IssueCreatorPermission {
+        repository: String,
+        number: u32,
+        creator: String,
+    },
     TargetTip {
         repository: String,
         target_ref: String,
@@ -293,6 +298,9 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::IssueCreatorPermission { creator, .. } = self {
+            if !remote_id(creator) { return Err(Failure::invalid()); }
+        }
         if let Self::TargetTip { target_ref, .. } = self {
             if !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name) {
                 return Err(Failure::invalid());
