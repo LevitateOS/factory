@@ -87,6 +87,14 @@ authorized Muse attempt that exposed the missing-file session failure settled
 blocked without replay; its exact evidence and remaining gates are in A16 and
 the security handoff. Missing reads now return `exists=false` without closing the
 task session. Real Muse requalification of this fix remains pending.
+The next live attempt exposed premature terminal admission before final
+integration. Worker finish admission now requires the recorded committed final
+checkpoint; context explicitly reports pending integration. The local journey
+passed refusal-before-work followed by normal completion in
+`/home/vince/tmp/fnative-finish-barrier8.sowIzi/result.log`. Already retired runs
+without final evidence now settle blocked through the canonical terminal owner;
+the original live run passed this recovery without replay in
+`/home/vince/tmp/fmuse-public-task8.NLRcUJ/recovery-final.log`.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

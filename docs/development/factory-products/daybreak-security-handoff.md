@@ -554,6 +554,17 @@ The existing local journey passed in
 plan adoption/Builder dispatch, missing read then edits/checkpoints/candidate,
 reviewer incomplete settlement/retirement and retained restart readback. Provider
 facts/tool availability remain declared; real Muse requalification is pending.
+The next authorized live run under `/home/vince/tmp/fmuse-public-task8.NLRcUJ/`
+completed its task check but exited after a premature finish proposal, before
+final integration. Original run `71f0d740604d6458d0bd99d8c2661e53` is blocked,
+not successful implementation: `recovery-final.log` proves canonical terminal
+settlement, exact retirement, consumed reservation and stop-based usage without
+inference replay. `service/worker_results.go` now refuses premature finishes and
+reports pending integration explicitly; `control/mcp_checkpoint_finish.go`
+blocks reconciled runs whose final evidence cannot arrive. The existing local
+journey passed early refusal then completion in
+`/home/vince/tmp/fnative-finish-barrier8.sowIzi/result.log`. Live requalification,
+interrupted receipt publication and broader isolation remain open.
 The token task source has no composed task owner and remains unavailable.
 Relevant files: `cmd/soda-factory-worker/src/agent_workspace.rs`, broker
 `{task_workspace,task_receipts}.rs`, `lib/execution-protocol/src/workspace.rs`,

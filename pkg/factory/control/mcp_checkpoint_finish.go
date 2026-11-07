@@ -31,12 +31,18 @@ func checkpointTerminalReady(ctx context.Context, st MCPTerminalSettleStore, fin
 		return false, PlanRefuseEvidence, nil
 	}
 	if run.FinalCheckpoint == nil {
+		if run.Reconciled {
+			return false, PlanRefuseEvidence, nil
+		}
 		return false, "", nil
 	}
 	request := run.FinalCheckpoint.Request
 	request.ExpectedHead = finished.Result.Candidate
 	reason := finalCheckpointReceiptGate(run, plan, request)
 	if reason == PlanWaitFinalIntegration {
+		if run.Reconciled {
+			return false, PlanRefuseEvidence, nil
+		}
 		return false, "", nil
 	}
 	return reason == "", reason, nil

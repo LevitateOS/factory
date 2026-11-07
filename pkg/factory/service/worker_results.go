@@ -227,6 +227,20 @@ func (s WorkerResults) CheckNewFinish(ctx context.Context, capability factory.MC
 	if err != nil {
 		return err
 	}
+	if (submission.Tool == factory.MCPToolFinishImplement || submission.Tool == factory.MCPToolFinishCorrection) && s.Runs != nil {
+		run, err := s.Runs.FactoryRun(ctx, capability.RunID)
+		if err != nil {
+			return err
+		}
+		if len(run.ExecutionManifest) != 0 {
+			if run.FinalCheckpoint != nil && run.FinalCheckpoint.Status == "failed" {
+				return errors.New("final integration checkpoint failed; inspect factory.context and finish with factory.finish_incomplete")
+			}
+			if run.FinalCheckpoint == nil || run.FinalCheckpoint.Status != "committed" || !factory.ValidCommit(run.FinalCheckpoint.Candidate) {
+				return errors.New("final integration checkpoint is not committed; wait with factory.context after_execution until execution.integration.status is committed before finishing")
+			}
+		}
+	}
 	return control.CheckMCPTerminalFinish(assigned, submission, s.now())
 }
 
@@ -329,6 +343,8 @@ func (s WorkerResults) CheckpointContext(ctx context.Context, read WorkerContext
 	}
 	if run.FinalCheckpoint != nil {
 		execution["integration"] = run.FinalCheckpoint
+	} else {
+		execution["integration"] = map[string]any{"status": "pending"}
 	}
 	return execution, nil
 }

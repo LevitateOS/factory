@@ -293,6 +293,17 @@ corrections are now active; the old feature queue waits for their resolution.
   replay in `recovery-verified.log`. Rust now returns typed absence and Go exposes
   `exists=false`; real Muse requalification remains pending. Other errors and
   admission/path checks remain unchanged.
+  The next live run exposed finish admission before final integration, followed
+  by a stranded recorded proposal. `WorkerResults.CheckNewFinish` now requires
+  the committed final checkpoint for manifest-backed Builder/Fixer finishes;
+  context explicitly distinguishes pending integration from its current head.
+  The existing local journey passed early-finish refusal and subsequent normal
+  completion in `fnative-finish-barrier8.sowIzi/result.log` under `/home/vince/tmp`.
+  The canonical terminal settler now blocks retired/reconciled runs lacking final
+  evidence. Original run `71f0d740604d6458d0bd99d8c2661e53` passed exact blocked
+  settlement/retirement/accounting without replay in
+  `/home/vince/tmp/fmuse-public-task8.NLRcUJ/recovery-final.log`. Its model-reported
+  task commit is not a verified final candidate. Real requalification is pending.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

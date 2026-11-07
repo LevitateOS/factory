@@ -2784,6 +2784,15 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err != nil {
 			return err
 		}
+		if a.Stage == factory.AssignmentAssigned {
+			if _, err = control.SettleMCPTerminalProposal(ctx, db, a.ID, time.Now()); err != nil {
+				return err
+			}
+			a, err = db.Assignment(ctx, a.ID)
+			if err != nil {
+				return err
+			}
+		}
 		var rawUsage []byte
 		rawDB, err := sql.Open("pgx", config.DatabaseDSN())
 		if err != nil {
@@ -2810,7 +2819,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			terminal, found, err := db.TerminalMCPProposal(ctx, a.ID)
 			reservation, reservationErr := db.Reservation(ctx, a.ID)
 			if err != nil || reservationErr != nil || !found || terminal.State != factory.MCPWorkAccepted || reservation.State != factory.ReservationConsumed || a.Stage != factory.AssignmentFinished || a.Outcome != factory.NeedsHuman {
-				return errors.New("original incomplete task result/accounting was not retained")
+				return fmt.Errorf("original incomplete task result/accounting was not retained: terminal=%s found=%t reservation=%s assignment=%s outcome=%s errors=%v/%v", terminal.State, found, reservation.State, a.Stage, a.Outcome, err, reservationErr)
 			}
 			fmt.Println("PASS: original incomplete Muse task settled without inference replay; exact process/root retirement, accepted blocked result, consumed reservation and stop-based source usage retained")
 		} else {
@@ -3013,6 +3022,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		cap, err := db.GetMCPCapability(ctx, input.Run)
 		if err != nil || cap.State != factory.MCPCapabilityActive {
 			return errors.New("actual worker never activated its MCP capability")
+		}
+		// Public Builder prompts have no fixture-only artifact requirement. Their
+		// actual task checks and exported candidate above are the evidence.
+		if input.Tasks && input.ParentRun != "" {
+			return nil
 		}
 		var id string
 		if err = rawDB.QueryRowContext(ctx, `SELECT id FROM factory_feed_artifacts WHERE assignment=$1 AND complete`, cap.AssignmentID).Scan(&id); err != nil {
@@ -4782,6 +4796,9 @@ func workerProfileFixture() error {
 }
 
 func workerSequentialTasks(client *http.Client) error {
+	if _, err := workerMCPCall(client, "factory.finish_implementation", map[string]any{"candidate": strings.Repeat("e", 40)}); err == nil || !strings.Contains(err.Error(), "final integration checkpoint is not committed") {
+		return errors.New("Builder finish before final integration was not refused")
+	}
 	wait := func(task, state string, final bool) error {
 		until := time.Now().Add(25 * time.Second)
 		for {
