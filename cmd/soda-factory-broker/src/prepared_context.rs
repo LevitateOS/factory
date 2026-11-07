@@ -1,32 +1,21 @@
 //! Read Git objects only in the isolated, read-only context service.
 use super::{git, private_process, refused, CHECKOUT};
 use soda_execution_protocol::{
-    ContextEntry, ContextFile, ContextSelection, PreparedSourceOperation, PreparedSourceResult,
-    SourceContext, MAX_CONTEXT_BYTES, MAX_CONTEXT_ENTRIES, MAX_CONTEXT_REQUEST,
+    ContextEntry, ContextFile, ContextPage, ContextReadPage, ContextSelection,
+    PreparedSourceOperation, PreparedSourceResult, SourceContext, MAX_CONTEXT_BYTES,
+    MAX_CONTEXT_ENTRIES, MAX_CONTEXT_FILE_BYTES, MAX_CONTEXT_REQUEST, MAX_PREPARED_TREE_BYTES,
 };
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 
 fn query(args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
     query_at(CHECKOUT, args, limit)
 }
 pub(super) fn query_at(repository: &str, args: &[&str], limit: usize) -> io::Result<Vec<u8>> {
-    let mut command = git(&[
-        "-c",
-        "safe.directory=/run/factory-output/repo",
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "core.hooksPath=/dev/null",
-        "-c",
-        "diff.external=",
-        "-C",
-        repository,
-    ]);
-    let mut child = command
+    let mut child = command_at(repository)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -48,7 +37,22 @@ pub(super) fn query_at(repository: &str, args: &[&str], limit: usize) -> io::Res
     }
     Ok(bytes)
 }
-fn file(commit: &str, path: &str) -> io::Result<Option<Vec<u8>>> {
+
+fn command_at(repository: &str) -> Command {
+    git(&[
+        "-c",
+        "safe.directory=/run/factory-output/repo",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "diff.external=",
+        "-C",
+        repository,
+    ])
+}
+fn blob(commit: &str, path: &str) -> io::Result<Option<String>> {
     let entry = query(
         &["ls-tree", "-z", commit, "--", &format!(":(literal){path}")],
         1024,
@@ -69,11 +73,64 @@ fn file(commit: &str, path: &str) -> io::Result<Option<Vec<u8>>> {
     if fields.len() != 3 || !matches!(fields[0], "100644" | "100755") || fields[1] != "blob" {
         return Err(refused("context selection is not a regular file"));
     }
-    let bytes = query(&["cat-file", "blob", fields[2]], 32768)?;
-    if std::str::from_utf8(&bytes).is_err() {
-        return Err(refused("context file is not text"));
+    Ok(Some(fields[2].to_owned()))
+}
+
+fn read_page(object: &str, request: &ContextReadPage) -> io::Result<(Vec<u8>, ContextPage)> {
+    let size = query(&["cat-file", "-s", object], 32)?;
+    let total: u64 = std::str::from_utf8(&size)
+        .ok()
+        .and_then(|text| text.trim().parse().ok())
+        .filter(|size| *size <= MAX_PREPARED_TREE_BYTES && request.offset <= *size)
+        .ok_or_else(|| refused("source page offset or file size exceeds bounds"))?;
+    let mut child = command_at(CHECKOUT)
+        .args(["cat-file", "blob", object])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    let mut output = child
+        .stdout
+        .take()
+        .ok_or_else(|| refused("source page pipe unavailable"))?;
+    let count = (total - request.offset).min(request.limit as u64);
+    let result = (|| {
+        if io::copy(&mut output.by_ref().take(request.offset), &mut io::sink())? != request.offset {
+            return Err(refused("source page offset unavailable"));
+        }
+        let mut bytes = Vec::new();
+        output.by_ref().take(count).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 != count {
+            return Err(refused("source page incomplete"));
+        }
+        if let Err(error) = std::str::from_utf8(&bytes) {
+            if error.error_len().is_some() || request.offset + count == total {
+                return Err(refused("source page is not UTF-8 text"));
+            }
+            bytes.truncate(error.valid_up_to());
+        }
+        let next = request.offset + bytes.len() as u64;
+        Ok((
+            bytes,
+            ContextPage {
+                path: request.path.clone(),
+                offset: request.offset,
+                total_bytes: total,
+                next_offset: (next < total).then_some(next),
+            },
+        ))
+    })();
+    // Drain without retaining the rest of the blob, then join the existing
+    // timeout/Git process tree. A completed page leaves no live reader behind.
+    let drained = io::copy(&mut output, &mut io::sink());
+    if drained.is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(refused("source page reader failed"));
     }
-    Ok(Some(bytes))
+    if !child.wait()?.success() || result.is_ok() && drained? != total - request.offset - count {
+        return Err(refused("source page reader incomplete"));
+    }
+    result
 }
 pub(super) fn run() -> io::Result<()> {
     private_process()?;
@@ -148,15 +205,12 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         return Err(refused("context candidate ancestry invalid"));
     }
     let mut paths = BTreeSet::from(["AGENTS.md".to_owned()]);
-    if let Some(directory) = request.directory.as_ref().filter(|path| !path.is_empty()) {
-        paths.insert(format!("{directory}/AGENTS.md"));
-        let mut parent = std::path::Path::new(directory).parent();
-        while let Some(directory) = parent.filter(|p| !p.as_os_str().is_empty()) {
-            paths.insert(format!("{}/AGENTS.md", directory.display()));
-            parent = directory.parent();
-        }
-    }
-    for path in &request.paths {
+    let directory_instructions = request
+        .directory
+        .as_ref()
+        .filter(|path| !path.is_empty())
+        .map(|directory| format!("{directory}/AGENTS.md"));
+    for path in request.paths.iter().chain(directory_instructions.iter()) {
         paths.insert(path.clone());
         let mut parent = std::path::Path::new(path).parent();
         while let Some(directory) = parent.filter(|p| !p.as_os_str().is_empty()) {
@@ -166,8 +220,21 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
     }
     let mut files = Vec::new();
     let mut total = 0;
+    let mut page = None;
     for path in paths {
-        if let Some(content) = file(&request.candidate, &path)? {
+        if let Some(object) = blob(&request.candidate, &path)? {
+            let content =
+                if let Some(selection) = request.page.as_ref().filter(|page| page.path == path) {
+                    let (content, metadata) = read_page(&object, selection)?;
+                    page = Some(metadata);
+                    content
+                } else {
+                    let content = query(&["cat-file", "blob", &object], MAX_CONTEXT_FILE_BYTES)?;
+                    if std::str::from_utf8(&content).is_err() {
+                        return Err(refused("context file is not text"));
+                    }
+                    content
+                };
             total += content.len();
             if files.len() >= 12 || total > MAX_CONTEXT_BYTES {
                 return Err(refused("context instruction closure exceeds bounds"));
@@ -204,6 +271,7 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         files,
         diff,
         entries,
+        page,
     })
 }
 

@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -278,10 +279,12 @@ func checkCatalogs(config factoryruntime.NativeConfig, instance string, capabili
 			deps.ListSource = nil
 			deps.Runs = nil
 			if mode != "no-port" {
-				deps.ReadSource = func(context.Context, factory.MCPCapability, string) (map[string]any, error) {
+				deps.ReadSource = func(context.Context, factory.MCPCapability, project.FactoryContextReadPage) (map[string]any, error) {
 					return nil, errors.New("catalog discovery must not read source")
 				}
-				deps.ListSource = deps.ReadSource
+				deps.ListSource = func(context.Context, factory.MCPCapability, string) (map[string]any, error) {
+					return nil, errors.New("catalog discovery must not list source")
+				}
 				deps.NativeTask = func(context.Context, factory.MCPCapability, string, string) (map[string]any, error) {
 					return nil, errors.New("catalog discovery must not execute a task")
 				}
@@ -1607,6 +1610,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	var input struct {
 		Run, Connection, Preparation, Executable string
 		MuseLogin, Live, Withdraw                bool
+		DeadlineUnix                             int64
 	}
 	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
 		return errors.New("admitted fixture input invalid")
@@ -1902,6 +1906,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if !observed.Live {
 		return errors.New("public Go launch did not observe its actual live worker")
+	}
+	input.DeadlineUnix = run.Deadline.Unix()
+	fixture, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, fixture, 0600); err != nil {
+		return err
 	}
 	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
 	return nil
@@ -2903,7 +2915,7 @@ func workerProfileFixture() error {
 			}
 			for directory, wanted := range map[string]map[string]string{
 				"":     {".gitignore": "file", "AGENTS.md": "file", "README.md": "file", "docs": "directory"},
-				"docs": {"docs/AGENTS.md": "file", "docs/note.md": "file", "docs/fixture-link": "symlink"},
+				"docs": {"docs/AGENTS.md": "file", "docs/note.md": "file", "docs/fixture-link": "symlink", "docs/large.go": "file"},
 			} {
 				result, err := workerMCPCall(client, "factory.list_source", map[string]any{"path": directory})
 				if err != nil {
@@ -2968,6 +2980,65 @@ func workerProfileFixture() error {
 				return errors.New("missing source file returned a successful read")
 			}
 			fmt.Println("actual-admitted-worker-source-read", source.Commit)
+			original, err := os.ReadFile(filepath.Join(selected["--workspace"], "docs/large.go"))
+			if err != nil || len(original) <= project.MaxFactoryContextFileBytes {
+				return errors.New("source paging fixture needs a source file above the whole-file bound")
+			}
+			var collected []byte
+			pages := 0
+			for offset := int64(0); ; {
+				pages++
+				if pages > 16 {
+					return errors.New("source paging failed to terminate")
+				}
+				result, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "docs/large.go", "offset": offset})
+				if err != nil {
+					return err
+				}
+				var view struct {
+					Commit string                      `json:"source_commit"`
+					Page   *project.FactoryContextPage `json:"page"`
+					Files  []struct {
+						Path    string `json:"path"`
+						Content string `json:"content"`
+					} `json:"files"`
+				}
+				if json.Unmarshal(result, &view) != nil || view.Commit != source.Commit || view.Page == nil || view.Page.Path != "docs/large.go" || view.Page.Offset != offset || view.Page.TotalBytes != int64(len(original)) {
+					return errors.New("source page changed the captured file binding")
+				}
+				found := false
+				for _, file := range view.Files {
+					if file.Path != "docs/large.go" {
+						continue
+					}
+					if found || len(file.Content) > project.DefaultFactorySourcePageBytes {
+						return errors.New("source page exceeds its requested bound")
+					}
+					collected = append(collected, file.Content...)
+					found = true
+				}
+				if !found || !bytes.HasPrefix(original, collected) {
+					return errors.New("source paging lost, duplicated or changed UTF-8 bytes")
+				}
+				if view.Page.NextOffset == nil {
+					break
+				}
+				if *view.Page.NextOffset != int64(len(collected)) || *view.Page.NextOffset <= offset {
+					return errors.New("source paging cursor did not advance")
+				}
+				offset = *view.Page.NextOffset
+			}
+			if !bytes.Equal(original, collected) || pages < 2 {
+				return errors.New("source paging did not read the complete large file")
+			}
+			insideCharacter := bytes.Index(original, []byte("Ω")) + 1
+			if insideCharacter < 1 {
+				return errors.New("source paging fixture omitted multibyte text")
+			}
+			if _, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "docs/large.go", "offset": insideCharacter}); err == nil {
+				return errors.New("source paging admitted an offset inside a UTF-8 character")
+			}
+			fmt.Println("actual-admitted-worker-source-pages", source.Commit, len(collected), pages)
 		}
 		result, err := workerMCPCall(client, "factory.publish_artifact", factory.ArtifactUpload{
 			UploadID: strings.Repeat("1", 32), Name: "native-worker.txt", MediaType: "text/plain", ContentBase64: base64.StdEncoding.EncodeToString([]byte("actual admitted native worker artifact\n")), Final: true})

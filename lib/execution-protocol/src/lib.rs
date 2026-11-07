@@ -78,6 +78,8 @@ pub struct ContextSelection {
     pub paths: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub directory: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<ContextReadPage>,
 }
 impl ContextSelection {
     pub fn valid(&self) -> bool {
@@ -98,6 +100,12 @@ impl ContextSelection {
             .as_ref()
             .is_none_or(|path| path.is_empty() || Self::valid_path(path))
             && self.paths.len() <= 12
+            && self.page.as_ref().is_none_or(|page| {
+                self.directory.is_none()
+                    && self.paths.len() == 1
+                    && self.paths[0] == page.path
+                    && page.valid()
+            })
             && self
                 .paths
                 .iter()
@@ -127,6 +135,35 @@ pub struct SourceContext {
     pub diff: Vec<u8>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entries: Vec<ContextEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<ContextPage>,
+}
+
+pub const MAX_CONTEXT_FILE_BYTES: usize = 32 * 1024;
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextReadPage {
+    pub path: String,
+    pub offset: u64,
+    pub limit: usize,
+}
+impl ContextReadPage {
+    pub fn valid(&self) -> bool {
+        ContextSelection::valid_path(&self.path)
+            && self.offset <= MAX_PREPARED_TREE_BYTES
+            && (4..=MAX_CONTEXT_FILE_BYTES).contains(&self.limit)
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextPage {
+    pub path: String,
+    pub offset: u64,
+    pub total_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_offset: Option<u64>,
 }
 
 pub const MAX_CONTEXT_ENTRIES: usize = 256;

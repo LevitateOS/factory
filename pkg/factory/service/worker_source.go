@@ -18,7 +18,7 @@ type WorkerSource struct {
 	Reader execution.PreparationContextReader
 }
 
-func (s WorkerSource) context(ctx context.Context, admitted factory.MCPCapability, paths []string, directory *string) (execution.PreparationContext, error) {
+func (s WorkerSource) context(ctx context.Context, admitted factory.MCPCapability, paths []string, directory *string, page *project.FactoryContextReadPage) (execution.PreparationContext, error) {
 	var empty execution.PreparationContext
 	if s.Store == nil || s.Reader == nil {
 		return empty, ErrWorkerUnavailable
@@ -50,7 +50,7 @@ func (s WorkerSource) context(ctx context.Context, admitted factory.MCPCapabilit
 	source := assignment.SourceCommit
 	request := execution.PreparationContextRequest{Role: assignment.Role, Native: prep.Native,
 		Input: project.FactoryPreparationContextRequest{Project: assignment.ProjectID, ID: assignment.Preparation,
-			SourceCommit: source, ApprovedBase: source, DiffBase: source, Candidate: source, Paths: paths, Directory: directory, NotAfter: deadline}}
+			SourceCommit: source, ApprovedBase: source, DiffBase: source, Candidate: source, Paths: paths, Directory: directory, Page: page, NotAfter: deadline}}
 	if err := request.Validate(); err != nil {
 		return empty, err
 	}
@@ -72,16 +72,20 @@ func sourceResult(material execution.PreparationContext) map[string]any {
 	for _, file := range material.Material.Files {
 		files = append(files, map[string]string{"path": file.Path, "content": string(file.Content)})
 	}
-	return map[string]any{"source_commit": material.Material.SourceCommit, "files": files}
+	result := map[string]any{"source_commit": material.Material.SourceCommit, "files": files}
+	if material.Material.Page != nil {
+		result["page"] = material.Material.Page
+	}
+	return result
 }
 
-func (s WorkerSource) Read(ctx context.Context, admitted factory.MCPCapability, path string) (map[string]any, error) {
-	material, err := s.context(ctx, admitted, []string{path}, nil)
+func (s WorkerSource) Read(ctx context.Context, admitted factory.MCPCapability, page project.FactoryContextReadPage) (map[string]any, error) {
+	material, err := s.context(ctx, admitted, []string{page.Path}, nil, &page)
 	if err != nil {
 		return nil, err
 	}
 	for _, file := range material.Material.Files {
-		if file.Path == path {
+		if file.Path == page.Path {
 			return sourceResult(material), nil
 		}
 	}
@@ -89,7 +93,7 @@ func (s WorkerSource) Read(ctx context.Context, admitted factory.MCPCapability, 
 }
 
 func (s WorkerSource) List(ctx context.Context, admitted factory.MCPCapability, path string) (map[string]any, error) {
-	material, err := s.context(ctx, admitted, []string{}, &path)
+	material, err := s.context(ctx, admitted, []string{}, &path, nil)
 	if err != nil {
 		return nil, err
 	}

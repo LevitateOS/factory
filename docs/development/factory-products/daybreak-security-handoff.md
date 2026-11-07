@@ -38,16 +38,36 @@ tracked-directory listing and instruction closure; no host path, commit or
 workspace selector comes from the worker. `lib/execution-protocol/src/lib.rs`,
 `cmd/soda-factory-broker/src/prepared_context.rs` and
 `pkg/project/factory_context.go` carry and bound optional directory selections
-and path/kind entries; the desktop preparation owner returns their observations.
+and path/kind entries plus bounded file pages; the desktop preparation owner
+returns their observations. Page offsets/total/continuation bind to the requested
+immutable path and captured commit. Git output is drained and joined under its
+existing timeout, retaining only the selected UTF-8 fragment.
 The audit records actual dummy-worker source/instruction bytes, root/nested
 file/directory/symlink metadata, missing selection refusal, artifact publication
-and retirement/restart proof. This closes no
+and exact six-page reconstruction of a 42,017-byte file, invalid UTF-8 offset
+refusal, and retirement/restart proof. This closes no
 broad gate. Exact remaining dependency: the installed authenticated worker/source
 journey, including current stop/withdrawal during an in-flight read, must retain
 the original authority and return no source after observed withdrawal. That race
 and installed service admission were not checked here. Submodule and over-limit
 listing behavior was not exercised; links were named, never followed. Mutable
 task access is still absent; task/checkpoint gates remain pending.
+
+Preserve `/home/vince/tmp/fsource-pages7.XIprjB`, run
+`dad793506986e5b4e9a483fd63b2d5a0`. Its source read/list/page and artifact markers
+are in the retained receipt; the old integration observer's 15-second cutoff
+cancelled it during its final sleep. The receipt records signal 9, complete
+output and a captured candidate, and local custody seal/release markers exist.
+Those facts do not prove canonical root retirement or settlement. The attempted
+restart/reconciliation in `recovery.log` refused because the original native
+record was not settled; the underlying missing acknowledgement remains
+undiagnosed. Exact blocker: canonical retirement/reconciliation of that original
+run is unconfirmed. Relevant files: `factory_provider/recovery.rs`,
+`pkg/factory/runtime/native_execution.go`, `pkg/store/factory_native_retirement.go`
+and the existing broker retirement owner. Closure needs the original retained
+Go/native binding, actual root-retirement acknowledgement, and canonical
+run/assignment/usage settlement without relaunch or invented facts. The fresh
+successful paging fixture proves the deadline correction, not this old outcome.
 
 **A18 installation payload dependency:** `scripts/build-desktop.ts` stages all
 seven privileged execution helpers, twelve service/socket templates and the

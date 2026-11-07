@@ -40,11 +40,16 @@ func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 		if tool == factory.MCPToolListSource {
 			minLength = 0
 		}
-		return &jsonschema.Schema{
+		shape := &jsonschema.Schema{
 			Type: "object", Properties: map[string]*jsonschema.Schema{
 				"path": {Type: "string", MinLength: ptrInt(minLength), MaxLength: ptrInt(project.MaxFactoryContextPathBytes)},
 			}, Required: []string{"path"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		}
+		if tool == factory.MCPToolReadSource {
+			shape.Properties["offset"] = &jsonschema.Schema{Type: "integer", Description: "Byte offset; omit for the start or use page.next_offset from the preceding reply."}
+			shape.Properties["limit"] = &jsonschema.Schema{Type: "integer", Description: "Maximum bytes of source text in this page, from 4 to 32768; defaults to 8192."}
+		}
+		return shape
 	case factory.MCPToolPreviewRepair:
 		return repairPreviewPayloadSchema()
 	case factory.MCPToolRecordDiagnosis:

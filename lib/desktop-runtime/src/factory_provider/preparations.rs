@@ -602,7 +602,7 @@ impl Preparations {
         let selection: soda_execution_protocol::ContextSelection = serde_json::from_value(json!({
             "source_commit":meta["source_commit"],"approved_base":meta["approved_base"],
             "diff_base":meta["diff_base"],"candidate":meta["candidate"],"paths":meta["paths"],
-            "directory":meta["directory"]
+            "directory":meta["directory"],"page":meta["page"]
         }))
         .map_err(|_| denied())?;
         if !selection.valid() {
@@ -654,7 +654,7 @@ impl Preparations {
             "project":input.workspace,"id":input.id,"role":role,"source_commit":input.source,
             "approved_base":selection.approved_base,"diff_base":selection.diff_base,"candidate":selection.candidate,
             "setup":encode(setup),"check":encode(check),"files":files,"diff":encode(&context.diff),
-            "directory":selection.directory,"entries":context.entries
+            "directory":selection.directory,"entries":context.entries,"page":context.page
         }}))
     }
     pub(crate) fn cancel_all(&self) {

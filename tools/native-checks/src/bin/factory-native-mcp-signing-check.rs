@@ -1066,7 +1066,18 @@ async fn managed_execution(
                 .join("native-run-intents")
                 .join(format!("{run}.json")),
         )?)?;
-        let deadline = std::time::Instant::now() + Duration::from_secs(15);
+        let admitted: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+        let expires = std::time::UNIX_EPOCH
+            + Duration::from_secs(
+                admitted["DeadlineUnix"]
+                    .as_u64()
+                    .ok_or("captured run deadline missing")?,
+            );
+        let deadline = std::time::Instant::now()
+            + expires
+                .duration_since(std::time::SystemTime::now())
+                .unwrap_or_default()
+            + Duration::from_secs(5);
         loop {
             match supervisor.execution_outcome(&intent)? {
                 ExecutionOutcome::Pending if std::time::Instant::now() < deadline => {

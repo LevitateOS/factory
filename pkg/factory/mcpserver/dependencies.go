@@ -8,6 +8,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 type SubmissionSink interface {
@@ -47,7 +48,7 @@ type Dependencies struct {
 	VerificationEvidence func(context.Context, factory.MCPCapability) (map[string]any, error)
 	RepairPreview        func(context.Context, factory.MCPCapability, json.RawMessage) (factory.RepairPreview, error)
 	NativeTask           func(context.Context, factory.MCPCapability, string, string) (map[string]any, error)
-	ReadSource           func(context.Context, factory.MCPCapability, string) (map[string]any, error)
+	ReadSource           func(context.Context, factory.MCPCapability, project.FactoryContextReadPage) (map[string]any, error)
 	ListSource           func(context.Context, factory.MCPCapability, string) (map[string]any, error)
 }
 

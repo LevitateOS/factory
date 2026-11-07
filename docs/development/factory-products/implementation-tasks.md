@@ -35,6 +35,8 @@ Admitted agents can now call `factory.read_source` and `factory.list_source` for
 bounded immutable source, tracked directories and ancestor instructions using
 that same native reader. A05/A19 records the
 actual worker/retirement/restart proof and remaining inspection/task limitations.
+Source file reads now support bounded UTF-8 pages, including exact multi-page
+reconstruction above the old 32 KiB whole-file ceiling; evidence remains in A05/A19.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need
 their matching proof before A05 can be considered fully resolved.
 The A04 Go/storage contract now separates an independent agent verdict from a

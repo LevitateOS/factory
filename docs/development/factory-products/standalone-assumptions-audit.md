@@ -140,10 +140,11 @@ corrections are now active; the old feature queue waits for their resolution.
 - **A05/A19 — agent source reads implemented; task execution still pending.**
   `factory.read_source` exposes the existing Rust isolated preparation reader
   through the Go worker service. The capability selects assignment, preparation
-  and immutable source commit; the agent selects only a relative file path.
-  Results include ancestor `AGENTS.md` instructions. Existing 32 KiB/file,
-  native context and 64 KiB MCP reply bounds remain; missing/non-text/oversized
-  selections refuse. Discovery, launch policy and current-role metadata share
+  and immutable source commit; the agent selects a relative path and bounded
+  byte page. Results include ancestor `AGENTS.md` instructions. Existing native
+  context and 64 KiB MCP reply bounds remain; whole-file/instruction reads retain
+  their 32 KiB bound. Missing/non-text/oversized selections refuse.
+  Discovery, launch policy and current-role metadata share
   the available catalog; hosts without a source reader omit this tool.
   The actual admitted dummy worker compared source commit, file bytes and root/
   nested instructions against its prepared repository, then confirmed a missing
@@ -162,11 +163,24 @@ corrections are now active; the old feature queue waits for their resolution.
   including a symlink, and confirmed missing-directory refusal in
   `/home/vince/tmp/fsource-directory7.p48gW7/result.log`. File/instruction reads,
   artifacts, explicit incomplete result, retirement and restart also passed.
+  `read_source` now supports UTF-8 pages above that historical whole-file bound:
+  default 8 KiB, optional 4–32 KiB limit, byte offset/total and a next offset.
+  Native Git output is drained without retaining the rest of the blob, then
+  joined under the existing timeout. Source/context owners validate exact page
+  binding and progress; other preparation reads retain their whole-file contract.
+  The admitted worker reconstructed all 42,017 bytes over six pages, including
+  a character split at the nominal page boundary, and refused an offset inside
+  a multibyte character. Artifact publication, explicit incomplete product result,
+  retirement and restart settlement passed in
+  `/home/vince/tmp/fsource-pages-final7.04RK9B/result.log`. The existing integration
+  observer now uses the canonical admitted deadline plus retirement grace; its
+  old independent 15-second cutoff cancelled an earlier run, still preserved
+  pending canonical retirement/reconciliation in the security handoff.
   Native/Go builds, affected existing MCP tests and boundaries passed. No model
   request, saved-login change or GitHub action ran. These are immutable source
-  reads/listings, not mutable task access, large-file/directory paging, native
-  task execution or installed/authority-race qualification. Submodule listing
-  and over-limit selections were not exercised in this ordinary fixture.
+  reads/listings, not mutable task access, directory paging, native task execution
+  or installed/authority-race qualification. Submodule/over-limit listings and
+  large-file workload/resource ceilings were not qualified by these checks.
 
 - **A04/A19 — native task manifest binding implemented; task runtime pending.**
   New task intents use version 5 to capture the exact phase and manifest digest
