@@ -19,6 +19,21 @@ pub struct Signer {
 }
 
 impl Signer {
+    /// A separate protocol domain binds a desktop enrollment to this native
+    /// profile. Only its hash is enrollment metadata; the proof stays in Rust.
+    pub(crate) fn derive_desktop_enrollment(&self, context: &[u8]) -> Result<Zeroizing<String>> {
+        if context.is_empty() || context.len() > 2048 {
+            return Err("native enrollment scope invalid".into());
+        }
+        let mut mac = Hmac::<Sha256>::new_from_slice(&*self.key)
+            .map_err(|_| "native profile key invalid")?;
+        mac.update(b"factory-fountain-desktop-enrollment/v1\0");
+        mac.update(context);
+        Ok(Zeroizing::new(
+            mac.finalize().into_bytes().iter().map(|byte| format!("{byte:02x}")).collect(),
+        ))
+    }
+
     /// Open the exclusive desktop profile's persistent root key. A partial or
     /// invalid existing file is an error, never a reason to rotate silently.
     /// The profile owner must hold its exclusive lock before calling this.

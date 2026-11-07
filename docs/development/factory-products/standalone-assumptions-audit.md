@@ -1715,6 +1715,16 @@ Accounts/application were fixtures and no personal login or deployed host was
 used. D2, central placement, private operation delegation, the Rust desktop
 consumer and installed/upgrade qualification remain open.
 
+The next component, Fountain `1a29a5e86e` and Factory's native
+`fountain_provider` client, binds enrollment to a profile-held proof because
+OAuth authorization can be shared by devices. Existing native custody/root-key
+ownership is reused. The actual private-CA TLS/keyring/HTTP/PostgreSQL component
+journey passed in `/home/vince/tmp/fbound23.CWdTev/result.log`, including reopen,
+replay and withdrawn-read refusal. Fixture services stopped and the owned grant
+was withdrawn. This does not provide user-facing login/refresh, Go/UI composition,
+central placement or privileged operation delegation; D2 and installed gates
+remain open with exact dependencies in the handoff.
+
 **Release decision.** Packaging and installed GitHub work have independent paths.
 However, upgrade/parity and the definition of complete Linux work require Forge,
 GitHub desktop and Fountain desktop journeys. Fountain does not block implementing

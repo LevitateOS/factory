@@ -75,7 +75,7 @@ client in `sdk/native.go` requires a private callback socket and opaque host
 admission; `routers/web/extensions/callback.go` issues session-bound admissions.
 This is not a desktop HTTPS gateway grant. No desktop enrollment/gateway route
 or centrally coordinated desktop placement was found in those host routes or
-the current SodaOS integration (`627c637f`). Factory currently has no Fountain
+the current SodaOS integration (`627c637f`). Factory then had no Fountain
 desktop connector. Existing OAuth support and private SDK operations do not
 establish the missing remote authority.
 
@@ -101,6 +101,30 @@ first-insert duplicate (`models/nativeoperation/store.go`); startup concurrency
 remains unqualified and needs concurrent first-read/transaction evidence. No
 reservation or ownership behavior was changed by this slice.
 
+Profile-binding component (2026-11-08): Fountain `1a29a5e86e` adds immutable
+`ProofSHA256`/`RuntimeBound` metadata, header proof verification and migration
+`v17e_bind-native-desktop-proof.go` in the same model/router/SDK owners. Shared
+OAuth authorization alone cannot use a bound enrollment. Legacy empty-hash
+records remain read-only; future control-changing operations must require a
+bound profile. Factory `lib/desktop-runtime/src/{fountain_provider,mcp_signing}.rs`
+derives the proof under a separate HMAC domain of the existing native root and
+uses the existing credential-revision leases for bounded HTTPS calls. Neither
+proof nor OAuth credentials cross into Go/UI. No execution/placement authority
+is admitted by this implementation.
+
+Proved: `/home/vince/tmp/fbound23.CWdTev/result.log` passed the existing OAuth
+integration plus native TLS/keyring enrollment/read, profile-key reopen, exact
+replay, withdrawal, inactive readback and subsequent 403. The host refused
+missing-proof enrollment/read/status/withdrawal. Fixture accounts/private CA
+were used; the local grant was withdrawn and owned services stopped. The first
+attempt's default Go CA-as-leaf certificate failed native verification; a proper
+fixture server leaf fixed that failure without disabling verification.
+Unverified: existing-install migration, actual configured-host login/refresh,
+in-flight withdrawal/expiry, profile/worker custody and installed admission.
+Closure needs the existing real desktop/host journey, an old-schema upgrade,
+actual concurrent withdrawal/expiry observations and installed custody evidence;
+this component closes none of those gates.
+
 Remaining implementation belongs to the Fountain Go host/SDK and its Forge
 integration, outside the standalone engine dependency closure. Extend the read
 enrollment with supported operation kinds, acting principals and centrally
@@ -116,7 +140,7 @@ The baseline inspection was read-only; the later component check issued only
 fixture grants. D2 remains open. Closure requires actual supported desktop login,
 authenticated reads/operations, revocation/expiry denial, old-generation refusal
 and retained uncertain-operation recovery against the real host. Remaining server
-operations/placement, a Rust desktop consumer and a live configured host/client registration are dependencies;
+operations/placement, Rust login/refresh and Go/UI composition, and a live configured host/client registration are dependencies;
 neither a generic OAuth token nor browser presentation fields prove admission.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no

@@ -24409,6 +24409,20 @@ The original Fountain checkout is unchanged. This is a fixture-account component
 check, not a deployed gateway or desktop D2 qualification. Central placement,
 operation principals/journals, transfer and the Rust/UI consumer remain pending.
 
+Fountain `1a29a5e86e` adds immutable native-profile proof binding, using only a
+stored SHA256 hash; retained unbound grants remain read-only. Factory's bounded
+Rust `fountain_provider` client reuses native custody and a separate HMAC domain
+of the existing profile root. The existing OAuth/native integration passed real
+TLS/HTTP/PostgreSQL enrollment/read, profile-key reopen, replay, withdrawal and
+403 after withdrawal in `/home/vince/tmp/fbound23.CWdTev/result.log`; the same
+host check refused enrollment/read/status/withdrawal without the required proof.
+The owned keyring grant was removed and fixture services stopped. This uses
+fixture accounts and a private CA, not a deployed login. The first TLS attempt
+used Go's default CA-as-leaf certificate and failed; the fixture now supplies a
+proper server leaf without weakening TLS verification. No new dependency was
+added. User-facing OAuth/refresh, Go/UI composition, central placement,
+privileged operation delegation, upgrade and D2 qualification remain pending.
+
 - **C:** Resolve D2 with a real supported human login and revocable grant. Source
   contains PKCE support but the scoped desktop gateway grant is new. Bind account,
   repository, operation kinds, acting service principals and runtime generation.

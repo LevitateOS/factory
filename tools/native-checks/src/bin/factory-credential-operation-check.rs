@@ -1138,7 +1138,49 @@ async fn run_rotation(profile: &Path) -> Result<()> {
     println!("PASS: retired owner refuses publication, actual eight-second deadline leaves durable uncertainty, and complete fixture withdrawal succeeds; no real provider refresh/login claimed");
     Ok(())
 }
+async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) -> Result<()> {
+    use soda_desktop_runtime::{fountain_provider::Client, mcp_signing::Signer};
+    prepare(profile)?;
+    let lock = fs::OpenOptions::new().create_new(true).write(true).open(profile.join("fixture.lock"))?;
+    ensure(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0, "fixture profile lock failed")?;
+    let runtime = "123456789abcdef0123456789abcdef0";
+    let command = "123456789abcdef0123456789abcdef1";
+    let store = Arc::new(Credentials::open(profile, runtime)?);
+    let mut token = Vec::new();
+    std::io::stdin().take(65537).read_to_end(&mut token)?;
+    ensure(!token.is_empty() && token.len() <= 65536, "bounded fixture token required")?;
+    let saved = store.store(Account::new(Provider::Fountain, origin, "2")?, Token::new(token)?).await?;
+    let result = async {
+        let signer = Signer::open(profile)?;
+        let client = Client::new(store.clone(), store.capability(&saved.connection).await?, &signer, runtime, application, "user2", "repo1", command).map_err(|e| e.code)?;
+        let enrolled = client.enroll().await.map_err(|e| e.code)?;
+        ensure(enrolled.active && enrolled.runtime_bound && enrolled.actor.username == "user2", "bound Fountain enrollment missing")?;
+        let repository = client.repository().await.map_err(|e| e.code)?;
+        ensure(repository.id == enrolled.repository.id, "Fountain repository changed")?;
+        drop(client);
+        drop(signer);
+        let signer = Signer::open(profile)?;
+        let client = Client::new(store.clone(), store.capability(&saved.connection).await?, &signer, runtime, application, "user2", "repo1", command).map_err(|e| e.code)?;
+        ensure(client.enroll().await.map_err(|e|e.code)?.active, "reopened native proof cannot replay enrollment")?;
+        ensure(client.status().await.map_err(|e|e.code)?.active, "Fountain enrollment readback missing")?;
+        ensure(!client.withdraw().await.map_err(|e|e.code)?.active, "Fountain withdrawal missing")?;
+        ensure(!client.enroll().await.map_err(|e|e.code)?.active && !client.status().await.map_err(|e|e.code)?.active, "withdrawal replay reactivated enrollment")?;
+        ensure(matches!(client.repository().await, Err(error) if error.status == 403), "withdrawn repository read was admitted")?;
+        Ok::<_, Box<dyn StdError>>(())
+    }.await;
+    let withdrawn = store.withdraw(&saved.connection).await;
+    store.retire();
+    result?;
+    withdrawn?;
+    println!("Fountain native TLS enrollment/read/reopen/replay/withdrawal passed; owned fixture credential withdrawn");
+    Ok(())
+}
+
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-desktop-declared") {
+        ensure(args.len() == 4, "Fountain mode requires new profile, TLS origin and public application ID")?;
+        return fountain_enrollment(Path::new(&args[1]), args[2].to_str().ok_or("origin invalid")?, args[3].to_str().ok_or("application invalid")?).await;
+    }
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
         (Some("--native-publication-history"),6) => {
             let runtime=soda_desktop_runtime::supervisor::NativeSupervisor::start(Path::new(&args[2]),Path::new(&args[1]),Path::new(&args[3]))?;
