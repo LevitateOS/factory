@@ -1,5 +1,5 @@
-//! Real isolated Linux keyring observation for asynchronous native token use.
-//! No provider login, network credential, webview or application admission.
+//! Native credential/provider integration checks. Declared modes use dummy
+//! grants; connected modes require explicitly supplied owned credentials.
 use soda_desktop_runtime::credentials::{
     Account, CredentialState, Credentials, Error, Grant, Provider, Token, TokenCapability,
 };
@@ -1140,6 +1140,128 @@ async fn run_rotation(profile: &Path) -> Result<()> {
 }
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
+        (Some("--github-automation-acceptance"), 7) => {
+            use serde_json::json;
+            use soda_desktop_runtime::supervisor::NativeSupervisor;
+            let field = |n: usize| {
+                args[n]
+                    .to_str()
+                    .ok_or("invalid acceptance fixture argument")
+            };
+            let profile = Path::new(&args[3]);
+            prepare(profile)?;
+            let mut secret = Vec::new();
+            std::io::stdin().take(65537).read_to_end(&mut secret)?;
+            if secret.last() == Some(&b'\n') {
+                secret.pop();
+            }
+            let token = Token::new(secret)?;
+            let production = Path::new(&args[1]);
+            let payload = Path::new(&args[2]);
+            let mut runtime = Some(NativeSupervisor::start(payload, production, profile)?);
+            let ready = runtime.as_ref().expect("owned runtime").health()?;
+            let store = Arc::new(Credentials::open(profile, &ready.profile)?);
+            ensure(
+                store.status().await?.is_empty(),
+                "acceptance fixture keyring profile is not empty",
+            )?;
+            let saved = store
+                .store(
+                    Account::new(Provider::Github, "https://github.com", field(4)?)?,
+                    token,
+                )
+                .await?;
+            let outcome: Result<()>=async {
+                let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                let reply=request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
+                ensure(reply.status==200,"native repository catalogue unavailable")?;
+                let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                let base=format!("/api/repositories/{repository}/factory/issues/{}",field(6)?);
+                let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                let preview=request.request("GET",&format!("{base}/acceptance-preview"),&[]).await?;
+                fs::write(profile.parent().ok_or("profile parent missing")?.join("preview.json"),&preview.body)?;
+                ensure(preview.status==200,"connected acceptance preview unavailable")?;
+                let view:serde_json::Value=serde_json::from_slice(&preview.body)?;
+                ensure(view["dependencies"]==json!([]),"acceptance fixture needs its actual empty dependency set")?;
+                let mut random=[0u8;12];getrandom::fill(&mut random)?;
+                let id=format!("d{}",random.iter().map(|b|format!("{b:02x}")).collect::<String>());
+                let decision=json!({"decision_id":id,"title_digest":view["title_digest"],"title_occurrence":view["title_occurrence"],"content_digest":view["body_digest"],"content_version":view["content_version"],"native_revision":view["native_revision"]});
+                let body=serde_json::to_vec(&decision)?;
+                let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                let admitted=request.request("POST",&format!("{base}/acceptances"),&body).await?;
+                fs::write(profile.parent().ok_or("profile parent missing")?.join("acceptance.json"),&admitted.body)?;
+                ensure(admitted.status==201,"connected native acceptance admission unavailable")?;
+                let accepted:serde_json::Value=serde_json::from_slice(&admitted.body)?;
+                ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
+                runtime.take().expect("owned runtime").stop()?;
+                runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                let replay=request.request("POST",&format!("{base}/acceptances"),&body).await?;
+                ensure(replay.status==201 && serde_json::from_slice::<serde_json::Value>(&replay.body)?==accepted,"native acceptance changed after retained restart replay")?;
+                println!("PASS: connected native account/Go/PostgreSQL acceptance preview, exact issue/history binding, local decision admission and retained restart replay; no GitHub write or execution");
+                Ok(())
+            }.await;
+            let removed = store.withdraw(&saved.connection).await;
+            let stopped = runtime.take().map(NativeSupervisor::stop).transpose();
+            removed?;
+            stopped?;
+            outcome
+        }
+        (Some("--github-automation-inputs"), n) if n >= 6 => {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let field = |n: usize| {
+                args[n]
+                    .to_str()
+                    .ok_or("invalid automation fixture argument")
+            };
+            let mut secret = Vec::new();
+            std::io::stdin().take(65537).read_to_end(&mut secret)?;
+            if secret.last() == Some(&b'\n') {
+                secret.pop();
+            }
+            let token = Token::new(secret)?;
+            let mut owner =
+                tokio::task::spawn_blocking(soda_desktop_runtime::github_provider::Owner::start)
+                    .await??;
+            let observed = owner
+                .client()
+                .observe(
+                    token,
+                    field(1)?,
+                    &soda_desktop_runtime::github_provider::Read::AutomationInputs {
+                        repository: field(2)?.into(),
+                        number: field(3)?.parse()?,
+                        target_ref: field(4)?.into(),
+                        comments: args[6..]
+                            .iter()
+                            .map(|s| {
+                                s.to_str()
+                                    .map(str::to_owned)
+                                    .ok_or("invalid selected comment")
+                            })
+                            .collect::<std::result::Result<_, _>>()?,
+                    },
+                )
+                .await;
+            owner.stop()?;
+            let observed = observed.map_err(|failure| {
+                format!(
+                    "native automation read: {} {}",
+                    failure.status, failure.code
+                )
+            })?;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(Path::new(&args[5]))?;
+            file.write_all(&serde_json::to_vec(&observed)?)?;
+            file.sync_all()?;
+            println!("PASS: actual native GitHub bounded issue history, selected comments, dependencies and branch snapshot; no write or product admission");
+            Ok(())
+        }
         (Some("--github-evidence-declared"), 4) => {
             native_github_transport::run_evidence_declared(
                 Path::new(&args[1]),

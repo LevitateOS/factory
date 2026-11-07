@@ -123,6 +123,10 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		WriteAccess: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {
 			return bound.localResourceAccess(ctx, actor, collaboration.RepositoryID(repository))
 		}}
+	inputs := nativeIssueInputs{bound}
+	product.Acceptances = factoryhttp.Acceptances{Service: factoryservice.Acceptances{
+		Writer: nativeAcceptanceWriter{Coordinator: application.Coordinator, source: inputs}, Evidence: inputs, WriteAccess: bound.localResourceAccess},
+		Visibility: bound.visible, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError}
 	// Capture/judgment, setup and native execution are
 	// separate admitted dependencies. Their existing shared handlers explicitly
 	// report unavailable. In particular, no feed intake or coordinator is started

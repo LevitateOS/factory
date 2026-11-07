@@ -136,6 +136,9 @@ func configureStore(ctx context.Context, db *sql.DB, standalone bool) (*Store, e
 	if err == nil {
 		err = initializeNativeWorkspaceSchema(ctx, db, s.appliance)
 	}
+	if err == nil {
+		err = initializeNativeInputSchema(ctx, db)
+	}
 	if err != nil {
 		db.Close()
 		return nil, err

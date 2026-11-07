@@ -1,8 +1,8 @@
 use super::request::remote_id;
 use super::transport::Response;
-use super::{Client, Failure, Read, Result, records as r};
+use super::{records as r, Client, Failure, Read, Result};
 use crate::credentials::Token;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -82,6 +82,23 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "automation_inputs" => {
+                            let Read::AutomationInputs {
+                                number,
+                                comments,
+                                target_ref,
+                                ..
+                            } = query
+                            else {
+                                return Err(Failure::invalid());
+                            };
+                            (
+                                "inputs",
+                                reader
+                                    .automation_inputs(*number, comments, target_ref)
+                                    .await?,
+                            )
+                        }
                         "write_capabilities" => {
                             let Read::WriteCapabilities { number, pull, .. } = query else {
                                 return Err(Failure::invalid());

@@ -28,6 +28,13 @@ pub enum Read {
     Repository {
         repository: String,
     },
+    AutomationInputs {
+        repository: String,
+        number: u32,
+        #[serde(default)]
+        comments: Vec<String>,
+        target_ref: String,
+    },
     BranchCreation {
         repository: String,
         name: String,
@@ -249,6 +256,25 @@ pub(super) fn branch_name(value: &str) -> bool {
 impl Read {
     /// The one defining selector contract, also consumed by native IPC adapters.
     pub fn validate(&self) -> Result<()> {
+        if let Self::AutomationInputs {
+            number,
+            comments,
+            target_ref,
+            ..
+        } = self
+        {
+            let unique: std::collections::BTreeSet<_> = comments.iter().collect();
+            if *number > i32::MAX as u32
+                || comments.len() > 50
+                || unique.len() != comments.len()
+                || comments.iter().any(|id| !remote_id(id))
+                || !target_ref
+                    .strip_prefix("refs/heads/")
+                    .is_some_and(branch_name)
+            {
+                return Err(Failure::invalid());
+            }
+        }
         if let Self::InlinePreservation {
             review_node_id,
             comment_node_id,

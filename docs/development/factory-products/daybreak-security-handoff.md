@@ -87,8 +87,14 @@ diagnosis. A18 records the real development build and ordinary image checks:
 actual Cargo bytes/modes, rendered user/UID and unchanged files/directories after
 repeat refusal. Those images were created by the development user, so they prove
 no live root ownership or service admission. No host service or credential changed.
-Exact remaining dependencies: supported-host installation and root metadata,
-activation/readiness, executable provenance/distribution integrity, interrupted
+Controlled live installation now passed using the shipped installer, /usr/libexec
+helper bytes and /etc/systemd/system units on this host, including broker activation,
+actual workspace checkpoints, cancellation and exact root retirement. Evidence:
+`/home/vince/tmp/finstalled-runtime7.Kj2qsf/result.log`. Only newly installed files
+and activation were removed; profiles/evidence remain. Manifests/parent metadata
+were fixture supplied, so this is execution-boundary installation scope only.
+Exact remaining dependencies: supported-host/privilege matrices, full installed
+app readiness, executable provenance/distribution integrity, interrupted
 copy/activation and cleanup, retained-run-safe upgrade/uninstall, and installed
 app/provider lifecycle. Prove installed broker/worker peer and namespace/cgroup
 behavior, cancellation/retirement/restart and preservation of profiles and active
@@ -96,6 +102,36 @@ runs before closing D3, IPC/custody or installed gates. The retained GTK/WebKit
 sysroot and PostgreSQL payload are historical build inputs, not a fresh release.
 Hacking-like installer investigations require user-started Daybreak; ordinary
 installation engineering remains in the normal queue.
+
+**A05/A21 native accepted-input dependency:** Rust
+`github_provider/automation_inputs.rs` implements bounded paired provider reads
+of issue content/history, selected comments, complete direct dependencies and
+branch tip. Go `runtime/native_product_inputs.go` supplies acceptance preview and
+local decision admission; `store/factory_native_inputs.go` owns canonical history
+IDs and issue/edge revisions. `control/acceptance{,_evidence}.go` keeps the source
+scoped to the command without changing shared coordinator ports.
+
+What ran: actual provider reader in
+`/home/vince/tmp/fnative-inputs7.epjQVr/provider.log`; actual native account,
+private test keyring, Go/PostgreSQL acceptance and restart replay in
+`/home/vince/tmp/fnative-acceptance7.qYtoUp/result.log`. The current gh token was
+used only in the private fixture and its owned local entry was removed afterward.
+No personal keyring change, GitHub write, model or execution ran. The stable
+existing issue had no selected comments/direct dependencies. An older completed
+task database also preserved its exact task/candidate/accounting state through
+opening the new auxiliary tables and restart:
+`/home/vince/tmp/fadmitted-tasks7.NgVBjI/native-inputs-upgrade.log`.
+
+Exact blockers/dependencies: background account custody and GitHub issue-specific
+readiness/dispatch are not composed. GitHub supplies no appliance-wide revision
+barrier, so cached SQL revision numbers cannot substitute for fresh native reads.
+Remaining evidence: stale preview versus changed body/title, comment/edge remove-
+readd and hidden/incomplete history; concurrent observation/admission, account
+replacement/withdrawal, installed peers and Factory OAuth. Pairwise equality is
+bounded observed consistency, not an atomic GitHub transaction. The current
+100-event/50-comment-or-edge/256-KiB bounds refuse incomplete inputs. Nonempty
+history and dependency cases must supply their exact provider/canonical bindings
+before closure. Keep existing D1/D2/D3/D5, custody/IPC and installed gates open.
 
 **A04/A19 task manifest dependency:** version-5 task intents now bind phase and
 manifest digest in `pkg/factory/execution/native_intent.go`,
@@ -168,6 +204,14 @@ check passed under exact nested file ownership in
 `/home/vince/tmp/fworkspace-parent7.1n7a8K/result.log`, including unchanged
 ownership/dependency refusals, checkpoints, cancellation and exact root retirement.
 This is routine local scope evidence; no broader gate is closed.
+
+The existing native check now prepares a real-Muse one-file coding journey in
+`/home/vince/tmp/fmuse-task-live7.bqTprF`. It has not run: automatic approval
+review rejected exporting its disposable README/task-plan context to Meta with
+subscription usage, and a specific user-approval question is pending. Existing
+Muse-login authorization was not accepted by that review as approval for this
+payload. Do not infer a provider pass from preparation/builds or bypass the
+rejection. No new login, keyring change or provider request occurred.
 
 Remaining dependencies: actual admitted correction and cancellation/withdrawal,
 interrupted task/receipt publication and transport, unreconciled restart, complete

@@ -117,6 +117,16 @@ type AcceptanceAuthorization func(context.Context) error
 // current native evidence. Recorded decisions remain immutable; repeating one
 // checks current visibility without approving any newer inputs.
 func (c *Coordinator) AdmitAcceptance(ctx context.Context, decision factory.Acceptance, authorize AcceptanceAuthorization) (AcceptanceResult, error) {
+	return c.admitAcceptance(ctx, c.AcceptanceReads, decision, authorize)
+}
+
+// AdmitAcceptanceUsing keeps a native request's observed account/source scoped
+// to this command without mutating the shared background coordinator ports.
+func (c *Coordinator) AdmitAcceptanceUsing(ctx context.Context, source AcceptanceSource, decision factory.Acceptance, authorize AcceptanceAuthorization) (AcceptanceResult, error) {
+	return c.admitAcceptance(ctx, source, decision, authorize)
+}
+
+func (c *Coordinator) admitAcceptance(ctx context.Context, source AcceptanceSource, decision factory.Acceptance, authorize AcceptanceAuthorization) (AcceptanceResult, error) {
 	bounded, stop := context.WithTimeout(ctx, 30*time.Second)
 	defer stop()
 	bounded, ownsPass, cancelPass := c.readinessPass(bounded)
@@ -149,7 +159,7 @@ func (c *Coordinator) AdmitAcceptance(ctx context.Context, decision factory.Acce
 	} else if !errors.Is(lookupErr, store.ErrNotFound) {
 		return AcceptanceResult{}, lookupErr
 	}
-	evidence, err := c.readAcceptanceEvidence(bounded, decision)
+	evidence, err := c.readAcceptanceEvidenceUsing(bounded, source, decision)
 	if err != nil {
 		return AcceptanceResult{}, err
 	}

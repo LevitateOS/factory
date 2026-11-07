@@ -535,9 +535,17 @@ corrections are now active; the old feature queue waits for their resolution.
   and refused repeat installation without changing file metadata/content:
   `.artifacts/execution-image-inventory7-{result,repeat}.log` and the matching
   before/after inventories. No host service, profile, credential or model changed.
-  Live root installation/activation, supported-host isolation and lifecycle,
-  distribution integrity, failure/interruption, upgrades/uninstall and installed
-  app/provider journeys remain unqualified. This does not complete A18 or D3.
+  A subsequent controlled live install used the shipped installer, current helper
+  bytes in /usr/libexec and real /etc/systemd/system units. Broker activation,
+  two task checkpoints/journal replay, retained receipts, failure/cancellation and
+  exact root retirement passed on this host:
+  `/home/vince/tmp/finstalled-runtime7.Kj2qsf/result.log`. The check removed only
+  its newly installed files/activation and retained profiles/evidence. This is
+  installed execution-boundary evidence, with fixture-supplied manifests; it is
+  not installed desktop/provider or fresh release qualification. Supported-host
+  matrices, distribution integrity, interrupted installation, retained-run-safe
+  upgrade/uninstall and installed app/provider journeys remain open. A18/D3 stay
+  open.
 
 - **A23 — active guidance corrected.** README now describes implemented binding
   and human GitHub journeys separately from pending agent execution/installed
@@ -607,6 +615,34 @@ corrections are now active; the old feature queue waits for their resolution.
   Provider authority/policy were declared fixture inputs; no model call ran.
   Native planning dispatch/choice, delivery/repair and pause/resume/retry journeys
   remain unqualified, as do connected/installed and broad security gates.
+- **A05/A21 — native issue acceptance inputs and admission implemented.** Rust's
+  authenticated GitHub reader obtains issue edit counts, title/lifecycle/edge
+  history, selected comments and target branch, and compares two bounded reads.
+  Incomplete history or pagination refuses; current bounds are 100 relevant
+  events, 50 selected comments/dependencies and 256 KiB of projected inputs.
+  Go maps opaque history IDs to immutable canonical occurrences and versions the
+  issue/edge snapshot without treating comment selection or branch movement as
+  a new issue revision. The native product now supplies acceptance preview and
+  local-owner admission through the existing coordinator and SQL journal; a
+  request-specific source does not mutate background coordinator ports.
+  Actual provider read: `/home/vince/tmp/fnative-inputs7.epjQVr/provider.log`.
+  Actual Rust/native-account/Go/PostgreSQL preview, local approval and identical
+  replay after restart passed in
+  `/home/vince/tmp/fnative-acceptance7.qYtoUp/result.log`. It used the current
+  gh token in a private test keyring, then removed that owned local entry. No
+  personal keyring, GitHub content, model or execution changed. This qualifies
+  the stable existing disposable issue with no selected comments/dependencies;
+  it does not qualify Factory OAuth, arbitrary history/visibility or race cases.
+  The older completed task profile also opened with the new native input tables
+  and retained exact checkpoints/candidate/accounting after restart, without
+  replay: `/home/vince/tmp/fadmitted-tasks7.NgVBjI/native-inputs-upgrade.log`.
+  Native/Go builds and dependency boundaries passed. Background account custody,
+  GitHub readiness/dispatch composition, automatic phase advancement, stale/
+  hidden inputs, nonempty dependencies/comments, UI and installed journeys still
+  require their own implementation or proof. The provider has no appliance-wide
+  revision counter; do not manufacture one or interpret cached revision state as
+  a fresh provider observation. No broad gate is closed.
+
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.
   Local-owner admission replaces remote-admin admission for local resource and

@@ -41,6 +41,13 @@ Native startup recovery also includes observed processes whose last Go state is
 unsealed/running or uncertain after native cleanup. The original cancelled paging
 run now has exact retirement, blocked-result and accounting proof in the security
 handoff; unobserved/missing-evidence and broader installed recovery remain pending.
+Native accepted-input reads and local acceptance preview/admission now use the
+complete Rust GitHub connector and Go canonical history/revision mapping. The
+actual stable issue/account/PostgreSQL/restart check is recorded in A05/A21;
+background source custody, GitHub readiness/dispatch and automatic phase
+advancement remain dependencies. Controlled root installation of the execution
+boundary also passed on this host; A18 preserves its exact scope and remaining
+installed desktop/upgrade gates.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need
 their matching proof before A05 can be considered fully resolved.
 The A04 Go/storage contract now separates an independent agent verdict from a

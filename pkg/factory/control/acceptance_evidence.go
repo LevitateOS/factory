@@ -12,7 +12,11 @@ import (
 // readAcceptanceEvidence brackets the objective, every selected source and
 // resolution, and the complete edge set at one native revision.
 func (c *Coordinator) readAcceptanceEvidence(ctx context.Context, decision factory.Acceptance) (AcceptanceEvidence, error) {
-	if c.AcceptanceReads == nil {
+	return c.readAcceptanceEvidenceUsing(ctx, c.AcceptanceReads, decision)
+}
+
+func (c *Coordinator) readAcceptanceEvidenceUsing(ctx context.Context, source AcceptanceSource, decision factory.Acceptance) (AcceptanceEvidence, error) {
+	if source == nil {
 		return AcceptanceEvidence{}, refuseAcceptance(RefusalSnapshotUnavailable)
 	}
 	seen := make(map[string]bool)
@@ -28,7 +32,7 @@ func (c *Coordinator) readAcceptanceEvidence(ctx context.Context, decision facto
 	if err := c.recordReadinessEvidence(ctx); err != nil {
 		return AcceptanceEvidence{}, err
 	}
-	evidence, err := c.AcceptanceReads.ReadAcceptanceEvidence(ctx, strconv.FormatInt(decision.Repository, 10), decision.IssueIndex, commentIDs)
+	evidence, err := source.ReadAcceptanceEvidence(ctx, strconv.FormatInt(decision.Repository, 10), decision.IssueIndex, commentIDs)
 	if err != nil {
 		var refusal *AcceptanceRefusal
 		if errors.As(err, &refusal) {
