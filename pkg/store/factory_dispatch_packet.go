@@ -1143,6 +1143,8 @@ func checkAdmissionLimitsTx(ctx context.Context, t *sql.Tx, repository int64, co
 	// even when the policy or operator has configured a larger concurrency
 	// value. Count held reservations and every active attributed run: a run
 	// whose reservation was consumed or released still owns its process slot.
+	// A preparation transferred to its exact admitted child shares that child's
+	// slot while its reservation/run is active. It still needs separate retirement.
 	repoSessions, err := cappedCountTx(ctx, t, `
 		SELECT 1 FROM factory_reservations
 			WHERE state='held' AND repository=$1
@@ -1161,7 +1163,15 @@ func checkAdmissionLimitsTx(ctx context.Context, t *sql.Tx, repository int64, co
 		SELECT 1 FROM project_preparations p
 			WHERE p.project_id=$2 AND p.data ? 'factory_admission'
 			  AND (p.data->'factory_admission'->>'repository')::bigint=$1
-			  AND NOT soda_preparation_quiescent(p.data,p.id,p.project_id,p.role)`, 2, repository, projectID)
+			  AND NOT soda_preparation_quiescent(p.data,p.id,p.project_id,p.role)
+			  AND NOT EXISTS (
+				SELECT 1 FROM factory_assignments a JOIN factory_runs r ON r.id=a.run
+				WHERE a.id=p.data#>>'{factory_admission,child_assignment}' AND a.repository=$1
+				  AND a.data->>'project_id'=p.project_id AND a.data->>'role'=p.role
+				  AND a.data->>'preparation'=p.id
+				  AND a.data->>'attempt_root'=p.data#>>'{factory_admission,attempt_root}'
+				  AND (r.active OR EXISTS (SELECT 1 FROM factory_reservations res
+				    WHERE res.assignment=a.id AND res.state='held')))`, 2, repository, projectID)
 	if err != nil {
 		return err
 	}

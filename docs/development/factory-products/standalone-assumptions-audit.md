@@ -794,8 +794,15 @@ corrections are now active; the old feature queue waits for their resolution.
   inference/settlement, its resource retirement/recovery and complete automatic
   phase advancement remain unqualified; no broad gate closes.
   The child launch plan now uses that candidate preparation for native packet
-  capture instead of the standing reviewer source. Go build passed; actual
-  reviewer dispatch/launch remains unqualified by the preparation-only check.
+  capture instead of the standing reviewer source. Actual reviewer dispatch,
+  independent worker launch, explicit incomplete result, native retirement and
+  retained admission readback passed in
+  `/home/vince/tmp/fnative-review-transfer7.rNNY56/result.log`. The native adapter
+  serializes an empty context path selection as an array. Transactional capacity
+  counts the candidate preparation and its exact active child as one session;
+  separate preparation retirement remains required. CI/provider/tool prerequisites
+  were declared and no model/GitHub effect ran. This verifies the launch binding;
+  successful model review, interrupted recovery and the full pipeline remain open.
   Go recovery now uses the executor's explicit `ReviewRecovery` guarantee;
   generic lookup absence never authorizes resubmission. Native recovery reuses
   the existing command reservation and frozen unexpired work. A missing branch

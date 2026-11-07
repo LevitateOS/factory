@@ -70,6 +70,13 @@ Builder settlement and independent reviewer candidate preparation passed in
 restart failed by attempting another preparation; corrected retained readback
 passed in `retained-readback.log` without replay. A04/A07/A21 and the security
 handoff record the preserved fence and exact remaining recovery limitations.
+Reviewer dispatch now also passes the actual local native journey:
+`/home/vince/tmp/fnative-review-transfer7.rNNY56/result.log`. Empty path selections
+use the native array representation, and the prepared candidate shares its exact
+active child's repository slot without being declared retired. The worker's
+explicit incomplete result, retirement and retained admission readback passed
+with declared CI/provider facts and no inference or GitHub effect. Successful
+model review and the complete automated pipeline remain pending.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

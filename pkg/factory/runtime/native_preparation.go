@@ -92,6 +92,11 @@ func (p NativeExecution) ReadWorkspaceContext(ctx context.Context, request execu
 	}
 	bounded, cancel := context.WithDeadline(ctx, request.Input.NotAfter)
 	defer cancel()
+	// An empty selection still reads instructions and the candidate diff.
+	// The native protocol represents that selection as an array, not null.
+	if request.Input.Paths == nil {
+		request.Input.Paths = []string{}
+	}
 	err = nativeHostCall(bounded, p.Config, p.Instance, "/api/native/preparation", struct {
 		Operation string                              `json:"operation"`
 		Request   execution.PreparationContextRequest `json:"request"`

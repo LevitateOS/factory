@@ -3393,14 +3393,6 @@ func (h nativeReviewPreparationHost) InspectTool(ctx context.Context, family str
 func (h nativeReviewPreparationHost) NativeSourceAvailable(ctx context.Context, authentication string) (bool, error) {
 	return authentication == factory.NativeMuseLogin, ctx.Err()
 }
-func (h nativeReviewPreparationHost) PrepareWorkspaceCandidate(ctx context.Context, r execution.CandidatePreparationRequest) (execution.PreparationState, error) {
-	state, err := h.NativeExecution.PrepareWorkspaceCandidate(ctx, r)
-	if err != nil {
-		return state, err
-	}
-	return state, errors.New("local fixture stops after native preparation, before inference")
-}
-
 func (r nativeReviewChildReads) ReadAcceptanceEvidence(ctx context.Context, repository, issue string, comments []string) (control.AcceptanceEvidence, error) {
 	return control.AcceptanceEvidence{Revision: 1, Comments: []control.AcceptanceComment{}, Dependencies: []control.AcceptanceEdge{}, Issue: control.AcceptanceIssueView{ID: "19", Index: issue, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, PosterID: fmt.Sprint(r.actor), CreatedUnix: time.Now().Add(-time.Minute).Unix(), Visible: true, Verified: true}}, ctx.Err()
 }
@@ -3421,18 +3413,28 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 		return errors.New("native review source has no captured owner")
 	}
 	if source.Native.InstanceID != port.Instance {
-		records, err := db.CandidatePreparations(ctx, owner.Repository, owner.ProjectID, owner.Issue, owner.AttemptRoot, "", 2, 0)
+		records, err := db.ProjectPreparations(ctx, owner.ProjectID)
 		if err != nil {
 			return err
 		}
-		if len(records) != 1 {
+		var matches []execution.PreparationRecord
+		for _, record := range records {
+			if record.Preparation.Role == project.RoleReviewer && record.Preparation.SourceCommit == child.Result.Candidate {
+				matches = append(matches, record)
+			}
+		}
+		if len(matches) != 1 {
 			return errors.New("retained review admission missing or ambiguous")
 		}
-		prepared := records[0].Preparation
-		if prepared.Native == nil || prepared.Native.InstanceID != source.Native.InstanceID || prepared.Native.Profile != source.Native.Profile || prepared.Native.WorktreeID != prepared.Preparation.ID || prepared.Preparation.Role != project.RoleReviewer || prepared.Preparation.SourceCommit != child.Result.Candidate || !prepared.State.Ready {
+		prepared := matches[0]
+		admitted, err := db.CandidatePreparation(ctx, prepared.Preparation.ID)
+		if err != nil {
+			return err
+		}
+		if admitted.Admission.OwnerAssignment != owner.ID || admitted.Admission.AttemptRoot != owner.AttemptRoot || prepared.Native == nil || prepared.Native.InstanceID != source.Native.InstanceID || prepared.Native.Profile != source.Native.Profile || prepared.Native.WorktreeID != prepared.Preparation.ID || !(prepared.State.Ready || admitted.Stopped && admitted.Retirement == "confirmed") {
 			return errors.New("retained review admission differs from the original candidate/owner")
 		}
-		fmt.Println("PASS: retained reviewer admission keeps its original candidate and native owner; saved readiness only, no preparation replay or live-resource recovery proof")
+		fmt.Println("PASS: retained reviewer admission keeps its original candidate, native owner and recorded setup/retirement facts; no preparation replay or live-resource recovery proof")
 		return nil
 	}
 	var request execution.StandingPreparationRequest
@@ -3559,6 +3561,7 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 	currentTool.SHA256 = hex.EncodeToString(sum[:])
 	host := nativeReviewPreparationHost{NativeExecution: port, tool: execution.ToolObservation{Kind: collaboration.Native, Native: &currentTool}}
 	c := control.NewCoordinator(db, host, port)
+	defer c.Close()
 	c.MCPSecret = factoryruntime.NativeMCPSecretDeriver(port.Config, port.Instance)
 	c.AcceptanceReads, c.DispatchReads = nativeReviewChildReads{owner.ActorID, owner.SourceCommit}, nativeReviewChildReads{owner.ActorID, owner.SourceCommit}
 	c.Publication = factoryruntime.NativePublication{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: port}}
@@ -3605,6 +3608,59 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 		return errors.New("coordinator did not admit the exact native review candidate")
 	}
 	fmt.Println("PASS: Go publication child producer admits and prepares the actual native candidate for an independent reviewer; provider publication and authority facts declared, no model/complete review")
+	policy, err := db.RepositoryPolicy(ctx, owner.Repository)
+	if err != nil {
+		return err
+	}
+	checks := factory.ObservedChecks{NativeRev: p.NativeRev, HeadTip: target.HeadOID, BaseTip: target.BaseOID, Complete: true, ObservedContexts: len(policy.Checks)}
+	for _, name := range policy.Checks {
+		checks.Checks = append(checks.Checks, factory.ObservedCheck{Context: name, State: factory.CheckStateSuccess})
+	}
+	assessment, err := factory.VerifyChecks(target, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, checks, time.Now().Unix())
+	if err != nil || assessment.Verdict != factory.CheckPass {
+		return fmt.Errorf("declared reviewer prerequisite checks: %s: %w", assessment.Verdict, err)
+	}
+	if _, err = db.RecordCheckAssessment(ctx, assessment); err != nil {
+		return err
+	}
+	report = c.PublishPass(ctx)
+	if len(report.Errors) != 0 || len(report.Fenced) != 0 {
+		return fmt.Errorf("native reviewer dispatch: %+v", report)
+	}
+	p, err = db.PublicationByAssignment(ctx, owner.ID)
+	if err != nil || len(p.ReviewCycles) != 1 {
+		return fmt.Errorf("reviewer cycle unavailable: %w", err)
+	}
+	review, err := db.Assignment(ctx, p.ReviewCycles[0].ReviewerAssignment)
+	if err != nil {
+		return fmt.Errorf("reviewer assignment absent: %+v: %w", report, err)
+	}
+	for {
+		reviewerRun, err := db.FactoryRun(ctx, review.Run)
+		if err != nil {
+			return err
+		}
+		if review.Role != project.RoleReviewer || review.Phase != project.ExecutionReview || review.Preparation != id || reviewerRun.Native == nil || reviewerRun.Native.Provenance.WorktreeID != id || reviewerRun.Native.BundleSHA256 != prepared.Preparation.State.SourceBundleSHA256 || reviewerRun.InputSHA != target.HeadOID {
+			return errors.New("reviewer native packet does not capture its prepared candidate")
+		}
+		if reviewerRun.Reconciled {
+			review, err = db.Assignment(ctx, review.ID)
+			if err != nil {
+				return err
+			}
+			terminal, found, err := db.TerminalMCPProposal(ctx, review.ID)
+			if err != nil || !found || terminal.State != factory.MCPWorkAccepted || review.Stage != factory.AssignmentFinished || review.Outcome != factory.NeedsHuman || !reviewerRun.Native.Settled() {
+				return fmt.Errorf("actual incomplete reviewer did not settle: %w", err)
+			}
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+	fmt.Println("PASS: actual coordinator reviewer dispatch captures candidate workspace/bundle, launches the independent CLI worker, and settles its explicit incomplete result with native retirement; CI/provider facts declared, no model or GitHub effect")
 	return nil
 }
 

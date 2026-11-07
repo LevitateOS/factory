@@ -372,6 +372,21 @@ proved its owner differed and inspection refused. Its native effect/retirement
 remains unverified. No namespace, deadline or no-effect outcome was invented.
 The false admission-conflict fixtures in `fnative-review-current7.8JwXBf` and
 `fnative-review-diagnostic7.oHR7Ln` remain fenced; their logs retain the failures.
+The next actual reviewer launch passed in
+`/home/vince/tmp/fnative-review-transfer7.rNNY56/result.log`: exact candidate
+workspace/bundle in the native packet, independent worker MCP execution, accepted
+explicit incomplete result, settled native run retirement and retained admission
+readback. `runtime/native_preparation.go` serializes empty path selections as an
+array. `store/factory_dispatch_packet.go` counts a preparation and its exact
+admitted child as one repository session while the child reservation/run is
+active; the preparation still needs its own retirement evidence. The fixture kept
+capacity at one. CI, provider permissions and tool/source availability were
+declared; no model or GitHub effect ran. This closes the positive launch-binding
+dependency, not successful review, concurrent admission/withdrawal races,
+interrupted native preparation recovery or installed isolation. The original
+owner-mismatched admissions above remain unchanged. Failed context/capacity
+attempts are retained in `fnative-review-launch7.DnglQo` and
+`fnative-review-context7.utGdsK`; neither launched a reviewer.
 The earlier dummy-schema failure in `fnative-review-child7.lucggA`, run
 `fe33eb7453bb72df0efe2ab0db88be55`, retains terminal process/root facts but lacks
 verified canonical failure/usage settlement; close that dependency only from its
