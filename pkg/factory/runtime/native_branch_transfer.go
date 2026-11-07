@@ -18,12 +18,13 @@ type nativeBranchTransfer struct {
 	ComparisonBranch string `json:"comparison_branch"`
 	ComparisonOID    string `json:"comparison_oid"`
 	BundleSHA256     string `json:"bundle_sha256"`
+	ExpectedOld      string `json:"expected_old,omitempty"`
 }
 
 func (t nativeBranchTransfer) valid(q factory.HumanBranchCreateCommand) bool {
 	comparison := q
 	comparison.Name, comparison.Commit = t.ComparisonBranch, collaboration.CommitID(t.Base)
-	return comparison.Validate() == nil && t.ComparisonBranch != q.Name && factory.ValidCommit(t.ComparisonOID) && factory.ValidDigest(t.BundleSHA256)
+	return comparison.Validate() == nil && t.ComparisonBranch != q.Name && factory.ValidCommit(t.ComparisonOID) && factory.ValidDigest(t.BundleSHA256) && (t.ExpectedOld == "" || factory.ValidCommit(t.ExpectedOld) && t.ExpectedOld != string(q.Commit))
 }
 
 type nativeBranchPublishWrite struct {
@@ -57,9 +58,9 @@ type nativeBranchPublishReceipt struct {
 	ProviderResponseSHA256 string                      `json:"provider_response_sha256"`
 }
 
-func validateNativeBranchTransferReceipt(c factory.HumanBranchCreateCapture, p nativeBranchCreatePreparation, payload json.RawMessage) (nativeBranchPublishReceipt, error) {
+func validateNativeBranchTransferReceipt(q factory.HumanBranchCreateCommand, p nativeBranchCreatePreparation, payload json.RawMessage) (nativeBranchPublishReceipt, error) {
 	var r nativeBranchPublishReceipt
-	if p.Transfer == nil || nativeDecode(payload, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Branch.Repository || r.RepositoryCondition != "bounded_observation" || r.Branch != "refs/heads/"+c.Request.Name || r.Old != "" || r.New != string(c.Request.Commit) || r.Comparison != p.Transfer.ComparisonOID || r.ComparisonBranch != "refs/heads/"+p.Transfer.ComparisonBranch || r.ComparisonCondition != "bounded_observation" || r.RefCondition != "exact_old_oid" || r.BundleSHA256 != p.Transfer.BundleSHA256 || !factory.ValidDigest(r.ProviderResponseSHA256) {
+	if p.Transfer == nil || nativeDecode(payload, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Branch.Repository || r.RepositoryCondition != "bounded_observation" || r.Branch != "refs/heads/"+q.Name || r.Old != p.Transfer.ExpectedOld || r.New != string(q.Commit) || r.Comparison != p.Transfer.ComparisonOID || r.ComparisonBranch != "refs/heads/"+p.Transfer.ComparisonBranch || r.ComparisonCondition != "bounded_observation" || r.RefCondition != "exact_old_oid" || r.BundleSHA256 != p.Transfer.BundleSHA256 || !factory.ValidDigest(r.ProviderResponseSHA256) {
 		return r, factoryservice.ErrHumanBranchCreateUnavailable
 	}
 	return r, nil
@@ -98,7 +99,7 @@ func (s nativeHumanBranchCreates) submitTransfer(ctx context.Context, c factory.
 		if outcome.Failure != nil {
 			return empty, factoryservice.ErrHumanBranchCreateUnavailable
 		}
-		if _, err = validateNativeBranchTransferReceipt(c, p, outcome.Receipt); err != nil {
+		if _, err = validateNativeBranchTransferReceipt(c.Request, p, outcome.Receipt); err != nil {
 			return empty, err
 		}
 		record.Effect, record.Completion, record.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_branch_published"

@@ -1,7 +1,7 @@
 package store
 
 // Keep the same immutable identity and terminal-outcome guard on fresh and
-// upgraded databases. Only supported unfinished human effects can acquire a
+// upgraded databases. Only supported unfinished provider effects can acquire a
 // reservation. Unclaimed history may be conservatively fenced legacy_unknown;
 // no transition can release a reservation or an existing legacy fence.
 const commandGuardDDL = `CREATE OR REPLACE FUNCTION soda_guard_command() RETURNS trigger AS $$
@@ -15,7 +15,7 @@ BEGIN
       OLD.dispatch_state='unclaimed' AND (
         NEW.dispatch_state='legacy_unknown' OR (
           NEW.dispatch_state='reserved' AND OLD.finished='' AND NEW.finished=''
-          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','pull_request.review.comment.create','pull_request.merge')))))
+          AND OLD.type IN ('discussion.comment.create','issue.create','discussion.state.apply','discussion.edit','discussion.lock.apply','pull_request.review.thread.resolve','pull_request.review.request','pull_request.create','pull_request.review.submit','git.branch.create','git.ref.publish','pull_request.review.comment.create','pull_request.merge')))))
   THEN
     RAISE EXCEPTION 'factory command is immutable';
   END IF;

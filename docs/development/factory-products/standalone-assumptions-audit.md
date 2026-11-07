@@ -706,10 +706,24 @@ corrections are now active; the old feature queue waits for their resolution.
   The real report exposed additional trailing empty flush packets, now accepted
   only after the exact unpack/ref statuses. Two original uncertain commands stay
   fenced in the security handoff; the later pass does not complete them.
-  Correction ref updates remain explicitly unavailable. Remaining dependencies:
-  actual full execution-to-publication, cancellation/expiry/lost replies, source
-  identity and permission/withdrawal races, corrections, merge and installed
-  qualification. No broad gate is closed.
+  Correction ref updates now use a distinct ref-publish capture in the same
+  journal. The native transfer binds the prior head and the actual correction
+  run's source commit, preserving the initial publication and PR description.
+  `/home/vince/tmp/fnative-correction-inputs7.qeC8u8/result.log` passed the real
+  existing-PR update, exact old/new receipt, replay, changed frozen-lease refusal,
+  cancellation before capture and restart/withdrawal readback. `pr-text-head.log`
+  there verifies the applied head and unchanged title/body. Original workflow,
+  run completion and local authority were declared; no model or merge ran.
+  Schema 95 admits the new command kind without releasing existing reservations.
+  The retained schema-94 publication profile passed branch/PR history adoption
+  under the current binary without credentials in
+  `/home/vince/tmp/fnative-publication-linked7.Ssqo9S/schema95-history.log`.
+  Recorded PR creation links now support historical adoption without requiring
+  the original PR head or live credentials after a correction.
+  Remaining: complete coordinator/model correction and execution-to-publication,
+  interrupted/expired sends and first adoption, repository identity, PR-retarget
+  and permission/withdrawal races, merge and installed qualification. No broad
+  gate is closed.
 
 - **A04/A07/A21 — native automated review submission implemented.** The native
   application supplies `NativeReviews` through the existing review port. It

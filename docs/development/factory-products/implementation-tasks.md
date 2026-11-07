@@ -71,8 +71,12 @@ branch-rule qualification remain pending. A second account remains optional.
 Initial native candidate publication now composes the existing Go branch/PR
 journal with Rust Git pack transfer and the authenticated PR connector. Actual
 new-branch/PR receipt adoption, replay and restart/withdrawal readback passed;
-A05/A07/A21 retains its evidence and declared run/authority limitations. Correction
-updates, full execution-to-publication/coordinator proof and merge remain pending.
+A05/A07/A21 retains its evidence and declared run/authority limitations. Native
+corrections now update the existing PR branch through a leased ref-publish command
+in the same journal; actual update/replay, cancellation and retained readback passed.
+Schema 95 preserves existing commands and historical PR adoption now uses recorded
+creation links after the head changes. Full execution-to-publication/coordinator
+correction, merge and installed qualification remain pending.
 Two historical uncertain sends and the repository-name binding dependency remain
 open in the security handoff. This closes no T09 or broad security/installed gate.
 The shared native PR check view now projects pinned required-check readiness

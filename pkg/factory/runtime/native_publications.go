@@ -103,12 +103,31 @@ func (p NativePublication) ObservePublication(ctx context.Context, w factory.Pub
 		return empty, err
 	}
 	kind := factory.OpRefPublish
-	if w.OperationID == factory.PublicationOperationID(publication.ID, factory.OpPRCreate, 1) {
-		kind = factory.OpPRCreate
-	} else if w.OperationID != factory.PublicationOperationID(publication.ID, factory.OpRefPublish, 1) {
-		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
+	correction := w.CorrectionNumber > 0
+	if correction {
+		registered := false
+		for _, op := range publication.Corrections {
+			if op.OperationID == w.OperationID && op.RunID == w.RunID && op.Work != nil && reflect.DeepEqual(*op.Work, w.Intent()) {
+				registered = true
+			}
+		}
+		if !registered && w.OperationID != factory.PublicationOperationID(publication.ID, factory.OpRefPublish, len(publication.Corrections)+2) {
+			return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
+		}
+		if publication.Stage != factory.PublicationPublished || publication.PRNumber != w.CorrectionNumber || publication.PRCreate.Work == nil || publication.PRCreate.Work.ActorID != w.CorrectionAuthor || publication.Candidate != w.ExpectedOld {
+			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
+		}
+	} else {
+		if w.OperationID == factory.PublicationOperationID(publication.ID, factory.OpPRCreate, 1) {
+			kind = factory.OpPRCreate
+		} else if w.OperationID != factory.PublicationOperationID(publication.ID, factory.OpRefPublish, 1) {
+			return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
+		}
+		if publication.Run != w.RunID || publication.Candidate != w.Candidate {
+			return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
+		}
 	}
-	if publication.ID != w.Publication || publication.AssignmentID != w.AssignmentID || publication.Run != w.RunID || publication.Candidate != w.Candidate || publication.Repository != w.Repository || publication.BaseSHA != w.BaseSHA || publication.TargetBranch != w.ComparisonRef {
+	if publication.ID != w.Publication || publication.AssignmentID != w.AssignmentID || publication.Repository != w.Repository || publication.Issue != w.Issue || publication.BaseSHA != w.BaseSHA || publication.TargetBranch != w.ComparisonRef {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), kind)
@@ -125,6 +144,11 @@ func (p NativePublication) ObservePublication(ctx context.Context, w factory.Pub
 	raw, err := p.refs(ctx, account, w)
 	if err != nil {
 		return empty, err
+	}
+	if correction {
+		if err = p.observeCorrectionPull(ctx, account, w, publication, raw); err != nil {
+			return empty, err
+		}
 	}
 	after, err := p.ReadAcceptanceEvidence(ctx, strconv.FormatInt(w.Repository, 10), strconv.FormatInt(w.Issue, 10), nil)
 	if err != nil {
@@ -155,7 +179,17 @@ func (p NativePublication) LookupOp(ctx context.Context, id string) (factory.Ope
 		return factory.OperationOutcome{OperationID: id, NotObserved: true}, nil
 	}
 	var cmd factory.Command
-	if op.Kind == factory.OpRefPublish {
+	if op.Kind == factory.OpRefPublish && w.CorrectionNumber > 0 {
+		q, e := p.branchRequest(ctx, w)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		c, e := p.Store.RefPublicationCapture(ctx, q, w.ExpectedOld)
+		err = e
+		if err == nil {
+			cmd, err = c.Command()
+		}
+	} else if op.Kind == factory.OpRefPublish {
 		q, e := p.branchRequest(ctx, w)
 		if e != nil {
 			return factory.OperationOutcome{}, e
@@ -192,12 +226,15 @@ func (p NativePublication) admitSubmit(ctx context.Context, w factory.Publicatio
 	if w.Validate() != nil {
 		return nil, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
-	publication, op, _, err := p.registered(ctx, w.OperationID)
+	publication, op, saved, err := p.registered(ctx, w.OperationID)
 	if err != nil {
 		return nil, err
 	}
-	if publication.Stage != factory.PublicationOpen || publication.WithdrawRequested || op.Kind != kind || op.Work == nil || !reflect.DeepEqual(*op.Work, w.Intent()) || op.Attempts != 1 || time.Now().Unix() >= w.NotAfter {
+	if !(w.CorrectionNumber == 0 && publication.Stage == factory.PublicationOpen || w.CorrectionNumber > 0 && publication.Stage == factory.PublicationPublished) || publication.WithdrawRequested || op.Kind != kind || op.Work == nil || !reflect.DeepEqual(*op.Work, w.Intent()) || op.RunID != "" && op.RunID != w.RunID || op.Attempts != 1 || time.Now().Unix() >= w.NotAfter {
 		return nil, &factory.PublicationWait{Reason: "publication_not_admitted"}
+	}
+	if w.AssignmentID != publication.AssignmentID || w.RunID != saved.RunID || w.Run.InputSHA != saved.Run.InputSHA || w.Run.ProjectID != saved.Run.ProjectID || w.Run.Role != saved.Run.Role || !saved.Run.Reconciled {
+		return nil, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
 	policy, err := p.Store.RepositoryPolicy(ctx, w.Repository)
 	if err != nil {
@@ -221,8 +258,8 @@ func (p NativePublication) admitSubmit(ctx context.Context, w factory.Publicatio
 }
 func (p NativePublication) SubmitPublish(ctx context.Context, w factory.PublicationWork) (factory.OperationOutcome, error) {
 	var empty factory.OperationOutcome
-	if w.ExpectedOld != "absent" {
-		return empty, &factory.PublicationWait{Reason: "native_correction_publication_unavailable"}
+	if w.CorrectionNumber > 0 {
+		return p.submitCorrectionRef(ctx, w)
 	}
 	account, err := p.admitSubmit(ctx, w, factory.OpRefPublish)
 	if err != nil {
@@ -249,7 +286,7 @@ func (p NativePublication) SubmitPublish(ctx context.Context, w factory.Publicat
 			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 		}
 		sum := sha256.Sum256(w.Bundle)
-		prep := nativeBranchCreatePreparation{Version: 2, Account: account.identity.Account.ExternalID, NotAfter: w.NotAfter, Branch: nativeBranchCreateWrite{Repository: raw.Repository, RepositoryNodeID: raw.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.BaseSHA, ComparisonBranch: raw.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:])}}
+		prep := nativeBranchCreatePreparation{Version: 2, Account: account.identity.Account.ExternalID, NotAfter: w.NotAfter, Branch: nativeBranchCreateWrite{Repository: raw.Repository, RepositoryNodeID: raw.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: raw.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:])}}
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -360,7 +397,25 @@ func (p NativePublication) CancelOp(ctx context.Context, id string) (factory.Ope
 		return factory.OperationOutcome{OperationID: id, NotObserved: true}, nil
 	}
 	var lookup collaboration.OperationLookup
-	if op.Kind == factory.OpRefPublish {
+	if op.Kind == factory.OpRefPublish && w.CorrectionNumber > 0 {
+		q, e := p.branchRequest(ctx, w)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		capture, e := p.Store.RefPublicationCapture(ctx, q, w.ExpectedOld)
+		if errors.Is(e, store.ErrNotFound) {
+			actor, lookupErr := p.Store.CollaborationActor(ctx, q.Actor)
+			if lookupErr != nil {
+				return factory.OperationOutcome{}, lookupErr
+			}
+			capture = factory.RefPublicationCapture{Request: q, ExpectedOld: w.ExpectedOld, Authority: "native-github:" + string(p.Config.Profile) + ":" + actor.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"cancelled_before_preparation":true}`)}
+			capture, _, e = p.Store.CaptureRefPublication(ctx, capture)
+		}
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		lookup, err = p.Store.CancelRefPublicationDispatch(ctx, capture)
+	} else if op.Kind == factory.OpRefPublish {
 		q, e := p.branchRequest(ctx, w)
 		if e != nil {
 			return factory.OperationOutcome{}, e
@@ -412,6 +467,21 @@ func (p NativePublication) AdoptBranch(ctx context.Context, w factory.Publicatio
 	if err != nil {
 		return empty, err
 	}
+	if w.CorrectionNumber > 0 {
+		capture, e := p.Store.RefPublicationCapture(ctx, q, w.ExpectedOld)
+		if e != nil {
+			return empty, e
+		}
+		var prep nativeBranchCreatePreparation
+		if nativeDecode(capture.ProviderIntent, &prep) != nil || prep.Version != 3 || prep.NotAfter != w.NotAfter || prep.Transfer == nil || prep.Transfer.ExpectedOld != w.ExpectedOld || prep.Transfer.Base != w.Run.InputSHA {
+			return empty, errNativeRead
+		}
+		receipt, e := validateNativeBranchTransferReceipt(q, prep, out.Receipt)
+		if e != nil || out.OperationID != w.OperationID || out.Kind != factory.OpRefPublish || out.Effect != factory.OpEffectCommitted || receipt.Comparison != w.ComparisonOID {
+			return empty, errNativeRead
+		}
+		return factory.BranchOutcome{Operation: out, Ref: receipt.Branch, OldOID: receipt.Old, NewOID: receipt.New, Comparison: receipt.Comparison}, nil
+	}
 	c, err := p.Store.HumanBranchCreateCapture(ctx, q)
 	if err != nil {
 		return empty, err
@@ -420,7 +490,7 @@ func (p NativePublication) AdoptBranch(ctx context.Context, w factory.Publicatio
 	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter != w.NotAfter {
 		return empty, errNativeRead
 	}
-	raw, err := validateNativeBranchTransferReceipt(c, prep, out.Receipt)
+	raw, err := validateNativeBranchTransferReceipt(c.Request, prep, out.Receipt)
 	if err != nil || out.OperationID != w.OperationID || out.Kind != factory.OpRefPublish || out.Effect != factory.OpEffectCommitted || raw.Comparison != w.ComparisonOID {
 		return empty, errNativeRead
 	}
@@ -450,6 +520,20 @@ func (p NativePublication) AdoptPRCreation(ctx context.Context, w factory.Public
 	raw, err := validateNativePullCreateReceipt(c, prep, out.Receipt)
 	if err != nil || out.OperationID != w.OperationID || out.Kind != factory.OpPRCreate || out.Effect != factory.OpEffectCommitted || prep.Pull.BasePin.Commit != w.ComparisonOID || prep.Pull.HeadPin.Commit != w.Candidate {
 		return empty, errNativeRead
+	}
+	_, operation, e := p.Store.PublicationOperation(ctx, w.OperationID)
+	if e != nil {
+		return empty, e
+	}
+	if operation.IssueID > 0 {
+		prID, e := strconv.ParseInt(raw.Pull.ExternalID, 10, 64)
+		if e != nil {
+			return empty, e
+		}
+		if operation.PRNumber != raw.Pull.Number || operation.PRID != prID || operation.HeadRef != "refs/heads/"+q.HeadBranch || operation.BaseRef != "refs/heads/"+q.BaseBranch || operation.HeadOID != prep.Pull.HeadPin.Commit || operation.BaseOID != prep.Pull.BasePin.Commit {
+			return empty, errNativeRead
+		}
+		return factory.PRCreationOutcome{Operation: out, HeadRef: operation.HeadRef, BaseRef: operation.BaseRef, HeadOID: operation.HeadOID, BaseOID: operation.BaseOID, PRNumber: operation.PRNumber, PRID: operation.PRID, IssueID: operation.IssueID, AuthorID: w.ActorID}, nil
 	}
 	account, err := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpPRCreate)
 	if err != nil {

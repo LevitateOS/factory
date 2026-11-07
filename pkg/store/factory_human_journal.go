@@ -29,6 +29,15 @@ type humanJournal struct {
 func humanJournalCommand(cmd factory.Command) (humanJournal, error) {
 	var s humanJournal
 	switch cmd.Type {
+	case factory.CommandRefPublish:
+		c, err := factory.DecodeRefPublicationCapture(cmd)
+		if err != nil {
+			return s, err
+		}
+		s = humanJournal{host: c.Request.Host, repository: c.Request.Repository, actor: c.Request.Actor, authority: c.Authority, operation: c.OperationID, invalid: factory.ErrRefPublicationObservation, validate: func(o collaboration.OperationLookup) error { return factory.ValidateRefPublicationObservation(c, o) }, finished: factory.RefPublicationFinished, advance: func(old, next collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+			return factory.AdvanceRefPublicationObservation(c, old, next)
+		}, saveFailure: "ref publication observation save failed"}
+
 	case factory.CommandHumanComment:
 		c, err := factory.DecodeHumanCommentCapture(cmd)
 		if err != nil {

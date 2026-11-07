@@ -107,7 +107,7 @@ func (s nativeHumanBranchCreates) decode(ctx context.Context, c factory.HumanBra
 	if c.Authority != s.humanAuthority() {
 		return p, factoryservice.ErrHumanBranchCreateNamespace
 	}
-	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || !(p.Version == 1 && p.Transfer == nil || p.Version == 2 && p.Transfer != nil && p.Transfer.valid(c.Request)) || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Branch.Repository != s.repository.ExternalID || !nativeReviewNode(p.Branch.RepositoryNodeID, 1024) || p.Branch.Name != c.Request.Name || p.Branch.Commit != string(c.Request.Commit) {
+	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || !(p.Version == 1 && p.Transfer == nil || p.Version == 2 && p.Transfer != nil && p.Transfer.ExpectedOld == "" && p.Transfer.valid(c.Request)) || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Branch.Repository != s.repository.ExternalID || !nativeReviewNode(p.Branch.RepositoryNodeID, 1024) || p.Branch.Name != c.Request.Name || p.Branch.Commit != string(c.Request.Commit) {
 		return p, factoryservice.ErrHumanBranchCreateConflict
 	}
 	return p, nil
@@ -130,7 +130,7 @@ func (s nativeHumanBranchCreates) ReadCreatedHumanBranch(ctx context.Context, c 
 	}
 	expectedNode := ""
 	if p.Transfer != nil {
-		if _, err = validateNativeBranchTransferReceipt(c, p, o.Record.Receipt.Payload); err != nil {
+		if _, err = validateNativeBranchTransferReceipt(c.Request, p, o.Record.Receipt.Payload); err != nil {
 			return empty, err
 		}
 	} else {

@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 94
+const schemaFormatVersion = 95
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -19,7 +19,7 @@ var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
 	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY, application_hosting BOOLEAN NOT NULL DEFAULT true, appliance_compatibility BOOLEAN NOT NULL DEFAULT true)`,
-	`INSERT INTO schema_version(version) VALUES(94)`,
+	`INSERT INTO schema_version(version) VALUES(95)`,
 	`CREATE TABLE factory_departments(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_intent_heads(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), revision TEXT NOT NULL)`,
 	`CREATE TABLE factory_intent_revisions(id TEXT PRIMARY KEY, intent TEXT NOT NULL REFERENCES factory_intent_heads(id), data JSONB NOT NULL)`,
@@ -614,6 +614,17 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS appliance_compatibility BOOLEAN NOT NULL DEFAULT true; UPDATE schema_version SET version=94`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("record retained appliance compatibility: %w", err))
+		}
+		version = 94
+	}
+	if version == 94 {
+		if _, err = t.ExecContext(ctx, commandGuardDDL); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate conditional ref dispatch: %w", err))
+		}
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=95`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, err)
 		}
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {

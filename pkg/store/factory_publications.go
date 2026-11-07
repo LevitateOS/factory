@@ -52,6 +52,36 @@ func (s *Store) PublicationByAssignment(ctx context.Context, assignmentID string
 	return p, err
 }
 
+func (s *Store) PublicationByID(ctx context.Context, id string) (factory.Publication, error) {
+	var p factory.Publication
+	if !factory.ValidID(id) {
+		return p, ErrNotFound
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications WHERE data->>'id'=$1 LIMIT 2`, id)
+	if err != nil {
+		return p, err
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var raw []byte
+		if err = rows.Scan(&raw); err != nil {
+			return p, err
+		}
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return p, err
+		}
+		count++
+	}
+	if err = rows.Err(); err != nil {
+		return p, err
+	}
+	if count != 1 {
+		return factory.Publication{}, ErrNotFound
+	}
+	return p, p.Validate()
+}
+
 // Resolve only the operation frozen in the canonical publication. A provider
 // command or matching branch name cannot invent workflow ownership.
 func (s *Store) PublicationOperation(ctx context.Context, id string) (factory.Publication, factory.PublicationOperation, error) {

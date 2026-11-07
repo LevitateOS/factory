@@ -1323,7 +1323,12 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	var input struct {
 		Repository, Issue, Connection, Decision string
 		Checks                                  factory.CheckTarget
-		Publication                             struct {
+		Correction                              struct {
+			Target                        factory.CheckTarget
+			Candidate, CancelledCandidate string
+			Bundle, CancelledBundle       []byte
+		}
+		Publication struct {
 			Base, Candidate string
 			Bundle          []byte
 		}
@@ -1340,7 +1345,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	fixtureTimeout := 35 * time.Second
-	if strings.HasPrefix(action, "check-background-publication") {
+	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") {
 		fixtureTimeout = 120 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
@@ -1362,6 +1367,11 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if strings.HasPrefix(action, "check-background-correction") {
+		target := input.Correction.Target
+		target.Repository = repository
+		return nativeCorrectionFixture(ctx, db, factoryruntime.NativePublication{NativeInputSource: source}, connection.Actor, issue, target, input.Correction.Candidate, input.Correction.CancelledCandidate, input.Correction.Bundle, input.Correction.CancelledBundle, path, action)
+	}
 	if strings.HasPrefix(action, "check-background-publication") {
 		return nativePublicationFixture(ctx, db, factoryruntime.NativePublication{NativeInputSource: source}, connection.Actor, repository, issue, input.Publication.Base, input.Publication.Candidate, input.Publication.Bundle, path, action)
 	}
@@ -1489,6 +1499,9 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 			}
 		}
 		if _, err := port.AdoptBranch(ctx, state.Branch, state.BranchOutcome); err != nil {
+			return err
+		}
+		if _, err := port.AdoptPRCreation(ctx, state.Pull, state.PullOutcome); err != nil {
 			return err
 		}
 		fmt.Println("PASS: native branch/PR command receipts survive restart and exact credential withdrawal without sending again")
@@ -1655,6 +1668,216 @@ func nativePublicationFixture(ctx context.Context, db *store.Store, port factory
 	return nil
 }
 
+// Original publication/run/authority are declared. The correction's Git lease,
+// native transfer, journal reservation/receipt and cancellation are real.
+func nativeCorrectionFixture(ctx context.Context, db *store.Store, port factoryruntime.NativePublication, actor collaboration.ActorID, issue int64, target factory.CheckTarget, candidate, cancelledCandidate string, bundle, cancelledBundle []byte, path, action string) error {
+	statePath := filepath.Join(filepath.Dir(path), "native-correction.json")
+	var state struct {
+		Work, Cancelled           factory.PublicationWork
+		Outcome, CancelledOutcome factory.OperationOutcome
+	}
+	if action != "check-background-correction" {
+		raw, err := os.ReadFile(statePath)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &state); err != nil {
+			return err
+		}
+		out, err := port.LookupOp(ctx, state.Work.OperationID)
+		if err != nil || !reflect.DeepEqual(out, state.Outcome) {
+			return fmt.Errorf("retained correction receipt: %v", err)
+		}
+		if _, err = port.AdoptBranch(ctx, state.Work, out); err != nil {
+			return err
+		}
+		out, err = port.SubmitPublish(ctx, state.Cancelled)
+		if err != nil || !reflect.DeepEqual(out, state.CancelledOutcome) {
+			return fmt.Errorf("retained correction cancellation: %v", err)
+		}
+		fmt.Println("PASS: correction receipt/adoption and cancelled send survive native restart/credential withdrawal without replay")
+		return nil
+	}
+	owner, found := strings.CutPrefix(target.HeadRef, "refs/heads/soda/factory/")
+	if !found || !factory.ValidID(owner) {
+		return errors.New("correction fixture needs its owned Factory branch")
+	}
+	evidence, err := port.ReadAcceptanceEvidence(ctx, fmt.Sprint(target.Repository), fmt.Sprint(issue), nil)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	publication := declaredPublishedFixture(target, actor, owner, issue, evidence.Revision, now.Add(2*time.Minute).Unix())
+	if err = publication.Validate(); err != nil {
+		return err
+	}
+	rawDB, err := sql.Open("pgx", port.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	write := func() error {
+		if err := publication.Validate(); err != nil {
+			return fmt.Errorf("declared correction publication: %w", err)
+		}
+		raw, e := json.Marshal(publication)
+		if e != nil {
+			return e
+		}
+		_, e = rawDB.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(assignment) DO UPDATE SET run=EXCLUDED.run,stage=EXCLUDED.stage,revision=EXCLUDED.revision,data=EXCLUDED.data`, publication.AssignmentID, publication.Repository, publication.Issue, publication.Run, publication.Stage, publication.Revision, string(raw))
+		return e
+	}
+	makeWork := func(index int, old, next string, bytes []byte) (factory.PublicationWork, error) {
+		run := factory.Run{ID: factory.NewID(), ProjectID: publication.ProjectID, Role: project.RoleCoder, InputSHA: old, Started: now.Add(-time.Minute), Deadline: now.Add(time.Minute), Outcome: factory.Succeeded, Reconciled: true, Image: "sha256:" + strings.Repeat("1", 64), Harness: "declared-fixture", Model: "declared-fixture"}
+		if e := run.Validate(); e != nil {
+			return factory.PublicationWork{}, e
+		}
+		raw, e := json.Marshal(run)
+		if e != nil {
+			return factory.PublicationWork{}, e
+		}
+		if _, e = rawDB.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES($1,FALSE,TRUE,$2)`, run.ID, string(raw)); e != nil {
+			return factory.PublicationWork{}, e
+		}
+		return factory.PublicationWork{Bundle: bytes, AssignmentID: owner, Publication: publication.ID, RunID: run.ID, Run: run, Candidate: next, BaseSHA: publication.BaseSHA, TargetBranch: publication.TargetBranch, OperationID: factory.PublicationOperationID(publication.ID, factory.OpRefPublish, index), AuthRevision: "declared-native-correction-fixture", ExpectedOld: old, ComparisonRef: publication.TargetBranch, PRTitle: publication.PRCreate.Work.PRTitle, PRBody: publication.PRCreate.Work.PRBody, Repository: target.Repository, Issue: issue, ActorID: int64(actor), CorrectionNumber: target.PRNumber, CorrectionAuthor: int64(actor)}, nil
+	}
+	if err = write(); err != nil {
+		return err
+	}
+	state.Work, err = makeWork(2, target.HeadOID, candidate, bundle)
+	if err != nil {
+		return err
+	}
+	observeAndFreeze := func(w *factory.PublicationWork) error {
+		observed, e := port.ObservePublication(ctx, *w)
+		if e != nil {
+			return e
+		}
+		if observed.TargetTip != w.ExpectedOld || observed.Comparison != target.BaseOID {
+			return errors.New("correction target differs")
+		}
+		w.NativeRev, w.ComparisonOID, w.NotAfter = observed.NativeRev, observed.Comparison, now.Add(2*time.Minute).Unix()
+		intent := w.Intent()
+		publication.Corrections = append(publication.Corrections, factory.PublicationOperation{Kind: factory.OpRefPublish, OperationID: w.OperationID, RunID: w.RunID, Work: &intent, Attempts: 1, UpdatedUnix: now.Unix()})
+		return write()
+	}
+	if err = observeAndFreeze(&state.Work); err != nil {
+		return err
+	}
+	if _, err = port.SubmitPublish(ctx, state.Work); err == nil {
+		return errors.New("disabled policy authorized correction")
+	}
+	policy, err := db.RepositoryPolicy(ctx, target.Repository)
+	if err != nil {
+		return err
+	}
+	policy.Enabled = true
+	for role, selection := range policy.Roles {
+		selection.Account = "fixture-unavailable"
+		policy.Roles[role] = selection
+	}
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	wrong := state.Work
+	wrong.ExpectedOld = target.BaseOID
+	if _, err = port.SubmitPublish(ctx, wrong); err == nil {
+		return errors.New("changed frozen correction lease accepted")
+	}
+	if prior, e := port.LookupOp(ctx, state.Work.OperationID); e != nil || !prior.NotObserved {
+		return errors.New("refused correction acquired a native send")
+	}
+	state.Outcome, err = port.SubmitPublish(ctx, state.Work)
+	if err != nil {
+		return err
+	}
+	if state.Outcome.Effect != factory.OpEffectCommitted || state.Outcome.Completion != factory.OpCompletionComplete {
+		return fmt.Errorf("native correction outcome: %+v", state.Outcome)
+	}
+	adopted, err := port.AdoptBranch(ctx, state.Work, state.Outcome)
+	if err != nil {
+		return err
+	}
+	if adopted.Ref != target.HeadRef || adopted.OldOID != target.HeadOID || adopted.NewOID != candidate || adopted.Comparison != target.BaseOID {
+		return errors.New("correction receipt binding differs")
+	}
+	if replay, e := port.SubmitPublish(ctx, state.Work); e != nil || !reflect.DeepEqual(replay, state.Outcome) {
+		return fmt.Errorf("correction replay: %v", e)
+	}
+	op := &publication.Corrections[0]
+	op.InstallationID, op.ActorID, op.RepositoryID = state.Outcome.InstallationID, state.Outcome.ActorID, state.Outcome.RepositoryID
+	op.Effect, op.Cancellation, op.Completion, op.Reason, op.Receipt = state.Outcome.Effect, state.Outcome.Cancellation, state.Outcome.Completion, state.Outcome.Reason, string(state.Outcome.Receipt)
+	publication.Candidate, publication.Run = candidate, state.Work.RunID
+	if err = write(); err != nil {
+		return err
+	}
+	state.Cancelled, err = makeWork(3, candidate, cancelledCandidate, cancelledBundle)
+	if err != nil {
+		return err
+	}
+	if err = observeAndFreeze(&state.Cancelled); err != nil {
+		return err
+	}
+	state.CancelledOutcome, err = port.CancelOp(ctx, state.Cancelled.OperationID)
+	if err != nil {
+		return err
+	}
+	if state.CancelledOutcome.Effect != factory.OpEffectNotCommitted || state.CancelledOutcome.Cancellation != factory.OpCancelCancelled {
+		return errors.New("conditional ref cancellation incomplete")
+	}
+	if replay, e := port.SubmitPublish(ctx, state.Cancelled); e != nil || !reflect.DeepEqual(replay, state.CancelledOutcome) {
+		return fmt.Errorf("cancelled correction sent: %v", e)
+	}
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(statePath, encoded, 0600); err != nil {
+		return err
+	}
+	fmt.Println("PASS: actual conditional correction ref/PR-head update, original head lease, causal receipt/replay, frozen-lease refusal and cancellation before capture; original workflow/run/authority declared, no model or merge")
+	return nil
+}
+
+func declaredPublishedFixture(target factory.CheckTarget, actor collaboration.ActorID, assignment string, issue, nativeRev, notAfter int64) factory.Publication {
+	p := factory.Publication{ID: factory.NewID(), AssignmentID: assignment, Repository: target.Repository, Issue: issue, Run: factory.NewID(), Stage: factory.PublicationPublished, Candidate: target.HeadOID, PRID: target.PRID, PRNumber: target.PRNumber,
+		Publish: factory.PublicationOperation{Work: &factory.PublicationIntent{Candidate: target.HeadOID}}, PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{ActorID: int64(actor)}, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, BaseOID: target.BaseOID}}
+	now := time.Now().Unix()
+	p.ProjectID = "p" + strings.Repeat("d", 24)
+	p.Role = project.RoleCoder
+	p.Acceptance = "d" + strings.Repeat("a", 24)
+	p.Preparation = "f" + strings.Repeat("b", 24)
+	p.BaseSHA = target.BaseOID
+	p.TargetBranch = target.BaseRef
+	p.Comparison = target.BaseOID
+	p.NativeRev = nativeRev
+	p.ObservedUnix = now
+	p.CreatedUnix = now
+	p.FinishedUnix = now
+	p.Outcome = factory.Succeeded
+	p.Reason = factory.PublishReasonLinked
+	for _, operation := range []*factory.PublicationOperation{&p.Publish, &p.PRCreate} {
+		operation.Kind = factory.OpRefPublish
+		if operation == &p.PRCreate {
+			operation.Kind = factory.OpPRCreate
+			operation.HeadOID = target.HeadOID
+			operation.PRNumber, operation.PRID = target.PRNumber, target.PRID
+		}
+		operation.OperationID = factory.PublicationOperationID(p.ID, operation.Kind, 1)
+		operation.Attempts = 1
+		operation.UpdatedUnix = now
+		operation.Effect = factory.OpEffectCommitted
+		operation.Completion = factory.OpCompletionComplete
+		operation.Receipt = "declared publication fixture"
+		operation.Work = &factory.PublicationIntent{OperationID: operation.OperationID, AuthRevision: "declared-publication-fixture", Repository: target.Repository, ActorID: int64(actor), NativeRev: nativeRev, NotAfter: notAfter, Candidate: target.HeadOID, TargetBranch: target.BaseRef, ExpectedOld: "absent", ComparisonRef: target.BaseRef, ComparisonOID: target.BaseOID, PRTitle: "Disposable native review recovery fixture"}
+		if operation.Kind == factory.OpPRCreate {
+			operation.Work.ExpectedOld = target.HeadOID
+		}
+	}
+
+	return p
+}
+
 func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeReviews, actor collaboration.ActorID, target factory.CheckTarget, path, action string) error {
 	statePath := filepath.Join(filepath.Dir(path), "native-review.json")
 	var state struct {
@@ -1733,40 +1956,9 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	if w.Validate() != nil || observed.PRAuthorID != int64(actor) || observed.HeadOID != target.HeadOID || observed.BaseOID != target.BaseOID {
 		return errors.New("native review preflight binding differs")
 	}
-	p := factory.Publication{ID: factory.NewID(), AssignmentID: assignment, Repository: target.Repository, Issue: 9, Run: factory.NewID(), Stage: factory.PublicationPublished, Candidate: target.HeadOID, PRID: target.PRID, PRNumber: target.PRNumber,
-		Publish: factory.PublicationOperation{Work: &factory.PublicationIntent{Candidate: target.HeadOID}}, PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{ActorID: int64(actor)}, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, BaseOID: target.BaseOID}, ReviewOperations: []factory.ReviewOperation{{RunID: run, Work: w}}}
+	p := declaredPublishedFixture(target, actor, assignment, 9, w.NativeRev, w.NotAfter)
+	p.ReviewOperations = []factory.ReviewOperation{{RunID: run, Work: w}}
 	now := time.Now().Unix()
-	p.ProjectID = "p" + strings.Repeat("d", 24)
-	p.Role = project.RoleCoder
-	p.Acceptance = "d" + strings.Repeat("a", 24)
-	p.Preparation = "f" + strings.Repeat("b", 24)
-	p.BaseSHA = target.BaseOID
-	p.TargetBranch = target.BaseRef
-	p.Comparison = target.BaseOID
-	p.NativeRev = w.NativeRev
-	p.ObservedUnix = now
-	p.CreatedUnix = now
-	p.FinishedUnix = now
-	p.Outcome = factory.Succeeded
-	p.Reason = factory.PublishReasonLinked
-	for _, operation := range []*factory.PublicationOperation{&p.Publish, &p.PRCreate} {
-		operation.Kind = factory.OpRefPublish
-		if operation == &p.PRCreate {
-			operation.Kind = factory.OpPRCreate
-			operation.HeadOID = target.HeadOID
-			operation.PRNumber, operation.PRID = target.PRNumber, target.PRID
-		}
-		operation.OperationID = factory.PublicationOperationID(p.ID, operation.Kind, 1)
-		operation.Attempts = 1
-		operation.UpdatedUnix = now
-		operation.Effect = factory.OpEffectCommitted
-		operation.Completion = factory.OpCompletionComplete
-		operation.Receipt = "declared publication fixture"
-		operation.Work = &factory.PublicationIntent{OperationID: operation.OperationID, AuthRevision: "declared-publication-fixture", Repository: target.Repository, ActorID: int64(actor), NativeRev: w.NativeRev, NotAfter: w.NotAfter, Candidate: target.HeadOID, TargetBranch: target.BaseRef, ExpectedOld: "absent", ComparisonRef: target.BaseRef, ComparisonOID: target.BaseOID, PRTitle: "Disposable native review recovery fixture"}
-		if operation.Kind == factory.OpPRCreate {
-			operation.Work.ExpectedOld = target.HeadOID
-		}
-	}
 	if preparing {
 		state.Work = w
 		clone := func() factory.ReviewWork {

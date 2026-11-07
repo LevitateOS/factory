@@ -247,10 +247,30 @@ push do not prove that race. Relevant owners: `github_provider/{git_publish,tran
 open; use user-started Daybreak if the necessary investigation/check looks like
 hacking. No namespace-change or credential attack check ran here.
 
+Correction ref publication now uses `factory/ref_publication.go` and the existing
+command reducer/reservation in `store/factory_ref_publication.go`; schema 95 extends
+the supported dispatch kinds without releasing reservations or changing old
+payloads/outcomes. `runtime/native_ref_publication.go` binds the frozen workflow,
+prior PR head/author/refs and actual run source before Rust's exact-old-OID update.
+PR metadata checks remain bounded observations, not atomic with receive-pack.
+
+Actual component proof: `/home/vince/tmp/fnative-correction-inputs7.qeC8u8/result.log`
+and `pr-text-head.log` passed correction transfer, old/new receipt and replay,
+changed frozen-lease refusal, cancellation before preparation and retained
+restart/withdrawal readback. The PR head advanced to the first candidate; the
+cancelled candidate was not sent and PR title/body stayed unchanged. Original
+publication, run completion and local authority were declared fixture inputs.
+No model, merge, concurrency/namespace attack or full coordinator correction ran.
+The retained publication profile's `schema95-history.log` under
+`/home/vince/tmp/fnative-publication-linked7.Ssqo9S` passed branch/PR history
+adoption without credentials. Historical PR adoption uses its already recorded
+creation links; this does not qualify interrupted first adoption or installed
+upgrade/downgrade. The two original uncertain sends above remain fenced.
+
 Remaining publication dependencies: actual complete execution-to-publication,
-correction ref updates, cancellation/expiry and interrupted sends/adoption,
-selected-account withdrawal/permission changes, complete coordinator execution
-and installed/custody/IPC qualification. The current verification supplies declared
+coordinator/model correction, expiry and interrupted sends/first adoption,
+selected-account withdrawal/permission and PR-retarget races during transfer,
+complete coordinator execution and installed/custody/IPC qualification. The current verification supplies declared
 run completion/local authority; it must not be reported as a Builder-to-PR or full
 pipeline pass. All broad gates remain open.
 
