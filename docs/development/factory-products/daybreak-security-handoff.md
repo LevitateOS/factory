@@ -201,7 +201,12 @@ private version/digest-addressed cache. `/home/vince/tmp/ftool-update-fixed7.FRH
 proves actual official-artifact acquisition, Go/native SHA readback, executable
 permissions, temporary-file cleanup and retained inode after restart. No CLI,
 credential operation or model request ran. The user's installation is preserved.
-Still unverified: first-install onboarding without a launcher, visible status,
+Status now reaches Go/shared Work without waiting on the download lock. Source
+availability requires current verification. `status-result.log` in that evidence
+root proves native readback; `/home/vince/tmp/fmuse-tool-status-ui7.HFKUai/result.log`
+proves checking/download/failure/verified display, version/time facts and usable
+configuration/withdrawal against a declared peer. No provider authentication or
+model ran. Still unverified: first-install onboarding without a launcher,
 interrupted/failed transfer and retirement, changed-release/active-run races,
 timer cadence and installed activation. Closure requires those exact native and
 installed journeys, including size/digest/redirect refusal and preservation of

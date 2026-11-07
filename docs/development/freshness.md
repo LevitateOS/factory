@@ -38,9 +38,14 @@ ELF is downloaded without authentication into a private, version/digest-addresse
 Factory cache; the user's launcher, login and retained binaries are preserved.
 The actual public-artifact acquisition/Go readback/restart check is recorded in
 A16 of the standalone assumptions audit. First-install onboarding without a Muse
-launcher, visible update status, interrupted-transfer/release-change behavior and
+launcher, interrupted-transfer/release-change behavior and
 installed distribution qualification remain unfinished. This is not installed
 updater qualification or coverage of other providers/dependencies.
+Shared Work now shows checking/download/failure/verified status, upstream and
+selected versions and the last successful verification. Source execution
+availability requires current native verification as well as its other local
+dependencies. Native status readback and declared browser states have scoped
+proof in A16; interrupted downloads and installed update UX are still unqualified.
 
 Other dependencies need event-driven updates where available and frequent
 automatic checks otherwise. This checkout has no Dependabot configuration;

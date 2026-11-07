@@ -46,6 +46,18 @@ type SpendingSource struct {
 	Label              string                    `json:"label"`
 	Native             factory.NativeSponsorship `json:"native"`
 	ExecutionAvailable bool                      `json:"execution_available"`
+	ToolStatus         *SpendingToolStatus       `json:"tool_status,omitempty"`
+}
+
+// SpendingToolStatus reports native observations; it grants no run authority
+// and never includes executable paths or provider authentication.
+type SpendingToolStatus struct {
+	State           string `json:"state"`
+	UpstreamVersion string `json:"upstream_version,omitempty"`
+	SelectedVersion string `json:"selected_version,omitempty"`
+	CheckedAtUnix   int64  `json:"checked_at_unix,omitempty"`
+	Origin          string `json:"origin,omitempty"`
+	Error           string `json:"error,omitempty"`
 }
 
 // RepositoryPolicyOptions are current provider settings, not mutation authority.

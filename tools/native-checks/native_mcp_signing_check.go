@@ -2643,6 +2643,12 @@ func ownedToolFixture(profile, instance, mode string) error {
 	if mode == "update" && filepath.Dir(observed.Native.Executable) != filepath.Join(profile, "native-tools", "muse") {
 		return errors.New("missing installed version was not acquired into the private Factory cache")
 	}
+	if mode == "update" {
+		source, err := port.MuseLoginSource(ctx)
+		if err != nil || source.ToolStatus == nil || source.ToolStatus.State != "ready" || source.ToolStatus.SelectedVersion != observed.Native.Version || source.ToolStatus.Origin != "factory_cache" || source.ToolStatus.CheckedAtUnix <= 0 {
+			return fmt.Errorf("native source did not project the verified tool status: %v", err)
+		}
+	}
 	file, err := os.Open(observed.Native.Executable)
 	if err != nil {
 		return err

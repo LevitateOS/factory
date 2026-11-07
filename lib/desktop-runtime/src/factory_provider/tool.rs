@@ -9,6 +9,7 @@ use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
 
@@ -29,6 +30,15 @@ pub struct Tool {
     pub version: String,
     pub sha256: String,
     pub executable: PathBuf,
+}
+#[derive(Clone, Serialize)]
+pub struct ToolStatus {
+    pub state: &'static str,
+    pub upstream_version: Option<String>,
+    pub selected_version: Option<String>,
+    pub checked_at_unix: Option<u64>,
+    pub origin: Option<&'static str>,
+    pub error: Option<&'static str>,
 }
 #[derive(Deserialize)]
 struct Channel {
@@ -53,6 +63,7 @@ struct Artifact {
 pub struct Tools {
     directory: PathBuf,
     cache: PathBuf,
+    status: Mutex<ToolStatus>,
     client: reqwest::Client,
     selected: tokio::sync::Mutex<Option<(Instant, ToolSelection, std::fs::Metadata)>>,
 }
@@ -108,6 +119,14 @@ impl Tools {
         Ok(Self {
             directory,
             cache: profile.join("native-tools").join("muse"),
+            status: Mutex::new(ToolStatus {
+                state: "checking",
+                upstream_version: None,
+                selected_version: None,
+                checked_at_unix: None,
+                origin: None,
+                error: None,
+            }),
             client: reqwest::Client::builder()
                 .https_only(true)
                 .user_agent("muse-code/factory-native")
@@ -188,6 +207,7 @@ impl Tools {
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
             .open(&pending_path)?;
         let pending = Pending(pending_path);
+        self.status.lock().map_err(|_| refused())?.state = "downloading";
         let mut file = tokio::fs::File::from_std(file);
         let mut response = self
             .client
@@ -250,16 +270,41 @@ impl Tools {
     pub(crate) async fn refresh(&self) -> io::Result<ToolSelection> {
         self.select(true).await
     }
+    pub fn status(&self) -> io::Result<ToolStatus> {
+        self.status
+            .lock()
+            .map(|status| status.clone())
+            .map_err(|_| refused())
+    }
     async fn select(&self, refresh: bool) -> io::Result<ToolSelection> {
+        let result = self.select_inner(refresh).await;
+        if result.is_err() {
+            if let Ok(mut status) = self.status.lock() {
+                status.state = "unavailable";
+                status.error =
+                    Some("Muse could not be verified or updated. New runs are unavailable.");
+            }
+        }
+        result
+    }
+    async fn select_inner(&self, refresh: bool) -> io::Result<ToolSelection> {
         let mut selected = self.selected.lock().await;
         if let Some((checked, selection, identity)) = selected.as_ref() {
-            if !refresh && checked.elapsed() < Self::REFRESH {
+            if !refresh
+                && checked.elapsed() < Self::REFRESH
+                && self.status.lock().map_err(|_| refused())?.state == "ready"
+            {
                 let current = selection.tool.executable.symlink_metadata()?;
                 if !same_file(identity, &current) {
                     return Err(refused());
                 }
                 return Ok(selection.clone());
             }
+        }
+        {
+            let mut status = self.status.lock().map_err(|_| refused())?;
+            status.state = "checking";
+            status.error = None;
         }
         let checked = Instant::now();
         let checked_at_unix = SystemTime::now()
@@ -278,6 +323,7 @@ impl Tools {
         {
             return Err(refused());
         }
+        self.status.lock().map_err(|_| refused())?.upstream_version = Some(channel.version.clone());
         // Construct the sole official manifest target. Never follow a URL from
         // metadata into another host, redirect or credential-bearing request.
         let manifest_url = format!("https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version={}&file=manifest.json",channel.version);
@@ -340,6 +386,18 @@ impl Tools {
             channel: "muse-stable",
             checked_at_unix,
         };
+        {
+            let mut status = self.status.lock().map_err(|_| refused())?;
+            status.state = "ready";
+            status.selected_version = Some(selection.tool.version.clone());
+            status.checked_at_unix = Some(checked_at_unix);
+            status.origin = Some(if selection.tool.executable.starts_with(&self.cache) {
+                "factory_cache"
+            } else {
+                "installed"
+            });
+            status.error = None;
+        }
         *selected = Some((checked, selection.clone(), identity));
         Ok(selection)
     }

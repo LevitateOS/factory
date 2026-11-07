@@ -109,7 +109,10 @@ Installed distribution, Muse installation and privileged service setup remain op
 The A16 tool owner now refreshes the official stable channel and acquires missing
 current Muse bytes into its private cache. Actual public-artifact acquisition,
 Go/native hash readback and restart reuse passed; exact evidence and remaining
-first-install/status/interruption/installed dependencies are recorded in A16.
+first-install/interruption/installed dependencies are recorded in A16. Native
+status now reaches shared Work, with current verification required for source
+execution availability. Native readback and declared four-state browser evidence
+are recorded there; in-flight/installed status qualification remains open.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared

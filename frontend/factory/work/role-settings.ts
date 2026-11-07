@@ -9,6 +9,12 @@ interface RoleContext {
   readonly accountLabel?: string;
 }
 const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review'} as const;
+const toolStatusLabels = {
+  checking: 'Checking Muse for the current release.',
+  downloading: 'Downloading the current Muse release.',
+  ready: 'Muse is verified.',
+  unavailable: 'Muse verification or update failed.',
+} as const;
 type Role = keyof typeof roleNames;
 type Selection = Record<string, unknown> & {account: string; harness: string; model: string};
 type Selections = Record<Role, Selection>;
@@ -23,6 +29,13 @@ interface SpendingSource {
   connection: string;
   label: string;
   available: boolean;
+  tool: {
+    state: keyof typeof toolStatusLabels;
+    latest: string | undefined;
+    selected: string | undefined;
+    checked: number | undefined;
+    error: string | undefined;
+  } | undefined;
 }
 interface Settings {
   policy: Record<string, unknown> | null;
@@ -96,7 +109,26 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
             native.credential_sha256 === undefined &&
             typeof source.execution_available === 'boolean'
         );
-        return {connection: source.connection as string, label: source.label, available: source.execution_available};
+        const rawTool = source.tool_status == null ? undefined : object(source.tool_status);
+        if (rawTool) {
+          check(typeof rawTool.state === 'string' && Object.hasOwn(toolStatusLabels, rawTool.state));
+          for (const field of ['upstream_version', 'selected_version'])
+            check(rawTool[field] == null || (typeof rawTool[field] === 'string' && /^[a-zA-Z0-9._-]{1,32}$/.test(rawTool[field])));
+          check(rawTool.checked_at_unix == null || (Number.isSafeInteger(rawTool.checked_at_unix) && Number(rawTool.checked_at_unix) > 0));
+          check(rawTool.error == null || (typeof rawTool.error === 'string' && rawTool.error.length <= 256));
+        }
+        return {
+          connection: source.connection as string,
+          label: source.label,
+          available: source.execution_available,
+          tool: rawTool ? {
+            state: rawTool.state as keyof typeof toolStatusLabels,
+            latest: rawTool.upstream_version as string | undefined,
+            selected: rawTool.selected_version as string | undefined,
+            checked: rawTool.checked_at_unix as number | undefined,
+            error: rawTool.error as string | undefined,
+          } : undefined,
+        };
       })
     : [];
   const editable = object(object(access.editable).policy).editable === true;
@@ -484,7 +516,16 @@ export class SodaFactoryRoleSettings extends LitElement {
                   This repository shares the allowance across Coding and Review. It is Factory's run-time allowance, not
                   a provider invoice limit.
                 </p>
-                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this Muse login source is not available yet. You can save its allowance and role choices.</p>` : ''}
+                ${view.sources.map((source) => source.tool
+                  ? html`<div role="status">
+                      <p>${toolStatusLabels[source.tool.state]}</p>
+                      ${source.tool.latest ? html`<p>Latest release: ${source.tool.latest}</p>` : ''}
+                      ${source.tool.selected ? html`<p>Selected release: ${source.tool.selected}</p>` : ''}
+                      ${source.tool.checked ? html`<p>Last verified: <time datetime=${new Date(source.tool.checked * 1000).toISOString()}>${new Date(source.tool.checked * 1000).toLocaleString()}</time></p>` : ''}
+                      ${source.tool.error ? html`<p>${source.tool.error}</p>` : ''}
+                    </div>`
+                  : '')}
+                ${view.sources.some((source) => !source.available) ? html`<p>Execution through this source is currently unavailable. You can save its allowance and role choices.</p>` : ''}
                 <button type="submit" value="save">Save source allowance</button>
                 <button type="submit" value="withdraw">Withdraw source allowance</button>
               </fieldset>

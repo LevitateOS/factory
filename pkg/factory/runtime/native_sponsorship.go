@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -43,6 +45,32 @@ func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.Sp
 	}
 	if !collaboration.ValidID(source.Connection) || source.Native.Profile != p.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || source.Native.Validate() != nil || source.Label != "This Muse login" {
 		return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
+	}
+	if source.ToolStatus == nil {
+		source.ExecutionAvailable = false
+	}
+	if status := source.ToolStatus; status != nil {
+		validVersion := func(version string) bool {
+			return len(version) <= 32 && strings.IndexFunc(version, func(r rune) bool {
+				return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_')
+			}) == -1
+		}
+		valid := validVersion(status.UpstreamVersion) && validVersion(status.SelectedVersion) && status.CheckedAtUnix >= 0 && status.CheckedAtUnix <= time.Now().Add(5*time.Second).Unix() && len(status.Error) <= 256 &&
+			(status.Origin == "" || status.Origin == "installed" || status.Origin == "factory_cache")
+		switch status.State {
+		case "ready":
+			valid = valid && status.SelectedVersion != "" && status.UpstreamVersion == status.SelectedVersion && status.CheckedAtUnix > 0 && status.Origin != "" && status.Error == ""
+		case "checking":
+		case "downloading":
+			valid = valid && status.UpstreamVersion != ""
+		case "unavailable":
+			valid = valid && status.Error != ""
+		default:
+			valid = false
+		}
+		if !valid || source.ExecutionAvailable && status.State != "ready" {
+			return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
+		}
 	}
 	return source, ctx.Err()
 }

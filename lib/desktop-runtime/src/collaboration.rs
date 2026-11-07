@@ -844,15 +844,35 @@ async fn dispatch(
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
         if matches!(&call, crate::factory_provider::port::Call::InspectMuseLogin) {
             let connection = crate::factory_provider::muse_connection(&state.channel.profile);
+            let tools = state
+                .tools
+                .read()
+                .map_err(|_| Failure::unavailable())?
+                .clone();
+            let tool_status = tools
+                .as_ref()
+                .map(|tools| tools.status())
+                .transpose()
+                .map_err(|_| Failure::unavailable())?;
             let available = crate::factory_provider::muse_helper().is_ok()
-                && state.tools.read().is_ok_and(|tools| tools.is_some())
+                && tool_status.as_ref().is_some_and(|status| {
+                    status.state == "ready"
+                        && status.checked_at_unix.is_some_and(|checked| {
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .is_ok_and(|now| {
+                                    now.as_secs().saturating_sub(checked)
+                                        < crate::factory_provider::Tools::REFRESH.as_secs()
+                                })
+                        })
+                })
                 && state
                     .execution_error
                     .lock()
                     .is_ok_and(|error| error.is_none());
             return Ok(json!({"connection":connection,"label":"This Muse login",
                 "native":{"profile":state.channel.profile,"authentication":"muse_login"},
-                "execution_available":available}));
+                "execution_available":available,"tool_status":tool_status}));
         }
         if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
             && state

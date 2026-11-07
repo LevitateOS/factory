@@ -90,8 +90,10 @@ its login. The joined native owner refreshes official metadata every five minute
 and fetches a missing current ELF into Factory's private profile cache, preserving
 the user's installation and exact binaries captured by existing runs. Browsing
 remains available while selection is pending; unavailable tools cannot start work.
-First-install onboarding without a launcher, visible update status and installed
-update qualification remain unfinished. Admitted execution using the existing
+Work shows verification/update status, latest and selected releases and the last
+successful check. Pending/failed verification keeps execution unavailable while
+allowance settings stay usable. First-install onboarding without a launcher and
+installed update qualification remain unfinished. Admitted execution using the existing
 Muse login has scoped proof in the assumptions audit; full task execution remains
 unavailable until its native task/checkpoint owner is implemented.
 The old unbound query/mutation and recorded-run polling IPC surface is absent from
