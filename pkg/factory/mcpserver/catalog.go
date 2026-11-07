@@ -237,7 +237,8 @@ func catalogTools(deps Dependencies, capability factory.MCPCapability) []factory
 	for _, tool := range factory.MCPTools {
 		if !factory.MCPToolAdmitted(capability.Profile, tool) ||
 			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil) ||
-			(tool == factory.MCPToolReadSource && deps.ReadSource == nil) {
+			(tool == factory.MCPToolReadSource && deps.ReadSource == nil) ||
+			(tool == factory.MCPToolListSource && deps.ListSource == nil) {
 			continue
 		}
 		tools = append(tools, tool)
@@ -254,8 +255,8 @@ func (s *factoryCatalogServer) serve(ctx context.Context, tool factory.MCPTool, 
 		return s.serveWorkerPost(ctx, tool, args)
 	}
 	switch tool {
-	case factory.MCPToolReadSource:
-		return s.serveSource(ctx, args)
+	case factory.MCPToolReadSource, factory.MCPToolListSource:
+		return s.serveSource(ctx, tool, args)
 	case factory.MCPToolCreateIssue, factory.MCPToolRefineIssue:
 		return s.serveIssueMaker(ctx, tool, args)
 	case factory.MCPToolStartTask, factory.MCPToolReleaseOutput:

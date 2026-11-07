@@ -601,7 +601,8 @@ impl Preparations {
         }
         let selection: soda_execution_protocol::ContextSelection = serde_json::from_value(json!({
             "source_commit":meta["source_commit"],"approved_base":meta["approved_base"],
-            "diff_base":meta["diff_base"],"candidate":meta["candidate"],"paths":meta["paths"]
+            "diff_base":meta["diff_base"],"candidate":meta["candidate"],"paths":meta["paths"],
+            "directory":meta["directory"]
         }))
         .map_err(|_| denied())?;
         if !selection.valid() {
@@ -620,9 +621,15 @@ impl Preparations {
         let total = setup.len()
             + check.len()
             + context.diff.len()
-            + context.files.iter().map(|f| f.content.len()).sum::<usize>();
+            + context.files.iter().map(|f| f.content.len()).sum::<usize>()
+            + context
+                .entries
+                .iter()
+                .map(|e| e.path.len() + e.kind.len())
+                .sum::<usize>();
         if total > soda_execution_protocol::MAX_CONTEXT_BYTES
             || context.files.len() > 12
+            || context.entries.len() > soda_execution_protocol::MAX_CONTEXT_ENTRIES
             || std::str::from_utf8(setup).is_err()
             || std::str::from_utf8(check).is_err()
             || std::str::from_utf8(&context.diff).is_err()
@@ -646,7 +653,8 @@ impl Preparations {
         Ok(json!({"native":input.native,"material":{
             "project":input.workspace,"id":input.id,"role":role,"source_commit":input.source,
             "approved_base":selection.approved_base,"diff_base":selection.diff_base,"candidate":selection.candidate,
-            "setup":encode(setup),"check":encode(check),"files":files,"diff":encode(&context.diff)
+            "setup":encode(setup),"check":encode(check),"files":files,"diff":encode(&context.diff),
+            "directory":selection.directory,"entries":context.entries
         }}))
     }
     pub(crate) fn cancel_all(&self) {

@@ -152,9 +152,21 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fsource-admitted7.r9qiEb/result.log`; the exact source-read
   marker is retained in that profile's run receipt. Current Go builds, affected
   existing MCP transport/context tests and dependency boundaries passed.
-  No model request, saved-login change or GitHub action ran. This is immutable
-  source inspection, not mutable task reads/edits, source-tree discovery, large
-  file paging, native task execution or installed/authority-race qualification.
+  `factory.list_source` now lists immediate tracked entries at that same captured
+  commit, with root/nested instruction closure. The shared context contract
+  carries an optional directory and bounded path/kind entries; Rust performs the
+  Git tree read in the existing isolated context service. It identifies files,
+  directories, symlinks and submodules without following links. At most 256
+  entries and the existing context/reply bounds apply; oversized results refuse.
+  The actual admitted worker compared root/nested names, kinds and commit,
+  including a symlink, and confirmed missing-directory refusal in
+  `/home/vince/tmp/fsource-directory7.p48gW7/result.log`. File/instruction reads,
+  artifacts, explicit incomplete result, retirement and restart also passed.
+  Native/Go builds, affected existing MCP tests and boundaries passed. No model
+  request, saved-login change or GitHub action ran. These are immutable source
+  reads/listings, not mutable task access, large-file/directory paging, native
+  task execution or installed/authority-race qualification. Submodule listing
+  and over-limit selections were not exercised in this ordinary fixture.
 
 - **A04/A19 — native task manifest binding implemented; task runtime pending.**
   New task intents use version 5 to capture the exact phase and manifest digest

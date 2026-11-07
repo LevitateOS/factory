@@ -15,7 +15,7 @@ import (
 
 func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 	required := []string{"capability_id"}
-	if !factory.MCPIsRead(tool) || tool == factory.MCPToolDiscussion || tool == factory.MCPToolReadLibraryItem || tool == factory.MCPToolPreviewRepair || tool == factory.MCPToolReadSource {
+	if !factory.MCPIsRead(tool) || tool == factory.MCPToolDiscussion || tool == factory.MCPToolReadLibraryItem || tool == factory.MCPToolPreviewRepair || tool == factory.MCPToolReadSource || tool == factory.MCPToolListSource {
 		required = append(required, "payload")
 	}
 	schema := &jsonschema.Schema{
@@ -35,10 +35,14 @@ func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 
 func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	switch tool {
-	case factory.MCPToolReadSource:
+	case factory.MCPToolReadSource, factory.MCPToolListSource:
+		minLength := 1
+		if tool == factory.MCPToolListSource {
+			minLength = 0
+		}
 		return &jsonschema.Schema{
 			Type: "object", Properties: map[string]*jsonschema.Schema{
-				"path": {Type: "string", MinLength: ptrInt(1), MaxLength: ptrInt(project.MaxFactoryContextPathBytes)},
+				"path": {Type: "string", MinLength: ptrInt(minLength), MaxLength: ptrInt(project.MaxFactoryContextPathBytes)},
 			}, Required: []string{"path"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		}
 	case factory.MCPToolPreviewRepair:

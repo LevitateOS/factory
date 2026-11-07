@@ -1,8 +1,8 @@
 //! Read Git objects only in the isolated, read-only context service.
 use super::{git, private_process, refused, CHECKOUT};
 use soda_execution_protocol::{
-    ContextFile, ContextSelection, PreparedSourceOperation, PreparedSourceResult, SourceContext,
-    MAX_CONTEXT_BYTES, MAX_CONTEXT_REQUEST,
+    ContextEntry, ContextFile, ContextSelection, PreparedSourceOperation, PreparedSourceResult,
+    SourceContext, MAX_CONTEXT_BYTES, MAX_CONTEXT_ENTRIES, MAX_CONTEXT_REQUEST,
 };
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
@@ -148,6 +148,14 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
         return Err(refused("context candidate ancestry invalid"));
     }
     let mut paths = BTreeSet::from(["AGENTS.md".to_owned()]);
+    if let Some(directory) = request.directory.as_ref().filter(|path| !path.is_empty()) {
+        paths.insert(format!("{directory}/AGENTS.md"));
+        let mut parent = std::path::Path::new(directory).parent();
+        while let Some(directory) = parent.filter(|p| !p.as_os_str().is_empty()) {
+            paths.insert(format!("{}/AGENTS.md", directory.display()));
+            parent = directory.parent();
+        }
+    }
     for path in &request.paths {
         paths.insert(path.clone());
         let mut parent = std::path::Path::new(path).parent();
@@ -167,6 +175,15 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
             files.push(ContextFile { path, content });
         }
     }
+    let entries = if let Some(directory) = &request.directory {
+        directory_entries(&request.candidate, directory, MAX_CONTEXT_BYTES - total)?
+    } else {
+        Vec::new()
+    };
+    total += entries
+        .iter()
+        .map(|entry| entry.path.len() + entry.kind.len())
+        .sum::<usize>();
     let diff = query(
         &[
             "diff",
@@ -183,5 +200,53 @@ fn read(request: ContextSelection) -> io::Result<SourceContext> {
     if std::str::from_utf8(&diff).is_err() {
         return Err(refused("context diff is not text"));
     }
-    Ok(SourceContext { files, diff })
+    Ok(SourceContext {
+        files,
+        diff,
+        entries,
+    })
+}
+
+fn directory_entries(commit: &str, directory: &str, limit: usize) -> io::Result<Vec<ContextEntry>> {
+    let tree = if directory.is_empty() {
+        commit.to_owned()
+    } else {
+        format!("{commit}:{directory}")
+    };
+    let bytes = query(&["ls-tree", "-z", &tree], limit)?;
+    let mut entries = Vec::new();
+    for entry in bytes.split(|b| *b == 0).filter(|entry| !entry.is_empty()) {
+        let tab = entry
+            .iter()
+            .position(|b| *b == b'\t')
+            .ok_or_else(|| refused("source tree entry invalid"))?;
+        let header = std::str::from_utf8(&entry[..tab])
+            .map_err(|_| refused("source tree header invalid"))?;
+        let name = std::str::from_utf8(&entry[tab + 1..])
+            .map_err(|_| refused("source tree path is not text"))?;
+        let path = if directory.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{directory}/{name}")
+        };
+        if name.contains('/')
+            || !ContextSelection::valid_path(&path)
+            || entries.len() >= MAX_CONTEXT_ENTRIES
+        {
+            return Err(refused("source directory exceeds path or entry bounds"));
+        }
+        let fields: Vec<_> = header.split(' ').collect();
+        let kind = match fields.as_slice() {
+            ["100644" | "100755", "blob", _] => "file",
+            ["040000", "tree", _] => "directory",
+            ["120000", "blob", _] => "symlink",
+            ["160000", "commit", _] => "submodule",
+            _ => return Err(refused("source tree entry kind invalid")),
+        };
+        entries.push(ContextEntry {
+            path,
+            kind: kind.to_owned(),
+        });
+    }
+    Ok(entries)
 }

@@ -29,19 +29,25 @@ It supplies no provider or IPC admission proof. Existing account/repository swit
 reconnect and installed/Fountain parity gates still need their actual host
 journeys with this metadata; navigation must never grant a wider transport scope.
 
-**A05/A19 agent source reads:** `pkg/factory/service/worker_source.go` captures
+**A05/A19 agent source inspection:** `pkg/factory/service/worker_source.go` captures
 the admitted assignment's preparation/source commit and rechecks current work
 after native I/O. `mcpserver/source.go`, `mcpserver/catalog.go` and
 `runtime/native_worker_mcp.go` expose only a relative path through ordinary MCP
-admission. Existing Rust preparation/context services own Git-object reads and
-instruction closure; no host path, commit or workspace selector comes from the
-worker. The audit records actual dummy-worker source/instruction bytes, missing
-file refusal, artifact publication and retirement/restart proof. This closes no
+admission. Existing Rust preparation/context services own Git-object reads,
+tracked-directory listing and instruction closure; no host path, commit or
+workspace selector comes from the worker. `lib/execution-protocol/src/lib.rs`,
+`cmd/soda-factory-broker/src/prepared_context.rs` and
+`pkg/project/factory_context.go` carry and bound optional directory selections
+and path/kind entries; the desktop preparation owner returns their observations.
+The audit records actual dummy-worker source/instruction bytes, root/nested
+file/directory/symlink metadata, missing selection refusal, artifact publication
+and retirement/restart proof. This closes no
 broad gate. Exact remaining dependency: the installed authenticated worker/source
 journey, including current stop/withdrawal during an in-flight read, must retain
 the original authority and return no source after observed withdrawal. That race
-and installed service admission were not checked here. Mutable task access and
-source-tree discovery are still absent; task/checkpoint gates remain pending.
+and installed service admission were not checked here. Submodule and over-limit
+listing behavior was not exercised; links were named, never followed. Mutable
+task access is still absent; task/checkpoint gates remain pending.
 
 **A18 installation payload dependency:** `scripts/build-desktop.ts` stages all
 seven privileged execution helpers, twelve service/socket templates and the

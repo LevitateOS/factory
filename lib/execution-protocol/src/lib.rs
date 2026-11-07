@@ -76,6 +76,8 @@ pub struct ContextSelection {
     pub diff_base: String,
     pub candidate: String,
     pub paths: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub directory: Option<String>,
 }
 impl ContextSelection {
     pub fn valid(&self) -> bool {
@@ -91,7 +93,11 @@ impl ContextSelection {
                 && value
                     .bytes()
                     .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-        }) && self.paths.len() <= 12
+        }) && self
+            .directory
+            .as_ref()
+            .is_none_or(|path| path.is_empty() || Self::valid_path(path))
+            && self.paths.len() <= 12
             && self
                 .paths
                 .iter()
@@ -119,6 +125,17 @@ pub struct ContextFile {
 pub struct SourceContext {
     pub files: Vec<ContextFile>,
     pub diff: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entries: Vec<ContextEntry>,
+}
+
+pub const MAX_CONTEXT_ENTRIES: usize = 256;
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextEntry {
+    pub path: String,
+    pub kind: String,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Eq)]

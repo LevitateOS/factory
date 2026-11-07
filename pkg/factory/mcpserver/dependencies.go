@@ -48,6 +48,7 @@ type Dependencies struct {
 	RepairPreview        func(context.Context, factory.MCPCapability, json.RawMessage) (factory.RepairPreview, error)
 	NativeTask           func(context.Context, factory.MCPCapability, string, string) (map[string]any, error)
 	ReadSource           func(context.Context, factory.MCPCapability, string) (map[string]any, error)
+	ListSource           func(context.Context, factory.MCPCapability, string) (map[string]any, error)
 }
 
 // Existing hosts supplied a multi-purpose Submissions object. Resolve those

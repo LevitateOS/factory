@@ -23,6 +23,7 @@ func (p NativeExecution) workerDependencies(lifetime context.Context) mcpserver.
 	return mcpserver.Dependencies{Capabilities: p.Store, Assignments: p.Store, Submissions: p.Store, Runs: p.Store,
 		Prepare:    admission.Prepare,
 		ReadSource: (service.WorkerSource{Store: p.Store, Reader: p}).Read,
+		ListSource: (service.WorkerSource{Store: p.Store, Reader: p}).List,
 		Observed: func(cap factory.MCPCapability) (control.MCPRunObservation, error) {
 			ctx, cancel := context.WithTimeout(lifetime, 5*time.Second)
 			defer cancel()

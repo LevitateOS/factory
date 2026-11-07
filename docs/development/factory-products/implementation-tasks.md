@@ -31,8 +31,9 @@ provider permissions; connected/installed authority and A04 review semantics
 remain open. Exact evidence and limitations live in the audit register.
 Native planning source reads and completion capture now also resolve enrolled
 workspaces (A05); the actual local source/worker/restart integration passed.
-Admitted agents can now call `factory.read_source` for bounded immutable source
-and ancestor instructions using that same native reader. A05/A19 records the
+Admitted agents can now call `factory.read_source` and `factory.list_source` for
+bounded immutable source, tracked directories and ancestor instructions using
+that same native reader. A05/A19 records the
 actual worker/retirement/restart proof and remaining inspection/task limitations.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need
 their matching proof before A05 can be considered fully resolved.

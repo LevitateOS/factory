@@ -275,11 +275,13 @@ func checkCatalogs(config factoryruntime.NativeConfig, instance string, capabili
 		for _, mode := range []string{"no-port", "no-run-source", "missing-run", "unplaced-native"} {
 			deps.NativeTask = nil
 			deps.ReadSource = nil
+			deps.ListSource = nil
 			deps.Runs = nil
 			if mode != "no-port" {
 				deps.ReadSource = func(context.Context, factory.MCPCapability, string) (map[string]any, error) {
 					return nil, errors.New("catalog discovery must not read source")
 				}
+				deps.ListSource = deps.ReadSource
 				deps.NativeTask = func(context.Context, factory.MCPCapability, string, string) (map[string]any, error) {
 					return nil, errors.New("catalog discovery must not execute a task")
 				}
@@ -301,6 +303,9 @@ func checkCatalogs(config factoryruntime.NativeConfig, instance string, capabili
 			}
 			if slices.Contains(names, string(factory.MCPToolReadSource)) != (deps.ReadSource != nil) {
 				return errors.New("source discovery differs from reader availability")
+			}
+			if slices.Contains(names, string(factory.MCPToolListSource)) != (deps.ListSource != nil) {
+				return errors.New("source discovery differs from directory reader availability")
 			}
 			secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, capability)
 			if err != nil {
@@ -2892,6 +2897,40 @@ func workerProfileFixture() error {
 		}
 		response.Body.Close()
 		if strings.Contains(string(prompt), "read-source-fixture") {
+			head, err := exec.Command("/usr/bin/git", "-C", selected["--workspace"], "rev-parse", "HEAD").Output()
+			if err != nil {
+				return err
+			}
+			for directory, wanted := range map[string]map[string]string{
+				"":     {".gitignore": "file", "AGENTS.md": "file", "README.md": "file", "docs": "directory"},
+				"docs": {"docs/AGENTS.md": "file", "docs/note.md": "file", "docs/fixture-link": "symlink"},
+			} {
+				result, err := workerMCPCall(client, "factory.list_source", map[string]any{"path": directory})
+				if err != nil {
+					return err
+				}
+				var listing struct {
+					Commit    string                        `json:"source_commit"`
+					Directory string                        `json:"directory"`
+					Entries   []project.FactoryContextEntry `json:"entries"`
+				}
+				if json.Unmarshal(result, &listing) != nil || listing.Commit != strings.TrimSpace(string(head)) || listing.Directory != directory || len(listing.Entries) != len(wanted) {
+					return errors.New("worker source listing differs from tracked fixture directory")
+				}
+				for _, entry := range listing.Entries {
+					if wanted[entry.Path] != entry.Kind {
+						return errors.New("worker source entry name or kind differs")
+					}
+					delete(wanted, entry.Path)
+				}
+				if len(wanted) != 0 {
+					return errors.New("worker source listing omitted entries")
+				}
+				fmt.Println("actual-admitted-worker-source-directory", listing.Commit, directory)
+			}
+			if _, err := workerMCPCall(client, "factory.list_source", map[string]any{"path": "missing-fixture-directory"}); err == nil {
+				return errors.New("missing source directory returned a successful listing")
+			}
 			result, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "docs/note.md"})
 			if err != nil {
 				return err
@@ -2906,8 +2945,7 @@ func workerProfileFixture() error {
 			if json.Unmarshal(result, &source) != nil {
 				return errors.New("worker source reply invalid")
 			}
-			head, err := exec.Command("/usr/bin/git", "-C", selected["--workspace"], "rev-parse", "HEAD").Output()
-			if err != nil || source.Commit != strings.TrimSpace(string(head)) {
+			if source.Commit != strings.TrimSpace(string(head)) {
 				return errors.New("worker source commit differs from prepared repository")
 			}
 			wanted := map[string]bool{"docs/note.md": false, "AGENTS.md": false, "docs/AGENTS.md": false}
