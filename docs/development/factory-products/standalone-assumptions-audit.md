@@ -113,9 +113,19 @@ corrections are now active; the old feature queue waits for their resolution.
   withdrawn/unselected-source refusal. Tool admission and provider answers were
   declared; no actual Muse inference, authentication or GitHub mutation ran.
   Official-tool start/subscription inference, active withdrawal/source revision
-  races, abrupt-crash recovery and installed qualification remain open. Planning,
-  priority, contribution and worker judgments still need this selected-source
-  connector; they have no native TypeSafe fallback.
+  races, abrupt-crash recovery and installed qualification remain open.
+  Planning/advice and worker context-bundle selection now pass their canonical
+  repository to this same native owner. Fixed server chooser implementations
+  retain their existing interface; unscoped native calls refuse funding.
+  Captured option-key digests let the existing background owner validate and
+  account completed purpose calls even if their caller has left, without
+  inventing a choice or another call. The actual local scoped-advice adoption,
+  receipt replay and unscoped refusal check passed in
+  `/home/vince/tmp/fnative-purpose-judgment9.BWTdCE/result.log`. Its product advice
+  input, tool admission and answer were declared; it does not qualify a complete
+  planning walkthrough or worker context journey. Queue comparisons, delivery,
+  contribution and worker consultation primitives remain unconnected. No native
+  TypeSafe fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and

@@ -105,6 +105,9 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		product.Requests.Planning.Generator = application.Coordinator
 	}
 	product.Requests.Exploration = factoryservice.RequestExploration{Requests: product.Requests.Service}
+	if application.Coordinator.Planning != nil {
+		product.Requests.Exploration.Chooser = application.Coordinator.Planning.Chooser
+	}
 	if application.Chooser != nil {
 		product.Requests.Exploration.Chooser = application.Chooser()
 	}

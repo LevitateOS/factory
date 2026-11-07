@@ -234,8 +234,9 @@ func (c *Coordinator) DecideReassessment(ctx context.Context, record store.Reass
 		return c.Store.AdmitReassessmentCall(ctx, cycleID, factory.ReassessmentDeciding, fingerprint[:32], factory.ReassessmentDecisionPurpose, decision, fingerprint)
 	}
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose: factory.JudgmentPurpose(factory.ReassessmentDecisionPurpose),
-		State:   state, Question: reassessmentDecisionRubric, Options: reassessmentDecisionOptions(),
+		Repository: record.Cycle.Repository,
+		Purpose:    factory.JudgmentPurpose(factory.ReassessmentDecisionPurpose),
+		State:      state, Question: reassessmentDecisionRubric, Options: reassessmentDecisionOptions(),
 		Outcome: ReassessmentDecisionOutcome, Admit: admit,
 	})
 	if err != nil {

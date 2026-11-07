@@ -28,7 +28,7 @@ func (s Background) currentChooser() control.ProductJudgment {
 // This copies configuration; it never routes, launches or claims a source.
 func (s Background) Collaborators() *PostCollaborators {
 	wired := s.Stages
-	if chooser := s.currentChooser(); chooser != nil {
+	if chooser := s.currentChooser(); chooser != nil && wired.Judge == nil {
 		wired.Judge = &ChoicePostJudge{Chooser: chooser}
 		wired.Prepare = (PostContext{Posts: Posts{Store: s.Store}}).Prepare
 	}

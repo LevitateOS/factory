@@ -76,11 +76,12 @@ func ContextBundleFingerprint(capability factory.MCPCapability, assignment facto
 
 func ContextBundleRequest(capability factory.MCPCapability, assignment factory.Assignment, attemptEligible, lineageEligible bool) (factory.PriorityRequest, error) {
 	request, _, err := buildPurposeRequest(PurposeAdvice{
-		Purpose:  factory.JudgmentContextBundle,
-		State:    contextBundleStateFor(capability, assignment),
-		Question: contextBundleRubric,
-		Options:  contextBundleOptions(attemptEligible, lineageEligible),
-		Outcome:  "context-bundle",
+		Repository: assignment.Repository,
+		Purpose:    factory.JudgmentContextBundle,
+		State:      contextBundleStateFor(capability, assignment),
+		Question:   contextBundleRubric,
+		Options:    contextBundleOptions(attemptEligible, lineageEligible),
+		Outcome:    "context-bundle",
 	})
 	return request, err
 }
@@ -92,17 +93,18 @@ func ContextBundleRequest(capability factory.MCPCapability, assignment factory.A
 // confidence, malformed or unavailable answers hold snapshot_hold with
 // attention, and an exhausted ceiling holds unfunded without charge.
 func (c *Coordinator) SelectContextBundle(ctx context.Context, capability factory.MCPCapability, assignment factory.Assignment, attemptEligible, lineageEligible bool, admit func(context.Context, string) (bool, error)) (bundle, reason string, err error) {
-	return c.selectContextBundleState(ctx, contextBundleStateFor(capability, assignment), attemptEligible, lineageEligible, admit)
+	return c.selectContextBundleState(ctx, assignment.Repository, contextBundleStateFor(capability, assignment), attemptEligible, lineageEligible, admit)
 }
 
-func (c *Coordinator) selectContextBundleState(ctx context.Context, state contextBundleState, attemptEligible, lineageEligible bool, admit func(context.Context, string) (bool, error)) (bundle, reason string, err error) {
+func (c *Coordinator) selectContextBundleState(ctx context.Context, repository int64, state contextBundleState, attemptEligible, lineageEligible bool, admit func(context.Context, string) (bool, error)) (bundle, reason string, err error) {
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose:  factory.JudgmentContextBundle,
-		State:    state,
-		Question: contextBundleRubric,
-		Options:  contextBundleOptions(attemptEligible, lineageEligible),
-		Outcome:  "context-bundle",
-		Admit:    admit,
+		Repository: repository,
+		Purpose:    factory.JudgmentContextBundle,
+		State:      state,
+		Question:   contextBundleRubric,
+		Options:    contextBundleOptions(attemptEligible, lineageEligible),
+		Outcome:    "context-bundle",
+		Admit:      admit,
 	})
 	if err != nil {
 		return factory.ContextBundleSnapshotHold, "unavailable", err

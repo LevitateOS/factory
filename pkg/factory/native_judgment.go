@@ -3,6 +3,7 @@ package factory
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -10,6 +11,13 @@ import (
 )
 
 const CommandNativeJudgment = "native.judgment"
+
+func NativeJudgmentOptionsDigest(keys []string) string {
+	keys = slices.Clone(keys)
+	slices.Sort(keys)
+	raw, _ := json.Marshal(keys)
+	return MCPInputDigest(raw)
+}
 
 func NativeJudgmentID(profile collaboration.ProfileID, repository int64, subject string) string {
 	return MCPInputDigest([]byte("factory.native.judgment\x00" + string(profile) + "\x00" + strconv.FormatInt(repository, 10) + "\x00" + subject))[:32]
@@ -40,6 +48,7 @@ type NativeJudgmentCapture struct {
 	SourceRevision int64                   `json:"source_revision,omitempty"`
 	Selection      RoleSelection           `json:"selection"`
 	PromptSHA256   string                  `json:"prompt_sha256"`
+	OptionsSHA256  string                  `json:"options_sha256,omitempty"`
 	ToolVersion    string                  `json:"tool_version"`
 	ToolSHA256     string                  `json:"tool_sha256"`
 	DeadlineUnixMS int64                   `json:"deadline_unix_ms"`
@@ -53,6 +62,9 @@ func (c NativeJudgmentCapture) Command() (Command, error) {
 	}
 	if c.SourcePost != "" && (!ValidID(c.SourcePost) || c.SourceRevision < 0) {
 		return Command{}, errors.New("invalid judgment source revision")
+	}
+	if c.OptionsSHA256 != "" && !ValidDigest(c.OptionsSHA256) {
+		return Command{}, errors.New("invalid judgment option binding")
 	}
 	raw, err := json.Marshal(c)
 	if err != nil {

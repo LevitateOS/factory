@@ -46,11 +46,12 @@ func (c *Coordinator) JudgeConsolidation(ctx context.Context, r factory.IntentRe
 		options[alternative.Key] = alternative.Name + ": " + alternative.Summary
 	}
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose:  factory.JudgmentConsolidation,
-		State:    state,
-		Question: consolidationRubric,
-		Options:  options,
-		Outcome:  "consolidation",
+		Repository: r.Repository,
+		Purpose:    factory.JudgmentConsolidation,
+		State:      state,
+		Question:   consolidationRubric,
+		Options:    options,
+		Outcome:    "consolidation",
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
 			return true, c.Store.CheckIntentJudgment(ctx, r)
 		},

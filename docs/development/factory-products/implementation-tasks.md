@@ -128,8 +128,11 @@ source scope and shared Work now save that selection. Native Feed assessment now
 uses the existing finite Muse process owner, command journal and exact-source
 usage ledger. A25 records configuration and joined local process/IPC/routing/
 accounting/deleted-source checks with declared tool/provider facts. Actual
-subscription inference and other judgment consumers remain pending; connect
-those consumers before resuming dependent planning;
+subscription inference remains pending. Planning/advice and worker context-bundle
+selection now use explicit repository scope on that owner; A25 records the local
+scoped-advice receipt check and its declared-input limits. Complete planning and
+worker context journeys, queue/delivery/contribution/consultation consumers still
+need their remaining proof or composition before dependent work resumes;
 the full automated pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation

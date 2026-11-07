@@ -66,7 +66,7 @@ func (c *Coordinator) driveDeliveryRepairResult(ctx context.Context, record stor
 	if cycle.ProposalOption == "" {
 		input := factory.CurrentDeliveryRepairContext{Subject: record.Subject, Cause: record.Cause, Local: cycle.Local, Issues: cycle.Issues, Complete: true, State: cycle.State}
 		state := deliveryRepairProposalState{input, *proposal, validation}
-		answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{Purpose: factory.JudgmentDeliveryRepairProposal, State: state, Question: deliveryRepairRubric, Options: reassessmentProposalOptions(), Outcome: "delivery_repair_proposal_assessed", Admit: func(ctx context.Context, fingerprint string) (bool, error) {
+		answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{Repository: record.Cause.Repository, Purpose: factory.JudgmentDeliveryRepairProposal, State: state, Question: deliveryRepairRubric, Options: reassessmentProposalOptions(), Outcome: "delivery_repair_proposal_assessed", Admit: func(ctx context.Context, fingerprint string) (bool, error) {
 			return c.Store.AdmitDeliveryRepairJudgment(ctx, record.Cause.Repository, record.Cause.FailedVerificationRunID, cycle.ID, fingerprint, time.Now())
 		}})
 		if err != nil {

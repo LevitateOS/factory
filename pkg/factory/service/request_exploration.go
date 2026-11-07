@@ -144,7 +144,8 @@ func (s RequestExploration) Explore(ctx context.Context, actor collaboration.Act
 	design := current
 	design.ID, design.Predecessor, design.CreatedUnix, design.Tasks = "", "", 0, nil
 	answer, _, err := coord.AdvisePurpose(ctx, control.PurposeAdvice{
-		Purpose: factory.JudgmentProductApproaches, State: design, Question: designRubric,
+		Repository: current.Repository,
+		Purpose:    factory.JudgmentProductApproaches, State: design, Question: designRubric,
 		Options: intentDesignCriteria(), Outcome: "product_design", Candidates: intentDesignCandidates(current),
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
 			return true, s.Requests.Store.CheckIntentJudgment(ctx, current)

@@ -558,9 +558,12 @@ is not a workspace agent role. Shared Work saves these choices through the same
 policy revision/CAS, independently of Coding and Review. Native Feed assessment
 uses that selected Muse source through the bounded tool-free connector and
 existing command/usage journals. Missing, withdrawn or unsupported sources wait
-without a fallback. Other native judgment consumers remain unavailable until
-their selected-source connector is composed. Connected/installed subscription
-inference is not qualified by local fixture checks.
+without a fallback. Planning/advice and context-bundle selection also supply
+explicit repository scope to this owner, preserving their existing admission
+and completed-receipt reuse. Native calls without repository scope refuse
+funding. Queue, delivery and agent consultation consumers remain unavailable
+until composed. Local fixture checks do not qualify complete planning/context
+or connected/installed subscription inference.
 
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and

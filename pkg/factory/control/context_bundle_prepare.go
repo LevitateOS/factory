@@ -66,5 +66,5 @@ func PrepareContextBundleSelection(ctx context.Context, st *store.Store, chooser
 	admit := func(ctx context.Context, snapshot string) (bool, error) {
 		return st.BindContextBundleSelection(ctx, capability, snapshot)
 	}
-	return coord.selectContextBundleState(ctx, state, attemptEligible, lineageEligible, admit)
+	return coord.selectContextBundleState(ctx, a.Repository, state, attemptEligible, lineageEligible, admit)
 }

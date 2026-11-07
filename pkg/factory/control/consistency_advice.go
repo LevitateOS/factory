@@ -71,11 +71,12 @@ func (c *Coordinator) JudgeConsistency(ctx context.Context, r factory.IntentRevi
 	}
 	options := consistencyOptions()
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose:  factory.JudgmentConsistency,
-		State:    state,
-		Question: consistencyRubric,
-		Options:  options,
-		Outcome:  "consistency",
+		Repository: r.Repository,
+		Purpose:    factory.JudgmentConsistency,
+		State:      state,
+		Question:   consistencyRubric,
+		Options:    options,
+		Outcome:    "consistency",
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
 			return true, c.Store.CheckIntentJudgment(ctx, r)
 		},

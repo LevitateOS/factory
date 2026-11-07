@@ -650,14 +650,16 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let joined_judgment = std::env::var("SODA_NATIVE_CHECK_JUDGMENT_EXECUTABLE").ok();
         if let Some(executable) = &joined_judgment {
-          for orphan in [false,true] {
-            if orphan {
+          for mode in ["feed","orphan","purpose"] {
+            let orphan=mode=="orphan";
+            let purpose=mode=="purpose";
+            if mode!="feed" {
                 runtime.stop()?;
                 runtime=NativeSupervisor::start(payload,production,profile)?;
                 store=Arc::new(Credentials::open(profile,&runtime.health()?.profile)?);
             }
             let body = serde_json::to_vec(
-                &json!({"repository":repository,"body":"A disposable discussion for the native judgment check.","idempotency_key":if orphan {"declared-judgment-orphan"}else{"declared-judgment-result"}}),
+                &json!({"repository":repository,"body":"A disposable discussion for the native judgment check.","idempotency_key":format!("declared-judgment-{mode}")}),
             )?;
             let saved = call(
                 &runtime,
@@ -673,13 +675,14 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 "judgment fixture post was refused",
             )?;
             let post = saved.1["post_id"].as_str().ok_or("judgment post absent")?;
+            let scoped_post=if purpose {format!("purpose:{post}")}else{post.into()};
             let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
             ensure(
                 std::process::Command::new(&helper)
                     .arg(profile)
                     .arg(runtime.health()?.instance)
                     .arg("prepare-judgment-result")
-                    .arg(post)
+                    .arg(&scoped_post)
                     .status()?
                     .success(),
                 "judgment fixture admission failed",
@@ -703,7 +706,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             }
             runtime.start_execution_coordinator().await?;
             let until = Instant::now() + Duration::from_secs(15);
-            while !orphan {
+            while !orphan && !purpose {
                 let read = call(
                     &runtime,
                     &store,
@@ -730,7 +733,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                     .arg(profile)
                     .arg(runtime.health()?.instance)
                     .arg("check-judgment-result")
-                    .arg(post)
+                    .arg(&scoped_post)
                     .status()?
                     .success(),
                 "native judgment accounting failed",

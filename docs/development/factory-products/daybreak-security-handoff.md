@@ -66,8 +66,19 @@ is only a native component proof. An abrupt crash without a result stays unknown
 recover the original service/process and accounting without replay or inferring
 safe absence from a missing file. Tool changes/failed starts with a lost reply
 also remain held until the original outcome is proved. Installed admission and
-lifecycle remain open. Planning, priority, contribution and worker composition
-is still absent; Coding/Review permission grants no judgment-source authority.
+lifecycle remain open. Planning/advice and worker context-bundle selection now
+pass repository scope through `control/planning.go` and `judgment_advice.go`
+under `pkg/factory/`, retaining the caller's existing semantic admission and
+receipt journal. `NativeJudgments.SelectScoped` checks the policy's exact saved
+publication account and current repository visibility, as well as independent
+judgment-source funding; it grants no publication effect. Generic calls bind the
+original option-key digest so background completion cannot accept an invented
+option set. `/home/vince/tmp/fnative-purpose-judgment9.BWTdCE/result.log` proves
+local scoped-advice adoption/cache replay and unscoped refusal with declared
+tool/answer/advice facts. Complete current planning and worker-context admission,
+source/account withdrawal races and installed journeys remain unverified. Queue,
+delivery, contribution and worker consultation composition remains absent;
+Coding/Review permission grants no judgment-source authority.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

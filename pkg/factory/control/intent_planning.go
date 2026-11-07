@@ -191,11 +191,12 @@ func (c *Coordinator) ChoosePlannedCandidate(ctx context.Context, r factory.Inte
 	}
 	state := choiceEvidence{Current: effectiveDecompositionScope(r), Candidates: out.Candidates}
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose:  factory.JudgmentDecomposition,
-		State:    state,
-		Question: plannedChoiceRubric,
-		Options:  options,
-		Outcome:  "planned-choice",
+		Repository: r.Repository,
+		Purpose:    factory.JudgmentDecomposition,
+		State:      state,
+		Question:   plannedChoiceRubric,
+		Options:    options,
+		Outcome:    "planned-choice",
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
 			return true, c.Store.CheckIntentJudgment(ctx, r)
 		},

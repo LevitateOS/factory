@@ -4586,6 +4586,8 @@ func orphanJudgmentFixture(profile, post string) error {
 }
 
 func judgmentResultFixture(profile, post string, prepare bool) error {
+	purpose := strings.HasPrefix(post, "purpose:")
+	post = strings.TrimPrefix(post, "purpose:")
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
 		return err
@@ -4599,9 +4601,12 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	defer db.Close()
 	path := filepath.Join(profile, "judgment-fixture.json")
 	var fixture struct {
-		Capture factory.NativeJudgmentCapture `json:"capture"`
-		Prompt  string                        `json:"prompt"`
-		Digest  string                        `json:"digest"`
+		Capture  factory.NativeJudgmentCapture `json:"capture"`
+		Prompt   string                        `json:"prompt"`
+		Digest   string                        `json:"digest"`
+		State    json.RawMessage               `json:"state"`
+		Options  map[string]any                `json:"options"`
+		Question string                        `json:"question"`
 	}
 	if !prepare {
 		raw, err := os.ReadFile(path)
@@ -4638,9 +4643,28 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		if err != nil || usage.Validate() != nil || usage.Connection != fixture.Capture.Selection.Account {
 			return errors.New("actual native judgment did not charge its original source")
 		}
+		if purpose {
+			native := factoryruntime.NativeJudgments{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}}
+			coord := &control.Coordinator{Store: db, Planning: &control.PlanningJudgments{Chooser: native}}
+			advice := control.PurposeAdvice{Repository: fixture.Capture.Repository, Purpose: factory.JudgmentProductApproaches, State: fixture.State, Question: fixture.Question, Options: fixture.Options, Outcome: "declared-scoped-choice", Admit: func(ctx context.Context, _ string) (bool, error) {
+				current, err := db.FeedPost(ctx, post)
+				return err == nil && !current.Record.Deleted && !current.Record.Revoked && current.Record.Revision == detail.Record.Revision, err
+			}}
+			answer, replayed, err := coord.AdvisePurpose(ctx, advice)
+			if err != nil || replayed || answer.Selected != "discussion" {
+				return fmt.Errorf("scoped purpose advice: %v replay=%v", err, replayed)
+			}
+			if _, replayed, err = coord.AdvisePurpose(ctx, advice); err != nil || !replayed {
+				return errors.New("scoped purpose receipt did not replay")
+			}
+			if _, err = native.Select(ctx, fixture.State, fixture.Question, fixture.Options); !errors.Is(err, control.ErrPriorityUnavailable) {
+				return errors.New("unscoped native judgment selected funding")
+			}
+			fmt.Println("PASS: repository-scoped purpose advice adopts the exact native result and caches its receipt; unscoped native selection is refused; no additional inference")
+		}
 		if detail.Record.Deleted {
 			fmt.Println("PASS: deleted source's original native result was accounted after restart without adopting its judgment; no inference replay")
-		} else {
+		} else if !purpose {
 			fmt.Println("PASS: actual native process result crossed private IPC, passed Go choice validation, routed the real Feed post and charged its captured source; CLI/tool/provider answer declared, no model request")
 		}
 		return nil
@@ -4668,7 +4692,8 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	if err != nil {
 		return err
 	}
-	prompt, err := factory.NativeJudgmentPrompt(factoryservice.PostJudgeState(input), factoryservice.PostRouteRubric, factoryservice.PostJudgmentChoices(input))
+	state, options, question := factoryservice.PostJudgeState(input), factoryservice.PostJudgmentChoices(input), factoryservice.PostRouteRubric
+	prompt, err := factory.NativeJudgmentPrompt(state, question, options)
 	if err != nil {
 		return err
 	}
@@ -4677,12 +4702,29 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		return err
 	}
 	sum := sha256.Sum256(executable)
-	capture := factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, detail.Record.Repository, post+":"+strconv.FormatInt(detail.Record.Revision, 10)), Profile: config.Profile, Repository: detail.Record.Repository, SourcePost: post, SourceRevision: detail.Record.Revision, Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), ToolVersion: "fixture", ToolSHA256: hex.EncodeToString(sum[:]), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
+	subject := post + ":" + strconv.FormatInt(detail.Record.Revision, 10)
+	if purpose {
+		fingerprint, err := factory.JudgmentFingerprint(factory.JudgmentProductApproaches, state, question, options)
+		if err != nil {
+			return err
+		}
+		subject = "purpose:" + fingerprint
+	}
+	keys := make([]string, 0, len(options))
+	for key := range options {
+		keys = append(keys, key)
+	}
+	capture := factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, detail.Record.Repository, subject), Profile: config.Profile, Repository: detail.Record.Repository, SourcePost: post, SourceRevision: detail.Record.Revision, Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OptionsSHA256: factory.NativeJudgmentOptionsDigest(keys), ToolVersion: "fixture", ToolSHA256: hex.EncodeToString(sum[:]), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
+	if purpose {
+		capture.SourcePost = ""
+	}
 	cmd, fresh, err := db.BeginNativeJudgment(ctx, capture)
 	if err != nil || !fresh {
 		return fmt.Errorf("declared tool admission: %v fresh=%v", err, fresh)
 	}
 	fixture.Capture, fixture.Prompt, fixture.Digest = capture, prompt, cmd.Digest
+	fixture.State, _ = json.Marshal(state)
+	fixture.Options, fixture.Question = options, question
 	raw, _ := json.Marshal(fixture)
 	return os.WriteFile(path, raw, 0600)
 }

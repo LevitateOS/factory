@@ -15,13 +15,32 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
-// NativePostJudgments binds the existing routing policy to the source selected
-// for this repository. It does not borrow Coding/Review funding or a server key.
-type NativePostJudgments struct{ NativeExecution }
+// NativeJudgments binds product judgments to explicit repository funding. It
+// never borrows Coding/Review funding or a server key.
+type NativeJudgments struct{ NativeExecution }
 
-// The existing background owner also retires calls whose source left its normal
-// pending-post scan. Missing evidence retains the original reservation.
-func (s NativePostJudgments) ReconcilePostJudgments(ctx context.Context) {
+func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
+	return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
+}
+
+func (s NativeJudgments) SelectScoped(ctx context.Context, repository int64, subject string, state any, question string, options map[string]any) (factory.PriorityAnswer, error) {
+	if repository <= 0 || subject == "" || len(subject) > 256 {
+		return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
+	}
+	chooser := nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: repository, subject: subject}
+	chooser.admit = func(ctx context.Context) error {
+		account, err := (NativeInputSource{s.NativeExecution}).account(ctx, strconv.FormatInt(repository, 10), factory.OpRefPublish)
+		if err != nil {
+			return err
+		}
+		return account.visible(ctx, account.binding.Actor.ID, account.repository.ID)
+	}
+	return chooser.Select(ctx, state, question, options)
+}
+
+// The background owner settles completed purpose calls and retires calls whose
+// posts left the normal scan. Missing evidence retains the original reservation.
+func (s NativeJudgments) ReconcilePostJudgments(ctx context.Context) {
 	commands, err := s.Store.PendingNativeJudgments(ctx)
 	if err != nil {
 		return
@@ -31,25 +50,29 @@ func (s NativePostJudgments) ReconcilePostJudgments(ctx context.Context) {
 			return
 		}
 		var capture factory.NativeJudgmentCapture
-		if nativeDecode([]byte(cmd.Payload), &capture) != nil || capture.Profile != s.Config.Profile || capture.SourcePost == "" {
+		if nativeDecode([]byte(cmd.Payload), &capture) != nil || capture.Profile != s.Config.Profile {
 			continue
 		}
-		post, err := s.Store.FeedPost(ctx, capture.SourcePost)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			continue
-		}
-		if err == nil && !post.Record.Deleted && !post.Record.Revoked && post.Record.Revision == capture.SourceRevision {
-			continue
+		cancel := s.Store.CheckNativeJudgmentSource(ctx, capture) != nil
+		if capture.SourcePost != "" {
+			post, err := s.Store.FeedPost(ctx, capture.SourcePost)
+			if err != nil && !errors.Is(err, store.ErrNotFound) {
+				continue
+			}
+			if err == nil && !post.Record.Deleted && !post.Record.Revoked && post.Record.Revision == capture.SourceRevision {
+				continue
+			}
+			cancel = true
 		}
 		var reply nativeJudgmentReply
-		if nativeHostCall(ctx, s.Config, s.Instance, "/api/native/execution", map[string]any{"operation": "inspect_judgment", "id": capture.ID, "digest": cmd.Digest, "cancel": true}, &reply) != nil || reply.State != "complete" || reply.Result == nil {
+		if nativeHostCall(ctx, s.Config, s.Instance, "/api/native/execution", map[string]any{"operation": "inspect_judgment", "id": capture.ID, "digest": cmd.Digest, "cancel": cancel}, &reply) != nil || reply.State != "complete" || reply.Result == nil {
 			continue
 		}
 		_, _ = finishNativeJudgment(ctx, s.NativeExecution, capture, cmd, reply.Result, nil)
 	}
 }
 
-func (s NativePostJudgments) JudgePost(ctx context.Context, input factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
+func (s NativeJudgments) JudgePost(ctx context.Context, input factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
 	chooser := nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: input.SourcePost.Record.Repository, subject: input.SourcePost.Record.ID + ":" + strconv.FormatInt(input.SourcePost.Record.Revision, 10), sourcePost: input.SourcePost.Record.ID, sourceRevision: input.SourcePost.Record.Revision}
 	chooser.admit = func(ctx context.Context) error {
 		effects := newNativeIssueEffects(NativeInputSource{s.NativeExecution})
@@ -120,7 +143,9 @@ type nativeJudgmentOutcome struct {
 func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, question string, choices map[string]any) (factory.PriorityAnswer, error) {
 	var empty factory.PriorityAnswer
 	request := factory.PriorityRequest{}
+	optionKeys := make([]string, 0, len(choices))
 	for id := range choices {
+		optionKeys = append(optionKeys, id)
 		request.Candidates = append(request.Candidates, factory.PriorityCandidate{ID: id})
 	}
 	if len(choices) < 2 || len(choices) > 255 {
@@ -151,7 +176,7 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 		if e != nil || tool.Native == nil {
 			return empty, factoryservice.ErrPostJudgmentPending
 		}
-		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: *policy.Judgments, PromptSHA256: sha, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: *policy.Judgments, PromptSHA256: sha, OptionsSHA256: factory.NativeJudgmentOptionsDigest(optionKeys), ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
 		cmd, fresh, err = s.Store.BeginNativeJudgment(ctx, capture)
 		if errors.Is(err, store.ErrNativeJudgmentSource) || errors.Is(err, store.ErrNotFound) {
 			return empty, factoryservice.ErrPostJudgmentPending
@@ -226,15 +251,26 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 		return nativeJudgmentOutcome{}, control.ErrPriorityUnavailable
 	}
 	outcome := nativeJudgmentOutcome{Process: p}
-	if request != nil && p.ExitCode != nil && *p.ExitCode == 0 && p.Reason != nil && *p.Reason == "exited" && r.Output != nil {
+	if p.ExitCode != nil && *p.ExitCode == 0 && p.Reason != nil && *p.Reason == "exited" && r.Output != nil {
 		var answer struct {
 			Selected      string             `json:"selected"`
 			Confidence    float64            `json:"confidence"`
 			Probabilities map[string]float64 `json:"probabilities"`
 		}
 		if nativeDecode([]byte(*r.Output), &answer) == nil {
+			keys := make([]string, 0, len(answer.Probabilities))
+			for key := range answer.Probabilities {
+				keys = append(keys, key)
+			}
+			boundOptions := capture.OptionsSHA256 != "" && factory.NativeJudgmentOptionsDigest(keys) == capture.OptionsSHA256
+			if request == nil && capture.SourcePost == "" && boundOptions {
+				request = &factory.PriorityRequest{}
+				for _, key := range keys {
+					request.Candidates = append(request.Candidates, factory.PriorityCandidate{ID: key})
+				}
+			}
 			selected := factory.PriorityAnswer{Selected: answer.Selected, Confidence: answer.Confidence, Probabilities: answer.Probabilities, Model: capture.Selection.Model}
-			if selected.Validate(*request) == nil {
+			if request != nil && (capture.OptionsSHA256 == "" || boundOptions) && selected.Validate(*request) == nil {
 				outcome.Answer = &selected
 			}
 		}

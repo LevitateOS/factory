@@ -15,6 +15,7 @@ import (
 // and allowance before a new call. Completed choices are reused by input key;
 // no placeholder judgment is written before the provider answers.
 type PurposeAdvice struct {
+	Repository int64
 	Purpose    factory.JudgmentPurpose
 	State      any
 	Question   string
@@ -24,7 +25,7 @@ type PurposeAdvice struct {
 	Admit      func(context.Context, string) (bool, error)
 }
 
-// ErrConsultationFailed reports a JEV call that failed or returned an invalid
+// ErrConsultationFailed reports a provider call that failed or returned an invalid
 // answer. Nothing is recorded, so the next pass asks again; callers hold for
 // now instead of requiring attention.
 var ErrConsultationFailed = fmt.Errorf("%w: consultation failed, the next pass retries", ErrPriorityUnavailable)
@@ -47,7 +48,7 @@ func buildPurposeRequest(advice PurposeAdvice) (factory.PriorityRequest, string,
 
 func (c *Coordinator) consultPurposeChoice(ctx context.Context, advice PurposeAdvice, fingerprint string, request factory.PriorityRequest) (factory.PriorityAnswer, error) {
 	bounded, cancel := context.WithTimeout(ctx, 30*time.Second)
-	answer, callErr := c.Planning.Chooser.Select(bounded, advice.State, advice.Question, advice.Options)
+	answer, callErr := SelectProductJudgment(bounded, c.Planning.Chooser, advice.Repository, "purpose:"+fingerprint, advice.State, advice.Question, advice.Options)
 	cancel()
 	if callErr != nil {
 		return factory.PriorityAnswer{}, ErrConsultationFailed

@@ -186,7 +186,8 @@ func (c *Coordinator) assessReassessmentProposal(ctx context.Context, record sto
 		return
 	}
 	answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{
-		Purpose: factory.JudgmentPurpose(factory.ReassessmentProposalPurpose), State: state,
+		Repository: record.Cycle.Repository,
+		Purpose:    factory.JudgmentPurpose(factory.ReassessmentProposalPurpose), State: state,
 		Question: reassessmentProposalRubric, Options: reassessmentProposalOptions(), Outcome: "reassessment_proposal_assessed",
 		Admit: func(ctx context.Context, fingerprint string) (bool, error) {
 			return c.Store.AdmitReassessmentCall(ctx, record.Cycle.CycleID, factory.ReassessmentAssessing, fingerprint[:32], factory.ReassessmentProposalPurpose, record.Cycle.Decision, fingerprint)

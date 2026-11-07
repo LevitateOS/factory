@@ -135,7 +135,7 @@ func (c *Coordinator) driveStallRepairResult(ctx context.Context, record store.S
 			c.holdRepair(ctx, record, cycle, "repair_assessment_oversize", true)
 			return
 		}
-		answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{Purpose: factory.JudgmentStallRepairProposal, State: state, Question: repairProposalRubric, Options: reassessmentProposalOptions(), Outcome: "stall_repair_proposal_assessed", Admit: func(ctx context.Context, fingerprint string) (bool, error) {
+		answer, _, err := c.AdvisePurpose(ctx, PurposeAdvice{Repository: record.Repository, Purpose: factory.JudgmentStallRepairProposal, State: state, Question: repairProposalRubric, Options: reassessmentProposalOptions(), Outcome: "stall_repair_proposal_assessed", Admit: func(ctx context.Context, fingerprint string) (bool, error) {
 			return c.Store.AdmitStallRepairJudgment(ctx, record.Repository, record.ID, cycle.ID, fingerprint, time.Now())
 		}})
 		if err != nil {
