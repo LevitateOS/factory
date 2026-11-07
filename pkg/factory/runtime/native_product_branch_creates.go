@@ -38,6 +38,7 @@ type nativeBranchCreatePreparation struct {
 	Account  string                  `json:"account"`
 	NotAfter int64                   `json:"not_after"`
 	Branch   nativeBranchCreateWrite `json:"branch"`
+	Transfer *nativeBranchTransfer   `json:"transfer,omitempty"`
 }
 type nativeBranchCreateEffect struct {
 	Kind      string                  `json:"kind"`
@@ -106,7 +107,7 @@ func (s nativeHumanBranchCreates) decode(ctx context.Context, c factory.HumanBra
 	if c.Authority != s.humanAuthority() {
 		return p, factoryservice.ErrHumanBranchCreateNamespace
 	}
-	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || p.Version != 1 || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Branch.Repository != s.repository.ExternalID || !nativeReviewNode(p.Branch.RepositoryNodeID, 1024) || p.Branch.Name != c.Request.Name || p.Branch.Commit != string(c.Request.Commit) {
+	if c.OperationID != c.Request.ID || nativeDecode(c.ProviderIntent, &p) != nil || !(p.Version == 1 && p.Transfer == nil || p.Version == 2 && p.Transfer != nil && p.Transfer.valid(c.Request)) || p.Account != s.identity.Account.ExternalID || p.NotAfter <= 0 || p.Branch.Repository != s.repository.ExternalID || !nativeReviewNode(p.Branch.RepositoryNodeID, 1024) || p.Branch.Name != c.Request.Name || p.Branch.Commit != string(c.Request.Commit) {
 		return p, factoryservice.ErrHumanBranchCreateConflict
 	}
 	return p, nil
@@ -127,16 +128,24 @@ func (s nativeHumanBranchCreates) ReadCreatedHumanBranch(ctx context.Context, c 
 	if factory.ValidateHumanBranchCreateObservation(c, o) != nil || o.Record == nil || o.Record.Effect != collaboration.EffectCommitted || o.Record.Receipt == nil || o.Record.Receipt.IntentDigest != nativeCreationSHA(c.ProviderIntent) {
 		return empty, factoryservice.ErrHumanBranchCreateQuery
 	}
-	r, err := validateNativeBranchCreateReceipt(c, p, o.Record.Receipt.Payload)
-	if err != nil {
-		return empty, err
+	expectedNode := ""
+	if p.Transfer != nil {
+		if _, err = validateNativeBranchTransferReceipt(c, p, o.Record.Receipt.Payload); err != nil {
+			return empty, err
+		}
+	} else {
+		r, err := validateNativeBranchCreateReceipt(c, p, o.Record.Receipt.Payload)
+		if err != nil {
+			return empty, err
+		}
+		expectedNode = r.Branch.NodeID
 	}
 	observed, err := s.readBranch(ctx, c.Request)
 	if err != nil {
 		return empty, err
 	}
 	var branch nativeCreatedBranch
-	if observed.RepositoryNodeID != p.Branch.RepositoryNodeID || nativeDecode(observed.Branch, &branch) != nil || branch.NodeID != r.Branch.NodeID || branch.Name != p.Branch.Name || !collaboration.ValidCommitID(collaboration.CommitID(branch.Commit)) {
+	if observed.RepositoryNodeID != p.Branch.RepositoryNodeID || nativeDecode(observed.Branch, &branch) != nil || !nativeReviewNode(branch.NodeID, 1024) || expectedNode != "" && branch.NodeID != expectedNode || branch.Name != p.Branch.Name || !collaboration.ValidCommitID(collaboration.CommitID(branch.Commit)) {
 		return empty, factoryservice.ErrHumanBranchCreateUnavailable
 	}
 	mapping, err := s.mapRead(ctx, observed.Repository, observed.Name, nil, nil)
@@ -171,6 +180,9 @@ func (s nativeHumanBranchCreates) LookupHumanBranchCreate(ctx context.Context, c
 	return s.store.LookupHumanCommandDispatch(ctx, cmd)
 }
 func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c factory.HumanBranchCreateCapture) (collaboration.OperationRecord, error) {
+	return s.submit(ctx, c, nil)
+}
+func (s nativeHumanBranchCreates) submit(ctx context.Context, c factory.HumanBranchCreateCapture, bundle []byte) (collaboration.OperationRecord, error) {
 	var empty collaboration.OperationRecord
 	p, err := s.decode(ctx, c)
 	if err != nil {
@@ -178,6 +190,9 @@ func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c
 	}
 	if time.Now().Unix() >= p.NotAfter {
 		return empty, factoryservice.ErrHumanBranchCreateAdmission
+	}
+	if p.Transfer != nil {
+		return s.submitTransfer(ctx, c, p, bundle)
 	}
 	won, err := s.store.ReserveHumanBranchCreateDispatch(ctx, c)
 	if err != nil {

@@ -68,6 +68,13 @@ provider approval: a shared author account posts COMMENT, and merge still needs
 the canonical clear, exact review receipt and satisfied provider rules. Existing
 PostgreSQL checks passed; native automated review/merge composition and connected
 branch-rule qualification remain pending. A second account remains optional.
+Initial native candidate publication now composes the existing Go branch/PR
+journal with Rust Git pack transfer and the authenticated PR connector. Actual
+new-branch/PR receipt adoption, replay and restart/withdrawal readback passed;
+A05/A07/A21 retains its evidence and declared run/authority limitations. Correction
+updates, full execution-to-publication/coordinator proof and merge remain pending.
+Two historical uncertain sends and the repository-name binding dependency remain
+open in the security handoff. This closes no T09 or broad security/installed gate.
 The shared native PR check view now projects pinned required-check readiness
 through the existing connector. Actual hidden-policy/visible-no-required-check
 reads passed within the unchanged timeout; A05/A07/A21 retains exact evidence

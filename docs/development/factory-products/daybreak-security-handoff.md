@@ -197,6 +197,63 @@ concurrent policy/status changes and test-merge selection remain unverified.
 Those exact provider/canonical observations are needed before claiming their
 merge readiness; this read grants no merge authority or broad gate closure.
 
+**Native initial publication integration (connected component verified):** Rust's
+`github_provider/git_publish.rs` transfers the retained candidate pack over Git
+HTTP; `runtime/native_publications.go` joins the existing branch/PR command
+journal. Go retains workflow/SQL ownership. Exact-old ref comparison and a
+comparison-branch observation are separate conditions; no atomic comparison-ref
+fence is claimed. The native server now composes the adapter. Actual component evidence:
+`/home/vince/tmp/fnative-publication-linked7.Ssqo9S/result.log`, with the retained
+`native-publication.json` and disposable public PR 4. It proves exact pack/new-ref
+transfer, branch/PR causal receipts, head/base/PR/issue adoption, disabled-policy
+refusal, replay and restart/withdrawal readback. Run completion and local authority
+were declared; no model, merge or complete execution coordinator ran. The packet
+parser now accepts only trailing empty flush packets after exact expected status.
+The earlier `fnative-publication-flush7.SxeDxZ` attempt passed its branch effect
+before a fixture intent-alias error stopped PR preparation; it supplies no full
+publication proof. Earlier logs/rows remain retained.
+
+Preserve the uncertain operation `soda-4ebd6d3c1ac44d87f9bd7d6956297a93-publish-1`
+in `/home/vince/tmp/fnative-publication-initial7.luZ3WG`, native profile
+`175e45adc56a24804586550d436a160e`. Its command journal reports
+`indeterminate/needs_intervention` with `github_publication_reply_unconfirmed`.
+The original Git reply did not match the parser and no causal receipt was
+retained. No replay, replacement of that identity or completion is authorized by
+current branch state. Closure needs request-bound original receive-pack/provider
+evidence and validated journal adoption; a matching visible ref is insufficient.
+A separate owned fixture verified the parser correction. It does not verify
+the original operation or any broader gate.
+
+Also preserve `soda-ec76ce19af94f6d567b347dacf88d5ea-publish-1` under
+`/home/vince/tmp/fnative-publication-report7.bJjid6`, profile
+`a18dfe0ac89f7649f33f24ec2dcb82d4`. It has the same retained uncertain outcome.
+Its private `profile/backend.log` retains the actual successful unpack/ref status
+and two trailing flush packets for `refs/heads/soda/factory/b3419288679a7ef7e5d185ef48e7aff8`.
+This is original response evidence, not a completed journal adoption; preserve its
+request binding before any proposed offline refinement, and never send it again.
+The first uncertain operation has no retained original report. Neither a later
+fixture pass nor inferred identical framing can supply that missing report.
+
+**Publication repository identity dependency:** Git HTTP addresses the repository
+by its observed owner/name. Numeric identity, push permission and the comparison
+branch are bounded observations; the receive-pack acknowledgement only conditions
+the updated ref's old OID. The new receipt states both identity/comparison limits.
+Namespace transfer/reuse between preflight and upload is unverified. Closure needs
+a supported stable-identity push mechanism or an explicit settled resource contract,
+and matching authorized namespace-change/provider evidence proving the selected
+repository receives the pack. Source `Reader::recheck` and a successful ordinary
+push do not prove that race. Relevant owners: `github_provider/{git_publish,transport}.rs`,
+`collaboration.rs` and `runtime/native_branch_transfer.go`. Keep this dependency
+open; use user-started Daybreak if the necessary investigation/check looks like
+hacking. No namespace-change or credential attack check ran here.
+
+Remaining publication dependencies: actual complete execution-to-publication,
+correction ref updates, cancellation/expiry and interrupted sends/adoption,
+selected-account withdrawal/permission changes, complete coordinator execution
+and installed/custody/IPC qualification. The current verification supplies declared
+run completion/local authority; it must not be reported as a Builder-to-PR or full
+pipeline pass. All broad gates remain open.
+
 **Native automated review submission:** `runtime/native_reviews.go` implements
 the existing review port over registered immutable `ReviewWork` and the existing
 command journal, reservation, cancellation and native review creator. Current

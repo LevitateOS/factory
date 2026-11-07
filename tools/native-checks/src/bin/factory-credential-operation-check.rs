@@ -1212,9 +1212,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
                 let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
                 let mut fixture=json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id});
+                let publication_check=args.len()==10 && field(9)?=="publication";
                 let recovery_check=args.len()==10 && field(9)?=="review-recovery";
                 let review_check=args.len()==10 && (field(9)?=="review" || recovery_check);
-                if args.len()>=9 { fixture["Checks"]=serde_json::from_slice(&fs::read(&args[8])?)?; }
+                if args.len()>=9 { fixture[if publication_check {"Publication"} else {"Checks"}]=serde_json::from_slice(&fs::read(&args[8])?)?; }
                 fs::write(&background,serde_json::to_vec(&fixture)?)?;
                 let check = |action: &str, instance: &str| {
                     let mut command=tokio::process::Command::new(&args[7]);
@@ -1222,7 +1223,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     async move { ensure(command.status().await?.success(),"native background product check failed") }
                 };
                 check("check-background-inputs",&ready.instance).await?;
-                if recovery_check {check("check-background-review-recovery-prepare",&ready.instance).await?;}
+                if publication_check {check("check-background-publication",&ready.instance).await?;}
+                else if recovery_check {check("check-background-review-recovery-prepare",&ready.instance).await?;}
                 else if review_check {check("check-background-review",&ready.instance).await?;}
                 else {
                     if args.len()==9 { check("check-background-ci",&ready.instance).await?; }
@@ -1237,10 +1239,12 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 let restarted=runtime.as_ref().expect("owned runtime").health()?;
                 if recovery_check {check("check-background-review-recovery",&restarted.instance).await?;}
                 check("check-background-restarted",&restarted.instance).await?;
+                if publication_check {check("check-background-publication-retained",&restarted.instance).await?;}
                 if review_check {check("check-background-review-retained",&restarted.instance).await?;}
                 store.withdraw(&saved.connection).await?;
                 check("check-background-withdrawn",&restarted.instance).await?;
-                if recovery_check {check("check-background-review-recovery-retained",&restarted.instance).await?;println!("PASS: connected native coordinator review recovery across restart/withdrawal; generic absence, expired and unknown sends remain held; one COMMENT review, no model or execution");}
+                if publication_check {check("check-background-publication-retained",&restarted.instance).await?;println!("PASS: actual native Git pack/branch and PR publication, command replay, retained restart and credential withdrawal; run/authority inputs declared, no model or merge");}
+                else if recovery_check {check("check-background-review-recovery-retained",&restarted.instance).await?;println!("PASS: connected native coordinator review recovery across restart/withdrawal; generic absence, expired and unknown sends remain held; one COMMENT review, no model or execution");}
                 else if review_check {check("check-background-review-retained",&restarted.instance).await?;println!("PASS: connected native review fixture/restart/withdrawal; one labeled COMMENT review, no model or execution");}
                 else {println!("PASS: connected native approval, background evidence/readiness without a view, retained restart replay and exact account withdrawal; no GitHub write or execution");}
                 Ok(())

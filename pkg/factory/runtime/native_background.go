@@ -26,7 +26,9 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 		return empty, err
 	}
 	ref := policy.Publish
-	if kind == factory.OpMerge {
+	if kind == factory.OpPRCreate {
+		ref = policy.Create
+	} else if kind == factory.OpMerge {
 		ref = policy.Merge
 	} else if kind == factory.OpReviewSubmit {
 		ref = policy.Review

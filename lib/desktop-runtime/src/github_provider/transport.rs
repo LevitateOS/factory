@@ -157,6 +157,64 @@ impl Drop for Owner {
     }
 }
 impl Client {
+    pub(super) async fn git_request(
+        &self,
+        name: &str,
+        token: &[u8],
+        body: Option<Vec<u8>>,
+    ) -> Result<(Vec<u8>, String)> {
+        use base64::Engine;
+        if !super::request::repository_name(name) {
+            return Err(Failure::invalid());
+        }
+        let credentials = Zeroizing::new([b"x-access-token:", token].concat());
+        let encoded =
+            Zeroizing::new(base64::engine::general_purpose::STANDARD.encode(&credentials));
+        let bytes = Zeroizing::new(format!("Basic {}", encoded.as_str()));
+        let mut authorization =
+            header::HeaderValue::from_str(&bytes).map_err(|_| Failure::invalid())?;
+        authorization.set_sensitive(true);
+        let name = name.to_owned();
+        let posting = body.is_some();
+        let wire = self
+            .request(Request::Provider(Box::new(move |http| {
+                let root = format!("https://github.com/{name}.git");
+                let request = match body {
+                    Some(body) => http
+                        .post(format!("{root}/git-receive-pack"))
+                        .header(
+                            header::CONTENT_TYPE,
+                            "application/x-git-receive-pack-request",
+                        )
+                        .body(body),
+                    None => http.get(format!("{root}/info/refs?service=git-receive-pack")),
+                };
+                Ok((
+                    request
+                        .header(header::AUTHORIZATION, authorization)
+                        .header(header::CACHE_CONTROL, "no-cache"),
+                    2 * 1024 * 1024,
+                ))
+            })))
+            .await?;
+        if wire.status != 200 {
+            return Err(provider_failure(&wire));
+        }
+        let expected = if posting {
+            "application/x-git-receive-pack-result"
+        } else {
+            "application/x-git-receive-pack-advertisement"
+        };
+        if wire
+            .headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            != Some(expected)
+        {
+            return Err(Failure::protocol());
+        }
+        Ok((wire.bytes.to_vec(), sha256(&wire.bytes)))
+    }
     // Retire the whole admitted native operation as well as each wire request.
     // This includes waits for Go mapping and native conditional credential I/O.
     pub(crate) async fn scope<F: std::future::Future>(&self, work: F) -> Result<F::Output> {

@@ -52,6 +52,50 @@ func (s *Store) PublicationByAssignment(ctx context.Context, assignmentID string
 	return p, err
 }
 
+// Resolve only the operation frozen in the canonical publication. A provider
+// command or matching branch name cannot invent workflow ownership.
+func (s *Store) PublicationOperation(ctx context.Context, id string) (factory.Publication, factory.PublicationOperation, error) {
+	var empty factory.Publication
+	var op factory.PublicationOperation
+	if !factory.ValidPublicationOperationID(id) {
+		return empty, op, ErrNotFound
+	}
+	filter, _ := json.Marshal(map[string]any{"corrections": []any{map[string]string{"operation_id": id}}})
+	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications WHERE data->'publish'->>'operation_id'=$1 OR data->'pr_create'->>'operation_id'=$1 OR data @> $2::jsonb LIMIT 2`, id, string(filter))
+	if err != nil {
+		return empty, op, err
+	}
+	defer rows.Close()
+	var result factory.Publication
+	count := 0
+	for rows.Next() {
+		var raw []byte
+		var p factory.Publication
+		if err = rows.Scan(&raw); err != nil {
+			return empty, op, err
+		}
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return empty, op, err
+		}
+		if err = p.Validate(); err != nil {
+			return empty, op, err
+		}
+		for _, candidate := range append([]factory.PublicationOperation{p.Publish, p.PRCreate}, p.Corrections...) {
+			if candidate.OperationID == id {
+				result, op = p, candidate
+				count++
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return empty, op, err
+	}
+	if count != 1 {
+		return empty, op, ErrNotFound
+	}
+	return result, op, nil
+}
+
 // PublicationReviewOperation resolves only registered immutable review work.
 // Native lookup and cancellation use this record even after authority withdrawal.
 func (s *Store) PublicationReviewOperation(ctx context.Context, operation string) (factory.Publication, factory.ReviewOperation, error) {

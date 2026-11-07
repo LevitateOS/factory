@@ -82,6 +82,7 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "publication_refs" => ("publication", reader.publication_refs(&q).await?),
                         "pull_required_checks" => {
                             ("required_checks", reader.required_checks(&q).await?)
                         }

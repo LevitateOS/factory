@@ -690,6 +690,27 @@ corrections are now active; the old feature queue waits for their resolution.
   concurrent policy/status changes still need connected evidence. Earlier timeout
   profiles are retained as failures. No workflow or merge ran.
 
+- **A05/A07/A21 — initial native candidate publication connected.** Go now
+  composes `NativePublication` with the application, retaining workflow/SQL
+  ownership and the existing branch/PR command journal. Rust transfers the exact
+  retained candidate bundle over Git HTTP, validates the expected old ref and
+  returns its causal report. The comparison branch and repository-name binding
+  remain bounded observations, explicitly distinguished in the receipt.
+  `/home/vince/tmp/fnative-publication-linked7.Ssqo9S/result.log` passed actual
+  Git pack/new-branch transfer, PR creation, exact head/base/PR/issue adoption,
+  disabled-policy refusal, journal replay and retained restart/withdrawal reads.
+  [Disposable PR 4](https://github.com/LevitateOS/factory-team-public-check-20261106/pull/4)
+  contains only the fixture addition. Run completion, local policy authority and
+  phase advancement were declared inputs; no model, merge or complete coordinator
+  execution ran. This supplies no Builder-to-PR, installed or security closure.
+  The real report exposed additional trailing empty flush packets, now accepted
+  only after the exact unpack/ref statuses. Two original uncertain commands stay
+  fenced in the security handoff; the later pass does not complete them.
+  Correction ref updates remain explicitly unavailable. Remaining dependencies:
+  actual full execution-to-publication, cancellation/expiry/lost replies, source
+  identity and permission/withdrawal races, corrections, merge and installed
+  qualification. No broad gate is closed.
+
 - **A04/A07/A21 — native automated review submission implemented.** The native
   application supplies `NativeReviews` through the existing review port. It
   binds registered immutable workflow work to the policy's exact saved review

@@ -4,9 +4,9 @@
 //! capability and current run before asking for that secret.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
-    BranchCreate, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState, Failure,
-    InlineCreate, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge, Read,
-    ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOutcome,
+    BranchCreate, BranchPublish, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState,
+    Failure, InlineCreate, InlineDraft, IssueCreate, PendingReviewSubmit, PullCreate, PullMerge,
+    Read, ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -500,6 +500,18 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    PublishBranch {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        branch: BranchPublish,
+    },
+    CreatePull {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        pull: PullCreate,
+    },
     Current,
     Read {
         query: Read,
@@ -519,6 +531,28 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
     }
     let effect = match call.call {
         BackgroundEffect::Current => Effect::Current,
+        BackgroundEffect::PublishBranch {
+            command_id,
+            digest,
+            not_after,
+            branch,
+        } => Effect::PublishBranch {
+            command_id,
+            digest,
+            not_after,
+            branch,
+        },
+        BackgroundEffect::CreatePull {
+            command_id,
+            digest,
+            not_after,
+            pull,
+        } => Effect::CreatePull {
+            command_id,
+            digest,
+            not_after,
+            pull,
+        },
         BackgroundEffect::CreateReview {
             command_id,
             digest,
@@ -534,6 +568,10 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
             if matches!(
                 query,
                 Read::Identity
+                    | Read::PublicationRefs { .. }
+                    | Read::PullBranches { .. }
+                    | Read::Pull { .. }
+                    | Read::Issue { .. }
                     | Read::Repository { .. }
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }
@@ -545,7 +583,11 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         }
         _ => return Err(Failure::new(403, "native_background_read_unavailable")),
     };
-    if !matches!(&effect, Effect::CreateReview { .. }) && body.len() > 8192 {
+    if !matches!(
+        &effect,
+        Effect::CreateReview { .. } | Effect::PublishBranch { .. } | Effect::CreatePull { .. }
+    ) && body.len() > 8192
+    {
         return Err(Failure::invalid());
     }
     let credentials = state
@@ -622,6 +664,12 @@ enum Effect {
         digest: String,
         not_after: u64,
         inline: InlineDraft,
+    },
+    PublishBranch {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        branch: BranchPublish,
     },
     CreateBranch {
         command_id: String,
@@ -715,6 +763,12 @@ impl Effect {
                 not_after,
                 inline,
             } => Some((command_id, digest, *not_after, &inline.repository)),
+            Self::PublishBranch {
+                command_id,
+                digest,
+                not_after,
+                branch,
+            } => Some((command_id, digest, *not_after, &branch.repository)),
             Self::CreateBranch {
                 command_id,
                 digest,
@@ -901,7 +955,7 @@ async fn dispatch(
     } else if execution {
         512 * 1024
     } else if background {
-        512 * 1024
+        1024 * 1024
     } else if signing || verifying {
         8192
     } else {
@@ -1119,6 +1173,7 @@ async fn dispatch(
     if !matches!(
         &call.call,
         Effect::CreateComment { .. }
+            | Effect::PublishBranch { .. }
             | Effect::MergePull { .. }
             | Effect::CreateInline { .. }
             | Effect::AppendPendingThread { .. }
@@ -1154,6 +1209,7 @@ fn validate_mutation(scope: &Scope, effect: &Effect) -> std::result::Result<(), 
             Effect::CreateComment { comment, .. } => comment.validate()?,
             Effect::AppendPendingThread { inline, .. } => inline.validate()?,
             Effect::CreateIssue { issue, .. } => issue.validate()?,
+            Effect::PublishBranch { branch, .. } => branch.validate()?,
             Effect::CreateBranch { branch, .. } => branch.validate()?,
             Effect::CreatePull { pull, .. } => pull.validate()?,
             Effect::CreateReview { review, .. } => review.validate()?,
@@ -1307,6 +1363,12 @@ async fn mutate(
                 .inline_draft_account(token, account, inline, Some(deadline))
                 .await
                 .into(),
+        ),
+        Effect::PublishBranch { branch, .. } => (
+            "applied",
+            provider
+                .branch_publish_account(token, account, branch, Some(deadline))
+                .await,
         ),
         Effect::CreateBranch { branch, .. } => (
             "created",
