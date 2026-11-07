@@ -51,6 +51,11 @@ declared; no funded/model planning or live GitHub ran. `cleanup.log` confirms al
 temporary fixture helpers/registrations/socket were removed. The remaining
 withdrawal/recovery/connected/installed dependencies above are unchanged; merged
 source refresh and full automated progression remain unqualified.
+Same-session setup retries now preserve the unconfirmed command and original
+predecessors across readback of advanced heads. The declared lost-response browser
+check `/home/vince/tmp/fsetup-retry20.I5ERy8/result-corrected.log` passed exact retry,
+new identity for edited review and cleared consent after success. It proves no
+native cancellation/restart race; those recovery dependencies remain open.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.

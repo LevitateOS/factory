@@ -88,7 +88,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   declare private message: string;
   private current: Context | undefined;
   private lifetime = new AbortController();
-  private command: Record<string, unknown> | undefined;
+  private command: {command_id: string; payload: Record<string, unknown>} | undefined;
   constructor() {
     super();
     this.busy = false;
@@ -136,7 +136,6 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       const view = setupResponse(await readSodaJSON(response));
       if (this.live(context, signal)) {
         this.view = view;
-        this.command = undefined;
         this.message = '';
       }
     } catch (error) {
@@ -190,7 +189,11 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       environment_revision: view.environment_revision,
     };
     const previous = this.command;
-    if (!previous || JSON.stringify(previous.payload) !== JSON.stringify(payload))
+    // A lost reply can leave the server heads advanced. An unchanged review
+    // retries its original predecessors and identity rather than approving twice.
+    const reviewed = (body: Record<string, unknown>) =>
+      JSON.stringify({...body, requirement: undefined, approval: undefined});
+    if (!previous || reviewed(previous.payload) !== reviewed(payload))
       this.command = {command_id: crypto.randomUUID().replaceAll('-', ''), payload};
     const command = this.command!;
     this.busy = true;
@@ -199,7 +202,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       const response = await context.transport.request(`repositories/${context.repository}/factory/setup`, {
         method: 'PUT',
         signal,
-        body: JSON.stringify({command_id: command.command_id, ...payload}),
+        body: JSON.stringify({command_id: command.command_id, ...command.payload}),
       });
       if (!response.ok) {
         if (response.status === 409 || response.status === 412)
@@ -208,6 +211,8 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       }
       const next = setupResponse(await readSodaJSON(response));
       if (this.live(context, signal)) {
+        const consent = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
+        if (consent) consent.checked = false;
         this.view = next;
         this.command = undefined;
         this.message = 'Approval recorded. Readiness requires passing setup and checks for both roles.';

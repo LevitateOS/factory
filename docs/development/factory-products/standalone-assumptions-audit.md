@@ -1649,6 +1649,14 @@ and desktop bridge, including the larger bounded setup request above 64 KiB;
 Rust builds, UI typecheck/build and the language-boundary check passed. This
 proves planning material is reachable, not successful model planning or merged
 source refresh.
+The setup editor also retains an unconfirmed command across refresh, comparing
+reviewed content separately from advanced server heads. An unchanged retry sends
+the original identity and predecessors; edited content requires a new command.
+Successful replay clears consent even when the heads were already observed.
+`/home/vince/tmp/fsetup-retry20.I5ERy8/result-corrected.log` passed this actual
+browser behavior with a declared lost reply, plus changed-review identity and
+consent reset. UI typecheck/build passed. This proves same-session retry behavior;
+it does not qualify process-restart recovery or cancellation during native I/O.
 
 **Remaining:** connected/installed onboarding and current-account/placement/
 approval withdrawal during I/O, changed-source consent, retained restart and

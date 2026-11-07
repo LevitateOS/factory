@@ -38,6 +38,8 @@ selection with native readback and exact digests, supplying the existing plannin
 input contract. The actual native product check passed source fetch, both
 isolated setup/checks, immutable replay, canonical readiness, withdrawal and
 retirement; A21 records its declared-provider scope and retained evidence.
+The shared editor preserves an unconfirmed approval's identity and predecessors
+on an unchanged same-session retry, including after refreshed heads advance.
 Connected/installed onboarding, withdrawal races and retained reactivation remain
 open, as do the separate Muse result-encoding and full-pipeline dependencies.
 Native planning source reads and completion capture now also resolve enrolled
