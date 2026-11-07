@@ -125,6 +125,9 @@ func (s *IssueMaker) Drive(ctx context.Context, pipe factory.PostIntake, comment
 		return PostResponse(pipe), save("waiting", "The issue exists. Issue Maker is waiting for repository issue-write access.")
 	}
 	if err := s.Effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+		if errors.Is(err, ErrCapturedIssueUnavailable) {
+			return PostResponse(pipe), save("waiting", "The issue exists. AI refinement is unavailable for this connection; no refinement run has started.")
+		}
 		return PostResponse(pipe), save("failed", "The issue exists. Its request-scoped write authorization expired before refinement; submit a follow-up request to continue.")
 	}
 	if s.Transport == nil {

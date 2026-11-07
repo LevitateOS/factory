@@ -118,6 +118,14 @@ object. `recovery.log` proves its original needs-human result, retirement and
 accounting without replay. The source of that encoding mismatch is unverified;
 do not weaken validation or infer completion from the model's final text.
 Independent product work can continue while this provider journey stays pending.
+Native Feed submission now captures its source/account/context and creates the
+original request through the existing native issue journal. A05/A21 records the
+actual local one-creation/replay/restart/withdrawal check and declared-provider/
+routing limits. AI refinement remains unavailable without conditional delivery.
+The owner selected explicit provider/model/account configuration for product
+judgments (A25); a separate TypeSafe/JEV service is no longer required. Implement
+that selection and admitted inference before resuming dependent routing/planning;
+the full automated pipeline remains required.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.

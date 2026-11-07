@@ -60,6 +60,10 @@ The user started the correction goal and selected these requirements on
   independent review, CI and merge; no full-pipeline prerequisite is removed
   (A04/A19). New native implement manifests use `max_children: 0`; historical
   child manifests remain immutable and readable.
+- On 2026-11-07, product judgments also use an explicitly selected provider,
+  model and account/source. A separate TypeSafe/JEV service is not mandatory.
+  Preserve routing, planning and other judgment prerequisites; no source may be
+  chosen or charged automatically (A25).
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -67,6 +71,18 @@ delivery modes are superseded by the full-pipeline decision above. Execution
 corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
+
+- **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
+  Feed submission captures its exact source revision, account, repository and
+  issue context. Background creation reacquires that captured connection through
+  Rust and uses the existing durable issue-create command/receipt, without
+  substituting a policy account. The actual native/Go/PostgreSQL check passed in
+  `/home/vince/tmp/fnative-request-create8.pqfkOs/result.log`: original writing,
+  one issue, idempotent replay, restart readback and withdrawn-account refusal.
+  Provider facts and the routing answer were declared; no model or real GitHub
+  request ran. Native conditional refinement remains unavailable and starts no
+  paid model. A25 judgment selection/inference, source edits/expiry and unknown
+  creation recovery, connected and installed qualification remain open.
 
 - **A01/A11 — CLI-managed setup and admitted execution implemented; qualification pending.**
   Rust supplies a stable profile-scoped “This Muse login” reference, not a Meta
@@ -1392,6 +1408,17 @@ as history. Bound Factory's updater responsibilities to what it owns, and name
 actual external owners. The mandatory freshness rule remains in force; missing
 updater machinery is not permission to run known stale tools. Neither source
 refactoring nor repeated historical evidence validates a requirement.
+
+### A25 — Product judgments require a separate fixed provider
+
+The inherited composition fixes semantic routing and other judgments to
+TypeSafe/JEV, independently of the configured agent sources. Native composition
+has no admitted judgment connector, so Feed routing remains pending even when
+agent roles have a configured Muse source. The owner selected explicit
+provider/model/account selection for judgments on 2026-11-07. Implement that
+selection through existing source admission and native lifetime owners; retain
+the complete automated pipeline and existing judgment validation. Configuration,
+inference, funding and restart behavior remain unverified for this correction.
 
 ### A24 — Route scope and selected workspace are treated as the same UI fact
 

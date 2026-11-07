@@ -277,6 +277,122 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .ok_or("canonical repository absent")?
         .to_owned();
     let base = format!("/api/factory/collaboration/repositories/{repository}");
+    if std::env::var("SODA_NATIVE_CHECK_REQUEST_CAPTURE").as_deref() == Ok("1") {
+        let original = "Capture this original request without running a model.";
+        let body = serde_json::to_vec(
+            &json!({"repository":repository,"body":original,"idempotency_key":"native-request-capture"}),
+        )?;
+        let saved = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            "/api/factory/feed/posts",
+            &body,
+        )
+        .await?;
+        ensure(
+            matches!(saved.0, 200 | 202),
+            &format!("native request submit refused: {} {}", saved.0, saved.1),
+        )?;
+        let post = saved.1["post_id"]
+            .as_str()
+            .ok_or("native request post absent")?
+            .to_owned();
+        let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
+        ensure(
+            std::process::Command::new(helper)
+                .arg(profile)
+                .arg(runtime.health()?.instance)
+                .arg("declare-request-route")
+                .arg(&post)
+                .status()?
+                .success(),
+            "declared routing prerequisite failed",
+        )?;
+        runtime.start_execution_coordinator().await?;
+        let path = format!("/api/factory/feed/posts/{post}");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let settled = loop {
+            let read = call(&runtime, &store, &connection, "GET", &path, &[]).await?;
+            ensure(
+                read.0 == 200 && read.1["body"] == original,
+                "native request writing changed",
+            )?;
+            if read.1["effect"] == "verified" && read.1["issue_maker"]["state"] == "waiting" {
+                break read.1;
+            }
+            ensure(
+                read.1["attempts"].as_i64() == Some(0),
+                &format!("declared native request creation failed: {}", read.1),
+            )?;
+            ensure(
+                Instant::now() < deadline,
+                &format!("native request creation did not settle: {}", read.1),
+            )?;
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        };
+        ensure(
+            settled["issue"].as_i64().is_some_and(|n| n > 0)
+                && settled["issue_maker"]["detail"]
+                    .as_str()
+                    .is_some_and(|s| s.contains("AI refinement is unavailable")),
+            "unsupported refinement appeared executable or mislabeled authentication",
+        )?;
+        ensure(
+            posts(&io)? == 1,
+            "native request did not create exactly one issue",
+        )?;
+        let replay = call(
+            &runtime,
+            &store,
+            &connection,
+            "POST",
+            "/api/factory/feed/posts",
+            &body,
+        )
+        .await?;
+        ensure(
+            matches!(replay.0, 200 | 202) && replay.1["post_id"] == post && posts(&io)? == 1,
+            "native request replay duplicated its effect",
+        )?;
+        runtime.stop()?;
+        runtime = NativeSupervisor::start(payload, production, profile)?;
+        store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
+        let retained = call(&runtime, &store, &connection, "GET", &path, &[]).await?;
+        ensure(
+            retained.0 == 200
+                && retained.1["issue"] == settled["issue"]
+                && retained.1["effect"] == "verified"
+                && retained.1["body"] == original
+                && posts(&io)? == 1,
+            "native request restart lost its exact issue or replayed creation",
+        )?;
+        store.withdraw(&connection).await?;
+        ensure(
+            call(
+                &runtime,
+                &store,
+                &connection,
+                "POST",
+                "/api/factory/feed/posts",
+                &body,
+            )
+            .await
+            .is_err()
+                && posts(&io)? == 1,
+            "withdrawn request account admitted another effect",
+        )?;
+        runtime.stop()?;
+        fs::write(
+            root.join("request-capture-result.json"),
+            serde_json::to_vec_pretty(
+                &json!({"native_post":post,"issue":settled["issue"],"created_once":true,"replay":true,"restart":true,"withdrawal":true,"refinement":"unavailable_no_model","provider_facts":"declared","routing":"declared"}),
+            )?,
+        )?;
+        println!("PASS: native request captures its admitted account/source and creates exactly one issue through the real journal/connector; replay, restart and withdrawal preserve it; unsupported refinement waits without model spending. Provider facts and routing are declared; no connected or installed gate closed.");
+        return Ok(());
+    }
     let submit = format!("{base}/issues");
     let command = |id: &str| format!("{base}/issue-creation/commands/{id}");
     let mut cases = Vec::new();

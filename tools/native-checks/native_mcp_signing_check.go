@@ -1278,7 +1278,9 @@ func main() {
 	}
 	if len(os.Args) == 5 {
 		var err error
-		if strings.HasPrefix(os.Args[3], "check-background-") {
+		if os.Args[3] == "declare-request-route" {
+			err = declaredRequestRoute(os.Args[1], os.Args[4])
+		} else if strings.HasPrefix(os.Args[3], "check-background-") {
 			err = backgroundInputsFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
 		} else if os.Args[3] == "check-owned-tool" {
 			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
@@ -4554,6 +4556,42 @@ func declaredNativePreparation(ctx context.Context, config factoryruntime.Native
 		return fmt.Errorf("declared native preparation callback status %d", response.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(response.Body, 2*1024*1024)).Decode(result)
+}
+
+type declaredPostRouting struct{}
+
+func (declaredPostRouting) JudgePost(context.Context, factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
+	return factoryservice.PostJudgment{Route: factory.PostRouteNewIssue}, nil
+}
+
+// Only the routing answer is declared. Native HTTP captured the actual source,
+// account and issue context; the normal background owner performs creation.
+func declaredRequestRoute(profile, post string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	pipe, err := db.PostIntake(ctx, post)
+	if err != nil {
+		return err
+	}
+	if grant, err := db.IssueIntakeGrant(ctx, post, pipe.Revision); err != nil || !json.Valid(grant) {
+		return errors.New("native request did not capture its admitted source/account")
+	}
+	captured := factoryservice.PostContext{Posts: factoryservice.Posts{Store: db}}
+	response, err := factoryservice.DrivePostIntake(ctx, db, &factoryservice.PostCollaborators{Judge: declaredPostRouting{}, Prepare: captured.Prepare}, post)
+	if err != nil || response.Judgment != factory.PostJudgmentApplied || response.Route != factory.PostRouteNewIssue {
+		return fmt.Errorf("declared routing prerequisite: %+v: %v", response, err)
+	}
+	fmt.Println("PASS: native source/account/context captured; routing answer declared, no model request")
+	return nil
 }
 
 // The existing native integration driver can itself act as the captured local

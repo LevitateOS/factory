@@ -500,6 +500,12 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    CreateIssue {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        issue: IssueCreate,
+    },
     MergePull {
         command_id: String,
         digest: String,
@@ -536,6 +542,17 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::CreateIssue {
+            command_id,
+            digest,
+            not_after,
+            issue,
+        } => Effect::CreateIssue {
+            command_id,
+            digest,
+            not_after,
+            issue,
+        },
         BackgroundEffect::MergePull {
             command_id,
             digest,
@@ -609,6 +626,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
     if !matches!(
         &effect,
         Effect::CreateReview { .. }
+            | Effect::CreateIssue { .. }
             | Effect::PublishBranch { .. }
             | Effect::CreatePull { .. }
             | Effect::MergePull { .. }

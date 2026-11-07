@@ -38,7 +38,17 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	if ref.Validate() != nil || ref.Kind != kind || ref.NativeProfile != p.Config.Profile || ref.NativeConnection == "" || ref.TokenID != 0 {
 		return empty, errors.New("native background account is not configured")
 	}
-	connection, err := p.Store.CollaborationConnection(ctx, ref.NativeConnection)
+	return p.savedAccount(ctx, id, collaboration.ActorID(ref.ActorID), ref.NativeConnection)
+}
+
+// savedAccount keeps one canonical mapping/current-custody owner for policy
+// work and explicitly captured native requests. It never selects a fallback.
+func (p NativeInputSource) savedAccount(ctx context.Context, repository int64, actorID collaboration.ActorID, connectionID collaboration.ConnectionID) (*nativeProductAccount, error) {
+	var empty *nativeProductAccount
+	if p.Store == nil || repository <= 0 || actorID <= 0 || !collaboration.ValidID(string(connectionID)) {
+		return empty, errNativeReadScope
+	}
+	connection, err := p.Store.CollaborationConnection(ctx, connectionID)
 	if err != nil {
 		return empty, err
 	}
@@ -50,7 +60,7 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	if err != nil {
 		return empty, err
 	}
-	repo, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(id))
+	repo, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(repository))
 	if err != nil {
 		return empty, err
 	}
@@ -58,7 +68,7 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	if err != nil {
 		return empty, err
 	}
-	if host.Provider != collaboration.GitHub || host.APIBase != "https://api.github.com" || connection.Profile != p.Config.Profile || connection.Actor != collaboration.ActorID(ref.ActorID) || actor.Host != host.ID || repo.Host != host.ID || !nativeRemoteID(actor.ExternalID) || !nativeRemoteID(repo.ExternalID) {
+	if host.Provider != collaboration.GitHub || host.APIBase != "https://api.github.com" || connection.Profile != p.Config.Profile || connection.Actor != actorID || actor.Host != host.ID || repo.Host != host.ID || !nativeRemoteID(actor.ExternalID) || !nativeRemoteID(repo.ExternalID) {
 		return empty, errNativeReadScope
 	}
 	scope := &nativeScope{Connection: NativeConnection{Connection: string(connection.ID), Provider: "github", Origin: "https://github.com", Account: actor.ExternalID}, Repository: repo.ExternalID}

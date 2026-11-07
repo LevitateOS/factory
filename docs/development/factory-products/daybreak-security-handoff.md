@@ -18,6 +18,23 @@ security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all
 existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
 
+**A05/A21 Feed issue capture:** `runtime/native_issue_intake.go` under
+`pkg/factory/` captures a five-minute server-retained source/account/repository
+admission, checks the original source before native I/O and reuses the human
+issue-create journal and Rust authenticated connector. `native_background.go`
+resolves the exact saved connection; `desktop-runtime/src/collaboration.rs` under
+`lib/` admits bounded background issue creation. No credential is stored in the
+capture. `/home/vince/tmp/fnative-request-create8.pqfkOs/result.log` proves actual
+native/Go/PostgreSQL one-creation, replay, restart and withdrawn-account refusal
+with declared provider facts and routing. It closes no broad gate. Remaining:
+prove source edit/deletion/revocation/expiry and withdrawal during native I/O,
+unknown-send recovery without resending, and connected/installed admission. The
+source+slot command identity deliberately survives revisions; revised writing
+must not overwrite or replace an uncertain original command. Native conditional
+refinement is unavailable and launches no model; closing it requires an actual
+provider-supported conditional effect preserving concurrent human text. A25
+judgment source/funding and cancellation/restart proof is a separate dependency.
+
 **A24 navigation scope:** the owner selected repository-local Feed. The optional
 `selectedRepository` in `frontend/factory/app/factory-app.ts` retains navigation
 independently of route shape; `frontend/desktop/product.ts` supplies its admitted

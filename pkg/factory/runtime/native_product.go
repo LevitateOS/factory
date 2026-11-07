@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
@@ -88,6 +89,17 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
 	reads := nativeCollaborationReads{bound}
+	postContext := factoryservice.PostContext{Posts: posts, Issues: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, q factoryservice.PostIssueQuery) (collaboration.Page[collaboration.Issue], error) {
+		return (factoryservice.CollaborationIssues{Source: reads}).Read(ctx, actor, repository, factoryservice.CollaborationIssueQuery{Cursor: q.Cursor, Number: q.Number, Limit: q.Limit})
+	}}
+	commands := factoryservice.PostCommands{Posts: posts, Capture: factoryservice.PostCapture{Context: postContext.Capture}}
+	if effects, ok := application.IssueEffects.(*nativeIssueEffects); ok {
+		capture := factoryservice.IssueIntakeCapture{Posts: posts, Effects: effects.CapturedIssueEffects, Authorize: func(ctx context.Context, q factoryservice.IssueIntakeRequest) (factory.IssueIntakeScope, json.RawMessage, error) {
+			return effects.authorize(ctx, bound, q)
+		}}
+		commands.Capture.Authorization = capture.Capture
+	}
+	product.Feed.Commands = commands
 	product.CollaborationIssues = factoryhttp.CollaborationIssues{Service: factoryservice.CollaborationIssues{Source: reads}}
 	product.CollaborationPulls = factoryhttp.CollaborationPulls{Service: factoryservice.CollaborationPulls{Source: reads}}
 	product.Discussions = factoryhttp.CollaborationDiscussions{Service: factoryservice.CollaborationDiscussions{Source: reads}}
@@ -127,10 +139,8 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 	product.Acceptances = factoryhttp.Acceptances{Service: factoryservice.Acceptances{
 		Writer: nativeAcceptanceWriter{Coordinator: application.Coordinator, source: inputs}, Evidence: inputs, WriteAccess: bound.localResourceAccess},
 		Visibility: bound.visible, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError}
-	// Capture/judgment, setup and native execution are
-	// separate admitted dependencies. Their existing shared handlers explicitly
-	// report unavailable. In particular, no feed intake or coordinator is started
-	// by logging in, by reading stored work, or by saving an owner-private draft.
+	// Binding supplies commands, not a progress loop. The application starts its
+	// coordinator explicitly; unavailable judgment/refinement ports remain pending.
 	return product, nil
 }
 
