@@ -822,16 +822,16 @@ async fn dispatch(
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
         if matches!(&call, crate::factory_provider::port::Call::InspectMuseLogin) {
-            use sha2::{Digest, Sha256};
-            let connection: String =
-                Sha256::digest(format!("factory_muse_login\n{}", state.channel.profile))
-                    .iter()
-                    .take(16)
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect();
+            let connection = crate::factory_provider::muse_connection(&state.channel.profile);
+            let available = crate::factory_provider::muse_helper().is_ok()
+                && state.tools.read().is_ok_and(|tools| tools.is_some())
+                && state
+                    .execution_error
+                    .lock()
+                    .is_ok_and(|error| error.is_none());
             return Ok(json!({"connection":connection,"label":"This Muse login",
                 "native":{"profile":state.channel.profile,"authentication":"muse_login"},
-                "execution_available":false}));
+                "execution_available":available}));
         }
         if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
             && state

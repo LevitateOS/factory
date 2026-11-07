@@ -43,6 +43,10 @@ func (p *attemptPlan) captureRuntime(a *factory.Assignment, run *factory.Run) *e
 		TrustMode: "isolated_system_worker", BrokerRun: run.ID}
 	if p.sponsorship.Native != nil {
 		n.CredentialSHA256 = p.sponsorship.Native.CredentialSHA256
+		n.Authentication = p.sponsorship.Native.Authentication
+		if n.Authentication == factory.NativeMuseLogin {
+			n.TrustMode = execution.NativeCLIProvider
+		}
 	}
 	a.NativeTool = &n.Tool
 	run.Native = &execution.NativeRecord{Tool: n.Tool, BundleSHA256: n.BundleSHA256, PromptSHA256: n.PromptSHA256, Retirement: execution.NotStarted,

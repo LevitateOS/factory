@@ -8,9 +8,9 @@ mod custody;
 mod executions;
 mod intent;
 pub(crate) mod launch;
-pub(crate) mod work;
 mod mcp;
 mod muse;
+mod muse_attempt;
 mod observation;
 mod owner;
 pub(crate) mod port;
@@ -21,6 +21,7 @@ mod response;
 mod run;
 mod start;
 mod tool;
+pub(crate) mod work;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
     AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
@@ -31,7 +32,10 @@ pub use executions::{
 };
 pub use intent::{read_intent, LaunchIntent};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
+pub(crate) use muse::connection as muse_connection;
+pub(crate) use muse::helper as muse_helper;
 pub use muse::MuseConnector;
+pub use muse_attempt::MuseRun;
 pub use observation::{AgentObservation, AgentObserver};
 pub use owner::{BoundOwner, Owner};
 pub use receipt::{read_retained, retire_recovered_receipt, write_retained, ReceiptScope};

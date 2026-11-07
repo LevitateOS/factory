@@ -13,6 +13,29 @@ use std::time::{Duration, Instant};
 fn refused(message: &'static str) -> io::Error {
     io::Error::other(message)
 }
+pub(crate) fn connection(profile: &str) -> String {
+    Sha256::digest(format!("factory_muse_login\n{profile}"))
+        .iter()
+        .take(16)
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+pub(crate) fn helper() -> io::Result<PathBuf> {
+    let helper = std::env::current_exe()?
+        .parent()
+        .ok_or_else(|| refused("native helper directory unavailable"))?
+        .join("soda-factory-muse")
+        .canonicalize()?;
+    let metadata = helper.symlink_metadata()?;
+    if !metadata.is_file()
+        || metadata.mode() & 0o111 == 0
+        || metadata.mode() & 0o022 != 0
+        || metadata.uid() != 0 && metadata.uid() != unsafe { libc::geteuid() }
+    {
+        return Err(refused("native Muse helper unavailable"));
+    }
+    Ok(helper)
+}
 fn private(path: &Path) -> io::Result<()> {
     let meta = path.symlink_metadata()?;
     if !meta.is_dir()
@@ -48,6 +71,19 @@ impl MuseConnector {
     /// verified CLI selection. Neither path is accepted through browser IPC.
     /// The owning execution registry must retain this handle until settlement.
     pub fn start(profile: &Path, helper: &Path, mut request: MuseInvocation) -> io::Result<Self> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_millis() as u64;
+        let latest = now.saturating_add(request.duration_ms);
+        request.deadline_unix_ms = if request.deadline_unix_ms == 0 {
+            latest
+        } else {
+            request.deadline_unix_ms.min(latest)
+        };
+        if request.deadline_unix_ms <= now {
+            return Err(refused("Muse admitted deadline expired"));
+        }
         private(profile)?;
         let helper = helper.canonicalize()?;
         let meta = helper.symlink_metadata()?;
@@ -192,9 +228,43 @@ impl MuseConnector {
             return Err(io::Error::last_os_error());
         }
         let input = owner.input.as_mut().expect("owned connector stdin");
-        input.write_all(&(encoded.len() as u32).to_be_bytes())?;
-        input.write_all(&encoded)?;
-        input.flush()?;
+        let flags = unsafe { libc::fcntl(input.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0
+            || unsafe { libc::fcntl(input.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
+                < 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        let mut frame = Vec::with_capacity(encoded.len() + 4);
+        frame.extend_from_slice(&(encoded.len() as u32).to_be_bytes());
+        frame.extend_from_slice(&encoded);
+        let until = Instant::now()
+            + Duration::from_millis(request.deadline_unix_ms - now).min(Duration::from_secs(30));
+        let mut sent = 0;
+        while sent < frame.len() {
+            match input.write(&frame[sent..]) {
+                Ok(0) => return Err(refused("Muse connector input closed")),
+                Ok(count) => sent += count,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= until {
+                        return Err(io::Error::new(
+                            io::ErrorKind::TimedOut,
+                            "Muse connector start timed out",
+                        ));
+                    }
+                    let mut event = libc::pollfd {
+                        fd: input.as_raw_fd(),
+                        events: libc::POLLOUT,
+                        revents: 0,
+                    };
+                    unsafe {
+                        libc::poll(&mut event, 1, 20);
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
         Ok(owner)
     }
 

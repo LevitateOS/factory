@@ -33,11 +33,11 @@ type NativeIntent struct {
 var ErrNativeIntent = errors.New("native launch intent differs from its captured binding")
 
 func (i NativeIntent) Validate() error {
-	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2 && i.Version != 3) ||
+	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2 && i.Version != 3 && i.Version != 4) ||
 		!project.ValidFactoryRunID(i.Run) || !project.ValidID(i.Workspace) ||
 		!project.ValidFactoryRole(i.Role) || !project.ValidCommit(i.SourceCommit) ||
 		!collaboration.ValidText(i.Connection, 128) || i.Deadline.IsZero() ||
-		i.Native.Validate() != nil || i.Native.TrustMode != "isolated_system_worker" {
+		!i.Native.Active() || (i.Version == 4) != (i.Native.TrustMode == NativeCLIProvider) {
 		return ErrNativeIntent
 	}
 	if i.Version == 1 && (i.Model != "" || i.Effort != "" || i.Contributor) || i.Version >= 2 && (i.Model == "" || !project.ValidTaskEffort(i.Effort)) ||
@@ -68,6 +68,9 @@ func EncodeNativeIntent(request LaunchRequest) (string, error) {
 		Model: run.Model, Effort: run.Effort, Contributor: run.Contributor}
 	if request.Native.CredentialSHA256 != "" {
 		intent.Version = 3
+	}
+	if request.Native.TrustMode == NativeCLIProvider {
+		intent.Version = 4
 	}
 	return intent.Encode()
 }

@@ -15,8 +15,8 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	refuse := func() (factory.Run, error) { return factory.Run{}, ErrAdmissionChanged }
 	env := grants.environment
 	account := grants.sponsorship.Native
-	if native.Validate() != nil || native.TrustMode != "isolated_system_worker" || !collaboration.ValidID(a.Connection) || env.Native == nil || env.Project != a.ProjectID ||
-		account == nil || account.Validate() != nil || account.Authentication != "" || account.Profile != env.Native.Profile || native.CredentialSHA256 != account.CredentialSHA256 ||
+	if !native.Active() || !collaboration.ValidID(a.Connection) || env.Native == nil || env.Project != a.ProjectID ||
+		account == nil || account.Validate() != nil || account.Profile != env.Native.Profile || !native.MatchesAuthentication(account.Authentication, account.CredentialSHA256) ||
 		native.Runtime != env.Native.Runtime || native.PlacementGeneration != env.Native.Generation || native.Workspace.Profile != env.Native.Profile ||
 		run.Native == nil || !native.MatchesRecord(*run.Native) || run.Native.Retirement != execution.NotStarted || run.Native.Sealed ||
 		run.Native.Provenance.Process != nil || run.Native.Provenance.Custody.State != execution.NotAcquired || run.Native.Intent != "" ||
@@ -52,7 +52,11 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	if selection.Profile.Validate(selection.Harness) != nil {
 		return refuse()
 	}
-	n.Intent, err = (execution.NativeIntent{Kind: "factory_native_launch_intent", Version: 3, Run: run.ID, Workspace: a.ProjectID,
+	version := 3
+	if native.TrustMode == execution.NativeCLIProvider {
+		version = 4
+	}
+	n.Intent, err = (execution.NativeIntent{Kind: "factory_native_launch_intent", Version: version, Run: run.ID, Workspace: a.ProjectID,
 		Role: a.Role, SourceCommit: a.SourceCommit, Connection: a.Connection, Deadline: run.Deadline, Native: native,
 		Model: a.Model, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor}).Encode()
 	if err != nil {

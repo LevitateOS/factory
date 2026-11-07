@@ -58,20 +58,19 @@ corrections are now active; the old feature queue waits for their resolution.
 
 ### Verified corrections
 
-- **A01/A11 — CLI-managed Muse source setup implemented; execution pending.**
+- **A01/A11 — CLI-managed setup and admitted execution implemented; qualification pending.**
   Rust supplies a stable profile-scoped “This Muse login” reference, not a Meta
   account ID. Go records `authentication: muse_login` without a credential
   fingerprint; the historical token-bound lane retains its exact binding.
   Shared Work configures/withdraws the source's local minute allowance and saves
   explicit independent role choices. No source is selected automatically. Native
-  product requests admit the exact source selector; dispatch and credential-bound
-  launch admission explicitly refuse this source until its executor is integrated.
+  product requests admit the exact source selector. Version-4 launch intents now
+  capture the CLI-managed variant separately from token-bearing worker launches.
   Actual Rust/Go/PostgreSQL setup, readback, stale-revision refusal and withdrawal
   passed in `/home/vince/tmp/fmuse-source-native7.fPtpBb/result.log`; actual shared
   Chromium interactions passed against a declared peer in
   `/home/vince/tmp/fmuse-source-ui7.SX4Qoc/result.log`. Neither check accessed Muse
-  authentication or ran a model. Admitted Factory execution, scoped effects,
-  per-role usage, cancellation/restart and installed qualification remain pending.
+  authentication or ran a model. Those checks qualify configuration only.
   A separate supported CLI call using the existing saved authentication completed
   one model request and returned `OK` in
   `/home/vince/tmp/fmuse-login7.UGvmC3/result.json` (`output.jsonl`, `stderr.log`).
@@ -81,14 +80,29 @@ corrections are now active; the old feature queue waits for their resolution.
   The native CLI connector now reuses the existing process owner in a dedicated
   delegated user service, seals the selected ELF, applies the selected model,
   effort/contributor/step/deadline/output choices and retains exact process facts.
-  Built-in file/shell/web tools and hooks are disabled; inherited API-key
+  Built-in file/shell/web tools are disabled, hook overrides are applied, and inherited API-key
   variables are excluded. Local finite/cancel/fresh-liveness and tree/service
   retirement checks passed in `/home/vince/tmp/fmuse-connector7.GGkebr/result.log`.
   Real saved-login inference through
   that connector passed in `/home/vince/tmp/fmuse-owned-login7.co8TBb/result.log`:
   one request, `OK`, exact captured output, process tree retired and service stopped.
-  This is a native connector component, not a Go-admitted run or an isolated
-  worker. Production dispatch stays unavailable until those boundaries are joined.
+  That earlier check was a native connector component, not a Go-admitted run.
+  The existing execution registry now owns both variants. Shared source staging
+  and MCP response handling retain one implementation. Actual admitted Go/native/
+  PostgreSQL execution passed in `/home/vince/tmp/fmuse-admitted-live7.fLSf9g/result.log`:
+  three completed Muse requests, only the scoped artifact/incomplete-result tools,
+  exact artifact bytes, source-specific minute usage, coordinator settlement of
+  the intentional incomplete fixture result, and process/root retirement. Provider
+  repository permissions were declared; no GitHub writes or implementation ran.
+  The final host-PID receipt projection and answer-only product output passed
+  with a local ELF in `/home/vince/tmp/fmuse-admitted7.eFQxB0/result.log`.
+  The shared token lane's admitted artifact/retained-restart settlement passed in
+  `/home/vince/tmp/fmuse-legacy7.xRn8IG/result.log` with its private dummy keyring.
+  Source availability now reflects the installed native helper/tool owner; missing
+  support waits without switching sources. Native task phases still require the
+  missing task runtime. Installed/restart recovery, completed-entry acknowledgement,
+  active withdrawal/refusal, reviewer execution and broader role/configuration
+  confinement remain open; no broad security or full-pipeline gate is closed.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
@@ -382,10 +396,10 @@ servers or fields, not the whole map. This check used no saved login and proves
 neither saved-configuration isolation nor exact nonempty role tool selection.
 Factory's current MCP catalog lacks general workspace file/shell effects; an
 empty-preset CLI outside the worker cannot replace those effects by itself.
-The native connector component's saved-login inference and retirement are now
-proved as recorded above. Go admission, exact nonempty role-tool/configuration
-handling, isolated workspace effects, usage settlement and installed/restart
-qualification remain unfinished.
+Saved-login inference now uses actual Go admission, scoped MCP, minute settlement
+and native retirement as recorded above. Complete role/configuration confinement,
+isolated task/workspace effects, active withdrawal/refusal, canonical receipt
+acknowledgement/recovery and installed/restart qualification remain unfinished.
 
 ### A02 — Desktop authority requires grants its product routes cannot issue
 

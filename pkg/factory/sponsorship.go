@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -44,7 +45,7 @@ type NativeSponsorship struct {
 	CredentialSHA256 string                  `json:"credential_sha256,omitempty"`
 }
 
-const NativeMuseLogin = "muse_login"
+const NativeMuseLogin = execution.NativeMuseLogin
 
 func (n NativeSponsorship) Validate() error {
 	if !collaboration.ValidID(string(n.Profile)) {

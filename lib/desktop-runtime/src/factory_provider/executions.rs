@@ -68,8 +68,45 @@ impl ExecutionBinding {
 
 enum TicketState {
     Preparing,
-    Ready(RunView),
+    Ready(AttemptView),
     Uncertain,
+}
+
+#[derive(Clone)]
+enum AttemptView {
+    Worker(RunView),
+    Muse(super::muse_attempt::MuseView),
+}
+impl AttemptView {
+    fn observe(&self) -> AttemptObservation {
+        match self {
+            Self::Worker(view) => view.observe(),
+            Self::Muse(view) => view.observe(),
+        }
+    }
+}
+pub(super) enum OwnedAttempt {
+    Worker(RunExecution),
+    Muse(super::muse_attempt::MuseAttempt),
+}
+impl OwnedAttempt {
+    fn view(&self) -> AttemptView {
+        match self {
+            Self::Worker(run) => AttemptView::Worker(run.view()),
+            Self::Muse(run) => AttemptView::Muse(run.view()),
+        }
+    }
+    fn finish(self) -> ExecutionOutcome {
+        match self {
+            Self::Worker(run) => run
+                .finish()
+                .map(|run| ExecutionOutcome::Complete(Arc::new(run))),
+            Self::Muse(run) => run
+                .finish()
+                .map(|run| ExecutionOutcome::MuseComplete(Arc::new(run))),
+        }
+        .unwrap_or(ExecutionOutcome::Uncertain)
+    }
 }
 
 /// Requests retain only a view. Kernel queries never hold the registry while
@@ -85,7 +122,7 @@ impl ExecutionTicket {
     pub fn binding(&self) -> &ExecutionBinding {
         &self.binding
     }
-    fn view(&self) -> io::Result<RunView> {
+    fn view(&self) -> io::Result<AttemptView> {
         match &*self
             .state
             .lock()
@@ -109,7 +146,12 @@ impl ExecutionTicket {
         }
     }
     pub fn custody(&self) -> io::Result<CustodyObservation> {
-        self.view()?.custody().observe()
+        match self.view()? {
+            AttemptView::Worker(view) => view.custody().observe(),
+            AttemptView::Muse(_) => Err(refused(
+                "Muse owns its authentication; no credential acquisition",
+            )),
+        }
     }
     fn uncertain(&self) {
         *self.state.lock().unwrap_or_else(|error| error.into_inner()) = TicketState::Uncertain;
@@ -122,7 +164,28 @@ impl ExecutionTicket {
         if !self.active.load(Ordering::SeqCst) {
             return Err(refused("native execution owner retired"));
         }
-        let result = self.view()?.inspect(timeout);
+        let result = match self.view()? {
+            AttemptView::Worker(view) => view.inspect(timeout),
+            AttemptView::Muse(_) => Err(refused(
+                "native CLI process has a distinct observation contract",
+            )),
+        };
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        result
+    }
+    pub(super) fn inspect_muse(
+        &self,
+        timeout: Duration,
+    ) -> io::Result<Option<soda_execution_protocol::MuseObservation>> {
+        if !self.active.load(Ordering::SeqCst) {
+            return Err(refused("native execution owner retired"));
+        }
+        let result = match self.view()? {
+            AttemptView::Muse(view) => view.inspect(timeout),
+            _ => Err(refused("not a CLI provider process")),
+        };
         if !self.active.load(Ordering::SeqCst) {
             return Err(refused("native execution owner retired"));
         }
@@ -134,14 +197,15 @@ impl ExecutionTicket {
 pub enum ExecutionOutcome {
     Pending,
     Complete(Arc<AgentRun>),
+    MuseComplete(Arc<super::muse_attempt::MuseRun>),
     Uncertain,
 }
 
 struct Entry {
     ticket: ExecutionTicket,
-    preparation: Option<JoinHandle<io::Result<RunExecution>>>,
+    preparation: Option<JoinHandle<io::Result<OwnedAttempt>>>,
     cancellation: AgentCancellation,
-    execution: Option<RunExecution>,
+    execution: Option<OwnedAttempt>,
     outcome: ExecutionOutcome,
 }
 
@@ -165,10 +229,7 @@ impl Entry {
             AttemptPhase::Retired | AttemptPhase::Uncertain
         );
         if (join || terminal) && self.execution.is_some() {
-            self.outcome = match self.execution.take().unwrap().finish() {
-                Ok(result) => ExecutionOutcome::Complete(Arc::new(result)),
-                Err(_) => ExecutionOutcome::Uncertain,
-            };
+            self.outcome = self.execution.take().unwrap().finish();
         }
     }
 }
@@ -178,6 +239,17 @@ pub struct RetirementReport {
     pub attempt: AttemptObservation,
     pub custody: io::Result<CustodyObservation>,
     pub outcome: ExecutionOutcome,
+}
+impl RetirementReport {
+    pub(crate) fn settled(&self) -> bool {
+        match &self.outcome {
+            ExecutionOutcome::Complete(_) => {
+                matches!(&self.custody,Ok(custody) if custody.sealed && custody.state==CustodyState::Released)
+            }
+            ExecutionOutcome::MuseComplete(result) => result.root_retired,
+            _ => false,
+        }
+    }
 }
 
 /// One native profile/runtime lifetime. Capacity counts retained unacknowledged
@@ -239,6 +311,36 @@ impl Executions {
         executable: PathBuf,
         duration: Duration,
     ) -> io::Result<ExecutionTicket> {
+        let captured = binding.clone();
+        self.ensure_attempt(binding, move |cancel| {
+            let owner = create(cancel.clone())?;
+            let custody = owner.custody();
+            let observed = custody.observe()?;
+            if owner.intent_digest() != captured.intent_digest.as_deref()
+                || !owner.uses_cancellation(&cancel)
+                || !custody.matches(
+                    &captured.run,
+                    &captured.profile,
+                    &captured.scope,
+                    &captured.connection,
+                )
+                || observed.state != CustodyState::Held
+                || observed.sealed
+                || cancel.cancelled()
+            {
+                return Err(refused("native prepared owner differs or retired"));
+            }
+            owner
+                .spawn(prompt, executable, duration)
+                .map(OwnedAttempt::Worker)
+        })
+    }
+
+    pub(super) fn ensure_attempt(
+        &mut self,
+        binding: ExecutionBinding,
+        create: impl FnOnce(AgentCancellation) -> io::Result<OwnedAttempt> + Send + 'static,
+    ) -> io::Result<ExecutionTicket> {
         if !self.active.load(Ordering::SeqCst) {
             return Err(refused("native execution owner retired"));
         }
@@ -261,7 +363,6 @@ impl Executions {
             active: self.active.clone(),
         };
         let prepared_ticket = ticket.clone();
-        let prepared_binding = binding.clone();
         let cancel = cancellation.clone();
         let preparation = thread::Builder::new()
             .name("factory-native-preparation".into())
@@ -270,24 +371,7 @@ impl Executions {
                     if cancel.cancelled() {
                         return Err(refused("native preparation cancelled"));
                     }
-                    let owner = create(cancel.clone())?;
-                    let custody = owner.custody();
-                    let observed = custody.observe()?;
-                    if owner.intent_digest() != prepared_binding.intent_digest.as_deref()
-                        || !owner.uses_cancellation(&cancel)
-                        || !custody.matches(
-                            &prepared_binding.run,
-                            &prepared_binding.profile,
-                            &prepared_binding.scope,
-                            &prepared_binding.connection,
-                        )
-                        || observed.state != CustodyState::Held
-                        || observed.sealed
-                        || cancel.cancelled()
-                    {
-                        return Err(refused("native prepared owner differs or retired"));
-                    }
-                    let execution = owner.spawn(prompt, executable, duration)?;
+                    let execution = create(cancel.clone())?;
                     *prepared_ticket
                         .state
                         .lock()

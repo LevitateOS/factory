@@ -139,7 +139,14 @@ func selectPreparationFor(ctx context.Context, deps DispatchDeps, plan *attemptP
 // appliance admission captures the proved bundle without changing retained pins.
 func checkHarnessFor(ctx context.Context, deps DispatchDeps, plan *attemptPlan, role string) *planWait {
 	if plan.sponsorship.Native != nil && plan.sponsorship.Native.Authentication == factory.NativeMuseLogin {
-		return waitFor(WaitHarness, "execution through the selected Muse login source is not available yet")
+		source, ok := deps.Host.(execution.NativeSourceObserver)
+		if !ok {
+			return waitFor(WaitHarness, "the selected host cannot execute this native source")
+		}
+		ready, err := source.NativeSourceAvailable(ctx, plan.sponsorship.Native.Authentication)
+		if err != nil || !ready {
+			return waitFor(WaitHarness, "execution through the selected Muse login source is unavailable")
+		}
 	}
 	if plan.nativeEnvironment != nil && project.ExecutionManifestRequired(plan.phase) {
 		if _, ready := deps.Host.(execution.TaskRuntime); !ready {

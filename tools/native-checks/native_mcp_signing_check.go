@@ -1238,7 +1238,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" {
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -1397,7 +1397,10 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if err != nil {
 		return err
 	}
-	var input struct{ Run, Connection, Preparation, Executable string }
+	var input struct {
+		Run, Connection, Preparation, Executable string
+		MuseLogin, Live                          bool
+	}
 	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
 		return errors.New("admitted fixture input invalid")
 	}
@@ -1413,6 +1416,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	defer db.Close()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	if input.MuseLogin {
+		source, sourceErr := port.MuseLoginSource(ctx)
+		if sourceErr != nil {
+			return sourceErr
+		}
+		input.Connection = source.Connection
+	}
 	prep, err := db.Preparation(ctx, input.Preparation)
 	if err != nil || prep.Native == nil || !prep.State.Ready || prep.Preparation.Role != project.RoleCoder {
 		return errors.New("actual native coder preparation unavailable")
@@ -1447,6 +1457,12 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if !run.Reconciled || run.Native == nil || !run.Native.Settled() || assignment.Stage != factory.AssignmentFinished || assignment.Outcome != factory.NeedsHuman || !found || terminal.State != factory.MCPWorkAccepted {
 			return errors.New("coordinator did not retain the actual incomplete worker result and retired resources")
 		}
+		if input.MuseLogin {
+			used, err := db.UsageTotal(ctx, repository, input.Connection)
+			if err != nil || used < 1 || assignment.Connection != input.Connection || run.Native.Provenance.TrustMode != execution.NativeCLIProvider || run.Native.Provenance.Custody.State != execution.NotAcquired {
+				return errors.New("CLI source usage or authentication provenance differs")
+			}
+		}
 		fmt.Println("PASS: actual coordinator settlement retains the worker's explicit blocked result and exact retired native resources")
 		return nil
 	}
@@ -1457,6 +1473,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 		if observed.Phase != project.FactoryCompleted || observed.Live || !observed.OutputComplete || observed.Retirement != execution.Retired {
 			return errors.New("admitted worker terminal receipt incomplete")
+		}
+		if input.MuseLogin {
+			if !input.Live && observed.Output != "Declared local CLI fixture; no model request" || input.Live && strings.TrimSpace(observed.Output) == "" || observed.Native.Connector == nil || observed.Native.Connector.UID != os.Geteuid() || observed.Native.Isolation != nil || observed.Native.Custody.State != execution.NotAcquired {
+				return errors.New("CLI source final text or host-process provenance differs")
+			}
 		}
 		cap, err := db.GetMCPCapability(ctx, input.Run)
 		if err != nil || cap.State != factory.MCPCapabilityActive {
@@ -1471,6 +1492,17 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("actual worker artifact bytes were not retained")
 		}
 		fmt.Println("PASS: public Go-admitted native launch; live MCP activation, actual worker artifact bytes and terminal process/custody/root receipt")
+		return nil
+	}
+	if action == "observe-admitted-native" {
+		observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: p.Project})
+		if err != nil {
+			return err
+		}
+		if observed.Live || observed.Retirement != execution.Retired {
+			return errors.New("failed native execution retirement remains unconfirmed")
+		}
+		fmt.Println("Recorded exact failed native process/root facts; product result remains unfinished")
 		return nil
 	}
 	environment, err := db.EnvironmentGrant(ctx, repository)
@@ -1524,21 +1556,35 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if err != nil {
 		return err
 	}
+	if input.Live {
+		prompt = []byte("Disposable Factory connector integration task. Use the available Factory MCP tools only. Publish an artifact with upload_id 11111111111111111111111111111111, name native-worker.txt, media_type text/plain, content_base64 YWN0dWFsIGFkbWl0dGVkIG5hdGl2ZSB3b3JrZXIgYXJ0aWZhY3QK, final true. Then call finish_incomplete with outcome blocked and cause local_fixture_has_no_provider_result. This intentionally records an incomplete product result; do not invent an implementation, plan or provider permissions. Finish with OK after both tools succeed.")
+	}
 	toolBytes, err := os.ReadFile(input.Executable)
 	if err != nil {
 		return err
 	}
 	toolSum := sha256.Sum256(toolBytes)
 	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture", SHA256: hex.EncodeToString(toolSum[:]), Executable: input.Executable}
+	if input.Live {
+		observed, err := port.InspectTool(ctx, project.FactoryHarnessMuse)
+		if err != nil {
+			return err
+		}
+		tool = *observed.Native
+	}
 	now := time.Now().UTC().Truncate(time.Second)
 	aid := factory.NewID()
 	authority := factory.AuthorityRef{Policy: policy.Revision + 1, Operator: 1, Capacity: 1, Sponsorship: 1, SponsorshipConnection: input.Connection, Environment: environment.Revision, RequirementsID: p.Requirements.ID, ApprovalID: p.Approval.ID}
 	a := factory.Assignment{ID: aid, AttemptRoot: aid, PublicationAssignment: aid, ProjectID: p.Project, Role: project.RoleCoder, ActorID: actor, Repository: repository, Issue: 3, NativeRev: 1, Acceptance: acceptance.ID, Preparation: p.ID,
 		Subject: factory.ExecutionSubject{Kind: factory.SubjectIssue, Issue: &factory.IssueSubject{Issue: 3, Acceptance: acceptance.ID}}, Phase: project.ExecutionInvestigate,
-		Harness: "muse-fixture", HarnessVers: tool.Version, NativeTool: &tool, Model: roles[project.RoleCoder].Model, Connection: input.Connection, SourceCommit: p.SourceCommit, Prompt: prompt, PromptSHA: project.FactoryPromptDigest(prompt),
+		Harness: "muse-" + tool.Version, HarnessVers: tool.Version, NativeTool: &tool, Model: roles[project.RoleCoder].Model, Connection: input.Connection, SourceCommit: p.SourceCommit, Prompt: prompt, PromptSHA: project.FactoryPromptDigest(prompt),
 		Run: input.Run, RunHistory: []string{input.Run}, Stage: factory.AssignmentAssigned, Attempts: 1, CreatedUnix: now.Unix(), Authority: authority}
 	native := execution.NativeLaunch{Workspace: *prep.Native, Tool: tool, BundleSHA256: prep.State.SourceBundleSHA256, PromptSHA256: a.PromptSHA, CredentialSHA256: account.CredentialSHA256,
 		Runtime: environment.Native.Runtime, PlacementGeneration: environment.Native.Generation, TrustMode: "isolated_system_worker", BrokerRun: input.Run}
+	if input.MuseLogin {
+		native.Authentication = account.Authentication
+		native.TrustMode = execution.NativeCLIProvider
+	}
 	run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: a.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(time.Minute), Harness: a.Harness, Model: a.Model,
 		Native: &execution.NativeRecord{Tool: tool, BundleSHA256: native.BundleSHA256, PromptSHA256: a.PromptSHA, Retirement: execution.NotStarted,
 			Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
@@ -2203,18 +2249,25 @@ func workerProfileFixture() error {
 	selected := map[string]string{}
 	for i := 1; i+1 < len(os.Args); i++ {
 		switch os.Args[i] {
-		case "--model", "--reasoning-effort", "--contributor-mode", "--workspace", "--prompt-file":
+		case "--model", "--reasoning-effort", "--contributor-mode", "--workspace", "--prompt-file", "--preset":
 			selected[os.Args[i]] = os.Args[i+1]
 		}
 	}
 	if selected["--model"] != "muse-spark-1.3-contributor" || selected["--reasoning-effort"] != factory.DefaultEffort || selected["--contributor-mode"] != "off" {
 		return errors.New("worker did not receive the captured model/effort/Contributor profile")
 	}
-	if _, err := bufio.NewReader(io.LimitReader(os.Stdin, 256)).ReadString('\n'); err != nil {
-		return errors.New("worker placeholder input unavailable")
+	cli := selected["--preset"] == "empty"
+	if cli {
+		if os.Getenv("META_API_KEY") != "" {
+			return errors.New("CLI source inherited a provider credential")
+		}
+	} else {
+		if _, err := bufio.NewReader(io.LimitReader(os.Stdin, 256)).ReadString('\n'); err != nil {
+			return errors.New("worker placeholder input unavailable")
+		}
 	}
 	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"owned-native-fixture","version":"1"}}}`
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:37377/mcp", strings.NewReader(body))
+	request, err := http.NewRequest(http.MethodPost, workerMCPURL(), strings.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -2259,6 +2312,18 @@ func workerProfileFixture() error {
 		}
 		fmt.Println("actual-admitted-worker-artifact", artifact.ArtifactID)
 	}
+	if cli {
+		if !admitted {
+			return errors.New("CLI fixture has no captured Go admission")
+		}
+		if _, err := workerMCPCall(client, "factory.finish_incomplete", map[string]any{"outcome": "blocked", "cause": "local_fixture_has_no_provider_result"}); err != nil {
+			return err
+		}
+		fmt.Println("CLI fixture completed admitted MCP artifact and explicit incomplete result; no model request")
+		fmt.Println(`{"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":"Declared local CLI fixture; no model request"}}`)
+		time.Sleep(time.Second)
+		return nil
+	}
 	dependency, readErr := os.ReadFile(filepath.Join(selected["--workspace"], ".factory-build/dependency"))
 	if readErr != nil || string(dependency) != "prepared dependency\n" {
 		return errors.New("worker lost prepared workspace dependency")
@@ -2297,7 +2362,7 @@ func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:37377/mcp", strings.NewReader(string(encoded)))
+	request, err := http.NewRequest(http.MethodPost, workerMCPURL(), strings.NewReader(string(encoded)))
 	if err != nil {
 		return nil, err
 	}
@@ -2321,6 +2386,21 @@ func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessa
 		return nil, fmt.Errorf("actual admitted worker tool failed: %s", tool)
 	}
 	return json.RawMessage(result.Result.Content[0].Text), nil
+}
+
+func workerMCPURL() string {
+	for _, argument := range os.Args[1:] {
+		if value, ok := strings.CutPrefix(argument, "mcpServers.factory="); ok {
+			var server struct {
+				URL string `json:"url"`
+			}
+			if json.Unmarshal([]byte(value), &server) == nil && strings.HasPrefix(server.URL, "http://127.0.0.1:") && strings.HasSuffix(server.URL, "/mcp") {
+				return server.URL
+			}
+			return ""
+		}
+	}
+	return "http://127.0.0.1:37377/mcp"
 }
 
 func ownedToolFixture(profile, instance, mode string) error {

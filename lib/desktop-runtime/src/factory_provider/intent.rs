@@ -48,6 +48,8 @@ struct Wire {
 #[serde(deny_unknown_fields)]
 struct Native {
     #[serde(default, skip_serializing_if = "String::is_empty")]
+    authentication: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     credential_sha256: String,
     workspace: Workspace,
     tool: Tool,
@@ -91,7 +93,7 @@ impl LaunchIntent {
             serde_json::from_str(raw).map_err(|_| refused("native intent shape invalid"))?;
         let n = &wire.native;
         if wire.kind != "factory_native_launch_intent"
-            || !matches!(wire.version, 1 | 2 | 3)
+            || !matches!(wire.version, 1 | 2 | 3 | 4)
             || !hex(&wire.run, 32)
             || !text(&wire.workspace, 128)
             || !hex(&wire.connection, 32)
@@ -99,7 +101,11 @@ impl LaunchIntent {
             || !text(&n.workspace.worktree_id, 128)
             || !hex(&n.runtime, 32)
             || !matches!(n.placement_generation.parse::<i64>(), Ok(value) if value>0 && value.to_string()==n.placement_generation)
-            || n.trust_mode != "isolated_system_worker"
+            || !matches!(
+                n.trust_mode.as_str(),
+                "isolated_system_worker" | "cli_managed_provider"
+            )
+            || (wire.version == 4) != (n.trust_mode == "cli_managed_provider")
             || !text(&n.tool.harness, 128)
             || !text(&n.tool.version, 128)
             || !Path::new(&n.tool.executable).is_absolute()
@@ -121,6 +127,9 @@ impl LaunchIntent {
         }
         if wire.version < 3 && !n.credential_sha256.is_empty()
             || wire.version == 3 && !hex(&n.credential_sha256, 64)
+            || wire.version < 4 && !n.authentication.is_empty()
+            || wire.version == 4
+                && (n.authentication != "muse_login" || !n.credential_sha256.is_empty())
         {
             return Err(refused("native intent credential binding invalid"));
         }
@@ -154,6 +163,20 @@ impl LaunchIntent {
     }
     pub fn connection(&self) -> &str {
         &self.wire.connection
+    }
+    pub(crate) fn muse_login(&self) -> bool {
+        self.wire.version == 4
+    }
+    pub(super) fn remaining(&self) -> io::Result<std::time::Duration> {
+        let deadline = OffsetDateTime::parse(&self.wire.deadline, &Rfc3339)
+            .map_err(|_| refused("native intent deadline invalid"))?;
+        let remaining: std::time::Duration = (deadline - OffsetDateTime::now_utc())
+            .try_into()
+            .map_err(|_| refused("native intent deadline expired"))?;
+        if remaining.is_zero() || remaining > super::MAX_RUN {
+            return Err(refused("native intent deadline outside limits"));
+        }
+        Ok(remaining)
     }
     pub(super) fn credential_sha256(&self) -> Option<&str> {
         (self.wire.version == 3).then_some(self.wire.native.credential_sha256.as_str())

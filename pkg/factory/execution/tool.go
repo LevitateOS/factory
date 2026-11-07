@@ -14,6 +14,12 @@ type ToolObserver interface {
 	InspectTool(context.Context, string) (ToolObservation, error)
 }
 
+// NativeSourceObserver reports implementation availability for an explicitly
+// selected authentication source. It grants no allowance or provider authority.
+type NativeSourceObserver interface {
+	NativeSourceAvailable(context.Context, string) (bool, error)
+}
+
 // ToolObservation keeps native executable identity distinct from an appliance
 // bundle. A native executable supplies no container image or isolation claim.
 type ToolObservation struct {

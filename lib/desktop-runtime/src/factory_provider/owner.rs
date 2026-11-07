@@ -29,9 +29,7 @@ const MAX_IN_FLIGHT: usize = 4;
 const REQUEST_TIME: Duration = Duration::from_secs(8);
 const PROVIDER_TIME: Duration = Duration::from_secs(5 * 60);
 const MCP_TIME: Duration = Duration::from_secs(30);
-const MAX_MCP_CALLS: usize = 256;
-const MAX_MCP_BODY: usize = 64 * 1024 + 8192;
-const MAX_MCP_REPLY: usize = 1024 * 1024;
+use super::mcp::{MAX_MCP_BODY, MAX_MCP_CALLS};
 
 fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
@@ -748,31 +746,14 @@ async fn handle_mcp(stream: &mut UnixStream, state: &State, body: Vec<u8>) {
 }
 
 async fn write_mcp_reply(stream: &mut UnixStream, reply: Option<WorkerMcpReply>) -> io::Result<()> {
-    let (status, body) = match reply {
-        Some(reply)
-            if reply.status == 200
-                && reply.body.len() <= MAX_MCP_REPLY
-                && serde_json::from_slice::<serde_json::Value>(&reply.body)
-                    .is_ok_and(|body| body.is_object()) =>
-        {
-            ("200 OK", reply.body)
-        }
-        Some(reply) if reply.status == 202 && reply.body.is_empty() => ("202 Accepted", Vec::new()),
-        Some(reply) if matches!(reply.status, 400 | 401 | 403 | 410 | 429) => {
-            let status = match reply.status {
-                400 => "400 Bad Request",
-                401 => "401 Unauthorized",
-                403 => "403 Forbidden",
-                410 => "410 Gone",
-                _ => "429 Too Many Requests",
-            };
-            (status, b"{\"error\":\"factory_mcp_refused\"}".to_vec())
-        }
-        _ => (
-            "503 Service Unavailable",
-            b"{\"error\":\"factory_mcp_unavailable\"}".to_vec(),
-        ),
-    };
+    let reply = super::mcp::bounded_reply(reply);
+    let status = hyper::StatusCode::from_u16(reply.status).map_err(io::Error::other)?;
+    let status = format!(
+        "{} {}",
+        status.as_u16(),
+        status.canonical_reason().unwrap_or("")
+    );
+    let body = reply.body;
     let header = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n", body.len());
     stream.write_all(header.as_bytes()).await?;
     stream.write_all(&body).await

@@ -41,10 +41,18 @@ func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.Sp
 	}{"inspect_muse_login"}, &source); err != nil {
 		return source, err
 	}
-	if !collaboration.ValidID(source.Connection) || source.Native.Profile != p.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || source.Native.Validate() != nil || source.Label != "This Muse login" || source.ExecutionAvailable {
+	if !collaboration.ValidID(source.Connection) || source.Native.Profile != p.Config.Profile || source.Native.Authentication != factory.NativeMuseLogin || source.Native.Validate() != nil || source.Label != "This Muse login" {
 		return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
 	}
 	return source, ctx.Err()
+}
+
+func (p NativeExecution) NativeSourceAvailable(ctx context.Context, authentication string) (bool, error) {
+	if authentication != factory.NativeMuseLogin {
+		return false, factoryservice.ErrSponsorshipBrokerUnavailable
+	}
+	source, err := p.MuseLoginSource(ctx)
+	return source.ExecutionAvailable, err
 }
 
 func (b *nativeProductAccount) spendingSources(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) ([]factoryservice.SpendingSource, error) {

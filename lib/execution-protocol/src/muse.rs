@@ -18,12 +18,13 @@ pub struct MuseInvocation {
     pub prompt: String,
     pub harness: HarnessProfile,
     pub duration_ms: u64,
+    pub deadline_unix_ms: u64,
     pub max_model_steps: u8,
     pub output_bytes: usize,
     pub mcp: Option<MuseMcp>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MuseMcp {
     pub port: u16,
@@ -74,7 +75,7 @@ impl MuseInvocation {
 
 /// Process facts, not model success, billing identity or isolated-worker proof.
 /// A terminal frame is followed by exactly output_length raw captured bytes.
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MuseObservation {
     pub kind: String,

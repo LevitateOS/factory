@@ -108,6 +108,12 @@ pub struct ReceiptScope<'a> {
 }
 
 impl<'a> ReceiptScope<'a> {
+    pub(super) fn tool_sha256(&self) -> &str {
+        self.tool_sha256
+    }
+    pub(super) fn prompt_sha256(&self) -> &str {
+        self.prompt_sha256
+    }
     pub(super) fn fingerprint(&self) -> String {
         digest(
             format!(

@@ -167,6 +167,31 @@ fn snapshot(
         (executions.ticket(&binding)?, executions.outcome(&binding)?)
     };
     let attempt = ticket.observe();
+    if intent.muse_login() {
+        let complete = match &outcome {
+            ExecutionOutcome::MuseComplete(result) => Some(result),
+            _ => None,
+        };
+        let process = if let Some(result) = complete {
+            Some(result.process.clone())
+        } else {
+            ticket.inspect_muse(Duration::from_secs(2)).ok().flatten()
+        };
+        let retired = complete.is_some_and(|result| result.root_retired)
+            && attempt.phase == AttemptPhase::Retired;
+        let receipt=process.as_ref().map(|process|json!({"worker_uid":0,"connector_uid":process.uid,"service":process.service,
+            "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
+            "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
+        let output = complete.and_then(|result| result.product_output.as_deref());
+        if !alive.load(Ordering::SeqCst) {
+            return Err(refused());
+        }
+        return Ok(json!({"intent_digest":intent.digest(),"receipt":receipt,
+            "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":retired},
+            "live":process.as_ref().and_then(|process|process.live),"retired":retired,
+            "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|_|"unchanged"),
+            "candidate":null,"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()}));
+    }
     let custody = ticket.custody().ok();
     let (started, live, terminal) = match &outcome {
         ExecutionOutcome::Complete(result) => (

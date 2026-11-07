@@ -46,7 +46,7 @@ func (r NativeRecord) Validate() error {
 		(r.Retirement != NotStarted && r.Retirement != Running && r.Retirement != Exited && r.Retirement != Retired && r.Retirement != Uncertain) {
 		return ErrProvenance
 	}
-	if r.Provenance.TrustMode == "isolated_system_worker" {
+	if r.Provenance.TrustMode == "isolated_system_worker" || r.Provenance.TrustMode == NativeCLIProvider {
 		if !validDigest(r.BundleSHA256) || !validDigest(r.PromptSHA256) {
 			return ErrProvenance
 		}
@@ -83,6 +83,7 @@ func (r NativeRecord) Advances(prior NativeRecord) bool {
 		r.Provenance.Profile != prior.Provenance.Profile || r.Provenance.InstanceID != prior.Provenance.InstanceID ||
 		r.Provenance.WorktreeID != prior.Provenance.WorktreeID || r.Provenance.TrustMode != prior.Provenance.TrustMode || r.Provenance.BrokerRun != prior.Provenance.BrokerRun ||
 		(prior.Provenance.Isolation != nil && !reflect.DeepEqual(r.Provenance.Isolation, prior.Provenance.Isolation)) ||
+		(prior.Provenance.Connector != nil && !reflect.DeepEqual(r.Provenance.Connector, prior.Provenance.Connector)) ||
 		(prior.Sealed && !r.Sealed) || (prior.Retirement == Retired && r.Retirement != Retired) ||
 		(prior.Retirement == Exited && (r.Retirement == Running || r.Retirement == NotStarted)) {
 		return false

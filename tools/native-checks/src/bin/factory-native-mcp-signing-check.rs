@@ -92,6 +92,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Path::new(&args[3]),
             ));
     }
+    if args.len() == 5 && args[4] == "execution-muse" {
+        return tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(managed_muse_execution(
+                &root,
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                Path::new(&args[3]),
+            ));
+    }
     if args.len() == 3 || args.len() == 4 {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -226,6 +237,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if option("--preset")? != "empty"
+        || option("--approval-mode")? != "never"
         || option("--max-model-steps")? != "3"
         || option("--model")? != "muse-spark-1.3-contributor"
         || option("--reasoning-effort")? != "low"
@@ -314,6 +326,7 @@ fn muse_connector(
                     contributor: true,
                 },
                 duration_ms: if live { 30_000 } else { 10_000 },
+                deadline_unix_ms: 0,
                 max_model_steps: if live { 1 } else { 3 },
                 output_bytes: 1024 * 1024,
                 mcp: None,
@@ -717,6 +730,102 @@ fn preparation_check(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if Broker::next_profile_run(&profile)?.is_some() {
         return Err("native preparation left a staged root".into());
     }
+    Ok(())
+}
+
+async fn managed_muse_execution(
+    root: &Path,
+    payload: &Path,
+    backend: &Path,
+    client: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::factory_provider::{Broker, ExecutionOutcome, LaunchIntent};
+    let profile = root.join("execution-profile");
+    let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
+    let ready = supervisor.health()?;
+    let command = |operation: &str, argument: &str| -> Result<(), Box<dyn std::error::Error>> {
+        if !Command::new(client)
+            .env("SODA_NATIVE_KEEP_PREPARATION", "1")
+            .arg(&profile)
+            .arg(&ready.instance)
+            .arg(operation)
+            .arg(argument)
+            .status()?
+            .success()
+        {
+            return Err(format!("CLI source fixture {operation} failed").into());
+        }
+        Ok(())
+    };
+    let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
+    if live {
+        command("check-owned-tool", "discovery")?;
+    }
+    command("check-native-preparation", "ready")?;
+    let preparations: Vec<_> =
+        fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
+    if preparations.len() != 1 {
+        return Err("expected one actual native preparation".into());
+    }
+    let preparation: serde_json::Value =
+        serde_json::from_slice(&fs::read(preparations[0].path().join("request.json"))?)?;
+    let mut random = [0u8; 16];
+    getrandom::fill(&mut random)?;
+    let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    fs::write(root.join("execution-runs.ids"), &run)?;
+    let fixture = profile.join("admitted-native-fixture.json");
+    fs::write(
+        &fixture,
+        serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,
+        "Preparation":preparation["input"]["preparation"]["id"],"Executable":client.canonicalize()?}))?,
+    )?;
+    command(
+        "launch-admitted-native",
+        fixture.to_str().ok_or("invalid fixture path")?,
+    )?;
+    let intent = LaunchIntent::from_go(&fs::read_to_string(
+        profile
+            .join("native-run-intents")
+            .join(format!("{run}.json")),
+    )?)?;
+    let until = std::time::Instant::now() + Duration::from_secs(if live { 70 } else { 15 });
+    loop {
+        match supervisor.execution_outcome(&intent)? {
+            ExecutionOutcome::Pending if std::time::Instant::now() < until => {
+                tokio::time::sleep(Duration::from_millis(20)).await
+            }
+            ExecutionOutcome::MuseComplete(result)
+                if result.root_retired
+                    && result.process.output_complete
+                    && result.process.exit_code == Some(0) =>
+            {
+                break
+            }
+            ExecutionOutcome::MuseComplete(_) => {
+                command(
+                    "observe-admitted-native",
+                    fixture.to_str().ok_or("invalid fixture path")?,
+                )?;
+                supervisor.stop()?;
+                return Err("CLI source execution failed; exact terminal facts retained".into());
+            }
+            _ => return Err("CLI source execution has no complete retired result".into()),
+        }
+    }
+    command(
+        "check-admitted-native",
+        fixture.to_str().ok_or("invalid fixture path")?,
+    )?;
+    supervisor.start_execution_coordinator().await?;
+    command(
+        "settled-admitted-native",
+        fixture.to_str().ok_or("invalid fixture path")?,
+    )?;
+    supervisor.stop()?;
+    if Broker::next_profile_run(&ready.profile)?.is_some() {
+        return Err("CLI source left an owned broker root".into());
+    }
+    println!("PASS: CLI-managed source: actual PostgreSQL admission, Go launcher, native registry, scoped MCP artifact/result, coordinator settlement and process/root retirement; live model={live}; installed/restart qualification remains open");
     Ok(())
 }
 

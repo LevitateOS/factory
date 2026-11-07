@@ -129,7 +129,8 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	if snapshot.IntentDigest != hex.EncodeToString(digest[:]) || snapshot.Receipt == nil || snapshot.Custody == nil {
 		return empty, execution.ErrRunNotObserved
 	}
-	if snapshot.Retired && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {
+	custodyDone := snapshot.Custody.Sealed && (snapshot.Custody.State == execution.Released || run.Native.Provenance.TrustMode == execution.NativeCLIProvider && snapshot.Custody.State == execution.NotAcquired)
+	if snapshot.Retired && (snapshot.Live == nil || *snapshot.Live || !custodyDone) {
 		return empty, execution.ErrObservation
 	}
 	if retained && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {

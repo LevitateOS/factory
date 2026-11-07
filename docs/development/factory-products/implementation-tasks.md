@@ -78,19 +78,26 @@ For the selected Muse source, the owner now explicitly chooses “this Muse logi
 and lets Muse own its authentication/account choice. Factory must preserve the
 per-role source selection without requiring or claiming a pinned subscription
 identity, importing login secrets or fabricating a token fingerprint. The
-CLI-managed native connector now performs one actual saved-login model request
-with bounded process/output lifetime and exact retirement facts. It uses a trusted
-desktop-user service and does not claim isolated-worker or token-custody proof.
+CLI-managed native connector now performs admitted Go/native/PostgreSQL work
+through the existing registry and scoped MCP path. The saved-login check completed
+three model requests, exact artifact delivery, source-specific minute settlement
+and process/root retirement. Its intentional incomplete result did not implement
+or finish a product task. It uses a trusted desktop-user service and does not
+claim isolated-worker or token-custody proof.
 The owner also delegates provider request/token internals to Muse; Factory keeps
-source/allowance, deadline, model-step and captured-output limits. Go admitted
-source/intent/receipt composition, nonempty role-tool/configuration scope, isolated
-workspace effects, allowance settlement and installed/restart qualification remain
-dependencies. A01/A19 and the security handoff record the component evidence.
+source/allowance, deadline, model-step and captured-output limits. Version-4 intent
+and host-process receipt facts keep this source distinct from the token lane.
+Product output is the final CLI answer; bounded native transcripts remain private.
+Source withdrawal/refusal during work, complete role/configuration confinement,
+isolated task/workspace effects, completed-entry acknowledgement and installed/
+restart qualification remain dependencies. A01/A19 and the security handoff record
+the exact scopes and retained unresolved attempt.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared
 browser checks are recorded in A01/A11. No Muse credentials are imported or
-fingerprinted, and execution through that source remains explicitly unavailable.
+fingerprinted. Available native hosts can dispatch supported non-task phases;
+missing helper/tool support and the unimplemented task runtime remain explicit waits.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

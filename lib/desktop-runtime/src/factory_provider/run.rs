@@ -19,7 +19,7 @@ fn refused(message: &'static str) -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, message)
 }
 
-struct Staged {
+pub(super) struct Staged {
     run: String,
     profile: String,
     sha256: String,
@@ -27,7 +27,61 @@ struct Staged {
 }
 
 impl Staged {
-    fn abort(&mut self) -> io::Result<()> {
+    pub(super) fn source(
+        scope: &ReceiptScope<'_>,
+        bundle: &[u8],
+        preparation: Option<&soda_execution_protocol::PreparedSourceRef>,
+        cancellation: AgentCancellation,
+        deadline: Instant,
+    ) -> io::Result<Self> {
+        let mut guard = Self {
+            run: scope.run.into(),
+            profile: scope.profile.into(),
+            sha256: scope.source_sha256.into(),
+            active: true,
+        };
+        let preparing = Broker::preparing(cancellation.with_deadline(deadline));
+        let result = (|| {
+            let staged = preparing.stage_bundle(
+                scope.run,
+                scope.profile,
+                scope.role,
+                scope.tool_sha256(),
+                scope.prompt_sha256(),
+                bundle,
+                preparation,
+            )?;
+            if staged != scope.source_sha256 {
+                return Err(refused("provider source differs from admitted bundle"));
+            }
+            preparing.prepare_reviewer(scope.run, scope.profile, &staged, scope.candidate)?;
+            if preparation.is_some() {
+                let setup = Broker::read_source_setup(
+                    scope.run,
+                    scope.profile,
+                    &staged,
+                    scope.candidate,
+                    cancellation.with_deadline(deadline),
+                )?;
+                if setup.output_truncated
+                    || setup.setup_exit != Some(0)
+                    || setup.check_exit != Some(0)
+                    || !setup.missing.is_empty()
+                {
+                    return Err(refused("admitted worker environment preparation failed"));
+                }
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            guard
+                .abort()
+                .map_err(|_| refused("broker source cleanup unconfirmed"))?;
+            return Err(error);
+        }
+        Ok(guard)
+    }
+    pub(super) fn abort(&mut self) -> io::Result<()> {
         if self.active {
             Broker::retire_unlaunched(&self.run, &self.profile, &self.sha256)?;
             self.active = false;
@@ -299,58 +353,10 @@ impl RunOwner {
         }
         let custody = RunCustody::prepare(profile_dir, &scope, &connection, cancellation.clone())?;
         let preparing = Broker::preparing(cancellation.with_deadline(deadline));
-        let staged = match preparing.stage_bundle(
-            &run,
-            &profile,
-            role,
-            tool_sha256,
-            prompt_sha256,
-            bundle,
-            preparation,
-        ) {
-            Ok(staged) => staged,
-            Err(error) => {
-                // The broker may have committed staging before its reply was
-                // lost. The exact admitted digest is the only safe cleanup
-                // selector; unavailable cleanup remains uncertain.
-                return if Broker::retire_unlaunched(&run, &profile, &expected).is_ok() {
-                    Err(error)
-                } else {
-                    Err(refused("broker staging cleanup unconfirmed"))
-                };
-            }
-        };
-        let mut cleanup = Staged {
-            run: run.clone(),
-            profile: profile.clone(),
-            sha256: staged.clone(),
-            active: true,
-        };
-        if staged != expected {
-            return if cleanup.abort().is_ok() {
-                Err(refused("broker source differs from admitted bundle"))
-            } else {
-                Err(refused("broker source cleanup unconfirmed"))
-            };
-        }
+        let mut cleanup =
+            Staged::source(&scope, bundle, preparation, cancellation.clone(), deadline)?;
+        let staged = cleanup.sha256.clone();
         let result = (|| {
-            preparing.prepare_reviewer(&run, &profile, &staged, &candidate)?;
-            if preparation.is_some() {
-                let setup = Broker::read_source_setup(
-                    &run,
-                    &profile,
-                    &staged,
-                    &candidate,
-                    cancellation.with_deadline(deadline),
-                )?;
-                if setup.output_truncated
-                    || setup.setup_exit != Some(0)
-                    || setup.check_exit != Some(0)
-                    || !setup.missing.is_empty()
-                {
-                    return Err(refused("admitted worker environment preparation failed"));
-                }
-            }
             let relay =
                 preparing.attest_provider_relay(&run, &profile, &staged, &candidate, role)?;
             preparing.arm_agent(

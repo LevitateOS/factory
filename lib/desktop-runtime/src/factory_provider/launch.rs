@@ -77,12 +77,6 @@ pub(crate) async fn launch(
     {
         return Err(denied());
     }
-    let account = accounts
-        .read()
-        .map_err(|_| denied())?
-        .get(intent.connection())
-        .cloned()
-        .ok_or_else(denied)?;
     let prompt = base64::engine::general_purpose::STANDARD
         .decode(input.prompt)
         .map_err(|_| denied())?;
@@ -94,6 +88,46 @@ pub(crate) async fn launch(
         tokio::task::spawn_blocking(move || preparations.execution_material(&selected))
             .await
             .map_err(|_| denied())??;
+    let mcp = WorkerMcp::connected(
+        channel.clone(),
+        &intent,
+        &input.tools,
+        &input.capability,
+        &input.secret,
+    )?;
+    if intent.muse_login() {
+        if intent.connection() != super::muse_connection(&channel.profile) {
+            return Err(denied());
+        }
+        let directory = channel.socket.parent().ok_or_else(denied)?.to_path_buf();
+        let helper = super::muse_helper()?;
+        let binding = super::ExecutionBinding::from_intent(&intent)?;
+        let digest = intent.digest();
+        let mut executions = executions.lock().map_err(|_| denied())?;
+        if !alive.load(Ordering::SeqCst) {
+            return Err(denied());
+        }
+        executions.ensure_attempt(binding, move |cancel| {
+            super::muse_attempt::MuseAttempt::start(
+                directory,
+                helper,
+                intent,
+                bundle,
+                prompt,
+                preparation,
+                mcp,
+                cancel,
+            )
+            .map(super::executions::OwnedAttempt::Muse)
+        })?;
+        return Ok(json!({"accepted":true,"intent_digest":digest}));
+    }
+    let account = accounts
+        .read()
+        .map_err(|_| denied())?
+        .get(intent.connection())
+        .cloned()
+        .ok_or_else(denied)?;
     let capability = account
         .credentials
         .renew_capability(&account.capability)
@@ -109,13 +143,6 @@ pub(crate) async fn launch(
             return Err(denied());
         }
     }
-    let mcp = WorkerMcp::connected(
-        channel.clone(),
-        &intent,
-        &input.tools,
-        &input.capability,
-        &input.secret,
-    )?;
     let policy = Policy::new(
         scope.run,
         scope.profile,

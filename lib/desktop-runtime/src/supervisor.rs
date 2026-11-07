@@ -50,7 +50,6 @@ impl Drop for Retire {
 struct RetireExecutions(Option<Arc<Mutex<crate::factory_provider::Executions>>>);
 impl RetireExecutions {
     fn finish(&mut self) -> Result<()> {
-        use crate::factory_provider::{CustodyState, ExecutionOutcome};
         let Some(executions) = self.0.take() else {
             return Ok(());
         };
@@ -58,10 +57,7 @@ impl RetireExecutions {
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .retire();
-        if reports.iter().any(|report| {
-            !matches!(report.outcome, ExecutionOutcome::Complete(_))
-                || !matches!(&report.custody, Ok(custody) if custody.sealed && custody.state == CustodyState::Released)
-        }) {
+        if reports.iter().any(|report| !report.settled()) {
             return Err("native execution retirement requires reconciliation".into());
         }
         Ok(())

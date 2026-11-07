@@ -10,10 +10,13 @@ import (
 // claim. The canonical tool/workspace/instance come from the retained record.
 type NativeReceiptObservation struct {
 	WorkerUID      int    `json:"worker_uid"`
+	ConnectorUID   *int   `json:"connector_uid,omitempty"`
+	Service        string `json:"service,omitempty"`
 	Invocation     string `json:"invocation"`
 	SystemInstance string `json:"system_instance"`
 	StartIdentity  string `json:"start_identity"`
 	PID            int    `json:"namespace_pid"`
+	HostPID        int    `json:"host_pid,omitempty"`
 	StartedUnixMS  int64  `json:"started_unix_ms"`
 	ExitCode       *int   `json:"exit_code"`
 	ExitSignal     *int   `json:"exit_signal"`
@@ -43,7 +46,18 @@ func ObserveNativeReceipt(prior NativeRecord, receipt NativeReceiptObservation, 
 		signal := strconv.Itoa(*receipt.ExitSignal)
 		next.Provenance.Process.ExitSignal = &signal
 	}
-	next.Provenance.Isolation = &NativeIsolation{DesktopUID: desktopUID, WorkerUID: receipt.WorkerUID}
+	if prior.Provenance.TrustMode == NativeCLIProvider {
+		if receipt.WorkerUID != 0 || receipt.PID != 0 || receipt.HostPID <= 0 || receipt.ConnectorUID == nil || *receipt.ConnectorUID != desktopUID {
+			return NativeRecord{}, ErrObservation
+		}
+		next.Provenance.Connector = &NativeConnector{UID: desktopUID, Service: receipt.Service}
+		next.Provenance.Process.PID = receipt.HostPID
+	} else {
+		if receipt.ConnectorUID != nil || receipt.Service != "" || receipt.HostPID != 0 {
+			return NativeRecord{}, ErrObservation
+		}
+		next.Provenance.Isolation = &NativeIsolation{DesktopUID: desktopUID, WorkerUID: receipt.WorkerUID}
+	}
 	if prior.Retirement != Retired {
 		next.Retirement = Uncertain
 		if receipt.ExitCode != nil || receipt.ExitSignal != nil {
@@ -51,7 +65,7 @@ func ObserveNativeReceipt(prior NativeRecord, receipt NativeReceiptObservation, 
 		}
 	}
 	if custody != nil {
-		if custody.State == NotAcquired {
+		if custody.State == NotAcquired && prior.Provenance.TrustMode != NativeCLIProvider {
 			return NativeRecord{}, ErrObservation
 		}
 		next.Provenance.Custody, next.Sealed = custody.NativeCustody, custody.Sealed

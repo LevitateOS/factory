@@ -9,6 +9,9 @@ import (
 
 var ErrLaunch = errors.New("execution launch lacks its captured runtime binding")
 
+const NativeMuseLogin = "muse_login"
+const NativeCLIProvider = "cli_managed_provider"
+
 type ApplianceLaunch struct {
 	Profile project.Profile `json:"profile"`
 	Tool    ApplianceTool   `json:"tool"`
@@ -18,6 +21,7 @@ type ApplianceLaunch struct {
 // An unplaced NativeRecord cannot synthesize these fields or gain authority by
 // being observed. The admitting store/gateway owns the placement exclusion gate.
 type NativeLaunch struct {
+	Authentication      string                  `json:"authentication,omitempty"`
 	CredentialSHA256    string                  `json:"credential_sha256,omitempty"`
 	Workspace           NativeWorkspaceRef      `json:"workspace"`
 	Tool                NativeTool              `json:"tool"`
@@ -30,6 +34,13 @@ type NativeLaunch struct {
 }
 
 func (n NativeLaunch) Validate() error {
+	if n.TrustMode == NativeCLIProvider {
+		if n.Authentication != NativeMuseLogin || n.CredentialSHA256 != "" {
+			return ErrLaunch
+		}
+	} else if n.Authentication != "" {
+		return ErrLaunch
+	}
 	if n.CredentialSHA256 != "" && !validDigest(n.CredentialSHA256) {
 		return ErrLaunch
 	}
@@ -41,7 +52,7 @@ func (n NativeLaunch) Validate() error {
 		if n.BrokerRun != "" || n.BundleSHA256 != "" || n.PromptSHA256 != "" {
 			return ErrLaunch
 		}
-	case "isolated_system_worker":
+	case "isolated_system_worker", NativeCLIProvider:
 		if !collaboration.ValidID(n.BrokerRun) || !validDigest(n.BundleSHA256) || !validDigest(n.PromptSHA256) {
 			return ErrLaunch
 		}
@@ -49,6 +60,16 @@ func (n NativeLaunch) Validate() error {
 		return ErrLaunch
 	}
 	return nil
+}
+
+// Active selects an implemented native effect contract, never historical
+// same-user execution. It does not grant product or provider authority.
+func (n NativeLaunch) Active() bool {
+	return n.Validate() == nil && (n.TrustMode == "isolated_system_worker" || n.TrustMode == NativeCLIProvider)
+}
+
+func (n NativeLaunch) MatchesAuthentication(authentication, credentialSHA256 string) bool {
+	return n.Active() && n.Authentication == authentication && n.CredentialSHA256 == credentialSHA256
 }
 
 func (n NativeLaunch) MatchesRecord(record NativeRecord) bool {
@@ -60,7 +81,7 @@ func (n NativeLaunch) matchesRecord(record NativeRecord) bool {
 	if n.Tool != record.Tool || n.BundleSHA256 != record.BundleSHA256 || n.PromptSHA256 != record.PromptSHA256 || n.Workspace.Profile != p.Profile || n.Workspace.InstanceID != p.InstanceID || n.Workspace.WorktreeID != p.WorktreeID {
 		return false
 	}
-	if n.TrustMode == "isolated_system_worker" {
+	if n.TrustMode == "isolated_system_worker" || n.TrustMode == NativeCLIProvider {
 		return p.TrustMode == n.TrustMode && p.BrokerRun == n.BrokerRun
 	}
 	return p.TrustMode == "same_user_trusted_host"
@@ -93,7 +114,7 @@ func (r LaunchRequest) Validate() error {
 	case collaboration.Native:
 		// A LaunchRequest is an active execution instruction, unlike the
 		// retained NativeLaunch metadata on a historical RunAdmission.
-		if r.Native == nil || r.Appliance != nil || r.Native.Validate() != nil || r.Native.TrustMode != "isolated_system_worker" || r.Native.PromptSHA256 != r.Input.Run.Assignment {
+		if r.Native == nil || r.Appliance != nil || !r.Native.Active() || r.Native.PromptSHA256 != r.Input.Run.Assignment {
 			return ErrLaunch
 		}
 		family, version, digest = r.Native.Tool.Harness, r.Native.Tool.Version, r.Native.Tool.SHA256
@@ -115,7 +136,7 @@ func (r LaunchRequest) MatchesObservation(o RunObservation) bool {
 		if n == nil || n.Profile != r.Native.Workspace.Profile || n.InstanceID != r.Native.Workspace.InstanceID || n.WorktreeID != r.Native.Workspace.WorktreeID {
 			return false
 		}
-		if r.Native.TrustMode == "isolated_system_worker" {
+		if r.Native.Active() {
 			if n.TrustMode != r.Native.TrustMode || n.BrokerRun != r.Native.BrokerRun {
 				return false
 			}

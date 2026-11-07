@@ -44,9 +44,9 @@ type Provenance struct {
 	Appliance           *ApplianceProvenance      `json:"appliance"`
 }
 
-// NativeProvenance distinguishes historical trusted same-user execution from
-// the isolated system worker. Isolation is observed only after a process starts;
-// a selected trust mode alone never proves a worker launch or credential return.
+// NativeProvenance distinguishes historical hosts, isolated workers and trusted
+// CLI provider connectors. A selected mode never proves a process boundary,
+// worker launch or credential return.
 // Native selectable-executor qualification remains the separate D3 gate.
 type NativeProvenance struct {
 	TrustMode  string                  `json:"trust_mode"`
@@ -55,8 +55,16 @@ type NativeProvenance struct {
 	WorktreeID string                  `json:"worktree_id"`
 	BrokerRun  string                  `json:"broker_run,omitempty"`
 	Isolation  *NativeIsolation        `json:"isolation,omitempty"`
+	Connector  *NativeConnector        `json:"connector,omitempty"`
 	Process    *NativeProcess          `json:"process"`
 	Custody    NativeCustody           `json:"custody"`
+}
+
+// The CLI connector uses the desktop identity for Muse-owned authentication.
+// It is not an isolated worker or a Factory-held credential acquisition.
+type NativeConnector struct {
+	UID     int    `json:"uid"`
+	Service string `json:"service"`
 }
 
 // NativeIsolation retains distinct host identities observed after a brokered
@@ -246,7 +254,21 @@ func validNative(n NativeProvenance) bool {
 		} else if n.Isolation == nil || !validNativeIsolation(*n.Isolation) || !validIsolatedProcessIdentity(n.Process.SystemInstance, n.Process.StartIdentity) {
 			return false
 		}
+	case NativeCLIProvider:
+		if !collaboration.ValidID(n.BrokerRun) || n.Isolation != nil || n.Custody.State != NotAcquired {
+			return false
+		}
+		if n.Process == nil {
+			if n.Connector != nil {
+				return false
+			}
+		} else if n.Connector == nil || n.Connector.UID <= 0 || !collaboration.ValidID(n.Connector.Service) || !validIsolatedProcessIdentity(n.Process.SystemInstance, n.Process.StartIdentity) {
+			return false
+		}
 	default:
+		return false
+	}
+	if n.TrustMode != NativeCLIProvider && n.Connector != nil {
 		return false
 	}
 	if !validNativeCustody(n.Custody) {

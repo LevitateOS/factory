@@ -28,7 +28,7 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 		// Historical same-user evidence remains readable, but it cannot authorize
 		// a new desktop agent launch. The selected execution boundary requires a
 		// broker run captured before the isolated worker is started.
-		if r.Admission.Native == nil || r.Admission.Native.TrustMode != "isolated_system_worker" || !r.Admission.Native.MatchesRecord(*r.Native) || r.Native.Sealed || r.Native.Retirement == execution.Retired {
+		if r.Admission.Native == nil || !r.Admission.Native.Active() || !r.Admission.Native.MatchesRecord(*r.Native) || r.Native.Sealed || r.Native.Retirement == execution.Retired {
 			return empty, execution.ErrLaunch
 		}
 		if a.NativeTool != nil && *a.NativeTool != r.Admission.Native.Tool {

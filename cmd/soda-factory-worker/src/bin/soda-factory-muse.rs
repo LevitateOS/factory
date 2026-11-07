@@ -133,7 +133,7 @@ mod connector {
             "--disable-request-user-input",
             "--no-foreign-personal-context",
             "--approval-mode",
-            "untrusted",
+            "never",
             "--approval-judge",
             "off",
             "--max-tool-output-bytes",
@@ -297,6 +297,16 @@ mod connector {
             private(&root.join(name))?;
         }
         create(&root.join("prompt"), request.prompt.as_bytes())?;
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_millis() as u64;
+        let remaining = request
+            .deadline_unix_ms
+            .checked_sub(now)
+            .filter(|value| *value > 0)
+            .ok_or_else(|| refused("Muse admitted deadline expired before execution"))?
+            .min(request.duration_ms);
         let process = processes
             .launch(Invocation {
                 executable: &executable,
@@ -304,7 +314,7 @@ mod connector {
                 arguments: arguments(&root, &request)?,
                 environment: environment(&root.join("tmp"), &request),
                 limits: Limits {
-                    duration: Duration::from_millis(request.duration_ms),
+                    duration: Duration::from_millis(remaining),
                     output_bytes: request.output_bytes,
                     memory_bytes: 768 * 1024 * 1024,
                     processes: 64,
@@ -319,8 +329,7 @@ mod connector {
         if !started.finished {
             reply(&mut output, &observation(&request, &started, None)?, &[])?;
         }
-        let deadline =
-            Instant::now() + Duration::from_millis(request.duration_ms) + Duration::from_secs(10);
+        let deadline = Instant::now() + Duration::from_millis(remaining) + Duration::from_secs(10);
         let result = (|| {
             let mut sequence = 0u64;
             loop {

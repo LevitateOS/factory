@@ -40,8 +40,11 @@ func (s *Store) RecordNativeRootRetirement(ctx context.Context, profile collabor
 	native := *run.Native
 	process := native.Provenance.Process
 	custody := native.Provenance.Custody
-	if process == nil || process.InvocationID != invocation || invocation == "" || custody.AcquisitionID != acquisition || acquisition == "" ||
-		custody.State != execution.Released || !native.Sealed {
+	custodyDone := custody.State == execution.Released && acquisition != ""
+	if native.Provenance.TrustMode == execution.NativeCLIProvider {
+		custodyDone = custody.State == execution.NotAcquired && acquisition == ""
+	}
+	if process == nil || process.InvocationID != invocation || invocation == "" || custody.AcquisitionID != acquisition || !custodyDone || !native.Sealed {
 		return execution.ErrObservation
 	}
 	native.Retirement = execution.Retired
