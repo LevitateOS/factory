@@ -843,6 +843,92 @@ impl Broker {
 pub(super) struct BrokerPreparation {
     cancellation: Option<AgentCancellation>,
 }
+
+/// A single consumed isolated workspace. Dropping or cancelling this stream
+/// stops its worker through the broker; retained product reconciliation is
+/// supplied by the execution owner before this becomes a TaskRuntime port.
+pub struct TaskWorkspace {
+    stream: UnixStream,
+    _watch: AgentWatch,
+    _provider_socket: super::owner::WorkspaceRelaySocket,
+}
+impl TaskWorkspace {
+    pub fn command(
+        &mut self,
+        command: &soda_execution_protocol::workspace::Command,
+    ) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        let bytes = serde_json::to_vec(command)?;
+        if bytes.is_empty() || bytes.len() > soda_execution_protocol::workspace::MAX_COMMAND {
+            return Err(refused("workspace command exceeds bound"));
+        }
+        self.stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        self.stream.write_all(&bytes)?;
+        self.reply()
+    }
+    fn reply(&mut self) -> io::Result<soda_execution_protocol::workspace::Reply> {
+        let mut header = [0; 4];
+        self.stream.read_exact(&mut header)?;
+        let length = u32::from_le_bytes(header) as usize;
+        if length == 0 || length > soda_execution_protocol::workspace::MAX_REPLY {
+            return Err(refused("workspace reply exceeds bound"));
+        }
+        let mut bytes = vec![0; length];
+        self.stream.read_exact(&mut bytes)?;
+        serde_json::from_slice(&bytes).map_err(|_| refused("workspace reply invalid"))
+    }
+}
+impl Broker {
+    pub fn open_task_workspace(
+        scope: &super::ReceiptScope<'_>,
+        manifest: &[u8],
+        invocation: &str,
+        cancellation: AgentCancellation,
+    ) -> io::Result<TaskWorkspace> {
+        if scope.role != Role::Coder
+            || manifest.is_empty()
+            || manifest.len() > soda_execution_protocol::MAX_TASK_MANIFEST
+        {
+            return Err(refused("workspace manifest declaration invalid"));
+        }
+        let manifest_digest: String = Sha256::digest(manifest)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let provider_socket = super::owner::WorkspaceRelaySocket::bind(scope.run)?;
+        Self::attest_provider_relay(
+            scope.run,
+            scope.profile,
+            scope.source_sha256,
+            scope.candidate,
+            scope.role,
+        )?;
+        let bytes = serde_json::to_vec(&json!({"kind":"task_workspace","version":1,
+            "run":scope.run,"profile":scope.profile,"sha256":scope.source_sha256,"candidate":scope.candidate,
+            "tool_sha256":scope.tool_sha256(),"prompt_sha256":scope.prompt_sha256(),
+            "manifest_length":manifest.len(),"manifest_digest":manifest_digest,"invocation":invocation}))?;
+        if bytes.len() > MAX_FRAME {
+            return Err(refused("workspace declaration exceeds bound"));
+        }
+        let mut stream = connect(AGENT_TIME, Some(&cancellation))?;
+        let watch = AgentWatch::start(&stream, cancellation)?;
+        stream.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        stream.write_all(&bytes)?;
+        stream.write_all(manifest)?;
+        let mut session = TaskWorkspace {
+            stream,
+            _watch: watch,
+            _provider_socket: provider_socket,
+        };
+        let ready = session.reply()?;
+        if ready.status != "ready" || ready.head != scope.candidate {
+            return Err(refused("workspace readiness differs"));
+        }
+        session
+            .stream
+            .set_read_timeout(Some(Duration::from_secs(620)))?;
+        Ok(session)
+    }
+}
 impl BrokerPreparation {
     pub fn stage_bundle(
         &self,

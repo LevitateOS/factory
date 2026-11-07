@@ -26,7 +26,7 @@ mod tool;
 pub(crate) mod work;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
-    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation,
+    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation, TaskWorkspace,
 };
 pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
 pub use executions::{

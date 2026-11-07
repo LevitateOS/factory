@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 mod agent_observation;
 mod preparation_quota;
 mod source_binding;
+mod task_workspace;
 
 const SOCKET: &str = "/run/soda-factory/broker.sock";
 const STATE: &str = "/run/soda-factory-broker";
@@ -31,6 +32,18 @@ const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    TaskWorkspace {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        candidate: String,
+        tool_sha256: String,
+        prompt_sha256: String,
+        manifest_length: usize,
+        manifest_digest: String,
+        invocation: String,
+    },
     CompleteCandidate {
         version: u8,
         run: String,
@@ -1681,6 +1694,11 @@ fn clean_retiring(directory: &Path, profile: &str, digest: &str) -> io::Result<(
         fs::remove_file(directory.join("bundle"))?;
     }
     source_binding::cleanup(directory)?;
+    match fs::remove_file(directory.join("task.manifest")) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+    }
     match fs::remove_file(directory.join("owner.role")) {
         Ok(()) => (),
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
@@ -2234,6 +2252,56 @@ fn serve() -> io::Result<()> {
     let request: Request =
         serde_json::from_slice(&request).map_err(|_| denied("broker request shape invalid"))?;
     let response = match request {
+        Request::TaskWorkspace {
+            version,
+            run,
+            profile,
+            sha256,
+            candidate,
+            tool_sha256,
+            prompt_sha256,
+            manifest_length,
+            manifest_digest,
+            invocation,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&candidate, 40)
+                || !id(&tool_sha256, 64)
+                || !id(&prompt_sha256, 64)
+                || !id(&manifest_digest, 64)
+                || !(1..=soda_execution_protocol::MAX_TASK_MANIFEST).contains(&manifest_length)
+                || invocation.is_empty()
+                || invocation.len() > 128
+                || invocation.chars().any(char::is_control)
+            {
+                return Err(denied("task workspace declaration invalid"));
+            }
+            let mut manifest = vec![0; manifest_length];
+            read_client_exact(
+                &mut input,
+                &mut manifest,
+                Instant::now() + Duration::from_secs(30),
+            )?;
+            if hash(&manifest) != manifest_digest {
+                return Err(denied("task manifest digest differs"));
+            }
+            return task_workspace::serve(
+                &mut input,
+                &mut io::stdout().lock(),
+                &run,
+                &profile,
+                &sha256,
+                &candidate,
+                &tool_sha256,
+                &prompt_sha256,
+                &manifest_digest,
+                &manifest,
+                &invocation,
+            );
+        }
         Request::StagePreparation {
             version,
             run,

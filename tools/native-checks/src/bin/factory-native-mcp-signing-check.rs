@@ -25,6 +25,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 3 && args[2] == "workspace" {
+        return workspace_check(&root, Path::new(&args[1]));
+    }
+    if args.len() == 5 && args[1] == "workspace-retire" {
+        soda_desktop_runtime::factory_provider::Broker::retire_bundle(&args[2], &args[3], &args[4])?;
+        println!("PASS: exact owned workspace fixture root retired");
+        return Ok(());
+    }
     if args.len() == 2 && args[1] == "task-manifest" {
         return task_manifest_bindings(&root);
     }
@@ -733,6 +741,259 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
         return Err("parallel preparation final retirement unconfirmed".into());
     }
     println!("PASS: overlapping live preparations; cancellation and an independent setup complete promptly; all exact staged roots retired");
+    Ok(())
+}
+
+fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::factory_provider::{AgentCancellation, Broker, ReceiptScope, Role};
+    use soda_execution_protocol::workspace::{Command as WorkspaceCommand, Reply};
+    let source_path = std::env::var("SODA_NATIVE_CHECK_BUNDLE")?;
+    let bundle = fs::read(&source_path)?;
+    let candidate = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
+    let hash = |bytes: &[u8]| -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    };
+    let source_sha = hash(&bundle);
+    let tool = hash(b"native workspace fixture, no model");
+    let prompt = hash(b"sequential workspace integration");
+    let mut runs = Vec::new();
+    for mode in ["ready", "failed", "ownership", "dependency", "cancel"] {
+        let scratch = root.join(mode);
+        DirBuilder::new().mode(0o700).create(&scratch)?;
+        let mut random = [0; 16];
+        getrandom::fill(&mut random)?;
+        let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        getrandom::fill(&mut random)?;
+        let profile: String = random.iter().map(|b| format!("{b:02x}")).collect();
+        runs.push(run.clone());
+        fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
+        fs::write(
+            scratch.join("binding.json"),
+            serde_json::to_vec(
+                &serde_json::json!({"run":run,"profile":profile,"source_sha256":source_sha}),
+            )?,
+        )?;
+        if !Command::new(helper)
+            .args([
+                "workspace-manifest",
+                scratch.to_str().ok_or("scratch encoding")?,
+                &run,
+                &candidate,
+                mode,
+            ])
+            .status()?
+            .success()
+        {
+            return Err("Go workspace manifest failed".into());
+        }
+        let manifest = fs::read(scratch.join("workspace.manifest"))?;
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            Broker::stage_bundle(&run, &profile, Role::Coder, &tool, &prompt, &bundle)?;
+            Broker::prepare_reviewer(&run, &profile, &source_sha, &candidate)?;
+            let scope = ReceiptScope::new(
+                &run,
+                &profile,
+                &source_sha,
+                &candidate,
+                Role::Coder,
+                &tool,
+                &prompt,
+            )?;
+            let cancel = AgentCancellation::default();
+            let mut workspace = Broker::open_task_workspace(
+                &scope,
+                &manifest,
+                "native-workspace-fixture",
+                cancel.clone(),
+            )?;
+            if mode == "dependency" {
+                if workspace
+                    .command(&WorkspaceCommand::Start {
+                        task: "second".into(),
+                    })
+                    .is_ok()
+                {
+                    return Err("unmet task dependency accepted".into());
+                }
+                return Ok(());
+            }
+            workspace.command(&WorkspaceCommand::Start {
+                task: "first".into(),
+            })?;
+            if mode == "ownership" {
+                if workspace
+                    .command(&WorkspaceCommand::Edit {
+                        path: "README.md".into(),
+                        offset: 0,
+                        expected: String::new(),
+                        replacement: "unowned".into(),
+                    })
+                    .is_ok()
+                {
+                    return Err("unowned edit accepted".into());
+                }
+                return Ok(());
+            }
+            workspace.command(&WorkspaceCommand::Edit {
+                path: "native-task.txt".into(),
+                offset: 0,
+                expected: String::new(),
+                replacement: "first\n".into(),
+            })?;
+            let read = workspace.command(&WorkspaceCommand::Read {
+                path: "native-task.txt".into(),
+                offset: 0,
+                limit: 1024,
+            })?;
+            if read.content.as_deref() != Some("first\n") {
+                return Err("workspace edit readback differs".into());
+            }
+            let released = workspace.command(&WorkspaceCommand::Release {
+                task: "first".into(),
+            })?;
+            let cancellation = if mode == "cancel" {
+                Some(std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_secs(1));
+                    cancel.cancel();
+                }))
+            } else {
+                None
+            };
+            let began = std::time::Instant::now();
+            let checkpoint = workspace.command(&WorkspaceCommand::Checkpoint {
+                task: "first".into(),
+                expected_head: candidate.clone(),
+                output_digest: released.output_digest,
+            });
+            if let Some(thread) = cancellation {
+                thread.join().map_err(|_| "cancellation thread failed")?;
+                if checkpoint.is_ok() || began.elapsed() > Duration::from_secs(6) {
+                    return Err("workspace cancellation did not interrupt checkpoint".into());
+                }
+                return Ok(());
+            }
+            let first = checkpoint?;
+            if mode == "failed" {
+                if first.status != "failed"
+                    || first.head != candidate
+                    || first.checks.len() != 1
+                    || first.checks[0].passed
+                {
+                    return Err("failed check advanced checkpoint".into());
+                }
+                workspace.command(&WorkspaceCommand::Close)?;
+                return Ok(());
+            }
+            if first.status != "committed"
+                || first.head == candidate
+                || first.checks.len() != 1
+                || !first.checks[0].passed
+            {
+                return Err("first task checkpoint incomplete".into());
+            }
+            workspace.command(&WorkspaceCommand::Start {
+                task: "second".into(),
+            })?;
+            workspace.command(&WorkspaceCommand::Edit {
+                path: "native-task.txt".into(),
+                offset: 0,
+                expected: "first".into(),
+                replacement: "second".into(),
+            })?;
+            let released = workspace.command(&WorkspaceCommand::Release {
+                task: "second".into(),
+            })?;
+            let second = workspace.command(&WorkspaceCommand::Checkpoint {
+                task: "second".into(),
+                expected_head: first.head.clone(),
+                output_digest: released.output_digest,
+            })?;
+            if second.status != "committed" || second.head == first.head {
+                return Err("second task checkpoint incomplete".into());
+            }
+            let final_result: Reply = workspace.command(&WorkspaceCommand::Final {
+                expected_head: second.head.clone(),
+            })?;
+            if final_result.status != "committed"
+                || final_result.head != second.head
+                || final_result.bundle.is_empty()
+                || final_result.checks.len() != 1
+                || !final_result.checks[0].passed
+            {
+                return Err("final task candidate incomplete".into());
+            }
+            fs::write(
+                scratch.join("workspace.events.json"),
+                serde_json::to_vec(&final_result.events)?,
+            )?;
+            fs::write(scratch.join("candidate.bundle"), &final_result.bundle)?;
+            fs::write(
+                scratch.join("result.json"),
+                serde_json::to_vec(&final_result)?,
+            )?;
+            if !Command::new(helper)
+                .arg("workspace-events")
+                .arg(&scratch)
+                .status()?
+                .success()
+            {
+                return Err("Go workspace journal import failed".into());
+            }
+            let export = scratch.join("export");
+            let git = |args: &[&std::ffi::OsStr]| -> Result<(), Box<dyn std::error::Error>> {
+                if !Command::new("/usr/bin/git")
+                    .env_clear()
+                    .env("PATH", "/usr/bin:/bin")
+                    .env("TMPDIR", &scratch)
+                    .env("GIT_CONFIG_NOSYSTEM", "1")
+                    .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                    .args(args)
+                    .status()?
+                    .success()
+                {
+                    return Err("workspace candidate Git verification failed".into());
+                }
+                Ok(())
+            };
+            use std::ffi::OsStr;
+            git(&[
+                OsStr::new("clone"),
+                OsStr::new("--quiet"),
+                OsStr::new(&source_path),
+                export.as_os_str(),
+            ])?;
+            git(&[
+                OsStr::new("-C"),
+                export.as_os_str(),
+                OsStr::new("fetch"),
+                OsStr::new("--quiet"),
+                scratch.join("candidate.bundle").as_os_str(),
+                OsStr::new("HEAD"),
+            ])?;
+            git(&[
+                OsStr::new("-C"),
+                export.as_os_str(),
+                OsStr::new("checkout"),
+                OsStr::new("--quiet"),
+                OsStr::new(&second.head),
+            ])?;
+            if fs::read(export.join("native-task.txt"))? != b"second\n" {
+                return Err("exported task edits differ".into());
+            }
+            workspace.command(&WorkspaceCommand::Close)?;
+            Ok(())
+        })();
+        let retired = Broker::retire_bundle(&run, &profile, &source_sha);
+        result?;
+        if !retired? || Broker::next_profile_run(&profile)?.is_some() {
+            return Err("workspace root retirement incomplete".into());
+        }
+        println!("PASS: isolated sequential workspace {mode}; exact root retirement, no model or provider request");
+    }
     Ok(())
 }
 

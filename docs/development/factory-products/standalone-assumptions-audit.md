@@ -213,13 +213,30 @@ corrections are now active; the old feature queue waits for their resolution.
   zero children; manifest readers retain historical child variants. Go imports
   parent task events across the multi-task plan with a one-active-task limit;
   Builder output release and context use that captured mode. The isolated native
-  task effect/checkpoint owner remains absent, so task phases stay unavailable.
+  task runtime is not yet composed, so task phases stay unavailable.
   Go-produced sequential token/CLI manifests and retained child/correction modes
   passed the existing Rust sidecar readback, changed-byte and pending-marker
   checks in `/home/vince/tmp/fsequential-contract7.LviXGj/result.log`.
   Go/native builds and affected existing MCP checks passed. This is contract
   readback only: no task ran, no typed native event journal was produced and no
   checkpoint or sequential task lifecycle is qualified by it.
+  The existing isolated agent now consumes a root-captured manifest and owns
+  sequential task edits, bounded text reads, frozen outputs, exact declared
+  checks, Git checkpoints and final checked candidate export. Its typed events
+  use the existing Go import contract. The real native integration passed two
+  dependent tasks and exact Go event replay, plus failed-check, ownership and
+  dependency refusal, cancellation during a checkpoint request, and exact root
+  retirement: `/home/vince/tmp/fworkspace-capture7.SGFYsj/result.log`.
+  No model/provider request or Go-admitted coding run was involved; the parent
+  invocation was fixture-supplied. The credential-free session retains the
+  existing relay namespace with a non-serving desktop socket, without borrowing
+  credentials or forwarding requests. Coding phases remain disabled. Next:
+  compose actual observed parent ownership and worker MCP effects, retain task/
+  final receipts and candidate bytes before root retirement, recover exact
+  command/checkpoint outcomes after missed replies/restart, and join the Go task,
+  checkpoint, journal and candidate ports. Mutable directory/file removal and
+  larger workload coverage also remain unfinished. These component results do
+  not qualify D3, custody/IPC, the full pipeline or installed execution.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

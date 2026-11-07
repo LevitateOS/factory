@@ -51,7 +51,8 @@ journey, including current stop/withdrawal during an in-flight read, must retain
 the original authority and return no source after observed withdrawal. That race
 and installed service admission were not checked here. Submodule and over-limit
 listing behavior was not exercised; links were named, never followed. Mutable
-task access is still absent; task/checkpoint gates remain pending.
+task access is now an isolated native component below; its admitted worker MCP
+composition and task/checkpoint gates remain pending.
 
 Preserve `/home/vince/tmp/fsource-pages7.XIprjB`, run
 `dad793506986e5b4e9a483fd63b2d5a0`. Its source read/list/page and artifact markers
@@ -107,19 +108,33 @@ the assumptions audit records actual Go/Rust readback for declared token/CLI
 metadata and actual non-task MCP/artifact/retirement/restart regression. No model
 or task executed. The read fixture's pending marker is not a killed-publisher
 experiment; no task or broader admission/custody/IPC gate is closed.
-Exact blocker: the native task effect owner is absent. The owner selected one
+Exact blocker: the native task runtime is not yet composed. The owner selected one
 Builder executing planned tasks sequentially on 2026-11-07. New native implement
 manifests capture zero children; historical manifests keep their original bounds.
 Go task import and worker context distinguish this captured mode. A04/A19 records
 Go/Rust retained manifest readback for both sequential
-source modes plus historical child/correction modes; no task/event/checkpoint
-effect ran. The native owner must consume this
-manifest through the isolated workspace, bind live command/checkpoint operations
-to actual process ownership (the staged invocation claim is not liveness), perform
-isolated task edits/checks sequentially, and persist/read task events and task/final
-checkpoint results. No task child orchestration is required for the selected mode.
-Relevant remaining owners: broker `source_binding.rs`, worker
-`soda-factory-agent.rs`, native execution registry and Go task/checkpoint ports.
+source modes plus historical child/correction modes; that readback executed no task.
+The isolated component now captures the manifest in the root-owned staged run,
+consumes one agent connection, enforces task dependencies/ownership, freezes text
+edits, runs declared argv in native process scopes, commits checked outputs and
+exports the final integration-checked bundle. Native events import into Go task
+receipts and exact replay emits no writes. Actual check:
+`/home/vince/tmp/fworkspace-capture7.SGFYsj/result.log`, with retained Go manifest,
+events, result and exported bundle under `ready/`. Failed checks, unowned edits,
+unmet dependencies and cancellation during a checkpoint request passed; the exact
+fixture roots were removed and service MainPID values reached zero. No model or
+provider request ran. The invocation came from the fixture, not observed parent
+liveness. The task session uses a non-serving desktop socket solely for existing
+relay namespace/lifetime admission; it has no provider custody or forwarding.
+Remaining dependency: bind operations to the actual observed parent (the staged
+claim is not liveness), compose admitted worker MCP commands, retain/read native
+task/final receipts, journals and candidate bytes before root retirement, and
+recover exact outcomes after missed replies/restart. The current journal is local
+to the worker and the fixture retains its replies; production recovery is absent.
+No child orchestration is required for the selected mode. Relevant files:
+`cmd/soda-factory-worker/src/agent_workspace.rs`, broker `task_workspace.rs`,
+`lib/execution-protocol/src/workspace.rs`, desktop `factory_provider/{broker,owner}.rs`,
+the native execution registry and Go task/checkpoint ports.
 Evidence needed: actual Go-admitted implement/correct journeys with checks,
 commit/tree/output provenance, exact retries and journal import, withdrawal/stop,
 sequential task/run retirement and retained recovery; version-5 publication interruption and

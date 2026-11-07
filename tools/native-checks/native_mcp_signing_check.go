@@ -1232,6 +1232,20 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 6 && os.Args[1] == "workspace-manifest" {
+		if err := workspaceManifest(os.Args[2], os.Args[3], os.Args[4], os.Args[5]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 3 && os.Args[1] == "workspace-events" {
+		if err := workspaceEvents(os.Args[2]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 4 && os.Args[1] == "task-bindings" {
 		raw, err := os.ReadFile(os.Args[2])
 		if err == nil {
@@ -3226,6 +3240,110 @@ func ownedToolFixture(profile, instance, mode string) error {
 }
 
 // Cross-language binding fixtures grant no task or provider admission.
+func workspaceManifest(root, run, candidate, mode string) error {
+	checks := []factory.CheckSpec{
+		{ID: "first", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
+		{ID: "second", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
+		{ID: "integration", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true},
+	}
+	if mode == "failed" {
+		checks[0].Argv = []string{"/usr/bin/false"}
+	} else if mode == "cancel" {
+		checks[0].Argv, checks[0].TimeoutSeconds = []string{"/usr/bin/sleep", "30"}, 35
+	}
+	plan := factory.InvestigationPlan{ID: factory.NewID(), AttemptRoot: factory.NewID(),
+		ScopeDigest: strings.Repeat("1", 64), InputDigest: strings.Repeat("2", 64), SourceCommit: candidate,
+		IntegrationCommit: candidate, Preparation: "f" + strings.Repeat("3", 24),
+		Approach: "Sequential native task fixture", AcceptanceCoverage: []string{"native-workspace"},
+		Checks: checks, Lanes: []factory.PlanLane{{ID: "builder", TaskIDs: []string{"first", "second"}}},
+	}
+	for i, id := range []string{"first", "second"} {
+		task := factory.PlanTask{ID: id, Objective: "Produce " + id + " text", Outputs: []string{"native-task.txt"},
+			AcceptanceRefs: []string{"native-workspace"}, Lane: "builder", OwnedPaths: []string{"native-task.txt"}, CheckIDs: []string{id}}
+		if i == 1 {
+			task.DependsOn = []string{"first"}
+		}
+		plan.Tasks = append(plan.Tasks, task)
+	}
+	var err error
+	plan.Digest, err = factory.PlanDigest(plan)
+	if err != nil {
+		return err
+	}
+	if err := plan.Executable(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(plan)
+	if err != nil {
+		return err
+	}
+	manifest, err := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: raw, PlanDigest: project.PlanDigest(raw),
+		Invocation: "staged-claim", Phase: project.ExecutionImplement, Run: run, Deadline: time.Now().UTC().Add(time.Minute),
+		Effort: project.TaskEffortHigh, MaxChildren: 0})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(root, "workspace.plan.json"), raw, 0600); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(root, "workspace.manifest"), manifest, 0600)
+}
+
+func workspaceEvents(root string) error {
+	manifest, err := os.ReadFile(filepath.Join(root, "workspace.manifest"))
+	if err != nil {
+		return err
+	}
+	m, err := project.ParseExecutionManifest(manifest)
+	if err != nil {
+		return err
+	}
+	var plan factory.InvestigationPlan
+	if err := json.Unmarshal(m.Plan, &plan); err != nil {
+		return err
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "workspace.events.json"))
+	if err != nil {
+		return err
+	}
+	var events []project.TaskEvent
+	if err := json.Unmarshal(raw, &events); err != nil {
+		return err
+	}
+	if len(events) != 8 {
+		return fmt.Errorf("expected two complete task event sequences, got %d", len(events))
+	}
+	imp := control.TaskEventImport{AttemptRoot: plan.AttemptRoot, PlanID: plan.ID, Invocation: "native-workspace-fixture",
+		PlanDigest: project.ExecutionManifestDigest(manifest), MaxChildren: 0, Phase: project.ExecutionImplement, Events: events}
+	result, err := control.ImportTaskEvents(plan, nil, imp)
+	if err != nil {
+		return err
+	}
+	if result.Stop || result.NextSequence != 8 {
+		return errors.New("native workspace journal did not complete")
+	}
+	completed := map[string]store.PlanTaskReceipt{}
+	for _, receipt := range result.Writes {
+		completed[receipt.TaskID] = receipt
+	}
+	if len(completed) != 2 {
+		return errors.New("native workspace task receipts missing")
+	}
+	receipts := []store.PlanTaskReceipt{}
+	for _, receipt := range completed {
+		if receipt.State != store.PlanTaskCompleted || !receipt.Parent || receipt.Commit == "" || receipt.Tree == "" || len(receipt.Checks) != 1 {
+			return errors.New("native workspace task evidence incomplete")
+		}
+		receipts = append(receipts, receipt)
+	}
+	replay, err := control.ImportTaskEvents(plan, receipts, imp)
+	if err != nil || len(replay.Writes) != 0 {
+		return fmt.Errorf("native workspace exact event replay changed state: %v", err)
+	}
+	fmt.Println("PASS: native task journal imports both sequential checkpoints into Go receipts; exact replay emits no writes")
+	return nil
+}
+
 func writeTaskManifestBindings(profile string, intent execution.NativeIntent) error {
 	plan := []byte(`{"fixture":"unexecuted"}`)
 	bindings := []map[string]any{}

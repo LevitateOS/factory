@@ -25,6 +25,31 @@ const MAX_HEADER: usize = 16 * 1024;
 const MAX_BODY: usize = 256 * 1024;
 const MAX_RESPONSE: usize = 16 * 1024 * 1024;
 const MAX_CONNECTIONS: usize = 512;
+
+/// Supplies the existing relay's desktop-process liveness handshake. No accept,
+/// request reader or forwarding task exists, and no provider custody is borrowed.
+pub(super) struct WorkspaceRelaySocket {
+    _listener: StdUnixListener,
+    path: PathBuf,
+    parent: PathBuf,
+    original: Metadata,
+}
+impl WorkspaceRelaySocket {
+    pub(super) fn bind(run: &str) -> io::Result<Self> {
+        let (listener, path, parent, original) = bind_run_socket(run)?;
+        Ok(Self {
+            _listener: listener,
+            path,
+            parent,
+            original,
+        })
+    }
+}
+impl Drop for WorkspaceRelaySocket {
+    fn drop(&mut self) {
+        let _ = cleanup(&self.path, &self.parent, &self.original);
+    }
+}
 const MAX_IN_FLIGHT: usize = 4;
 const REQUEST_TIME: Duration = Duration::from_secs(8);
 const PROVIDER_TIME: Duration = Duration::from_secs(5 * 60);

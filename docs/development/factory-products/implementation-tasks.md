@@ -137,6 +137,13 @@ sequentially. New native implement manifests capture zero children; historical
 child-mode records remain readable. Preserve task checks/checkpoints, independent
 review, CI and merge. The complete isolated sequential task runtime is still required.
 This does not enable task phases or complete T09.
+The isolated agent now implements sequential workspace edits, declared task
+checks, Git checkpoints, typed events and final checked candidate export. A04/A19
+records the real two-task native/Go journal integration, refusal/failure and
+checkpoint-request cancellation/retirement evidence. This is a native component;
+observed parent binding, worker MCP composition, retained receipts/candidate and
+missed-reply/restart recovery must join the Go task ports before coding dispatch.
+No T09, D3, connected, installed or full-pipeline gate is closed by that check.
 The desktop stage now includes the native execution helpers/templates and an
 explicit single-user installer with image mode and existing-file refusal. A18
 records actual desktop staging and image verification; no live installation or

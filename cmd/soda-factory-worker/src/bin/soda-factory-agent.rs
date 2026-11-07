@@ -23,6 +23,8 @@ mod agent_candidate;
 mod agent_environment;
 #[path = "../agent_observation.rs"]
 mod agent_observation;
+#[path = "../agent_workspace.rs"]
+mod agent_workspace;
 use agent_candidate::{repository_identity, Candidate, RepositoryIdentity};
 
 const SOURCE: &str = "/run/factory-source";
@@ -41,6 +43,14 @@ const PROMPT: &str = "/run/factory-agent-private/run/agent.prompt";
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    TaskWorkspace {
+        version: u8,
+        run: String,
+        profile: String,
+        candidate: String,
+        manifest_digest: String,
+        invocation: String,
+    },
     AttestAgent {
         version: u8,
         run: String,
@@ -984,6 +994,39 @@ fn serve() -> io::Result<()> {
     let request: Request =
         serde_json::from_slice(&bytes).map_err(|_| refused("agent request shape invalid"))?;
     match request {
+        Request::TaskWorkspace {
+            version,
+            run,
+            profile: requested_profile,
+            candidate: requested_candidate,
+            manifest_digest,
+            invocation,
+        } => {
+            if version != 1
+                || run != args[1]
+                || requested_profile != profile
+                || requested_candidate != candidate
+                || role != "coder"
+                || !id(&manifest_digest, 64)
+            {
+                return Err(refused("task workspace binding invalid"));
+            }
+            let result = agent_workspace::serve(
+                &mut stream,
+                &mut processes,
+                &run,
+                &candidate,
+                &manifest_digest,
+                &invocation,
+                candidate_identity
+                    .as_ref()
+                    .ok_or_else(|| refused("task workspace identity missing"))?,
+            );
+            processes
+                .retire()
+                .map_err(|_| refused("task workspace retirement unconfirmed"))?;
+            result
+        }
         Request::AttestAgent {
             version,
             run,
