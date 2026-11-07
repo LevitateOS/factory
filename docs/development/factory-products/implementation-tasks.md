@@ -97,7 +97,10 @@ isolated task/workspace effects and broader crash/installed qualification remain
 dependencies. Completed-entry acknowledgement now frees native capacity after
 canonical accounting, and terminal receipts survive that release and restart.
 The original deadline attempt was reconciled failed without inference replay;
-usage stays within its admitted one-minute window. Exact early-stop attribution
+usage stays within its admitted one-minute window. New CLI receipts also retain
+the native process-tree stop time; exact original-process recovery proved usage
+ending there after offline delay and PostgreSQL refusing timestamp changes.
+Historical receipts retain their deadline bound. Token-lane early-stop attribution
 after delayed settlement remains unqualified. A01/A19 and the security handoff
 record these scopes and all other retained unresolved attempts.
 The CLI-managed source can now be configured in shared Work: its native-profile

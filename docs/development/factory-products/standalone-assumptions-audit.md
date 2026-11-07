@@ -114,8 +114,15 @@ corrections are now active; the old feature queue waits for their resolution.
   original-source usage, unrelated reviewer selection and refusal to revive the
   old capability passed in `/home/vince/tmp/fmuse-withdraw7.1jegf3/result.log`.
   No provider request or saved-login mutation ran in that check.
-  Active-service/incomplete-receipt recovery, exact early-stop attribution after
-  delayed settlement, connected withdrawal/refusal, reviewer execution, broader
+  New CLI receipts now retain the process-tree stop time using elapsed native
+  time from launch, before output persistence. Go and PostgreSQL preserve it
+  immutably and end usage there even after delayed recovery. The original local
+  process from `/home/vince/tmp/fmuse-stop-accounting7.cLGP1Y` was recovered without
+  replay in `/home/vince/tmp/fmuse-stop-recovery7.vmkMK3/result.log`; its before-state
+  is retained there. Exact stop-based usage and database mutation refusal passed.
+  Historical receipts without a stop time still use the admitted deadline bound;
+  no historical timestamp is invented. The token lane has no stop-time receipt yet.
+  Active-service/incomplete-receipt recovery, connected withdrawal/refusal, reviewer execution, broader
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
 

@@ -282,7 +282,7 @@ fn muse_observation(
 ) -> Value {
     let receipt=process.map(|process|json!({"worker_uid":0,"connector_uid":process.uid,"service":process.service,
         "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
-        "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
+        "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"stopped_unix_ms":process.stopped_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
     let output = complete.and_then(|result| result.product_output.as_deref());
     json!({"intent_digest":intent.digest(),"receipt":receipt,
         "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":sealed},

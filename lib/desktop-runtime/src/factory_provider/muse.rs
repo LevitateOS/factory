@@ -416,6 +416,11 @@ impl MuseConnector {
                 .parse::<u64>()
                 .is_ok_and(|n| n > 0)
             || observation.output_length > self.output_limit
+            || observation.stopped_unix_ms.is_some_and(|stopped| {
+                !observation.finished
+                    || !observation.tree_retired
+                    || stopped < observation.started_unix_ms
+            })
             || !observation.finished
                 && (observation.output_length != 0
                     || observation.output_sha256.is_some()

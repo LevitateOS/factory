@@ -71,11 +71,19 @@ type RunAdmission struct {
 	Native    *execution.NativeLaunch    `json:"native,omitempty"`
 }
 
-// UsageEnd bounds the chargeable interval by the admitted execution deadline.
-// Recovery may settle much later; that wait cannot extend execution consent.
+// UsageEnd excludes time after an observed native stop or the admitted deadline.
+// Historical receipts without a stop time retain the deadline bound.
 func (r Run) UsageEnd(observed time.Time) time.Time {
 	if r.Deadline.Before(observed) {
-		return r.Deadline
+		observed = r.Deadline
+	}
+	if r.Native != nil && r.Native.Settled() && r.Native.Provenance.Process != nil {
+		if stopped := r.Native.Provenance.Process.StoppedAt; stopped != nil && stopped.Before(observed) {
+			observed = *stopped
+		}
+	}
+	if observed.Before(r.Started) {
+		return r.Started
 	}
 	return observed
 }

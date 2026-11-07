@@ -176,10 +176,12 @@ pub(super) fn run(
     } else {
         true
     };
+    let started_at = SystemTime::now();
+    let started_clock = Instant::now();
     {
         let mut state = shared.observation.lock().unwrap_or_else(|e| e.into_inner());
         state.pid = child.id();
-        state.started_at = SystemTime::now();
+        state.started_at = started_at;
         if let Ok(identity) = &identity {
             state.start_identity = identity.clone();
         }
@@ -290,6 +292,11 @@ pub(super) fn run(
         }
         std::thread::sleep(Duration::from_millis(10));
     }
+    // Anchor elapsed time to launch, independent of wall-clock corrections or
+    // later output persistence and product reconciliation.
+    let stopped_at = tree_retired
+        .then(|| started_at.checked_add(started_clock.elapsed()))
+        .flatten();
     // Slow artifact I/O starts only after the bounded child/tree control pass.
     // The owner still joins this work; no output write holds a live child owner.
     let output_complete = output
@@ -303,6 +310,7 @@ pub(super) fn run(
     state.exit = exit;
     state.reason = reason;
     state.tree_retired = tree_retired;
+    state.stopped_at = stopped_at;
     state.output_bytes = bytes.len();
     state.output_complete = output_complete;
     state.finished = true;

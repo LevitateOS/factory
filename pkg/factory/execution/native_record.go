@@ -96,6 +96,10 @@ func (r NativeRecord) Advances(prior NativeRecord) bool {
 		a, b := *old, *next
 		a.ExitCode, a.ExitSignal, b.ExitCode, b.ExitSignal = nil, nil, nil, nil
 		a.StartedAt, b.StartedAt = time.Time{}, time.Time{}
+		a.StoppedAt, b.StoppedAt = nil, nil
+		if old.StoppedAt != nil && (next.StoppedAt == nil || !old.StoppedAt.Equal(*next.StoppedAt)) {
+			return false
+		}
 		if a != b || !old.StartedAt.Equal(next.StartedAt) || old.ExitCode != nil && !reflect.DeepEqual(old.ExitCode, next.ExitCode) || old.ExitSignal != nil && !reflect.DeepEqual(old.ExitSignal, next.ExitSignal) {
 			return false
 		}

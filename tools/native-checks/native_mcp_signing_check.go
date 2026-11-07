@@ -1428,9 +1428,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("original CLI resources were not recovered")
 		}
 		coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
+		expectedOutcome := factory.Failed
+		if !input.Live {
+			expectedOutcome = factory.Succeeded // Process outcome; the fixture's product result remains blocked.
+		}
 		stopped, err := coordinator.Stop(ctx, input.Run)
-		if err != nil || !stopped.Confirmed || stopped.Uncertain || stopped.Outcome != string(factory.Failed) {
-			return fmt.Errorf("original deadline run remains unsettled: %v %+v", err, stopped)
+		if err != nil || !stopped.Confirmed || stopped.Uncertain || stopped.Outcome != string(expectedOutcome) {
+			return fmt.Errorf("original retained run remains unsettled: %v %+v", err, stopped)
 		}
 		current, err := db.FactoryRun(ctx, input.Run)
 		if err != nil {
@@ -1453,10 +1457,21 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return err
 		}
 		var usage factory.Usage
-		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.Deadline) || !usage.StartedAt.Equal(prior.Started) {
-			return errors.New("recovered deadline usage includes offline settlement delay")
+		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.UsageEnd(time.Now())) || !usage.StartedAt.Equal(prior.Started) {
+			return errors.New("recovered usage includes offline settlement delay")
 		}
-		fmt.Println("PASS: exact original deadline run recovered and settled failed without relaunch; source usage remains one admitted minute")
+		if !input.Live {
+			stopTime := prior.Native.Provenance.Process.StoppedAt
+			if stopTime == nil || !usage.EndedAt.Equal(*stopTime) || !stopTime.Before(prior.Deadline) || a.Outcome != factory.NeedsHuman {
+				return errors.New("original early stop or incomplete product result was not retained")
+			}
+			if _, err = rawDB.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{native,provenance,process,stopped_at}',to_jsonb($2::text)) WHERE id=$1`, input.Run, stopTime.Add(time.Second).Format(time.RFC3339Nano)); err == nil || !strings.Contains(err.Error(), "native process stop cannot change") {
+				return fmt.Errorf("database did not enforce the recorded stop timestamp: %v", err)
+			}
+			fmt.Println("PASS: original early-stopped process recovered without inference replay; usage ends at its retained immutable native stop, excluding offline delay; product result remains blocked")
+		} else {
+			fmt.Println("PASS: exact original deadline run recovered and settled failed without relaunch; source usage remains one admitted minute")
+		}
 		return nil
 	}
 	if input.MuseLogin {
@@ -1507,6 +1522,15 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			used, err := db.UsageTotal(ctx, repository, input.Connection)
 			if err != nil || used < 1 || assignment.Connection != input.Connection || run.Native.Provenance.TrustMode != execution.NativeCLIProvider || run.Native.Provenance.Custody.State != execution.NotAcquired {
 				return errors.New("CLI source usage or authentication provenance differs")
+			}
+			var rawUsage []byte
+			if err = rawDB.QueryRowContext(ctx, `SELECT data FROM factory_usage WHERE run=$1`, input.Run).Scan(&rawUsage); err != nil {
+				return err
+			}
+			var usage factory.Usage
+			stopped := run.Native.Provenance.Process.StoppedAt
+			if stopped == nil || json.Unmarshal(rawUsage, &usage) != nil || !usage.EndedAt.Equal(*stopped) || !run.UsageEnd(run.Deadline.Add(time.Hour)).Equal(*stopped) {
+				return errors.New("CLI usage includes delay after the retained native stop")
 			}
 		}
 		fmt.Println("PASS: actual coordinator settlement retains the worker's explicit blocked result and exact retired native resources")

@@ -92,6 +92,8 @@ pub struct MuseObservation {
     pub pid: u32,
     pub uid: u32,
     pub started_unix_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stopped_unix_ms: Option<u64>,
     pub finished: bool,
     pub tree_retired: bool,
     pub output_complete: bool,

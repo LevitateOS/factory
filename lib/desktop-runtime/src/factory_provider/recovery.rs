@@ -132,6 +132,7 @@ struct RecordedProcess {
     start_identity: String,
     pid: u32,
     started_at: String,
+    stopped_at: Option<String>,
     executable: String,
     executable_sha256: String,
     #[serde(rename = "exit_code")]
@@ -336,7 +337,7 @@ impl NativeRecovery {
                 "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":true},
                 "receipt":{"worker_uid":0,"connector_uid":process.uid,"service":process.service,"namespace_pid":0,"host_pid":process.pid,
                     "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
-                    "started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}}))?;
+                    "started_unix_ms":process.started_unix_ms,"stopped_unix_ms":process.stopped_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}}))?;
             self.context.current()?;
             let response = self
                 .products
@@ -524,6 +525,17 @@ impl NativeRecovery {
         if let Some(process) = &native.process {
             let started = OffsetDateTime::parse(&process.started_at, &Rfc3339)
                 .map_err(|_| refused("CLI process time invalid"))?;
+            if let Some(stopped) = &process.stopped_at {
+                let stopped = OffsetDateTime::parse(stopped, &Rfc3339)
+                    .map_err(|_| refused("CLI stop time invalid"))?;
+                if observed
+                    .stopped_unix_ms
+                    .map(|ms| i128::from(ms) * 1_000_000)
+                    != Some(stopped.unix_timestamp_nanos())
+                {
+                    return Err(refused("CLI stop time differs"));
+                }
+            }
             let connector = native
                 .connector
                 .as_ref()

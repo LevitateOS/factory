@@ -18,6 +18,7 @@ type NativeReceiptObservation struct {
 	PID            int    `json:"namespace_pid"`
 	HostPID        int    `json:"host_pid,omitempty"`
 	StartedUnixMS  int64  `json:"started_unix_ms"`
+	StoppedUnixMS  int64  `json:"stopped_unix_ms,omitempty"`
 	ExitCode       *int   `json:"exit_code"`
 	ExitSignal     *int   `json:"exit_signal"`
 }
@@ -32,6 +33,7 @@ type NativeCustodyObservation struct {
 // A receipt is at most exited evidence; root retirement stays independent.
 func ObserveNativeReceipt(prior NativeRecord, receipt NativeReceiptObservation, custody *NativeCustodyObservation, desktopUID int) (NativeRecord, error) {
 	if prior.Validate() != nil || prior.Intent == "" || receipt.StartedUnixMS <= 0 ||
+		receipt.StoppedUnixMS != 0 && receipt.StoppedUnixMS < receipt.StartedUnixMS ||
 		receipt.ExitCode != nil && (*receipt.ExitCode < 0 || *receipt.ExitCode > 255) ||
 		receipt.ExitSignal != nil && (*receipt.ExitSignal < 1 || *receipt.ExitSignal > 64) ||
 		receipt.ExitCode != nil && receipt.ExitSignal != nil {
@@ -41,6 +43,10 @@ func ObserveNativeReceipt(prior NativeRecord, receipt NativeReceiptObservation, 
 	next.Provenance.Process = &NativeProcess{InvocationID: receipt.Invocation, SystemInstance: receipt.SystemInstance,
 		StartIdentity: receipt.StartIdentity, PID: receipt.PID, StartedAt: time.UnixMilli(receipt.StartedUnixMS).UTC(),
 		Executable: prior.Tool.Executable, ExecutableSHA256: prior.Tool.SHA256, ExitCode: receipt.ExitCode}
+	if receipt.StoppedUnixMS != 0 {
+		stopped := time.UnixMilli(receipt.StoppedUnixMS).UTC()
+		next.Provenance.Process.StoppedAt = &stopped
+	}
 	if receipt.ExitSignal != nil {
 		// Native signal numbers have one lossless canonical string projection.
 		signal := strconv.Itoa(*receipt.ExitSignal)

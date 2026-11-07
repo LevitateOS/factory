@@ -79,15 +79,16 @@ type NativeIsolation struct {
 // Local executable paths are server-side metadata, never browser instructions.
 // The digest identifies the captured bytes of this invocation across updates.
 type NativeProcess struct {
-	InvocationID     string    `json:"invocation_id"`
-	SystemInstance   string    `json:"system_instance"`
-	StartIdentity    string    `json:"start_identity"`
-	PID              int       `json:"pid"`
-	StartedAt        time.Time `json:"started_at"`
-	Executable       string    `json:"executable"`
-	ExecutableSHA256 string    `json:"executable_sha256"`
-	ExitCode         *int      `json:"exit_code"`
-	ExitSignal       *string   `json:"exit_signal"`
+	InvocationID     string     `json:"invocation_id"`
+	SystemInstance   string     `json:"system_instance"`
+	StartIdentity    string     `json:"start_identity"`
+	PID              int        `json:"pid"`
+	StartedAt        time.Time  `json:"started_at"`
+	StoppedAt        *time.Time `json:"stopped_at,omitempty"`
+	Executable       string     `json:"executable"`
+	ExecutableSHA256 string     `json:"executable_sha256"`
+	ExitCode         *int       `json:"exit_code"`
+	ExitSignal       *string    `json:"exit_signal"`
 }
 
 // Released confirms retirement of THIS run's delivered credential material and
@@ -283,6 +284,7 @@ func validNative(n NativeProvenance) bool {
 		filepath.IsAbs(p.Executable) && collaboration.ValidText(p.Executable, 4096) && validDigest(p.ExecutableSHA256) &&
 		(p.ExitCode == nil || *p.ExitCode >= 0 && *p.ExitCode <= 255) &&
 		(p.ExitSignal == nil || collaboration.ValidText(*p.ExitSignal, 128)) &&
+		(p.StoppedAt == nil || !p.StoppedAt.Before(p.StartedAt) && (p.ExitCode != nil || p.ExitSignal != nil)) &&
 		(p.ExitCode == nil || p.ExitSignal == nil)
 }
 

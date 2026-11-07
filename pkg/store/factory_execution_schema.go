@@ -69,7 +69,7 @@ BEGIN
  old_process := NULLIF(prior#>'{provenance,process}','null'::jsonb);
  new_process := NULLIF(next#>'{provenance,process}','null'::jsonb);
  IF old_process IS NOT NULL THEN
-  IF (old_process - 'exit_code' - 'exit_signal' - 'started_at') IS DISTINCT FROM (new_process - 'exit_code' - 'exit_signal' - 'started_at')
+  IF (old_process - 'exit_code' - 'exit_signal' - 'started_at' - 'stopped_at') IS DISTINCT FROM (new_process - 'exit_code' - 'exit_signal' - 'started_at' - 'stopped_at')
    OR (old_process->>'started_at')::timestamptz IS DISTINCT FROM (new_process->>'started_at')::timestamptz THEN
    RAISE EXCEPTION 'native process identity is immutable';
   END IF;
@@ -78,8 +78,17 @@ BEGIN
     RAISE EXCEPTION 'native process exit cannot change';
    END IF;
   END LOOP;
+  IF NULLIF(old_process->>'stopped_at','') IS NOT NULL AND
+   (old_process->>'stopped_at')::timestamptz IS DISTINCT FROM (new_process->>'stopped_at')::timestamptz THEN
+   RAISE EXCEPTION 'native process stop cannot change';
+  END IF;
  ELSIF prior->>'retirement'='retired' AND new_process IS NOT NULL THEN
   RAISE EXCEPTION 'retired run cannot acquire a process';
+ END IF;
+ IF NULLIF(new_process->>'stopped_at','') IS NOT NULL AND (
+  (new_process->>'stopped_at')::timestamptz < (new_process->>'started_at')::timestamptz OR
+  (NULLIF(new_process->'exit_code','null'::jsonb) IS NULL AND NULLIF(new_process->'exit_signal','null'::jsonb) IS NULL)) THEN
+  RAISE EXCEPTION 'native process stop requires terminal evidence';
  END IF;
  old_custody := prior#>'{provenance,custody}'; new_custody := next#>'{provenance,custody}';
  IF coalesce(old_custody->>'acquisition_id','')!='' THEN

@@ -92,6 +92,9 @@ fn valid(intent: &LaunchIntent, process: &MuseObservation, output: &[u8]) -> boo
         && process.system_instance.len() == 36
         && process.start_identity.parse::<u64>().is_ok_and(|v| v > 0)
         && process.started_unix_ms > 0
+        && process
+            .stopped_unix_ms
+            .is_none_or(|stopped| stopped >= process.started_unix_ms)
         && process.executable_sha256 == intent.tool_sha256()
         && process.prompt_sha256
             == intent

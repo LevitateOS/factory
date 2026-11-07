@@ -217,6 +217,17 @@ mod connector {
                 .as_millis()
                 .try_into()
                 .map_err(io::Error::other)?,
+            stopped_unix_ms: state
+                .stopped_at
+                .map(|stopped| {
+                    stopped
+                        .duration_since(UNIX_EPOCH)
+                        .map_err(io::Error::other)?
+                        .as_millis()
+                        .try_into()
+                        .map_err(io::Error::other)
+                })
+                .transpose()?,
             finished: state.finished,
             tree_retired: state.finished && state.tree_retired,
             output_complete: state.finished && state.output_complete,
