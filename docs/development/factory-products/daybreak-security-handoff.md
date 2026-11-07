@@ -49,11 +49,14 @@ worker-check deadlines. The audit's A17 correction records the actual long-setup
 timeout/refusal and worker/restart evidence; no provider inference or installed
 gate is qualified. Relevant owners: `lib/execution-protocol/src/lib.rs`,
 `cmd/soda-factory-broker/src/{main,prepared_setup}.rs`, the preparer service and
-`cmd/soda-factory-worker/src/agent_environment.rs`. Concurrent long preparation
-and cross-run cancellation remain unverified: `prepare()` still holds the global
-broker state lock while waiting. Closing this requires scoped serialization and
-actual overlapping preparation/cancellation evidence without losing exact-run
-retirement or the existing capacity exclusion.
+`cmd/soda-factory-worker/src/agent_environment.rs`. Setup now retains its per-run
+directory lock while releasing global admission state, and active trees reserve
+their full storage charge instead of being walked. The audit records actual
+overlapping live preparation, independent completion, cross-run cancellation and
+exact retirement. Remaining proof: same-run waiter and directory-replacement
+races, saturated capacity/free-space refusal, lost replies and restart during
+overlap, with matching resource/retirement receipts. Those remain dependencies
+of the existing D3/lifecycle gates.
 
 The first worker-budget fixture, `/home/vince/tmp/fworker-budget7.zndC19`, expired
 its twelve-second observer during initialization. Broker run

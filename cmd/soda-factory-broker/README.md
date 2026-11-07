@@ -19,6 +19,11 @@ environment. Outer native waits accommodate those limits and still observe
 cancellation. This changes time budgets only; the existing offline tools,
 memory, output and workspace bounds still apply.
 
+Setup waits retain an exclusive lock on their immutable run directory, releasing
+the global admission lock. Same-run operations wait outside the global lock and
+recheck directory identity before acting. Active preparations reserve their full
+128 MiB charge; quota accounting walks frozen trees and skips mutable ones.
+
 Native standing preparations also use `soda-factory-context@.service` for bounded
 Git context reads and candidate import. Install this template with the preparer
 binary. It mounts the exact prepared repository, base bundle and staged incremental

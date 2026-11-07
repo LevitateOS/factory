@@ -54,8 +54,11 @@ evidence and limitations.
 Reviewed setup/check time budgets now use an optional approved `setup-limits.json`
 file, including the worker's environment check. Actual long-setup, timeout/refusal,
 worker-check and retirement/restart evidence is in A17. Memory/storage budgets,
-dependency provisioning and concurrent long-preparation qualification remain open;
-the existing broker state lock still serializes preparation. No old row is closed.
+dependency provisioning and broader concurrent/installed qualification remain open.
+Per-run preparation locking and active storage reservations passed actual overlap,
+independent completion/cancellation and exact retirement checks recorded in A17.
+Same-run waiter/replacement races, saturated capacity and overlap recovery remain
+unqualified. No old row is closed.
 Further owner decisions select enabled GitHub merge methods, GitHub-connected
 drafts/history and explicit provider/model/paying-account selection per role.
 The A07 Go contract now preserves method, reviewed candidate and provider result

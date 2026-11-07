@@ -18,6 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() == 2 && args[1] == "preparation" {
         return preparation_check(&root);
     }
+    if args.len() == 2 && args[1] == "preparation-parallel" {
+        return parallel_preparations(&root);
+    }
     if args.len() == 5 && args[4] == "preparation-managed" {
         return managed_preparations(
             &root,
@@ -282,6 +285,146 @@ fn managed_preparations(
     } else {
         println!("PASS: isolated Node artifact build and bounded diagnostic refusal retain exact scoped retirement evidence");
     }
+    Ok(())
+}
+
+fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::factory_provider::{AgentCancellation, Broker, Role};
+    use soda_execution_protocol::ApprovedFiles;
+    use std::collections::BTreeMap;
+    use std::time::Instant;
+    let bundle = fs::read(std::env::var("SODA_NATIVE_CHECK_BUNDLE")?)?;
+    let candidate = std::env::var("SODA_NATIVE_CHECK_COMMIT")?;
+    let digest: String = Sha256::digest(&bundle)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    let mut identities = Vec::new();
+    for _ in 0..4 {
+        let mut bytes = [0u8; 16];
+        getrandom::fill(&mut bytes)?;
+        identities.push(
+            bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+        );
+    }
+    let profile = &identities[0];
+    let runs = &identities[1..];
+    fs::write(root.join("execution-runs.ids"), runs.join("\n"))?;
+    let mut slow = Vec::new();
+    let live = |run: &str| -> Result<bool, Box<dyn std::error::Error>> {
+        let output = Command::new("systemctl")
+            .args([
+                "show",
+                &format!("soda-factory-preparer@{run}.service"),
+                "-p",
+                "MainPID",
+                "--value",
+            ])
+            .output()?;
+        Ok(output.status.success()
+            && String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse::<u32>()
+                .is_ok_and(|pid| pid > 0))
+    };
+    for run in &runs[..2] {
+        let cancellation = AgentCancellation::default();
+        let signal = cancellation.clone();
+        let run = run.clone();
+        let profile = profile.clone();
+        let bundle = bundle.clone();
+        let candidate = candidate.clone();
+        let thread = std::thread::spawn(move || {
+            let approved = ApprovedFiles {
+                files: BTreeMap::from([
+                    ("setup.sh".into(), b"sleep 20\n".to_vec()),
+                    ("check.sh".into(), b"printf checked\n".to_vec()),
+                    (
+                        "setup-limits.json".into(),
+                        br#"{"setup_seconds":25,"check_seconds":1}"#.to_vec(),
+                    ),
+                ]),
+                tools: Vec::new(),
+            };
+            Broker::prepare_source(
+                &run,
+                &profile,
+                Role::Coder,
+                &bundle,
+                &approved,
+                &candidate,
+                signal,
+            )
+        });
+        slow.push((cancellation, thread));
+    }
+    let until = Instant::now() + Duration::from_secs(6);
+    while !live(&runs[0])? || !live(&runs[1])? {
+        if Instant::now() >= until {
+            return Err("both pending preparers were not live concurrently".into());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    println!("Observed two live preparers with separate exact-run identities");
+    let (cancel, thread) = slow.pop().ok_or("second preparer missing")?;
+    let started = Instant::now();
+    cancel.cancel();
+    let retired = Broker::retire_unlaunched(&runs[1], profile, &digest)?;
+    if thread
+        .join()
+        .map_err(|_| "cancelled preparation panicked")?
+        .is_ok()
+        || !retired
+        || started.elapsed() > Duration::from_secs(5)
+        || !live(&runs[0])?
+    {
+        return Err("independent preparation cancellation did not retire promptly while another remained live".into());
+    }
+    let approved = ApprovedFiles {
+        files: BTreeMap::from([
+            ("setup.sh".into(), b"printf prepared\n".to_vec()),
+            ("check.sh".into(), b"printf checked\n".to_vec()),
+        ]),
+        tools: Vec::new(),
+    };
+    let started = Instant::now();
+    let receipt = Broker::prepare_source(
+        &runs[2],
+        profile,
+        Role::Coder,
+        &bundle,
+        &approved,
+        &candidate,
+        AgentCancellation::default(),
+    )?;
+    if receipt.setup_exit != Some(0)
+        || receipt.check_exit != Some(0)
+        || started.elapsed() > Duration::from_secs(5)
+        || !live(&runs[0])?
+    {
+        return Err(
+            "independent preparation did not complete while the first remained live".into(),
+        );
+    }
+    if !Broker::retire_unlaunched(&runs[2], profile, &digest)? {
+        return Err("fast preparation retirement unconfirmed".into());
+    }
+    let (cancel, thread) = slow.pop().ok_or("first preparer missing")?;
+    cancel.cancel();
+    if thread
+        .join()
+        .map_err(|_| "first preparation panicked")?
+        .is_ok()
+        || !Broker::retire_unlaunched(&runs[0], profile, &digest)?
+        || Broker::next_profile_run(profile)?.is_some()
+    {
+        return Err("parallel preparation final retirement unconfirmed".into());
+    }
+    println!("PASS: overlapping live preparations; cancellation and an independent setup complete promptly; all exact staged roots retired");
     Ok(())
 }
 

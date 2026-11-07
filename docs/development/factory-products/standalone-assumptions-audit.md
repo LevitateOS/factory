@@ -81,9 +81,13 @@ corrections are now active; the old feature queue waits for their resolution.
   call ran; the worker check used only an owned dummy credential. The earlier
   fixture observer expired at twelve seconds; its preserved uncertainty is in
   the security handoff. Network/toolchain provisioning, memory/storage budgets,
-  representative cold builds and concurrent long-preparation qualification remain
-  unfinished. Longer setup still holds the existing broker state lock; this
-  check does not qualify parallel preparation or cancellation of another run.
+  representative cold builds and broader concurrent/installed qualification remain
+  unfinished. Setup waits now retain a per-run directory lock while releasing
+  global admission state; active preparations reserve their full storage charge.
+  `/home/vince/tmp/fsetup-parallel7.m62A3r/result.log` observed two live preparers,
+  prompt cancellation of one while the other remained live, independent setup
+  completion and exact root retirement. Same-run replacement/waiter races,
+  saturated capacity, lost replies and restart during overlap remain unqualified.
 
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write

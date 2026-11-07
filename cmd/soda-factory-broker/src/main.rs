@@ -25,7 +25,7 @@ const STATE: &str = "/run/soda-factory-broker";
 const MAX_REQUEST: usize = soda_execution_protocol::MAX_BROKER_FRAME;
 const MAX_RUNS: usize = 64;
 // Keep this reservation aligned with preparer@.service MemoryMax.
-const MAX_PREPARATION_CHARGE: u64 = 128 * 1024 * 1024;
+const MAX_PREPARATION_CHARGE: u64 = preparation_quota::MAX_ACTIVE_BYTES;
 const MIN_RUNTIME_RESERVE: u64 = 256 * 1024 * 1024;
 
 #[derive(Deserialize)]
@@ -889,7 +889,7 @@ fn runtime_capacity(extra: u64) -> io::Result<()> {
 
 fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Result<()> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     if source.join("owner.setup_sha256").try_exists()? {
         preparation_caller_current()?;
@@ -926,8 +926,8 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
         }
         clean_preparation(&preparations, run)?;
     }
-    runtime_capacity(MAX_PREPARATION_CHARGE)?;
-    preparation_quota::capacity(&preparations, MAX_PREPARATION_CHARGE)?;
+    let reserved = preparation_quota::capacity(&preparations, MAX_PREPARATION_CHARGE)?;
+    runtime_capacity(reserved + MAX_PREPARATION_CHARGE)?;
     let directory = preparations.join(run);
     DirBuilder::new().mode(0o700).create(&directory)?;
     let output = directory.join("output");
@@ -942,15 +942,19 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     file.sync_all()?;
     fs::set_permissions(&output, fs::Permissions::from_mode(0o777))?;
     File::open(&directory)?.sync_all()?;
-    let result = (|| {
-        start_preparation(&format!("soda-factory-preparer@{run}.service"), seconds)?;
+    // Retain this run's directory lock while releasing shared admission state.
+    // Other runs can prepare or retire; same-run callers wait outside that lock.
+    drop(_lock);
+    let started = start_preparation(&format!("soda-factory-preparer@{run}.service"), seconds);
+    let _lock = lock(&runs)?;
+    let result = started.and_then(|()| {
         prepared_checkout(&directory)?;
         private_dir(&output, 0o777)?;
-        runtime_capacity(0)?;
-        preparation_quota::capacity(&preparations, 0)?;
         fs::set_permissions(&output, fs::Permissions::from_mode(0o555))?;
+        let reserved = preparation_quota::capacity(&preparations, 0)?;
+        runtime_capacity(reserved)?;
         File::open(&directory)?.sync_all()
-    })();
+    });
     if result.is_err() {
         clean_preparation(&preparations, run)?;
     }
@@ -965,7 +969,7 @@ fn attest_reviewer(
     desktop_uid: u32,
 ) -> io::Result<u32> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -1036,7 +1040,7 @@ fn attest_provider_relay(
     desktop_uid: u32,
 ) -> io::Result<(u32, String)> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -1105,7 +1109,7 @@ fn arm_agent(
         return Err(denied("agent role invalid"));
     }
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -1645,7 +1649,7 @@ fn verified_retiring_profile(directory: &Path, profile: &str) -> io::Result<()> 
 // cancelled desktop attempt cannot claim its worker result was durably stored.
 fn quiesce_run(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -1684,7 +1688,7 @@ enum RetirementMode {
 
 fn retire(run: &str, profile: &str, digest: &str, mode: RetirementMode) -> io::Result<bool> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let preparations = preparations()?;
     let retiring = runs.join(format!(".retiring-{run}-{profile}-{digest}"));
     for entry in fs::read_dir(&runs)? {
@@ -1778,6 +1782,52 @@ fn lock(runs: &Path) -> io::Result<File> {
     Ok(file)
 }
 
+// The existing immutable run directory is also its operation lock, so no lock
+// files outlive retirement. A waiter must never act on a replacement directory
+// after the original was renamed/removed while it waited.
+fn lock_run(runs: &Path, run: &str) -> io::Result<(File, Option<File>)> {
+    if !id(run, 32) {
+        return Err(denied("broker run lock selector invalid"));
+    }
+    let global = lock(runs)?;
+    let path = runs.join(run);
+    let file = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok((global, None)),
+        Err(error) => return Err(error),
+    };
+    let identity = file.metadata()?;
+    if identity.uid() != 0 {
+        return Err(denied("broker run lock owner invalid"));
+    }
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+        return Ok((global, Some(file)));
+    }
+    if io::Error::last_os_error().kind() != io::ErrorKind::WouldBlock {
+        return Err(io::Error::last_os_error());
+    }
+    drop(global);
+    loop {
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+            break;
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+    let global = lock(runs)?;
+    let current = path.symlink_metadata()?;
+    if current.dev() != identity.dev() || current.ino() != identity.ino() {
+        return Err(denied("broker run changed while waiting"));
+    }
+    Ok((global, Some(file)))
+}
+
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -1828,7 +1878,7 @@ fn run_lifecycle(directory: &Path) -> io::Result<Option<bool>> {
 
 fn mark_root_launch(run: &str, profile: &str, digest: &str) -> io::Result<()> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let directory = runs.join(run);
     private_dir(&directory, 0o555)?;
     verified_profile(&directory, profile)?;
@@ -1968,7 +2018,7 @@ fn stage(
     digest: &str,
 ) -> io::Result<()> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     if matches!(
         &binding,
         source_binding::Binding::Preparation(_)

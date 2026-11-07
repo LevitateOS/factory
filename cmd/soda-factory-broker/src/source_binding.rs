@@ -155,7 +155,7 @@ pub(super) fn agent_setup(
         return Err(denied("agent preparation is not ready"));
     }
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, &source.run)?;
     let directory = runs.join(&source.run);
     private_dir(&directory, 0o555)?;
     verified_profile(&directory, profile)?;
@@ -207,7 +207,7 @@ pub(super) fn receipt(
     desktop_uid: u32,
 ) -> io::Result<SetupReceipt> {
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
     verified_profile(&source, profile)?;
@@ -309,7 +309,7 @@ pub(super) fn read(
         return Err(denied("context preparation is not ready"));
     }
     let runs = state()?;
-    let _lock = lock(&runs)?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
     preparation_caller_current()?;
     let source = runs.join(run);
     private_dir(&source, 0o555)?;
