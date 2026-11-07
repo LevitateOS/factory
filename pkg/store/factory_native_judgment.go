@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -56,6 +57,30 @@ func (s *Store) CheckNativeJudgmentSource(ctx context.Context, c factory.NativeJ
 	return err
 }
 
+// NativeJudgmentReady is a read-only preflight. BeginNativeJudgment repeats it
+// under the repository grant lock before reserving any source or dispatch.
+func (s *Store) NativeJudgmentReady(ctx context.Context, c factory.NativeJudgmentCapture, requiredMinutes int) error {
+	return nativeJudgmentRoom(ctx, s.db, c, requiredMinutes)
+}
+
+func nativeJudgmentRoom(ctx context.Context, q grantCommandSQL, c factory.NativeJudgmentCapture, requiredMinutes int) error {
+	source, err := nativeJudgmentSource(ctx, q, c)
+	if err != nil {
+		return err
+	}
+	var used, pending int
+	if err = q.QueryRowContext(ctx, `SELECT COALESCE(SUM(minutes),0) FROM factory_usage WHERE repository=$1 AND connection=$2`, c.Repository, c.Selection.Account).Scan(&used); err != nil {
+		return err
+	}
+	if err = q.QueryRowContext(ctx, `SELECT COUNT(*) FROM factory_commands WHERE type=$1 AND target=$2 AND principal=$3 AND finished='' AND id<>$4`, factory.CommandNativeJudgment, strconv.FormatInt(c.Repository, 10), c.Selection.Account, c.ID).Scan(&pending); err != nil {
+		return err
+	}
+	if pending > 0 || requiredMinutes <= 0 || requiredMinutes > source.AllowanceMinutes-used {
+		return ErrNativeJudgmentSource
+	}
+	return nil
+}
+
 // BeginNativeJudgment atomically captures the selected source, checks its shared
 // minute allowance and reserves one bounded call. Only fresh=true may dispatch.
 // Unknown sends stay reserved; restart never turns a missing receipt into a call.
@@ -72,18 +97,10 @@ func (s *Store) BeginNativeJudgment(ctx context.Context, c factory.NativeJudgmen
 	if err = lockGrantScopeTx(ctx, tx, c.Repository); err != nil {
 		return factory.Command{}, false, err
 	}
-	source, err := nativeJudgmentSource(ctx, tx, c)
-	if err != nil {
+	if err = nativeJudgmentRoom(ctx, tx, c, 1); err != nil {
 		return factory.Command{}, false, err
 	}
-	var used, pending int
-	if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(minutes),0) FROM factory_usage WHERE repository=$1 AND connection=$2`, c.Repository, c.Selection.Account).Scan(&used); err != nil {
-		return factory.Command{}, false, err
-	}
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM factory_commands WHERE type=$1 AND target=$2 AND principal=$3 AND finished='' AND id<>$4`, cmd.Type, cmd.Target, cmd.Principal, cmd.ID).Scan(&pending); err != nil {
-		return factory.Command{}, false, err
-	}
-	if pending > 0 || used >= source.AllowanceMinutes || c.DeadlineUnixMS <= time.Now().UnixMilli() || c.DeadlineUnixMS > time.Now().Add(30*time.Second).UnixMilli() {
+	if c.DeadlineUnixMS <= time.Now().UnixMilli() || c.DeadlineUnixMS > time.Now().Add(30*time.Second).UnixMilli() {
 		return factory.Command{}, false, ErrNativeJudgmentSource
 	}
 	saved, fresh, err := recordFactoryCommandTx(ctx, tx, cmd, time.Now())

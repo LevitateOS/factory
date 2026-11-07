@@ -564,10 +564,13 @@ and completed-receipt reuse. Native calls without repository scope refuse
 funding. Native worker consultations bind repository scope to their authenticated
 capability, preserving probability/choice/score and one-call batches on this
 source. Their existing discussion journal retains actual model/process usage;
-explicit repeats remain separate calls. Queue, delivery and contribution
-consumers remain unavailable until composed. Local fixture checks do not qualify
-complete planning/context, authenticated worker consultations or connected/
-installed subscription inference.
+explicit repeats remain separate calls. Native contribution assessments use
+that source in one three-question batch per currently admitted role, with source/
+allowance preflight and the existing claim/settlement rules. Unavailable sources
+leave assessments unclaimed. Queue and delivery consumers remain unavailable
+until composed. Local fixture checks do not qualify complete planning/context,
+authenticated worker consultations/contributions or connected/installed
+subscription inference.
 
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and

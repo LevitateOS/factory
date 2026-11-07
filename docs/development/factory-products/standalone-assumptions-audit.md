@@ -134,9 +134,22 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fnative-consultation9.IghMDx/result.log`, with declared tool,
   inputs and answers. This does not qualify the authenticated worker transport,
   its live admission/withdrawal races or subscription inference. Oversized/invalid
-  output still accounts usage and cannot become an answer. Queue comparisons,
-  delivery and contribution invitations remain unconnected. No native TypeSafe
-  fallback is supplied.
+  output still accounts usage and cannot become an answer. Native contribution
+  assessments now bind the existing review to each currently admitted role and
+  the selected judgment source. Each role receives the original three questions
+  in one batch; roles run sequentially within the existing assessment deadline.
+  Read-only source/allowance preflight leaves unavailable, busy or insufficiently
+  funded assessments unclaimed; atomic admission repeats the source check.
+  `/home/vince/tmp/fnative-contribution9.7jkXEb/result.log` proves the native
+  three-question result shape, unchanged usefulness threshold and shared source
+  readiness; role/admission/provider facts were declared and no invitation was
+  persisted. `/home/vince/tmp/fnative-judgment-capacity9.A7mwQz/result.log` also
+  proves refusal when the complete assessment exceeds remaining allowance. Live
+  worker/source admission through claim, inference, invitation and reply remains
+  unverified. Queue funding across repositories awaits an owner decision. Native
+  delivery lacks a complete current PR-material reader (`NativeMerges` does not
+  implement `ReadDeliveryMaterial`) and a bound delivery chooser. No native
+  TypeSafe fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and

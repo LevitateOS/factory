@@ -134,9 +134,13 @@ scoped-advice receipt check and its declared-input limits. Complete planning and
 worker context journeys still need qualification. Worker consultation primitives
 now use the same selected source and retain their single/batch contracts; A25
 records local typed-result/accounting proof and the pending authenticated worker
-journey. Queue/delivery/contribution consumers still need composition before
-dependent work resumes;
-the full automated pipeline remains required.
+journey. Contribution assessments now use sequential role batches with the
+original three questions, selected-source preflight and unchanged invitation
+gates; A25 records local batch/allowance proof and the pending live-worker
+journey. Queue funding across repositories awaits an owner decision. Delivery
+still needs complete current PR material (`NativeMerges` has no
+`ReadDeliveryMaterial`), then a bound selected-source chooser. The full automated
+pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

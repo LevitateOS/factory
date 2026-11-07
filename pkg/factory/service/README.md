@@ -573,7 +573,14 @@ The existing assessment post retains answers and the decision, without a second
 judgment journal. Cancellation/deadline blocks a late invitation, while a bounded
 detached settlement records the unavailable outcome. Source/reply/role currency
 is checked again by the store at settlement. `Drive` returns whether a source was
-claimed and any error; the persisted assessment remains authoritative.
+claimed and any error; the persisted assessment remains authoritative. Hosts
+with repository-selected funding may supply `ContributionJudgments`: readiness
+runs before claiming, then that host returns the same per-question call records.
+Native composition batches the three original formulations per role and visits
+roles sequentially, preserving the existing deadline, thresholds and settlement.
+Preflight checks enough remaining allowance for all role batches; atomic source
+admission still controls each actual call. Fixed-provider hosts keep their
+existing independent-call implementation.
 
 Each claimed assessment carries a private owner identity backed by a dedicated
 PostgreSQL advisory-lock session through settlement. The producer claims/settles

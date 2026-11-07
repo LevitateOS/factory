@@ -4665,6 +4665,22 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 					return err
 				}
 			}
+			if consultationKind == "choice" {
+				review := factory.ContributionReview{Roles: []factory.ContributionRole{{Assignment: strings.Repeat("1", 32), Profile: factory.MCPProfileBuilder}}, ProbabilityThreshold: factory.ContributionProbability, ConfidenceThreshold: factory.ContributionConfidence}
+				for i, question := range factory.ContributionQuestions {
+					a := response.Answers[strconv.Itoa(i)]
+					distribution := map[string]float64{}
+					for key, value := range a["probabilities"].(map[string]any) {
+						distribution[key] = value.(float64)
+					}
+					review.Calls = append(review.Calls, factory.ContributionCall{Assignment: review.Roles[0].Assignment, Question: question, Answer: factory.PriorityAnswer{Selected: a["choice"].(string), Confidence: a["confidence"].(float64), Probabilities: distribution, Model: fixture.Capture.Selection.Model}})
+				}
+				factory.SelectContribution(&review)
+				if review.State != "invited" || len(review.Calls) != len(factory.ContributionQuestions) {
+					return errors.New("batched contribution formulations lost their independent usefulness gate")
+				}
+				fmt.Println("PASS: three original contribution formulations retain their separate probabilities and existing usefulness threshold; role/admission declared, no invitation persisted")
+			}
 			fmt.Println("PASS: native consultation", consultationKind, "batch crossed private IPC, retained typed answers after restart and charged its exact source; tool/provider/input declared, authenticated worker journey pending")
 		}
 		if purpose {
@@ -4746,7 +4762,7 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		criteria := any(nil)
 		switch consultationKind {
 		case "choice":
-			criteria = map[string]any{"discussion": "Discuss the supplied fact.", "hold": "Wait for more evidence."}
+			criteria = factory.ContributionOptions()
 		case "score":
 			criteria = []any{"missing evidence", "sufficient evidence"}
 		case "noul":
@@ -4755,6 +4771,12 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 			return errors.New("unknown declared consultation kind")
 		}
 		fixture.Questions = map[string]factory.SystemOneWorkerQuestion{"first": {Instructions: "Assess the supplied disposable fact.", Criteria: criteria}, "second": {Instructions: "Independently assess the supplied disposable fact.", Criteria: criteria}}
+		if consultationKind == "choice" {
+			fixture.Questions = map[string]factory.SystemOneWorkerQuestion{}
+			for i, question := range factory.ContributionQuestions {
+				fixture.Questions[strconv.Itoa(i)] = factory.SystemOneWorkerQuestion{Instructions: question, Criteria: factory.ContributionOptions()}
+			}
+		}
 		prompt, err = factory.NativeConsultationPrompt(consultationKind, state, fixture.Questions)
 		if err != nil {
 			return err
@@ -4802,6 +4824,9 @@ func judgmentJournalFixture(profile, repository string) error {
 	if _, _, err = db.BeginNativeJudgment(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("withdrawn source funded a judgment")
 	}
+	if err = db.NativeJudgmentReady(ctx, capture, 1); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("withdrawn source passed judgment readiness")
+	}
 	source.Active = true
 	if _, err = db.ApplyFactoryGrant(ctx, "declared-source-owner", source); err != nil {
 		return err
@@ -4809,6 +4834,12 @@ func judgmentJournalFixture(profile, repository string) error {
 	priorTotal, err := db.UsageTotal(ctx, repo, source.Connection)
 	if err != nil {
 		return err
+	}
+	if err = db.NativeJudgmentReady(ctx, capture, 1); err != nil {
+		return fmt.Errorf("configured source readiness: %w", err)
+	}
+	if err = db.NativeJudgmentReady(ctx, capture, source.AllowanceMinutes-priorTotal+1); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("readiness accepted an assessment beyond its remaining allowance")
 	}
 	command, fresh, err := db.BeginNativeJudgment(ctx, capture)
 	if err != nil || !fresh {
@@ -4819,6 +4850,9 @@ func judgmentJournalFixture(profile, repository string) error {
 	}
 	other := capture
 	other.ID = strings.Repeat("f", 32)
+	if err = db.NativeJudgmentReady(ctx, other, 1); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("pending call did not hold readiness")
+	}
 	if _, _, err = db.BeginNativeJudgment(ctx, other); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("unsettled judgment did not retain its source reservation")
 	}
@@ -4840,6 +4874,9 @@ func judgmentJournalFixture(profile, repository string) error {
 	if total, err := db.UsageTotal(ctx, repo, source.Connection); err != nil || total != priorTotal+1 {
 		return errors.New("judgment result replay duplicated its source usage")
 	}
+	if err = db.NativeJudgmentReady(ctx, other, 1); err != nil {
+		return fmt.Errorf("retired call kept readiness reserved: %w", err)
+	}
 	retained, err := db.FactoryCommand(ctx, capture.ID)
 	if err != nil || retained.Finished == "" || retained.Outcome != string(result) {
 		return errors.New("judgment result was not retained")
@@ -4855,7 +4892,7 @@ func judgmentJournalFixture(profile, repository string) error {
 	if err = db.CheckNativeJudgmentSource(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("withdrawn judgment source remained current")
 	}
-	fmt.Println("PASS: actual PostgreSQL judgment source admission, one pending call, exact selection, result/usage replay and withdrawal; provider/process facts declared, no native inference")
+	fmt.Println("PASS: actual PostgreSQL judgment source admission, read-only readiness, one pending call, exact selection, result/usage replay and withdrawal; provider/process facts declared, no native inference")
 	return nil
 }
 

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
@@ -69,7 +70,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
 	inputs := NativeInputSource{native}
 	judgments := NativeJudgments{native}
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: newNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, ContextChooser: judgments}, binding)
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: newNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, ContextChooser: judgments, CurrentChooser: func() control.ProductJudgment { return judgments }}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {

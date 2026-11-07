@@ -33,6 +33,17 @@ type ContributionReply struct {
 	Body  string `json:"body"`
 }
 
+func ContributionJudgmentState(review ContributionReview, role ContributionRole) any {
+	return map[string]any{"source": map[string]any{"body": review.Body, "actor": review.SourceActor, "context": review.Context, "revision": review.Revision}, "existing_replies": review.Replies, "eligible_running_role": role}
+}
+
+func ContributionOptions() map[string]any {
+	return map[string]any{
+		"contribute":      "This role can add a specific useful missing correction, risk or evidence within its admitted work.",
+		"no_contribution": "A reply would be redundant, courtesy, ambiguous, already answered, irrelevant or outside its admitted work.",
+	}
+}
+
 type ContributionReview struct {
 	Source               string              `json:"source"`
 	SourceKind           string              `json:"source_kind,omitempty"`

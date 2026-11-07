@@ -91,8 +91,23 @@ a real admitted worker through each single/batch contract and its discussion
 journal; prove refusal/cancellation and no adoption across worker expiry/stop,
 capability/source withdrawal and interrupted-result recovery. Those checks depend
 on the production start/official Muse tool and admitted worker, remain
-unverified, and close no broad gate. Queue, delivery and contribution composition
-remains absent; Coding/Review permission grants no judgment-source authority.
+unverified, and close no broad gate. Contribution composition now uses
+`runtime/native_contributions.go`, `service/contributions.go` and the shared
+source preflight/transaction rules in `store/factory_native_judgment.go`. It
+checks the captured review, replies and current worker admission before spending
+and adoption. The existing owner/settlement still controls invitation authority.
+`/home/vince/tmp/fnative-contribution9.7jkXEb/result.log` proves the actual native
+three-question output and unchanged usefulness threshold with declared role/
+admission/provider facts; no invitation was persisted. The affected allowance
+check in `/home/vince/tmp/fnative-judgment-capacity9.A7mwQz/result.log` proves
+busy/withdrawn/insufficient sources cannot pass readiness. Remaining evidence:
+use an actual admitted worker and official Muse start to prove claim → original
+result/accounting → single invitation → scoped reply, plus source/reply edits,
+worker/source withdrawal, deadline and interrupted-owner refusal. This depends
+on the still-open production-start/worker journey; source compilation and these
+component checks do not close it. Queue funding and complete current delivery
+material/chooser remain pending. Coding/Review permission grants no
+judgment-source authority.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

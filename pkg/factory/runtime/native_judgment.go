@@ -11,6 +11,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
 )
@@ -184,19 +185,14 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 		if s.admit == nil || s.admit(ctx) != nil {
 			return empty, factoryservice.ErrPostJudgmentPending
 		}
-		policy, e := s.Store.RepositoryPolicy(ctx, s.repository)
-		if e != nil || policy.Judgments == nil {
-			return empty, factoryservice.ErrPostJudgmentPending
+		selection, tool, e := s.selection(ctx)
+		if e != nil {
+			return empty, e
 		}
-		source, e := s.MuseLoginSource(ctx)
-		if e != nil || !source.JudgmentAvailable || source.Connection != policy.Judgments.Account || !slices.Contains(source.JudgmentModels, policy.Judgments.Model) {
-			return empty, factoryservice.ErrPostJudgmentPending
+		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: selection, PromptSHA256: sha, OptionsSHA256: optionsDigest, OutputKind: outputKind, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		if deadline, ok := ctx.Deadline(); ok && deadline.UnixMilli() < capture.DeadlineUnixMS {
+			capture.DeadlineUnixMS = deadline.UnixMilli()
 		}
-		tool, e := s.InspectTool(ctx, policy.Judgments.Harness)
-		if e != nil || tool.Native == nil {
-			return empty, factoryservice.ErrPostJudgmentPending
-		}
-		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: *policy.Judgments, PromptSHA256: sha, OptionsSHA256: optionsDigest, OutputKind: outputKind, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
 		if s.worker != nil {
 			capture.WorkerCapability, capture.WorkerScope = s.worker.ID, s.worker.ScopeDigest()
 			if deadline := time.Unix(s.worker.DeadlineUnix, 0).UnixMilli(); deadline < capture.DeadlineUnixMS {
@@ -316,4 +312,20 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 		return nativeJudgmentOutcome{}, err
 	}
 	return outcome, nil
+}
+
+func (s nativeRepositoryJudgment) selection(ctx context.Context) (factory.RoleSelection, execution.ToolObservation, error) {
+	policy, e := s.Store.RepositoryPolicy(ctx, s.repository)
+	if e != nil || policy.Judgments == nil {
+		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentPending
+	}
+	source, e := s.MuseLoginSource(ctx)
+	if e != nil || !source.JudgmentAvailable || source.Connection != policy.Judgments.Account || !slices.Contains(source.JudgmentModels, policy.Judgments.Model) {
+		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentPending
+	}
+	tool, e := s.InspectTool(ctx, policy.Judgments.Harness)
+	if e != nil || tool.Native == nil {
+		return factory.RoleSelection{}, execution.ToolObservation{}, factoryservice.ErrPostJudgmentPending
+	}
+	return *policy.Judgments, tool, nil
 }

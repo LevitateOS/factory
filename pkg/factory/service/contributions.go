@@ -20,6 +20,13 @@ type Contributions struct {
 
 var ErrContributionsUnavailable = errors.New("contribution store is unavailable")
 
+// ContributionJudgments lets a host bind this assessment to repository funding
+// and preserve its independent questions in bounded provider batches.
+type ContributionJudgments interface {
+	ContributionsReady(context.Context, factory.ContributionReview) (bool, error)
+	JudgeContributions(context.Context, factory.ContributionReview) ([]factory.ContributionCall, error)
+}
+
 type contributionAnswer struct {
 	call factory.ContributionCall
 	err  error
@@ -50,6 +57,15 @@ func (s Contributions) Drive(ctx context.Context) (claimed bool, err error) {
 		}
 		if len(review.Roles) == 0 {
 			continue
+		}
+		if source, ok := s.Chooser.(ContributionJudgments); ok {
+			ready, err := source.ContributionsReady(ctx, review)
+			if err != nil {
+				lastError = err
+			}
+			if err != nil || !ready {
+				continue
+			}
 		}
 		owner, err := s.Store.OwnContributions(ctx)
 		if err != nil {
@@ -92,6 +108,9 @@ func (s Contributions) assess(ctx context.Context, owner *store.ContributionOwne
 }
 
 func judgeContributions(ctx context.Context, judge control.ProductJudgment, review factory.ContributionReview) ([]factory.ContributionCall, error) {
+	if source, ok := judge.(ContributionJudgments); ok {
+		return source.JudgeContributions(ctx, review)
+	}
 	// All prompts and state are fixed before launching the independent calls.
 	// Each role gets the same binary judgment shape used in evaluation; role
 	// selection afterward cannot dilute its probability across other candidates.
@@ -102,7 +121,7 @@ func judgeContributions(ctx context.Context, judge control.ProductJudgment, revi
 	}
 	requests := []request{}
 	for _, role := range review.Roles {
-		state := map[string]any{"source": map[string]any{"body": review.Body, "actor": review.SourceActor, "context": review.Context, "revision": review.Revision}, "existing_replies": review.Replies, "eligible_running_role": role}
+		state := factory.ContributionJudgmentState(review, role)
 		for _, question := range factory.ContributionQuestions {
 			requests = append(requests, request{role, question, state})
 		}
@@ -113,10 +132,7 @@ func judgeContributions(ctx context.Context, judge control.ProductJudgment, revi
 		wg.Add(1)
 		go func(index int, input request) {
 			defer wg.Done()
-			answer, err := judge.Select(ctx, input.state, input.question, map[string]any{
-				"contribute":      "This role can add a specific useful missing correction, risk or evidence within its admitted work.",
-				"no_contribution": "A reply would be redundant, courtesy, ambiguous, already answered, irrelevant or outside its admitted work.",
-			})
+			answer, err := judge.Select(ctx, input.state, input.question, factory.ContributionOptions())
 			results[index] = contributionAnswer{factory.ContributionCall{Assignment: input.role.Assignment, Question: input.question, Answer: answer}, err}
 		}(index, input)
 	}

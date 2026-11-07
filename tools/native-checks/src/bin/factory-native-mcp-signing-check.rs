@@ -399,7 +399,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             let answer=match kind {
                 "noul"=>serde_json::json!({"type":"noul","noul":0.8}),
                 "score"=>serde_json::json!({"type":"score","score":0.75,"confidence":0.9,"legend":{"0":question["criteria"][0],"1":question["criteria"][1]},"probabilities":{"0":0.25,"1":0.75}}),
-                "choice"=>serde_json::json!({"type":"choice","choice":"discussion","confidence":1,"probabilities":{"discussion":1,"hold":0}}),
+                "choice"=>serde_json::json!({"type":"choice","choice":"contribute","confidence":0.9,"probabilities":{"contribute":0.95,"no_contribution":0.05}}),
                 _=>return Err("unknown consultation type".into()),
             };
             answers.insert(id.clone(),answer);
