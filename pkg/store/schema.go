@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 93
+const schemaFormatVersion = 94
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -18,8 +18,8 @@ const schemaFormatVersion = 93
 var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
-	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY, application_hosting BOOLEAN NOT NULL DEFAULT true)`,
-	`INSERT INTO schema_version(version) VALUES(93)`,
+	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY, application_hosting BOOLEAN NOT NULL DEFAULT true, appliance_compatibility BOOLEAN NOT NULL DEFAULT true)`,
+	`INSERT INTO schema_version(version) VALUES(94)`,
 	`CREATE TABLE factory_departments(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_intent_heads(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), revision TEXT NOT NULL)`,
 	`CREATE TABLE factory_intent_revisions(id TEXT PRIMARY KEY, intent TEXT NOT NULL REFERENCES factory_intent_heads(id), data JSONB NOT NULL)`,
@@ -33,12 +33,6 @@ var schemaStatements = []string{
 	`CREATE TABLE factory_intent_allowance_heads(intent TEXT PRIMARY KEY REFERENCES factory_intent_heads(id), owner_id BIGINT NOT NULL CHECK(owner_id>0), revision TEXT NOT NULL)`,
 	`CREATE TABLE factory_intent_allowances(id TEXT PRIMARY KEY, intent TEXT NOT NULL REFERENCES factory_intent_allowance_heads(intent), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_intent_reviews(result_revision TEXT PRIMARY KEY REFERENCES factory_intent_revisions(id), data JSONB NOT NULL)`,
-	`CREATE TABLE users(id INTEGER PRIMARY KEY CHECK(id>0), login TEXT NOT NULL, name TEXT NOT NULL DEFAULT '')`,
-	`CREATE TABLE keys(id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), public TEXT NOT NULL, fingerprint TEXT NOT NULL, UNIQUE(user_id,fingerprint))`,
-	`CREATE TABLE projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, repository_id INTEGER NOT NULL UNIQUE, owner_id INTEGER NOT NULL REFERENCES users(id), repository TEXT NOT NULL, ip TEXT NOT NULL DEFAULT '', ready BOOLEAN NOT NULL DEFAULT FALSE, creation_profile JSONB CHECK(creation_profile IS NULL OR octet_length(creation_profile::text)<=1024))`,
-	`CREATE TABLE memberships(project_id TEXT NOT NULL REFERENCES projects(id), user_id INTEGER NOT NULL REFERENCES users(id), login TEXT NOT NULL, PRIMARY KEY(project_id,user_id), UNIQUE(project_id,login))`,
-	`CREATE TABLE project_member_access(project_id TEXT NOT NULL, user_id INTEGER NOT NULL, revision BIGINT NOT NULL CHECK(revision>0), held BOOLEAN NOT NULL, rejoin BOOLEAN NOT NULL, data JSONB NOT NULL, PRIMARY KEY(project_id,user_id), FOREIGN KEY(project_id,user_id) REFERENCES memberships(project_id,user_id))`,
-	`CREATE TABLE grant_key_check(id INTEGER PRIMARY KEY CHECK(id=1), ciphertext BYTEA NOT NULL)`,
 	`CREATE TABLE factory_runs(
 seq BIGINT GENERATED ALWAYS AS IDENTITY,
 id TEXT PRIMARY KEY,
@@ -139,30 +133,15 @@ PRIMARY KEY(scan,subject))`,
 	FactoryStallEventsDDL,
 	FactoryMCPCapabilitiesDDL,
 	`CREATE TABLE project_environment_grants(repository BIGINT PRIMARY KEY CHECK(repository>0), revision INTEGER NOT NULL, data JSONB NOT NULL)`,
-	`CREATE TABLE project_requirement_decisions(id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), predecessor TEXT NOT NULL DEFAULT '', data JSONB NOT NULL)`,
-	`CREATE TABLE project_requirement_heads(project_id TEXT PRIMARY KEY REFERENCES projects(id), decision TEXT NOT NULL)`,
-	`CREATE TABLE project_approval_decisions(id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), predecessor TEXT NOT NULL DEFAULT '', data JSONB NOT NULL)`,
-	`CREATE TABLE project_approval_heads(project_id TEXT PRIMARY KEY REFERENCES projects(id), decision TEXT NOT NULL)`,
-	`CREATE TABLE identity_connections(id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL, generation INTEGER NOT NULL, state TEXT NOT NULL, data JSONB NOT NULL, credential BYTEA NOT NULL)`,
-	`CREATE TABLE identity_grants(id TEXT PRIMARY KEY, connection_id TEXT NOT NULL REFERENCES identity_connections(id), user_id INTEGER NOT NULL, project_id TEXT NOT NULL, revision INTEGER NOT NULL, revoked BOOLEAN NOT NULL, data JSONB NOT NULL)`,
-	`CREATE UNIQUE INDEX identity_grant_recipient ON identity_grants(connection_id,user_id,project_id) WHERE revoked=FALSE`,
-	`CREATE TABLE identity_leases(id TEXT PRIMARY KEY, connection_id TEXT NOT NULL REFERENCES identity_connections(id), data JSONB NOT NULL)`,
-	`CREATE TABLE identity_events(id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, owner_id INTEGER NOT NULL, connection_id TEXT NOT NULL, data JSONB NOT NULL)`,
-	`CREATE TABLE project_lifecycle_grants(project_id TEXT PRIMARY KEY REFERENCES projects(id), revision INTEGER NOT NULL, data JSONB NOT NULL)`,
-	`CREATE TABLE project_maintenance(project_id TEXT PRIMARY KEY REFERENCES projects(id), revision INTEGER NOT NULL, hold BOOLEAN NOT NULL, data JSONB NOT NULL)`,
-	`CREATE TABLE project_preparations(id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), role TEXT NOT NULL, revision INTEGER NOT NULL, requirements TEXT NOT NULL, approval TEXT NOT NULL, data JSONB NOT NULL)`,
+	`CREATE TABLE project_requirement_decisions(id TEXT PRIMARY KEY, project_id TEXT NOT NULL, predecessor TEXT NOT NULL DEFAULT '', data JSONB NOT NULL)`,
+	`CREATE TABLE project_requirement_heads(project_id TEXT PRIMARY KEY, decision TEXT NOT NULL)`,
+	`CREATE TABLE project_approval_decisions(id TEXT PRIMARY KEY, project_id TEXT NOT NULL, predecessor TEXT NOT NULL DEFAULT '', data JSONB NOT NULL)`,
+	`CREATE TABLE project_approval_heads(project_id TEXT PRIMARY KEY, decision TEXT NOT NULL)`,
+	`CREATE TABLE project_preparations(id TEXT PRIMARY KEY, project_id TEXT NOT NULL, role TEXT NOT NULL, revision INTEGER NOT NULL, requirements TEXT NOT NULL, approval TEXT NOT NULL, data JSONB NOT NULL)`,
 	`CREATE INDEX project_preparations_project ON project_preparations(project_id)`,
-	`CREATE TABLE identity_executions(kind TEXT NOT NULL, execution_id TEXT NOT NULL, state TEXT NOT NULL, lease_id TEXT NOT NULL DEFAULT '', data JSONB NOT NULL, PRIMARY KEY(kind,execution_id))`,
 	`CREATE OR REPLACE FUNCTION soda_reject_immutable() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'soda: % is immutable', TG_TABLE_NAME;
-END $$ LANGUAGE plpgsql`,
-	`CREATE OR REPLACE FUNCTION soda_guard_creation_profile() RETURNS trigger AS $$
-BEGIN
-  IF NEW.creation_profile IS DISTINCT FROM OLD.creation_profile THEN
-    RAISE EXCEPTION 'creation profile is immutable';
-  END IF;
-  RETURN NEW;
 END $$ LANGUAGE plpgsql`,
 	`CREATE OR REPLACE FUNCTION soda_guard_run_binding() RETURNS trigger AS $$
 BEGIN
@@ -193,17 +172,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$ LANGUAGE plpgsql`,
-	`CREATE OR REPLACE FUNCTION soda_guard_execution_identity() RETURNS trigger AS $$
-BEGIN
-  IF NEW.kind IS DISTINCT FROM OLD.kind OR NEW.execution_id IS DISTINCT FROM OLD.execution_id
-    OR (NEW.data->>'digest') IS DISTINCT FROM (OLD.data->>'digest')
-    OR (OLD.state='terminal' AND NEW.state IS DISTINCT FROM 'terminal')
-  THEN
-    RAISE EXCEPTION 'execution identity is immutable';
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql`,
-	`CREATE TRIGGER immutable_creation_profile BEFORE UPDATE OF creation_profile ON projects FOR EACH ROW EXECUTE FUNCTION soda_guard_creation_profile()`,
 	`CREATE TRIGGER factory_run_binding_immutable BEFORE UPDATE ON factory_runs FOR EACH ROW EXECUTE FUNCTION soda_guard_run_binding()`,
 	`CREATE TRIGGER factory_command_immutable BEFORE UPDATE ON factory_commands FOR EACH ROW EXECUTE FUNCTION soda_guard_command()`,
 	`CREATE TRIGGER factory_plan_revision_immutable_update BEFORE UPDATE ON factory_plan_revisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
@@ -222,10 +190,7 @@ END $$ LANGUAGE plpgsql`,
 	`CREATE TRIGGER project_requirement_decision_immutable_delete BEFORE DELETE ON project_requirement_decisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
 	`CREATE TRIGGER project_approval_decision_immutable_update BEFORE UPDATE ON project_approval_decisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
 	`CREATE TRIGGER project_approval_decision_immutable_delete BEFORE DELETE ON project_approval_decisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
-	`CREATE TRIGGER identity_events_immutable_update BEFORE UPDATE ON identity_events FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
-	`CREATE TRIGGER identity_events_immutable_delete BEFORE DELETE ON identity_events FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
 	`CREATE TRIGGER preparation_refs_immutable BEFORE UPDATE ON project_preparations FOR EACH ROW EXECUTE FUNCTION soda_guard_preparation_refs()`,
-	`CREATE TRIGGER identity_execution_immutable BEFORE UPDATE ON identity_executions FOR EACH ROW EXECUTE FUNCTION soda_guard_execution_identity()`,
 }
 
 // schemaUpgrade68To69 migrates a retained 68 database — which carries the
@@ -299,16 +264,7 @@ func verifyRequiredColumns(ctx context.Context, t *sql.Tx) error {
 		`SELECT feed_seq,snapshot,max_calls,data FROM factory_priority_judgments LIMIT 0`,
 		`SELECT seq,id,repository,revision,author,body,idempotency,data FROM factory_feed_posts LIMIT 0`,
 		`SELECT post,revision,intake,judgment,route,draft,effect,issue,attempts,data FROM factory_post_intakes LIMIT 0`,
-		`SELECT id,login,name FROM users LIMIT 0`,
-		`SELECT id,user_id,public,fingerprint FROM keys LIMIT 0`,
-		`SELECT id,name,repository_id,owner_id,repository,ip,ready,creation_profile FROM projects LIMIT 0`,
-		`SELECT project_id,user_id,login FROM memberships LIMIT 0`,
-		`SELECT project_id,user_id,revision,held,rejoin,data FROM project_member_access LIMIT 0`,
-		`SELECT id,ciphertext FROM grant_key_check LIMIT 0`,
-		`SELECT project_id,revision,data FROM project_lifecycle_grants LIMIT 0`,
-		`SELECT project_id,revision,hold,data FROM project_maintenance LIMIT 0`,
 		`SELECT id,project_id,role,revision,requirements,approval,data FROM project_preparations LIMIT 0`,
-		`SELECT kind,execution_id,state,lease_id,data FROM identity_executions LIMIT 0`,
 		`SELECT seq,id,active,settled,data FROM factory_runs LIMIT 0`,
 		`SELECT id,type,target,principal,digest,payload,outcome,created,finished,dispatch_state FROM factory_commands LIMIT 0`,
 		`SELECT repository,revision,data FROM factory_policies LIMIT 0`,
@@ -366,16 +322,8 @@ func verifyTrigger(ctx context.Context, t *sql.Tx, name, table string) error {
 	return nil
 }
 
-func verifyImmutableCreationProfile(ctx context.Context, t *sql.Tx) error {
-	return verifyTrigger(ctx, t, "immutable_creation_profile", "projects")
-}
-
 func verifyImmutablePreparationRefs(ctx context.Context, t *sql.Tx) error {
 	return verifyTrigger(ctx, t, "preparation_refs_immutable", "project_preparations")
-}
-
-func verifyImmutableExecutionIdentity(ctx context.Context, t *sql.Tx) error {
-	return verifyTrigger(ctx, t, "identity_execution_immutable", "identity_executions")
 }
 
 func loadSchemaVersion(ctx context.Context, t *sql.Tx) (int, error) {
@@ -423,11 +371,11 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 			}
 		}
 		if standalone {
-			if _, err = t.ExecContext(ctx, `UPDATE schema_version SET application_hosting=false`); err != nil {
+			if _, err = t.ExecContext(ctx, `UPDATE schema_version SET application_hosting=false, appliance_compatibility=false`); err != nil {
 				return err
 			}
 		} else {
-			for _, statement := range applicationHostingStatements {
+			for _, statement := range append(applianceCompatibilityStatements, applicationHostingStatements...) {
 				if _, err = t.ExecContext(ctx, statement); err != nil {
 					return fmt.Errorf("create application hosting schema: %w", err)
 				}
@@ -660,6 +608,13 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("record retained schema composition: %w", err))
 		}
+		version = 93
+	}
+	if version == 93 {
+		if _, err = t.ExecContext(ctx, `ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS appliance_compatibility BOOLEAN NOT NULL DEFAULT true; UPDATE schema_version SET version=94`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("record retained appliance compatibility: %w", err))
+		}
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err
@@ -703,18 +658,20 @@ func verifyCurrentSchema(ctx context.Context, t *sql.Tx) error {
 	if err := verifyTrigger(ctx, t, "factory_command_immutable", "factory_commands"); err != nil {
 		return err
 	}
-	if err := verifyImmutableCreationProfile(ctx, t); err != nil {
-		return err
-	}
 	if err := verifyImmutablePreparationRefs(ctx, t); err != nil {
 		return err
 	}
-	if err := verifyImmutableExecutionIdentity(ctx, t); err != nil {
+	var hosting, appliance bool
+	if err := t.QueryRowContext(ctx, `SELECT application_hosting,appliance_compatibility FROM schema_version`).Scan(&hosting, &appliance); err != nil {
 		return err
 	}
-	var hosting bool
-	if err := t.QueryRowContext(ctx, `SELECT application_hosting FROM schema_version`).Scan(&hosting); err != nil {
-		return err
+	if hosting && !appliance {
+		return errors.New("application hosting requires appliance compatibility")
+	}
+	if appliance {
+		if err := verifyApplianceCompatibility(ctx, t); err != nil {
+			return err
+		}
 	}
 	if hosting {
 		return verifyApplicationHosting(ctx, t)

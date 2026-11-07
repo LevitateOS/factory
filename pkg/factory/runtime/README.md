@@ -53,11 +53,12 @@ or recovery SQL waits, and malformed/unknown recovery errors prevent readiness
 without exposing retained contents. It does not claim a coordinator ledger,
 reconcile unobserved runs or start work. `store.OpenStandaloneContext` uses the
 same schema owner as `Open`; cancellation also ends actual SQL admission waits.
-Schema 93 records whether application hosting belongs to the database. New
-standalone profiles omit that component; retained shared databases preserve its
-tables, rows and required verification. An appliance opener refuses a standalone
-database. The existing appliance Project/identity compatibility bridges remain;
-they do not require native users to configure application hosting or SSH keys.
+Schema 94 records application hosting and appliance compatibility separately.
+New standalone profiles omit both components and bind setup journals directly to
+native workspaces. Retained shared profiles preserve their components, rows and
+required verification. An appliance opener refuses a standalone database.
+Native preparation and feed projection use native workspace ownership; appliance
+maintenance remains in its retained Project scope.
 
 Private IPC requires a current-user kernel peer and the exact per-start Bearer
 capability. Browser Origin/Fetch headers refuse. `GET /healthz` checks the live

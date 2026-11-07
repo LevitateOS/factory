@@ -55,6 +55,14 @@ func OpenObserve(ctx context.Context, dsn string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	var appliance bool
+	if version == SchemaVersion() {
+		if err := inner.QueryRowContext(ctx, `SELECT appliance_compatibility FROM schema_version`).Scan(&appliance); err != nil {
+			_ = inner.Rollback()
+			db.Close()
+			return nil, err
+		}
+	}
 	if err = inner.Rollback(); err != nil {
 		db.Close()
 		return nil, err
@@ -63,7 +71,7 @@ func OpenObserve(ctx context.Context, dsn string) (*Store, error) {
 		db.Close()
 		return nil, errors.New("database schema differs from this application")
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, appliance: appliance}, nil
 }
 
 // IntegrityCheck verifies the opened store's schema version, required
@@ -79,16 +87,7 @@ func (s *Store) IntegrityCheck(ctx context.Context) error {
 	if err != nil || version != SchemaVersion() {
 		return errors.New("soda database integrity failed")
 	}
-	if err = verifyRequiredColumns(ctx, t); err != nil {
-		return errors.New("soda database integrity failed")
-	}
-	if err = verifyImmutableCreationProfile(ctx, t); err != nil {
-		return errors.New("soda database integrity failed")
-	}
-	if err = verifyImmutablePreparationRefs(ctx, t); err != nil {
-		return errors.New("soda database integrity failed")
-	}
-	if err = verifyImmutableExecutionIdentity(ctx, t); err != nil {
+	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return errors.New("soda database integrity failed")
 	}
 	return nil

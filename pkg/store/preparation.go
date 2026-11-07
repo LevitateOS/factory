@@ -86,6 +86,9 @@ func (s *Store) SaveMaintenanceHold(ctx context.Context, m project.MaintenanceHo
 // A missing row means no hold was ever recorded.
 func (s *Store) MaintenanceHold(ctx context.Context, projectID string) (project.MaintenanceHold, error) {
 	var m project.MaintenanceHold
+	if !s.appliance {
+		return m, ErrNotFound
+	}
 	var data []byte
 	err := s.db.QueryRowContext(ctx, `SELECT data FROM project_maintenance WHERE project_id=$1`, projectID).Scan(&data)
 	if err == nil {
@@ -146,7 +149,7 @@ func (s *Store) AdmitStandingPreparation(ctx context.Context, record execution.P
 		return execution.PreparationRecord{}, false, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err = authorizeStandingPreparationTx(ctx, tx, p); err != nil {
+	if err = authorizeStandingPreparationTx(ctx, tx, record); err != nil {
 		return execution.PreparationRecord{}, false, err
 	}
 	stored := record
@@ -195,7 +198,7 @@ func (s *Store) AuthorizeStandingPreparation(ctx context.Context, record executi
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err = authorizeStandingPreparationTx(ctx, tx, p); err != nil {
+	if err = authorizeStandingPreparationTx(ctx, tx, record); err != nil {
 		return err
 	}
 	var raw []byte
@@ -215,25 +218,31 @@ func (s *Store) AuthorizeStandingPreparation(ctx context.Context, record executi
 	return tx.Commit()
 }
 
-func authorizeStandingPreparationTx(ctx context.Context, tx *sql.Tx, p project.Preparation) error {
+func authorizeStandingPreparationTx(ctx context.Context, tx *sql.Tx, record execution.PreparationRecord) error {
+	p := record.Preparation
 	var requirement, approval string
-	if err := tx.QueryRowContext(ctx, `SELECT decision FROM project_requirement_heads WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&requirement); err != nil {
+	var native, approvedNative bool
+	if err := tx.QueryRowContext(ctx, `SELECT decision,native FROM project_requirement_heads WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&requirement, &native); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrStaleRevision
 		}
 		return err
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT decision FROM project_approval_heads WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&approval); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT decision,native FROM project_approval_heads WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&approval, &approvedNative); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrStaleRevision
 		}
 		return err
 	}
-	if requirement != p.Requirements.ID || approval != p.Approval.ID || p.SourceCommit != p.Requirements.SourceCommit {
+	if requirement != p.Requirements.ID || approval != p.Approval.ID || p.SourceCommit != p.Requirements.SourceCommit ||
+		native != approvedNative || native != (record.Native != nil) {
 		return ErrStaleRevision
 	}
 	if err := checkCandidatePreparationSetupTx(ctx, tx, p); err != nil {
 		return err
+	}
+	if native {
+		return nil
 	}
 	var held bool
 	err := tx.QueryRowContext(ctx, `SELECT hold FROM project_maintenance WHERE project_id=$1 FOR SHARE`, p.Project).Scan(&held)
@@ -328,8 +337,11 @@ func writePreparationObservationTx(ctx context.Context, tx *sql.Tx, current exec
 		var assignment string
 		if meta != nil {
 			repository, issue, assignment = meta.Repository, meta.Issue, meta.OwnerAssignment
-		} else if err = tx.QueryRowContext(ctx, `SELECT repository_id FROM projects WHERE id=$1`, p.Preparation.Project).Scan(&repository); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return err
+		} else {
+			repository, err = recordedWorkspaceRepositoryTx(ctx, tx, p.Preparation.Project, p.Native != nil)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 		}
 		if repository > 0 {
 			content := factory.FeedCommunication{

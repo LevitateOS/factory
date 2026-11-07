@@ -25,7 +25,8 @@ var ErrCommandConflict = errors.New("command identity reused for different conte
 var ErrLastKeyConfirmationRequired = errors.New("final saved key removal requires confirmation")
 
 type Store struct {
-	db *sql.DB
+	db        *sql.DB
+	appliance bool
 }
 type User struct {
 	ID          int64
@@ -73,8 +74,8 @@ func OpenContext(ctx context.Context, dsn string) (*Store, error) {
 	return openContext(ctx, dsn, false)
 }
 
-// OpenStandaloneContext creates a native Factory database without application
-// hosting. Retained shared databases keep their full compatibility obligations.
+// OpenStandaloneContext creates a native Factory database without appliance
+// Projects, identity custody or application hosting. Retained shared databases keep their compatibility obligations.
 // It never removes tables or converts a retained database to a smaller schema.
 func OpenStandaloneContext(ctx context.Context, dsn string) (*Store, error) {
 	return openContext(ctx, dsn, true)
@@ -98,10 +99,10 @@ func configureStore(ctx context.Context, db *sql.DB, standalone bool) (*Store, e
 	db.SetMaxIdleConns(4)
 	s := &Store{db: db}
 	err := initializeSchema(ctx, db, standalone)
-	if err == nil && !standalone {
+	if err == nil {
 		var hosting bool
-		err = db.QueryRowContext(ctx, `SELECT application_hosting FROM schema_version`).Scan(&hosting)
-		if err == nil && !hosting {
+		err = db.QueryRowContext(ctx, `SELECT application_hosting,appliance_compatibility FROM schema_version`).Scan(&hosting, &s.appliance)
+		if err == nil && !standalone && (!hosting || !s.appliance) {
 			err = errors.New("standalone database does not include application hosting")
 		}
 	}
@@ -127,13 +128,13 @@ func configureStore(ctx context.Context, db *sql.DB, standalone bool) (*Store, e
 		err = initializeCollaborationSchema(ctx, db)
 	}
 	if err == nil {
-		err = initializeFactoryExecutionSchema(ctx, db)
+		err = initializeFactoryExecutionSchema(ctx, db, s.appliance)
 	}
 	if err == nil {
 		err = initializeFactoryPlacementSchema(ctx, db)
 	}
 	if err == nil {
-		err = initializeNativeWorkspaceSchema(ctx, db)
+		err = initializeNativeWorkspaceSchema(ctx, db, s.appliance)
 	}
 	if err != nil {
 		db.Close()
@@ -273,6 +274,9 @@ func (s *Store) Project(ctx context.Context, id string) (Project, error) {
 // NULL deliberately rejects oversized stored labels instead of silently truncating
 // them or allocating arbitrary DB text. Callers must authorize every returned row.
 func (s *Store) SpaceProjects(ctx context.Context) ([]Project, error) {
+	if !s.appliance {
+		return []Project{}, nil
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT CASE WHEN octet_length(id)<=128 THEN id END,
  CASE WHEN octet_length(name)<=1024 THEN name END,repository_id,owner_id,
  CASE WHEN octet_length(repository)<=2048 THEN repository END,

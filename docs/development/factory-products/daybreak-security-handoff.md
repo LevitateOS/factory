@@ -18,17 +18,26 @@ security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all
 existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
 
-**A20 retained schema obligations:** schema 93 records the application-hosting
-component. `pkg/store/{store,schema,schema_application_hosting}.go` and
-`pkg/factory/runtime/native_server.go` omit it for new native profiles and keep
-its required verification on retained shared databases. A20 in the assumptions
-audit records actual native startup/restart, schema-92 row preservation,
-missing-guard refusal and the composed dummy-token execution journey on a new
-standalone database. No existing data was removed. Remaining dependencies:
-separate appliance Project/identity compatibility bridges from fresh native
-initialization, then qualify older supported upgrades, concurrent open/upgrade,
-interrupted migration/rollback and installed recovery with retained data. The
-component check does not close those migration, identity or installed gates.
+**A20 retained schema obligations:** schema 94 records application hosting and
+appliance compatibility. `pkg/store/{store,schema,schema_application_hosting,
+schema_appliance_compatibility}.go` omit both for new native profiles and retain
+their required verification on existing shared databases. Native workspace
+initialization supplies direct references and native-only setup constraints;
+`preparation.go`, `factory_grant_commands.go`, the recorded workspace/feed owner
+and `observe.go` use the selected composition. A20 in the assumptions audit
+records actual native startup/restart/read-only integrity, schema-92 identity,
+key/membership/dummy-credential/application preservation, missing-guard refusal,
+and composed preparation/execution with the appliance tables absent. No existing
+data was removed and no model ran. Intermediate failed preparation
+`172c26898c35601694ffa15ab1d20ba3` has its exact retirement receipt under
+`/home/vince/tmp/fschema-native-execution-fixed7.4FujrB/execution-profile/native-preparations/`;
+the earlier maintenance failure acquired no preparation.
+Remaining evidence: older supported upgrades, the retained schema-93 composition,
+concurrent open/upgrade, interrupted migration/rollback and installed recovery
+with retained data. Also qualify native/appliance scope mismatch refusal and
+retained appliance maintenance admission after the classification correction.
+These remain dependencies of migration, identity/admission and installed gates;
+the component checks do not close those gates.
 
 **A08 / D1 creation-origin update:** own newly created GitHub issues are eligible;
 account inequality is not an authorization rule. `control/acceptance_initial.go`

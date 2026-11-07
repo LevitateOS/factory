@@ -8,7 +8,7 @@ import (
 // Run evidence is mutable only as observations advance. This additive guard
 // leaves existing appliance payloads untouched and protects native identities
 // even from other transactional writers of factory_runs.
-func initializeFactoryExecutionSchema(ctx context.Context, db *sql.DB) error {
+func initializeFactoryExecutionSchema(ctx context.Context, db *sql.DB, appliance bool) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -21,14 +21,16 @@ func initializeFactoryExecutionSchema(ctx context.Context, db *sql.DB) error {
 	// Native workspace IDs share the preparation journal, not the appliance
 	// Project namespace. Preserve the appliance FK on its generated projection;
 	// immutable native ownership below prevents switching an existing row's kind.
-	if _, err = tx.ExecContext(ctx, `ALTER TABLE project_preparations ADD COLUMN IF NOT EXISTS appliance_project_id TEXT GENERATED ALWAYS AS (CASE WHEN NULLIF(data->'native','null'::jsonb) IS NULL THEN project_id ELSE NULL END) STORED;
+	if appliance {
+		if _, err = tx.ExecContext(ctx, `ALTER TABLE project_preparations ADD COLUMN IF NOT EXISTS appliance_project_id TEXT GENERATED ALWAYS AS (CASE WHEN NULLIF(data->'native','null'::jsonb) IS NULL THEN project_id ELSE NULL END) STORED;
 DO $$ BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='project_preparations'::regclass AND conname='project_preparations_appliance_project_fkey') THEN
   ALTER TABLE project_preparations ADD CONSTRAINT project_preparations_appliance_project_fkey FOREIGN KEY(appliance_project_id) REFERENCES projects(id);
  END IF;
 END $$;
 ALTER TABLE project_preparations DROP CONSTRAINT IF EXISTS project_preparations_project_id_fkey`); err != nil {
-		return err
+			return err
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `CREATE OR REPLACE FUNCTION soda_guard_run_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE prior JSONB; next JSONB; field TEXT; old_process JSONB; new_process JSONB; old_custody JSONB; new_custody JSONB; old_appliance JSONB; new_appliance JSONB;

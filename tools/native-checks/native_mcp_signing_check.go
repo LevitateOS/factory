@@ -1285,18 +1285,36 @@ func nativeSchemaFixture(profile, phase string) error {
 	}
 	defer raw.Close()
 	var version, tables int
-	var hosting bool
-	if err = raw.QueryRowContext(ctx, `SELECT version,application_hosting FROM schema_version`).Scan(&version, &hosting); err != nil {
+	var hosting, appliance bool
+	if err = raw.QueryRowContext(ctx, `SELECT version,application_hosting,appliance_compatibility FROM schema_version`).Scan(&version, &hosting, &appliance); err != nil {
 		return err
 	}
-	if version != store.SchemaVersion() || hosting {
+	if version != store.SchemaVersion() || hosting || appliance {
 		return errors.New("new native database enabled appliance application hosting")
 	}
-	if err = raw.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND (table_name='applications' OR table_name LIKE 'application\_%' ESCAPE '\')`).Scan(&tables); err != nil {
+	if err = raw.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND (table_name='applications' OR table_name LIKE 'application\_%' ESCAPE '\' OR table_name LIKE 'identity\_%' ESCAPE '\' OR table_name IN ('users','keys','projects','memberships','project_member_access','grant_key_check','project_lifecycle_grants','project_maintenance'))`).Scan(&tables); err != nil {
 		return err
 	}
 	if tables != 0 {
-		return errors.New("standalone database created application hosting tables")
+		return errors.New("standalone database created appliance compatibility tables")
+	}
+	observed, err := store.OpenObserve(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	err = observed.IntegrityCheck(ctx)
+	observed.Close()
+	if err != nil {
+		return err
+	}
+	if projects, err := db.SpaceProjects(ctx); err != nil || len(projects) != 0 {
+		return errors.New("standalone appliance association inventory failed")
+	}
+	if _, err := db.NativeProjectForCollaborationRepository(ctx, 1); !errors.Is(err, store.ErrNotFound) {
+		return errors.New("standalone appliance association did not report no local mapping")
+	}
+	if err = raw.QueryRowContext(ctx, `SELECT count(*) FROM pg_constraint WHERE contype='f' AND confrelid='factory_native_workspaces'::regclass AND conrelid::regclass::text IN ('project_preparations','project_requirement_decisions','project_approval_decisions','project_requirement_heads','project_approval_heads')`).Scan(&tables); err != nil || tables != 5 {
+		return errors.New("standalone setup journals lost their native workspace references")
 	}
 	if wrong, err := store.OpenContext(ctx, config.DatabaseDSN()); err == nil {
 		wrong.Close()
@@ -1326,6 +1344,15 @@ func nativeSchemaFixture(profile, phase string) error {
 	if err = retained.UpsertUser(ctx, store.User{ID: 71, Login: "retained-owner", Name: "Retained owner"}); err != nil {
 		return err
 	}
+	if err = retained.CreateProject(ctx, store.Project{ID: "retained-project", Name: "Retained project", RepositoryID: 91, OwnerID: 71, Repository: "retained/project"}); err != nil {
+		return err
+	}
+	if err = retained.AddKey(ctx, 71, "public-fixture-only", "fixture-fingerprint"); err != nil {
+		return err
+	}
+	if err = retained.Join(ctx, "retained-project", 71, "retained-owner"); err != nil {
+		return err
+	}
 	retained.Close()
 	legacy, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -1335,7 +1362,9 @@ func nativeSchemaFixture(profile, phase string) error {
 	if _, err = legacy.ExecContext(ctx, `BEGIN;
 INSERT INTO applications(id,administrator_id,name,data_id,owner_team,origin,hostname,port,revision) VALUES('retained-app',71,'retained app','retained-data','retained-team','https://retained.invalid','retained.invalid',21001,1);
 INSERT INTO application_revisions(application_id,revision,spec) VALUES('retained-app',1,'{"fixture":"preserve verbatim"}');
+INSERT INTO identity_connections(id,owner_id,generation,state,data,credential) VALUES('retained-connection',71,1,'active','{"fixture":true}',decode('0102','hex'));
 ALTER TABLE schema_version DROP COLUMN application_hosting;
+ALTER TABLE schema_version DROP COLUMN appliance_compatibility;
 UPDATE schema_version SET version=92;
 COMMIT`); err != nil {
 		return err
@@ -1348,11 +1377,31 @@ COMMIT`); err != nil {
 	if err != nil || user.Login != "retained-owner" || user.Name != "Retained owner" {
 		return errors.New("retained schema upgrade changed appliance identity")
 	}
+	keys, err := upgraded.Keys(ctx, 71)
+	if err != nil || len(keys) != 1 || keys[0].Public != "public-fixture-only" {
+		return errors.New("retained upgrade changed saved key rows")
+	}
+	if login, err := upgraded.MemberLogin(ctx, "retained-project", 71); err != nil || login != "retained-owner" {
+		return errors.New("retained upgrade changed membership")
+	}
 	upgraded.Close()
-	if err = legacy.QueryRowContext(ctx, `SELECT version,application_hosting FROM schema_version`).Scan(&version, &hosting); err != nil {
+	observer, err := store.OpenObserve(ctx, dsn)
+	if err != nil {
 		return err
 	}
-	if version != store.SchemaVersion() || !hosting {
+	projects, err := observer.SpaceProjects(ctx)
+	observer.Close()
+	if err != nil || len(projects) != 1 || projects[0].Name != "Retained project" {
+		return errors.New("read-only observer lost retained appliance schema composition")
+	}
+	var credential string
+	if err = legacy.QueryRowContext(ctx, `SELECT encode(credential,'hex') FROM identity_connections WHERE id='retained-connection'`).Scan(&credential); err != nil || credential != "0102" {
+		return errors.New("retained upgrade changed dummy credential bytes")
+	}
+	if err = legacy.QueryRowContext(ctx, `SELECT version,application_hosting,appliance_compatibility FROM schema_version`).Scan(&version, &hosting, &appliance); err != nil {
+		return err
+	}
+	if version != store.SchemaVersion() || !hosting || !appliance {
 		return errors.New("retained upgrade lost application hosting obligation")
 	}
 	var name, spec string

@@ -108,6 +108,13 @@ func readRetainedCollaborationRefs(ctx context.Context, tx *sql.Tx, columns []re
 	}
 	// Labels are optional historical metadata. Import never changes their source
 	// rows, infers a permission or asserts that a remote resource still exists.
+	var appliance bool
+	if err := tx.QueryRowContext(ctx, `SELECT appliance_compatibility FROM schema_version`).Scan(&appliance); err != nil {
+		return refs, err
+	}
+	if !appliance {
+		return refs, nil
+	}
 	for _, q := range []struct {
 		query string
 		dest  map[int64]string

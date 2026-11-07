@@ -11,7 +11,7 @@ import (
 	"github.com/levitateos/factory/pkg/project"
 )
 
-func initializeNativeWorkspaceSchema(ctx context.Context, db *sql.DB) error {
+func initializeNativeWorkspaceSchema(ctx context.Context, db *sql.DB, appliance bool) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -30,14 +30,29 @@ func initializeNativeWorkspaceSchema(ctx context.Context, db *sql.DB) error {
  CREATE OR REPLACE TRIGGER factory_native_workspace_immutable BEFORE UPDATE OR DELETE ON factory_native_workspaces FOR EACH ROW EXECUTE FUNCTION soda_guard_native_workspace()`); err != nil {
 		return err
 	}
-	for _, table := range []string{"project_requirement_decisions", "project_approval_decisions", "project_requirement_heads", "project_approval_heads"} {
+	for _, table := range []string{"project_requirement_decisions", "project_approval_decisions", "project_requirement_heads", "project_approval_heads", "project_preparations"} {
+		if appliance && table == "project_preparations" {
+			continue
+		}
 		native := "native"
-		if table == "project_requirement_decisions" || table == "project_approval_decisions" {
+		if table == "project_requirement_decisions" || table == "project_approval_decisions" || table == "project_preparations" {
 			native = "(NULLIF(data->'native','null'::jsonb) IS NOT NULL)"
 		} else {
 			if _, err = tx.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN IF NOT EXISTS native BOOLEAN NOT NULL DEFAULT false`); err != nil {
 				return err
 			}
+		}
+		if !appliance {
+			if _, err = tx.ExecContext(ctx, `DO $$ BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='`+table+`'::regclass AND conname='`+table+`_native_fkey') THEN
+ ALTER TABLE `+table+` ADD CONSTRAINT `+table+`_native_fkey FOREIGN KEY(project_id) REFERENCES factory_native_workspaces(id);
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='`+table+`'::regclass AND conname='`+table+`_native_only') THEN
+ ALTER TABLE `+table+` ADD CONSTRAINT `+table+`_native_only CHECK (`+native+`);
+ END IF; END $$`); err != nil {
+				return err
+			}
+			continue
 		}
 		if _, err = tx.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN IF NOT EXISTS appliance_project_id TEXT GENERATED ALWAYS AS (CASE WHEN NOT `+native+` THEN project_id ELSE NULL END) STORED,
  ADD COLUMN IF NOT EXISTS native_workspace_id TEXT GENERATED ALWAYS AS (CASE WHEN `+native+` THEN project_id ELSE NULL END) STORED;
@@ -102,8 +117,34 @@ func recordedExecutionWorkspaceTx(ctx context.Context, tx *sql.Tx, repository in
 		}
 	}
 	var workspace string
+	var appliance bool
+	if err = tx.QueryRowContext(ctx, `SELECT appliance_compatibility FROM schema_version`).Scan(&appliance); err != nil {
+		return "", err
+	}
+	if !appliance {
+		return "", ErrNotFound
+	}
 	err = tx.QueryRowContext(ctx, `SELECT p.id`+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository).Scan(&workspace)
 	return workspace, err
+}
+
+// Feed observations use the recorded workspace's canonical repository even
+// after its current execution grant is withdrawn.
+func recordedWorkspaceRepositoryTx(ctx context.Context, tx *sql.Tx, workspace string, native bool) (int64, error) {
+	var repository int64
+	if native {
+		err := tx.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, workspace).Scan(&repository)
+		return repository, err
+	}
+	var appliance bool
+	if err := tx.QueryRowContext(ctx, `SELECT appliance_compatibility FROM schema_version`).Scan(&appliance); err != nil {
+		return 0, err
+	}
+	if !appliance {
+		return 0, ErrNotFound
+	}
+	err := tx.QueryRowContext(ctx, `SELECT r.id`+nativeProjectCollaborationJoin+` WHERE p.id=$1`, workspace).Scan(&repository)
+	return repository, err
 }
 
 // RecordedExecutionWorkspace supplies the repository owner for observation and

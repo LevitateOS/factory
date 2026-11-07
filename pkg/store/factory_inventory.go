@@ -105,6 +105,9 @@ func (s *Store) SpaceProjectsAfter(ctx context.Context, after string, limit int)
 	if limit < 1 || limit > 129 {
 		return nil, errors.New("invalid association page bound")
 	}
+	if !s.appliance {
+		return []Project{}, nil
+	}
 	columns := `CASE WHEN octet_length(id)<=128 THEN id END,
 		CASE WHEN octet_length(name)<=1024 THEN name END,repository_id,owner_id,
 		CASE WHEN octet_length(repository)<=2048 THEN repository END,

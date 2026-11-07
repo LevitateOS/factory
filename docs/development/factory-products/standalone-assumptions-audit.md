@@ -200,7 +200,7 @@ corrections are now active; the old feature queue waits for their resolution.
   Saturated capacity/low-free-space refusal and installed workload evidence
   remain open. Reviewed time/network choices retain their existing semantics.
 
-- **A20 — application-hosting initialization separated; compatibility bridges pending.**
+- **A20 — standalone initialization separated; migration qualification pending.**
   Native startup now uses `OpenStandaloneContext`. Schema 93 records the
   application-hosting component: new standalone databases omit its tables;
   retained schemas keep them and their required checks. No retained tables are
@@ -212,10 +212,23 @@ corrections are now active; the old feature queue waits for their resolution.
   restart on the new standalone composition passed in
   `/home/vince/tmp/fschema-execution7.AXoLjR/result.log`, using only an owned dummy
   token. No model or personal credential ran. Application DDL and verification
-  now share `pkg/store/schema_application_hosting.go`. Appliance Project/identity
-  bridges still initialize for shared references; their removal from new native
-  initialization and installed/older-upgrade/concurrent migration qualification
-  remain pending. PostgreSQL and the Go transaction owner are retained.
+  now share `pkg/store/schema_application_hosting.go`.
+  Schema 94 additionally omits appliance users/keys/Projects/memberships,
+  maintenance/lifecycle and identity custody from new standalone profiles.
+  Setup journals reference native workspaces directly. Retained profiles keep
+  their components; `schema_appliance_compatibility.go` owns their defining DDL
+  and verification. Native admission uses its canonical decision heads, and
+  preparation feed events now resolve the native workspace's repository.
+  Actual startup/restart, read-only integrity, five native journal references and
+  schema-92 preservation of identity/key/membership/dummy-credential/application
+  rows passed in `/home/vince/tmp/fschema-native-only7.hAneg7/result.log`.
+  The actual native preparation/MCP/artifact/settlement/retirement/restart journey
+  passed in `/home/vince/tmp/fschema-native-journey7.D8pDXJ/result.log` without
+  appliance tables or a model call. The two failed intermediate fixtures remain
+  retained; the one acquired preparation has its exact `retired.json` receipt.
+  Installed, older-upgrade, retained schema-93 composition and concurrent/
+  interrupted migration qualification remain pending. PostgreSQL and the Go
+  transaction owner are retained; no broad security gate is closed.
 
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write
@@ -825,10 +838,11 @@ requirements and initialization duties. Preserve data and the defining schema
 owner. PostgreSQL is a selected engineering choice; this audit provides no basis
 for an SQLite rewrite or deleting imported tables.
 
-**Current correction:** application hosting is now an explicit schema-93
-component. New standalone profiles omit it; retained databases preserve its
+**Current correction:** schema 94 explicitly records application hosting and
+appliance compatibility. New standalone profiles omit those tables and bind
+their setup journals to native workspaces. Retained databases preserve their
 compatibility obligations. The verified-corrections entry above records exact
-evidence. Shared appliance Project and identity bridges remain unfinished.
+evidence and remaining migration/installed qualification.
 
 ### A21 — Check fixtures can satisfy prerequisites that a user cannot reach
 

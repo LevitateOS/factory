@@ -133,11 +133,7 @@ func factoryRunFeedScopeTx(ctx context.Context, tx *sql.Tx, run, project string)
 		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(data->'native'!='null'::jsonb,FALSE) FROM factory_runs WHERE id=$1`, run).Scan(&native); err != nil {
 			return
 		}
-		if native {
-			err = tx.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, project).Scan(&repository)
-		} else {
-			err = tx.QueryRowContext(ctx, `SELECT r.id`+nativeProjectCollaborationJoin+` WHERE p.id=$1`, project).Scan(&repository)
-		}
+		repository, err = recordedWorkspaceRepositoryTx(ctx, tx, project, native)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}

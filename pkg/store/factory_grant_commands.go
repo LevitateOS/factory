@@ -116,6 +116,13 @@ func loadAuthorityProjectReadiness(ctx context.Context, q grantCommandSQL, repos
 		}
 		return nil
 	}
+	var appliance bool
+	if err := q.QueryRowContext(ctx, `SELECT appliance_compatibility FROM schema_version`).Scan(&appliance); err != nil {
+		return err
+	}
+	if !appliance {
+		return nil
+	}
 	projectRecord, err := scanProject(q.QueryRowContext(ctx, `SELECT `+nativeProjectCollaborationColumns+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository))
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err

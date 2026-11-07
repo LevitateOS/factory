@@ -1,12 +1,22 @@
-# Appliance PostgreSQL store
+# Factory PostgreSQL store
 
-`store` owns Soda's PostgreSQL schema and typed row operations. The dashboard
-and factory coordinator consume this internal Go package to retain users,
-development keys, Projects, membership, preparation decisions and factory
-ledgers. Operators configure the database through appliance setup; end users
-use product APIs and controls rather than direct SQL.
+`store` owns Factory's PostgreSQL schema and typed row operations, including
+retained appliance compatibility. Native startup uses `OpenStandaloneContext`:
+new schema-94 profiles contain Factory/collaboration records and native workspace
+references, without appliance users, development keys, Projects, memberships,
+identity custody or application hosting. `Open`/`OpenContext` create the appliance
+composition and refuse a standalone database. Supported retained databases keep
+their recorded components and rows; opening never removes legacy data. Product
+APIs own user actions and Go owns the transactions; Rust owns PostgreSQL lifetime.
 
-The preparation journal also retains native workspace evidence. Its generated
+In new standalone profiles, setup decisions, heads and preparations reference
+`factory_native_workspaces` directly and require native ownership. Appliance
+maintenance holds apply only to appliance Projects; native preparation admission
+checks the current native decision heads and captured setup. Feed observations
+resolve the recorded workspace to the canonical repository. Read-only observers
+load the same component selection and integrity verification.
+
+In retained shared profiles, the preparation journal's generated
 `appliance_project_id` reference enforces the Project foreign key only for
 appliance preparations; a native preparation carries its captured workspace
 owner instead of fabricating an appliance Project. Existing immutable-kind/

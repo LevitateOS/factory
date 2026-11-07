@@ -89,6 +89,9 @@ func (s *Store) NativeProjectForCollaborationRepository(ctx context.Context, rep
 	if repository < 1 {
 		return Project{}, collaboration.ErrIdentityConflict
 	}
+	if !s.appliance {
+		return Project{}, ErrNotFound
+	}
 	return scanProject(s.db.QueryRowContext(ctx, `SELECT `+nativeProjectCollaborationColumns+nativeProjectCollaborationJoin+` WHERE r.id=$1`, repository))
 }
 
@@ -96,6 +99,9 @@ func (s *Store) CollaborationRepositoryForNativeProject(ctx context.Context, pro
 	var ref collaboration.RepositoryRef
 	if !collaboration.ValidText(projectID, 128) {
 		return ref, collaboration.ErrIdentityConflict
+	}
+	if !s.appliance {
+		return ref, ErrNotFound
 	}
 	err := s.db.QueryRowContext(ctx, `SELECT r.id,r.host,r.external_id,r.name`+nativeProjectCollaborationJoin+` WHERE p.id=$1`, projectID).Scan(&ref.ID, &ref.Host, &ref.ExternalID, &ref.Name)
 	return ref, err
