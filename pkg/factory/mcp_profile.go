@@ -104,6 +104,7 @@ const (
 	MCPToolSystemOneChoice      MCPTool = "systemone.choice"
 	MCPToolSystemOneScore       MCPTool = "systemone.score"
 	MCPToolContext              MCPTool = "factory.context"
+	MCPToolReadSource           MCPTool = "factory.read_source"
 	MCPToolEvidence             MCPTool = "factory.evidence"
 	MCPToolStatus               MCPTool = "factory.status"
 	MCPToolInbox                MCPTool = "factory.inbox"
@@ -156,6 +157,7 @@ var mcpToolDefinitions = []mcpToolDefinition{
 	{MCPToolCreateIssue, singleMCPProfile(MCPProfileIssueMaker), 0},
 	{MCPToolRefineIssue, singleMCPProfile(MCPProfileIssueMaker), 0},
 	{MCPToolContext, allMCPProfiles(), mcpRead},
+	{MCPToolReadSource, allMCPProfiles(), mcpRead},
 	{MCPToolEvidence, allMCPProfiles(), mcpRead},
 	{MCPToolStatus, allMCPProfiles(), mcpRead},
 	{MCPToolInbox, allMCPProfiles(), mcpRead},

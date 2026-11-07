@@ -29,7 +29,7 @@ func (s *factoryCatalogServer) addCurrentContext(ctx context.Context, read *read
 			current.Run.ObservedState = "confirmed"
 		}
 	}
-	view, err := mcpwire.RenderCurrent(current, read.Capability, args.Payload, s.deps.boundCapability != nil && s.deps.NativeTask == nil)
+	view, err := mcpwire.RenderCurrent(current, read.Capability, args.Payload, catalogTools(s.deps, read.Capability))
 	if err != nil {
 		return err
 	}

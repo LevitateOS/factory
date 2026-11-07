@@ -137,6 +137,25 @@ corrections are now active; the old feature queue waits for their resolution.
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
 
+- **A05/A19 — agent source reads implemented; task execution still pending.**
+  `factory.read_source` exposes the existing Rust isolated preparation reader
+  through the Go worker service. The capability selects assignment, preparation
+  and immutable source commit; the agent selects only a relative file path.
+  Results include ancestor `AGENTS.md` instructions. Existing 32 KiB/file,
+  native context and 64 KiB MCP reply bounds remain; missing/non-text/oversized
+  selections refuse. Discovery, launch policy and current-role metadata share
+  the available catalog; hosts without a source reader omit this tool.
+  The actual admitted dummy worker compared source commit, file bytes and root/
+  nested instructions against its prepared repository, then confirmed a missing
+  file refuses. MCP artifact publication, explicit incomplete result, resource
+  retirement and restart settlement passed in
+  `/home/vince/tmp/fsource-admitted7.r9qiEb/result.log`; the exact source-read
+  marker is retained in that profile's run receipt. Current Go builds, affected
+  existing MCP transport/context tests and dependency boundaries passed.
+  No model request, saved-login change or GitHub action ran. This is immutable
+  source inspection, not mutable task reads/edits, source-tree discovery, large
+  file paging, native task execution or installed/authority-race qualification.
+
 - **A04/A19 — native task manifest binding implemented; task runtime pending.**
   New task intents use version 5 to capture the exact phase and manifest digest
   in the Go transaction. Go launch transports the original manifest bytes;

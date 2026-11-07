@@ -29,6 +29,20 @@ It supplies no provider or IPC admission proof. Existing account/repository swit
 reconnect and installed/Fountain parity gates still need their actual host
 journeys with this metadata; navigation must never grant a wider transport scope.
 
+**A05/A19 agent source reads:** `pkg/factory/service/worker_source.go` captures
+the admitted assignment's preparation/source commit and rechecks current work
+after native I/O. `mcpserver/source.go`, `mcpserver/catalog.go` and
+`runtime/native_worker_mcp.go` expose only a relative path through ordinary MCP
+admission. Existing Rust preparation/context services own Git-object reads and
+instruction closure; no host path, commit or workspace selector comes from the
+worker. The audit records actual dummy-worker source/instruction bytes, missing
+file refusal, artifact publication and retirement/restart proof. This closes no
+broad gate. Exact remaining dependency: the installed authenticated worker/source
+journey, including current stop/withdrawal during an in-flight read, must retain
+the original authority and return no source after observed withdrawal. That race
+and installed service admission were not checked here. Mutable task access and
+source-tree discovery are still absent; task/checkpoint gates remain pending.
+
 **A18 installation payload dependency:** `scripts/build-desktop.ts` stages all
 seven privileged execution helpers, twelve service/socket templates and the
 build's install inventory. `scripts/install-native-execution.sh` binds one

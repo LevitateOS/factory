@@ -10,11 +10,12 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 	required := []string{"capability_id"}
-	if !factory.MCPIsRead(tool) || tool == factory.MCPToolDiscussion || tool == factory.MCPToolReadLibraryItem || tool == factory.MCPToolPreviewRepair {
+	if !factory.MCPIsRead(tool) || tool == factory.MCPToolDiscussion || tool == factory.MCPToolReadLibraryItem || tool == factory.MCPToolPreviewRepair || tool == factory.MCPToolReadSource {
 		required = append(required, "payload")
 	}
 	schema := &jsonschema.Schema{
@@ -34,6 +35,12 @@ func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 
 func mcpPayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 	switch tool {
+	case factory.MCPToolReadSource:
+		return &jsonschema.Schema{
+			Type: "object", Properties: map[string]*jsonschema.Schema{
+				"path": {Type: "string", MinLength: ptrInt(1), MaxLength: ptrInt(project.MaxFactoryContextPathBytes)},
+			}, Required: []string{"path"}, AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+		}
 	case factory.MCPToolPreviewRepair:
 		return repairPreviewPayloadSchema()
 	case factory.MCPToolRecordDiagnosis:

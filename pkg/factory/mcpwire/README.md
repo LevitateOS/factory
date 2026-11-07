@@ -15,7 +15,7 @@ cursors return no partial view. Collection/record/page limits remain finite,
 including `MaxContextPages`; oversized collections are unavailable and hold work.
 Missing required inputs keep `CurrentView.Hold` set even when verification is
 valid and all transport pages have been collected. Tool guidance uses the same
-result schema and omits native task tools when the bound server lacks that port.
+result schema and available catalog as SDK discovery and the launch policy.
 Rendering is read-only and authorizes no execution or settlement.
 
 `CanonicalPayload` retains the existing JSON-object and 64 KiB bound.

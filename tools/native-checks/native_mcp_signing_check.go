@@ -274,8 +274,12 @@ func checkCatalogs(config factoryruntime.NativeConfig, instance string, capabili
 		}
 		for _, mode := range []string{"no-port", "no-run-source", "missing-run", "unplaced-native"} {
 			deps.NativeTask = nil
+			deps.ReadSource = nil
 			deps.Runs = nil
 			if mode != "no-port" {
+				deps.ReadSource = func(context.Context, factory.MCPCapability, string) (map[string]any, error) {
+					return nil, errors.New("catalog discovery must not read source")
+				}
 				deps.NativeTask = func(context.Context, factory.MCPCapability, string, string) (map[string]any, error) {
 					return nil, errors.New("catalog discovery must not execute a task")
 				}
@@ -294,6 +298,9 @@ func checkCatalogs(config factoryruntime.NativeConfig, instance string, capabili
 			}
 			if slices.Contains(names, string(factory.MCPToolStartTask)) || slices.Contains(names, string(factory.MCPToolReleaseOutput)) {
 				return errors.New("prelaunch catalog advertised an unavailable task controller")
+			}
+			if slices.Contains(names, string(factory.MCPToolReadSource)) != (deps.ReadSource != nil) {
+				return errors.New("source discovery differs from reader availability")
 			}
 			secret, err := factoryruntime.NativeMCPSecretDeriver(config, instance)(ctx, capability)
 			if err != nil {
@@ -1827,6 +1834,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if input.Withdraw {
 		prompt = append(prompt, []byte("\nwithdraw-source-fixture\n")...)
 	}
+	if !input.Live && os.Getenv("SODA_NATIVE_CHECK_READ_SOURCE") == "1" {
+		prompt = append(prompt, []byte("\nread-source-fixture\n")...)
+	}
 	toolBytes, err := os.ReadFile(input.Executable)
 	if err != nil {
 		return err
@@ -2881,6 +2891,46 @@ func workerProfileFixture() error {
 			return errors.New("admitted MCP initialization failed")
 		}
 		response.Body.Close()
+		if strings.Contains(string(prompt), "read-source-fixture") {
+			result, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "docs/note.md"})
+			if err != nil {
+				return err
+			}
+			var source struct {
+				Commit string `json:"source_commit"`
+				Files  []struct {
+					Path    string `json:"path"`
+					Content string `json:"content"`
+				} `json:"files"`
+			}
+			if json.Unmarshal(result, &source) != nil {
+				return errors.New("worker source reply invalid")
+			}
+			head, err := exec.Command("/usr/bin/git", "-C", selected["--workspace"], "rev-parse", "HEAD").Output()
+			if err != nil || source.Commit != strings.TrimSpace(string(head)) {
+				return errors.New("worker source commit differs from prepared repository")
+			}
+			wanted := map[string]bool{"docs/note.md": false, "AGENTS.md": false, "docs/AGENTS.md": false}
+			for _, file := range source.Files {
+				if _, ok := wanted[file.Path]; !ok || wanted[file.Path] {
+					return errors.New("worker source returned unexpected or duplicate files")
+				}
+				content, err := os.ReadFile(filepath.Join(selected["--workspace"], file.Path))
+				if err != nil || file.Content != string(content) {
+					return errors.New("worker source bytes differ from prepared file")
+				}
+				wanted[file.Path] = true
+			}
+			for _, found := range wanted {
+				if !found {
+					return errors.New("worker source omitted its file or ancestor instructions")
+				}
+			}
+			if _, err := workerMCPCall(client, "factory.read_source", map[string]any{"path": "missing-fixture.txt"}); err == nil {
+				return errors.New("missing source file returned a successful read")
+			}
+			fmt.Println("actual-admitted-worker-source-read", source.Commit)
+		}
 		result, err := workerMCPCall(client, "factory.publish_artifact", factory.ArtifactUpload{
 			UploadID: strings.Repeat("1", 32), Name: "native-worker.txt", MediaType: "text/plain", ContentBase64: base64.StdEncoding.EncodeToString([]byte("actual admitted native worker artifact\n")), Final: true})
 		if err != nil {

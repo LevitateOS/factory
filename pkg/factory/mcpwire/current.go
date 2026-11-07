@@ -17,18 +17,9 @@ type CurrentView struct {
 
 // RenderCurrent keeps current-role metadata small and its complete typed fields
 // in the finite UTF-8-safe stream. The caller supplies an admitted capability;
-// omitNativeTasks reflects a bound server with no actual task-command port.
-func RenderCurrent(current factory.CurrentContext, cap factory.MCPCapability, payload map[string]any, omitNativeTasks bool) (CurrentView, error) {
-	current.Role.Tools = factory.MCPDiscovery(cap.Profile)
-	if omitNativeTasks {
-		filtered := current.Role.Tools[:0]
-		for _, tool := range current.Role.Tools {
-			if !IsNativeTask(tool) {
-				filtered = append(filtered, tool)
-			}
-		}
-		current.Role.Tools = filtered
-	}
+// tools is the same available catalog used by SDK discovery and launch policy.
+func RenderCurrent(current factory.CurrentContext, cap factory.MCPCapability, payload map[string]any, tools []factory.MCPTool) (CurrentView, error) {
+	current.Role.Tools = append([]factory.MCPTool(nil), tools...)
 	var err error
 	for _, tool := range current.Role.Tools {
 		if !factory.MCPIsTerminal(tool) || tool == factory.MCPToolFinishIncomplete {
