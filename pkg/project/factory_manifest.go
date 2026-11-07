@@ -41,7 +41,7 @@ func ValidTaskEffort(effort string) bool {
 	}
 }
 
-// ExecutionManifest is the immutable child-control envelope staged with an
+// ExecutionManifest is the immutable task-control envelope staged with an
 // implement or correct launch (D05). It binds the exact serialized plan bytes and
 // their digest to the admitted invocation, phase, run, deadline, execution
 // profile snapshot and child limit. The executor verifies the staged bytes
@@ -98,8 +98,9 @@ func ParseExecutionManifest(data []byte) (ExecutionManifest, error) {
 }
 
 // Validate binds every envelope field. Only implement and correct runs
-// carry a manifest: implement admits child concurrency 1-4 while correct is
-// singleton re-execution with MaxChildren 0. The phase, run and digest
+// carry a manifest. MaxChildren 0 selects one agent executing tasks sequentially;
+// historical implement manifests retain their admitted child concurrency 1-4.
+// Corrections remain a singleton task with no children. The phase, run and digest
 // bindings below are checked against the launching run by
 // ValidateManifestForRun.
 func (m ExecutionManifest) Validate() error {
@@ -130,7 +131,7 @@ func (m ExecutionManifest) Validate() error {
 		if m.MaxChildren != 0 {
 			return errors.New("execution manifest child limit is outside its range")
 		}
-	} else if m.MaxChildren < MinTaskChildren || m.MaxChildren > MaxTaskChildren {
+	} else if m.MaxChildren < 0 || m.MaxChildren > MaxTaskChildren {
 		return errors.New("execution manifest child limit is outside its range")
 	}
 	return nil

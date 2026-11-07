@@ -312,7 +312,7 @@ func (s WorkerResults) CheckpointContext(ctx context.Context, read WorkerContext
 		if state != store.PlanTaskOutputReady {
 			continue
 		}
-		if len(ready) >= 4 {
+		if len(ready) >= 4 || manifest.MaxChildren == 0 && len(ready) >= 1 {
 			return nil, errors.New("native task output exceeds admitted concurrency")
 		}
 		output := map[string]any{"task_id": task.ID, "output_digest": receipt.OutputDigest}
@@ -323,9 +323,9 @@ func (s WorkerResults) CheckpointContext(ctx context.Context, read WorkerContext
 	}
 	execution := map[string]any{
 		"manifest_digest":  project.ExecutionManifestDigest(run.ExecutionManifest),
-		"parent_only":      phase == project.ExecutionCorrect,
+		"parent_only":      manifest.MaxChildren == 0,
 		"integration_head": head, "tasks": tasks, "ready_outputs": ready,
-		"guidance": "Submit each ready output with factory.submit_task_output and its task_id; SodaOS fills the observed digest and native child. Read factory.status for checkpoint progress; successors need a committed native checkpoint. Do not write Git metadata. Finish implementation only after integration.status is committed; SodaOS fills the candidate from it.",
+		"guidance": "In a parent-only run, implement one task yourself and release its output before submitting factory.submit_task_output with its task_id. Factory fills the observed digest and any recorded child identity. Wait for the committed checkpoint before another task. Do not write Git metadata. Finish implementation only after integration.status is committed; Factory fills the candidate from it.",
 	}
 	if run.FinalCheckpoint != nil {
 		execution["integration"] = run.FinalCheckpoint

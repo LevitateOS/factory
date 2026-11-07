@@ -11,6 +11,7 @@ import (
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // NewHandler authenticates the relay outside the tool payload.
@@ -79,6 +80,8 @@ func bindCatalog(ctx context.Context, deps Dependencies, capability factory.MCPC
 			deps.NativeTask = nil
 		} else if run, err := deps.Runs.FactoryRun(ctx, capability.RunID); err != nil || run.ID != capability.RunID || !run.SupportsTaskCommands() {
 			deps.NativeTask = nil
+		} else if manifest, err := project.ParseExecutionManifest(run.ExecutionManifest); err == nil {
+			deps.sequentialTasks = manifest.MaxChildren == 0
 		}
 	}
 	return deps

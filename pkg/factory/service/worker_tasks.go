@@ -30,7 +30,7 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 	phase := project.ExecutionImplement
 	if action == "release_output" && cap.Profile == factory.MCPProfileFixer {
 		phase = project.ExecutionCorrect
-	} else if action != "start_task" || cap.Profile != factory.MCPProfileBuilder {
+	} else if cap.Profile != factory.MCPProfileBuilder || action != "start_task" && action != "release_output" {
 		return empty, errors.New("native task action differs from assigned role")
 	}
 	current, a, run, err := (WorkerAdmission{Store: s.Store}).current(ctx, cap)
@@ -67,6 +67,9 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 	manifest, err := project.ParseExecutionManifest(run.ExecutionManifest)
 	if err != nil || manifest.Run != run.ID || manifest.Phase != phase || !manifest.Deadline.Equal(run.Deadline) {
 		return empty, errors.New("native task manifest differs from assigned run")
+	}
+	if action == "release_output" && cap.Profile == factory.MCPProfileBuilder && manifest.MaxChildren != 0 {
+		return empty, errors.New("Builder output release requires its sequential execution manifest")
 	}
 	var plan factory.InvestigationPlan
 	if json.Unmarshal(manifest.Plan, &plan) != nil || plan.Executable() != nil || plan.AttemptRoot != a.AttemptRoot || plan.Preparation != a.Preparation {

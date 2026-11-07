@@ -238,7 +238,8 @@ func catalogTools(deps Dependencies, capability factory.MCPCapability) []factory
 		if !factory.MCPToolAdmitted(capability.Profile, tool) ||
 			(mcpwire.IsNativeTask(tool) && deps.NativeTask == nil) ||
 			(tool == factory.MCPToolReadSource && deps.ReadSource == nil) ||
-			(tool == factory.MCPToolListSource && deps.ListSource == nil) {
+			(tool == factory.MCPToolListSource && deps.ListSource == nil) ||
+			(tool == factory.MCPToolReleaseOutput && capability.Profile == factory.MCPProfileBuilder && !deps.sequentialTasks) {
 			continue
 		}
 		tools = append(tools, tool)

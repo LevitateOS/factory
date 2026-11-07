@@ -206,7 +206,7 @@ impl LaunchIntent {
             || if manifest.phase == "correct" {
                 manifest.max_children != 0
             } else {
-                !(1..=4).contains(&manifest.max_children)
+                manifest.max_children > 4
             }
         {
             return Err(refused("native manifest differs from admitted intent"));

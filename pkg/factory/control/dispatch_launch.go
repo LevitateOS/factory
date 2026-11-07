@@ -131,8 +131,9 @@ func implementationManifest(plan *factory.InvestigationPlan) ([]byte, error) {
 // resolves to the product defaults at staging, matching policy creation;
 // running snapshots stay explicit. The returned bytes are parsed back
 // before use so a construction drift refuses here instead of at the
-// native boundary. Implementations stage 1-4 children; corrections stage
-// the singleton envelope with no children.
+// native boundary. New native implementations stage sequential tasks with no
+// children; appliance callers retain their captured child limit. Corrections
+// stage their singleton envelope with no children.
 //
 // Invocation reuses the fresh run identity. Dispatch observes no native
 // invocation: the executor learns systemd's at launch and enforces it for
@@ -187,7 +188,7 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 	now := time.Now()
 	runID := factory.NewID()
 	selection := plan.policy.Roles[project.RoleCoder]
-	manifest, err := stageExecutionManifest(plan.advancePlan, runID, plan.deadline, selection.Profile, project.ExecutionImplement, plan.attemptLimits.MaxChildren)
+	manifest, err := stageExecutionManifest(plan.advancePlan, runID, plan.deadline, selection.Profile, project.ExecutionImplement, plan.implementationChildren())
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Repository: repository, Issue: issue, Reason: DispatchErrStore, Detail: "recorded plan is unstaged"})
 		return
@@ -585,7 +586,7 @@ func retryPhasedChild(ctx context.Context, deps DispatchDeps, occupancy *passOcc
 	// identity, deadline and current limits: its digest still binds the
 	// launch below.
 	selection := plan.policy.Roles[a.Role]
-	manifest, err := stageExecutionManifest(parent.Result.PhaseResult.Output.Plan, runID, plan.deadline, selection.Profile, project.ExecutionImplement, plan.attemptLimits.MaxChildren)
+	manifest, err := stageExecutionManifest(parent.Result.PhaseResult.Output.Plan, runID, plan.deadline, selection.Profile, project.ExecutionImplement, plan.implementationChildren())
 	if err != nil {
 		report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "recorded plan is unstaged"})
 		return

@@ -1151,42 +1151,7 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		if _, err := port.LaunchRun(ctx, request); !errors.Is(err, execution.ErrTaskUnavailable) {
 			return errors.New("native plain CLI accepted or silently discarded a task manifest")
 		}
-		// Pure binding fixtures grant no task or provider admission and launch nothing.
-		bindings := []map[string]any{}
-		for _, authentication := range []string{"token", "muse_login"} {
-			bound := intent
-			bound.Version, bound.Run, bound.Role = 5, factory.NewID(), project.RoleCoder
-			bound.Native.BrokerRun = bound.Run
-			if bound.Native.CredentialSHA256 == "" {
-				bound.Native.CredentialSHA256 = strings.Repeat("0", 64)
-			}
-			phase, children := project.ExecutionImplement, 1
-			if authentication == "muse_login" {
-				phase, children = project.ExecutionCorrect, 0
-				bound.Native.Authentication, bound.Native.CredentialSHA256, bound.Native.TrustMode = execution.NativeMuseLogin, "", execution.NativeCLIProvider
-			}
-			exact, encodeErr := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: plan, PlanDigest: project.PlanDigest(plan), Invocation: bound.Run,
-				Phase: phase, Run: bound.Run, Deadline: bound.Deadline, Effort: bound.Effort, Contributor: bound.Contributor, MaxChildren: children})
-			if encodeErr != nil {
-				return encodeErr
-			}
-			bound.ExecutionPhase, bound.ManifestDigest = phase, project.ExecutionManifestDigest(exact)
-			encoded, encodeErr := bound.Encode()
-			if encodeErr != nil {
-				return encodeErr
-			}
-			altered := bound
-			altered.ManifestDigest = ""
-			if _, encodeErr = altered.Encode(); encodeErr == nil {
-				return errors.New("task intent accepted an absent manifest binding")
-			}
-			bindings = append(bindings, map[string]any{"intent": encoded, "manifest": exact})
-		}
-		data, encodeErr := json.Marshal(bindings)
-		if encodeErr != nil {
-			return encodeErr
-		}
-		if err := os.WriteFile(filepath.Join(profile, "task-manifest-bindings.json"), data, 0600); err != nil {
+		if err := writeTaskManifestBindings(profile, intent); err != nil {
 			return err
 		}
 		fmt.Println("PASS: native task-manifest launch remains explicitly unavailable before native effects")
@@ -1267,6 +1232,22 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "task-bindings" {
+		raw, err := os.ReadFile(os.Args[2])
+		if err == nil {
+			var intent execution.NativeIntent
+			intent, err = execution.ParseNativeIntent(string(raw))
+			if err == nil {
+				err = writeTaskManifestBindings(os.Args[3], intent)
+			}
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if len(os.Args) == 2 && os.Args[1] == "check-initial-intake" {
 		if err := initialIntakeFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -3241,5 +3222,54 @@ func ownedToolFixture(profile, instance, mode string) error {
 		return errors.New("unknown native harness became available")
 	}
 	fmt.Println("PASS: actual Go/native tool callback verifies official stable Muse", observed.Native.Version, "ELF", observed.Native.SHA256)
+	return nil
+}
+
+// Cross-language binding fixtures grant no task or provider admission.
+func writeTaskManifestBindings(profile string, intent execution.NativeIntent) error {
+	plan := []byte(`{"fixture":"unexecuted"}`)
+	bindings := []map[string]any{}
+	for _, mode := range []struct {
+		authentication, phase string
+		children              int
+	}{
+		{"token", project.ExecutionImplement, 0}, {"muse_login", project.ExecutionImplement, 0},
+		{"token", project.ExecutionImplement, 1}, {"muse_login", project.ExecutionCorrect, 0},
+	} {
+		bound := intent
+		bound.Version, bound.Run, bound.Role = 5, factory.NewID(), project.RoleCoder
+		bound.Native.BrokerRun = bound.Run
+		if bound.Native.CredentialSHA256 == "" {
+			bound.Native.CredentialSHA256 = strings.Repeat("0", 64)
+		}
+		phase, children := mode.phase, mode.children
+		bound.Native.Authentication, bound.Native.TrustMode = "", "isolated_system_worker"
+		if mode.authentication == "muse_login" {
+			bound.Native.Authentication, bound.Native.CredentialSHA256, bound.Native.TrustMode = execution.NativeMuseLogin, "", execution.NativeCLIProvider
+		}
+		exact, encodeErr := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: plan, PlanDigest: project.PlanDigest(plan), Invocation: bound.Run,
+			Phase: phase, Run: bound.Run, Deadline: bound.Deadline, Effort: bound.Effort, Contributor: bound.Contributor, MaxChildren: children})
+		if encodeErr != nil {
+			return encodeErr
+		}
+		bound.ExecutionPhase, bound.ManifestDigest = phase, project.ExecutionManifestDigest(exact)
+		encoded, encodeErr := bound.Encode()
+		if encodeErr != nil {
+			return encodeErr
+		}
+		altered := bound
+		altered.ManifestDigest = ""
+		if _, encodeErr = altered.Encode(); encodeErr == nil {
+			return errors.New("task intent accepted an absent manifest binding")
+		}
+		bindings = append(bindings, map[string]any{"intent": encoded, "manifest": exact})
+	}
+	data, encodeErr := json.Marshal(bindings)
+	if encodeErr != nil {
+		return encodeErr
+	}
+	if err := os.WriteFile(filepath.Join(profile, "task-manifest-bindings.json"), data, 0600); err != nil {
+		return err
+	}
 	return nil
 }

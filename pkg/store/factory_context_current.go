@@ -73,6 +73,16 @@ func factoryCurrentContextTx(ctx context.Context, tx *sql.Tx, cap factory.MCPCap
 	if err = currentAllowanceTx(ctx, tx, assignment, cap, now, &out); err != nil {
 		return out, err
 	}
+	if run.Native != nil && out.Allowance != nil {
+		out.Allowance.MaxChildren = 0
+		if len(run.ExecutionManifest) != 0 {
+			manifest, err := project.ParseExecutionManifest(run.ExecutionManifest)
+			if err != nil {
+				return out, err
+			}
+			out.Allowance.MaxChildren = manifest.MaxChildren
+		}
+	}
 	if assignment.Acceptance != "" && assignment.Issue > 0 {
 		if err = currentAcceptanceTx(ctx, tx, assignment, &out); err != nil {
 			return out, err

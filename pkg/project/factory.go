@@ -87,10 +87,9 @@ func ValidExecutionPhase(phase string) bool {
 }
 
 // ExecutionManifestRequired reports whether phase stages an immutable
-// execution manifest. Implement runs are multi-child planned execution;
-// correct runs are singleton re-execution of the admitted plan with no
-// child concurrency. Every other phase remains a single-agent run without
-// a manifest.
+// execution manifest. Native implement runs execute planned tasks sequentially;
+// correct runs retain their singleton plan. Historical child manifests preserve
+// their captured concurrency. Other phases need no task manifest.
 func ExecutionManifestRequired(phase string) bool {
 	return phase == ExecutionImplement || phase == ExecutionCorrect
 }

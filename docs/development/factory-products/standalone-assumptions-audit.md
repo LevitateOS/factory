@@ -55,6 +55,11 @@ The user started the correction goal and selected these requirements on
 - On 2026-11-07, retain repository navigation independently of the current route
   and keep Feed scoped to the selected repository. Aggregate Feed was not selected
   (A24).
+- On 2026-11-07, one Builder implements planned tasks sequentially. Required
+  parent/child orchestration was not selected. Preserve task checks/checkpoints,
+  independent review, CI and merge; no full-pipeline prerequisite is removed
+  (A04/A19). New native implement manifests use `max_children: 0`; historical
+  child manifests remain immutable and readable.
 
 The original audit and its recommendations below retain their baseline scope.
 They are not all selected requirements. In particular, A07's proposed simpler
@@ -201,11 +206,20 @@ corrections are now active; the old feature queue waits for their resolution.
   passed in `/home/vince/tmp/ftask-admitted-fixed7.mWt3yM/result.log` after fixing
   duplicate intent publication. Native/Go builds and dependency boundaries passed.
   No model or GitHub operation ran. Task phases remain explicitly unavailable:
-  isolated task effects/children, manifest consumption, task/final checkpoints,
+  isolated task effects, manifest consumption, task/final checkpoints,
   event journal and their actual Go-admitted lifecycle still need implementation.
-  Failed earlier fixtures remain unresolved in the security handoff. The inherited
-  mandatory parent/child orchestration requirement awaits owner confirmation;
-  sequential work by one Builder is a proposal, not an adopted change.
+  Failed earlier fixtures remain unresolved in the security handoff. The owner
+  selected sequential Builder execution. New native implement dispatch stages
+  zero children; manifest readers retain historical child variants. Go imports
+  parent task events across the multi-task plan with a one-active-task limit;
+  Builder output release and context use that captured mode. The isolated native
+  task effect/checkpoint owner remains absent, so task phases stay unavailable.
+  Go-produced sequential token/CLI manifests and retained child/correction modes
+  passed the existing Rust sidecar readback, changed-byte and pending-marker
+  checks in `/home/vince/tmp/fsequential-contract7.LviXGj/result.log`.
+  Go/native builds and affected existing MCP checks passed. This is contract
+  readback only: no task ran, no typed native event journal was produced and no
+  checkpoint or sequential task lifecycle is qualified by it.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build

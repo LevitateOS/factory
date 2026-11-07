@@ -107,17 +107,22 @@ the assumptions audit records actual Go/Rust readback for declared token/CLI
 metadata and actual non-task MCP/artifact/retirement/restart regression. No model
 or task executed. The read fixture's pending marker is not a killed-publisher
 experiment; no task or broader admission/custody/IPC gate is closed.
-Exact blocker: the native task effect owner is absent. The owner decision on
-mandatory parent/child orchestration versus sequential Builder work is pending;
-existing child limits remain in force. It must consume this
+Exact blocker: the native task effect owner is absent. The owner selected one
+Builder executing planned tasks sequentially on 2026-11-07. New native implement
+manifests capture zero children; historical manifests keep their original bounds.
+Go task import and worker context distinguish this captured mode. A04/A19 records
+Go/Rust retained manifest readback for both sequential
+source modes plus historical child/correction modes; no task/event/checkpoint
+effect ran. The native owner must consume this
 manifest through the isolated workspace, bind live command/checkpoint operations
-to actual process ownership (the staged invocation claim is not liveness), run
-and retire children, persist/read task events and task/final checkpoint results.
+to actual process ownership (the staged invocation claim is not liveness), perform
+isolated task edits/checks sequentially, and persist/read task events and task/final
+checkpoint results. No task child orchestration is required for the selected mode.
 Relevant remaining owners: broker `source_binding.rs`, worker
 `soda-factory-agent.rs`, native execution registry and Go task/checkpoint ports.
 Evidence needed: actual Go-admitted implement/correct journeys with checks,
 commit/tree/output provenance, exact retries and journal import, withdrawal/stop,
-child retirement and retained recovery; version-5 publication interruption and
+sequential task/run retirement and retained recovery; version-5 publication interruption and
 missing/changed manifest refusal at the actual effect boundary. Keep task phases
 unavailable until the complete runtime exists and its defining behavior is proved.
 

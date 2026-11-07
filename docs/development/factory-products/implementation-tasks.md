@@ -131,9 +131,11 @@ fingerprinted. Available native hosts can dispatch supported non-task phases;
 missing helper/tool support and the unimplemented task runtime remain explicit waits.
 Task intents now retain their exact phase/manifest digest and transport the
 original bounded bytes to Rust. A04/A19 records scoped retained readback and the
-non-task regression journey; task commands/children, checkpoints and journal
-consumption remain unfinished. The inherited mandatory parent/child requirement
-awaits the owner decision; the sequential-Builder alternative has not been adopted.
+non-task regression journey; task effects, checkpoints and journal consumption
+remain unfinished. On 2026-11-07 the owner selected one Builder executing tasks
+sequentially. New native implement manifests capture zero children; historical
+child-mode records remain readable. Preserve task checks/checkpoints, independent
+review, CI and merge. The complete isolated sequential task runtime is still required.
 This does not enable task phases or complete T09.
 The desktop stage now includes the native execution helpers/templates and an
 explicit single-user installer with image mode and existing-file refusal. A18

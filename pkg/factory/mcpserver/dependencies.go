@@ -24,6 +24,7 @@ type Dependencies struct {
 	// boundCapability is supplied by the authenticated transport, never tool
 	// arguments. Its immutable scope supplies identity and default revisions.
 	boundCapability      *factory.MCPCapability
+	sequentialTasks      bool
 	limiter              *mcpRateLimiter
 	Prepare              func(context.Context, factory.MCPCapability) (factory.MCPCapability, error)
 	Capabilities         factoryservice.WorkerCapabilitySource

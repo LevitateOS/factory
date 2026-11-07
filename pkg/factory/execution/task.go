@@ -72,7 +72,7 @@ type TaskCommander interface {
 }
 
 // TaskRuntime is the complete effect surface required by a manifest-driven
-// parent. A plain CLI launcher cannot substitute for task/checkpoint ownership.
+// agent. A plain CLI launcher cannot substitute for task/checkpoint ownership.
 // Implementing these ports is availability, not qualification of their behavior.
 type TaskRuntime interface {
 	TaskCommander

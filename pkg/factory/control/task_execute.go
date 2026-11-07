@@ -163,7 +163,7 @@ func admitTaskEventImport(plan factory.InvestigationPlan, imp TaskEventImport) (
 		if imp.MaxChildren != 0 || len(plan.Tasks) != 1 {
 			return nil, errors.New("correction task import requires its singleton parent")
 		}
-	} else if imp.Phase != project.ExecutionImplement || imp.MaxChildren < project.MinTaskChildren || imp.MaxChildren > project.MaxTaskChildren {
+	} else if imp.Phase != project.ExecutionImplement || imp.MaxChildren < 0 || imp.MaxChildren > project.MaxTaskChildren {
 		return nil, errors.New("task event import child limit is outside its range")
 	}
 	if imp.Invocation == "" || len(imp.Invocation) > 128 {
@@ -189,7 +189,7 @@ func admitTaskEventReceipts(receipts []store.PlanTaskReceipt, imp TaskEventImpor
 		if _, ok := byTask[receipt.TaskID]; !ok {
 			return nil, ErrTaskEventUnknown
 		}
-		if receipt.Parent != (imp.Phase == project.ExecutionCorrect) {
+		if receipt.Parent != (imp.MaxChildren == 0) {
 			return nil, ErrTaskEventBinding
 		}
 		if _, dup := stored[receipt.TaskID]; dup {
@@ -222,7 +222,7 @@ func (f *taskEventFold) seedPendingReceipts() {
 		seed := store.PlanTaskReceipt{
 			AttemptRoot: f.imp.AttemptRoot, PlanID: f.imp.PlanID, TaskID: task.ID,
 			State:  store.PlanTaskPending,
-			Parent: f.imp.Phase == project.ExecutionCorrect,
+			Parent: f.imp.MaxChildren == 0,
 		}
 		f.pending[task.ID] = seed
 		f.result.Writes = append(f.result.Writes, seed)
@@ -254,7 +254,7 @@ func (f *taskEventFold) foldEvent(event project.TaskEvent) error {
 	}
 	parentEvent := event.Type == project.TaskEventParentStarted || event.Type == project.TaskEventParentOutput
 	childEvent := event.Type == project.TaskEventChildStartIntent || event.Type == project.TaskEventChildStarted || event.Type == project.TaskEventChildReported
-	if parentEvent && (f.imp.Phase != project.ExecutionCorrect || event.ChildID != "") || childEvent && f.imp.Phase == project.ExecutionCorrect {
+	if parentEvent && (f.imp.MaxChildren != 0 || event.ChildID != "") || childEvent && f.imp.MaxChildren == 0 {
 		return ErrTaskEventBinding
 	}
 	if event.Sequence <= f.next {
@@ -672,7 +672,7 @@ func overTaskLimits(plan factory.InvestigationPlan, pending map[string]store.Pla
 	active := 0
 	lanes := make(map[string]int)
 	for _, task := range plan.Tasks {
-		if pending[task.ID].Parent {
+		if pending[task.ID].Parent && maxChildren != 0 {
 			continue
 		}
 		switch pending[task.ID].State {
@@ -683,6 +683,9 @@ func overTaskLimits(plan factory.InvestigationPlan, pending map[string]store.Pla
 				return true
 			}
 		}
+	}
+	if maxChildren == 0 {
+		return active > 1
 	}
 	return active > maxChildren
 }

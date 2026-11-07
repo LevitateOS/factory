@@ -12,7 +12,8 @@ import (
 // The attempt snapshots it; subsequent policy changes do not replenish it.
 // ReviewRounds counts every dispatched independent review: first
 // inspections and policy-required reviews alike; MaxChildren caps
-// concurrent native task children. Discretionary same-head re-reviews
+// concurrent children in historical/appliance task modes. New native manifests
+// capture zero children and execute tasks sequentially. Discretionary same-head re-reviews
 // additionally spend the single unchanged-head extra pass per head (D08).
 // Jev delivery judgments are free and not counted here.
 type AttemptLimits struct {

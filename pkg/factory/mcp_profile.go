@@ -200,7 +200,7 @@ var mcpToolDefinitions = []mcpToolDefinition{
 		MCPProfileFixer:   true,
 	}, 0},
 	{MCPToolStartTask, singleMCPProfile(MCPProfileBuilder), mcpDirect},
-	{MCPToolReleaseOutput, singleMCPProfile(MCPProfileFixer), mcpDirect},
+	{MCPToolReleaseOutput, map[MCPProfile]bool{MCPProfileBuilder: true, MCPProfileFixer: true}, mcpDirect},
 	{MCPToolResolvePost, allMCPProfiles(), 0},
 }
 

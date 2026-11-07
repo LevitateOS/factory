@@ -64,6 +64,13 @@ type attemptPlan struct {
 	attemptLimits     factory.AttemptLimits
 }
 
+func (p *attemptPlan) implementationChildren() int {
+	if p.nativeEnvironment != nil {
+		return 0
+	}
+	return p.attemptLimits.MaxChildren
+}
+
 // dispatchOne dispatches one queued issue or reports exactly why it
 // waited. Checks run in fixed order so the same state reports the same reason.
 // An explicit Retry can retain bounded private preparation custody while waiting.
