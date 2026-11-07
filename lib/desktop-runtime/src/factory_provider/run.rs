@@ -133,6 +133,7 @@ pub struct RunStart<'a> {
     pub mcp: Option<WorkerMcp>,
     pub cancellation: AgentCancellation,
     pub intent: Option<&'a LaunchIntent>,
+    pub manifest: &'a [u8],
     pub preparation: Option<&'a soda_execution_protocol::PreparedSourceRef>,
 }
 
@@ -160,6 +161,7 @@ impl RunOwner {
             mcp: None,
             cancellation: AgentCancellation::default(),
             intent: None,
+            manifest: &[],
             preparation: None,
         })
     }
@@ -186,6 +188,7 @@ impl RunOwner {
             mcp: Some(mcp),
             cancellation: AgentCancellation::default(),
             intent: None,
+            manifest: &[],
             preparation: None,
         })
     }
@@ -212,6 +215,7 @@ impl RunOwner {
             mcp: None,
             cancellation,
             intent: None,
+            manifest: &[],
             preparation: None,
         })
     }
@@ -238,6 +242,7 @@ impl RunOwner {
             mcp: Some(mcp),
             cancellation,
             intent: None,
+            manifest: &[],
             preparation: None,
         })
     }
@@ -267,6 +272,7 @@ impl RunOwner {
             mcp,
             cancellation,
             intent: Some(intent),
+            manifest: &[],
             preparation: None,
         })
     }
@@ -286,6 +292,7 @@ impl RunOwner {
             cancellation,
             intent,
             preparation,
+            manifest,
         } = input;
         if let Some(intent) = intent {
             intent.bind_policy(&mut policy, tool_sha256, prompt_sha256)?;
@@ -345,8 +352,11 @@ impl RunOwner {
             prompt_sha256,
         )?;
         if let Some(intent) = intent {
-            intent.persist(profile_dir)?;
+            intent.persist_manifest(profile_dir, manifest)?;
         } else {
+            if !manifest.is_empty() {
+                return Err(refused("manifest requires a captured intent"));
+            }
             // A legacy entry point cannot sidestep an already retained intent,
             // including an interrupted start before custody was acquired.
             super::intent::require_absent(profile_dir, &scope)?;

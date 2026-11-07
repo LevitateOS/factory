@@ -8,6 +8,7 @@ mod muse;
 pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT};
 
 pub const MAX_STAGE_BUNDLE: usize = 512 * 1024;
+pub const MAX_TASK_MANIFEST: usize = 64 * 1024;
 pub const MAX_PROMPT: usize = 320 * 1024;
 pub const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
 pub const MAX_BROKER_FRAME: usize = 1024;

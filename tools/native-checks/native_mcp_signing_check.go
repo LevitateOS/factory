@@ -1136,6 +1136,44 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		if _, err := port.LaunchRun(ctx, request); !errors.Is(err, execution.ErrTaskUnavailable) {
 			return errors.New("native plain CLI accepted or silently discarded a task manifest")
 		}
+		// Pure binding fixtures grant no task or provider admission and launch nothing.
+		bindings := []map[string]any{}
+		for _, authentication := range []string{"token", "muse_login"} {
+			bound := intent
+			bound.Version, bound.Run, bound.Role = 5, factory.NewID(), project.RoleCoder
+			bound.Native.BrokerRun = bound.Run
+			if bound.Native.CredentialSHA256 == "" {
+				bound.Native.CredentialSHA256 = strings.Repeat("0", 64)
+			}
+			phase, children := project.ExecutionImplement, 1
+			if authentication == "muse_login" {
+				phase, children = project.ExecutionCorrect, 0
+				bound.Native.Authentication, bound.Native.CredentialSHA256, bound.Native.TrustMode = execution.NativeMuseLogin, "", execution.NativeCLIProvider
+			}
+			exact, encodeErr := project.MarshalExecutionManifest(project.ExecutionManifest{Plan: plan, PlanDigest: project.PlanDigest(plan), Invocation: bound.Run,
+				Phase: phase, Run: bound.Run, Deadline: bound.Deadline, Effort: bound.Effort, Contributor: bound.Contributor, MaxChildren: children})
+			if encodeErr != nil {
+				return encodeErr
+			}
+			bound.ExecutionPhase, bound.ManifestDigest = phase, project.ExecutionManifestDigest(exact)
+			encoded, encodeErr := bound.Encode()
+			if encodeErr != nil {
+				return encodeErr
+			}
+			altered := bound
+			altered.ManifestDigest = ""
+			if _, encodeErr = altered.Encode(); encodeErr == nil {
+				return errors.New("task intent accepted an absent manifest binding")
+			}
+			bindings = append(bindings, map[string]any{"intent": encoded, "manifest": exact})
+		}
+		data, encodeErr := json.Marshal(bindings)
+		if encodeErr != nil {
+			return encodeErr
+		}
+		if err := os.WriteFile(filepath.Join(profile, "task-manifest-bindings.json"), data, 0600); err != nil {
+			return err
+		}
 		fmt.Println("PASS: native task-manifest launch remains explicitly unavailable before native effects")
 		fmt.Println("PASS: Go native launch refuses unadmitted work before native effects")
 		return nil

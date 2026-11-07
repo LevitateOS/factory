@@ -1,6 +1,7 @@
 //! Exact nonsecret Go launch binding, retained before custody and root staging.
 //! This is native effect evidence; Go still owns current product admission.
 use super::{receipt, Policy, ReceiptScope, Role};
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, DirBuilder, File, OpenOptions};
@@ -42,6 +43,10 @@ struct Wire {
     effort: String,
     #[serde(default)]
     contributor: bool,
+    #[serde(default)]
+    execution_phase: String,
+    #[serde(default)]
+    manifest_digest: String,
     native: Native,
 }
 #[derive(Clone, Deserialize, Serialize)]
@@ -93,7 +98,7 @@ impl LaunchIntent {
             serde_json::from_str(raw).map_err(|_| refused("native intent shape invalid"))?;
         let n = &wire.native;
         if wire.kind != "factory_native_launch_intent"
-            || !matches!(wire.version, 1 | 2 | 3 | 4)
+            || !matches!(wire.version, 1 | 2 | 3 | 4 | 5)
             || !hex(&wire.run, 32)
             || !text(&wire.workspace, 128)
             || !hex(&wire.connection, 32)
@@ -105,7 +110,8 @@ impl LaunchIntent {
                 n.trust_mode.as_str(),
                 "isolated_system_worker" | "cli_managed_provider"
             )
-            || (wire.version == 4) != (n.trust_mode == "cli_managed_provider")
+            || (wire.version == 4 || wire.version == 5 && n.trust_mode == "cli_managed_provider")
+                != (n.trust_mode == "cli_managed_provider")
             || !text(&n.tool.harness, 128)
             || !text(&n.tool.version, 128)
             || !Path::new(&n.tool.executable).is_absolute()
@@ -126,12 +132,22 @@ impl LaunchIntent {
             return Err(refused("native intent harness profile invalid"));
         }
         if wire.version < 3 && !n.credential_sha256.is_empty()
-            || wire.version == 3 && !hex(&n.credential_sha256, 64)
-            || wire.version < 4 && !n.authentication.is_empty()
-            || wire.version == 4
+            || (wire.version == 3 || wire.version == 5 && n.trust_mode != "cli_managed_provider")
+                && !hex(&n.credential_sha256, 64)
+            || n.trust_mode != "cli_managed_provider" && !n.authentication.is_empty()
+            || (wire.version == 4 || wire.version == 5 && n.trust_mode == "cli_managed_provider")
                 && (n.authentication != "muse_login" || !n.credential_sha256.is_empty())
         {
             return Err(refused("native intent credential binding invalid"));
+        }
+        if wire.version == 5 {
+            if !matches!(wire.execution_phase.as_str(), "implement" | "correct")
+                || !hex(&wire.manifest_digest, 64)
+            {
+                return Err(refused("native task intent binding invalid"));
+            }
+        } else if !wire.execution_phase.is_empty() || !wire.manifest_digest.is_empty() {
+            return Err(refused("historical intent cannot carry a task manifest"));
         }
         let intent = Self {
             raw: raw.into(),
@@ -139,6 +155,122 @@ impl LaunchIntent {
         };
         intent.scope()?;
         Ok(intent)
+    }
+    pub(super) fn validate_manifest(&self, bytes: &[u8]) -> io::Result<()> {
+        if self.wire.version != 5 {
+            return if bytes.is_empty() {
+                Ok(())
+            } else {
+                Err(refused("non-task intent cannot carry a manifest"))
+            };
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Manifest {
+            plan: String,
+            plan_digest: String,
+            invocation: String,
+            phase: String,
+            run: String,
+            deadline: String,
+            effort: String,
+            #[serde(default)]
+            contributor: bool,
+            max_children: u8,
+        }
+        if bytes.is_empty() || bytes.len() > soda_execution_protocol::MAX_TASK_MANIFEST {
+            return Err(refused("native manifest size invalid"));
+        }
+        let manifest: Manifest =
+            serde_json::from_slice(bytes).map_err(|_| refused("native manifest shape invalid"))?;
+        let plan = base64::engine::general_purpose::STANDARD
+            .decode(&manifest.plan)
+            .map_err(|_| refused("native manifest plan encoding invalid"))?;
+        let digest = |bytes: &[u8]| -> String {
+            Sha256::digest(bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect()
+        };
+        if digest(bytes) != self.wire.manifest_digest
+            || digest(&plan) != manifest.plan_digest
+            || !serde_json::from_slice::<serde_json::Value>(&plan)
+                .is_ok_and(|value| value.is_object())
+            || manifest.run != self.run()
+            || !text(&manifest.invocation, 128)
+            || manifest.phase != self.wire.execution_phase
+            || manifest.effort != self.wire.effort
+            || manifest.contributor != self.wire.contributor
+            || OffsetDateTime::parse(&manifest.deadline, &Rfc3339).ok()
+                != OffsetDateTime::parse(&self.wire.deadline, &Rfc3339).ok()
+            || if manifest.phase == "correct" {
+                manifest.max_children != 0
+            } else {
+                !(1..=4).contains(&manifest.max_children)
+            }
+        {
+            return Err(refused("native manifest differs from admitted intent"));
+        }
+        Ok(())
+    }
+    // Publish beside the existing intent, before any custody or source effect.
+    pub(super) fn persist_manifest(&self, profile: &Path, bytes: &[u8]) -> io::Result<()> {
+        self.validate_manifest(bytes)?;
+        let root = profile.join("native-run-intents");
+        let pending = root.join(format!("{}.manifest.pending", self.run()));
+        let committed = root.join(format!("{}.manifest", self.run()));
+        absent(&pending)?;
+        absent(&committed)?;
+        self.persist(profile)?;
+        if bytes.is_empty() {
+            return Ok(());
+        }
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&pending)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::hard_link(&pending, &committed)?;
+        File::open(&root)?.sync_all()?;
+        fs::remove_file(pending)?;
+        File::open(&root)?.sync_all()
+    }
+    pub(super) fn retained_manifest(&self, profile: &Path) -> io::Result<Vec<u8>> {
+        receipt::profile(profile, self.scope()?.profile)?;
+        let root = profile.join("native-run-intents");
+        private_directory(&root)?;
+        absent(&root.join(format!("{}.manifest.pending", self.run())))?;
+        let path = root.join(format!("{}.manifest", self.run()));
+        if self.wire.version != 5 {
+            absent(&path)?;
+            return Ok(Vec::new());
+        }
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)?;
+        let meta = file.metadata()?;
+        if !meta.is_file()
+            || meta.uid() != unsafe { libc::geteuid() }
+            || meta.mode() & 0o077 != 0
+            || meta.nlink() != 1
+            || meta.len() > soda_execution_protocol::MAX_TASK_MANIFEST as u64
+        {
+            return Err(refused("native manifest file invalid"));
+        }
+        let mut bytes = Vec::new();
+        (&file)
+            .take(soda_execution_protocol::MAX_TASK_MANIFEST as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() as u64 != meta.len() {
+            return Err(refused("native manifest changed while reading"));
+        }
+        self.validate_manifest(&bytes)?;
+        file.sync_all()?;
+        Ok(bytes)
     }
     pub fn raw(&self) -> &str {
         &self.raw
@@ -165,7 +297,7 @@ impl LaunchIntent {
         &self.wire.connection
     }
     pub(crate) fn muse_login(&self) -> bool {
-        self.wire.version == 4
+        self.wire.native.trust_mode == "cli_managed_provider"
     }
     pub(super) fn remaining(&self) -> io::Result<std::time::Duration> {
         let deadline = OffsetDateTime::parse(&self.wire.deadline, &Rfc3339)
@@ -327,7 +459,9 @@ pub(super) fn require_absent(profile: &Path, scope: &ReceiptScope<'_>) -> io::Re
         Ok(_) => private_directory(&root)?,
     }
     absent(&root.join(format!("{}.json", scope.run)))?;
-    absent(&root.join(format!("{}.pending", scope.run)))
+    absent(&root.join(format!("{}.pending", scope.run)))?;
+    absent(&root.join(format!("{}.manifest", scope.run)))?;
+    absent(&root.join(format!("{}.manifest.pending", scope.run)))
 }
 fn private_directory(path: &Path) -> io::Result<()> {
     let metadata = path.symlink_metadata()?;
@@ -394,5 +528,6 @@ pub(super) fn read_run(
     if intent.scope()?.run != run || intent.scope()?.profile != profile_id {
         return Err(refused("native intent retained scope differs"));
     }
+    intent.retained_manifest(profile)?;
     Ok(Some(intent))
 }

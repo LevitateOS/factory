@@ -137,6 +137,26 @@ corrections are now active; the old feature queue waits for their resolution.
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
 
+- **A04/A19 — native task manifest binding implemented; task runtime pending.**
+  New task intents use version 5 to capture the exact phase and manifest digest
+  in the Go transaction. Go launch transports the original manifest bytes;
+  Rust bounds and binds its run, plan bytes, deadline, profile and child limit,
+  then retains it beside the one-shot intent before custody/source effects.
+  The run constructor owns publication once; retained readers refuse missing,
+  changed or pending material. Historical non-task intent encodings are preserved.
+  Actual Go-encoded token/CLI manifest readback, altered-byte refusal and a
+  pending-marker refusal passed in
+  `/home/vince/tmp/ftask-binding-only7.tjaJI6/result.log`. This uses declared
+  fixture metadata and an unexecuted plan; it does not qualify task admission,
+  the version-5 publisher under interruption, child execution or checkpoints.
+  The current Go-admitted non-task MCP/artifact, retirement and restart journey
+  passed in `/home/vince/tmp/ftask-admitted-fixed7.mWt3yM/result.log` after fixing
+  duplicate intent publication. Native/Go builds and dependency boundaries passed.
+  No model or GitHub operation ran. Task phases remain explicitly unavailable:
+  isolated task effects/children, manifest consumption, task/final checkpoints,
+  event journal and their actual Go-admitted lifecycle still need implementation.
+  Failed earlier fixtures remain unresolved in the security handoff.
+
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
   files use the existing 64 MiB checkout envelope instead of the 256 KiB log cap.

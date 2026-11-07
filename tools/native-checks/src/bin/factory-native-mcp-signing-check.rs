@@ -25,6 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 2 && args[1] == "task-manifest" {
+        return task_manifest_bindings(&root);
+    }
     if args.len() == 5 && args[4] == "schema" {
         let profile = root.join("schema-profile");
         for restart in 0..2 {
@@ -1167,6 +1170,7 @@ async fn managed_execution(
             command("check-native-sponsorship", &account.connection)?;
         }
         command("check-owned-execution", "launch_refused")?;
+        task_manifest_bindings(&profile)?;
         if supervisor.execution_ticket(&intent).is_ok() {
             return Err("unadmitted Go launch reached native effects".into());
         }
@@ -1596,5 +1600,82 @@ async fn managed(
     if go_client.is_some() {
         println!("PASS: Rust recovery reader retains canonical/native scope across restart, leaves missing local evidence unknown, refuses invalid/missing selectors and generic product access, and fences evidence after retirement");
     }
+    Ok(())
+}
+
+// Actual cross-language retained-file readback, not task execution or admission.
+fn task_manifest_bindings(profile: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use base64::Engine;
+    use soda_desktop_runtime::factory_provider::{read_intent, ReceiptScope, Role};
+    let bindings: Vec<serde_json::Value> =
+        serde_json::from_slice(&fs::read(profile.join("task-manifest-bindings.json"))?)?;
+    let root = profile.join("native-run-intents");
+    fs::create_dir_all(&root)?;
+    fs::set_permissions(&root, fs::Permissions::from_mode(0o700))?;
+    for fixture in bindings {
+        let raw = fixture["intent"].as_str().ok_or("binding intent missing")?;
+        let wire: serde_json::Value = serde_json::from_str(raw)?;
+        let field =
+            |value: &serde_json::Value, key: &str| -> Result<String, Box<dyn std::error::Error>> {
+                Ok(value[key]
+                    .as_str()
+                    .ok_or("binding selector missing")?
+                    .to_owned())
+            };
+        let run = field(&wire, "run")?;
+        let profile_id = field(&wire["native"]["workspace"], "profile")?;
+        let source = field(&wire["native"], "bundle_sha256")?;
+        let candidate = field(&wire, "source_commit")?;
+        let tool = field(&wire["native"]["tool"], "sha256")?;
+        let prompt = field(&wire["native"], "prompt_sha256")?;
+        let scope = ReceiptScope::new(
+            &run,
+            &profile_id,
+            &source,
+            &candidate,
+            Role::Coder,
+            &tool,
+            &prompt,
+        )?;
+        let manifest = base64::engine::general_purpose::STANDARD.decode(
+            fixture["manifest"]
+                .as_str()
+                .ok_or("binding manifest missing")?,
+        )?;
+        let retained = root.join(format!("{run}.json"));
+        let material = root.join(format!("{run}.manifest"));
+        let pending = root.join(format!("{run}.manifest.pending"));
+        for (path, bytes) in [
+            (&retained, raw.as_bytes()),
+            (&material, manifest.as_slice()),
+        ] {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(path)?;
+            file.write_all(bytes)?;
+            file.sync_all()?;
+        }
+        if read_intent(profile, &scope)?.is_none() {
+            return Err("exact task binding not read".into());
+        }
+        let mut changed = manifest.clone();
+        changed.push(b' ');
+        fs::write(&material, changed)?;
+        if read_intent(profile, &scope).is_ok() {
+            return Err("altered manifest was accepted".into());
+        }
+        fs::write(&material, &manifest)?;
+        fs::write(&pending, b"incomplete")?;
+        if read_intent(profile, &scope).is_ok() {
+            return Err("pending manifest was accepted".into());
+        }
+        fs::remove_file(pending)?;
+        if read_intent(profile, &scope)?.is_none() {
+            return Err("exact manifest readback failed".into());
+        }
+    }
+    println!("PASS: exact Go task intent/manifest readback for token and CLI sources; altered bytes and a pending manifest marker refused; no task or provider admitted");
     Ok(())
 }

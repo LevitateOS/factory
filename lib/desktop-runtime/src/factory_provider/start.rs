@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 pub struct ExecutionStart {
     pub intent: LaunchIntent,
+    pub manifest: Vec<u8>,
     pub policy: Policy,
     pub credentials: Arc<Credentials>,
     pub capability: TokenCapability,
@@ -36,6 +37,7 @@ impl Executions {
             )
         };
         start.intent.current_profile()?;
+        start.intent.validate_manifest(&start.manifest)?;
         if start.bundle.is_empty()
             || start.bundle.len() > MAX_STAGE_BUNDLE
             || start.prompt.is_empty()
@@ -65,6 +67,7 @@ impl Executions {
         let binding = ExecutionBinding::from_intent(&start.intent)?;
         let ExecutionStart {
             intent,
+            manifest,
             policy,
             credentials,
             capability,
@@ -87,6 +90,7 @@ impl Executions {
                     mcp: Some(mcp),
                     cancellation,
                     intent: Some(&intent),
+                    manifest: &manifest,
                     preparation: Some(&preparation),
                 })
             },

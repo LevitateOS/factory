@@ -261,6 +261,12 @@ func (r Run) validateProvenance() error {
 		}
 		if r.Native.Intent != "" {
 			intent, err := execution.ParseNativeIntent(r.Native.Intent)
+			if err == nil && intent.Version == 5 {
+				manifest, parseErr := project.ParseExecutionManifest(r.ExecutionManifest)
+				if parseErr != nil || intent.ExecutionPhase != manifest.Phase || intent.ManifestDigest != project.ExecutionManifestDigest(r.ExecutionManifest) {
+					return execution.ErrNativeIntent
+				}
+			}
 			if err != nil || intent.Run != r.ID || intent.Workspace != r.ProjectID ||
 				intent.Role != r.Role || intent.SourceCommit != r.InputSHA || !intent.Deadline.Equal(r.Deadline) ||
 				intent.Version >= 2 && intent.Model != r.Model ||

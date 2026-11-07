@@ -16,32 +16,41 @@ import (
 // MCP secret or provider credential. Retain its encoded bytes before effects;
 // decoding/recovery must not regenerate them from today's selections.
 type NativeIntent struct {
-	Kind         string       `json:"kind"`
-	Version      int          `json:"version"`
-	Run          string       `json:"run"`
-	Workspace    string       `json:"workspace"`
-	Role         string       `json:"role"`
-	SourceCommit string       `json:"source_commit"`
-	Connection   string       `json:"connection"`
-	Deadline     time.Time    `json:"deadline"`
-	Model        string       `json:"model,omitempty"`
-	Effort       string       `json:"effort,omitempty"`
-	Contributor  bool         `json:"contributor,omitempty"`
-	Native       NativeLaunch `json:"native"`
+	Kind           string       `json:"kind"`
+	Version        int          `json:"version"`
+	Run            string       `json:"run"`
+	Workspace      string       `json:"workspace"`
+	Role           string       `json:"role"`
+	SourceCommit   string       `json:"source_commit"`
+	Connection     string       `json:"connection"`
+	Deadline       time.Time    `json:"deadline"`
+	Model          string       `json:"model,omitempty"`
+	Effort         string       `json:"effort,omitempty"`
+	Contributor    bool         `json:"contributor,omitempty"`
+	ExecutionPhase string       `json:"execution_phase,omitempty"`
+	ManifestDigest string       `json:"manifest_digest,omitempty"`
+	Native         NativeLaunch `json:"native"`
 }
 
 var ErrNativeIntent = errors.New("native launch intent differs from its captured binding")
 
 func (i NativeIntent) Validate() error {
-	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2 && i.Version != 3 && i.Version != 4) ||
+	if i.Kind != "factory_native_launch_intent" || (i.Version != 1 && i.Version != 2 && i.Version != 3 && i.Version != 4 && i.Version != 5) ||
 		!project.ValidFactoryRunID(i.Run) || !project.ValidID(i.Workspace) ||
 		!project.ValidFactoryRole(i.Role) || !project.ValidCommit(i.SourceCommit) ||
 		!collaboration.ValidText(i.Connection, 128) || i.Deadline.IsZero() ||
-		!i.Native.Active() || (i.Version == 4) != (i.Native.TrustMode == NativeCLIProvider) {
+		!i.Native.Active() || (i.Version == 4 || i.Version == 5 && i.Native.TrustMode == NativeCLIProvider) != (i.Native.TrustMode == NativeCLIProvider) {
 		return ErrNativeIntent
 	}
 	if i.Version == 1 && (i.Model != "" || i.Effort != "" || i.Contributor) || i.Version >= 2 && (i.Model == "" || !project.ValidTaskEffort(i.Effort)) ||
 		i.Version < 3 && i.Native.CredentialSHA256 != "" || i.Version == 3 && !validDigest(i.Native.CredentialSHA256) {
+		return ErrNativeIntent
+	}
+	if i.Version == 5 {
+		if !project.ExecutionManifestRequired(i.ExecutionPhase) || !validDigest(i.ManifestDigest) || i.Native.TrustMode != NativeCLIProvider && !validDigest(i.Native.CredentialSHA256) {
+			return ErrNativeIntent
+		}
+	} else if i.ExecutionPhase != "" || i.ManifestDigest != "" {
 		return ErrNativeIntent
 	}
 	return nil
@@ -71,6 +80,11 @@ func EncodeNativeIntent(request LaunchRequest) (string, error) {
 	}
 	if request.Native.TrustMode == NativeCLIProvider {
 		intent.Version = 4
+	}
+	if project.ExecutionManifestRequired(run.ExecutionPhase) {
+		intent.Version = 5
+		intent.ExecutionPhase = run.ExecutionPhase
+		intent.ManifestDigest = run.ManifestDigest
 	}
 	return intent.Encode()
 }

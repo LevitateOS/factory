@@ -54,6 +54,7 @@ fn denied() -> io::Error {
 }
 pub(crate) struct Input {
     pub intent: String,
+    pub manifest: String,
     pub prompt: String,
     pub capability: String,
     pub secret: String,
@@ -69,6 +70,13 @@ pub(crate) async fn launch(
     input: Input,
 ) -> io::Result<Value> {
     let intent = LaunchIntent::from_go(&input.intent)?;
+    if input.manifest.len() > soda_execution_protocol::MAX_TASK_MANIFEST.div_ceil(3) * 4 {
+        return Err(denied());
+    }
+    let manifest = base64::engine::general_purpose::STANDARD
+        .decode(input.manifest)
+        .map_err(|_| denied())?;
+    intent.validate_manifest(&manifest)?;
     let scope = intent.scope()?;
     if !alive.load(Ordering::SeqCst)
         || intent.instance() != channel.instance
@@ -114,6 +122,7 @@ pub(crate) async fn launch(
                 intent,
                 bundle,
                 prompt,
+                manifest,
                 preparation,
                 mcp,
                 cancel,
@@ -173,6 +182,7 @@ pub(crate) async fn launch(
         directory,
         ExecutionStart {
             intent,
+            manifest,
             policy,
             credentials: account.credentials.clone(),
             capability,

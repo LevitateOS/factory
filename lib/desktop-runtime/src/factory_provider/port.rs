@@ -31,6 +31,8 @@ pub(crate) enum Call {
     },
     Launch {
         intent: String,
+        #[serde(default)]
+        manifest: String,
         prompt: String,
         capability: String,
         secret: String,

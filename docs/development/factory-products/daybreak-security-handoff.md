@@ -26,6 +26,48 @@ It supplies no provider or IPC admission proof. Existing account/repository swit
 reconnect and installed/Fountain parity gates still need their actual host
 journeys with this metadata; navigation must never grant a wider transport scope.
 
+**A04/A19 task manifest dependency:** version-5 task intents now bind phase and
+manifest digest in `pkg/factory/execution/native_intent.go`,
+`pkg/store/factory_native_dispatch.go` and `pkg/factory/run.go`. The Go launch
+adapter and Rust `{collaboration,factory_provider/{port,launch,start,intent,run,
+muse_attempt}}.rs` transport/validate/retain original bytes before source or
+custody effects. The constructor publishes the intent once. Retained reads check
+private metadata and exact bytes; a pending sidecar fences readback. A04/A19 in
+the assumptions audit records actual Go/Rust readback for declared token/CLI
+metadata and actual non-task MCP/artifact/retirement/restart regression. No model
+or task executed. The read fixture's pending marker is not a killed-publisher
+experiment; no task or broader admission/custody/IPC gate is closed.
+Exact blocker: the native task effect owner is absent. It must consume this
+manifest through the isolated workspace, bind live command/checkpoint operations
+to actual process ownership (the staged invocation claim is not liveness), run
+and retire children, persist/read task events and task/final checkpoint results.
+Relevant remaining owners: broker `source_binding.rs`, worker
+`soda-factory-agent.rs`, native execution registry and Go task/checkpoint ports.
+Evidence needed: actual Go-admitted implement/correct journeys with checks,
+commit/tree/output provenance, exact retries and journal import, withdrawal/stop,
+child retirement and retained recovery; version-5 publication interruption and
+missing/changed manifest refusal at the actual effect boundary. Keep task phases
+unavailable until the complete runtime exists and its defining behavior is proved.
+
+Preserve two failed prerequisite fixtures for exact reconciliation:
+
+- `/home/vince/tmp/ftask-manifest7.FddRIW`, run
+  `d5387c75f79f11e39a3a0337418b8fc9`: the old unplaced-launch fixture passed its
+  Go guards and task binding readback, then the native callback returned
+  unavailable and no worker start was observed. Supervisor retirement required
+  reconciliation. No acquisition record was found; that absence is not terminal
+  or release proof. Its extra task-binding files are synthetic read fixtures.
+- `/home/vince/tmp/ftask-admitted-regression7.2PHkvz`, run
+  `ced61180bb44e91db5c371ec1afa99a5`: the admitted launch observer expired and
+  supervisor retirement required reconciliation. Inspection found its intent
+  but no acquisition record. The changed constructors attempted one-shot intent
+  publication twice; the fresh successful regression proves that source fix,
+  not settlement of this original attempt.
+
+Both need exact retained Go intent/outcome and native unlaunched/process/custody/
+root retirement reconciliation. Preserve profiles and fences; do not replay a
+pending attempt or invent a receipt from source analysis or absent files.
+
 **A20 retained schema obligations:** schema 94 records application hosting and
 appliance compatibility. `pkg/store/{store,schema,schema_application_hosting,
 schema_appliance_compatibility}.go` omit both for new native profiles and retain

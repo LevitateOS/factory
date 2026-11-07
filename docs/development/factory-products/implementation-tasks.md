@@ -119,6 +119,10 @@ the existing sponsorship/policy commands. Actual composed native and declared
 browser checks are recorded in A01/A11. No Muse credentials are imported or
 fingerprinted. Available native hosts can dispatch supported non-task phases;
 missing helper/tool support and the unimplemented task runtime remain explicit waits.
+Task intents now retain their exact phase/manifest digest and transport the
+original bounded bytes to Rust. A04/A19 records scoped retained readback and the
+non-task regression journey; task commands/children, checkpoints and journal
+consumption remain unfinished. This does not enable task phases or complete T09.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

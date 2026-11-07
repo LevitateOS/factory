@@ -56,9 +56,17 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	if native.TrustMode == execution.NativeCLIProvider {
 		version = 4
 	}
-	n.Intent, err = (execution.NativeIntent{Kind: "factory_native_launch_intent", Version: version, Run: run.ID, Workspace: a.ProjectID,
+	if project.ExecutionManifestRequired(a.Phase) {
+		version = 5
+	}
+	intent := execution.NativeIntent{Kind: "factory_native_launch_intent", Version: version, Run: run.ID, Workspace: a.ProjectID,
 		Role: a.Role, SourceCommit: a.SourceCommit, Connection: a.Connection, Deadline: run.Deadline, Native: native,
-		Model: a.Model, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor}).Encode()
+		Model: a.Model, Effort: selection.Profile.Effort, Contributor: selection.Profile.Contributor}
+	if version == 5 {
+		intent.ExecutionPhase = a.Phase
+		intent.ManifestDigest = project.ExecutionManifestDigest(run.ExecutionManifest)
+	}
+	n.Intent, err = intent.Encode()
 	if err != nil {
 		return factory.Run{}, err
 	}

@@ -918,6 +918,7 @@ async fn dispatch(
         }
         if let crate::factory_provider::port::Call::Launch {
             intent,
+            manifest,
             prompt,
             capability,
             secret,
@@ -940,6 +941,7 @@ async fn dispatch(
                 state.execution_accounts.clone(),
                 crate::factory_provider::launch::Input {
                     intent,
+                    manifest,
                     prompt,
                     capability,
                     secret,

@@ -65,12 +65,13 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 	err = nativeHostCall(ctx, p.Config, p.Instance, "/api/native/execution", struct {
 		Operation   string   `json:"operation"`
 		Intent      string   `json:"intent"`
+		Manifest    []byte   `json:"manifest,omitempty"`
 		Prompt      []byte   `json:"prompt"`
 		Capability  string   `json:"capability"`
 		Secret      string   `json:"secret"`
 		ScopeDigest string   `json:"scope_digest"`
 		Tools       []string `json:"tools"`
-	}{"launch", intent, request.Input.Prompt, cap.ID, request.Input.MCP.Secret, cap.ScopeDigest(), tools}, &reply)
+	}{"launch", intent, request.Input.ExecutionManifest, request.Input.Prompt, cap.ID, request.Input.MCP.Secret, cap.ScopeDigest(), tools}, &reply)
 	if err != nil {
 		return empty, err
 	}

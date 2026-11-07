@@ -102,6 +102,7 @@ impl MuseAttempt {
         intent: LaunchIntent,
         bundle: Vec<u8>,
         prompt: Vec<u8>,
+        manifest: Vec<u8>,
         preparation: PreparedSourceRef,
         mcp: WorkerMcp,
         cancellation: AgentCancellation,
@@ -128,7 +129,7 @@ impl MuseAttempt {
         let harness = intent.current_profile()?;
         let prompt = String::from_utf8(prompt).map_err(io::Error::other)?;
         let deadline = Instant::now() + intent.remaining()?;
-        intent.persist(&profile)?;
+        intent.persist_manifest(&profile, &manifest)?;
         let mut staged = super::run::Staged::source(
             &scope,
             &bundle,
