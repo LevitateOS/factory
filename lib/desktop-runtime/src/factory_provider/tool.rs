@@ -5,14 +5,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_EXECUTABLE;
 use std::collections::BTreeMap;
-use std::fs::OpenOptions;
+use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::{self, Read};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tokio::io::AsyncWriteExt;
 
 const CHANNEL: &str = "https://api.meta.ai/muse-code/channels/muse-stable";
-const REFRESH: Duration = Duration::from_secs(300);
 fn refused() -> io::Error {
     io::Error::other("current official native Muse executable unavailable")
 }
@@ -45,17 +45,20 @@ struct Manifest {
 }
 #[derive(Deserialize)]
 struct Artifact {
+    url: String,
     checksum: String,
     size: u64,
 }
 
 pub struct Tools {
     directory: PathBuf,
+    cache: PathBuf,
     client: reqwest::Client,
     selected: tokio::sync::Mutex<Option<(Instant, ToolSelection, std::fs::Metadata)>>,
 }
 impl Tools {
-    pub fn discover() -> io::Result<Self> {
+    pub(crate) const REFRESH: Duration = Duration::from_secs(300);
+    pub fn discover(profile: &Path) -> io::Result<Self> {
         let mut directories: Vec<PathBuf> = std::env::var_os("PATH")
             .map(|paths| {
                 std::env::split_paths(&paths)
@@ -81,11 +84,19 @@ impl Tools {
             // Resolve symlinks, then use the existing channel/manifest/ELF checks;
             // neither a shell script nor a reported version is executable proof.
             let launcher = launcher.canonicalize()?;
-            return Self::new(launcher.parent().ok_or_else(refused)?);
+            return Self::new(launcher.parent().ok_or_else(refused)?, profile);
         }
         Err(refused())
     }
-    pub fn new(directory: &Path) -> io::Result<Self> {
+    pub fn new(directory: &Path, profile: &Path) -> io::Result<Self> {
+        if profile.canonicalize()? != profile {
+            return Err(refused());
+        }
+        let owner = profile.symlink_metadata()?;
+        if !owner.is_dir() || owner.uid() != unsafe { libc::geteuid() } || owner.mode() & 0o077 != 0
+        {
+            return Err(refused());
+        }
         let directory = directory.canonicalize()?;
         let meta = directory.symlink_metadata()?;
         if !meta.is_dir()
@@ -96,6 +107,7 @@ impl Tools {
         }
         Ok(Self {
             directory,
+            cache: profile.join("native-tools").join("muse"),
             client: reqwest::Client::builder()
                 .https_only(true)
                 .user_agent("muse-code/factory-native")
@@ -137,10 +149,111 @@ impl Tools {
         }
         serde_json::from_slice(&body).map_err(|_| refused())
     }
+    // Install only into Factory's private cache. Never rewrite the user's Muse
+    // launcher, login, current binary or an executable retained by another run.
+    async fn acquire(
+        &self,
+        version: &str,
+        artifact: &Artifact,
+    ) -> io::Result<(PathBuf, fs::Metadata)> {
+        private_directory(self.cache.parent().ok_or_else(refused)?)?;
+        private_directory(&self.cache)?;
+        let path = self
+            .cache
+            .join(format!("muse-bin-{version}-{}", artifact.checksum));
+        match path.symlink_metadata() {
+            Ok(_) => {
+                let size = artifact.size;
+                let expected = artifact.checksum.clone();
+                return tokio::task::spawn_blocking(move || verify(&path, size, &expected))
+                    .await
+                    .map_err(|_| refused())?;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error),
+        }
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random).map_err(|_| refused())?;
+        let pending_path = self.cache.join(format!(
+            ".download-{}",
+            random
+                .iter()
+                .map(|v| format!("{v:02x}"))
+                .collect::<String>()
+        ));
+        let file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&pending_path)?;
+        let pending = Pending(pending_path);
+        let mut file = tokio::fs::File::from_std(file);
+        let mut response = self
+            .client
+            .get(&artifact.url)
+            .timeout(Duration::from_secs(120))
+            .send()
+            .await
+            .map_err(|error| {
+                io::Error::other(format!("native Muse download: {}", error.without_url()))
+            })?;
+        if !response.status().is_success()
+            || response
+                .content_length()
+                .is_some_and(|size| size != artifact.size)
+        {
+            return Err(io::Error::other(format!(
+                "native Muse artifact unavailable: HTTP {}",
+                response.status().as_u16()
+            )));
+        }
+        let mut length = 0u64;
+        let mut hash = Sha256::new();
+        while let Some(bytes) = response.chunk().await.map_err(|_| refused())? {
+            length = length.checked_add(bytes.len() as u64).ok_or_else(refused)?;
+            if length > artifact.size {
+                return Err(refused());
+            }
+            hash.update(&bytes);
+            file.write_all(&bytes).await?;
+        }
+        let observed: String = hash
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        if length != artifact.size || observed != artifact.checksum {
+            return Err(refused());
+        }
+        file.sync_all().await?;
+        drop(file);
+        fs::set_permissions(&pending.0, fs::Permissions::from_mode(0o500))?;
+        match fs::hard_link(&pending.0, &path) {
+            Ok(()) => fs::File::open(&self.cache)?.sync_all()?,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+            Err(error) => return Err(error),
+        }
+        // Removing the staging link changes ctime. Capture the published file's
+        // immutable identity only after that final filesystem mutation.
+        drop(pending);
+        fs::File::open(&self.cache)?.sync_all()?;
+        let size = artifact.size;
+        let expected = artifact.checksum.clone();
+        tokio::task::spawn_blocking(move || verify(&path, size, &expected))
+            .await
+            .map_err(|_| refused())?
+    }
     pub async fn inspect(&self) -> io::Result<ToolSelection> {
+        self.select(false).await
+    }
+    pub(crate) async fn refresh(&self) -> io::Result<ToolSelection> {
+        self.select(true).await
+    }
+    async fn select(&self, refresh: bool) -> io::Result<ToolSelection> {
         let mut selected = self.selected.lock().await;
         if let Some((checked, selection, identity)) = selected.as_ref() {
-            if checked.elapsed() < REFRESH {
+            if !refresh && checked.elapsed() < Self::REFRESH {
                 let current = selection.tool.executable.symlink_metadata()?;
                 if !same_file(identity, &current) {
                     return Err(refused());
@@ -172,9 +285,9 @@ impl Tools {
             return Err(refused());
         }
         let manifest: Manifest = self.metadata(&manifest_url).await?;
-        let platform = match std::env::consts::ARCH {
-            "x86_64" => "x86_linux",
-            "aarch64" => "aarch64_linux",
+        let (platform, file) = match std::env::consts::ARCH {
+            "x86_64" => ("x86_linux", "muse-x86-linux"),
+            "aarch64" => ("aarch64_linux", "muse-aarch64-linux"),
             _ => return Err(refused()),
         };
         let artifact = manifest.artifacts.get(platform).ok_or_else(refused)?;
@@ -182,10 +295,20 @@ impl Tools {
             || manifest.checksum_algorithm != "sha256"
             || !super::hex(&artifact.checksum, 64)
             || !(4..=MAX_EXECUTABLE).contains(&artifact.size)
+            || artifact.url != format!("https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version={}&file={file}", channel.version)
         {
             return Err(refused());
         }
-        let path = self.directory.join(format!("muse-bin-{}", channel.version));
+        let installed = self.directory.join(format!("muse-bin-{}", channel.version));
+        let path = selected
+            .as_ref()
+            .map(|(_, selection, _)| selection.tool.executable.clone())
+            .filter(|_| {
+                selected
+                    .as_ref()
+                    .is_some_and(|(_, selection, _)| selection.tool.version == channel.version)
+            })
+            .unwrap_or(installed.clone());
         let expected = artifact.checksum.clone();
         let size = artifact.size;
         let unchanged = selected.as_ref().and_then(|(_, selection, identity)| {
@@ -197,9 +320,15 @@ impl Tools {
         });
         let (executable, identity) = match unchanged {
             Some(verified) => verified,
-            None => tokio::task::spawn_blocking(move || verify(&path, size, &expected))
-                .await
-                .map_err(|_| refused())??,
+            None => {
+                let verified = tokio::task::spawn_blocking(move || verify(&path, size, &expected))
+                    .await
+                    .map_err(|_| refused())?;
+                match verified {
+                    Ok(verified) => verified,
+                    Err(_) => self.acquire(&channel.version, artifact).await?,
+                }
+            }
         };
         let selection = ToolSelection {
             tool: Tool {
@@ -214,6 +343,28 @@ impl Tools {
         *selected = Some((checked, selection.clone(), identity));
         Ok(selection)
     }
+}
+struct Pending(PathBuf);
+impl Drop for Pending {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+fn private_directory(path: &Path) -> io::Result<()> {
+    match DirBuilder::new().mode(0o700).create(path) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+        Err(error) => return Err(error),
+    }
+    let metadata = path.symlink_metadata()?;
+    if !metadata.is_dir()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o077 != 0
+        || path.canonicalize()? != path
+    {
+        return Err(refused());
+    }
+    Ok(())
 }
 fn same_file(a: &std::fs::Metadata, b: &std::fs::Metadata) -> bool {
     b.is_file()

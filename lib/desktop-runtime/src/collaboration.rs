@@ -184,7 +184,15 @@ impl Port {
             return Err("native tool owner retired".into());
         }
         let tools = Arc::new(
-            crate::factory_provider::Tools::new(directory).map_err(|error| error.to_string())?,
+            crate::factory_provider::Tools::new(
+                directory,
+                self.0
+                    .channel
+                    .socket
+                    .parent()
+                    .ok_or("native profile unavailable")?,
+            )
+            .map_err(|error| error.to_string())?,
         );
         let verified = tools.inspect().await.map_err(|error| error.to_string())?;
         let mut selection = self
@@ -321,6 +329,14 @@ impl Owner {
             .map_err(|error| error.to_string())?,
         );
         let (finalizations, mut finalization_jobs) = jobs::channel::<Finalize>(MAX_OPERATIONS);
+        let tools = crate::factory_provider::Tools::discover(
+            channel
+                .socket
+                .parent()
+                .ok_or("native profile unavailable")?,
+        )
+        .ok()
+        .map(Arc::new);
         let port = Port(Arc::new(State {
             channel,
             signer,
@@ -332,11 +348,7 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
-            tools: RwLock::new(
-                crate::factory_provider::Tools::discover()
-                    .ok()
-                    .map(Arc::new),
-            ),
+            tools: RwLock::new(tools),
             preparations,
             execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
             work,
@@ -356,11 +368,20 @@ impl Owner {
                 if started.send(Ok(())).is_err() { return Ok(()); }
                 let connections = Arc::new(Semaphore::new(MAX_OPERATIONS));
                 let mut tasks = JoinSet::new();
-                if let Some(tools) = state.tools.read().ok().and_then(|tools| tools.clone()) {
-                    // Verify a discovered installation outside bounded product RPCs.
-                    // Browsing stays available while its initial ELF hash is read.
-                    tasks.spawn(async move { let _ = tools.inspect().await; });
-                }
+                let tool_state = state.clone();
+                tasks.spawn(async move {
+                    let mut refresh = tokio::time::interval(crate::factory_provider::Tools::REFRESH);
+                    refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                    loop {
+                        refresh.tick().await;
+                        let tools = tool_state.tools.read().ok().and_then(|tools| tools.clone());
+                        if let Some(tools) = tools {
+                            // Check/update the selected installation outside product RPCs.
+                            // Retirement cancels pending downloads with this owner.
+                            let _ = tools.refresh().await;
+                        }
+                    }
+                });
                 let result = loop {
                     tokio::select! {
                         biased;

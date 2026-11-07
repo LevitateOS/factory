@@ -31,9 +31,16 @@ period or a paid model call. Check actual required flags and protocols; do not
 substitute version-number compatibility guesses. Keep the chosen model/profile
 and resource limits unchanged by a CLI update.
 
-The native enrolled-tool selector checks official channel metadata, manifests and
-executable integrity before selection. Installed discovery, fetching and activation
-are unfinished; this selector is not a deployed automatic updater.
+The native Muse owner discovers an existing installation and checks official stable
+metadata, manifests and executable integrity before selection. Its joined refresh
+owner checks every five minutes and before new work when due. A missing current
+ELF is downloaded without authentication into a private, version/digest-addressed
+Factory cache; the user's launcher, login and retained binaries are preserved.
+The actual public-artifact acquisition/Go readback/restart check is recorded in
+A16 of the standalone assumptions audit. First-install onboarding without a Muse
+launcher, visible update status, interrupted-transfer/release-change behavior and
+installed distribution qualification remain unfinished. This is not installed
+updater qualification or coverage of other providers/dependencies.
 
 Other dependencies need event-driven updates where available and frequent
 automatic checks otherwise. This checkout has no Dependabot configuration;

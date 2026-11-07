@@ -195,6 +195,18 @@ helper ownership/admission on an installed host, Muse installation/update and
 privileged service provisioning remain unverified dependencies. Close them with
 the actual installed host journey; this build does not qualify custody/IPC/D3.
 
+A16 update: `factory_provider/tool.rs` and the joined collaboration owner now
+refresh the public stable channel and fetch missing current Muse bytes into a
+private version/digest-addressed cache. `/home/vince/tmp/ftool-update-fixed7.FRHqTQ/result.log`
+proves actual official-artifact acquisition, Go/native SHA readback, executable
+permissions, temporary-file cleanup and retained inode after restart. No CLI,
+credential operation or model request ran. The user's installation is preserved.
+Still unverified: first-install onboarding without a launcher, visible status,
+interrupted/failed transfer and retirement, changed-release/active-run races,
+timer cadence and installed activation. Closure requires those exact native and
+installed journeys, including size/digest/redirect refusal and preservation of
+captured running binaries. No broad freshness, custody, IPC or installed gate closes.
+
 Remaining exact dependencies: active-service or incomplete-receipt recovery must
 stay fenced until exact service/process/MCP/root evidence exists; qualify live
 withdrawal/refusal, interrupted publication/lost replies/reboot, token-lane early-stop

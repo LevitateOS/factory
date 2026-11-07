@@ -236,8 +236,18 @@ corrections are now active; the old feature queue waits for their resolution.
   The existing actual Go/native callback check passed without explicit directory
   enrollment in `/home/vince/tmp/fdiscover-ready6.ukS3ab/result.log` using installed
   `1.4.14-R7309.1` bytes. No launcher execution, credential read, sign-in or model
-  call ran. Download/update activation, existing-session execution integration
-  and installed distribution qualification remain unfinished.
+  call ran. The native owner now periodically refreshes official metadata and
+  acquires a missing current ELF into a private version/digest-addressed Factory
+  cache. The user's launcher/login and previously captured executables are
+  preserved. Actual public stable artifact acquisition, Go/native SHA readback,
+  executable permissions, temporary-file retirement and same-inode reuse after
+  restart passed in `/home/vince/tmp/ftool-update-fixed7.FRHqTQ/result.log` using
+  `1.4.14-R7309.1`. The fixture supplied only a launcher marker; neither it nor Muse
+  was executed, and no credentials or model request were used. First-install
+  onboarding without a launcher, visible update status, interrupted transfers,
+  changed-release/active-run races, timer cadence and installed distribution
+  qualification remain unfinished. Existing-session admitted execution has its
+  separate A01/A11 proof; this tool check does not qualify a full task or updater.
 - **A23 — active guidance corrected.** README now describes implemented binding
   and human GitHub journeys separately from pending agent execution/installed
   delivery. The milestone summary matches the fifteen pending table rows.

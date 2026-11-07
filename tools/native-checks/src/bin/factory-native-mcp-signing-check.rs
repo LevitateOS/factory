@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Path::new(&args[3]),
         );
     }
-    if args.len() == 5 && matches!(args[4].as_str(), "tool" | "tool-discovery") {
+    if args.len() == 5 && matches!(args[4].as_str(), "tool" | "tool-discovery" | "tool-update") {
         let supervisor = NativeSupervisor::start(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         };
         if args[4] == "tool" {
-            if soda_desktop_runtime::factory_provider::Tools::discover().is_err() {
+            if soda_desktop_runtime::factory_provider::Tools::discover(&root).is_err() {
                 check("unavailable")?;
             }
             tokio::runtime::Builder::new_current_thread()
@@ -73,12 +73,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "SODA_NATIVE_CHECK_TOOL_DIRECTORY",
                 )?)))?;
         }
-        check(if args[4] == "tool-discovery" {
+        check(if args[4] == "tool-update" {
+            "update"
+        } else if args[4] == "tool-discovery" {
             "discovery"
         } else {
             "current"
         })?;
         supervisor.stop()?;
+        if args[4] == "tool-update" {
+            let cache = root.join("tool-profile/native-tools/muse");
+            let files = fs::read_dir(&cache)?.collect::<Result<Vec<_>, _>>()?;
+            if files.len() != 1
+                || !files[0]
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("muse-bin-")
+            {
+                return Err(
+                    "tool update did not publish one artifact and retire its pending file".into(),
+                );
+            }
+            let before = files[0].metadata()?;
+            if before.mode() & 0o777 != 0o500 {
+                return Err("cached tool permissions differ".into());
+            }
+            let restarted = NativeSupervisor::start(
+                Path::new(&args[1]),
+                Path::new(&args[2]),
+                &root.join("tool-profile"),
+            )?;
+            let current = restarted.health()?;
+            if !Command::new(&args[3])
+                .arg(root.join("tool-profile"))
+                .arg(&current.instance)
+                .arg("check-owned-tool")
+                .arg("update")
+                .status()?
+                .success()
+            {
+                return Err("cached tool was not reused after restart".into());
+            }
+            restarted.stop()?;
+            let after = files[0].path().symlink_metadata()?;
+            if before.dev() != after.dev()
+                || before.ino() != after.ino()
+                || before.len() != after.len()
+            {
+                return Err("restart replaced the verified cached tool".into());
+            }
+            println!("PASS: official public artifact fetched into private Factory cache, exact Go callback/hash/permissions, no pending file, retained inode after restart; no CLI, login or model execution");
+        }
         return Ok(());
     }
     if args.len() == 5 && args[4] == "execution" {
@@ -300,7 +345,7 @@ fn muse_connector(
         let selection = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?
-            .block_on(Tools::discover()?.inspect())?;
+            .block_on(Tools::discover(root)?.inspect())?;
         (selection.tool.executable, selection.tool.sha256)
     } else {
         let executable = std::env::current_exe()?;
@@ -798,8 +843,10 @@ async fn managed_muse_execution(
     let fixture = profile.join("admitted-native-fixture.json");
     fs::write(
         &fixture,
-        serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,"Withdraw":withdraw,
-        "Preparation":preparation["input"]["preparation"]["id"],"Executable":client.canonicalize()?}))?,
+        serde_json::to_vec(
+            &serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,"Withdraw":withdraw,
+        "Preparation":preparation["input"]["preparation"]["id"],"Executable":client.canonicalize()?}),
+        )?,
     )?;
     command(
         "launch-admitted-native",

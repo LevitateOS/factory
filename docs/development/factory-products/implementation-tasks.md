@@ -106,6 +106,10 @@ record these scopes and all other retained unresolved attempts.
 The desktop stage now includes the fixed Muse helper beside the app; its actual
 cached development build and byte/permission checks are recorded in A01/A11.
 Installed distribution, Muse installation and privileged service setup remain open.
+The A16 tool owner now refreshes the official stable channel and acquires missing
+current Muse bytes into its private cache. Actual public-artifact acquisition,
+Go/native hash readback and restart reuse passed; exact evidence and remaining
+first-install/status/interruption/installed dependencies are recorded in A16.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared

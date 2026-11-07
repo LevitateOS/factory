@@ -86,9 +86,14 @@ views and human write qualification have their own recorded evidence.
 The native tool owner discovers an existing Muse launcher through absolute PATH
 entries or `~/.local/bin`, then verifies the adjacent versioned ELF against the
 current official stable manifest. Verification does not run the launcher or read
-its login. Browsing remains available during initial verification; missing/stale
-tools cannot start work. Automatic installation/update activation and execution
-through the existing Muse login remain unfinished.
+its login. The joined native owner refreshes official metadata every five minutes
+and fetches a missing current ELF into Factory's private profile cache, preserving
+the user's installation and exact binaries captured by existing runs. Browsing
+remains available while selection is pending; unavailable tools cannot start work.
+First-install onboarding without a launcher, visible update status and installed
+update qualification remain unfinished. Admitted execution using the existing
+Muse login has scoped proof in the assumptions audit; full task execution remains
+unavailable until its native task/checkpoint owner is implemented.
 The old unbound query/mutation and recorded-run polling IPC surface is absent from
 normal builds; its historical control probes exist only with native-check.
 

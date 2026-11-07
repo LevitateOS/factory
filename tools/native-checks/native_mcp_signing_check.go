@@ -2615,11 +2615,14 @@ func ownedToolFixture(profile, instance, mode string) error {
 	if mode == "discovery" {
 		timeout = 45 * time.Second
 	}
+	if mode == "update" {
+		timeout = 180 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance}
 	observed, err := port.InspectTool(ctx, project.FactoryHarnessMuse)
-	for mode == "discovery" && err != nil && ctx.Err() == nil {
+	for (mode == "discovery" || mode == "update") && err != nil && ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -2636,6 +2639,9 @@ func ownedToolFixture(profile, instance, mode string) error {
 	}
 	if err != nil {
 		return err
+	}
+	if mode == "update" && filepath.Dir(observed.Native.Executable) != filepath.Join(profile, "native-tools", "muse") {
+		return errors.New("missing installed version was not acquired into the private Factory cache")
 	}
 	file, err := os.Open(observed.Native.Executable)
 	if err != nil {
