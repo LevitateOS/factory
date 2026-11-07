@@ -155,7 +155,9 @@ corrections are now active; the old feature queue waits for their resolution.
   No model or GitHub operation ran. Task phases remain explicitly unavailable:
   isolated task effects/children, manifest consumption, task/final checkpoints,
   event journal and their actual Go-admitted lifecycle still need implementation.
-  Failed earlier fixtures remain unresolved in the security handoff.
+  Failed earlier fixtures remain unresolved in the security handoff. The inherited
+  mandatory parent/child orchestration requirement awaits owner confirmation;
+  sequential work by one Builder is a proposal, not an adopted change.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
@@ -389,8 +391,11 @@ corrections are now active; the old feature queue waits for their resolution.
   executable permissions, temporary-file retirement and same-inode reuse after
   restart passed in `/home/vince/tmp/ftool-update-fixed7.FRHqTQ/result.log` using
   `1.4.14-R7309.1`. The fixture supplied only a launcher marker; neither it nor Muse
-  was executed, and no credentials or model request were used. First-install
-  onboarding without a launcher, interrupted transfers,
+  was executed, and no credentials or model request were used. Discovery now also
+  supports no installed launcher and uses that same cache owner. Actual empty-HOME/
+  system-PATH acquisition, Go/native hash/status/permissions and same-inode restart
+  passed in `/home/vince/tmp/ftool-first-install7.9aSS0Z/result.log`, with no CLI,
+  login or model execution. Provider sign-in/onboarding, interrupted transfers,
   changed-release/active-run races, timer cadence and installed distribution
   qualification remain unfinished. Existing-session admitted execution has its
   separate A01/A11 proof; this tool check does not qualify a full task or updater.

@@ -122,7 +122,9 @@ missing helper/tool support and the unimplemented task runtime remain explicit w
 Task intents now retain their exact phase/manifest digest and transport the
 original bounded bytes to Rust. A04/A19 records scoped retained readback and the
 non-task regression journey; task commands/children, checkpoints and journal
-consumption remain unfinished. This does not enable task phases or complete T09.
+consumption remain unfinished. The inherited mandatory parent/child requirement
+awaits the owner decision; the sequential-Builder alternative has not been adopted.
+This does not enable task phases or complete T09.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

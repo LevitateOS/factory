@@ -1,6 +1,7 @@
 //! Official stable selection and actual installed ELF identity. The native host
-//! discovers the installed CLI or supplies its directory; Go and the webview
-//! cannot choose a path. Discovery never executes a launcher or reads its login.
+//! reuses an installed CLI when available, otherwise acquires its private copy.
+//! Go and the webview cannot choose a path. Discovery never executes a launcher
+//! or reads its login.
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_EXECUTABLE;
@@ -61,7 +62,7 @@ struct Artifact {
 }
 
 pub struct Tools {
-    directory: PathBuf,
+    directory: Option<PathBuf>,
     cache: PathBuf,
     status: Mutex<ToolStatus>,
     client: reqwest::Client,
@@ -95,11 +96,11 @@ impl Tools {
             // Resolve symlinks, then use the existing channel/manifest/ELF checks;
             // neither a shell script nor a reported version is executable proof.
             let launcher = launcher.canonicalize()?;
-            return Self::new(launcher.parent().ok_or_else(refused)?, profile);
+            return Self::new(Some(launcher.parent().ok_or_else(refused)?), profile);
         }
-        Err(refused())
+        Self::new(None, profile)
     }
-    pub fn new(directory: &Path, profile: &Path) -> io::Result<Self> {
+    pub fn new(directory: Option<&Path>, profile: &Path) -> io::Result<Self> {
         if profile.canonicalize()? != profile {
             return Err(refused());
         }
@@ -108,14 +109,19 @@ impl Tools {
         {
             return Err(refused());
         }
-        let directory = directory.canonicalize()?;
-        let meta = directory.symlink_metadata()?;
-        if !meta.is_dir()
-            || meta.mode() & 0o022 != 0
-            || !matches!(meta.uid(), 0) && meta.uid() != unsafe { libc::geteuid() }
-        {
-            return Err(refused());
-        }
+        let directory = directory
+            .map(|directory| -> io::Result<PathBuf> {
+                let directory = directory.canonicalize()?;
+                let meta = directory.symlink_metadata()?;
+                if !meta.is_dir()
+                    || meta.mode() & 0o022 != 0
+                    || meta.uid() != 0 && meta.uid() != unsafe { libc::geteuid() }
+                {
+                    return Err(refused());
+                }
+                Ok(directory)
+            })
+            .transpose()?;
         Ok(Self {
             directory,
             cache: profile.join("native-tools").join("muse"),
@@ -345,7 +351,10 @@ impl Tools {
         {
             return Err(refused());
         }
-        let installed = self.directory.join(format!("muse-bin-{}", channel.version));
+        let installed = self
+            .directory
+            .as_ref()
+            .map(|directory| directory.join(format!("muse-bin-{}", channel.version)));
         let path = selected
             .as_ref()
             .map(|(_, selection, _)| selection.tool.executable.clone())
@@ -354,10 +363,11 @@ impl Tools {
                     .as_ref()
                     .is_some_and(|(_, selection, _)| selection.tool.version == channel.version)
             })
-            .unwrap_or(installed.clone());
+            .or(installed);
         let expected = artifact.checksum.clone();
         let size = artifact.size;
         let unchanged = selected.as_ref().and_then(|(_, selection, identity)| {
+            let path = path.as_ref()?;
             let current = path.symlink_metadata().ok()?;
             (selection.tool.version == channel.version
                 && selection.tool.sha256 == expected
@@ -367,9 +377,14 @@ impl Tools {
         let (executable, identity) = match unchanged {
             Some(verified) => verified,
             None => {
-                let verified = tokio::task::spawn_blocking(move || verify(&path, size, &expected))
-                    .await
-                    .map_err(|_| refused())?;
+                let verified = match path {
+                    Some(path) => {
+                        tokio::task::spawn_blocking(move || verify(&path, size, &expected))
+                            .await
+                            .map_err(|_| refused())?
+                    }
+                    None => Err(refused()),
+                };
                 match verified {
                     Ok(verified) => verified,
                     Err(_) => self.acquire(&channel.version, artifact).await?,

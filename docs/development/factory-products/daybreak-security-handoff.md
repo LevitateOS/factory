@@ -40,7 +40,9 @@ the assumptions audit records actual Go/Rust readback for declared token/CLI
 metadata and actual non-task MCP/artifact/retirement/restart regression. No model
 or task executed. The read fixture's pending marker is not a killed-publisher
 experiment; no task or broader admission/custody/IPC gate is closed.
-Exact blocker: the native task effect owner is absent. It must consume this
+Exact blocker: the native task effect owner is absent. The owner decision on
+mandatory parent/child orchestration versus sequential Builder work is pending;
+existing child limits remain in force. It must consume this
 manifest through the isolated workspace, bind live command/checkpoint operations
 to actual process ownership (the staged invocation claim is not liveness), run
 and retire children, persist/read task events and task/final checkpoint results.
@@ -378,7 +380,10 @@ availability requires current verification. `status-result.log` in that evidence
 root proves native readback; `/home/vince/tmp/fmuse-tool-status-ui7.HFKUai/result.log`
 proves checking/download/failure/verified display, version/time facts and usable
 configuration/withdrawal against a declared peer. No provider authentication or
-model ran. Still unverified: first-install onboarding without a launcher,
+model ran. Discovery without an installed launcher now uses the same private
+cache owner. Actual empty-HOME/system-PATH acquisition, Go/native readback and
+same-inode restart passed in `/home/vince/tmp/ftool-first-install7.9aSS0Z/result.log`
+without CLI, login or model execution. Still unverified: provider sign-in/onboarding,
 interrupted/failed transfer and retirement, changed-release/active-run races,
 timer cadence and installed activation. Closure requires those exact native and
 installed journeys, including size/digest/redirect refusal and preservation of

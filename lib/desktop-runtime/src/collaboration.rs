@@ -185,7 +185,7 @@ impl Port {
         }
         let tools = Arc::new(
             crate::factory_provider::Tools::new(
-                directory,
+                Some(directory),
                 self.0
                     .channel
                     .socket

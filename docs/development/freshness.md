@@ -37,8 +37,9 @@ owner checks every five minutes and before new work when due. A missing current
 ELF is downloaded without authentication into a private, version/digest-addressed
 Factory cache; the user's launcher, login and retained binaries are preserved.
 The actual public-artifact acquisition/Go readback/restart check is recorded in
-A16 of the standalone assumptions audit. First-install onboarding without a Muse
-launcher, interrupted-transfer/release-change behavior and
+A16 of the standalone assumptions audit. Discovery with no installed launcher
+now uses that same cache owner; an empty-HOME acquisition and restart check passed.
+Provider sign-in/onboarding, interrupted-transfer/release-change behavior and
 installed distribution qualification remain unfinished. This is not installed
 updater qualification or coverage of other providers/dependencies.
 Shared Work now shows checking/download/failure/verified status, upstream and
