@@ -1321,8 +1321,8 @@ async fn managed_muse_execution(
     let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
     let withdraw = std::env::var("SODA_NATIVE_CHECK_MUSE_WITHDRAW").as_deref() == Ok("1");
     let tasks = std::env::var("SODA_NATIVE_CHECK_TASKS").as_deref() == Ok("1");
-    if tasks && (live || withdraw) {
-        return Err("task integration uses the local CLI fixture".into());
+    if tasks && withdraw {
+        return Err("task integration and selected-source withdrawal are separate checks".into());
     }
     if withdraw && live {
         return Err("withdrawal check uses only the local CLI fixture".into());

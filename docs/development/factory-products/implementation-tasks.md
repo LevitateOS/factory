@@ -158,6 +158,12 @@ A04/A19 in the assumptions audit retains the component evidence and the admitted
 composition results. The Muse-login runtime now joins observed parent identity,
 worker MCP, task/checkpoint/journal/candidate ports and task-aware root retirement.
 Token task sources remain unavailable. Preserve independent review, CI and merge.
+The owner-authorized existing-Muse one-file planning/coding journey now passed,
+including real MCP edits, checks, candidate export, accounting/retirement and
+restart readback without inference replay. Bounded context waits let the Builder
+wait for checkpoints within its original deadline and step limit. Exact evidence
+and declared authority/phase-advancement limitations remain in A04/A19; this does
+not qualify automatic end-to-end dispatch or installed/security gates.
 Publication interruption, lost replies, admitted cancellation/recovery and the
 remaining connected/installed/full-pipeline journeys still require their own proof.
 No T09, D3 or broader gate is closed by local composition.

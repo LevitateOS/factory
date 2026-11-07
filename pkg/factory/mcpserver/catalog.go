@@ -20,6 +20,7 @@ import (
 	factoryhttpapi "github.com/levitateos/factory/pkg/factory/httpapi"
 	"github.com/levitateos/factory/pkg/factory/mcpwire"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
+	"github.com/levitateos/factory/pkg/project"
 	"github.com/levitateos/factory/pkg/store"
 )
 
@@ -303,6 +304,21 @@ func (s *factoryCatalogServer) serve(ctx context.Context, tool factory.MCPTool, 
 // summary (context) and the live capability plus submitted work's
 // state (status). Reading never launches work and records no row.
 func (s *factoryCatalogServer) serveRead(ctx context.Context, tool factory.MCPTool, args mcpCallArgs) (*mcp.CallToolResult, any, error) {
+	var after string
+	if value, present := args.Payload["after_execution"]; present {
+		var ok bool
+		after, ok = value.(string)
+		if !ok || !project.ValidDigest(after) || tool != factory.MCPToolContext {
+			return nil, nil, errors.New("after_execution requires the preceding context execution_revision")
+		}
+		payload := make(map[string]any, len(args.Payload)-1)
+		for key, value := range args.Payload {
+			if key != "after_execution" {
+				payload[key] = value
+			}
+		}
+		args.Payload = payload
+	}
 	read, err := s.loadReadContext(ctx, tool, args)
 	if err != nil {
 		return nil, nil, err
@@ -330,7 +346,7 @@ func (s *factoryCatalogServer) serveRead(ctx context.Context, tool factory.MCPTo
 		action = "stop"
 	}
 	body["context_selection"] = map[string]any{"bundle": foregrounded, "action": action, "reason_code": selectionReason, "fingerprint": selectionFingerprint}
-	if err := s.addCheckpointContext(ctx, read, body); err != nil {
+	if err := s.addCheckpointContext(ctx, read, body, after); err != nil {
 		return nil, nil, err
 	}
 	if err := s.addCurrentContext(ctx, read, body, args); err != nil {

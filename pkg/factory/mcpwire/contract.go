@@ -27,8 +27,15 @@ func mcpEnvelopeSchema(tool factory.MCPTool) *mcp.Tool {
 	if payload := mcpPayloadSchema(tool); payload != nil {
 		schema.Properties["payload"] = payload
 	}
-	if tool == factory.MCPToolPublishArtifact {
+	if tool == factory.MCPToolPublishArtifact || IsNativeTask(tool) || tool == factory.MCPToolReadSource || tool == factory.MCPToolListSource {
 		delete(schema.Properties, "submission_id")
+	}
+	if tool == factory.MCPToolWorkspace {
+		schema.Properties["submission_id"] = &jsonschema.Schema{Type: "string", Pattern: "^[a-f0-9]{32}$", Description: "Stable mutation identity; reuse only for an exact retry."}
+		schema.If = &jsonschema.Schema{Properties: map[string]*jsonschema.Schema{
+			"payload": {Properties: map[string]*jsonschema.Schema{"operation": {Enum: []any{"edit", "mkdir", "remove"}}}, Required: []string{"operation"}},
+		}, Required: []string{"payload"}}
+		schema.Then = &jsonschema.Schema{Required: []string{"submission_id"}}
 	}
 	return &mcp.Tool{Name: string(tool), Description: factoryToolDescription(tool), InputSchema: schema}
 }

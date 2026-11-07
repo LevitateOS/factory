@@ -266,7 +266,18 @@ corrections are now active; the old feature queue waits for their resolution.
   paths, directory reuse, both checkpoints, journal replay, retained receipts and
   its affected failure/cancellation/retirement cases:
   `/home/vince/tmp/fworkspace-parent7.1n7a8K/result.log`. No provider request ran.
-  Remaining: real-model coding, actual correction, admitted cancellation and
+  The owner-authorized real Muse one-file journey passed in
+  `/home/vince/tmp/fmuse-task-wait7.oE1hXM/result.log`: actual planning, Builder
+  edit/readback, task/integration checks, candidate export, source usage, retirement
+  and retained restart readback without inference replay. The same declared
+  repository authority and phase advancement remain fixture inputs. Tool schemas
+  now exclude rejected submission IDs; workspace mutations advertise their required
+  identity. Context accepts the preceding `execution_revision` as `after_execution`
+  to wait at most ten seconds for checkpoint changes, within current admission and
+  the existing run deadline/16 model-step limit. The two earlier retained
+  `fmuse-task-live7.bqTprF` and `fmuse-task-schema7.jek3Gf` attempts ended before
+  final integration and remain failures, not completed coding evidence.
+  Remaining: actual correction, admitted cancellation and
   interrupted recovery/publication, broader workloads, connected authority,
   review/publication/CI/merge and installed qualification. Earlier failed local
   fixture profiles remain retained; they supply no completion evidence.

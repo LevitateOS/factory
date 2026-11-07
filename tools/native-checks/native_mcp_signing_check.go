@@ -2031,6 +2031,8 @@ func initialIntakeFixture() error {
 // The provider/account/repository permissions are declared fixture facts.
 // Preparation, packet admission, public Go launch, worker and MCP transport,
 // artifact persistence and process/custody receipts use their actual owners.
+const nativeFixtureArtifactPrompt = "Publish an artifact with upload_id 11111111111111111111111111111111, name native-worker.txt, media_type text/plain, content_base64 YWN0dWFsIGFkbWl0dGVkIG5hdGl2ZSB3b3JrZXIgYXJ0aWZhY3QK, final true."
+
 func admittedNativeFixture(profile, instance, path string, action string) error {
 	if path != filepath.Join(profile, "admitted-native-fixture.json") {
 		return errors.New("admitted fixture path differs")
@@ -2053,7 +2055,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	fixtureTimeout := 30 * time.Second
 	if action == "check-admitted-native" && input.Tasks && input.ParentRun != "" {
-		fixtureTimeout = max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5 * time.Second)))
+		fixtureTimeout = max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5*time.Second)))
 		if fixtureTimeout > 130*time.Second {
 			return errors.New("task fixture deadline invalid")
 		}
@@ -2185,8 +2187,8 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return withdrawAdmittedNative(ctx, db, rawDB, port, input.Run, repository, input.Connection)
 	}
 	if action == "launch-admitted-tasks" {
-		if !input.Tasks || !input.MuseLogin || input.Live {
-			return errors.New("task fixture requires the local Muse source")
+		if !input.Tasks || !input.MuseLogin {
+			return errors.New("task fixture requires the Muse source")
 		}
 		parent, err := db.AssignmentByRun(ctx, input.Run)
 		if err != nil {
@@ -2226,6 +2228,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		child.Attempts = 1
 		child.CreatedUnix = time.Now().Unix()
 		child.Prompt = []byte("positive-native-mcp-fixture\nnative-tasks-implementation-fixture\n")
+		if input.Live {
+			child.Prompt = []byte("Disposable Factory Builder integration task. Use only the available Factory MCP tools. Read factory.context and README.md through factory.read_source. " + nativeFixtureArtifactPrompt + " Start task first using factory.start_task. Use factory.workspace to create native-task.txt: operation edit, task_id first, path native-task.txt, expected an empty string, replacement exactly first followed by one newline, top-level submission_id 22222222222222222222222222222222. Read it back through factory.workspace. Release task first with factory.release_output. Read factory.context, using payload.after_execution with the preceding execution_revision to wait when necessary, until execution.ready_outputs contains first, then call factory.submit_task_output with task_id first and evidence_refs [native-task.txt]. The coordinator advances every ten seconds; stay within sixty tool calls per minute. Continue calling factory.context with payload.after_execution equal to its preceding execution_revision until execution.integration.status is committed, then read factory.inbox and finish with factory.finish_implementation and an empty payload; Factory fills the candidate. Never claim a missing checkpoint. Finish with OK only after the terminal tool succeeds. No shell, child agent, provider permission or GitHub action is needed.")
+		}
 		child.PromptSHA = project.FactoryPromptDigest(child.Prompt)
 		native := *parentRun.Admission.Native
 		native.PromptSHA256, native.BrokerRun = child.PromptSHA, input.Run
@@ -2264,9 +2269,17 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if input.Tasks && input.ParentRun != "" {
 			for {
 				current, err := db.FactoryRun(ctx, input.Run)
-				if err != nil { return err }
-				if current.Reconciled { break }
-				select { case <-ctx.Done(): return ctx.Err(); case <-time.After(time.Second): }
+				if err != nil {
+					return err
+				}
+				if current.Reconciled {
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Second):
+				}
 			}
 		}
 		run, err := db.FactoryRun(ctx, input.Run)
@@ -2358,7 +2371,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			if err != nil {
 				return err
 			}
-			if len(receipts) != 2 {
+			if len(receipts) != len(plan.Tasks) {
 				return errors.New("admitted task receipts missing")
 			}
 			for _, receipt := range receipts {
@@ -2456,6 +2469,32 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if input.Tasks {
 		prompt = append(prompt, []byte("\nnative-tasks-investigation-fixture\n")...)
+		if input.Live {
+			plan := nativeWorkspacePlan(p.SourceCommit)
+			plan.Tasks = plan.Tasks[:1]
+			plan.Tasks[0].OwnedPaths = []string{"native-task.txt"}
+			plan.Lanes[0].TaskIDs = []string{"first"}
+			plan.Checks = []factory.CheckSpec{
+				{ID: "first", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
+				{ID: "integration", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true},
+			}
+			encoded, err := json.Marshal(plan)
+			if err != nil {
+				return err
+			}
+			var authored map[string]any
+			if err = json.Unmarshal(encoded, &authored); err != nil {
+				return err
+			}
+			for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
+				delete(authored, field)
+			}
+			encoded, err = json.Marshal(authored)
+			if err != nil {
+				return err
+			}
+			prompt = []byte("Disposable Factory Architect integration task. Read README.md with factory.read_source, inspect factory.context, and read factory.inbox. " + nativeFixtureArtifactPrompt + " Then call factory.finish_issue_plan with approach Sequential native task fixture, evidence_refs [source:README.md], and tasks equal to this exact plan: " + string(encoded) + ". This is a declared one-file test objective and check; do not implement it in the investigation phase. Finish with OK after the terminal tool succeeds.")
+		}
 	}
 	var acceptedContext *factory.AcceptedContext
 	if input.Tasks {
@@ -2464,7 +2503,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		if err != nil {
 			return err
 		}
-		acceptedContext = factory.CaptureAcceptedContext(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, AcceptanceID: acceptance.ID, SourceCommit: p.SourceCommit, Preparation: p.ID, Title: "Native admitted execution fixture", Body: "Produce first and second task outputs", RepositoryContext: &material.Material, RequiredChecks: policy.Checks})
+		acceptedContext = factory.CaptureAcceptedContext(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, AcceptanceID: acceptance.ID, SourceCommit: p.SourceCommit, Preparation: p.ID, Title: "Native admitted execution fixture", Body: "Produce native-task.txt with the captured task checks", RepositoryContext: &material.Material, RequiredChecks: policy.Checks})
 	}
 	toolBytes, err := os.ReadFile(input.Executable)
 	if err != nil {

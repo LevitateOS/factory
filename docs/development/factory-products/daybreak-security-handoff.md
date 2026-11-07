@@ -318,13 +318,17 @@ check passed under exact nested file ownership in
 ownership/dependency refusals, checkpoints, cancellation and exact root retirement.
 This is routine local scope evidence; no broader gate is closed.
 
-The existing native check now prepares a real-Muse one-file coding journey in
-`/home/vince/tmp/fmuse-task-live7.bqTprF`. It has not run: automatic approval
-review rejected exporting its disposable README/task-plan context to Meta with
-subscription usage, and a specific user-approval question is pending. Existing
-Muse-login authorization was not accepted by that review as approval for this
-payload. Do not infer a provider pass from preparation/builds or bypass the
-rejection. No new login, keyring change or provider request occurred.
+The owner explicitly authorized the disposable README/one-file Muse check after
+automatic approval review blocked it. Real planning and Builder execution passed
+in `/home/vince/tmp/fmuse-task-wait7.oE1hXM/result.log`, including actual edits,
+task/integration checks, candidate export, source usage and retained completion
+across restart without inference replay. Repository authority and phase advancement
+were declared fixture inputs; no GitHub writes or saved credential changes ran.
+The context tool now supports bounded checkpoint waiting, rechecking current work
+before returning waited facts (`mcpserver/{catalog,checkpoints}.go`,
+`mcpwire/{contract,context_page}.go`). Cancellation/withdrawal during that wait is
+not qualified by this positive run. Prior incomplete live attempts remain retained
+as failures; proposed fixes are not closure evidence. This closes no broad gate.
 
 Remaining dependencies: actual admitted correction and cancellation/withdrawal,
 interrupted task/receipt publication and transport, unreconciled restart, complete
