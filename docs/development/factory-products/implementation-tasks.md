@@ -147,9 +147,11 @@ review opinions, preserving unknown facts and captured policy/input revisions.
 A25 records connected read-only evidence and remaining traversal/race limits.
 Delivery still needs a bound selected-source chooser and its full funded journey;
 the existing 64 KiB native prompt cap also cannot admit all material allowed by
-the 256 KiB delivery contract. The owner’s A04 decision additionally requires
-personal-GitHub COMMENT-only review work and an explicitly identity-bound
-automation designation before votes, enforced again at native submission. The full automated pipeline remains required.
+the 256 KiB delivery contract. The owner’s A04 personal-GitHub COMMENT policy and exact automation identity
+designation are implemented through the shared editor/API/workflow/native send
+checks. A04 records the declared native/browser evidence; connected foreign-
+author COMMENT, dedicated votes, human-veto preservation and full delivery remain
+unqualified. The full automated pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
 wait, stale-revision and missing-walkthrough check. This is transport/prerequisite

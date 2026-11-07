@@ -1279,7 +1279,9 @@ func main() {
 	}
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "check-live-judgment" {
+		if os.Args[3] == "check-review-policy" {
+			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-live-judgment" {
 			err = liveJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "orphan-judgment-result" {
 			err = orphanJudgmentFixture(os.Args[1], os.Args[4])
@@ -5787,5 +5789,139 @@ func writeTaskManifestBindings(profile string, intent execution.NativeIntent) er
 	if err := os.WriteFile(filepath.Join(profile, "task-manifest-bindings.json"), data, 0600); err != nil {
 		return err
 	}
+	return nil
+}
+
+// Uses the running native product's persisted policy and real dispatch owner.
+// The publication and foreign author are declared; every case must stop before
+// provider observation/preparation, so this grants no connected vote evidence.
+func nativeReviewPolicyFixture(profile, instance, repository string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	repo, err := strconv.ParseInt(repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	policy, err := db.RepositoryPolicy(ctx, repo)
+	if err != nil {
+		return err
+	}
+	if policy.AutomationReviewer != nil || policy.AutomaticReviewEvent(policy.Review.ActorID+1, "APPROVED") != "COMMENT" {
+		return errors.New("personal account policy permits votes")
+	}
+	original := policy
+	defer func() {
+		if current, e := db.RepositoryPolicy(context.Background(), repo); e == nil {
+			original.Revision = current.Revision
+			_ = db.SaveRepositoryPolicy(context.Background(), original)
+		}
+	}()
+	save := func() error {
+		if e := db.SaveRepositoryPolicy(ctx, policy); e != nil {
+			return e
+		}
+		var e error
+		policy, e = db.RepositoryPolicy(ctx, repo)
+		return e
+	}
+	// Enable only the local declared policy. No coordinator is running here.
+	policy.Enabled = true
+	if err = save(); err != nil {
+		return err
+	}
+	other := policy.Review.ActorID + 1
+	target := factory.CheckTarget{Repository: repo, PRNumber: 7, PRID: 1700, IssueID: 1701, HeadRef: "refs/heads/fixture", BaseRef: "refs/heads/main", HeadOID: strings.Repeat("a", 40), BaseOID: strings.Repeat("b", 40)}
+	assignment, run := factory.NewID(), factory.NewID()
+	w := factory.ReviewWork{OperationID: "review-" + run, AuthRevision: factory.ReviewAuthRevision(assignment, run), Repository: repo, ActorID: policy.Review.ActorID, PRAuthorID: other, PRNumber: target.PRNumber, PRID: target.PRID, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, HeadOID: target.HeadOID, BaseOID: target.BaseOID, Event: "APPROVED", Body: "Declared review policy fixture", NativeRev: 1, NotAfter: time.Now().Add(time.Minute).Unix()}
+	binding := policy.Review
+	w.VoteBinding = &binding
+	p := declaredPublishedFixture(target, collaboration.ActorID(other), assignment, 7, 1, w.NotAfter)
+	p.ReviewOperations = []factory.ReviewOperation{{RunID: run, Work: w}}
+	if err = p.Validate(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	conn, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err = conn.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, p.AssignmentID, p.Repository, p.Issue, p.Run, p.Stage, string(raw)); err != nil {
+		return err
+	}
+	port := factoryruntime.NativeReviews{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Store: db, Config: config, Instance: instance}}}
+	refuse := func(label string) error {
+		_, e := port.SubmitReview(ctx, w)
+		var refusal *factory.PublicationRefusal
+		if !errors.As(e, &refusal) || refusal.Reason != "automation_reviewer_not_authorized" {
+			return fmt.Errorf("%s vote not refused before native admission: %w", label, e)
+		}
+		lookup, e := port.LookupOp(ctx, w.OperationID)
+		if e != nil || !lookup.NotObserved {
+			return errors.New("refused vote acquired native command history")
+		}
+		return nil
+	}
+	if err = refuse("personal"); err != nil {
+		return err
+	}
+	policy.AutomationReviewer = &binding
+	if err = save(); err != nil {
+		return err
+	}
+	saved, err := db.RepositoryPolicy(ctx, repo)
+	if err != nil {
+		return err
+	}
+	if saved.AutomationReviewer == nil || *saved.AutomationReviewer != binding || saved.AutomaticReviewEvent(other, "REQUEST_CHANGES") != "REQUEST_CHANGES" || saved.AutomaticReviewEvent(binding.ActorID, "APPROVED") != "COMMENT" {
+		return errors.New("automation designation lost identity or permits self vote")
+	}
+	comment := w
+	comment.Event = "COMMENT"
+	comment.AgentVerdict = "APPROVED"
+	comment.VoteBinding = nil
+	if comment.Validate() != nil {
+		return errors.New("foreign-author personal inspection comment rejected")
+	}
+	comment.AgentVerdict = ""
+	if comment.Validate() == nil {
+		return errors.New("comment lost its independent verdict")
+	}
+	// Change only the saved connection; neither the designation nor frozen work
+	// can silently authorize the replacement identity.
+	changed := binding
+	changed.NativeConnection = collaboration.ConnectionID(factory.NewID())
+	policy.Review = changed
+	if policy.Validate() == nil {
+		return errors.New("designation silently follows a changed review binding")
+	}
+	policy.AutomationReviewer = &changed
+	if err = save(); err != nil {
+		return err
+	}
+	if err = refuse("replaced connection"); err != nil {
+		return err
+	}
+	policy.Review = binding
+	policy.AutomationReviewer = nil
+	if err = save(); err != nil {
+		return err
+	}
+	if err = refuse("withdrawn designation"); err != nil {
+		return err
+	}
+	fmt.Println("PASS: actual Go/PostgreSQL/native dispatch refuses personal, withdrawn and replaced-identity queued votes before capture; explicit designation survives persistence, self votes stay comments, foreign-author inspection preserves its verdict; provider publication declared, no vote or merge qualification")
 	return nil
 }

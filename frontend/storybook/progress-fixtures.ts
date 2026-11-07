@@ -104,7 +104,7 @@ export function progressStoryPeer(
         if (change.expected_revision !== (configured ? policy.revision : 0)) return Response.json({}, {status: 409});
         policyChanges.push(change);
         policy = configured
-          ? {...policy, roles: change.roles, judgments: change.judgments, revision: policy.revision + 1}
+          ? {...policy, roles: change.roles, judgments: change.judgments, automation_reviewer: change.automation_reviewer, revision: policy.revision + 1}
           : {...policy, ...change, revision: 1};
         configured = true;
         return Response.json({state: 'applied'});

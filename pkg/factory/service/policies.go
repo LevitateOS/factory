@@ -24,6 +24,7 @@ type PolicyChange struct {
 	PublishActor        PolicyActor                      `json:"publish_actor"`
 	CreateActor         PolicyActor                      `json:"create_actor"`
 	ReviewActor         PolicyActor                      `json:"review_actor"`
+	AutomationReviewer  *PolicyActor                     `json:"automation_reviewer,omitempty"`
 	ResolveActor        *PolicyActor                     `json:"resolve_actor,omitempty"`
 	MergeActor          PolicyActor                      `json:"merge_actor"`
 	TargetBranch        string                           `json:"target_branch"`
@@ -126,6 +127,13 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		ReassessmentMinutes: factory.EffectiveReassessmentMinutes(in.ReassessmentMinutes),
 		// Zero remains explicitly unfunded; omission cannot invent intent credit.
 		IntentMinutes: in.IntentMinutes,
+	}
+	if in.AutomationReviewer != nil {
+		automation, err := bind(*in.AutomationReviewer, factory.OpReviewSubmit)
+		if err != nil {
+			return empty, err
+		}
+		policy.AutomationReviewer = &automation
 	}
 	if err := policy.ValidateForWrite(); err != nil {
 		return empty, errors.Join(ErrPolicyInvalid, err)

@@ -75,6 +75,12 @@ function policyActor(value: unknown) {
   return binding;
 }
 
+function samePolicyActor(left: unknown, right: unknown) {
+	if (left == null || right == null) return false;
+	const a = object(left), b = object(right);
+	return ['actor_id', 'token_id', 'native_profile', 'native_connection'].every((key) => a[key] === b[key]);
+}
+
 function settings(statusValue: unknown, accessValue: unknown, repository: string): Settings {
   const status = object(statusValue),
     access = object(accessValue);
@@ -205,6 +211,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     view: {state: true},
     roles: {state: true},
     setup: {state: true},
+    automationReviewer: {state: true},
     busy: {state: true},
     message: {state: true},
   };
@@ -213,6 +220,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private busy: boolean;
   declare private message: string;
   declare private setup: SetupDraft;
+  declare private automationReviewer: boolean;
   private current: RoleContext | undefined;
   private generation = '';
   private lifetime = new AbortController();
@@ -220,6 +228,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     super();
     this.setup = {targetBranch: '', checks: '', method: '', useAccount: false};
     this.busy = false;
+    this.automationReviewer = false;
     this.message = '';
   }
   protected createRenderRoot() {
@@ -275,6 +284,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       const view = await this.read(context, signal);
       if (this.live(context, signal)) {
         this.view = view;
+        this.automationReviewer = !!view.policy && samePolicyActor(view.policy.automation_reviewer, view.policy.review_actor);
         this.roles = view.roles ?? {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
@@ -418,6 +428,8 @@ export class SodaFactoryRoleSettings extends LitElement {
           required_checks: this.checks(),
           ...actors,
         };
+    const reviewIdentity = view.policy?.review_actor ?? actors?.review_actor;
+    Object.assign(payload, {automation_reviewer: this.automationReviewer && reviewIdentity ? policyActor(reviewIdentity) : null});
     this.busy = true;
     this.message = '';
     try {
@@ -442,6 +454,9 @@ export class SodaFactoryRoleSettings extends LitElement {
       check(
         confirmed.policy && Number(confirmed.policy.revision) > Number(payload.expected_revision) && confirmed.roles
       );
+      check(this.automationReviewer
+        ? samePolicyActor(confirmed.policy.automation_reviewer, reviewIdentity)
+        : confirmed.policy.automation_reviewer == null);
       check(
         (Object.keys(roleNames) as Role[]).every((role) =>
           ['account', 'harness', 'model'].every((key) => confirmed.roles![role][key] === roles[role][key])
@@ -608,6 +623,17 @@ export class SodaFactoryRoleSettings extends LitElement {
                     </fieldset>`
                   : ''
               }
+              <fieldset ?disabled=${this.busy || !view.editable}>
+                <legend>AI review publication</legend>
+                <p>Personal accounts publish AI inspection as comments. GitHub's required approvals and CI still apply.</p>
+                <label><input
+                  type="checkbox"
+                  aria-label="Allow AI votes from this automation identity"
+                  .checked=${this.automationReviewer}
+                  @change=${(event: Event) => {this.automationReviewer = (event.target as HTMLInputElement).checked;}}
+                />Designate review account ${String(view.policy ? object(view.policy.review_actor).actor_id : this.current.actor ?? '')} as an automation identity that may approve or request changes.</label>
+                <p>Use this only for an account dedicated to automation. Votes can replace that account's earlier review. Reviews of its own PRs remain comments.</p>
+              </fieldset>
               ${(Object.keys(roleNames) as Role[]).map((role) => {
                 const selected = roles[role],
                   accounts = view.accounts.filter((account) => account.active && account.roles.includes(role));

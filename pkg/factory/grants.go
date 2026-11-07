@@ -198,6 +198,7 @@ type RepositoryPolicy struct {
 	Publish             ActorBindingRef          `json:"publish_actor"`
 	Create              ActorBindingRef          `json:"create_actor"`
 	Review              ActorBindingRef          `json:"review_actor"`
+	AutomationReviewer  *ActorBindingRef         `json:"automation_reviewer,omitempty"`
 	Resolve             ActorBindingRef          `json:"resolve_actor,omitempty"`
 	Merge               ActorBindingRef          `json:"merge_actor"`
 	Repository          int64                    `json:"repository,string"`
@@ -283,6 +284,9 @@ func checkPolicyCheckNames(p RepositoryPolicy) error {
 }
 
 func checkPolicyBindings(p RepositoryPolicy) error {
+	if p.AutomationReviewer != nil && *p.AutomationReviewer != p.Review {
+		return errors.New("automation reviewer must match the selected review binding")
+	}
 	bindings := map[string]ActorBindingRef{
 		OpRefPublish: p.Publish, OpPRCreate: p.Create, OpReviewSubmit: p.Review, OpMerge: p.Merge,
 	}
@@ -295,6 +299,15 @@ func checkPolicyBindings(p RepositoryPolicy) error {
 		}
 	}
 	return nil
+}
+
+// AutomaticReviewEvent keeps personal-account inspection separate from provider
+// votes. Designating an automation identity never permits a self-review vote.
+func (p RepositoryPolicy) AutomaticReviewEvent(author int64, verdict string) string {
+	if p.Review.ActorID == author || p.AutomationReviewer == nil || *p.AutomationReviewer != p.Review {
+		return "COMMENT"
+	}
+	return verdict
 }
 
 // ResolveBinding returns the policy's enrolled thread-resolve actor

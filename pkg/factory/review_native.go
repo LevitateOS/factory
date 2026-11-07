@@ -35,9 +35,12 @@ type ReviewWork struct {
 	NotAfter     int64            `json:"not_after"`
 	Event        string           `json:"event"`
 	// AgentVerdict separates inspection from provider disposition. It is
-	// explicit when the PR author's account publishes a comment review.
+	// explicit whenever a personal account publishes a comment review.
 	AgentVerdict string `json:"agent_verdict,omitempty"`
-	Body         string `json:"body"`
+	// VoteBinding freezes the explicitly designated automation identity at
+	// admission. Missing historical bindings never authorize a new native vote.
+	VoteBinding *ActorBindingRef `json:"vote_binding,omitempty"`
+	Body        string           `json:"body"`
 }
 
 // ReviewOperation retains one review run's exact immutable native work and
@@ -168,6 +171,9 @@ func (op ReviewOperation) WithOutcome(outcome OperationOutcome) (ReviewOperation
 // exist. The author's account may publish agent inspection as a comment;
 // it cannot submit an approval or request changes on its own PR.
 func (w ReviewWork) ValidateTarget() error {
+	if w.VoteBinding != nil && (w.VoteBinding.Validate() != nil || w.VoteBinding.Kind != OpReviewSubmit || w.VoteBinding.ActorID != w.ActorID || w.Event == "COMMENT") {
+		return errors.New("invalid automation vote binding")
+	}
 	if w.Repository <= 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 {
 		return errors.New("invalid review target")
 	}
@@ -198,7 +204,10 @@ func (w ReviewWork) Validate() error {
 	default:
 		return errors.New("invalid review disposition")
 	}
-	if w.ActorID == w.PRAuthorID {
+	if w.Event == "COMMENT" {
+		if w.AgentVerdict != "APPROVED" && w.AgentVerdict != "REQUEST_CHANGES" {
+			return errors.New("agent inspection comment requires an explicit verdict")
+		}
 		if strings.TrimSpace(w.Body) == "" {
 			return errors.New("agent inspection comment needs its report")
 		}
@@ -543,6 +552,9 @@ func (f Finding) InlineComment() (FindingComment, error) {
 // persisted work through this comparison instead of struct identity, which
 // no longer applies to the comment list.
 func ReviewWorkEqual(a, b ReviewWork) bool {
+	if (a.VoteBinding == nil) != (b.VoteBinding == nil) || a.VoteBinding != nil && *a.VoteBinding != *b.VoteBinding {
+		return false
+	}
 	if len(a.Comments) != len(b.Comments) {
 		return false
 	}

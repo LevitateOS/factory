@@ -38,8 +38,8 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 		mergeWait(report, m.ID, "provider_merge_requirements_pending")
 		return false
 	}
-	if work.ReviewerID == work.PRAuthorID {
-		if err := c.verifySharedAccountMergeReview(ctx, p, work, observation); err != nil {
+	if work.ReviewEvent == "COMMENT" {
+		if err := c.verifyCommentMergeReview(ctx, p, work, observation); err != nil {
 			c.mergeCallError(report, m.ID, err)
 			return false
 		}
@@ -60,7 +60,7 @@ func (c *Coordinator) observeMergeEvidence(ctx context.Context, p factory.Public
 
 // A provider comment can carry the independent agent's report. It cannot
 // supply an approval required by branch rules or replace the typed review run.
-func (c *Coordinator) verifySharedAccountMergeReview(ctx context.Context, p factory.Publication, work factory.MergeWork, observation factory.MergeObservation) error {
+func (c *Coordinator) verifyCommentMergeReview(ctx context.Context, p factory.Publication, work factory.MergeWork, observation factory.MergeObservation) error {
 	if !observation.ProviderComplete || !observation.ProviderEligible {
 		return &factory.PublicationWait{Reason: "provider_merge_requirements_pending"}
 	}
@@ -214,10 +214,7 @@ func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy
 	if m.Authorization.Bound() {
 		generation = m.Authorization.Generation.Generation
 	}
-	reviewEvent := "APPROVED"
-	if m.ReviewerID == m.PRAuthorID {
-		reviewEvent = "COMMENT"
-	}
+	reviewEvent := policy.AutomaticReviewEvent(m.PRAuthorID, "APPROVED")
 	return factory.MergeWork{
 		Method:  policy.MergeMethod,
 		MergeID: m.ID, PublicationID: m.PublicationID,

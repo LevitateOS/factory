@@ -115,13 +115,16 @@ func (c *Coordinator) advanceMergeOperation(ctx context.Context, p factory.Publi
 		return
 	}
 	work := c.mergeWork(m, policy)
+	if review, found := currentReviewOperation(p); found {
+		work.ReviewEvent = review.Work.Event
+	}
 	if op.Work == nil {
 		if !c.observeMergeEvidence(ctx, p, &m, work, policy, revision, report) {
 			return
 		}
 	}
 	work = op.Work.Apply(work)
-	if work.ReviewerID == work.PRAuthorID && !c.currentPublicationApproved(ctx, p) {
+	if work.ReviewEvent == "COMMENT" && !c.currentPublicationApproved(ctx, p) {
 		mergeWait(report, m.ID, "agent_review_pending")
 		return
 	}

@@ -685,8 +685,11 @@ func (c *Coordinator) buildReviewWork(ctx context.Context, p factory.Publication
 		HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: head, BaseOID: p.PRCreate.BaseOID,
 		Event: event, Body: body,
 	}
-	if w.ActorID == w.PRAuthorID {
+	if policy.AutomaticReviewEvent(w.PRAuthorID, event) == "COMMENT" {
 		w.AgentVerdict, w.Event = event, "COMMENT"
+	} else {
+		binding := policy.Review
+		w.VoteBinding = &binding
 	}
 	observed, err := c.Reviews.ObserveReview(ctx, w)
 	if err != nil {

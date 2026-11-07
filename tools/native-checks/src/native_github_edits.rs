@@ -779,7 +779,30 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             "Muse source withdrawal was not retained or replaced the judgment selection",
         )?;
         println!("PASS: explicit CLI-managed Muse source allowance, per-role and judgment selection, CAS/readback and withdrawal without a Muse credential or billing identity; judgment execution remains unavailable");
+        // Exercise the ordinary shared policy API, keeping native identity
+        // references explicit rather than carrying a boolean to a new account.
+        let mut review_policy = selected.1["policy"].clone();
+        for designated in [true, false] {
+            review_policy["expected_revision"] = review_policy["revision"].clone();
+            for field in ["repository", "revision", "granted_by"] {
+                review_policy.as_object_mut().ok_or("policy object absent")?.remove(field);
+            }
+            for field in ["publish_actor", "create_actor", "review_actor", "merge_actor", "resolve_actor"] {
+                if let Some(binding) = review_policy[field].as_object_mut() { binding.remove("kind"); }
+            }
+            if review_policy["resolve_actor"]["actor_id"].as_str().is_none_or(|id| id=="0") {
+                review_policy.as_object_mut().ok_or("policy object absent")?.remove("resolve_actor");
+            }
+            review_policy["automation_reviewer"] = if designated { actor.clone() } else { serde_json::Value::Null };
+            let reply=call(&runtime,&store,&connection,"PUT",&format!("{settings_path}/policy"),&serde_json::to_vec(&review_policy)?).await?;
+            ensure(reply.0==200,"automation review identity change refused")?;
+            let read=call(&runtime,&store,&connection,"GET",&settings_path,&[]).await?;
+            let value=&read.1["policy"]["automation_reviewer"];
+            ensure(read.0==200 && if designated {value["native_connection"]==actor["native_connection"] && value["actor_id"]==actor["actor_id"]} else {value.is_null()},"review designation lost exact identity or withdrawal")?;
+            review_policy=read.1["policy"].clone();
+        }
         if let Ok(helper) = std::env::var("SODA_NATIVE_CHECK_HELPER") {
+            ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg("check-review-policy").arg(&repository).status()?.success(),"native review policy check failed")?;
             ensure(
                 std::process::Command::new(helper)
                     .arg(profile)

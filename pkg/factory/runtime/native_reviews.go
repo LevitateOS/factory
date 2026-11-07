@@ -173,6 +173,9 @@ func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (
 	if !policy.Enabled || policy.Paused {
 		return empty, &factory.PublicationWait{Reason: "policy_inactive"}
 	}
+	if err := nativeReviewVoteAuthority(policy, w); err != nil {
+		return empty, err
+	}
 	open, _, _, err := p.Store.DispatchState(ctx, w.Repository)
 	if err != nil {
 		return empty, err
@@ -187,7 +190,7 @@ func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (
 	if err != nil {
 		return empty, err
 	}
-	if int64(account.binding.Actor.ID) != w.ActorID {
+	if int64(account.binding.Actor.ID) != w.ActorID || policy.Review.NativeConnection != account.binding.Connection.ID || policy.Review.NativeProfile != p.Config.Profile {
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
 	q, err := p.request(ctx, w)
@@ -263,6 +266,12 @@ func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (
 	if !policy.Enabled || policy.Paused {
 		return empty, &factory.PublicationWait{Reason: "policy_inactive"}
 	}
+	if policy.Review.ActorID != w.ActorID || policy.Review.NativeConnection != live.binding.Connection.ID || policy.Review.NativeProfile != p.Config.Profile {
+		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
+	}
+	if err := nativeReviewVoteAuthority(policy, w); err != nil {
+		return empty, err
+	}
 	record, err := (nativeHumanNewReviews{account}).SubmitHumanReview(ctx, c)
 	if err != nil {
 		return empty, err
@@ -270,6 +279,16 @@ func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (
 	lookup = collaboration.OperationLookup{Host: q.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupFound, Record: &record, Reason: record.Reason}
 	lookup, err = p.Store.ObserveHumanReview(ctx, c, lookup)
 	return nativeReviewOutcome(w, lookup), err
+}
+
+func nativeReviewVoteAuthority(policy factory.RepositoryPolicy, w factory.ReviewWork) error {
+	if w.Event == "COMMENT" {
+		return nil
+	}
+	if policy.AutomaticReviewEvent(w.PRAuthorID, w.Event) != w.Event || w.VoteBinding == nil || *w.VoteBinding != policy.Review {
+		return &factory.PublicationRefusal{Reason: "automation_reviewer_not_authorized"}
+	}
+	return nil
 }
 func (p NativeReviews) CancelOp(ctx context.Context, id string) (factory.OperationOutcome, error) {
 	var empty factory.OperationOutcome

@@ -24,9 +24,8 @@ The user started the correction goal and selected these requirements on
   second account was an optional two-user integration fixture.
 - On 2026-11-07, personal GitHub accounts publish AI inspection as COMMENT.
   Approval/change-request votes require an explicitly designated automation
-  identity, and GitHub approval requirements remain enforced (A04). Designation
-  and automatic-submit admission still need implementation; do not infer it
-  from the reviewer differing from the PR author.
+  identity, and GitHub approval requirements remain enforced (A04). Designation and automatic-submit admission are implemented and checked in the
+  declared native fixture below; connected vote/merge qualification remains open.
 - Existing Muse session reuse and a browser link only when authentication is
   needed remain the earlier explicit instructions (A01).
 - Hiding/minimizing Factory retains the account/repository choices and reconnects
@@ -1181,16 +1180,34 @@ particular automatic delivery mode. Human GitHub writes are a separate path;
 this finding does not invalidate their completed checks.
 
 **Further confirmed mismatch and owner decision (2026-11-07):**
-`control/review_cycle.go` currently changes automatic votes to COMMENT only when
+At the audit baseline, `control/review_cycle.go` changed automatic votes to COMMENT only when
 reviewer and PR author match. On another author’s PR, Factory can therefore vote
 using a personal identity and supersede that identity’s earlier human vote; a
 delivery-only provenance check occurs too late to prevent that effect. The
 owner selected COMMENT for personal accounts and votes only for an explicitly
-designated automation identity. Implement identity-bound designation and enforce
-it when constructing and admitting automatic review work, including queued work
-and designation withdrawal. This is not yet implemented or qualified. Keep
-GitHub approval prerequisites and independent agent inspection. The provider
+designated automation identity. The implementation and limited proof below
+address construction, native admission, queued work and designation withdrawal.
+Connected votes and the full pipeline remain unqualified. GitHub approval
+prerequisites and independent agent inspection remain required. The provider
 semantics are documented in [GitHub’s review guide](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request).
+
+Implemented 2026-11-07: personal accounts produce COMMENT with an explicit agent
+verdict even on another author’s PR. The shared editor and policy API save an
+optional `automation_reviewer` equal to the exact review binding. Opinionated
+work freezes that binding; native admission rechecks designation and identity
+before preparation and immediately before sending. Existing outcomes remain
+reconcilable; frozen historical votes without a binding cannot acquire a new
+send. Comment inspection retains independent-agent and current provider
+approval/CI requirements. Merge evidence uses the recorded review event, so a
+later designation change does not rewrite completed inspection.
+
+Checks: `.artifacts/tmp/review-policy-ui.gMMLjp/result-permitted.log` passed
+headless Chromium designation/withdrawal against the declared shared peer.
+`/home/vince/tmp/frvote10.4Pp6oO/result.log` passed the actual native policy API,
+Go/PostgreSQL persistence and queued-vote refusals with no command history.
+Provider publication/foreign author were declared; no GitHub vote or merge ran.
+Still needed: connected foreign-author personal COMMENT, designated automation
+votes, prior human-veto preservation, live withdrawal/restart and full pipeline.
 
 ### A05 — Draft planning still requires the appliance's Fountain Project mapping
 

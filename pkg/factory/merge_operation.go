@@ -301,8 +301,8 @@ func (i MergeIntent) checkMergeIntentBinding(observed bool) error {
 		if i.ReviewEvent != "COMMENT" {
 			return errors.New("shared-account merge requires its comment review receipt")
 		}
-	} else if i.ReviewEvent != "" && i.ReviewEvent != "APPROVED" {
-		return errors.New("merge review is not an approval")
+	} else if i.ReviewEvent != "" && i.ReviewEvent != "APPROVED" && i.ReviewEvent != "COMMENT" {
+		return errors.New("invalid merge review event")
 	}
 	if i.AuthRevision == "" || len(i.AuthRevision) > 512 {
 		return errors.New("invalid merge authorization revision")

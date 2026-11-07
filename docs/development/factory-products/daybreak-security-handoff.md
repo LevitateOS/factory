@@ -143,14 +143,21 @@ a human blocking review sharing Factory’s account cannot reach judgment/merge
 without an exact Factory receipt, and that an actual owned review is recognized.
 Traversal/scope checks can continue in existing disposable provider fixtures.
 Full receipt-owned acceptance/merge proof depends on complete caller/workflow
-composition; no new product account requirement is introduced. The owner also selected personal-GitHub COMMENT-only automatic reviews, with
-votes only for an explicitly designated automation identity. This remains to be
-implemented in policy/configuration, `control/review_cycle.go` and native
-automatic-submit admission: a new vote can supersede a prior human vote before
-the delivery guard runs. Bind designation to the exact selected identity, reject
-queued votes after withdrawal/identity changes, and prove personal COMMENT and
-dedicated-identity votes without replacing a human veto. Preserve actual GitHub
-approval gates; no identity is designated by a different PR author alone.
+composition; no new product account requirement is introduced. Personal accounts now produce COMMENT regardless of PR authorship; votes require
+an exact `automation_reviewer` policy binding, frozen into new vote work. Native
+admission rejects missing/withdrawn/replaced designations before preparation
+and rechecks them before sending; retained outcomes remain recoverable. Files:
+`factory/{grants,review_native,merge_operation}.go`, `service/policies.go`,
+`control/{review_cycle,merge_evidence,merge_reconcile}.go`,
+`runtime/native_reviews.go`, shared `frontend/factory/work/role-settings.ts`.
+The actual native policy/API/PostgreSQL/refused-dispatch check passed in
+`/home/vince/tmp/frvote10.4Pp6oO/result.log`; shared browser evidence is in
+`.artifacts/tmp/review-policy-ui.gMMLjp/result-permitted.log`. Provider publication
+and the foreign author were declared; no connected vote/merge was proved.
+Remaining dependency/evidence: use disposable connected PRs to prove personal
+foreign-author COMMENT, designated-identity votes, original human veto retention,
+withdrawal/restart and complete approval/CI/merge behavior. Do not designate an
+identity merely because it differs from the author. No broader gate is closed.
 Funding/chooser composition, native 64 KiB versus delivery 256 KiB input support, original native
 resolution anchors and full funded delivery/installed qualification remain open.
 
