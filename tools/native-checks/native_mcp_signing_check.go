@@ -401,7 +401,7 @@ func checkNativeRecovery(config factoryruntime.NativeConfig, instance string, un
 		}
 		return nil
 	}
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -574,7 +574,7 @@ func nativeReceiptFixture(profile, instance, operation, argument string) error {
 	run.Started = time.UnixMilli(input.StartedUnixMS).UTC()
 	run.Deadline = run.Started.Add(time.Hour)
 	run.Native.Provenance.Process.StartedAt = run.Started
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -625,7 +625,7 @@ func nativeIntentFixture(profile, instance, operation, argument string) error {
 	if json.Unmarshal(raw, &input) != nil || input.Run.Native == nil {
 		return errors.New("native intent fixture invalid")
 	}
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -725,7 +725,7 @@ func checkNativeObservation(profile, instance, path string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -877,7 +877,7 @@ func startupRetirementFixture(profile, instance, operation, argument string) err
 	if operation != "check-startup-retirement" {
 		return errors.New("unknown startup fixture operation")
 	}
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -1019,7 +1019,7 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -1232,6 +1232,8 @@ func main() {
 		var err error
 		if os.Args[3] == "check-owned-tool" {
 			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-native-schema" {
+			err = nativeSchemaFixture(os.Args[1], os.Args[4])
 		} else if os.Args[3] == "check-native-preparation" {
 			err = nativePreparationFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-owned-execution" {
@@ -1263,6 +1265,112 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func nativeSchemaFixture(profile, phase string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	raw, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	var version, tables int
+	var hosting bool
+	if err = raw.QueryRowContext(ctx, `SELECT version,application_hosting FROM schema_version`).Scan(&version, &hosting); err != nil {
+		return err
+	}
+	if version != store.SchemaVersion() || hosting {
+		return errors.New("new native database enabled appliance application hosting")
+	}
+	if err = raw.QueryRowContext(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND (table_name='applications' OR table_name LIKE 'application\_%' ESCAPE '\')`).Scan(&tables); err != nil {
+		return err
+	}
+	if tables != 0 {
+		return errors.New("standalone database created application hosting tables")
+	}
+	if wrong, err := store.OpenContext(ctx, config.DatabaseDSN()); err == nil {
+		wrong.Close()
+		return errors.New("appliance opener accepted a standalone database")
+	}
+	if _, err = raw.ExecContext(ctx, `SELECT id,data FROM factory_runs LIMIT 0; SELECT id,repository FROM factory_native_workspaces LIMIT 0`); err != nil {
+		return err
+	}
+	// Keep one product identity across the real native restart.
+	if phase == "restart" {
+		retained, err := db.CollaborationProfile(ctx, config.Profile)
+		if err != nil || retained.Name != "retained standalone schema fixture" {
+			return errors.New("native restart lost the standalone product identity")
+		}
+		fmt.Println("PASS: standalone schema and product identity survive actual native restart")
+		return nil
+	}
+	if err = db.PutCollaborationProfile(ctx, collaboration.Profile{ID: config.Profile, Name: "retained standalone schema fixture"}); err != nil {
+		return err
+	}
+
+	retained, dsn, cleanup, err := store.OpenEphemeral(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	if err = retained.UpsertUser(ctx, store.User{ID: 71, Login: "retained-owner", Name: "Retained owner"}); err != nil {
+		return err
+	}
+	retained.Close()
+	legacy, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer legacy.Close()
+	if _, err = legacy.ExecContext(ctx, `BEGIN;
+INSERT INTO applications(id,administrator_id,name,data_id,owner_team,origin,hostname,port,revision) VALUES('retained-app',71,'retained app','retained-data','retained-team','https://retained.invalid','retained.invalid',21001,1);
+INSERT INTO application_revisions(application_id,revision,spec) VALUES('retained-app',1,'{"fixture":"preserve verbatim"}');
+ALTER TABLE schema_version DROP COLUMN application_hosting;
+UPDATE schema_version SET version=92;
+COMMIT`); err != nil {
+		return err
+	}
+	upgraded, err := store.OpenStandaloneContext(ctx, dsn)
+	if err != nil {
+		return err
+	}
+	user, err := upgraded.User(ctx, 71)
+	if err != nil || user.Login != "retained-owner" || user.Name != "Retained owner" {
+		return errors.New("retained schema upgrade changed appliance identity")
+	}
+	upgraded.Close()
+	if err = legacy.QueryRowContext(ctx, `SELECT version,application_hosting FROM schema_version`).Scan(&version, &hosting); err != nil {
+		return err
+	}
+	if version != store.SchemaVersion() || !hosting {
+		return errors.New("retained upgrade lost application hosting obligation")
+	}
+	var name, spec string
+	if err = legacy.QueryRowContext(ctx, `SELECT a.name,r.spec->>'fixture' FROM applications a JOIN application_revisions r ON r.application_id=a.id AND r.revision=a.revision WHERE a.id='retained-app'`).Scan(&name, &spec); err != nil {
+		return err
+	}
+	if name != "retained app" || spec != "preserve verbatim" {
+		return errors.New("retained application rows changed")
+	}
+	if _, err = legacy.ExecContext(ctx, `DROP TRIGGER application_identity_immutable ON applications`); err != nil {
+		return err
+	}
+	if invalid, err := store.OpenStandaloneContext(ctx, dsn); err == nil {
+		invalid.Close()
+		return errors.New("retained native open bypassed required application guard verification")
+	}
+	fmt.Println("PASS: actual schema 92 upgrade preserves identity/application rows and refuses missing retained hosting guard; standalone omits hosting and rejects appliance open")
+	return nil
 }
 
 type initialIntakeSource struct{ view control.AcceptanceIssueView }
@@ -1410,7 +1518,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -1832,7 +1940,7 @@ func nativeSponsorshipFixture(profile, instance, connection string, active bool)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}
@@ -1973,7 +2081,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
-	db, err := store.OpenContext(ctx, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
 	if err != nil {
 		return err
 	}

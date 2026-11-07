@@ -138,6 +138,12 @@ the historical limits are recorded there too. Toolchain provisioning, larger col
 builds, workload resource qualification, interrupted/restart network retirement and installed D3
 qualification remain dependencies; this does not complete T09 or A17.
 
+New standalone databases now omit application hosting through an explicit
+schema-93 component; retained shared databases preserve it and its verification.
+A20 records native startup/restart, retained upgrade and composed execution
+evidence. The appliance Project/identity compatibility bridges and broader
+migration/installed qualification remain pending.
+
 ## Remaining product milestones (2026-11-06)
 
 T11-WRITES and T07-EDIT/T08-READ/T08-WRITE are complete in their recorded scopes;

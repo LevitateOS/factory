@@ -18,6 +18,18 @@ security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all
 existing lifecycle/isolation/authority evidence below. Relevant new dependencies:
 
+**A20 retained schema obligations:** schema 93 records the application-hosting
+component. `pkg/store/{store,schema,schema_application_hosting}.go` and
+`pkg/factory/runtime/native_server.go` omit it for new native profiles and keep
+its required verification on retained shared databases. A20 in the assumptions
+audit records actual native startup/restart, schema-92 row preservation,
+missing-guard refusal and the composed dummy-token execution journey on a new
+standalone database. No existing data was removed. Remaining dependencies:
+separate appliance Project/identity compatibility bridges from fresh native
+initialization, then qualify older supported upgrades, concurrent open/upgrade,
+interrupted migration/rollback and installed recovery with retained data. The
+component check does not close those migration, identity or installed gates.
+
 **A08 / D1 creation-origin update:** own newly created GitHub issues are eligible;
 account inequality is not an authorization rule. `control/acceptance_initial.go`
 now consults `pkg/store/issue_creation_origins.go` and the existing post, Issue

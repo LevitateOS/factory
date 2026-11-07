@@ -8,9 +8,9 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 92
+const schemaFormatVersion = 93
 
-// schemaStatements creates the current PostgreSQL schema in dependency
+// schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
 // live in JSONB columns, which reject malformed JSON on write; small
 // flags are BOOLEAN; insertion-ordered listings use explicit seq columns
@@ -18,17 +18,8 @@ const schemaFormatVersion = 92
 var schemaStatements = []string{
 	`CREATE TABLE factory_activity_settings(repository BIGINT PRIMARY KEY CHECK(repository>0), revision BIGINT NOT NULL CHECK(revision>0), actor_id BIGINT NOT NULL CHECK(actor_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_feed_subscriptions(subscriber TEXT PRIMARY KEY, revision BIGINT NOT NULL CHECK(revision>0), data JSONB NOT NULL)`,
-	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY)`,
-	`INSERT INTO schema_version(version) VALUES(92)`,
-	`CREATE TABLE applications(id TEXT PRIMARY KEY, administrator_id BIGINT NOT NULL CHECK(administrator_id>0), name TEXT NOT NULL, data_id TEXT NOT NULL UNIQUE, owner_team TEXT NOT NULL, origin TEXT NOT NULL UNIQUE, hostname TEXT NOT NULL UNIQUE, port INTEGER NOT NULL UNIQUE CHECK(port>=20000 AND port<30000), revision BIGINT NOT NULL CHECK(revision>0), observation JSONB CHECK(observation IS NULL OR octet_length(observation::text)<=2048))`,
-	`CREATE TABLE application_revisions(application_id TEXT NOT NULL REFERENCES applications(id), revision BIGINT NOT NULL CHECK(revision>0), spec JSONB NOT NULL CHECK(octet_length(spec::text)<=4096), PRIMARY KEY(application_id,revision))`,
-	`CREATE TABLE application_projects(application_id TEXT PRIMARY KEY REFERENCES applications(id), repository BIGINT NOT NULL CHECK(repository>0))`,
-	ApplicationRestoresDDL,
-	ApplicationSetupsDDL,
-	ApplicationSetupRenewalsDDL,
-	ApplicationBuildsDDL,
-	`CREATE UNIQUE INDEX application_restore_pending ON application_restores(application_id) WHERE state='pending'`,
-	`ALTER TABLE applications ADD FOREIGN KEY(id,revision) REFERENCES application_revisions(application_id,revision) DEFERRABLE INITIALLY DEFERRED`,
+	`CREATE TABLE schema_version(version INTEGER PRIMARY KEY, application_hosting BOOLEAN NOT NULL DEFAULT true)`,
+	`INSERT INTO schema_version(version) VALUES(93)`,
 	`CREATE TABLE factory_departments(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), data JSONB NOT NULL)`,
 	`CREATE TABLE factory_intent_heads(id TEXT PRIMARY KEY, owner_id BIGINT NOT NULL CHECK(owner_id>0), revision TEXT NOT NULL)`,
 	`CREATE TABLE factory_intent_revisions(id TEXT PRIMARY KEY, intent TEXT NOT NULL REFERENCES factory_intent_heads(id), data JSONB NOT NULL)`,
@@ -166,20 +157,6 @@ PRIMARY KEY(scan,subject))`,
 BEGIN
   RAISE EXCEPTION 'soda: % is immutable', TG_TABLE_NAME;
 END $$ LANGUAGE plpgsql`,
-	`CREATE OR REPLACE FUNCTION soda_guard_application() RETURNS trigger AS $$
-BEGIN
-  IF NEW.id IS DISTINCT FROM OLD.id OR NEW.administrator_id IS DISTINCT FROM OLD.administrator_id
-    OR NEW.name IS DISTINCT FROM OLD.name
-    OR NEW.owner_team IS DISTINCT FROM OLD.owner_team OR NEW.origin IS DISTINCT FROM OLD.origin
-    OR NEW.hostname IS DISTINCT FROM OLD.hostname OR NEW.port IS DISTINCT FROM OLD.port
-    OR (NEW.revision <> OLD.revision AND NEW.revision-1 <> OLD.revision)
-  THEN RAISE EXCEPTION 'application identity is immutable'; END IF;
-  IF NEW.data_id IS DISTINCT FROM OLD.data_id AND NOT EXISTS(
-    SELECT 1 FROM application_restores r WHERE r.application_id=OLD.id AND r.base_revision=OLD.revision
-      AND r.target_data=NEW.data_id AND r.state='pending' AND NEW.revision=OLD.revision+1
-  ) THEN RAISE EXCEPTION 'application data requires an admitted restore'; END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql`,
 	`CREATE OR REPLACE FUNCTION soda_guard_creation_profile() RETURNS trigger AS $$
 BEGIN
   IF NEW.creation_profile IS DISTINCT FROM OLD.creation_profile THEN
@@ -227,9 +204,6 @@ BEGIN
   RETURN NEW;
 END $$ LANGUAGE plpgsql`,
 	`CREATE TRIGGER immutable_creation_profile BEFORE UPDATE OF creation_profile ON projects FOR EACH ROW EXECUTE FUNCTION soda_guard_creation_profile()`,
-	`CREATE TRIGGER application_identity_immutable BEFORE UPDATE ON applications FOR EACH ROW EXECUTE FUNCTION soda_guard_application()`,
-	`CREATE TRIGGER application_revision_immutable_update BEFORE UPDATE ON application_revisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
-	`CREATE TRIGGER application_revision_immutable_delete BEFORE DELETE ON application_revisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
 	`CREATE TRIGGER factory_run_binding_immutable BEFORE UPDATE ON factory_runs FOR EACH ROW EXECUTE FUNCTION soda_guard_run_binding()`,
 	`CREATE TRIGGER factory_command_immutable BEFORE UPDATE ON factory_commands FOR EACH ROW EXECUTE FUNCTION soda_guard_command()`,
 	`CREATE TRIGGER factory_plan_revision_immutable_update BEFORE UPDATE ON factory_plan_revisions FOR EACH ROW EXECUTE FUNCTION soda_reject_immutable()`,
@@ -320,13 +294,6 @@ func storedSchemaVersion(ctx context.Context, t *sql.Tx) (int, error) {
 
 func verifyRequiredColumns(ctx context.Context, t *sql.Tx) error {
 	for _, query := range []string{
-		`SELECT id,administrator_id,name,data_id,owner_team,origin,hostname,port,revision,observation FROM applications LIMIT 0`,
-		`SELECT id,application_id,base_revision,target_data,state,data FROM application_restores LIMIT 0`,
-		`SELECT id,application_id,administrator_id,data_id,origin,hostname,port,state,data FROM application_setups LIMIT 0`,
-		`SELECT setup_id,renewed_at,expires_at,administrator_id FROM application_setup_renewals LIMIT 0`,
-		`SELECT id,repository,delivery_id,environment,data,setup_id FROM application_builds LIMIT 0`,
-		`SELECT application_id,repository FROM application_projects LIMIT 0`,
-		`SELECT application_id,revision,spec FROM application_revisions LIMIT 0`,
 		`SELECT repository,revision,actor_id,data FROM factory_activity_settings LIMIT 0`,
 		`SELECT subscriber,revision,data FROM factory_feed_subscriptions LIMIT 0`,
 		`SELECT feed_seq,snapshot,max_calls,data FROM factory_priority_judgments LIMIT 0`,
@@ -411,19 +378,6 @@ func verifyImmutableExecutionIdentity(ctx context.Context, t *sql.Tx) error {
 	return verifyTrigger(ctx, t, "identity_execution_immutable", "identity_executions")
 }
 
-func verifyImmutableApplications(ctx context.Context, t *sql.Tx) error {
-	for _, guard := range [][2]string{
-		{"application_identity_immutable", "applications"},
-		{"application_revision_immutable_update", "application_revisions"},
-		{"application_revision_immutable_delete", "application_revisions"},
-	} {
-		if err := verifyTrigger(ctx, t, guard[0], guard[1]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func loadSchemaVersion(ctx context.Context, t *sql.Tx) (int, error) {
 	present, err := schemaPresent(ctx, t)
 	if err != nil {
@@ -441,7 +395,7 @@ func loadSchemaVersion(ctx context.Context, t *sql.Tx) (int, error) {
 // after the losing transaction rolls back.
 var schemaOpenMu sync.Mutex
 
-func initializeSchema(ctx context.Context, db *sql.DB) error {
+func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 	schemaOpenMu.Lock()
 	defer schemaOpenMu.Unlock()
 	inner, err := db.BeginTx(ctx, nil)
@@ -466,6 +420,17 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 		for _, statement := range schemaStatements {
 			if _, err = inner.ExecContext(ctx, statement); err != nil {
 				return fmt.Errorf("create current database schema: %w", err)
+			}
+		}
+		if standalone {
+			if _, err = t.ExecContext(ctx, `UPDATE schema_version SET application_hosting=false`); err != nil {
+				return err
+			}
+		} else {
+			for _, statement := range applicationHostingStatements {
+				if _, err = t.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("create application hosting schema: %w", err)
+				}
 			}
 		}
 	} else if version == 68 {
@@ -688,6 +653,14 @@ func initializeSchema(ctx context.Context, db *sql.DB) error {
 		}
 		version = 92
 	}
+	if version == 92 {
+		// Every retained format included application hosting. Record that
+		// obligation without changing its tables, rows or execution authority.
+		if _, err = t.ExecContext(ctx, `ALTER TABLE schema_version ADD COLUMN IF NOT EXISTS application_hosting BOOLEAN NOT NULL DEFAULT true; UPDATE schema_version SET version=93`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("record retained schema composition: %w", err))
+		}
+	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err
 	}
@@ -739,8 +712,12 @@ func verifyCurrentSchema(ctx context.Context, t *sql.Tx) error {
 	if err := verifyImmutableExecutionIdentity(ctx, t); err != nil {
 		return err
 	}
-	if err := verifyImmutableApplications(ctx, t); err != nil {
+	var hosting bool
+	if err := t.QueryRowContext(ctx, `SELECT application_hosting FROM schema_version`).Scan(&hosting); err != nil {
 		return err
+	}
+	if hosting {
+		return verifyApplicationHosting(ctx, t)
 	}
 	return nil
 }

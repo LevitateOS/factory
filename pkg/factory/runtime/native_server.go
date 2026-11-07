@@ -57,7 +57,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	defer func() { runErr = errors.Join(runErr, release()) }()
 	startup, cancelStartup := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelStartup()
-	db, err := store.OpenContext(startup, config.DatabaseDSN())
+	db, err := store.OpenStandaloneContext(startup, config.DatabaseDSN())
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil

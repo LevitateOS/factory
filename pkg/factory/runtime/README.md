@@ -51,8 +51,13 @@ or invitation; live and unowned historical claims remain untouched. Store openin
 and recovery share the ten-second startup budget. A signal cancels actual schema
 or recovery SQL waits, and malformed/unknown recovery errors prevent readiness
 without exposing retained contents. It does not claim a coordinator ledger,
-reconcile unobserved runs or start work. `store.OpenContext` uses the same
-schema owner as `Open`; cancellation also ends actual SQL admission waits.
+reconcile unobserved runs or start work. `store.OpenStandaloneContext` uses the
+same schema owner as `Open`; cancellation also ends actual SQL admission waits.
+Schema 93 records whether application hosting belongs to the database. New
+standalone profiles omit that component; retained shared databases preserve its
+tables, rows and required verification. An appliance opener refuses a standalone
+database. The existing appliance Project/identity compatibility bridges remain;
+they do not require native users to configure application hosting or SSH keys.
 
 Private IPC requires a current-user kernel peer and the exact per-start Bearer
 capability. Browser Origin/Fetch headers refuse. `GET /healthz` checks the live

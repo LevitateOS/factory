@@ -1,4 +1,4 @@
-// Package store owns the appliance PostgreSQL schema and row operations. It is not
+// Package store owns Factory's PostgreSQL schema and retained appliance row operations. It is not
 // an HTTP API, host runtime or generic SQL escape hatch for other packages.
 package store
 
@@ -68,9 +68,19 @@ func Open(dsn string) (*Store, error) {
 	return OpenContext(context.Background(), dsn)
 }
 
-// OpenContext uses the same schema owner with the caller's startup lifetime.
-// Native shutdown must also cancel a connection or schema initialization wait.
+// OpenContext opens the appliance composition with the caller's startup lifetime.
 func OpenContext(ctx context.Context, dsn string) (*Store, error) {
+	return openContext(ctx, dsn, false)
+}
+
+// OpenStandaloneContext creates a native Factory database without application
+// hosting. Retained shared databases keep their full compatibility obligations.
+// It never removes tables or converts a retained database to a smaller schema.
+func OpenStandaloneContext(ctx context.Context, dsn string) (*Store, error) {
+	return openContext(ctx, dsn, true)
+}
+
+func openContext(ctx context.Context, dsn string, standalone bool) (*Store, error) {
 	if strings.TrimSpace(dsn) == "" {
 		return nil, errors.New("postgres connection string is required")
 	}
@@ -78,16 +88,23 @@ func OpenContext(ctx context.Context, dsn string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return configureStore(ctx, db)
+	return configureStore(ctx, db, standalone)
 }
 
-func configureStore(ctx context.Context, db *sql.DB) (*Store, error) {
+func configureStore(ctx context.Context, db *sql.DB, standalone bool) (*Store, error) {
 	// Concurrent dispatch passes admit through separate connections;
 	// each backend retains a bounded connection pool.
 	db.SetMaxOpenConns(16)
 	db.SetMaxIdleConns(4)
 	s := &Store{db: db}
-	err := initializeSchema(ctx, db)
+	err := initializeSchema(ctx, db, standalone)
+	if err == nil && !standalone {
+		var hosting bool
+		err = db.QueryRowContext(ctx, `SELECT application_hosting FROM schema_version`).Scan(&hosting)
+		if err == nil && !hosting {
+			err = errors.New("standalone database does not include application hosting")
+		}
+	}
 	if err == nil {
 		err = initializeLibrarySchema(ctx, db)
 	}

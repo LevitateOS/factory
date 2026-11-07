@@ -200,6 +200,23 @@ corrections are now active; the old feature queue waits for their resolution.
   Saturated capacity/low-free-space refusal and installed workload evidence
   remain open. Reviewed time/network choices retain their existing semantics.
 
+- **A20 — application-hosting initialization separated; compatibility bridges pending.**
+  Native startup now uses `OpenStandaloneContext`. Schema 93 records the
+  application-hosting component: new standalone databases omit its tables;
+  retained schemas keep them and their required checks. No retained tables are
+  removed. Actual native startup/restart and a schema-92 upgrade preserving
+  appliance identity/application rows passed in
+  `/home/vince/tmp/fschema-standalone7.bJBah4/result.log`; a missing retained
+  hosting guard and an appliance open of a standalone database were refused.
+  Actual admitted preparation/MCP/artifact/settlement, retirement and retained
+  restart on the new standalone composition passed in
+  `/home/vince/tmp/fschema-execution7.AXoLjR/result.log`, using only an owned dummy
+  token. No model or personal credential ran. Application DDL and verification
+  now share `pkg/store/schema_application_hosting.go`. Appliance Project/identity
+  bridges still initialize for shared references; their removal from new native
+  initialization and installed/older-upgrade/concurrent migration qualification
+  remain pending. PostgreSQL and the Go transaction owner are retained.
+
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write
   requirements. Account equality with automation actors no longer excludes human
@@ -807,6 +824,11 @@ Evidence: [store initialization](../../../pkg/store/store.go#L90),
 requirements and initialization duties. Preserve data and the defining schema
 owner. PostgreSQL is a selected engineering choice; this audit provides no basis
 for an SQLite rewrite or deleting imported tables.
+
+**Current correction:** application hosting is now an explicit schema-93
+component. New standalone profiles omit it; retained databases preserve its
+compatibility obligations. The verified-corrections entry above records exact
+evidence. Shared appliance Project and identity bridges remain unfinished.
 
 ### A21 — Check fixtures can satisfy prerequisites that a user cannot reach
 

@@ -25,6 +25,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 5 && args[4] == "schema" {
+        let profile = root.join("schema-profile");
+        for restart in 0..2 {
+            let supervisor = NativeSupervisor::start(Path::new(&args[1]), Path::new(&args[2]), &profile)?;
+            let ready = supervisor.health()?;
+            if !Command::new(&args[3])
+                .arg(&profile).arg(&ready.instance).arg("check-native-schema").arg(if restart == 0 { "fresh" } else { "restart" })
+                .status()?.success() {
+                return Err("native schema composition check failed".into());
+            }
+            supervisor.stop()?;
+        }
+        println!("PASS: actual standalone startup/restart omits application hosting and retains product storage; retained shared migration preserves rows and hosting verification");
+        return Ok(());
+    }
     if args.len() == 3 && matches!(args[2].as_str(), "muse-connector" | "muse-login") {
         return muse_connector(&root, Path::new(&args[1]), args[2] == "muse-login");
     }
