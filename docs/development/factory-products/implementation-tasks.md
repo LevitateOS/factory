@@ -89,9 +89,13 @@ source/allowance, deadline, model-step and captured-output limits. Version-4 int
 and host-process receipt facts keep this source distinct from the token lane.
 Product output is the final CLI answer; bounded native transcripts remain private.
 Source withdrawal/refusal during work, complete role/configuration confinement,
-isolated task/workspace effects, completed-entry acknowledgement and installed/
-restart qualification remain dependencies. A01/A19 and the security handoff record
-the exact scopes and retained unresolved attempt.
+isolated task/workspace effects and broader crash/installed qualification remain
+dependencies. Completed-entry acknowledgement now frees native capacity after
+canonical accounting, and terminal receipts survive that release and restart.
+The original deadline attempt was reconciled failed without inference replay;
+usage stays within its admitted one-minute window. Exact early-stop attribution
+after delayed settlement remains unqualified. A01/A19 and the security handoff
+record these scopes and all other retained unresolved attempts.
 The CLI-managed source can now be configured in shared Work: its native-profile
 reference, local minute allowance, independent role choices and withdrawal use
 the existing sponsorship/policy commands. Actual composed native and declared

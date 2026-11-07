@@ -87,8 +87,10 @@ func (s *Store) NativeRecoveryCandidates(ctx context.Context, profile collaborat
 	}
 	rows, err := s.db.QueryContext(ctx, `SELECT seq,id,data FROM factory_runs
 	 WHERE seq>$1 AND data#>>'{native,provenance,profile}'=$2
-	 AND coalesce(data#>>'{native,intent}','')!='' AND data#>>'{native,sealed}'='true'
-	 AND data#>>'{native,retirement}' IN ('exited','uncertain')
+	 AND coalesce(data#>>'{native,intent}','')!=''
+	 AND ((data#>>'{native,sealed}'='true' AND data#>>'{native,retirement}' IN ('exited','uncertain'))
+	 OR (data#>>'{native,provenance,trust_mode}'='cli_managed_provider' AND
+	 (data#>>'{native,retirement}'!='retired' OR data->>'reconciled'!='true')))
 	 ORDER BY seq LIMIT 33`, after, string(profile))
 	if err != nil {
 		return nil, "", err
@@ -109,7 +111,7 @@ func (s *Store) NativeRecoveryCandidates(ctx context.Context, profile collaborat
 			break
 		}
 		var run factory.Run
-		if json.Unmarshal(raw, &run) != nil || run.Validate() != nil || run.ID != id || run.Native == nil || run.Native.Provenance.Process == nil || run.Native.Provenance.Profile != profile {
+		if json.Unmarshal(raw, &run) != nil || run.Validate() != nil || run.ID != id || run.Native == nil || (run.Native.Provenance.Process == nil && run.Native.Provenance.TrustMode != execution.NativeCLIProvider) || run.Native.Provenance.Profile != profile {
 			return nil, "", ErrAdmissionChanged
 		}
 		items = append(items, NativeRecoveryCandidate{BrokerRun: run.Native.Provenance.BrokerRun, SourceSHA: run.Native.BundleSHA256})

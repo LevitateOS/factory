@@ -110,6 +110,11 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 	ctx, ownsPass, cancelPass := c.readinessPass(ctx)
 	defer cancelPass()
 	defer c.observeProgressStage("idle")
+	defer func() {
+		if acknowledgements, ok := c.Host.(execution.RunAcknowledgements); ok && ctx.Err() == nil {
+			_ = acknowledgements.AcknowledgeSettledRuns(ctx)
+		}
+	}()
 	c.observeProgressStage("settlement")
 	budget := readinessBudgetFrom(ctx)
 	runs, err := c.Store.FactoryUnsettledRuns(ctx, MaxDispatchRecovery)

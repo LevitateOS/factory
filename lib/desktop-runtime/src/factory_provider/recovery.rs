@@ -108,8 +108,15 @@ struct RecordedProvenance {
     worktree_id: String,
     broker_run: String,
     isolation: Option<RecordedIsolation>,
+    connector: Option<RecordedConnector>,
     process: Option<RecordedProcess>,
     custody: RecordedCustody,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecordedConnector {
+    uid: u32,
+    service: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -155,6 +162,7 @@ pub struct NativeRecoveryEvidence {
     pub intent: Option<LaunchIntent>,
     pub receipt: Option<AgentRun>,
     pub custody: Option<CustodyObservation>,
+    pub muse: Option<super::MuseRun>,
 }
 
 impl NativeRecovery {
@@ -181,7 +189,10 @@ impl NativeRecovery {
             || envelope.instance != context.instance
             || native.profile != context.profile
             || native.broker_run != broker_run
-            || native.trust_mode != "isolated_system_worker"
+            || !matches!(
+                native.trust_mode.as_str(),
+                "isolated_system_worker" | "cli_managed_provider"
+            )
         {
             return Err(refused("native recovery ledger binding differs"));
         }
@@ -253,6 +264,19 @@ impl NativeRecovery {
             }
             _ => return Err(refused("native recovery intent unconfirmed or differs")),
         }
+        if let Some(intent) = intent.as_ref().filter(|intent| intent.muse_login()) {
+            let muse = super::muse_receipt::retained(&self.context.directory, intent)?;
+            if let Some(result) = &muse {
+                self.compare_muse(&result.process)?;
+            }
+            self.context.current()?;
+            return Ok(NativeRecoveryEvidence {
+                intent: Some(intent.clone()),
+                receipt: None,
+                custody: None,
+                muse,
+            });
+        }
         let receipt = read_retained(&self.context.directory, &scope)?;
         if let Some(receipt) = &receipt {
             self.compare_process(receipt)?;
@@ -287,6 +311,7 @@ impl NativeRecovery {
             intent,
             receipt,
             custody,
+            muse: None,
         })
     }
 
@@ -298,6 +323,29 @@ impl NativeRecovery {
         let intent = evidence
             .intent
             .ok_or_else(|| refused("native recovery intent not observed"))?;
+        if intent.muse_login() {
+            let result = evidence
+                .muse
+                .ok_or_else(|| refused("native CLI receipt not observed"))?;
+            if !result.root_retired && self.original_instance() == self.context.instance {
+                return Err(refused("current CLI MCP owner retirement unconfirmed"));
+            }
+            super::muse_receipt::service_stopped(&self.context.directory, &result.process)?;
+            let process = &result.process;
+            let body = serde_json::to_vec(&serde_json::json!({"intent":intent.raw(),
+                "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":true},
+                "receipt":{"worker_uid":0,"connector_uid":process.uid,"service":process.service,"namespace_pid":0,"host_pid":process.pid,
+                    "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
+                    "started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}}))?;
+            self.context.current()?;
+            let response = self
+                .products
+                .record_recovery(&body)
+                .await
+                .map_err(|_| refused("native CLI observation unavailable"))?;
+            self.context.current()?;
+            return self.acknowledgement(response, "native_observation_recorded");
+        }
         let receipt = evidence
             .receipt
             .ok_or_else(|| refused("native recovery receipt not observed"))?;
@@ -354,6 +402,28 @@ impl NativeRecovery {
         let intent = evidence
             .intent
             .ok_or_else(|| refused("native recovery intent missing"))?;
+        if intent.muse_login() {
+            let result = evidence
+                .muse
+                .ok_or_else(|| refused("native CLI receipt missing"))?;
+            if !result.root_retired && self.original_instance() == self.context.instance {
+                return Err(refused("current CLI MCP owner retirement unconfirmed"));
+            }
+            super::muse_receipt::service_stopped(&self.context.directory, &result.process)?;
+            if !self.run.reconciled {
+                self.record_evidence().await?;
+            }
+            self.context.current()?;
+            super::Broker::retire_unlaunched(
+                self.broker_run(),
+                &self.context.profile,
+                &self.run.native.bundle_sha256,
+            )?;
+            super::muse_receipt::mark_retired(&self.context.directory, &intent, &result.process)?;
+            return self
+                .record_root(&intent, &result.process.invocation, "")
+                .await;
+        }
         let receipt = evidence
             .receipt
             .ok_or_else(|| refused("native recovery receipt missing"))?;
@@ -387,8 +457,21 @@ impl NativeRecovery {
         if !self.run.reconciled {
             self.record_evidence().await?;
         }
+        self.record_root(
+            &intent,
+            &receipt.process.invocation,
+            &custody.acquisition_id,
+        )
+        .await
+    }
+    async fn record_root(
+        &self,
+        intent: &LaunchIntent,
+        invocation: &str,
+        acquisition: &str,
+    ) -> io::Result<()> {
         let body = serde_json::to_vec(
-            &serde_json::json!({"intent":intent.raw(),"invocation":receipt.process.invocation,"acquisition_id":custody.acquisition_id}),
+            &serde_json::json!({"intent":intent.raw(),"invocation":invocation,"acquisition_id":acquisition}),
         )?;
         let response = self
             .products
@@ -427,6 +510,42 @@ impl NativeRecovery {
         // transaction owner. This method compares the immutable native anchor.
         Ok(())
     }
+    fn compare_muse(&self, observed: &soda_execution_protocol::MuseObservation) -> io::Result<()> {
+        let native = &self.run.native.provenance;
+        if native.trust_mode != "cli_managed_provider"
+            || native.isolation.is_some()
+            || native.custody.state != "not_acquired"
+            || !native.custody.acquisition_id.is_empty()
+            || !native.custody.connection.is_empty()
+            || native.custody.generation != "0"
+        {
+            return Err(refused("CLI custody or trust mode differs"));
+        }
+        if let Some(process) = &native.process {
+            let started = OffsetDateTime::parse(&process.started_at, &Rfc3339)
+                .map_err(|_| refused("CLI process time invalid"))?;
+            let connector = native
+                .connector
+                .as_ref()
+                .ok_or_else(|| refused("CLI connector identity missing"))?;
+            if process.invocation_id != observed.invocation
+                || process.system_instance != observed.system_instance
+                || process.start_identity != observed.start_identity
+                || process.pid != observed.pid
+                || started.unix_timestamp_nanos()
+                    != i128::from(observed.started_unix_ms) * 1_000_000
+                || process.executable != self.run.native.tool.executable
+                || process.executable_sha256 != observed.executable_sha256
+                || connector.uid != observed.uid
+                || connector.service != observed.service
+            {
+                return Err(refused("CLI process anchor differs"));
+            }
+        } else if native.connector.is_some() {
+            return Err(refused("CLI connector lacks process anchor"));
+        }
+        Ok(())
+    }
 }
 
 /// Startup-only reconciliation. The caller retains the exclusive profile lock,
@@ -446,7 +565,15 @@ pub(crate) async fn recover_profile(products: Products, profile: &str) -> io::Re
         if !seen.insert(run.clone()) {
             return Err(refused("native root recovery did not advance"));
         }
-        if !launched && !pending {
+        let cli = super::intent::read_run(&captured.directory, profile, &run)?
+            .is_some_and(|intent| intent.muse_login());
+        if cli {
+            let recovered = NativeRecovery::read(products.clone(), &run).await?;
+            if recovered.run.native.bundle_sha256 != source {
+                return Err(refused("CLI recovery source differs"));
+            }
+            recovered.recover_root().await?;
+        } else if !launched && !pending {
             if !super::Broker::retire_unlaunched(&run, profile, &source)? {
                 return Err(refused("native staging recovery did not advance"));
             }

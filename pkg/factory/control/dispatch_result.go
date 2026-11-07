@@ -64,6 +64,7 @@ func finishAssignmentFromRun(a factory.Assignment, run factory.Run, now time.Tim
 // recordConfirmedUsage appends one settled run's confirmed consumption in
 // whole minutes, rounding up. The first write wins; replays reuse it.
 func recordConfirmedUsage(ctx context.Context, db *store.Store, a factory.Assignment, run factory.Run, now time.Time) error {
+	now = run.UsageEnd(now)
 	minutes := 0
 	if elapsed := now.Sub(run.Started); elapsed > 0 {
 		minutes = int((elapsed + time.Minute - time.Nanosecond) / time.Minute)

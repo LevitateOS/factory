@@ -176,6 +176,9 @@ func (c *Coordinator) settleRun(ctx context.Context, run factory.Run) StopResult
 	if settled, err := c.Store.AssignmentByRun(ctx, run.ID); err == nil {
 		_, _ = SettleMCPTerminalProposal(ctx, c.Store, settled.ID, time.Now())
 	}
+	if acknowledgements, ok := c.Host.(execution.RunAcknowledgements); ok {
+		_ = acknowledgements.AcknowledgeSettledRuns(ctx)
+	}
 	receipt.Confirmed, receipt.Outcome, receipt.Reason = true, string(outcome), run.Summary
 	return receipt
 }

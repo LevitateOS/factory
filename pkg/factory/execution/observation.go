@@ -42,6 +42,12 @@ type RunLauncher interface {
 	LaunchRun(context.Context, LaunchRequest) (RunObservation, error)
 }
 
+// RunAcknowledgements frees native delivery capacity only after canonical
+// settlement/accounting. The existing progress pass retries lost requests.
+type RunAcknowledgements interface {
+	AcknowledgeSettledRuns(context.Context) error
+}
+
 // CustodyObserver concerns only this run's acquired credential material.
 // SealCustody acknowledges sealing the identity, not release of credentials;
 // callers must subsequently read and reconcile the actual custody observation.

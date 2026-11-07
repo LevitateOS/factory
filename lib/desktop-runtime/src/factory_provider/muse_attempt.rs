@@ -19,7 +19,7 @@ pub struct MuseRun {
 
 // Keep the bounded native transcript private. Product output is the CLI's
 // final answer, not its lifecycle and tool-protocol event stream.
-fn final_text(output: &[u8]) -> Option<String> {
+pub(super) fn final_text(output: &[u8]) -> Option<String> {
     let mut text = None;
     for line in std::str::from_utf8(output).ok()?.lines() {
         let Ok(event) = serde_json::from_str::<serde_json::Value>(line) else {
@@ -200,8 +200,10 @@ impl MuseAttempt {
                         }
                     }
                     let (process, output) = connector.finish()?;
+                    super::muse_receipt::write(&profile, &intent, &process, &output)?;
                     mcp.stop()?;
                     staged.abort()?;
+                    super::muse_receipt::mark_retired(&profile, &intent, &process)?;
                     Ok(MuseRun {
                         process,
                         product_output: final_text(&output),

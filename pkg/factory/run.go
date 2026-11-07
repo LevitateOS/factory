@@ -71,6 +71,15 @@ type RunAdmission struct {
 	Native    *execution.NativeLaunch    `json:"native,omitempty"`
 }
 
+// UsageEnd bounds the chargeable interval by the admitted execution deadline.
+// Recovery may settle much later; that wait cannot extend execution consent.
+func (r Run) UsageEnd(observed time.Time) time.Time {
+	if r.Deadline.Before(observed) {
+		return r.Deadline
+	}
+	return observed
+}
+
 func (r Run) Validate() error {
 	if !ValidID(r.ID) || !ValidCommit(r.InputSHA) {
 		return errors.New("invalid factory execution identity")

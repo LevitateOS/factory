@@ -1238,7 +1238,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" {
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -1416,6 +1416,49 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	defer db.Close()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	if action == "acknowledge-native" {
+		return port.AcknowledgeSettledRuns(ctx)
+	}
+	if action == "reconcile-retained-native" {
+		prior, err := db.FactoryRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		if prior.Native == nil || !prior.Native.Settled() || prior.Native.Provenance.TrustMode != execution.NativeCLIProvider || prior.Native.Provenance.Process == nil {
+			return errors.New("original CLI resources were not recovered")
+		}
+		coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
+		stopped, err := coordinator.Stop(ctx, input.Run)
+		if err != nil || !stopped.Confirmed || stopped.Uncertain || stopped.Outcome != string(factory.Failed) {
+			return fmt.Errorf("original deadline run remains unsettled: %v %+v", err, stopped)
+		}
+		current, err := db.FactoryRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		if !current.Reconciled || !current.Native.Settled() || current.Native.Intent != prior.Native.Intent || !reflect.DeepEqual(current.Native.Provenance.Process, prior.Native.Provenance.Process) {
+			return errors.New("recovery changed the original native identity")
+		}
+		a, err := db.AssignmentByRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		var rawUsage []byte
+		rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer rawDB.Close()
+		if err = rawDB.QueryRowContext(ctx, `SELECT data FROM factory_usage WHERE run=$1`, input.Run).Scan(&rawUsage); err != nil {
+			return err
+		}
+		var usage factory.Usage
+		if json.Unmarshal(rawUsage, &usage) != nil || usage.Validate() != nil || usage.Minutes != 1 || usage.Connection != a.Connection || !usage.EndedAt.Equal(prior.Deadline) || !usage.StartedAt.Equal(prior.Started) {
+			return errors.New("recovered deadline usage includes offline settlement delay")
+		}
+		fmt.Println("PASS: exact original deadline run recovered and settled failed without relaunch; source usage remains one admitted minute")
+		return nil
+	}
 	if input.MuseLogin {
 		source, sourceErr := port.MuseLoginSource(ctx)
 		if sourceErr != nil {
@@ -1464,7 +1507,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			}
 		}
 		fmt.Println("PASS: actual coordinator settlement retains the worker's explicit blocked result and exact retired native resources")
-		return nil
+		return port.AcknowledgeSettledRuns(ctx)
 	}
 	if action == "check-admitted-native" {
 		observed, err := port.InspectRun(ctx, execution.RunAddress{Run: input.Run, Workspace: p.Project})

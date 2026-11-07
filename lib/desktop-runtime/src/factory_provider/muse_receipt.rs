@@ -1,0 +1,335 @@
+//! Durable CLI-process evidence. Reading never restarts inference or infers
+//! root/MCP retirement from a process exit. Startup recovery records those
+//! separate facts only after checking the original service and broker root.
+use super::{LaunchIntent, MuseRun};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use soda_execution_protocol::{MuseObservation, MAX_OUTPUT};
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+const HEADER_LIMIT: usize = 8192;
+fn denied() -> io::Error {
+    io::Error::other("retained Muse evidence unavailable or differs")
+}
+fn digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+fn read(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    let meta = file.metadata()?;
+    if !meta.is_file()
+        || meta.uid() != unsafe { libc::geteuid() }
+        || meta.mode() & 0o077 != 0
+        || meta.len() > limit as u64
+    {
+        return Err(denied());
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    file.take(limit as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() != meta.len() as usize {
+        return Err(denied());
+    }
+    Ok(bytes)
+}
+fn publish(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let pending = path.with_file_name(format!(
+        "{}.pending",
+        path.file_name()
+            .ok_or_else(denied)?
+            .to_str()
+            .ok_or_else(denied)?
+    ));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&pending)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    fs::hard_link(&pending, path)?;
+    File::open(path.parent().ok_or_else(denied)?)?.sync_all()?;
+    fs::remove_file(&pending)?;
+    File::open(path.parent().ok_or_else(denied)?)?.sync_all()
+}
+fn path(profile: &Path, intent: &LaunchIntent, suffix: &str) -> io::Result<PathBuf> {
+    if !intent.muse_login() {
+        return Err(denied());
+    }
+    let scope = intent.scope()?;
+    super::receipt::profile(profile, scope.profile)?;
+    Ok(super::receipt::ensure_receipts(profile)?.join(format!("{}.muse.{suffix}", scope.run)))
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Header {
+    kind: String,
+    version: u8,
+    intent_sha256: String,
+    process: MuseObservation,
+}
+
+fn valid(intent: &LaunchIntent, process: &MuseObservation, output: &[u8]) -> bool {
+    process.kind == "factory_muse_process"
+        && process.version == 1
+        && process.run == intent.run()
+        && super::hex(&process.service, 32)
+        && super::hex(&process.invocation, 32)
+        && process.uid == unsafe { libc::geteuid() }
+        && process.uid > 0
+        && process.pid > 0
+        && process.system_instance.len() == 36
+        && process.start_identity.parse::<u64>().is_ok_and(|v| v > 0)
+        && process.started_unix_ms > 0
+        && process.executable_sha256 == intent.tool_sha256()
+        && process.prompt_sha256
+            == intent
+                .scope()
+                .ok()
+                .map(|scope| scope.prompt_sha256().to_owned())
+                .unwrap_or_default()
+        && process.finished
+        && process.live == Some(false)
+        && process.sequence == 0
+        && process.tree_retired
+        && process.output_complete
+        && output.len() <= MAX_OUTPUT
+        && process.output_length == output.len()
+        && process.output_sha256.as_deref() == Some(&digest(output))
+        && matches!(
+            process.reason.as_deref(),
+            Some(
+                "exited"
+                    | "cancelled"
+                    | "deadline"
+                    | "output_limit"
+                    | "input_unavailable"
+                    | "output_unavailable"
+                    | "observation_unavailable"
+            )
+        )
+        && (process.exit_code.is_some() != process.exit_signal.is_some())
+        && process.exit_code.is_none_or(|v| (0..=255).contains(&v))
+        && process.exit_signal.is_none_or(|v| (1..=64).contains(&v))
+}
+pub(super) fn write(
+    profile: &Path,
+    intent: &LaunchIntent,
+    process: &MuseObservation,
+    output: &[u8],
+) -> io::Result<()> {
+    if !valid(intent, process, output) {
+        return Err(denied());
+    }
+    let header = serde_json::to_vec(&Header {
+        kind: "factory_muse_receipt".into(),
+        version: 1,
+        intent_sha256: intent.digest(),
+        process: process.clone(),
+    })?;
+    if header.len() > HEADER_LIMIT {
+        return Err(denied());
+    }
+    let mut bytes = Vec::with_capacity(4 + header.len() + output.len());
+    bytes.extend_from_slice(&(header.len() as u32).to_be_bytes());
+    bytes.extend_from_slice(&header);
+    bytes.extend_from_slice(output);
+    publish(&path(profile, intent, "receipt")?, &bytes)
+}
+pub(super) fn mark_retired(
+    profile: &Path,
+    intent: &LaunchIntent,
+    process: &MuseObservation,
+) -> io::Result<()> {
+    let marker = serde_json::json!({"kind":"factory_muse_retired","version":1,"intent_sha256":intent.digest(),"invocation":process.invocation});
+    let path = path(profile, intent, "retired")?;
+    match read(&path, 1024) {
+        Ok(bytes) if serde_json::from_slice::<serde_json::Value>(&bytes)? == marker => Ok(()),
+        Ok(_) => Err(denied()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            publish(&path, &serde_json::to_vec(&marker)?)
+        }
+        Err(e) => Err(e),
+    }
+}
+pub(super) fn retained(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> {
+    let path = path(profile, intent, "receipt")?;
+    let bytes = match read(&path, 4 + HEADER_LIMIT + MAX_OUTPUT) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return legacy(profile, intent),
+        Err(e) => return Err(e),
+    };
+    if bytes.len() < 4 {
+        return Err(denied());
+    }
+    let length = u32::from_be_bytes(bytes[..4].try_into().map_err(|_| denied())?) as usize;
+    if length > HEADER_LIMIT || 4 + length > bytes.len() {
+        return Err(denied());
+    }
+    let header: Header = serde_json::from_slice(&bytes[4..4 + length])?;
+    let output = bytes[4 + length..].to_vec();
+    if header.kind != "factory_muse_receipt"
+        || header.version != 1
+        || header.intent_sha256 != intent.digest()
+        || !valid(intent, &header.process, &output)
+    {
+        return Err(denied());
+    }
+    result(profile, intent, header.process, output).map(Some)
+}
+fn result(
+    profile: &Path,
+    intent: &LaunchIntent,
+    process: MuseObservation,
+    output: Vec<u8>,
+) -> io::Result<MuseRun> {
+    let root_retired = match read(&path(profile, intent, "retired")?, 1024) {
+        Ok(bytes) => {
+            let marker: serde_json::Value = serde_json::from_slice(&bytes)?;
+            if marker
+                != serde_json::json!({"kind":"factory_muse_retired","version":1,"intent_sha256":intent.digest(),"invocation":process.invocation})
+            {
+                return Err(denied());
+            }
+            true
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => false,
+        Err(e) => return Err(e),
+    };
+    Ok(MuseRun {
+        product_output: super::muse_attempt::final_text(&output),
+        process,
+        output,
+        root_retired,
+    })
+}
+
+// Earlier connector components retained the same process/output facts in their
+// private service directory. Import only one exact binding; never select a
+// directory by modification time or infer that its service/root has stopped.
+fn legacy(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> {
+    let root = profile.join("native-muse-runs");
+    let entries = match fs::read_dir(&root) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    super::muse::private(&root)?;
+    let mut found = None;
+    for (index, entry) in entries.enumerate() {
+        if index >= 64 {
+            return Err(denied());
+        }
+        let entry = entry?;
+        let name = entry.file_name().to_str().ok_or_else(denied)?.to_owned();
+        super::muse::private(&entry.path())?;
+        if !super::hex(&name, 32) {
+            return Err(denied());
+        }
+        let meta = entry.path().symlink_metadata()?;
+        if !meta.is_dir() || meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o077 != 0 {
+            return Err(denied());
+        }
+        let binding: serde_json::Value =
+            serde_json::from_slice(&read(&entry.path().join("binding.json"), 4096)?)?;
+        if binding["run"] != intent.run() {
+            continue;
+        }
+        if found.is_some()
+            || binding["kind"] != "factory_muse_binding"
+            || binding["version"] != 1
+            || binding["service"] != name
+            || binding["unit"] != format!("soda-factory-muse-{}-{name}.service", intent.run())
+            || binding["executable_sha256"] != intent.tool_sha256()
+            || binding["prompt_sha256"] != intent.scope()?.prompt_sha256()
+        {
+            return Err(denied());
+        }
+        let process: MuseObservation =
+            serde_json::from_slice(&read(&entry.path().join("result.json"), HEADER_LIMIT)?)?;
+        if process.service != name || !super::hex(&process.invocation, 32) {
+            return Err(denied());
+        }
+        let invocation = entry.path().join(&process.invocation);
+        super::muse::private(&invocation)?;
+        let output = read(&invocation.join("terminal.log"), MAX_OUTPUT)?;
+        if !valid(intent, &process, &output) {
+            return Err(denied());
+        }
+        found = Some((process, output));
+    }
+    if let Some((process, output)) = found {
+        write(profile, intent, &process, &output)?;
+        result(profile, intent, process, output).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {
+    let unit = format!(
+        "soda-factory-muse-{}-{}.service",
+        process.run, process.service
+    );
+    let mut child = Command::new("/usr/bin/systemctl")
+        .args([
+            "--user",
+            "show",
+            "--property=LoadState,ActiveState,MainPID,WorkingDirectory",
+            "--",
+            &unit,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let until = Instant::now() + Duration::from_secs(2);
+    loop {
+        if child.try_wait()?.is_some() {
+            break;
+        }
+        if Instant::now() >= until {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(denied());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mut bytes = Vec::new();
+    child
+        .stdout
+        .take()
+        .ok_or_else(denied)?
+        .take(8193)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > 8192 {
+        return Err(denied());
+    }
+    let text = String::from_utf8(bytes).map_err(io::Error::other)?;
+    let fields: std::collections::BTreeMap<_, _> = text
+        .lines()
+        .filter_map(|line| line.split_once('='))
+        .collect();
+    if fields.get("MainPID") != Some(&"0")
+        || !matches!(fields.get("ActiveState"), Some(&"inactive" | &"failed"))
+    {
+        return Err(denied());
+    }
+    let expected = profile.join("native-muse-runs").join(&process.service);
+    match fields.get("LoadState") {
+        Some(&"not-found") => Ok(()),
+        Some(&"loaded") if fields.get("WorkingDirectory").copied() == expected.to_str() => Ok(()),
+        _ => Err(denied()),
+    }
+}

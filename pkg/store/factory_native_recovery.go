@@ -6,6 +6,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
 )
 
 // NativeFactoryRun resolves a broker selector through retained canonical data.
@@ -32,7 +33,7 @@ func (s *Store) NativeFactoryRun(ctx context.Context, profile collaboration.Prof
 		}
 		var run factory.Run
 		if found != nil || json.Unmarshal(data, &run) != nil || run.Validate() != nil || run.ID != id ||
-			run.Native == nil || run.Native.Provenance.TrustMode != "isolated_system_worker" ||
+			run.Native == nil || (run.Native.Provenance.TrustMode != "isolated_system_worker" && run.Native.Provenance.TrustMode != execution.NativeCLIProvider) ||
 			run.Native.Provenance.Profile != profile || run.Native.Provenance.BrokerRun != brokerRun {
 			return factory.Run{}, ErrAdmissionChanged
 		}

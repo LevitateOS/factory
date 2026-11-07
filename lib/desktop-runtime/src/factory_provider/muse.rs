@@ -36,7 +36,7 @@ pub(crate) fn helper() -> io::Result<PathBuf> {
     }
     Ok(helper)
 }
-fn private(path: &Path) -> io::Result<()> {
+pub(super) fn private(path: &Path) -> io::Result<()> {
     let meta = path.symlink_metadata()?;
     if !meta.is_dir()
         || meta.uid() != unsafe { libc::geteuid() }

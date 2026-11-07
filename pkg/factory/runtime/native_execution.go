@@ -107,12 +107,13 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 		run.Native.Provenance.Profile != p.Config.Profile {
 		return empty, execution.ErrRunChanged
 	}
-	retained := run.Native.Provenance.InstanceID != p.Instance
+	reconciled := run.Reconciled
+	retained := run.Native.Provenance.InstanceID != p.Instance || reconciled
 	if retained {
 		// Startup recovery owns root retirement. An old instance grants no
 		// live ownership or cancellation; only its acknowledged terminal facts
 		// can be read through the current authenticated native channel.
-		if run.Native.Retirement != execution.Retired || !run.Native.Sealed || run.Native.Provenance.Custody.State != execution.Released {
+		if !run.Native.Settled() {
 			return empty, execution.ErrRunNotObserved
 		}
 		operation = "inspect_retained"
@@ -133,13 +134,17 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	if snapshot.Retired && (snapshot.Live == nil || *snapshot.Live || !custodyDone) {
 		return empty, execution.ErrObservation
 	}
-	if retained && (snapshot.Live == nil || *snapshot.Live || !snapshot.Custody.Sealed || snapshot.Custody.State != execution.Released) {
+	if retained && (snapshot.Live == nil || *snapshot.Live || !custodyDone) {
 		return empty, execution.ErrObservation
 	}
-	if err = p.Store.ObserveNativeRecovery(ctx, p.Config.Profile, intent, *snapshot.Receipt, snapshot.Custody, os.Geteuid()); err != nil {
+	if reconciled {
+		if _, err = execution.ObserveNativeReceipt(*run.Native, *snapshot.Receipt, snapshot.Custody, os.Geteuid()); err != nil {
+			return empty, err
+		}
+	} else if err = p.Store.ObserveNativeRecovery(ctx, p.Config.Profile, intent, *snapshot.Receipt, snapshot.Custody, os.Geteuid()); err != nil {
 		return empty, err
 	}
-	if snapshot.Retired {
+	if snapshot.Retired && !reconciled {
 		if err = p.Store.RecordNativeRootRetirement(ctx, p.Config.Profile, intent, snapshot.Receipt.Invocation, snapshot.Custody.AcquisitionID); err != nil {
 			return empty, err
 		}
@@ -150,7 +155,7 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	if err != nil {
 		return empty, err
 	}
-	if run.Native == nil || run.Native.Intent != intent || run.Reconciled {
+	if run.Native == nil || run.Native.Intent != intent || run.Reconciled != reconciled {
 		return empty, execution.ErrRunChanged
 	}
 	native := *run.Native

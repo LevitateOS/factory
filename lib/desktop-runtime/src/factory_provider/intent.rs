@@ -344,18 +344,34 @@ fn private_directory(path: &Path) -> io::Result<()> {
 /// Read without replay or filling missing history. A pending file is unknown,
 /// even if a committed link also exists after an interrupted publication.
 pub fn read_intent(profile: &Path, scope: &ReceiptScope<'_>) -> io::Result<Option<LaunchIntent>> {
-    receipt::profile(profile, scope.profile)?;
+    let intent = read_run(profile, scope.profile, scope.run)?;
+    if let Some(intent) = &intent {
+        if intent.scope()?.fingerprint() != scope.fingerprint() {
+            return Err(refused("native intent retained scope differs"));
+        }
+    }
+    Ok(intent)
+}
+pub(super) fn read_run(
+    profile: &Path,
+    profile_id: &str,
+    run: &str,
+) -> io::Result<Option<LaunchIntent>> {
+    receipt::profile(profile, profile_id)?;
+    if !hex(run, 32) {
+        return Err(refused("native intent run invalid"));
+    }
     let root: PathBuf = profile.join("native-run-intents");
     match root.symlink_metadata() {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
         Ok(_) => private_directory(&root)?,
     }
-    absent(&root.join(format!("{}.pending", scope.run)))?;
+    absent(&root.join(format!("{run}.pending")))?;
     let file = match OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(root.join(format!("{}.json", scope.run)))
+        .open(root.join(format!("{run}.json")))
     {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         other => other?,
@@ -375,7 +391,7 @@ pub fn read_intent(profile: &Path, scope: &ReceiptScope<'_>) -> io::Result<Optio
         return Err(refused("native intent changed while reading"));
     }
     let intent = LaunchIntent::from_go(&raw)?;
-    if intent.scope()?.fingerprint() != scope.fingerprint() {
+    if intent.scope()?.run != run || intent.scope()?.profile != profile_id {
         return Err(refused("native intent retained scope differs"));
     }
     Ok(Some(intent))

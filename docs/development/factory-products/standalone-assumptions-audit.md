@@ -100,9 +100,18 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fmuse-legacy7.xRn8IG/result.log` with its private dummy keyring.
   Source availability now reflects the installed native helper/tool owner; missing
   support waits without switching sources. Native task phases still require the
-  missing task runtime. Installed/restart recovery, completed-entry acknowledgement,
-  active withdrawal/refusal, reviewer execution and broader role/configuration
-  confinement remain open; no broad security or full-pipeline gate is closed.
+  missing task runtime. Completed-entry acknowledgement now uses the existing
+  progress loop and bounded native inventory after canonical assignment/usage
+  settlement. Durable CLI receipts remain readable after release and restart;
+  the composed local check passed in `/home/vince/tmp/fmuse-recovery7.hYZb3R/result.log`.
+  Exact original deadline-run reconciliation passed in
+  `/home/vince/tmp/fmuse-timeout-reconcile7.N2QE1d/result.log`, preserving its
+  before-state and charging one admitted minute without rerunning inference.
+  Accounting now cannot extend beyond the admitted deadline during later recovery.
+  Active-service/incomplete-receipt recovery, exact early-stop attribution after
+  delayed settlement, active withdrawal/refusal, reviewer execution, broader
+  role/configuration confinement and installed qualification remain open.
+  No broad security or full-pipeline gate is closed.
 
 - **A17 — artifact/log coupling corrected; normal dependency setup pending.**
   Setup/check diagnostics now use a separate bounded collector. Regular build
@@ -398,8 +407,9 @@ Factory's current MCP catalog lacks general workspace file/shell effects; an
 empty-preset CLI outside the worker cannot replace those effects by itself.
 Saved-login inference now uses actual Go admission, scoped MCP, minute settlement
 and native retirement as recorded above. Complete role/configuration confinement,
-isolated task/workspace effects, active withdrawal/refusal, canonical receipt
-acknowledgement/recovery and installed/restart qualification remain unfinished.
+isolated task/workspace effects, active withdrawal/refusal and broader crash/
+installed qualification remain unfinished. Terminal receipt recovery and
+canonical acknowledgement work in the recorded scopes above.
 
 ### A02 — Desktop authority requires grants its product routes cannot issue
 

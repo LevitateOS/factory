@@ -88,6 +88,7 @@ func (s *Store) AccountFinishedMCPRun(ctx context.Context, id string) error {
 		if err != nil || end.Before(run.Started) {
 			return ErrMCPAccountingTimeUnavailable
 		}
+		end = run.UsageEnd(end)
 		elapsed := end.Sub(run.Started)
 		usage = factory.Usage{RunID: id, Repository: a.Repository, Connection: a.Connection, Minutes: int((elapsed + time.Minute - time.Nanosecond) / time.Minute), StartedAt: run.Started.UTC(), EndedAt: end.UTC()}
 		if err := usage.Validate(); err != nil {

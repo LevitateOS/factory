@@ -11,6 +11,7 @@ pub(crate) mod launch;
 mod mcp;
 mod muse;
 mod muse_attempt;
+mod muse_receipt;
 mod observation;
 mod owner;
 pub(crate) mod port;

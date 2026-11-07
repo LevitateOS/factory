@@ -103,6 +103,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Path::new(&args[3]),
             ));
     }
+    if args.len() == 5 && args[4] == "recover-muse" {
+        let profile = root.join("execution-profile");
+        let supervisor =
+            NativeSupervisor::start(Path::new(&args[1]), Path::new(&args[2]), &profile)?;
+        let ready = supervisor.health()?;
+        if !Command::new(&args[3])
+            .arg(&profile)
+            .arg(&ready.instance)
+            .arg("reconcile-retained-native")
+            .arg(profile.join("admitted-native-fixture.json"))
+            .status()?
+            .success()
+        {
+            return Err("original retained CLI reconciliation failed".into());
+        }
+        supervisor.stop()?;
+        return Ok(());
+    }
     if args.len() == 3 || args.len() == 4 {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -816,12 +834,48 @@ async fn managed_muse_execution(
         "check-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
+    command(
+        "acknowledge-native",
+        fixture.to_str().ok_or("invalid fixture path")?,
+    )?;
+    if !matches!(
+        supervisor.execution_outcome(&intent)?,
+        ExecutionOutcome::MuseComplete(_)
+    ) {
+        return Err("native entry was discarded before canonical accounting".into());
+    }
     supervisor.start_execution_coordinator().await?;
     command(
         "settled-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
+    if supervisor.execution_outcome(&intent).is_ok() {
+        return Err("accounted native entry still occupies delivery capacity".into());
+    }
+    command(
+        "check-admitted-native",
+        fixture.to_str().ok_or("invalid fixture path")?,
+    )?;
     supervisor.stop()?;
+    let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+    let current = restarted.health()?;
+    if current.instance == ready.instance {
+        return Err("native restart reused its instance".into());
+    }
+    for operation in ["check-admitted-native", "settled-admitted-native"] {
+        if !Command::new(client)
+            .arg(&profile)
+            .arg(&current.instance)
+            .arg(operation)
+            .arg(&fixture)
+            .status()?
+            .success()
+        {
+            return Err("retained CLI result/accounting read after restart failed".into());
+        }
+    }
+    restarted.stop()?;
+    println!("PASS: acknowledgement waits for accounting, frees the native entry, and preserves final output/accounting across restart without inference replay");
     if Broker::next_profile_run(&ready.profile)?.is_some() {
         return Err("CLI source left an owned broker root".into());
     }

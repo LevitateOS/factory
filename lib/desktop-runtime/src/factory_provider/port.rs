@@ -16,6 +16,11 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    Completed,
+    Acknowledge {
+        intent: String,
+        reference: String,
+    },
     InspectMuseLogin,
     InspectAccount {
         connection: String,
@@ -59,6 +64,36 @@ pub(crate) async fn call(
     call: Call,
 ) -> io::Result<Value> {
     let (intent, cancel) = match call {
+        Call::Completed => {
+            if !alive.load(Ordering::SeqCst) {
+                return Err(io::Error::other("native owner retired"));
+            }
+            let items: Vec<Value> = executions
+                .lock()
+                .map_err(|_| io::Error::other("native registry unavailable"))?
+                .completed()
+                .into_iter()
+                .map(|(intent, reference)| json!({"intent":intent,"reference":reference}))
+                .collect();
+            return Ok(json!({"items":items}));
+        }
+        Call::Acknowledge { intent, reference } => {
+            let intent = LaunchIntent::from_go(&intent)?;
+            let binding = ExecutionBinding::from_intent(&intent)?;
+            if !alive.load(Ordering::SeqCst) {
+                return Err(io::Error::other("native owner retired"));
+            }
+            match executions
+                .lock()
+                .map_err(|_| io::Error::other("native registry unavailable"))?
+                .acknowledge(&binding, &reference)
+            {
+                Ok(()) => (),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+                Err(error) => return Err(error),
+            }
+            return Ok(json!({"intent_digest":intent.digest(),"retained":false}));
+        }
         Call::InspectMuseLogin => return Err(io::Error::other("native source owner required")),
         Call::InspectAccount { .. } => {
             return Err(io::Error::other("native account owner required"))
@@ -79,6 +114,21 @@ pub(crate) async fn call(
                         .is_none_or(|saved| saved.raw() != intent.raw())
                 {
                     return Err(io::Error::other("native retained intent differs"));
+                }
+                if intent.muse_login() {
+                    let result = super::muse_receipt::retained(&profile, &intent)?
+                        .filter(|result| result.root_retired)
+                        .ok_or_else(|| io::Error::other("native CLI receipt/retirement missing"))?;
+                    if !alive.load(Ordering::SeqCst) {
+                        return Err(io::Error::other("native owner retired"));
+                    }
+                    return Ok(muse_observation(
+                        &intent,
+                        Some(&result.process),
+                        Some(&result),
+                        true,
+                        false,
+                    ));
                 }
                 let result = super::read_retained(&profile, &scope)?
                     .ok_or_else(|| io::Error::other("native terminal receipt missing"))?;
@@ -179,18 +229,16 @@ fn snapshot(
         };
         let retired = complete.is_some_and(|result| result.root_retired)
             && attempt.phase == AttemptPhase::Retired;
-        let receipt=process.as_ref().map(|process|json!({"worker_uid":0,"connector_uid":process.uid,"service":process.service,
-            "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
-            "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
-        let output = complete.and_then(|result| result.product_output.as_deref());
         if !alive.load(Ordering::SeqCst) {
             return Err(refused());
         }
-        return Ok(json!({"intent_digest":intent.digest(),"receipt":receipt,
-            "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":retired},
-            "live":process.as_ref().and_then(|process|process.live),"retired":retired,
-            "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|_|"unchanged"),
-            "candidate":null,"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()}));
+        return Ok(muse_observation(
+            &intent,
+            process.as_ref(),
+            complete.map(AsRef::as_ref),
+            retired,
+            retired,
+        ));
     }
     let custody = ticket.custody().ok();
     let (started, live, terminal) = match &outcome {
@@ -223,6 +271,24 @@ fn snapshot(
         live,
         retired,
     ))
+}
+
+fn muse_observation(
+    intent: &LaunchIntent,
+    process: Option<&soda_execution_protocol::MuseObservation>,
+    complete: Option<&super::MuseRun>,
+    sealed: bool,
+    retired: bool,
+) -> Value {
+    let receipt=process.map(|process|json!({"worker_uid":0,"connector_uid":process.uid,"service":process.service,
+        "invocation":process.invocation,"system_instance":process.system_instance,"start_identity":process.start_identity,
+        "namespace_pid":0,"host_pid":process.pid,"started_unix_ms":process.started_unix_ms,"exit_code":process.exit_code,"exit_signal":process.exit_signal}));
+    let output = complete.and_then(|result| result.product_output.as_deref());
+    json!({"intent_digest":intent.digest(),"receipt":receipt,
+        "custody":{"state":"not_acquired","acquisition_id":"","connection":"","generation":"0","sealed":sealed},
+        "live":process.and_then(|process|process.live),"retired":retired,
+        "reason":complete.and_then(|result|result.process.reason.as_deref()),"candidate_state":complete.map(|_|"unchanged"),
+        "candidate":null,"output":output,"output_complete":complete.is_some_and(|result|result.process.output_complete)&&output.is_some()})
 }
 
 fn observation(

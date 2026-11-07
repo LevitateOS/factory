@@ -166,24 +166,39 @@ Repository/provider permissions were declared; no GitHub writes or code task ran
 Final host-PID/answer projection passed with a local ELF in
 `/home/vince/tmp/fmuse-admitted7.eFQxB0/result.log`.
 
-Remaining exact dependencies: complete nonempty role/configuration confinement
-qualification and active source withdrawal/refusal; isolate all task/workspace
-effects through the missing task runtime; wire completed-entry acknowledgement
-after canonical settlement (the shared registry retains at most eight entries);
-implement and qualify CLI receipt recovery across lost replies, Quit/restart and
-installed helper packaging. Source availability now reports native implementation
-support; missing support waits without fallback. These positive checks close no
-broad D3, custody, authentication/IPC, spending or installed gate.
+`factory_provider/muse_receipt.rs` now retains bounded CLI process/output evidence
+and a separate root/MCP retirement marker. `runtime/native_acknowledgement.go`
+uses the existing progress loop and native completed-entry inventory: only
+reconciled runs with finished assignments and consumed reservations release the
+registry entry. Lost requests remain in that bounded inventory for a later pass;
+retained files and launch fences stay intact. The local composed check in
+`/home/vince/tmp/fmuse-recovery7.hYZb3R/result.log` proved refusal before accounting,
+capacity release afterward, and result/accounting reads after release and restart.
+
+Remaining exact dependencies: active-service or incomplete-receipt recovery must
+stay fenced until exact service/process/MCP/root evidence exists; qualify live
+withdrawal/refusal, interrupted publication/lost replies/reboot, exact early-stop
+usage attribution after delayed settlement, each role/configuration and installed
+helper distribution. Source receipts are not workspace task execution: that still
+depends on the missing isolated task runtime. Source availability reports native
+implementation support; missing support waits without fallback. No broad D3,
+custody, authentication/IPC, spending or installed gate is closed.
 
 Retain `/home/vince/tmp/fmuse-admitted-live7.1mQflo/execution-profile`, broker run
 `e6130947f0ae3276d0aa937ae311cadf`, service `1779f740791c39aa7405a5012d7e654c`.
 Its original untrusted CLI approval mode stalled after a model stream completed
 and an artifact call was proposed. The private helper `result.json` proves the
 deadline stop, sealed output and retired process tree. The driver stopped before
-canonical terminal/root acknowledgement or settlement; those facts remain
-unverified for this exact run. Close with its retained intent/binding/output,
-exact service/root reconciliation and original Go row/accounting, never the later
-successful run. The driver now attempts to record terminal facts before reporting
+canonical terminal/root acknowledgement or settlement. This exact run is now
+reconciled failed in `/home/vince/tmp/fmuse-timeout-reconcile7.N2QE1d/result.log`:
+the native owner imported its original binding/output, checked the stopped service,
+obtained exact root acknowledgement and advanced the original Go row. Its usage
+is one admitted minute, not elapsed offline recovery time; `Run.UsageEnd` bounds
+both accounting paths by the original deadline. The untouched before-state is
+retained under that evidence root's `before/`. No inference or credential operation
+ran, and the later successful model run was not used to settle this one.
+Other historical uncertain profiles retain their own fences.
+The driver now attempts to record terminal facts before reporting
 future failures; that failure-path change has not been rerun. The earlier cold-tool attempt `fmuse-admitted-live7.52cBP2`
 created no native execution intent; discovery is now verified before the live check.
 
@@ -198,7 +213,7 @@ withdrawal, cancellation/restart and installed evidence in the scopes above.
 
 | Remaining responsibility | Exact blocker/dependency and relevant files | Already established | Still unverified; evidence needed to close |
 | --- | --- | --- | --- |
-| CLI-managed Muse source lifecycle and scope | A01/A16/A19: admitted inference works; complete role/configuration confinement, active withdrawal/refusal, canonical acknowledgement, retained-result recovery and installed helper distribution remain dependencies. Relevant files and the exact unresolved deadline run are recorded above. Muse owns account choice/request internals; no pinned billing identity is required for this source. | Earlier official installed-tool discovery evidence remains in `/home/vince/tmp/fdiscover-ready6.ukS3ab/result.log`. The setup, direct component, actual admitted Muse/MCP/usage and final local receipt scopes are recorded above. No new sign-in, login-file import or personal keyring manipulation was used. | Prove the remaining lifecycle/scope dependencies for each role and installed host, retaining exact original-run evidence. Keep account secrets outside workers and Go/browser DTOs. Neither an inference pass nor a declared-authority fixture closes broad custody/IPC/D3 gates. |
+| CLI-managed Muse source lifecycle and scope | A01/A16/A19: admitted inference, canonical acknowledgement and terminal receipt recovery work in their recorded scopes. Active-service/incomplete-receipt recovery, complete role/configuration confinement, active withdrawal/refusal, exact early-stop accounting after delayed settlement and installed distribution remain dependencies. Relevant files and the resolved original deadline run are recorded above. Muse owns account choice/request internals; no pinned billing identity is required. | Earlier installed-tool discovery remains in `/home/vince/tmp/fdiscover-ready6.ukS3ab/result.log`; admitted inference and receipt/accounting evidence are above. The original timeout was reconciled from its own facts, with its before-state preserved and no new model call or credential operation. | Prove the remaining lifecycle/scope dependencies for each role and installed host. Keep account secrets outside workers and Go/browser DTOs. The scoped passes do not close broad custody/IPC/D3 gates. |
 | Local resource authority and reachable standalone consent | A02/A03 selected local-owner control is now wired through native capacity/operator/environment/placement/policy routes and desktop controls. Files: `pkg/factory/runtime/native_product{,_environment}.go`, `service/runtime_grants.go`, `effective_authority.go`, `frontend/desktop/placement.ts`, `lib/desktop-runtime/src/product_request.rs`. Connected/installed authority qualification remains the dependency. | Actual native Rust/Go/PostgreSQL setup/readback, disabled policy and provider-write refusal passed in `/home/vince/tmp/floc6.1PARrb/result.log`; declared `push=false`, admin absent, dummy credentials. No grants were seeded for this new setup check. | Prove connected/installed admission and denial for the local owner, other profiles/accounts and remote effects. The fixture does not qualify the actual provider permission matrix or broader profile/IPC/custody gates. |
 | Role-specific provider spending authority | A11 binds a source per role; Muse owns its saved account choice. Shared owner: `frontend/factory/work/role-settings.ts`; access composition: `runtime/native_product{,_environment}.go`, `service/repository_access{,_view}.go`. Configuration, disabled policy bootstrap and admitted coder execution/minute attribution work in their recorded scopes; other providers remain unavailable. | Earlier separate-choice/refusal/readback evidence remains in `/home/vince/tmp/froles-ui7.eFa9EH/result.log` and `/home/vince/tmp/froles-native7.xlR4x8/result.log`; those settings checks used declared provider facts without paid calls. The actual admitted Muse/usage evidence above is separate and claims no Meta billing identity or GitHub mutation authority. | Prove full UI enablement against the real connector, reviewer execution, active grant/custody refusal and withdrawal/retry/restart/installed spending behavior. Declared browser accounts and composed API checks cannot qualify that whole journey. No broad custody/authentication/IPC/spending gate is closed. |
 | Review identity and permission projection | A04 Go contracts now distinguish the separate agent inspection assignment/verdict from provider approval; the author account submits COMMENT. A07 now captures the selected merge method and distinguishes the reviewed candidate from the provider-created result. Native automated review/merge composition must supply exact method/actor/subject receipts and fresh enabled-method/complete/eligible provider rules. A14 human comment/review presentation now uses authenticated Read independently of push; action admission is unchanged. Files: `factory/review_native.go`, `control/{review_cycle,merge_evidence,merge_reconcile,merge_judgment_gate}.go`, `runtime/native_product_capabilities.go`, `github_provider/capabilities.rs`. | Existing actual PostgreSQL review/correction dispatch and merge-intent checks passed in `/home/vince/tmp/frev6.u0FQ5M/result.log`: comment/agent verdict persistence, self-approval refusal, immutable binding and legacy registration. A07 PostgreSQL method/intent/completion checks passed in `/home/vince/tmp/fmerge-method6.j7C0l6/result.log` and candidate/result source provenance in `/home/vince/tmp/fmerge-provenance6.tYJZeB/result.log`. No provider call ran. | Compose native automated review/merge and prove current account/grant/subject checks, exact independent review/candidate/receipt, changing branch protections, missing external approvals, refusal/readback and retry. A comment must never count as a required provider approval. Actual token/interaction restrictions and connected permission qualification remain pending. Native setup after a transformed merge still needs supported fetching/verification of the provider-created result; a retained coder export cannot supply that commit. Prove the adapter's actual head/base guarantees and races; human merge evidence does not qualify automation. No broader privilege matrix or connected automation merge is qualified here. |

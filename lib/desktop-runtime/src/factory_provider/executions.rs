@@ -36,6 +36,7 @@ pub struct ExecutionBinding {
     scope: String,
     connection: String,
     intent_digest: Option<String>,
+    intent: Option<String>,
 }
 
 impl ExecutionBinding {
@@ -50,12 +51,14 @@ impl ExecutionBinding {
             scope: scope.fingerprint(),
             connection: connection.into(),
             intent_digest: None,
+            intent: None,
         })
     }
 
     pub fn from_intent(intent: &LaunchIntent) -> io::Result<Self> {
         let mut binding = Self::new(intent.instance(), &intent.scope()?, intent.connection())?;
         binding.intent_digest = Some(intent.digest());
+        binding.intent = Some(intent.raw().into());
         Ok(binding)
     }
     pub fn run(&self) -> &str {
@@ -435,19 +438,41 @@ impl Executions {
     /// Drop only the in-memory completed entry after its product owner records
     /// the result. Retained native evidence stays intact; uncertain entries
     /// require reconciliation and cannot silently free native capacity.
-    pub fn acknowledge(&mut self, binding: &ExecutionBinding, acquisition: &str) -> io::Result<()> {
+    pub fn acknowledge(&mut self, binding: &ExecutionBinding, reference: &str) -> io::Result<()> {
         let entry = self.entry(binding)?;
         entry.reap(false);
-        let custody = entry.ticket.custody()?;
-        if !matches!(entry.outcome, ExecutionOutcome::Complete(_))
-            || !custody.sealed
-            || custody.state != CustodyState::Released
-            || custody.acquisition_id != acquisition
-        {
+        if Self::completed_reference(entry).as_deref() != Some(reference) {
             return Err(refused("native execution acknowledgement unconfirmed"));
         }
         self.entries.remove(&binding.run);
         Ok(())
+    }
+
+    fn completed_reference(entry: &Entry) -> Option<String> {
+        match &entry.outcome {
+            ExecutionOutcome::Complete(_) => entry
+                .ticket
+                .custody()
+                .ok()
+                .filter(|custody| custody.sealed && custody.state == CustodyState::Released)
+                .map(|custody| custody.acquisition_id),
+            ExecutionOutcome::MuseComplete(result) if result.root_retired => {
+                Some(result.process.service.clone())
+            }
+            _ => None,
+        }
+    }
+    pub(super) fn completed(&mut self) -> Vec<(String, String)> {
+        self.entries
+            .values_mut()
+            .filter_map(|entry| {
+                entry.reap(false);
+                Some((
+                    entry.ticket.binding.intent.clone()?,
+                    Self::completed_reference(entry)?,
+                ))
+            })
+            .collect()
     }
 
     /// Fence launches and queries, cancel every owned handle before joining one,
