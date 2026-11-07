@@ -7,6 +7,10 @@ use serde_json::Value;
 pub enum Read {
     Identity,
     Binding,
+    AutomationReview {
+        repository: String,
+        number: u32,
+    },
     AutomationChecks {
         repository: String,
         number: u32,

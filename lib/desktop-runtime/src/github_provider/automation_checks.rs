@@ -1,4 +1,4 @@
-//! Finite paired CI observations for an owned same-repository PR. GitHub facts
+//! Finite paired review/CI observations for an owned same-repository PR. GitHub facts
 //! stay here; Go owns required-check policy, assessment and canonical revisions.
 use super::{
     reads::{page_items, Reader},
@@ -75,7 +75,15 @@ impl Reader<'_> {
         }
         Ok(oid.into())
     }
-    async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
+    pub(super) async fn automation_review(&self, number: u64) -> Result<Value> {
+        let before = self.automation_review_snapshot(number).await?;
+        self.recheck().await?;
+        if self.automation_review_snapshot(number).await? != before {
+            return Err(Failure::new(409, "github_automation_review_changed"));
+        }
+        Ok(before)
+    }
+    async fn automation_review_snapshot(&self, number: u64) -> Result<Value> {
         let pull = self.raw_subject(true, number).await?;
         let head = r::nonempty(&pull["head"], "sha")?;
         let base = r::nonempty(&pull["base"], "sha")?;
@@ -103,6 +111,13 @@ impl Reader<'_> {
         if head_tip != head || base_tip != base {
             return Err(Failure::new(409, "github_automation_checks_changed"));
         }
+        Ok(
+            json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,"author":r::actor(&pull["user"])?,"head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip}),
+        )
+    }
+    async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
+        let mut snapshot = self.automation_review_snapshot(number).await?;
+        let head = r::text(&snapshot, "head_tip")?;
         let checks = self
             .get(
                 &format!("/commits/{head}/check-runs"),
@@ -204,9 +219,12 @@ impl Reader<'_> {
             .into_iter()
             .map(|(context, state)| json!({"context":context,"state":state}))
             .collect();
-        Ok(
-            json!({"repository":self.repository,"number":number,"pull_id":r::id(&pull["id"])?,"issue_id":r::id(&issue["id"])?,
-            "head_ref":format!("refs/heads/{head_ref}"),"base_ref":format!("refs/heads/{base_ref}"),"head_tip":head_tip,"base_tip":base_tip,"checks":checks,"sources":sources}),
-        )
+        snapshot["checks"] = json!(checks);
+        snapshot["sources"] = json!(sources);
+        snapshot
+            .as_object_mut()
+            .ok_or_else(Failure::protocol)?
+            .remove("author");
+        Ok(snapshot)
     }
 }

@@ -1140,7 +1140,7 @@ async fn run_rotation(profile: &Path) -> Result<()> {
 }
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
-        (Some("--github-automation-acceptance"), n) if n == 8 || n == 9 => {
+        (Some("--github-automation-acceptance"), n) if (8..=10).contains(&n) => {
             use serde_json::json;
             use soda_desktop_runtime::supervisor::NativeSupervisor;
             let field = |n: usize| {
@@ -1196,7 +1196,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
                 let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
                 let mut fixture=json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id});
-                if args.len()==9 { fixture["Checks"]=serde_json::from_slice(&fs::read(&args[8])?)?; }
+                let review_check=args.len()==10 && field(9)?=="review";
+                if args.len()>=9 { fixture["Checks"]=serde_json::from_slice(&fs::read(&args[8])?)?; }
                 fs::write(&background,serde_json::to_vec(&fixture)?)?;
                 let check = |action: &str, instance: &str| {
                     let mut command=tokio::process::Command::new(&args[7]);
@@ -1204,9 +1205,12 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     async move { ensure(command.status().await?.success(),"native background product check failed") }
                 };
                 check("check-background-inputs",&ready.instance).await?;
-                if args.len()==9 { check("check-background-ci",&ready.instance).await?; }
-                runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                check("check-background-readiness",&ready.instance).await?;
+                if review_check {check("check-background-review",&ready.instance).await?;}
+                else {
+                    if args.len()==9 { check("check-background-ci",&ready.instance).await?; }
+                    runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
+                    check("check-background-readiness",&ready.instance).await?;
+                }
                 runtime.take().expect("owned runtime").stop()?;
                 runtime=Some(NativeSupervisor::start(payload,production,profile)?);
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
@@ -1214,9 +1218,11 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(replay.status==201 && serde_json::from_slice::<serde_json::Value>(&replay.body)?==accepted,"native acceptance changed after retained restart replay")?;
                 let restarted=runtime.as_ref().expect("owned runtime").health()?;
                 check("check-background-restarted",&restarted.instance).await?;
+                if review_check {check("check-background-review-retained",&restarted.instance).await?;}
                 store.withdraw(&saved.connection).await?;
                 check("check-background-withdrawn",&restarted.instance).await?;
-                println!("PASS: connected native approval, background evidence/readiness without a view, retained restart replay and exact account withdrawal; no GitHub write or execution");
+                if review_check {check("check-background-review-retained",&restarted.instance).await?;println!("PASS: connected native review fixture/restart/withdrawal; one labeled COMMENT review, no model or execution");}
+                else {println!("PASS: connected native approval, background evidence/readiness without a view, retained restart replay and exact account withdrawal; no GitHub write or execution");}
                 Ok(())
             }.await;
             let removed = store.withdraw(&saved.connection).await;

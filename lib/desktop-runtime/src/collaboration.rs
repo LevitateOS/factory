@@ -501,7 +501,15 @@ struct BackgroundCall {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
     Current,
-    Read { query: Read },
+    Read {
+        query: Read,
+    },
+    CreateReview {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        review: ReviewCreate,
+    },
 }
 
 async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Value, Failure> {
@@ -511,6 +519,17 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
     }
     let effect = match call.call {
         BackgroundEffect::Current => Effect::Current,
+        BackgroundEffect::CreateReview {
+            command_id,
+            digest,
+            not_after,
+            review,
+        } => Effect::CreateReview {
+            command_id,
+            digest,
+            not_after,
+            review,
+        },
         BackgroundEffect::Read { query }
             if matches!(
                 query,
@@ -518,12 +537,17 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                     | Read::Repository { .. }
                     | Read::AutomationInputs { .. }
                     | Read::AutomationChecks { .. }
+                    | Read::AutomationReview { .. }
+                    | Read::PullPendingReviewSnapshot { .. }
             ) =>
         {
             Effect::Read { query }
         }
         _ => return Err(Failure::new(403, "native_background_read_unavailable")),
     };
+    if !matches!(&effect, Effect::CreateReview { .. }) && body.len() > 8192 {
+        return Err(Failure::invalid());
+    }
     let credentials = state
         .background_credentials
         .read()
@@ -876,7 +900,9 @@ async fn dispatch(
         1024 * 1024
     } else if execution {
         512 * 1024
-    } else if signing || verifying || background {
+    } else if background {
+        512 * 1024
+    } else if signing || verifying {
         8192
     } else {
         512 * 1024
@@ -1117,8 +1143,12 @@ async fn dispatch(
         .and_then(Weak::upgrade)
         .filter(|scope| scope.current())
         .ok_or_else(|| Failure::new(401, "native_operation_retired"))?;
-    if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
-        match &call.call {
+    observe_scope(state, scope, &call.call).await
+}
+
+fn validate_mutation(scope: &Scope, effect: &Effect) -> std::result::Result<(), Failure> {
+    if let Some((command_id, digest, not_after, repository)) = effect.mutation() {
+        match &effect {
             Effect::CreateInline { inline, .. } => inline.validate()?,
             Effect::MergePull { merge, .. } => merge.validate()?,
             Effect::CreateComment { comment, .. } => comment.validate()?,
@@ -1148,7 +1178,7 @@ async fn dispatch(
             return Err(Failure::new(403, "native_repository_scope"));
         }
     }
-    observe_scope(state, scope, &call.call).await
+    Ok(())
 }
 
 async fn observe_scope(
@@ -1156,6 +1186,7 @@ async fn observe_scope(
     scope: Arc<Scope>,
     effect: &Effect,
 ) -> std::result::Result<Value, Failure> {
+    validate_mutation(&scope, effect)?;
     if let Effect::Read { query } = effect {
         query.validate()?;
         let value = query.value();

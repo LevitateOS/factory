@@ -125,9 +125,11 @@ opening the new auxiliary tables and restart:
 Background source composition: `runtime/native_background.go` resolves the
 policy's exact saved profile/connection/actor/repository; Rust
 `collaboration.rs` reacquires a current finite credential lease through its
-existing native owner. The private background route accepts only current-custody,
-identity, repository and automation-input reads. It shares existing channel and
-scope validation; no provider writes or alternate-account fallback are admitted.
+existing native owner. The private background route admits current-custody,
+identity, repository, automation input/check/review and pending-review observations.
+It also admits the new review creation described below, through the same channel,
+credential and mutation validation. Other provider effects and alternate-account
+fallback remain unavailable through this route.
 `control/progress.go` and `readiness_work.go` obtain fresh issue evidence when no
 global revision observer exists. Actual production connector/application evidence:
 `/home/vince/tmp/fnative-background7.uR5leo/result.log`. No foreground operation
@@ -154,8 +156,9 @@ owns paired PR/branch/check/status reads and provider-local latest-state
 projection. `runtime/native_checks.go` binds the policy's saved merge connection,
 assessor, exact PR/issue IDs and refs; `store/factory_native_inputs.go` versions
 that observation separately from issue inputs. The native application now
-supplies this existing `CheckObserver` port. The private background route adds
-only this read; no write authority or global GitHub revision is introduced.
+supplies this existing `CheckObserver` port. The CI port introduces no writing
+or global GitHub revision; review creation has its separate journaled admission
+below.
 Actual native account/connector/Go/PostgreSQL evidence:
 `/home/vince/tmp/fnative-ci-budget7.nfbspU/result.log`. Three labeled commit statuses in
 `veighnsche/factory-write-check-20261106` exercised older-failure/latest-success,
@@ -181,6 +184,50 @@ test-merge checks remain merge dependencies, not proved by a green Factory statu
 assessment. Paired equality is bounded observation, not an atomic provider fence.
 Factory retains success-only required checks; skipped/neutral do not pass. No
 whole security or installed gate is closed.
+
+**Native automated review submission:** `runtime/native_reviews.go` implements
+the existing review port over registered immutable `ReviewWork` and the existing
+command journal, reservation, cancellation and native review creator. Current
+policy/dispatch and exact saved review-account checks precede a new send.
+`store/factory_publications.go` resolves the registered work;
+`store/factory_native_inputs.go` versions paired review-target observations.
+`github_provider/automation_checks.rs` owns the shared PR/ref/author read, and
+`github_provider/review_create.rs` verifies an optional base alongside the head
+before dispatch and in the causal reply. `collaboration.rs` shares mutation
+validation between foreground and restricted background operations. An author
+account sends COMMENT; the independent agent verdict remains Go workflow data.
+The receipt namespace is the native profile/account authority, not a GitHub App
+installation or proof of provider permissions.
+
+What ran: `/home/vince/tmp/fnative-review-base7.llZxjL/result.log` passed actual
+same-account COMMENT creation, head/base receipt binding, disabled-policy refusal,
+replay, cancellation before sending, reserved unknown-send retention, restart and
+credential withdrawal. Publication and independent verdict were declared local
+fixture inputs; no model or coordinator review phase ran. Existing human text,
+personal credentials and merge state were unchanged. The owned keyring entry was
+removed. `native-review.json` retains the exact work/receipt and cancelled/uncertain
+operation identities; keep its uncertain operation fenced and do not resend it.
+The first `/home/vince/tmp/fnative-review7.8GuIsf` check refused the missing pending
+snapshot selector before send. `/home/vince/tmp/fnative-review-snapshot7.3ejmNO`
+proved the earlier path with base preflight only; neither artifact supplies the
+new causal base proof.
+
+Exact remaining dependencies/evidence: prove actual settled reviewer/workflow and
+publication registration through the coordinator, then native publication/merge
+and current provider rules. `control/review_cycle.go` recovery also needs an actual
+interruption before send and a definitive no-send/expired-work retry journey.
+Registered `review-<run>` work and terminal command results must not force another
+paid review just to retry delivery, and a reserved/unknown send must never acquire
+retry permission. The adapter fixture does not prove that coordinator recovery.
+New reviews wait on existing pending reviews; that
+refusal, other-account approval/request-changes, historical inline batches and
+exact finding mappings still need connected evidence. Exercise policy/account/
+permission withdrawal races, real lost replies after send, pending-review races,
+head/base movement, dismissal/deletion, OAuth and installed callers. Successful
+paired reads and a causal reply are bounded observations, not an atomic GitHub
+ref predicate. Merge-base and separate review-summary comment identity remain
+unobserved; the adapter emits neither. Receipt adoption after withdrawal proves
+historical attribution only. D1/D2/D3/D5, custody/IPC and installed gates stay open.
 
 **A04/A19 task manifest dependency:** version-5 task intents now bind phase and
 manifest digest in `pkg/factory/execution/native_intent.go`,

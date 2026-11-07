@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS factory_native_check_heads(
  repository BIGINT NOT NULL REFERENCES collaboration_repositories(id), pull BIGINT NOT NULL CHECK(pull>0),
  digest TEXT NOT NULL CHECK(digest ~ '^[a-f0-9]{64}$'),
  revision BIGINT NOT NULL DEFAULT nextval('factory_native_input_revision') CHECK(revision>0), PRIMARY KEY(repository,pull));
+CREATE TABLE IF NOT EXISTS factory_native_review_heads(
+ repository BIGINT NOT NULL REFERENCES collaboration_repositories(id), pull BIGINT NOT NULL CHECK(pull>0),
+ digest TEXT NOT NULL CHECK(digest ~ '^[a-f0-9]{64}$'),
+ revision BIGINT NOT NULL DEFAULT nextval('factory_native_input_revision') CHECK(revision>0), PRIMARY KEY(repository,pull));
 CREATE OR REPLACE FUNCTION soda_guard_native_occurrence() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'native occurrence identity is immutable'; END $$;
 CREATE OR REPLACE TRIGGER factory_native_occurrence_immutable BEFORE UPDATE OR DELETE ON factory_native_occurrences
@@ -110,6 +114,28 @@ func (s *Store) ObserveNativeChecks(ctx context.Context, repository, pull int64,
  WHERE factory_native_check_heads.digest<>EXCLUDED.digest RETURNING revision`, repository, pull, digest).Scan(&revision)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = tx.QueryRowContext(ctx, `SELECT revision FROM factory_native_check_heads WHERE repository=$1 AND pull=$2`, repository, pull).Scan(&revision)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return revision, tx.Commit()
+}
+
+func (s *Store) ObserveNativeReview(ctx context.Context, repository, pull int64, digest string) (int64, error) {
+	if repository <= 0 || pull <= 0 || !factory.ValidDigest(digest) {
+		return 0, ErrAdmissionChanged
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	var revision int64
+	err = tx.QueryRowContext(ctx, `INSERT INTO factory_native_review_heads(repository,pull,digest) VALUES($1,$2,$3)
+ ON CONFLICT(repository,pull) DO UPDATE SET digest=EXCLUDED.digest,revision=nextval('factory_native_input_revision')
+ WHERE factory_native_review_heads.digest<>EXCLUDED.digest RETURNING revision`, repository, pull, digest).Scan(&revision)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(ctx, `SELECT revision FROM factory_native_review_heads WHERE repository=$1 AND pull=$2`, repository, pull).Scan(&revision)
 	}
 	if err != nil {
 		return 0, err

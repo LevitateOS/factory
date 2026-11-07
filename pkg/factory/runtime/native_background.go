@@ -28,6 +28,8 @@ func (p NativeInputSource) account(ctx context.Context, repository, kind string)
 	ref := policy.Publish
 	if kind == factory.OpMerge {
 		ref = policy.Merge
+	} else if kind == factory.OpReviewSubmit {
+		ref = policy.Review
 	} else if kind != factory.OpRefPublish {
 		return empty, errNativeReadScope
 	}

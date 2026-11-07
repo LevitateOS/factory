@@ -27,7 +27,7 @@ type nativeOperation struct {
 }
 
 // NativeCollaboration uses a privately admitted product request or the exact
-// saved account selected by native policy for restricted background reads.
+// saved account selected by native policy for admitted background operations.
 // It sends semantic selectors to Rust, never provider URLs or tokens.
 // Current proves current custody, not remote identity; Identity must succeed
 // before the product owner transactionally maps an actor.

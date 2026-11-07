@@ -52,6 +52,53 @@ func (s *Store) PublicationByAssignment(ctx context.Context, assignmentID string
 	return p, err
 }
 
+// PublicationReviewOperation resolves only registered immutable review work.
+// Native lookup and cancellation use this record even after authority withdrawal.
+func (s *Store) PublicationReviewOperation(ctx context.Context, operation string) (factory.Publication, factory.ReviewOperation, error) {
+	var empty factory.Publication
+	if !factory.ValidPublicationOperationID(operation) {
+		return empty, factory.ReviewOperation{}, ErrNotFound
+	}
+	filter, err := json.Marshal(map[string]any{"review_operations": []any{map[string]any{"work": map[string]string{"operation_id": operation}}}})
+	if err != nil {
+		return empty, factory.ReviewOperation{}, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications WHERE data @> $1::jsonb LIMIT 2`, string(filter))
+	if err != nil {
+		return empty, factory.ReviewOperation{}, err
+	}
+	defer rows.Close()
+	var result factory.Publication
+	var found factory.ReviewOperation
+	count := 0
+	for rows.Next() {
+		var raw []byte
+		var p factory.Publication
+		if err = rows.Scan(&raw); err != nil {
+			return empty, found, err
+		}
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return empty, found, err
+		}
+		for _, op := range p.ReviewOperations {
+			if op.Work.OperationID == operation {
+				if err = op.ValidateForPublication(p); err != nil {
+					return empty, found, err
+				}
+				result, found = p, op
+				count++
+			}
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return empty, found, err
+	}
+	if count != 1 {
+		return empty, factory.ReviewOperation{}, ErrNotFound
+	}
+	return result, found, nil
+}
+
 // UpdatePublication stores one publication's next revision exactly once.
 // The caller increments Revision first; only the recorded predecessor
 // advances, and anything else reports stale instead of overwriting a

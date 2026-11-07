@@ -18,6 +18,7 @@ type nativeReviewCreateWrite struct {
 	PullNodeID       string `json:"pull_node_id"`
 	Number           uint64 `json:"number"`
 	Head             string `json:"head"`
+	Base             string `json:"base,omitempty"`
 	Event            string `json:"event"`
 	Body             string `json:"body"`
 }
@@ -35,6 +36,7 @@ type nativeReviewCreateEffect struct {
 	Review    nativeReviewCreateWrite `json:"review"`
 }
 type nativeReviewCreateReceipt struct {
+	Base             string                      `json:"base,omitempty"`
 	Account          collaboration.ObservedActor `json:"account"`
 	Repository       string                      `json:"repository"`
 	RepositoryNodeID string                      `json:"repository_node_id"`
@@ -176,6 +178,9 @@ func validateNativeReviewCreateReceipt(c factory.HumanReviewCapture, p nativeRev
 	var r nativeReviewCreateReceipt
 	state := map[factory.HumanReviewEvent]string{factory.HumanReviewDraft: "pending", factory.HumanReviewComment: "commented", factory.HumanReviewApprove: "approved", factory.HumanReviewRequestChanges: "changes_requested"}[c.Request.Event]
 	if len(raw) > 4096 || nativeDecode(raw, &r) != nil || !nativeActor(r.Account) || r.Account.ExternalID != p.Account || r.Repository != p.Review.Repository || r.RepositoryNodeID != p.Review.RepositoryNodeID || r.PullID != p.Review.PullID || r.PullNodeID != p.Review.PullNodeID || r.Number != p.Review.Number || r.Head != p.Review.Head || r.Event != p.Review.Event || r.HeadCondition != "preflight_and_causal_reply" || r.ExistingPending != "not_observed_before_send" || !nativeRemoteID(r.Review.ExternalID) || !nativeReviewNode(r.Review.NodeID, 1024) || r.Review.State != state || r.Review.BodySHA256 != nativeCreationSHA([]byte(c.Request.Body)) || r.Review.Commit != p.Review.Head || r.Review.CommentsCount == nil || *r.Review.CommentsCount != 0 || !nativeReviewNode(r.Review.AuthorNodeID, 1024) || (c.Request.Event == factory.HumanReviewDraft) != (r.Review.SubmittedAt == nil) || r.ProviderResponse.Protocol != "github_graphql_create_review" || r.ProviderResponse.Status != 200 || !nativeCreationDigest(r.ProviderResponse.ResponseSHA256) {
+		return r, factoryservice.ErrHumanReviewConflict
+	}
+	if r.Base != p.Review.Base || p.Review.Base != "" && !collaboration.ValidCommitID(collaboration.CommitID(p.Review.Base)) {
 		return r, factoryservice.ErrHumanReviewConflict
 	}
 	if r.ProviderResponse.RequestID != nil && !nativeObservedText(*r.ProviderResponse.RequestID, 256, false) {

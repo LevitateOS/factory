@@ -51,8 +51,11 @@ input reads also passed. Native automated CI now uses the exact saved merge
 account, paired PR/ref/check/status reads and the existing Go assessment owner.
 Actual fixture-status pass/failure/missing and stale-candidate/actor refusal
 passed; A05/A07/A21 records the evidence and unqualified workflow/rule cases.
-Automatic dispatch/phase advancement, publication, review and merge remain
-dependencies. Controlled root installation of the execution
+Native automated review now supplies paired target observation, a journaled new
+review and retained receipt/cancellation handling; A04/A07/A21 records the actual
+same-account COMMENT fixture and its limits. Actual workflow/model review,
+automatic dispatch/phase advancement, publication and merge remain dependencies.
+Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need

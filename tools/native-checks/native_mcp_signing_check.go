@@ -1354,6 +1354,11 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return err
 	}
 	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if strings.HasPrefix(action, "check-background-review") {
+		target := input.Checks
+		target.Repository = repository
+		return nativeReviewFixture(ctx, db, factoryruntime.NativeReviews{NativeInputSource: source}, connection.Actor, target, path, action)
+	}
 	if action == "check-background-ci" {
 		target := input.Checks
 		target.Repository = repository
@@ -1439,6 +1444,167 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		return errors.New("background evidence and dispatch scope differ")
 	}
 	fmt.Println("PASS: actual saved native account reads exact GitHub issue/history and dispatch branch without a foreground operation")
+	return nil
+}
+
+// Publication and independent verdict are declared here; GitHub target/account,
+// native write, dispatch fence, causal receipt and retained SQL readback are real.
+func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeReviews, actor collaboration.ActorID, target factory.CheckTarget, path, action string) error {
+	statePath := filepath.Join(filepath.Dir(path), "native-review.json")
+	var state struct {
+		Work, Cancelled, Uncertain factory.ReviewWork
+		Outcome                    factory.OperationOutcome
+	}
+	if action != "check-background-review" {
+		raw, err := os.ReadFile(statePath)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &state); err != nil {
+			return err
+		}
+		prior, err := port.LookupOp(ctx, state.Work.OperationID)
+		if err != nil || !reflect.DeepEqual(prior, state.Outcome) {
+			return fmt.Errorf("retained native review receipt changed: %w", err)
+		}
+		if _, err = port.AdoptReview(ctx, state.Work, prior); err != nil {
+			return err
+		}
+		cancelled, err := port.LookupOp(ctx, state.Cancelled.OperationID)
+		if err != nil || cancelled.Effect != factory.OpEffectNotCommitted || cancelled.Cancellation != factory.OpCancelCancelled {
+			return errors.New("retained cancelled review lost its fence")
+		}
+		uncertain, err := port.LookupOp(ctx, state.Uncertain.OperationID)
+		if err != nil || uncertain.Effect != factory.OpEffectIndeterminate {
+			return errors.New("retained reserved review lost its uncertainty")
+		}
+		fmt.Println("PASS: native review receipt/adoption, cancellation and unknown-send fence survive restart/credential withdrawal without a provider replay")
+		return nil
+	}
+	assignment, run := factory.NewID(), factory.NewID()
+	w := factory.ReviewWork{OperationID: "review-" + run, AuthRevision: factory.ReviewAuthRevision(assignment, run), Repository: target.Repository, ActorID: int64(actor), PRAuthorID: int64(actor), PRNumber: target.PRNumber, PRID: target.PRID, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, HeadOID: target.HeadOID, BaseOID: target.BaseOID, Event: "COMMENT", AgentVerdict: "APPROVED", Body: "Disposable Factory native automation integration fixture. Publication and independent verdict are declared test inputs; no model inspection ran.", NotAfter: time.Now().Add(2 * time.Minute).Unix()}
+	observed, err := port.ObserveReview(ctx, w)
+	if err != nil {
+		return err
+	}
+	w.NativeRev = observed.NativeRev
+	if w.Validate() != nil || observed.PRAuthorID != int64(actor) || observed.HeadOID != target.HeadOID || observed.BaseOID != target.BaseOID {
+		return errors.New("native review preflight binding differs")
+	}
+	p := factory.Publication{ID: factory.NewID(), AssignmentID: assignment, Repository: target.Repository, Issue: 9, Run: factory.NewID(), Stage: factory.PublicationPublished, Candidate: target.HeadOID, PRID: target.PRID, PRNumber: target.PRNumber,
+		Publish: factory.PublicationOperation{Work: &factory.PublicationIntent{Candidate: target.HeadOID}}, PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{ActorID: int64(actor)}, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, BaseOID: target.BaseOID}, ReviewOperations: []factory.ReviewOperation{{RunID: run, Work: w}}}
+	write := func() error {
+		raw, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
+		conn, err := sql.Open("pgx", port.Config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		_, err = conn.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6) ON CONFLICT(assignment) DO UPDATE SET data=EXCLUDED.data`, p.AssignmentID, p.Repository, p.Issue, p.Run, p.Stage, string(raw))
+		return err
+	}
+	if err = write(); err != nil {
+		return err
+	}
+	if _, err = port.SubmitReview(ctx, w); err == nil {
+		return errors.New("disabled policy authorized automated review")
+	}
+	policy, err := db.RepositoryPolicy(ctx, target.Repository)
+	if err != nil {
+		return err
+	}
+	policy.Enabled = true
+	for role, selection := range policy.Roles {
+		selection.Account = "fixture-unavailable"
+		policy.Roles[role] = selection
+	}
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	outcome, err := port.SubmitReview(ctx, w)
+	if err != nil {
+		return err
+	}
+	if outcome.Effect != factory.OpEffectCommitted || outcome.Completion != factory.OpCompletionComplete || len(outcome.Receipt) == 0 {
+		return fmt.Errorf("native review was not attributable/complete: %s %s %s", outcome.Effect, outcome.Completion, outcome.Reason)
+	}
+	adopted, err := port.AdoptReview(ctx, w, outcome)
+	if err != nil || adopted.ReviewID <= 0 || adopted.Event != "COMMENT" || adopted.ReviewerID != int64(actor) || adopted.BaseOID != w.BaseOID || adopted.CommitID != w.HeadOID {
+		return fmt.Errorf("native comment review adoption differs: %w", err)
+	}
+	replay, err := port.SubmitReview(ctx, w)
+	if err != nil || !reflect.DeepEqual(replay, outcome) {
+		return fmt.Errorf("native review replay changed or retried: %w", err)
+	}
+	clone := func() factory.ReviewWork {
+		next := w
+		r := factory.NewID()
+		next.OperationID = "review-" + r
+		next.AuthRevision = factory.ReviewAuthRevision(assignment, r)
+		p.ReviewOperations = append(p.ReviewOperations, factory.ReviewOperation{RunID: r, Work: next})
+		return next
+	}
+	state.Work, state.Outcome = w, outcome
+	state.Cancelled = clone()
+	state.Uncertain = clone()
+	if err = write(); err != nil {
+		return err
+	}
+	cancelled, err := port.CancelOp(ctx, state.Cancelled.OperationID)
+	if err != nil || cancelled.Effect != factory.OpEffectNotCommitted || cancelled.Cancellation != factory.OpCancelCancelled {
+		return fmt.Errorf("native review pre-send cancellation: %w", err)
+	}
+	if repeated, err := port.SubmitReview(ctx, state.Cancelled); err != nil || repeated.Effect != factory.OpEffectNotCommitted {
+		return errors.New("cancelled native review was submitted")
+	}
+	// Declare a lost send reply by reserving the existing exact native capture.
+	// Neither this check nor recovery may turn that reservation into another send.
+	repo, err := db.CollaborationRepository(ctx, collaboration.RepositoryID(w.Repository))
+	if err != nil {
+		return err
+	}
+	request := func(work factory.ReviewWork) factory.HumanReviewCommand {
+		sum := sha256.Sum256([]byte("factory.native.review\x00" + string(port.Config.Profile) + "\x00" + work.OperationID))
+		return factory.HumanReviewCommand{ID: hex.EncodeToString(sum[:16]), Host: repo.Host, Repository: repo.ID, Actor: actor, Number: work.PRNumber, Body: work.Body, Event: factory.HumanReviewComment, ExpectedHead: collaboration.CommitID(work.HeadOID)}
+	}
+	prior, err := db.HumanReviewCapture(ctx, request(w))
+	if err != nil {
+		return err
+	}
+	prior.Request = request(state.Uncertain)
+	prior.OperationID = prior.Request.ID
+	prior, _, err = db.CaptureHumanReview(ctx, prior)
+	if err != nil {
+		return err
+	}
+	cmd, err := prior.Command()
+	if err != nil {
+		return err
+	}
+	lookup, err := db.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	if _, err = db.ObserveHumanReview(ctx, prior, lookup); err != nil {
+		return err
+	}
+	if won, err := db.ReserveHumanReviewDispatch(ctx, prior); err != nil || !won {
+		return errors.New("uncertain review fixture did not reserve")
+	}
+	if unknown, err := port.SubmitReview(ctx, state.Uncertain); err != nil || unknown.Effect != factory.OpEffectIndeterminate {
+		return errors.New("reserved unknown native review retried")
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(statePath, raw, 0600); err != nil {
+		return err
+	}
+	fmt.Println("PASS: actual native automatic same-account COMMENT review, exact preflight/receipt, disabled-policy refusal, one-shot replay, pre-send cancellation and unknown-send hold; publication/verdict fixture supplied")
 	return nil
 }
 

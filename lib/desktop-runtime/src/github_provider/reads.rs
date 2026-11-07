@@ -82,6 +82,14 @@ impl Client {
                     let repository = r::text(&q, "repository")?;
                     let reader = Reader::new(self, token, repository).await?;
                     let (field, value) = match kind {
+                        "automation_review" => (
+                            "automation_review",
+                            reader
+                                .automation_review(
+                                    q["number"].as_u64().ok_or_else(Failure::invalid)?,
+                                )
+                                .await?,
+                        ),
                         "automation_checks" => (
                             "automation_checks",
                             reader

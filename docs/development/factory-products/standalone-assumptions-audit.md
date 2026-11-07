@@ -666,8 +666,31 @@ corrections are now active; the old feature queue waits for their resolution.
   check definitions and disabled local policy were fixture supplied. No model,
   workflow, merge or personal credential change ran. Nonempty check-run sources,
   moving refs/statuses, app-specific branch rules and test-merge requirements
-  remain unqualified. Publication/review/merge composition and full-pipeline,
+  remain unqualified. Full publication/review/merge journeys and full-pipeline,
   OAuth and installed gates remain open.
+
+- **A04/A07/A21 — native automated review submission implemented.** The native
+  application supplies `NativeReviews` through the existing review port. It
+  binds registered immutable workflow work to the policy's exact saved review
+  account, current enabled policy and dispatch state. Paired provider reads bind
+  PR/issue/author/ref identities; the existing command journal reserves one send
+  and retains its causal receipt. New receipts verify head and base before send
+  and in the provider reply, without claiming an atomic GitHub ref condition.
+  The author account publishes COMMENT and retains the independent agent verdict
+  separately; no provider approval is fabricated. Historical receipt adoption
+  does not require live credentials. Existing pending reviews and historical
+  inline batches remain unavailable to this new-review adapter.
+  `/home/vince/tmp/fnative-review-base7.llZxjL/result.log` passed an actual labeled
+  COMMENT review, head/base receipt binding, disabled-policy refusal, replay,
+  cancellation before send, a retained unknown-send fence, restart and credential
+  withdrawal. Publication and the independent verdict were declared fixture
+  inputs; the check did not run the coordinator's actual review phase or a model.
+  It used the current gh token only in an isolated test keyring and removed that
+  owned entry. Go/Rust builds and dependency boundaries passed. Other-account
+  approvals/request changes, actual pending-review refusal, inline finding
+  batches, authority/permission races, lost provider replies, Factory OAuth and
+  installed/full-pipeline qualification remain open. No merge-base or separate
+  summary-comment ID is invented from the review receipt.
 
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.
