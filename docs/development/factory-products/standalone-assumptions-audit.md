@@ -691,6 +691,18 @@ corrections are now active; the old feature queue waits for their resolution.
   batches, authority/permission races, lost provider replies, Factory OAuth and
   installed/full-pipeline qualification remain open. No merge-base or separate
   summary-comment ID is invented from the review receipt.
+  Go recovery now uses the executor's explicit `ReviewRecovery` guarantee;
+  generic lookup absence never authorizes resubmission. Native recovery reuses
+  the existing command reservation and frozen unexpired work. A missing branch
+  publication adapter no longer strands registered reviews. Actual Go publication
+  pass after a controlled native-owner stop/restart passed in
+  `/home/vince/tmp/fnative-review-recovery-linked7.V9gw8u/result.log`, including
+  one COMMENT review, unchanged work/deadline, generic absence, cancelled/reserved/
+  expired holds and retained readback after credential withdrawal. Publication,
+  verdict and reserved-send inputs were declared; no model or actual lost provider
+  reply ran. Definitive no-send retry generations and fresh owner authorization
+  after expiry remain unfinished; recovery does not renew deadlines or rerun a
+  model. The earlier fixture-shape refusal remains retained in the handoff.
 
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.

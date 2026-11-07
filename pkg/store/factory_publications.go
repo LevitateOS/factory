@@ -654,6 +654,38 @@ func requestPublicationWithdrawalsTx(ctx context.Context, tx *sql.Tx, repository
 // OpenPublications lists every open or fenced publication across
 // repositories, oldest first, for pass recovery. Deferred work waits for
 // a later pass; nothing here submits without reconciling first.
+const pendingPublicationReviews = `EXISTS (
+			SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'review_operations')='array' THEN data->'review_operations' ELSE '[]'::jsonb END) AS review_op
+			WHERE COALESCE(review_op->'outcome'->>'Effect','') IN ('','pending','indeterminate')
+			   OR COALESCE(review_op->'outcome'->>'Cancellation','') IN ('pending','indeterminate')
+			   OR (review_op->'outcome'->>'Effect'='committed' AND COALESCE(review_op->'outcome'->>'Completion','') <> 'complete')
+		)`
+
+// PendingReviewPublications excludes settled review history from the bounded pass.
+func (s *Store) PendingReviewPublications(ctx context.Context, limit int) ([]factory.Publication, error) {
+	if limit <= 0 || limit > storePublicationLimit {
+		return nil, errors.New("invalid review publication listing limit")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT data FROM factory_publications WHERE stage IN ('published','fenced') AND `+pendingPublicationReviews+` ORDER BY seq LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []factory.Publication
+	for rows.Next() {
+		var raw []byte
+		var p factory.Publication
+		if err = rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) OpenPublications(ctx context.Context, limit int) ([]factory.Publication, error) {
 	if limit <= 0 || limit > storePublicationLimit {
 		return nil, errors.New("invalid publication listing limit")
@@ -664,12 +696,7 @@ func (s *Store) OpenPublications(ctx context.Context, limit int) ([]factory.Publ
 			WHERE COALESCE(correction->>'effect','') IN ('','pending','indeterminate')
 			   OR COALESCE(correction->>'cancellation','') IN ('pending','indeterminate')
 			   OR (correction->>'effect'='committed' AND COALESCE(correction->>'completion','') <> 'complete')
-		) OR EXISTS (
-			SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'review_operations')='array' THEN data->'review_operations' ELSE '[]'::jsonb END) AS review_op
-			WHERE COALESCE(review_op->'outcome'->>'Effect','') IN ('','pending','indeterminate')
-			   OR COALESCE(review_op->'outcome'->>'Cancellation','') IN ('pending','indeterminate')
-			   OR (review_op->'outcome'->>'Effect'='committed' AND COALESCE(review_op->'outcome'->>'Completion','') <> 'complete')
-		) OR EXISTS (
+		) OR `+pendingPublicationReviews+` OR EXISTS (
 			SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(data->'resolution_operations')='array' THEN data->'resolution_operations' ELSE '[]'::jsonb END) AS resolve_op
 			WHERE COALESCE(resolve_op->'outcome'->>'Effect','') IN ('','pending','indeterminate')
 			   OR COALESCE(resolve_op->'outcome'->>'Cancellation','') IN ('pending','indeterminate')

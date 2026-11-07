@@ -18,3 +18,10 @@ type ReviewExecutor interface {
 	CancelOp(ctx context.Context, operationID string) (factory.OperationOutcome, error)
 	AdoptReview(ctx context.Context, work factory.ReviewWork, outcome factory.OperationOutcome) (factory.ReviewOutcome, error)
 }
+
+// ReviewRecovery is an explicit executor guarantee, not an interpretation of
+// NotObserved. Its owner must prove that every send uses its durable fence and
+// may resume only the same unexpired work. An uncertain/reserved send is held.
+type ReviewRecovery interface {
+	ResumeReview(context.Context, factory.ReviewWork) (factory.OperationOutcome, error)
+}

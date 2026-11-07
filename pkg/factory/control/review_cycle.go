@@ -578,11 +578,9 @@ func (c *Coordinator) replaySubmittedReview(ctx context.Context, p *factory.Publ
 		if err := op.ValidateForPublication(*p); err != nil {
 			return empty, false, err
 		}
-		// A retry always looks up the saved immutable tuple before reading the
-		// caller's output, current policy, head or native observation. Absence
-		// cannot prove an earlier request will not arrive, so it never submits
-		// again or rebuilds the operation identity.
-		outcome, err := c.Reviews.LookupOp(ctx, op.Work.OperationID)
+		// Recovery keeps the registered tuple. Only an executor with its own
+		// durable send proof can resume it; generic lookup absence still holds.
+		outcome, err := c.recoverRecordedReview(ctx, *p, op)
 		if err != nil {
 			return empty, false, err
 		}
@@ -796,6 +794,35 @@ func sameReviewOperationOutcome(a, b factory.OperationOutcome) bool {
 		a.Reason == b.Reason && a.NotObserved == b.NotObserved
 }
 
+func (c *Coordinator) recoverRecordedReview(ctx context.Context, p factory.Publication, op factory.ReviewOperation) (factory.OperationOutcome, error) {
+	var empty factory.OperationOutcome
+	if err := op.ValidateForPublication(p); err != nil {
+		return empty, err
+	}
+	outcome, err := c.Reviews.LookupOp(ctx, op.Work.OperationID)
+	if err != nil || !outcome.NotObserved {
+		return outcome, err
+	}
+	recovery, ok := c.Reviews.(ReviewRecovery)
+	if !ok {
+		return outcome, nil
+	}
+	if p.Stage != factory.PublicationPublished || p.WithdrawRequested || p.Candidate != op.Work.HeadOID {
+		return empty, &factory.PublicationWait{Reason: "review_recovery_closed"}
+	}
+	if time.Now().Unix() >= op.Work.NotAfter {
+		return empty, &factory.PublicationWait{Reason: "review_authorization_expired"}
+	}
+	open, _, _, err := c.Store.DispatchState(ctx, p.Repository)
+	if err != nil {
+		return empty, err
+	}
+	if !open {
+		return empty, &factory.PublicationWait{Reason: "dispatch_closed"}
+	}
+	return recovery.ResumeReview(ctx, op.Work)
+}
+
 func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.Publication, report *PublishReport) {
 	for i := range p.ReviewOperations {
 		op := p.ReviewOperations[i]
@@ -808,7 +835,7 @@ func (c *Coordinator) reconcileRecordedReviews(ctx context.Context, p *factory.P
 			publicationWait(report, op.Work.OperationID, "review_reconciliation_unavailable")
 			continue
 		}
-		outcome, err := c.Reviews.LookupOp(ctx, op.Work.OperationID)
+		outcome, err := c.recoverRecordedReview(ctx, *p, op)
 		if err != nil {
 			c.publicationCallError(report, op.Work.OperationID, err)
 			continue

@@ -214,11 +214,28 @@ new causal base proof.
 
 Exact remaining dependencies/evidence: prove actual settled reviewer/workflow and
 publication registration through the coordinator, then native publication/merge
-and current provider rules. `control/review_cycle.go` recovery also needs an actual
-interruption before send and a definitive no-send/expired-work retry journey.
+and current provider rules. Controlled interruption before send is now proved:
+`/home/vince/tmp/fnative-review-recovery-linked7.V9gw8u/result.log` retained exact
+registered work, stopped/restarted its native owner, and drove the actual Go
+publication pass without a publication writer. The executor's explicit
+`control/ReviewRecovery` guarantee permits only its owned reservation protocol to
+resume the same unexpired work; generic absence, cancelled/reserved and expired
+cases held. The work, authorization and deadline stayed unchanged. Receipt and
+held-state readback survived credential withdrawal. Publication/verdict and the
+reserved-send case were declared inputs; no model or real lost provider reply
+ran. The first `/home/vince/tmp/fnative-review-recovery7.F3QqSU` fixture stopped
+at publication-shape validation before send; its profile/log remain retained.
+Relevant owners are `control/{publication,review_cycle,review_executor}.go`,
+`runtime/native_reviews.go` and `store/factory_publications.go`. Review recovery
+uses the same unresolved-review SQL predicate as the existing publication queue.
+Publication unavailability remains reported; no branch publisher is fabricated.
+
+A definitive no-send/expired-work retry journey remains unfinished.
 Registered `review-<run>` work and terminal command results must not force another
 paid review just to retry delivery, and a reserved/unknown send must never acquire
-retry permission. The adapter fixture does not prove that coordinator recovery.
+retry permission. Fresh owner authorization after expiry and a new delivery
+attempt after definitive no-send need their own canonical admission and proof;
+the implemented recovery performs neither and never extends a deadline.
 New reviews wait on existing pending reviews; that
 refusal, other-account approval/request-changes, historical inline batches and
 exact finding mappings still need connected evidence. Exercise policy/account/

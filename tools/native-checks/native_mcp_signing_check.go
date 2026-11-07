@@ -1449,19 +1449,57 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 
 // Publication and independent verdict are declared here; GitHub target/account,
 // native write, dispatch fence, causal receipt and retained SQL readback are real.
+type nativeReviewWithoutRecovery struct{ control.ReviewExecutor }
+
 func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeReviews, actor collaboration.ActorID, target factory.CheckTarget, path, action string) error {
 	statePath := filepath.Join(filepath.Dir(path), "native-review.json")
 	var state struct {
-		Work, Cancelled, Uncertain factory.ReviewWork
-		Outcome                    factory.OperationOutcome
+		Work, Cancelled, Uncertain, Expired factory.ReviewWork
+		Outcome                             factory.OperationOutcome
 	}
-	if action != "check-background-review" {
+	preparing := action == "check-background-review-recovery-prepare"
+	recovering := action == "check-background-review-recovery"
+	if action != "check-background-review" && !preparing {
 		raw, err := os.ReadFile(statePath)
 		if err != nil {
 			return err
 		}
 		if err = json.Unmarshal(raw, &state); err != nil {
 			return err
+		}
+		if recovering || action == "check-background-review-recovery-retained" {
+			coordinator := control.NewCoordinator(db, nil, nil)
+			coordinator.Reviews = port
+			report := coordinator.PublishPass(ctx)
+			if !report.Unavailable || len(report.Errors) != 0 {
+				return fmt.Errorf("native review coordinator recovery: %+v", report)
+			}
+			publication, op, err := db.PublicationReviewOperation(ctx, state.Work.OperationID)
+			if err != nil {
+				return err
+			}
+			if !factory.ReviewWorkEqual(op.Work, state.Work) || op.Outcome.Effect != factory.OpEffectCommitted || op.Outcome.Completion != factory.OpCompletionComplete {
+				return errors.New("coordinator did not recover the exact recorded review")
+			}
+			if recovering {
+				state.Outcome = op.Outcome
+				raw, err := json.Marshal(state)
+				if err != nil {
+					return err
+				}
+				if err = os.WriteFile(statePath, raw, 0600); err != nil {
+					return err
+				}
+			}
+			for _, item := range publication.ReviewOperations {
+				if item.Work.OperationID == state.Expired.OperationID && !factory.ReviewWorkEqual(item.Work, state.Expired) {
+					return errors.New("recovery renewed expired review work")
+				}
+			}
+			if expired, err := port.LookupOp(ctx, state.Expired.OperationID); err != nil || !expired.NotObserved {
+				return errors.New("expired review acquired a native send")
+			}
+			fmt.Println("PASS: actual Go publication pass recovers the original review without a publication writer; cancelled, uncertain and expired work remains held")
 		}
 		prior, err := port.LookupOp(ctx, state.Work.OperationID)
 		if err != nil || !reflect.DeepEqual(prior, state.Outcome) {
@@ -1493,6 +1531,57 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	}
 	p := factory.Publication{ID: factory.NewID(), AssignmentID: assignment, Repository: target.Repository, Issue: 9, Run: factory.NewID(), Stage: factory.PublicationPublished, Candidate: target.HeadOID, PRID: target.PRID, PRNumber: target.PRNumber,
 		Publish: factory.PublicationOperation{Work: &factory.PublicationIntent{Candidate: target.HeadOID}}, PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{ActorID: int64(actor)}, IssueID: target.IssueID, HeadRef: target.HeadRef, BaseRef: target.BaseRef, BaseOID: target.BaseOID}, ReviewOperations: []factory.ReviewOperation{{RunID: run, Work: w}}}
+	now := time.Now().Unix()
+	p.ProjectID = "p" + strings.Repeat("d", 24)
+	p.Role = project.RoleCoder
+	p.Acceptance = "d" + strings.Repeat("a", 24)
+	p.Preparation = "f" + strings.Repeat("b", 24)
+	p.BaseSHA = target.BaseOID
+	p.TargetBranch = target.BaseRef
+	p.Comparison = target.BaseOID
+	p.NativeRev = w.NativeRev
+	p.ObservedUnix = now
+	p.CreatedUnix = now
+	p.FinishedUnix = now
+	p.Outcome = factory.Succeeded
+	p.Reason = factory.PublishReasonLinked
+	for _, operation := range []*factory.PublicationOperation{&p.Publish, &p.PRCreate} {
+		operation.Kind = factory.OpRefPublish
+		if operation == &p.PRCreate {
+			operation.Kind = factory.OpPRCreate
+			operation.HeadOID = target.HeadOID
+			operation.PRNumber, operation.PRID = target.PRNumber, target.PRID
+		}
+		operation.OperationID = factory.PublicationOperationID(p.ID, operation.Kind, 1)
+		operation.Attempts = 1
+		operation.UpdatedUnix = now
+		operation.Effect = factory.OpEffectCommitted
+		operation.Completion = factory.OpCompletionComplete
+		operation.Receipt = "declared publication fixture"
+		operation.Work = &factory.PublicationIntent{OperationID: operation.OperationID, AuthRevision: "declared-publication-fixture", Repository: target.Repository, ActorID: int64(actor), NativeRev: w.NativeRev, NotAfter: w.NotAfter, Candidate: target.HeadOID, TargetBranch: target.BaseRef, ExpectedOld: "absent", ComparisonRef: target.BaseRef, ComparisonOID: target.BaseOID, PRTitle: "Disposable native review recovery fixture"}
+		if operation.Kind == factory.OpPRCreate {
+			operation.Work.ExpectedOld = target.HeadOID
+		}
+	}
+	if preparing {
+		state.Work = w
+		clone := func() factory.ReviewWork {
+			next := w
+			r := factory.NewID()
+			next.OperationID = "review-" + r
+			next.AuthRevision = factory.ReviewAuthRevision(assignment, r)
+			p.ReviewOperations = append(p.ReviewOperations, factory.ReviewOperation{RunID: r, Work: next})
+			return next
+		}
+		state.Cancelled = clone()
+		state.Uncertain = clone()
+		state.Expired = clone()
+		state.Expired.NotAfter = now - 1
+		p.ReviewOperations[len(p.ReviewOperations)-1].Work = state.Expired
+	}
+	if err = p.Validate(); err != nil {
+		return fmt.Errorf("declared review publication shape: %w", err)
+	}
 	write := func() error {
 		raw, err := json.Marshal(p)
 		if err != nil {
@@ -1523,6 +1612,61 @@ func nativeReviewFixture(ctx context.Context, db *store.Store, port factoryrunti
 	}
 	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 		return err
+	}
+	if preparing {
+		if _, err = port.CancelOp(ctx, state.Cancelled.OperationID); err != nil {
+			return err
+		}
+		repo, err := db.CollaborationRepository(ctx, collaboration.RepositoryID(w.Repository))
+		if err != nil {
+			return err
+		}
+		identity, err := db.CollaborationActor(ctx, actor)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256([]byte("factory.native.review\x00" + string(port.Config.Profile) + "\x00" + state.Uncertain.OperationID))
+		q := factory.HumanReviewCommand{ID: hex.EncodeToString(sum[:16]), Host: repo.Host, Repository: repo.ID, Actor: actor, Number: w.PRNumber, Body: w.Body, Event: factory.HumanReviewComment, ExpectedHead: collaboration.CommitID(w.HeadOID)}
+		capture := factory.HumanReviewCapture{Request: q, Authority: "native-github:" + string(port.Config.Profile) + ":" + identity.ExternalID, OperationID: q.ID, ProviderIntent: []byte(`{"declared_reserved_review":true}`)}
+		capture, _, err = db.CaptureHumanReview(ctx, capture)
+		if err != nil {
+			return err
+		}
+		cmd, err := capture.Command()
+		if err != nil {
+			return err
+		}
+		lookup, err := db.LookupHumanCommandDispatch(ctx, cmd)
+		if err != nil {
+			return err
+		}
+		if _, err = db.ObserveHumanReview(ctx, capture, lookup); err != nil {
+			return err
+		}
+		if won, err := db.ReserveHumanReviewDispatch(ctx, capture); err != nil || !won {
+			return errors.New("declared unknown-send reservation failed")
+		}
+		coordinator := control.NewCoordinator(db, nil, nil)
+		coordinator.Reviews = nativeReviewWithoutRecovery{port}
+		if listed, err := db.OpenPublications(ctx, 256); err != nil || len(listed) != 1 {
+			return fmt.Errorf("shared pending-review selection: %v", err)
+		}
+		report := coordinator.PublishPass(ctx)
+		if !report.Unavailable || len(report.Errors) != 0 {
+			return fmt.Errorf("generic review recovery failed: %+v", report)
+		}
+		if prior, err := port.LookupOp(ctx, w.OperationID); err != nil || !prior.NotObserved {
+			return errors.New("generic lookup absence authorized a review send")
+		}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(statePath, raw, 0600); err != nil {
+			return err
+		}
+		fmt.Println("PASS: exact unclaimed review retained before restart; generic lookup absence, cancelled, declared reserved and expired cases authorize no send")
+		return nil
 	}
 	outcome, err := port.SubmitReview(ctx, w)
 	if err != nil {

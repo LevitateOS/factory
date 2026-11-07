@@ -53,7 +53,10 @@ Actual fixture-status pass/failure/missing and stale-candidate/actor refusal
 passed; A05/A07/A21 records the evidence and unqualified workflow/rule cases.
 Native automated review now supplies paired target observation, a journaled new
 review and retained receipt/cancellation handling; A04/A07/A21 records the actual
-same-account COMMENT fixture and its limits. Actual workflow/model review,
+same-account COMMENT fixture and its limits. The Go publication pass now recovers
+registered unclaimed native reviews after restart even without a publication
+writer, preserving their original authorization and holding uncertain/expired
+work. Generic lookup absence still authorizes no send. Actual workflow/model review,
 automatic dispatch/phase advancement, publication and merge remain dependencies.
 Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining

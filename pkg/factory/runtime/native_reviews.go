@@ -22,6 +22,18 @@ import (
 type NativeReviews struct{ NativeInputSource }
 
 var _ control.ReviewExecutor = NativeReviews{}
+var _ control.ReviewRecovery = NativeReviews{}
+
+// ResumeReview uses the same native command reservation as a fresh submission.
+// Missing/unclaimed capture is local proof of no send; reserved/unknown history
+// returns its retained outcome and can never acquire another reservation.
+func (p NativeReviews) ResumeReview(ctx context.Context, w factory.ReviewWork) (factory.OperationOutcome, error) {
+	prior, err := p.LookupOp(ctx, w.OperationID)
+	if err != nil || !prior.NotObserved {
+		return prior, err
+	}
+	return p.SubmitReview(ctx, w)
+}
 
 func (p NativeReviews) request(ctx context.Context, w factory.ReviewWork) (factory.HumanReviewCommand, error) {
 	var q factory.HumanReviewCommand
@@ -144,7 +156,7 @@ func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (
 	if err != nil {
 		return empty, err
 	}
-	if !factory.ReviewWorkEqual(w, saved) || w.Validate() != nil || time.Now().Unix() >= w.NotAfter || publication.Stage != factory.PublicationPublished || publication.Candidate != w.HeadOID {
+	if !factory.ReviewWorkEqual(w, saved) || w.Validate() != nil || time.Now().Unix() >= w.NotAfter || publication.Stage != factory.PublicationPublished || publication.WithdrawRequested || publication.Candidate != w.HeadOID {
 		return empty, &factory.PublicationRefusal{Reason: "invalid_work"}
 	}
 	prior, err := p.LookupOp(ctx, w.OperationID)

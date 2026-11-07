@@ -80,6 +80,22 @@ func (c *Coordinator) PublishPass(ctx context.Context) PublishReport {
 	report := PublishReport{Published: []PublishLink{}}
 	if c.Publication == nil {
 		report.Unavailable = true
+		// Registered reviews own their effect journal independently of branch
+		// publication. Missing publication credentials must not strand recovery.
+		if c.Reviews != nil && c.Store != nil {
+			pending, err := c.Store.PendingReviewPublications(ctx, publishPassLimit)
+			if err != nil {
+				publicationError(&report, "", "store_unavailable")
+				return report
+			}
+			for _, p := range pending {
+				if p.Validate() != nil {
+					publicationError(&report, p.ID, "review_publication_invalid")
+					continue
+				}
+				c.reconcileRecordedReviews(ctx, &p, &report)
+			}
+		}
 		return report
 	}
 	pending, err := c.Store.OpenPublications(ctx, publishPassLimit)
