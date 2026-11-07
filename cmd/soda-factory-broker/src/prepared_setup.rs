@@ -214,7 +214,7 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
     let mut entries = 0;
     while let Some((path, depth)) = pending.pop() {
         entries += 1;
-        if entries > 20000 || depth > 64 {
+        if entries > soda_execution_protocol::MAX_PREPARED_TREE_ENTRIES || depth > 64 {
             return Err(refused("setup private output exceeds bounds"));
         }
         let meta = path.symlink_metadata()?;

@@ -132,8 +132,10 @@ Approved setup can now opt into public HTTPS through reviewed
 `setup-network.json`, using the existing isolated relay and a credential-free
 native owner. The actual cold npm install/check, loopback/plain-HTTP refusals,
 offline refusal, normal retirement and affected legacy relay evidence are recorded
-once in A17 of the assumptions audit. Toolchain provisioning, larger cold builds,
-memory/storage budgets, interrupted/restart network retirement and installed D3
+once in A17 of the assumptions audit. Preparation and worker transfer now share
+larger bounded trees; the fixed resource envelope and actual worker check above
+the historical limits are recorded there too. Toolchain provisioning, larger cold
+builds, workload resource qualification, interrupted/restart network retirement and installed D3
 qualification remain dependencies; this does not complete T09 or A17.
 
 ## Remaining product milestones (2026-11-06)

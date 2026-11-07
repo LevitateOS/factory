@@ -3,7 +3,10 @@ use super::{
     refused, Executable, Invocation, Limits, Processes, StopReason, PRIVATE, PRIVATE_HOME,
     PRIVATE_TMP, SOURCE,
 };
-use soda_execution_protocol::{ApprovedFiles, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
+use soda_execution_protocol::{
+    ApprovedFiles, MAX_PREPARED_TREE_BYTES, MAX_PREPARED_TREE_ENTRIES, MAX_SETUP_FRAME,
+    MAX_SETUP_OUTPUT,
+};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
@@ -63,12 +66,12 @@ pub(super) fn copy(source: &Path, target: &Path) -> io::Result<()> {
     let mut total = 0u64;
     let mut entries = 0;
     while let Some((from, to, depth)) = pending.pop() {
-        if entries > 20000 || depth > 64 {
+        if entries > MAX_PREPARED_TREE_ENTRIES || depth > 64 {
             return Err(refused("worker environment inventory exceeds bounds"));
         }
         for entry in fs::read_dir(from)? {
             entries += 1;
-            if entries > 20000 {
+            if entries > MAX_PREPARED_TREE_ENTRIES {
                 return Err(refused("worker environment inventory exceeds bounds"));
             }
             let entry = entry?;
@@ -83,7 +86,7 @@ pub(super) fn copy(source: &Path, target: &Path) -> io::Result<()> {
                 total = total
                     .checked_add(meta.len())
                     .ok_or_else(|| refused("worker environment size invalid"))?;
-                if total > 64 * 1024 * 1024 {
+                if total > MAX_PREPARED_TREE_BYTES {
                     return Err(refused("worker environment byte bound exceeded"));
                 }
                 let file = OpenOptions::new()

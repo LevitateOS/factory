@@ -68,6 +68,21 @@ remain unsupported by this evidence. Do not close these dependencies from source
 inspection or the small npm fixture. Hacking-like probes require user-started
 Daybreak; ordinary implementation checks can continue normally.
 
+**A17 resource envelope / D3:** the preparer now enforces 1 GiB memory/no swap and
+128 tasks. The broker reserves its full 1 GiB while active, with a 4 GiB/one
+million-entry retained cap and unchanged independent `/run` reserve. Shared
+`lib/execution-protocol/src/lib.rs` tree constants (256 MiB/100,000 entries) feed
+`cmd/soda-factory-broker/src/{bin/soda-factory-preparer,prepared_setup}.rs` and
+`cmd/soda-factory-worker/src/agent_environment.rs`; service/quota ownership remains
+in the preparer unit and `preparation_quota.rs`. The audit records actual setup
+above the historical memory/tree caps, worker transfer/recheck and normal exact
+retirement. No model ran. This is not saturated-resource or installed proof.
+Remaining evidence: OOM/task/namespace/retained-capacity refusal at the new bounds,
+low free-space and overlapping admissions, cancellation/restart/lost-reply
+retirement with larger trees, and representative cold Go/Rust/Node/Bun builds.
+These are fixed supported ceilings; broader D3/installed qualification remains
+pending.
+
 **A17 time budgets / D3:** approved `setup-limits.json` now controls preparer and
 worker-check deadlines. The audit's A17 correction records the actual long-setup,
 timeout/refusal and worker/restart evidence; no provider inference or installed

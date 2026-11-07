@@ -20,10 +20,10 @@ const BUNDLE: &str = "/run/factory-source/bundle";
 const OUTPUT: &str = "/run/factory-output";
 const CHECKOUT: &str = "/run/factory-output/repo";
 const MAX_BUNDLE: u64 = 512 * 1024;
-const MAX_CHECKOUT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_CHECKOUT_BYTES: u64 = soda_execution_protocol::MAX_PREPARED_TREE_BYTES;
 const MAX_TREE_LIST_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_ATTRIBUTE_LIST_BYTES: u64 = 48 * 1024 * 1024;
-const MAX_ENTRIES: usize = 20_000;
+const MAX_ENTRIES: usize = soda_execution_protocol::MAX_PREPARED_TREE_ENTRIES;
 const MAX_DEPTH: usize = 64;
 
 fn refused(message: &'static str) -> io::Error {

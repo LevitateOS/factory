@@ -6,10 +6,10 @@ use std::io;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-pub(crate) const MAX_RETAINED_BYTES: u64 = 512 * 1024 * 1024;
+pub(crate) const MAX_RETAINED_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 // Keep aligned with preparer@.service MemoryMax on the /run tmpfs.
-pub(crate) const MAX_ACTIVE_BYTES: u64 = 128 * 1024 * 1024;
-const MAX_ENTRIES: usize = 200_000;
+pub(crate) const MAX_ACTIVE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_ENTRIES: usize = 1_000_000;
 const MAX_DEPTH: usize = 128;
 
 fn denied(message: &'static str) -> io::Error {

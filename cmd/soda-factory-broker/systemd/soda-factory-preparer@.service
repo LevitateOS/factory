@@ -39,9 +39,9 @@ CPUAccounting=yes
 MemoryAccounting=yes
 TasksAccounting=yes
 CPUQuota=100%
-MemoryMax=128M
+MemoryMax=1G
 MemorySwapMax=0
-TasksMax=32
+TasksMax=128
 # Per-entry deadlines come from the exact approved setup-limits.json (10s each
 # when absent). This is the independent hard ceiling, including checkout work.
 TimeoutStartSec=3660s

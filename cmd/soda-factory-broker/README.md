@@ -32,8 +32,14 @@ deadline; both owner and relay retire before success is returned.
 
 Setup waits retain an exclusive lock on their immutable run directory, releasing
 the global admission lock. Same-run operations wait outside the global lock and
-recheck directory identity before acting. Active preparations reserve their full
-128 MiB charge; quota accounting walks frozen trees and skips mutable ones.
+recheck directory identity before acting. The supported preparation envelope is
+1 GiB memory, no swap and 128 tasks. Each prepared repository/HOME tree is bounded
+to 256 MiB and 100,000 entries; the preparer and worker share these constants.
+Worker private storage remains a 768 MiB tmpfs. Active preparations reserve their
+full 1 GiB charge; retained trees are limited to 4 GiB and one million entries,
+with the independent `/run` free-space reserve. Quota accounting walks frozen
+trees and skips mutable ones. Older probes below describe historical smaller
+bounds; installed saturation and low-free-space qualification remain open.
 
 Native standing preparations also use `soda-factory-context@.service` for bounded
 Git context reads and candidate import. Install this template with the preparer

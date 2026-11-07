@@ -2020,8 +2020,15 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		setup = []byte("mkdir -p .factory-build\nprintf 'prepared dependency\\n' > .factory-build/dependency\nprintf 'prepared HOME\\n' > \"$HOME/factory-env\"\nchmod 600 \"$HOME/factory-env\" .factory-build/dependency\n")
 		check = []byte("test \"$(cat .factory-build/dependency)\" = 'prepared dependency'\ntest \"$(cat \"$HOME/factory-env\")\" = 'prepared HOME'\nprintf 'checked-by-native\\n'\n")
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_SETUP_RESOURCES") == "1" {
+		setup = append(setup, []byte("node -e 'const fs=require(\"fs\"); const memory=Buffer.alloc(192*1024*1024, 7); const artifact=memory.subarray(0,80*1024*1024); fs.writeFileSync(\".factory-build/large\",artifact); fs.writeFileSync(process.env.HOME+\"/large\",artifact); if(memory[191*1024*1024]!==7) process.exit(1)'\n")...)
+		check = append(check, []byte("test \"$(wc -c < .factory-build/large)\" -eq 83886080\ntest \"$(wc -c < \"$HOME/large\")\" -eq 83886080\nprintf 'checked-by-native prepared trees exceed historical byte and memory ceilings\\n'\n")...)
+	}
 	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
+	if os.Getenv("SODA_NATIVE_CHECK_SETUP_RESOURCES") == "1" {
+		tools = append(tools, "node")
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
 		tools = append(tools, "node", "npm", "curl")
 		files["package.json"] = []byte(`{"name":"factory-setup-fixture","version":"1.0.0","private":true,"dependencies":{"is-number":"7.0.0"}}`)

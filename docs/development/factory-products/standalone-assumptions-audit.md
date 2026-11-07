@@ -186,6 +186,20 @@ corrections are now active; the old feature queue waits for their resolution.
   interruption/recovery and broader address/DNS/limit evidence remain in the
   security handoff; no broad D3 or network gate is closed.
 
+- **A17 — bounded preparation capacity expanded; workload qualification pending.**
+  The preparer now has a fixed 1 GiB/no-swap/128-task envelope. Preparation and
+  worker transfer share 256 MiB/100,000-entry tree bounds. Active reservations
+  charge the full 1 GiB; retained storage is capped at 4 GiB/one million entries
+  and still requires the independent `/run` reserve. Actual setup touched a
+  192 MiB Node buffer and wrote 80 MiB files into both repository and private
+  HOME. The isolated worker copied both trees and reran the approved check;
+  admitted dummy-token MCP, exact retirement and retained restart passed in
+  `/home/vince/tmp/fsetup-resources7.fkieHH/result.log`. No model or personal
+  credentials were used. These are fixed supported ceilings, not selectable
+  per-run memory budgets or proof of normal Go/Rust/Bun toolchain provisioning.
+  Saturated capacity/low-free-space refusal and installed workload evidence
+  remain open. Reviewed time/network choices retain their existing semantics.
+
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write
   requirements. Account equality with automation actors no longer excludes human
@@ -723,11 +737,12 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 | --- | --- | --- |
 | Staged source Git bundle, not raw repository size | 512 KiB | `lib/execution-protocol/src/lib.rs:7` |
 | Candidate/result bundle | 4 MiB | `lib/execution-protocol/src/lib.rs:13` |
-| Each copied prepared tree: coder repository or HOME | 64 MiB / 20,000 entries independently | `cmd/soda-factory-worker/src/agent_environment.rs:56` |
+| Each copied prepared tree: coder repository or HOME | 256 MiB / 100,000 entries independently | Shared `lib/execution-protocol/src/lib.rs` constants, consumed by preparer and worker |
 | Each approved setup/check script | Reviewed `setup-limits.json`: 1–1800 seconds each; absent file retains 10 seconds | `lib/execution-protocol/src/lib.rs`, `cmd/soda-factory-broker/src/prepared_setup.rs`, `cmd/soda-factory-worker/src/agent_environment.rs` |
-| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 64 MiB, using the existing checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
+| Regular file written by setup descendants (`RLIMIT_FSIZE`) | 256 MiB, using the shared checkout envelope | `cmd/soda-factory-broker/src/prepared_setup.rs` |
 | Combined setup/check diagnostics | 256 KiB; truncation refuses readiness independently of process exit | `cmd/soda-factory-broker/src/prepared_setup.rs` |
-| Retained preparation material | 512 MiB | `cmd/soda-factory-broker/src/preparation_quota.rs:9` |
+| Preparer resources / active reservation | 1 GiB, no swap, 128 tasks; full 1 GiB reserved while active | Preparer unit and `cmd/soda-factory-broker/src/preparation_quota.rs` |
+| Retained preparation material | 4 GiB / one million entries, plus independent `/run` free-space admission | `cmd/soda-factory-broker/src/preparation_quota.rs` |
 | Agent tmpfs | 768 MiB | `cmd/soda-factory-worker/systemd/soda-factory-agent@.service.in:17` |
 
 **Selected correction:** support ordinary Go/Rust/Node/Bun setup and declared
