@@ -256,6 +256,17 @@ The desktop stage now includes the native execution helpers/templates and an
 explicit single-user installer with image mode and existing-file refusal. A18
 records actual desktop staging and image verification; no live installation or
 installed gate is qualified.
+The same production stage now includes a per-user app installer, matching-ELF
+architecture checks, known notices, launcher and desktop entry/icon. Actual
+file installation/launcher identity, repeat refusal and desktop-entry validation
+used retained development binaries under
+`/home/vince/tmp/factory-user-install8.lAgQBP/`; the added missing-runtime check
+refused before any destination writes. The host lacks WebKit 4.1 libraries;
+adding the retained newer runtime to LD_LIBRARY_PATH failed at GLIBC_PRIVATE.
+That is not a supported installed fallback. No host package,
+service or personal profile changed. Clean-host launch, fresh distribution and
+complete notice inventory, interrupted installation, upgrade/uninstall and all
+installed product/security gates remain pending; T14-PACKAGE is not complete.
 The owner selected Linux/systemd with one configured execution user per machine
 for the first installed execution release; other platforms retain browsing with
 execution unavailable (A18). Own newly created GitHub issues are eligible (A08).

@@ -5,9 +5,9 @@ Lit frontend for the native Tauri host and Soda Forge/Fountain.
 
 This repository imports the implementation in progress from SodaOS. It is not a
 completed or released desktop product. Connected GitHub sign-in, account/repository
-binding and human issue/PR reads and writes have recorded qualification. Actual
-agent execution with a real provider, automatic intake/PR delivery and installed
-distribution remain unfinished. The dependency-ordered backlog is in
+binding and human issue/PR reads and writes have recorded qualification. Real
+Muse task checks have scoped evidence; full automated intake/delivery and
+installed distribution remain unqualified. The dependency-ordered backlog is in
 [the implementation plan](docs/development/factory-products/implementation-tasks.md).
 
 The Go engine lives in public `pkg/` packages under
@@ -51,7 +51,23 @@ bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/f
 /home/USER/factory-stage/soda-desktop
 ```
 
-This is a development stage, not an installer. The desktop shell supports GitHub
+The production stage includes a per-user app installer. With the required
+GTK/WebKit runtime libraries available, run:
+
+```sh
+/home/USER/factory-stage/install.sh
+# Optional custom location:
+/home/USER/factory-stage/install.sh --prefix /home/USER/apps
+```
+
+The default prefix is `$HOME/.local`; launch `$HOME/.local/bin/factory` or its
+application-menu entry. Existing app/launcher/menu/icon files cause refusal;
+upgrades remain unfinished. Profiles and credentials stay outside installation.
+The separate privileged execution-service setup is described in
+[the desktop guide](cmd/soda-desktop/README.md#linux-execution-services).
+This is an installable development bundle, not a qualified release. A fresh
+distribution baseline, complete dependency notices and installed journeys remain
+required. The desktop shell supports GitHub
 device sign-in, verification, native encrypted credential storage and saved-account
 removal. Click **Sign in to GitHub**, open the verification page in your browser
 and enter the displayed code. Choose a saved account and repository to connect the

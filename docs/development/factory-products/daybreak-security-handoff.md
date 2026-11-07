@@ -103,6 +103,27 @@ sysroot and PostgreSQL payload are historical build inputs, not a fresh release.
 Hacking-like installer investigations require user-started Daybreak; ordinary
 installation engineering remains in the normal queue.
 
+**Per-user app installer (implemented; installed gates open):**
+`scripts/{build-desktop,stage-desktop-installer}.ts` adds matching-ELF checks,
+known notices and `scripts/install-desktop.sh` to the production stage. The app
+installer installs only the app/runtime, launcher and menu/icon under a selected
+user prefix; it refuses existing installation files and does not handle services,
+profiles or credentials. Evidence under
+`/home/vince/tmp/factory-user-install8.lAgQBP/`: `install.log` exercised real file
+copy/launcher identity before adding the dependency guard; `reinstall.log` proves
+overwrite refusal. The standard desktop-entry validator passed. The subsequent
+`missing-runtime.log` proves the current guard refuses absent WebKit 4.1 libraries
+before creating the destination. `launcher.log` records the missing-library
+startup failure. Retained development binaries are not a fresh release baseline.
+`check-stage-refusal.log` proves a check-feature build refuses reusing an
+installer-bearing stage before building; no check-build release is qualified.
+Exact remaining dependencies: a matching supported GTK/WebKit/libc runtime,
+complete distribution notices/integrity, interrupted-copy/rollback behavior,
+retained-run-safe upgrade/uninstall, and the installed app/provider journeys.
+Closure needs actual app startup and admitted provider/worker lifecycle from the
+installed bundle on the selected baseline, preserving profiles and pending work.
+No D3, custody, authentication/IPC or installed gate is closed by file copying.
+
 **A05/A21 native accepted-input dependency:** Rust
 `github_provider/automation_inputs.rs` implements bounded paired provider reads
 of issue content/history, selected comments, complete direct dependencies and

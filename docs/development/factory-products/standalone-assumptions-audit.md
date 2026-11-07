@@ -611,6 +611,17 @@ corrections are now active; the old feature queue waits for their resolution.
   upgrade/uninstall and installed app/provider journeys remain open. A18/D3 stay
   open.
 
+- **A18 — per-user app installation implemented; installed runtime pending.**
+  The production stage now adds an app installer, matching-ELF architecture
+  checks, known notices, launcher and desktop entry/icon. Retained development
+  artifacts exercised actual file installation, identical app bytes, a prefix
+  containing spaces, repeat refusal and desktop-entry validation under
+  `/home/vince/tmp/factory-user-install8.lAgQBP/`. The added runtime guard then
+  refused missing WebKit 4.1 libraries before destination writes. App startup
+  remains unqualified; no host package/service or personal profile changed.
+  Fresh distribution/notice inventory, interruption, upgrade/uninstall and all
+  installed/security gates stay open. This does not complete T14-PACKAGE.
+
 - **A23 — active guidance corrected.** README now describes implemented binding
   and human GitHub journeys separately from pending agent execution/installed
   delivery. The milestone summary matches the fifteen pending table rows.
@@ -618,6 +629,9 @@ corrections are now active; the old feature queue waits for their resolution.
   stale OS design links and the nonexistent Dependabot claim are removed.
   Desktop lifecycle guidance reflects A12/A15. Documentation review only; no
   qualification gate or implementation row is closed by these edits.
+  The runtime guide now describes its implemented launch/task/candidate/recovery
+  ports and explicit coordinator startup, removing the contradictory pre-consumer
+  claims. It preserves the CLI-user/token-worker distinction and open gates.
 - **A15 — native degraded startup and healthy execution verified.** Product
   health is now separate from execution availability. Missing worker installation,
   an installed missing socket or failed coordinator startup keeps browsing alive;

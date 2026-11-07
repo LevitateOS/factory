@@ -13,8 +13,18 @@ bun run build:desktop --postgres /absolute/postgresql-payload --out /home/USER/f
 /home/USER/factory-stage/soda-desktop
 ```
 
-This stages a source development build, not an installer or a qualified Linux
-distribution package. The default profile is `$XDG_DATA_HOME/soda-factory`, or
+This stages an installable development bundle, not a qualified Linux distribution
+package. Run its `install.sh` as your desktop user to install under `$HOME/.local`,
+or pass `--prefix /absolute/location`. It installs the app/runtime, known notices,
+a `bin/factory` launcher and a desktop-menu entry/icon. No Bun, Go or Rust toolchain
+is needed to run the installer. Bash, coreutils and `ldd` are required; missing
+GTK/WebKit runtime libraries refuse installation before writes. Existing
+installation files refuse overwrite; upgrades/uninstall remain unfinished.
+The bundle stage checks that the app, Go backend, PostgreSQL and native helpers
+have matching 64-bit Linux architectures. Check-feature builds omit the app
+installer and refuse reusing an installable stage. Installation does not copy
+profiles/credentials or activate services.
+The default profile is `$XDG_DATA_HOME/soda-factory`, or
 `$HOME/.local/share/soda-factory`. Native `--profile`, `--postgres` and `--backend`
 options accept absolute paths. The profile must be privately owned, with no
 symlink components. Normal workspace builds omit GTK/WebKit requirements; the

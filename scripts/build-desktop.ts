@@ -2,6 +2,7 @@ import {buildDesktopUI} from './build-desktop-ui.js';
 import {isAbsolute, relative, resolve, sep} from 'node:path';
 import {chmod, cp, copyFile, mkdir, readdir, writeFile} from 'node:fs/promises';
 import {parseArgs} from 'node:util';
+import {stageDesktopInstaller} from './stage-desktop-installer.js';
 const root = resolve(import.meta.dir, '..');
 const {values} = parseArgs({
   args: Bun.argv.slice(2),
@@ -15,6 +16,8 @@ function contains(parent: string, child: string): boolean {
   return path === '' || (path !== '..' && !path.startsWith('..' + sep) && !isAbsolute(path));
 }
 if (contains(payload, out) || contains(out, payload)) throw Error('Output must be separate from the native payload');
+if (values.check && await Bun.file(resolve(out, 'install.sh')).exists())
+  throw Error('Check builds require a separate stage without an app installer');
 await buildDesktopUI(resolve(root, '.artifacts/desktop-ui'));
 await mkdir(resolve(out, 'factory-runtime'), {recursive: true});
 async function run(args: string[]) {
@@ -80,4 +83,5 @@ await writeFile(resolve(execution, 'files.list'), executionFiles.join('\n') + '\
 await copyFile(resolve(root, 'scripts/install-native-execution.sh'), resolve(execution, 'install.sh'));
 await chmod(resolve(execution, 'install.sh'), 0o755);
 await cp(payload, resolve(out, 'factory-runtime/postgresql'), {recursive: true, verbatimSymlinks: true});
+if (!values.check) await stageDesktopInstaller(out);
 console.log('Staged standalone desktop at ' + out);

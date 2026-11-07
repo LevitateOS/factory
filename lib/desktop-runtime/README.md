@@ -30,17 +30,21 @@ profile paths; T14 implements supported distribution/upgrades.
 
 ## Native agent execution gate
 
-This crate does not depend on `soda-native-process` or expose a product launch
-API. Its native-only broker client can request one isolated worker launch, but
-the Go product and desktop lifecycle do not call it. The separate process
-primitive retains same-user process and cgroup checks;
-it does not isolate a hostile worker from the desktop user's files or keyring.
-Native workspace/Git, a distinct worker host identity, brokered credential
-delivery and invocation receipts now have native primitives and disposable
-system-unit checks. Go admission, durable product consumption of the receipt,
-production lifecycle wiring and a finite real provider task remain N3/N4
-consumers. Product execution stays unavailable until D3 proves those boundaries
-on the actual product path.
+The native registry supplies launch, observation, task/workspace/Git, artifact,
+candidate, cancellation and retained-recovery operations to the Go coordinator.
+Rust owns native effects and resource lifetime; Go owns admission, workflows and
+SQL. The desktop explicitly starts the coordinator after its callback owner is
+ready. Missing execution dependencies refuse new work while retained inspection
+and retirement remain available.
+
+The CLI-managed Muse source uses the existing desktop-user login. Its task/Git
+effects run through the isolated worker; this is distinct from the historical
+token-bearing worker/custody lane. Token-source task execution remains unavailable.
+Local native and scoped real Muse checks are recorded in the canonical plan;
+the latest planning payload mismatch remains unqualified. Component checks do
+not close D3, role confinement, credential custody, IPC admission or complete
+connected/installed lifecycle gates. See the
+[security handoff](../../docs/development/factory-products/daybreak-security-handoff.md).
 
 ## Managed native children
 
@@ -103,8 +107,9 @@ these admitted operations, using fresh verified facts and one canonical mapping
 transaction. Ordinary unscoped calls still refuse. Shared collaboration read
 sources and the shared desktop UI now consume these ports. Native connection
 selection and its cancellable Tauri transport stay in the desktop host.
-This runtime does not start
-the product coordinator or grant planning/execution authority.
+Runtime construction and account observations grant no planning/execution
+authority. Coordinator startup is an explicit operation, separate from health
+and account binding; product admission still governs every run.
 
 `health()` freshly checks owned child exits and authenticated bounded Unix HTTP
 readiness. The response must bind the retained profile and the same captured
