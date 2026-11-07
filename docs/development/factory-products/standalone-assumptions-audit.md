@@ -1657,6 +1657,21 @@ Successful replay clears consent even when the heads were already observed.
 browser behavior with a declared lost reply, plus changed-review identity and
 consent reset. UI typecheck/build passed. This proves same-session retry behavior;
 it does not qualify process-restart recovery or cancellation during native I/O.
+Application verification previously read every selected file in one request,
+contradicting setup's 64-file selection and the native 12-file read cap. It now
+uses the planner's existing chunk sizing, checks each exact native reply, rejects
+changed common material and incomplete/contradictory selected files, and combines
+only selected sources in deterministic order. Native reply validation retains
+its 12-file cap; combined verification material allows the existing 64 selected
+files while retaining the 128 KiB total text bound. Relevant owners:
+`control/app_verification.go`, `factory/context_verification.go` and
+`project/factory_context.go`. `/home/vince/tmp/fverify-context21.9x2EV4/result.log`
+passed the production reader for all 14 selected files from both actual native
+preparations; individual native reply validation still refused the combined
+14-file result. The existing dummy-grant/declared-provider scope applies.
+`cleanup.log` confirms retirement and removal of the authorized fixture. Go/helper/
+Rust builds and language-boundary checks passed. This is source-context evidence,
+not a funded Test Pilot, completed delivery, maximum-bound or installed proof.
 
 **Remaining:** connected/installed onboarding and current-account/placement/
 approval withdrawal during I/O, changed-source consent, retained restart and

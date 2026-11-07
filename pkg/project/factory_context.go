@@ -142,9 +142,19 @@ func (c FactoryPreparationContext) ValidateFor(r FactoryPreparationContextReques
 }
 
 func (c FactoryPreparationContext) ValidateContent(role string) error {
+	return c.validateContent(role, MaxFactoryContextFiles)
+}
+
+// ValidateSelectedContent checks combined approved source material. Individual
+// native replies keep their smaller per-read file bound.
+func (c FactoryPreparationContext) ValidateSelectedContent(role string) error {
+	return c.validateContent(role, MaxSourceInputs)
+}
+
+func (c FactoryPreparationContext) validateContent(role string, maxFiles int) error {
 	if !ValidID(c.Project) || !ValidPreparationID(c.ID) || c.Role != role || !ValidFactoryRole(c.Role) ||
 		!ValidCommit(c.SourceCommit) || !ValidCommit(c.ApprovedBase) || !ValidCommit(c.DiffBase) || !ValidCommit(c.Candidate) ||
-		len(c.Setup) == 0 || len(c.Check) == 0 || len(c.Files) > MaxFactoryContextFiles {
+		len(c.Setup) == 0 || len(c.Check) == 0 || len(c.Files) > maxFiles {
 		return errors.New("invalid native factory preparation context")
 	}
 	total := len(c.Setup) + len(c.Check) + len(c.Diff)

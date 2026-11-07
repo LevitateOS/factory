@@ -56,6 +56,16 @@ predecessors across readback of advanced heads. The declared lost-response brows
 check `/home/vince/tmp/fsetup-retry20.I5ERy8/result-corrected.log` passed exact retry,
 new identity for edited review and cleared consent after success. It proves no
 native cancellation/restart race; those recovery dependencies remain open.
+Application verification now batches the approved source selection through
+`control/app_verification.go` using the existing chunk sizing and exact native
+reader. Individual replies retain the 12-file cap; combined selected evidence
+uses the existing 64-source/128 KiB bounds. `factory/context_verification.go` and
+`project/factory_context.go` keep these distinct validation scopes. Actual
+14-file reads from both isolated preparations passed at
+`/home/vince/tmp/fverify-context21.9x2EV4/result.log`; `cleanup.log` confirms both
+retirements and removal of the authorized fixture. Provider/source facts remain
+declared. Full Test Pilot/delivery, maximum-size aggregation, interrupted reads
+and installed qualification remain open; this closes no broad security gate.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.

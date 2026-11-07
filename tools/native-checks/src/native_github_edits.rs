@@ -562,8 +562,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             ensure(selected.0==200 && selected.1["missing_paths"]==json!(["missing.txt"]) && selected.1["source_files"]["docs/Planning context.md"].as_str().is_some(),"selected source preview lost exact paths or missing-file state")?;
             let invalid=call(&runtime,&store,&connection,"POST",&target,br#"{"paths":["../README.md"]}"#).await?;
             ensure(invalid.0==400,"setup accepted a non-repository path")?;
-            let preview=call(&runtime,&store,&connection,"POST",&target,&serde_json::to_vec(&json!({"paths":["README.md","docs/Planning context.md"]}))?).await?;
-            ensure(preview.0==200 && preview.1["source_inputs"].as_object().is_some_and(|inputs|inputs.len()==2),"planning source selection unavailable")?;
+            let mut paths=vec!["README.md".to_owned(),"docs/Planning context.md".to_owned()];
+            paths.extend((1..=12).map(|index|format!("src/input-{index:02}.txt")));
+            let preview=call(&runtime,&store,&connection,"POST",&target,&serde_json::to_vec(&json!({"paths":paths}))?).await?;
+            ensure(preview.0==200 && preview.1["source_inputs"].as_object().is_some_and(|inputs|inputs.len()==14),"planning source selection unavailable")?;
             let mut files = preview.1["files"].clone();
             files["setup-network.json"] = json!("{\"access\":\"none\"}");
             files["setup-limits.json"] = json!("{\"setup_seconds\":10,\"check_seconds\":10}");

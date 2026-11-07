@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sort"
@@ -52,35 +53,9 @@ func (c *Coordinator) ApplicationVerificationEvidence(ctx context.Context, a fac
 	// Keep the maintainer's selected paths, but inspect their actual integrated
 	// contents from this exact ready checkout. The protected setup/check scripts
 	// still come from the original native approval snapshot.
-	paths := make([]string, 0, len(p.Requirements.SourceInputs))
-	for path := range p.Requirements.SourceInputs {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	request := project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: paths, NotAfter: time.Now().Add(20 * time.Second)}
-	if err := request.Validate(); err != nil {
-		return evidence, err
-	}
-	scoped := execution.PreparationContextRequest{Input: request, Role: p.Role, Native: preparation.Native}
-	observed, err := c.Host.ReadWorkspaceContext(ctx, scoped)
-	material := observed.Material
+	material, err := c.ReadApplicationVerificationContext(ctx, preparation)
 	if err != nil {
 		return evidence, err
-	}
-	if err = observed.ValidateFor(scoped); err != nil {
-		return evidence, err
-	}
-	selected := make(map[string]bool, len(material.Files))
-	for _, file := range material.Files {
-		if selected[file.Path] {
-			return evidence, errors.New("approved verification context repeats a source file")
-		}
-		selected[file.Path] = true
-	}
-	for _, path := range paths {
-		if !selected[path] {
-			return evidence, errors.New("approved verification context omits a selected source file")
-		}
 	}
 	manifest, adopted, err := c.adoptedDeliveryCheck(ctx, revision, material.Check)
 	if err != nil {
@@ -110,6 +85,83 @@ func (c *Coordinator) ApplicationVerificationEvidence(ctx context.Context, a fac
 		}
 	}
 	return evidence, evidence.ValidateFor(*a.Subject.Delivery)
+}
+
+// ReadApplicationVerificationContext reads the selected files at the integrated
+// preparation commit. The original selection's digests describe its approved
+// base; current evidence carries the actual integrated contents of those paths.
+func (c *Coordinator) ReadApplicationVerificationContext(ctx context.Context, preparation execution.PreparationRecord) (project.FactoryPreparationContext, error) {
+	var material project.FactoryPreparationContext
+	if c == nil || c.Host == nil || preparation.Validate() != nil {
+		return material, execution.ErrPreparationContext
+	}
+	p := preparation.Preparation
+	paths := make([]string, 0, len(p.Requirements.SourceInputs))
+	for name := range p.Requirements.SourceInputs {
+		paths = append(paths, name)
+	}
+	sort.Strings(paths)
+	chunks, err := chunkApprovedSelections(paths)
+	if err != nil {
+		return material, err
+	}
+	if len(chunks) == 0 {
+		chunks = [][]string{{}}
+	}
+	bounded, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	deadline, _ := bounded.Deadline()
+	selected := make(map[string][]byte, len(paths))
+	total := 0
+	for index, chunk := range chunks {
+		request := execution.PreparationContextRequest{Native: preparation.Native, Role: p.Role, Input: project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: chunk, NotAfter: deadline}}
+		if err := request.Validate(); err != nil {
+			return material, err
+		}
+		observed, err := c.Host.ReadWorkspaceContext(bounded, request)
+		if err != nil {
+			return material, err
+		}
+		if err := observed.ValidateFor(request); err != nil {
+			return material, err
+		}
+		part := observed.Material
+		if index == 0 {
+			material = part
+			material.Files = nil
+			total = len(part.Setup) + len(part.Check) + len(part.Diff)
+		} else if !bytes.Equal(material.Setup, part.Setup) || !bytes.Equal(material.Check, part.Check) || !bytes.Equal(material.Diff, part.Diff) {
+			return material, errors.New("verification context changed between source reads")
+		}
+		seenRead := make(map[string]bool, len(part.Files))
+		for _, file := range part.Files {
+			if seenRead[file.Path] {
+				return material, errors.New("approved verification context repeats a source file")
+			}
+			seenRead[file.Path] = true
+			if _, wanted := p.Requirements.SourceInputs[file.Path]; !wanted {
+				continue
+			}
+			if prior, exists := selected[file.Path]; exists && !bytes.Equal(prior, file.Content) {
+				return material, errors.New("verification source changed between reads")
+			}
+			if _, exists := selected[file.Path]; !exists {
+				total += len(file.Content)
+				if total > project.MaxFactoryContextBytes {
+					return material, errors.New("approved verification context exceeds its text bound")
+				}
+			}
+			selected[file.Path] = file.Content
+		}
+	}
+	for _, name := range paths {
+		content, exists := selected[name]
+		if !exists {
+			return material, errors.New("approved verification context omits a selected source file")
+		}
+		material.Files = append(material.Files, project.FactoryContextFile{Path: name, Content: content})
+	}
+	return material, material.ValidateSelectedContent(p.Role)
 }
 
 func (c *Coordinator) verifyApplicationReport(ctx context.Context, a factory.Assignment) error {

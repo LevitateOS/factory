@@ -118,7 +118,7 @@ func (e CurrentVerificationEvidence) ValidateFor(d DeliverySubject) error {
 	if e.Manifest.Validate() != nil || e.Manifest.Digest() != d.VerificationManifestDigest || e.ManifestDigest != d.VerificationManifestDigest || e.PreparationDigest != d.PreparationDigest || e.SourceCommit != d.SourceCommit || e.Manifest.IntentID != d.IntentID || e.Manifest.AcceptedRevision != d.AcceptedRevision || e.Receipt.CheckID != ApprovedAppCheckID || e.Receipt.Outcome != CheckReceiptPassed || e.Receipt.Validate() != nil {
 		return errors.New("current native verification differs from admitted delivery")
 	}
-	if e.ApprovedContext == nil || e.ApprovedContext.nativeContext().ValidateContent(project.RoleReviewer) != nil || e.ApprovedContext.SourceCommit != d.SourceCommit || e.ApprovedContext.ApprovedBase != d.SourceCommit || e.ApprovedContext.DiffBase != d.SourceCommit || e.ApprovedContext.Candidate != d.SourceCommit {
+	if e.ApprovedContext == nil || e.ApprovedContext.nativeContext().ValidateSelectedContent(project.RoleReviewer) != nil || e.ApprovedContext.SourceCommit != d.SourceCommit || e.ApprovedContext.ApprovedBase != d.SourceCommit || e.ApprovedContext.DiffBase != d.SourceCommit || e.ApprovedContext.Candidate != d.SourceCommit {
 		return errors.New("approved verification assertions differ from admitted source")
 	}
 	if e.AdoptedManifest != nil {

@@ -40,6 +40,8 @@ isolated setup/checks, immutable replay, canonical readiness, withdrawal and
 retirement; A21 records its declared-provider scope and retained evidence.
 The shared editor preserves an unconfirmed approval's identity and predecessors
 on an unchanged same-session retry, including after refreshed heads advance.
+Application verification now batches selected files through the existing native
+reader; a selection larger than one reply no longer fails the per-read path cap.
 Connected/installed onboarding, withdrawal races and retained reactivation remain
 open, as do the separate Muse result-encoding and full-pipeline dependencies.
 Native planning source reads and completion capture now also resolve enrolled

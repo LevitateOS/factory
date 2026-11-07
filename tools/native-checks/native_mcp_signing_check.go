@@ -1394,17 +1394,19 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 		}
 		if !retire {
 			p := prep.Preparation
-			if len(p.Requirements.SourceInputs) != 2 {
+			if len(p.Requirements.SourceInputs) != 14 {
 				return errors.New("onboarding lost reviewed planning source selection")
 			}
-			paths := []string{"README.md", "docs/Planning context.md"}
-			request := execution.PreparationContextRequest{Native: prep.Native, Role: p.Role, Input: project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: paths, NotAfter: time.Now().Add(20 * time.Second)}}
-			observed, readErr := port.ReadWorkspaceContext(ctx, request)
+			reader := control.NewCoordinator(db, port, port)
+			material, readErr := reader.ReadApplicationVerificationContext(ctx, prep)
 			if readErr != nil {
 				return readErr
 			}
+			if material.ValidateContent(p.Role) == nil || material.ValidateSelectedContent(p.Role) != nil {
+				return errors.New("combined source context weakened the native reply bound")
+			}
 			seen := map[string]bool{}
-			for _, file := range observed.Material.Files {
+			for _, file := range material.Files {
 				if wanted, selected := p.Requirements.SourceInputs[file.Path]; selected {
 					sum := sha256.Sum256(file.Content)
 					if hex.EncodeToString(sum[:]) != wanted {
@@ -1413,7 +1415,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 					seen[file.Path] = true
 				}
 			}
-			if len(seen) != 2 {
+			if len(seen) != 14 {
 				return errors.New("prepared planning context omitted reviewed source")
 			}
 		}
@@ -1430,6 +1432,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 		if !input.PreparationReady {
 			return errors.New("reviewed native setup cannot reach canonical readiness")
 		}
+		fmt.Println("PASS: production application-verification reader captured all 14 approved source files from both native workspaces; individual native context bound remains 12 files")
 	}
 	fmt.Println("PASS: owner-reviewed initial setup retains Verified=false and no invented readiness digest; both roles have actual native setup/check/source observations", map[bool]string{true: "and confirmed retirement", false: "and canonical readiness"}[retire])
 	return nil
