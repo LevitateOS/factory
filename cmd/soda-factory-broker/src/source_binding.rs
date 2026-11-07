@@ -95,32 +95,42 @@ impl Binding<'_> {
                     format!("{prompt}\n").as_bytes(),
                 )?;
                 if let Some(input) = setup {
-                    Self::Preparation(input).write(directory)?;
+                    write_approved(directory, input)?;
                 }
                 Ok(())
             }
             Self::Preparation(input) => {
-                if !input.valid() {
-                    return Err(denied("approved setup bounds invalid"));
+                write_approved(directory, input)?;
+                if input.public_https() == Some(true) {
+                    write(
+                        &directory.join("network.env"),
+                        b"FACTORY_RELAY_MODE=setup\n",
+                    )?;
                 }
-                write(
-                    &directory.join("owner.setup_sha256"),
-                    format!("{}\n", input.digest()).as_bytes(),
-                )?;
-                write(
-                    &directory.join("approved.json"),
-                    &serde_json::to_vec(input)?,
-                )?;
-                let files = directory.join("approved");
-                DirBuilder::new().mode(0o700).create(&files)?;
-                for (name, bytes) in &input.files {
-                    write(&files.join(name), bytes)?;
-                }
-                fs::set_permissions(&files, fs::Permissions::from_mode(0o555))?;
-                File::open(files)?.sync_all()
+                Ok(())
             }
         }
     }
+}
+fn write_approved(directory: &Path, input: &ApprovedFiles) -> io::Result<()> {
+    if !input.valid() {
+        return Err(denied("approved setup bounds invalid"));
+    }
+    write(
+        &directory.join("owner.setup_sha256"),
+        format!("{}\n", input.digest()).as_bytes(),
+    )?;
+    write(
+        &directory.join("approved.json"),
+        &serde_json::to_vec(input)?,
+    )?;
+    let files = directory.join("approved");
+    DirBuilder::new().mode(0o700).create(&files)?;
+    for (name, bytes) in &input.files {
+        write(&files.join(name), bytes)?;
+    }
+    fs::set_permissions(&files, fs::Permissions::from_mode(0o555))?;
+    File::open(files)?.sync_all()
 }
 pub(super) fn verify(directory: &Path) -> io::Result<()> {
     let setup = directory.join("owner.setup_sha256").try_exists()?;
@@ -190,7 +200,7 @@ pub(super) fn cleanup(directory: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => (),
         Err(error) => return Err(error),
     }
-    for name in ["approved.json", "owner.setup_sha256"] {
+    for name in ["approved.json", "owner.setup_sha256", "network.env"] {
         match fs::remove_file(directory.join(name)) {
             Ok(()) => (),
             Err(error) if error.kind() == io::ErrorKind::NotFound => (),

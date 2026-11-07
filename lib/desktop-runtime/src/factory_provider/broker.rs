@@ -522,6 +522,11 @@ impl Broker {
         let mut payload = Vec::with_capacity(bundle.len() + setup.len());
         payload.extend_from_slice(bundle);
         payload.extend_from_slice(&setup);
+        let mut network = if approved.public_https() == Some(true) {
+            Some(super::setup_network::SetupNetwork::bind(run)?)
+        } else {
+            None
+        };
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct StagedPreparation {
@@ -549,10 +554,54 @@ impl Broker {
         {
             return Err(refused("native source stage differs"));
         }
+        if let Some(network) = network.as_mut() {
+            #[derive(Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct NetworkAttestation {
+                kind: String,
+                version: u8,
+                run: String,
+                profile: String,
+                sha256: String,
+                setup_sha256: String,
+                relay_uid: u32,
+            }
+            let reply: NetworkAttestation = exchange_controlled(
+                json!({"kind":"attest_setup_network","version":1,"run":run,"profile":profile,"sha256":sha256,"setup_sha256":approved.digest()}),
+                None,
+                ATTEST_TIME,
+                Some(cancellation.clone()),
+                MAX_FRAME,
+            )?;
+            if reply.kind != "setup_network_attested"
+                || reply.version != 1
+                || reply.run != run
+                || reply.profile != profile
+                || reply.sha256 != sha256
+                || reply.setup_sha256 != approved.digest()
+                || reply.relay_uid == 0
+                || reply.relay_uid == unsafe { libc::geteuid() }
+            {
+                return Err(refused("setup network attestation differs"));
+            }
+            network.start(
+                reply.relay_uid,
+                cancellation.clone(),
+                Duration::from_secs(
+                    approved
+                        .limits()
+                        .ok_or_else(|| refused("setup limits unavailable"))?
+                        .preparation_seconds(),
+                ),
+            )?;
+        }
         Self::preparing(cancellation.clone()).prepare_reviewer(run, profile, &sha256, candidate)?;
         let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
         if receipt.setup_sha256 != approved.digest() {
             return Err(refused("native setup receipt differs"));
+        }
+        if let Some(network) = network.as_mut() {
+            network.stop()?;
         }
         Ok(receipt)
     }

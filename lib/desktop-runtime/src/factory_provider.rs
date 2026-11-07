@@ -20,6 +20,7 @@ mod receipt;
 pub(crate) mod recovery;
 mod response;
 mod run;
+mod setup_network;
 mod start;
 mod tool;
 pub(crate) mod work;

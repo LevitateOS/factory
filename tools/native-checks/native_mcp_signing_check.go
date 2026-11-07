@@ -1968,6 +1968,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_SETUP_BUDGET") == "1" {
 		duration = 50 * time.Second
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
+		duration = 60 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	db, err := store.OpenContext(ctx, config.DatabaseDSN())
@@ -2019,6 +2022,19 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	files := map[string][]byte{"setup.sh": setup, "check.sh": check}
 	tools := []string{"git", "bash"}
+	if os.Getenv("SODA_NATIVE_CHECK_PUBLIC_SETUP") == "1" {
+		tools = append(tools, "node", "npm", "curl")
+		files["package.json"] = []byte(`{"name":"factory-setup-fixture","version":"1.0.0","private":true,"dependencies":{"is-number":"7.0.0"}}`)
+		files["package-lock.json"] = []byte(`{"name":"factory-setup-fixture","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"factory-setup-fixture","version":"1.0.0","dependencies":{"is-number":"7.0.0"}},"node_modules/is-number":{"version":"7.0.0","resolved":"https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz","integrity":"sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==","engines":{"node":">=0.12.0"}}}}`)
+		prefix := ""
+		if mode != "network-off" {
+			files["setup-network.json"] = []byte(`{"access":"public_https"}`)
+			prefix = "for target in https://127.0.0.1/ https://localhost/ 'https://[::1]/' http://registry.npmjs.org/is-number; do\n  if curl --fail --silent --show-error --max-time 4 --proxy \"$HTTPS_PROXY\" \"$target\"; then echo 'unexpected forbidden network access'; exit 1; fi\ndone\n"
+		}
+		files["setup-limits.json"] = []byte(`{"setup_seconds":30,"check_seconds":5}`)
+		files["setup.sh"] = []byte(prefix + "cp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\n: > \"$HOME/user.npmrc\"\n: > \"$HOME/global.npmrc\"\nnpm ci --ignore-scripts --no-audit --no-fund --progress=false --fetch-retries=0 --fetch-timeout=5000 --cache \"$HOME/.npm\" --userconfig=\"$HOME/user.npmrc\" --globalconfig=\"$HOME/global.npmrc\"\n")
+		files["check.sh"] = []byte("node -e 'if (!require(\"is-number\")(42)) process.exit(1)'\nprintf 'checked-by-native cold declared npm dependency\\n'\n")
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_NODE_SETUP") == "1" {
 		tools = append(tools, "node")
 		files["setup.sh"] = []byte("node build.cjs\n")
@@ -2093,7 +2109,10 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	for !state.Ready {
 		if state.Phase != project.PrepareRunning {
-			if (mode == "output-limit" || mode == "time-limit") && state.Phase == project.PrepareFailed {
+			if (mode == "output-limit" || mode == "time-limit" || mode == "network-off") && state.Phase == project.PrepareFailed {
+				if mode == "network-off" && (state.SetupExit == nil || *state.SetupExit == 0 || state.CheckExit != nil || !(strings.Contains(state.Output, "ENOTFOUND") || strings.Contains(state.Output, "EAI_AGAIN") || strings.Contains(state.Output, "ENETUNREACH"))) {
+					return fmt.Errorf("offline dependency install did not retain network refusal: %s", state.Output)
+				}
 				if mode == "time-limit" && (state.SetupExit == nil || *state.SetupExit != 124 || state.CheckExit != nil || strings.Contains(state.Output, "must-not-finish")) {
 					return errors.New("setup deadline did not retain timeout status and skip check")
 				}
@@ -2118,7 +2137,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 				fmt.Println("PASS: setup", mode, "refused readiness and actual preparation resources retired")
 				return nil
 			}
-			return fmt.Errorf("native source did not become ready: %s", state.Phase)
+			return fmt.Errorf("native source did not become ready: %s %s", state.Phase, state.Output)
 		}
 		time.Sleep(30 * time.Millisecond)
 		state, err = port.InspectWorkspacePreparation(ctx, request.Address())
@@ -2134,7 +2153,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			return err
 		}
 	}
-	if mode == "output-limit" || mode == "time-limit" {
+	if mode == "output-limit" || mode == "time-limit" || mode == "network-off" {
 		return errors.New("limited setup falsely became ready")
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {

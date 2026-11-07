@@ -44,6 +44,30 @@ support decision; packaging and actual installed isolation, controller/session,
 restart/retirement and degraded-browsing evidence are still required for the
 existing D3/installed gates.
 
+**A17 public HTTPS setup / D3:** the owner approved public HTTPS for reviewed
+setup on 2026-11-07, excluding private/local destinations and desktop credentials.
+`setup-network.json` now opts the exact reviewed preparation into a native
+credential-free CONNECT owner through the existing isolated relay; absence keeps
+it offline. Relevant files: `lib/execution-protocol/src/lib.rs`,
+`lib/desktop-runtime/src/factory_provider/{setup_network,owner,broker}.rs`,
+`cmd/soda-factory-broker/src/{main,source_binding,prepared_setup}.rs`, the preparer
+and relay units, and `cmd/soda-factory-worker/src/bin/soda-factory-provider-relay.rs`.
+The audit's A17 HTTPS entry records the actual cold public npm install/check,
+loopback/plain-HTTP refusal, offline refusal, normal exact retirement and affected
+legacy dummy-token relay check. No personal/provider credential was involved.
+These prove the ordinary fixture path, not the full network or D3 gate.
+Remaining dependencies/evidence: exercise cancellation/interrupted transfers,
+lost broker replies/restart and exact relay/socket retirement; verify aggregate
+traffic/concurrency/deadline refusal and installed namespace/admission behavior;
+qualify DNS/address policy including mixed and changing answers and special
+ranges. Destinations are resolved then connected numerically, but broad refusal
+coverage remains unverified. DNS request waits have a timeout; OS resolver work
+may outlive its future, so joined runtime retirement under a stalled resolver is
+unverified. Lifecycle scripts, private registries and normal Go/Rust/Bun workloads
+remain unsupported by this evidence. Do not close these dependencies from source
+inspection or the small npm fixture. Hacking-like probes require user-started
+Daybreak; ordinary implementation checks can continue normally.
+
 **A17 time budgets / D3:** approved `setup-limits.json` now controls preparer and
 worker-check deadlines. The audit's A17 correction records the actual long-setup,
 timeout/refusal and worker/restart evidence; no provider inference or installed

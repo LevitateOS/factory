@@ -16,8 +16,19 @@ the existing setup digest and source approval. Without it, each entry keeps the
 historical ten-second limit. The preparer enforces the selected setup/check
 deadlines, and the agent uses the same check deadline when verifying its copied
 environment. Outer native waits accommodate those limits and still observe
-cancellation. This changes time budgets only; the existing offline tools,
-memory, output and workspace bounds still apply.
+cancellation. The existing memory, output and workspace bounds still apply.
+
+Approved inputs may also include `setup-network.json` containing exactly
+`{"access":"public_https"}`. Its reviewed bytes participate in the same setup
+digest. Without it, preparation stays offline. With it, setup/check receive proxy
+variables for the existing exact-run loopback relay in their private network
+namespace. A desktop native owner admits only the broker-attested relay UID and
+CONNECT requests to resolved public addresses on port 443. It connects to those
+numeric addresses; private/local destinations and plain HTTP are refused. TLS
+stays with the package client. This owner has no provider credential and does not
+import desktop HOME, npm configuration or authentication. Traffic is bounded to
+512 MiB per preparation, eight concurrent tunnels and the reviewed preparation
+deadline; both owner and relay retire before success is returned.
 
 Setup waits retain an exclusive lock on their immutable run directory, releasing
 the global admission lock. Same-run operations wait outside the global lock and
@@ -202,7 +213,8 @@ must choose the two fixed mounts and those exact arguments from admitted state.
 It requires a non-root UID, no new privileges, a root-owned read-only source
 directory and bundle, and an empty root-owned output directory. It hashes the
 bounded bundle before invoking Git with a cleared environment, disabled system
-and global configuration, and no network in the service profile. It checks the
+and global configuration, and no direct network in the service profile. Only
+the reviewed setup/check phase can use the public HTTPS proxy described above. It checks the
 cloned HEAD against the candidate, rejects a dirty tracked tree and bounds the
 checkout's entries, depth and bytes. It rejects absolute and relative symlink
 targets that lexically escape the checkout, then resolves each complete chain

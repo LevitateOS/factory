@@ -4,7 +4,8 @@ Description=Factory private provider relay for run %i
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/usr/libexec/soda-factory-provider-relay %i @DESKTOP_UID@
+EnvironmentFile=-/run/soda-factory-broker/runs/%i/network.env
+ExecStart=/usr/libexec/soda-factory-provider-relay %i @DESKTOP_UID@ $FACTORY_RELAY_MODE
 DynamicUser=yes
 UMask=0077
 RuntimeDirectory=soda-factory-relay/%i

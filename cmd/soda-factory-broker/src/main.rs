@@ -133,6 +133,13 @@ enum Request {
         sha256: String,
         candidate: String,
     },
+    AttestSetupNetwork {
+        version: u8,
+        run: String,
+        profile: String,
+        sha256: String,
+        setup_sha256: String,
+    },
     ArmAgent {
         version: u8,
         run: String,
@@ -257,6 +264,16 @@ struct ProviderRelayAttested<'a> {
     candidate: &'a str,
     relay_uid: u32,
     execution_available: bool,
+}
+#[derive(Serialize)]
+struct SetupNetworkAttested<'a> {
+    kind: &'static str,
+    version: u8,
+    run: &'a str,
+    profile: &'a str,
+    sha256: &'a str,
+    setup_sha256: &'a str,
+    relay_uid: u32,
 }
 
 #[derive(Serialize)]
@@ -922,6 +939,9 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
             }
             prepared_checkout(&directory)?;
             preparation_quota::capacity(&preparations, 0)?;
+            if source.join("network.env").try_exists()? {
+                stop_relay(run)?;
+            }
             return Ok(());
         }
         clean_preparation(&preparations, run)?;
@@ -945,7 +965,15 @@ fn prepare(run: &str, profile: &str, digest: &str, candidate: &str) -> io::Resul
     // Retain this run's directory lock while releasing shared admission state.
     // Other runs can prepare or retire; same-run callers wait outside that lock.
     drop(_lock);
-    let started = start_preparation(&format!("soda-factory-preparer@{run}.service"), seconds);
+    let network = source.join("network.env").try_exists()?;
+    let started = (|| {
+        if network {
+            manager("is-active", "provider-relay", run)?;
+        }
+        start_preparation(&format!("soda-factory-preparer@{run}.service"), seconds)
+    })();
+    let stopped = if network { stop_relay(run) } else { Ok(()) };
+    let started = started.and(stopped);
     let _lock = lock(&runs)?;
     let result = started.and_then(|()| {
         prepared_checkout(&directory)?;
@@ -1058,6 +1086,10 @@ fn attest_provider_relay(
         return Err(denied("provider relay preparation identity invalid"));
     }
     prepared_checkout(&directory)?;
+    start_provider_relay(run, desktop_uid).map(|uid| (uid, role))
+}
+
+fn start_provider_relay(run: &str, desktop_uid: u32) -> io::Result<u32> {
     if let Err(error) = start_preparation(&format!("soda-factory-provider-relay@{run}.service"), 90)
     {
         manager("stop", "provider-relay", run)?;
@@ -1079,7 +1111,32 @@ fn attest_provider_relay(
     if verified.is_err() {
         manager("stop", "provider-relay", run)?;
     }
-    verified.map(|uid| (uid, role))
+    verified
+}
+
+fn attest_setup_network(
+    run: &str,
+    profile: &str,
+    digest: &str,
+    setup: &str,
+    desktop_uid: u32,
+) -> io::Result<u32> {
+    let runs = state()?;
+    let (_lock, _run_lock) = lock_run(&runs, run)?;
+    let source = runs.join(run);
+    preparation_caller_current()?;
+    private_dir(&source, 0o555)?;
+    verified_profile(&source, profile)?;
+    let approved = source_binding::approved(&source)?;
+    if approved.digest() != setup
+        || approved.public_https() != Some(true)
+        || source.join("owner.tool_sha256").try_exists()?
+        || !verified_bundle(&source, digest)?
+        || fs::read(source.join("network.env"))? != b"FACTORY_RELAY_MODE=setup\n"
+    {
+        return Err(denied("setup network approval differs"));
+    }
+    start_provider_relay(run, desktop_uid)
 }
 
 fn agent_manifest(
@@ -2529,6 +2586,33 @@ fn serve() -> io::Result<()> {
                 worker_uid,
                 readonly_worktree: true,
                 execution_available: false,
+            })?
+        }
+        Request::AttestSetupNetwork {
+            version,
+            run,
+            profile,
+            sha256,
+            setup_sha256,
+        } => {
+            if version != 1
+                || !id(&run, 32)
+                || !id(&profile, 32)
+                || !id(&sha256, 64)
+                || !id(&setup_sha256, 64)
+            {
+                return Err(denied("setup network declaration invalid"));
+            }
+            let relay_uid =
+                attest_setup_network(&run, &profile, &sha256, &setup_sha256, desktop_uid)?;
+            serde_json::to_vec(&SetupNetworkAttested {
+                kind: "setup_network_attested",
+                version: 1,
+                run: &run,
+                profile: &profile,
+                sha256: &sha256,
+                setup_sha256: &setup_sha256,
+                relay_uid,
             })?
         }
         Request::AttestProviderRelay {

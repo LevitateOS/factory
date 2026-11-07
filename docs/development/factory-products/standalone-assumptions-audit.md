@@ -28,8 +28,10 @@ The user started the correction goal and selected these requirements on
   after fresh status on return. Explicit Disconnect keeps it disconnected (A12).
 - Support ordinary Go/Rust/Node/Bun project setup, including installing declared
   dependencies inside isolated workspaces (A17). The current system-tools-only,
-  offline preparer does not meet this requirement. Approved provisioning, network
-  policy and meaningful resource limits must be implemented and qualified.
+  offline preparer does not meet this requirement. Approved provisioning and
+  meaningful resource limits must be implemented and qualified. On 2026-11-07,
+  the owner approved public HTTPS for reviewed setup, with private/local network
+  destinations and desktop credentials unavailable.
 - Automated GitHub delivery must use an enabled GitHub merge/squash/rebase method
   rather than requiring fast-forward-only delivery (A07).
 - Drafts/history require a GitHub connection; offline profile ownership was not
@@ -166,6 +168,23 @@ corrections are now active; the old feature queue waits for their resolution.
   prompt cancellation of one while the other remained live, independent setup
   completion and exact root retirement. Same-run replacement/waiter races,
   saturated capacity, lost replies and restart during overlap remain unqualified.
+
+- **A17 — approved public HTTPS dependency setup implemented; wider setup pending.**
+  Reviewed `setup-network.json` (`{"access":"public_https"}`) opts the exact
+  preparation into a credential-free native CONNECT owner through the existing
+  isolated loopback relay. No file keeps the historical offline behavior. Actual
+  Go/Rust/PostgreSQL/systemd preparation installed a cold, lockfile-pinned public
+  npm dependency and ran its check; loopback IPv4/IPv6/localhost and plain HTTP
+  were refused. The same cold install without approval failed and refused
+  readiness. Exact preparation/root retirement passed:
+  `/home/vince/tmp/fsetup-public-fixed7.vkJXNm/result.log`. The affected legacy
+  dummy-token MCP/retained-restart path passed in
+  `/home/vince/tmp/fsetup-legacy7.TV4biP/result.log`. No model, personal credentials
+  or GitHub operation ran. This used system Node/npm with lifecycle scripts
+  disabled; ordinary Go/Rust/Bun provisioning, larger cold builds, meaningful
+  memory/storage budgets and installed qualification remain pending. Network
+  interruption/recovery and broader address/DNS/limit evidence remain in the
+  security handoff; no broad D3 or network gate is closed.
 
 - **A08 — same-account intake and causal loop guard implemented.** Initial
   acceptance retains verified original-creation, current content and creator-write

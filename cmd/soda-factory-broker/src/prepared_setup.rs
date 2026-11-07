@@ -1,5 +1,5 @@
 //! Execute only the approved, root-owned entrypoints inside preparer@.service.
-//! No provider account, desktop home, network grant or arbitrary command enters.
+//! Only reviewed setup may use public HTTPS; no provider account or desktop HOME enters.
 use super::{git, refused, CHECKOUT, MAX_CHECKOUT_BYTES, OUTPUT, SOURCE};
 use soda_execution_protocol::{ApprovedFiles, SetupReceipt, MAX_SETUP_FRAME, MAX_SETUP_OUTPUT};
 use std::collections::BTreeMap;
@@ -32,7 +32,7 @@ fn root_file(path: &Path, limit: usize) -> io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
-fn entry(name: &str, seconds: u32, output: &File) -> io::Result<(i32, bool)> {
+fn entry(name: &str, seconds: u32, output: &File, network: bool) -> io::Result<(i32, bool)> {
     let (mut reader, writer) = UnixStream::pair()?;
     let mut retained = output.try_clone()?;
     let mut command = Command::new("/usr/bin/timeout");
@@ -53,6 +53,12 @@ fn entry(name: &str, seconds: u32, output: &File) -> io::Result<(i32, bool)> {
         .stdin(Stdio::null())
         .stdout(Stdio::from(OwnedFd::from(writer.try_clone()?)))
         .stderr(Stdio::from(OwnedFd::from(writer)));
+    if network {
+        for name in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
+            command.env(name, "http://127.0.0.1:37377");
+        }
+        command.env("NO_PROXY", "").env("no_proxy", "");
+    }
     // Build artifacts use the existing checkout envelope. Captured diagnostics
     // have their own smaller ceiling; they must not limit compiler output files.
     unsafe {
@@ -177,11 +183,12 @@ pub(super) fn run(candidate: &str) -> io::Result<()> {
         output_truncated: false,
     };
     if receipt.missing.is_empty() {
-        let (setup, truncated) = entry("setup.sh", limits.setup_seconds, &output)?;
+        let network = approved.public_https() == Some(true);
+        let (setup, truncated) = entry("setup.sh", limits.setup_seconds, &output, network)?;
         receipt.setup_exit = Some(setup);
         receipt.output_truncated = truncated;
         if setup == 0 && !truncated {
-            let (check, truncated) = entry("check.sh", limits.check_seconds, &output)?;
+            let (check, truncated) = entry("check.sh", limits.check_seconds, &output, network)?;
             receipt.check_exit = Some(check);
             receipt.output_truncated = truncated;
         }

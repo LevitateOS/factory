@@ -143,6 +143,20 @@ impl SetupLimits {
     }
 }
 impl ApprovedFiles {
+    pub fn public_https(&self) -> Option<bool> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Network {
+            access: String,
+        }
+        match self.files.get("setup-network.json") {
+            None => Some(false),
+            Some(bytes) => serde_json::from_slice::<Network>(bytes)
+                .ok()
+                .filter(|network| network.access == "public_https")
+                .map(|_| true),
+        }
+    }
     pub fn limits(&self) -> Option<SetupLimits> {
         let limits = match self.files.get("setup-limits.json") {
             Some(bytes) => serde_json::from_slice::<SetupLimits>(bytes).ok()?,
@@ -166,6 +180,7 @@ impl ApprovedFiles {
             && self.files.contains_key("setup.sh")
             && self.files.contains_key("check.sh")
             && self.limits().is_some()
+            && self.public_https().is_some()
             && self
                 .files
                 .iter()

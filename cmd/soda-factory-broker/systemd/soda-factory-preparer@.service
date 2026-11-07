@@ -1,5 +1,6 @@
 [Unit]
 Description=Factory isolated reviewer checkout preparation for %i
+JoinsNamespaceOf=soda-factory-provider-relay@%i.service
 
 [Service]
 Type=oneshot
@@ -17,7 +18,8 @@ PrivateDevices=yes
 ProtectProc=invisible
 PrivateNetwork=yes
 IPAddressDeny=any
-RestrictAddressFamilies=AF_UNIX
+IPAddressAllow=127.0.0.1/32
+RestrictAddressFamilies=AF_UNIX AF_INET
 ProtectSystem=strict
 ProtectControlGroups=yes
 ProtectKernelTunables=yes

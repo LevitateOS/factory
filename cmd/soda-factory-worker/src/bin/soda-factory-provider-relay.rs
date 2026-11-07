@@ -34,7 +34,7 @@ fn identity() -> io::Result<u32> {
                 .map_err(|_| refused("provider relay argument encoding invalid"))
         })
         .collect::<io::Result<_>>()?;
-    if args.len() != 3
+    if !(args.len() == 3 || args.len() == 4 && args[3] == "setup")
         || args[1].len() != 32
         || !args[1]
             .bytes()
@@ -207,7 +207,7 @@ async fn copy_limited<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     }
 }
 
-async fn transfer(client: TcpStream, desktop_uid: u32) -> io::Result<()> {
+async fn transfer(client: TcpStream, desktop_uid: u32, setup: bool) -> io::Result<()> {
     owner_socket(desktop_uid)?;
     let owner = tokio::time::timeout(Duration::from_secs(3), UnixStream::connect(OWNER))
         .await
@@ -216,7 +216,15 @@ async fn transfer(client: TcpStream, desktop_uid: u32) -> io::Result<()> {
     let (client_read, client_write) = client.into_split();
     let (owner_read, owner_write) = owner.into_split();
     let request = copy_limited(client_read, owner_write, MAX_REQUEST_BYTES);
-    let response = copy_limited(owner_read, client_write, MAX_RESPONSE_BYTES);
+    let response = copy_limited(
+        owner_read,
+        client_write,
+        if setup {
+            512 * 1024 * 1024
+        } else {
+            MAX_RESPONSE_BYTES
+        },
+    );
     tokio::pin!(request);
     tokio::pin!(response);
     tokio::select! {
@@ -227,6 +235,7 @@ async fn transfer(client: TcpStream, desktop_uid: u32) -> io::Result<()> {
 
 async fn serve() -> io::Result<()> {
     let desktop_uid = identity()?;
+    let setup = std::env::args().nth(3).as_deref() == Some("setup");
     owner_socket(desktop_uid)?;
     let owner = owner_liveness(desktop_uid).await?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, PORT)).await?;
@@ -257,7 +266,7 @@ async fn serve() -> io::Result<()> {
                 count += 1;
                 if tasks.len() < MAX_CONCURRENT {
                     tasks.spawn(async move {
-                        if let Err(error) = transfer(client, desktop_uid).await {
+                        if let Err(error) = transfer(client, desktop_uid, setup).await {
                             eprintln!("Factory provider relay connection refused: {error}");
                         }
                     });

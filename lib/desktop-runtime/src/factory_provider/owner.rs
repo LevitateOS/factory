@@ -43,7 +43,7 @@ fn owned_directory(path: &Path, uid: u32) -> io::Result<()> {
     Ok(())
 }
 
-fn cleanup(path: &Path, parent: &Path, original: &Metadata) -> io::Result<()> {
+pub(super) fn cleanup(path: &Path, parent: &Path, original: &Metadata) -> io::Result<()> {
     match path.symlink_metadata() {
         Ok(current)
             if current.file_type().is_socket()
@@ -62,6 +62,61 @@ fn cleanup(path: &Path, parent: &Path, original: &Metadata) -> io::Result<()> {
     }
     let _ = fs::remove_dir(parent);
     Ok(())
+}
+
+pub(super) fn bind_run_socket(
+    run: &str,
+) -> io::Result<(StdUnixListener, PathBuf, PathBuf, Metadata)> {
+    if !super::hex(run, 32) {
+        return Err(refused("native owner run invalid"));
+    }
+    let uid = unsafe { libc::geteuid() };
+    if uid == 0 || unsafe { libc::getuid() } != uid {
+        return Err(refused("provider owner desktop identity invalid"));
+    }
+    let runtime = PathBuf::from(format!("/run/user/{uid}"));
+    if std::env::var_os("XDG_RUNTIME_DIR").as_deref() != Some(runtime.as_os_str()) {
+        return Err(refused("provider owner runtime path invalid"));
+    }
+    owned_directory(&runtime, uid)?;
+    let parent = runtime.join("soda-factory-provider");
+    match DirBuilder::new().mode(0o700).create(&parent) {
+        Ok(()) => (),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
+        Err(error) => return Err(error),
+    }
+    owned_directory(&parent, uid)?;
+    let path = parent.join(format!("{}.sock", run));
+    match path.symlink_metadata() {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (),
+        Err(error) => return Err(error),
+        Ok(_) => return Err(refused("provider owner run socket already exists")),
+    }
+    let listener = StdUnixListener::bind(&path)?;
+    if let Err(error) = fs::set_permissions(&path, fs::Permissions::from_mode(0o666)) {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    let original = match path.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            let _ = fs::remove_file(&path);
+            return Err(error);
+        }
+    };
+    if !original.file_type().is_socket()
+        || original.uid() != uid
+        || original.mode() & 0o7777 != 0o666
+    {
+        let _ = fs::remove_file(&path);
+        return Err(refused("provider owner socket identity invalid"));
+    }
+    if let Err(error) = listener.set_nonblocking(true) {
+        let _ = cleanup(&path, &parent, &original);
+        return Err(error);
+    }
+
+    Ok((listener, path, parent, original))
 }
 
 /// Bound before the broker starts the relay, then activated only with the
@@ -94,50 +149,7 @@ impl BoundOwner {
             return Err(refused("provider credential scope invalid"));
         }
         let uid = unsafe { libc::geteuid() };
-        if uid == 0 || unsafe { libc::getuid() } != uid {
-            return Err(refused("provider owner desktop identity invalid"));
-        }
-        let runtime = PathBuf::from(format!("/run/user/{uid}"));
-        if std::env::var_os("XDG_RUNTIME_DIR").as_deref() != Some(runtime.as_os_str()) {
-            return Err(refused("provider owner runtime path invalid"));
-        }
-        owned_directory(&runtime, uid)?;
-        let parent = runtime.join("soda-factory-provider");
-        match DirBuilder::new().mode(0o700).create(&parent) {
-            Ok(()) => (),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => (),
-            Err(error) => return Err(error),
-        }
-        owned_directory(&parent, uid)?;
-        let path = parent.join(format!("{}.sock", policy.run()));
-        match path.symlink_metadata() {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => (),
-            Err(error) => return Err(error),
-            Ok(_) => return Err(refused("provider owner run socket already exists")),
-        }
-        let listener = StdUnixListener::bind(&path)?;
-        if let Err(error) = fs::set_permissions(&path, fs::Permissions::from_mode(0o666)) {
-            let _ = fs::remove_file(&path);
-            return Err(error);
-        }
-        let original = match path.symlink_metadata() {
-            Ok(metadata) => metadata,
-            Err(error) => {
-                let _ = fs::remove_file(&path);
-                return Err(error);
-            }
-        };
-        if !original.file_type().is_socket()
-            || original.uid() != uid
-            || original.mode() & 0o7777 != 0o666
-        {
-            let _ = fs::remove_file(&path);
-            return Err(refused("provider owner socket identity invalid"));
-        }
-        if let Err(error) = listener.set_nonblocking(true) {
-            let _ = cleanup(&path, &parent, &original);
-            return Err(error);
-        }
+        let (listener, path, parent, original) = bind_run_socket(policy.run())?;
         let mut random = [0u8; 32];
         if getrandom::fill(&mut random).is_err() {
             let _ = cleanup(&path, &parent, &original);

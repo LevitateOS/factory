@@ -486,7 +486,9 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes = if std::env::var("SODA_NATIVE_CHECK_SETUP_BUDGET").as_deref() == Ok("1") {
+    let modes = if std::env::var("SODA_NATIVE_CHECK_PUBLIC_SETUP").as_deref() == Ok("1") {
+        ["ready", "network-off"]
+    } else if std::env::var("SODA_NATIVE_CHECK_SETUP_BUDGET").as_deref() == Ok("1") {
         ["ready", "time-limit"]
     } else if std::env::var("SODA_NATIVE_CHECK_NODE_SETUP").as_deref() == Ok("1") {
         ["ready", "output-limit"]
@@ -564,7 +566,9 @@ fn managed_preparations(
             return Err("native preparation retirement acknowledgement missing".into());
         }
     }
-    if modes.contains(&"pending") {
+    if modes.contains(&"network-off") {
+        println!("PASS: approved public HTTPS setup installs a cold declared npm dependency; proxy refuses loopback/plain HTTP, absent approval keeps setup offline; exact preparation/root retirement confirmed");
+    } else if modes.contains(&"pending") {
         println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
     } else if modes.contains(&"time-limit") {
         println!("PASS: approved setup time budget exceeds the old entry/service deadlines; shorter budget refuses readiness; exact preparation resources retired");
