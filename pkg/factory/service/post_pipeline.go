@@ -12,6 +12,10 @@ import (
 // ErrPostDraftPending keeps an admitted planning attempt pending without spending another attempt.
 var ErrPostDraftPending = errors.New("comment planning run still settling")
 
+// A missing selected source or an already admitted finite inference waits
+// without consuming failure attempts or starting another provider request.
+var ErrPostJudgmentPending = errors.New("request judgment awaits its selected source or original result")
+
 // PostDraftPending supplies retained authoring progress from a planning adapter.
 type PostDraftPending struct{ Progress factory.PostAuthoring }
 
@@ -295,8 +299,12 @@ func drivePostJudgment(ctx context.Context, st *store.Store, wired *PostCollabor
 	}
 	_ = st.NotePostStall(ctx, pipe.SourcePost, "")
 	judgment, err := wired.Judge.JudgePost(ctx, input)
+	if errors.Is(err, ErrPostJudgmentPending) {
+		_ = st.NotePostProgress(ctx, pipe.SourcePost, "Request assessment is waiting for its selected judgment source or the original model result.")
+		return false, nil
+	}
 	if err != nil {
-		_ = st.NotePostProgress(ctx, pipe.SourcePost, "JEV could not assess this request. Check the System One connection and retry assessment.")
+		_ = st.NotePostProgress(ctx, pipe.SourcePost, "The selected judgment provider could not assess this request. Check its source and revise the request before assessing again.")
 		return false, notePostFailure(ctx, st, pipe, true)
 	}
 	switch judgment.Route {

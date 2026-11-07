@@ -48,6 +48,7 @@ func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.Sp
 	}
 	if source.ToolStatus == nil {
 		source.ExecutionAvailable = false
+		source.JudgmentAvailable = false
 	}
 	if status := source.ToolStatus; status != nil {
 		validVersion := func(version string) bool {
@@ -68,7 +69,15 @@ func (p NativeExecution) MuseLoginSource(ctx context.Context) (factoryservice.Sp
 		default:
 			valid = false
 		}
-		if !valid || source.ExecutionAvailable && status.State != "ready" {
+		if !valid || (source.ExecutionAvailable || source.JudgmentAvailable) && status.State != "ready" {
+			return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
+		}
+	}
+	if len(source.JudgmentModels) > 32 {
+		return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
+	}
+	for _, model := range source.JudgmentModels {
+		if model == "" || len(model) > 128 || strings.IndexFunc(model, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
 			return factoryservice.SpendingSource{}, factoryservice.ErrSponsorshipBrokerUnavailable
 		}
 	}

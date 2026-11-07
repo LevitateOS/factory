@@ -63,6 +63,7 @@ struct State {
     slots: Arc<Semaphore>,
     finalizations: jobs::Sender<Finalize>,
     executions: Arc<Mutex<crate::factory_provider::Executions>>,
+    judgments: Mutex<crate::factory_provider::judgment::Judgments>,
     tools: RwLock<Option<Arc<crate::factory_provider::Tools>>>,
     preparations: Arc<crate::factory_provider::preparations::Preparations>,
     execution_accounts:
@@ -355,6 +356,7 @@ impl Owner {
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
+            judgments: Mutex::new(crate::factory_provider::judgment::Judgments::default()),
             tools: RwLock::new(tools),
             preparations,
             execution_accounts: Arc::new(RwLock::new(BTreeMap::new())),
@@ -455,7 +457,14 @@ impl Owner {
             .preparations
             .retire_all()
             .map_err(|error| error.to_string());
-        joined.and(preparations)
+        let judgments = self
+            .port
+            .0
+            .judgments
+            .lock()
+            .map_err(|_| "native judgment owner unavailable".to_owned())
+            .and_then(|mut owner| owner.retire().map_err(|error| error.to_string()));
+        joined.and(preparations).and(judgments)
     }
 }
 impl Drop for Owner {
@@ -1055,6 +1064,48 @@ async fn dispatch(
     if execution {
         let call: crate::factory_provider::port::Call =
             serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        if let crate::factory_provider::port::Call::BeginJudgment { request } = call {
+            let tools = state
+                .tools
+                .read()
+                .map_err(|_| Failure::unavailable())?
+                .clone()
+                .ok_or_else(Failure::unavailable)?;
+            let tool = tools.inspect().await.map_err(|_| Failure::unavailable())?;
+            return state
+                .judgments
+                .lock()
+                .map_err(|_| Failure::unavailable())?
+                .begin(
+                    state
+                        .channel
+                        .socket
+                        .parent()
+                        .ok_or_else(Failure::unavailable)?,
+                    &state.channel.profile,
+                    request,
+                    tool,
+                    state.alive.clone(),
+                )
+                .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
+        }
+        if let crate::factory_provider::port::Call::InspectJudgment { id, digest, cancel } = call {
+            return state
+                .judgments
+                .lock()
+                .map_err(|_| Failure::unavailable())?
+                .inspect(
+                    state
+                        .channel
+                        .socket
+                        .parent()
+                        .ok_or_else(Failure::unavailable)?,
+                    &id,
+                    &digest,
+                    cancel,
+                )
+                .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
+        }
         if matches!(&call, crate::factory_provider::port::Call::InspectMuseLogin) {
             let connection = crate::factory_provider::muse_connection(&state.channel.profile);
             let tools = state
@@ -1067,7 +1118,7 @@ async fn dispatch(
                 .map(|tools| tools.status())
                 .transpose()
                 .map_err(|_| Failure::unavailable())?;
-            let available = crate::factory_provider::muse_helper().is_ok()
+            let judgment_available = crate::factory_provider::muse_helper().is_ok()
                 && tool_status.as_ref().is_some_and(|status| {
                     status.state == "ready"
                         && status.checked_at_unix.is_some_and(|checked| {
@@ -1078,14 +1129,15 @@ async fn dispatch(
                                         < crate::factory_provider::Tools::REFRESH.as_secs()
                                 })
                         })
-                })
+                });
+            let available = judgment_available
                 && state
                     .execution_error
                     .lock()
                     .is_ok_and(|error| error.is_none());
             return Ok(json!({"connection":connection,"label":"This Muse login",
                 "native":{"profile":state.channel.profile,"authentication":"muse_login"},
-                "execution_available":available,"tool_status":tool_status}));
+                "execution_available":available,"judgment_available":judgment_available,"judgment_models":[crate::factory_provider::MODEL],"tool_status":tool_status}));
         }
         if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
             && state

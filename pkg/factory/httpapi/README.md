@@ -555,8 +555,12 @@ no provider connector: native execution currently supports Muse only.
 role or server key is selected on the owner's behalf. A sponsorship must include
 the `factory-judgment` spending scope before that source can fund judgments; this
 is not a workspace agent role. Shared Work saves these choices through the same
-policy revision/CAS, independently of Coding and Review. Native judgment
-execution remains unavailable until the selected source has an admitted connector.
+policy revision/CAS, independently of Coding and Review. Native Feed assessment
+uses that selected Muse source through the bounded tool-free connector and
+existing command/usage journals. Missing, withdrawn or unsupported sources wait
+without a fallback. Other native judgment consumers remain unavailable until
+their selected-source connector is composed. Connected/installed subscription
+inference is not qualified by local fixture checks.
 
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and

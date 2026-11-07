@@ -57,6 +57,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() == 3 && matches!(args[2].as_str(), "muse-connector" | "muse-login") {
         return muse_connector(&root, Path::new(&args[1]), args[2] == "muse-login");
     }
+    if args.len() == 2 && matches!(args[1].as_str(),"judgment-connector"|"judgment-fixture") {
+        return judgment_connector(&root,args[1]=="judgment-fixture");
+    }
     if args.len() == 2 && args[1] == "preparation" {
         return preparation_check(&root);
     }
@@ -358,7 +361,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     if option("--preset")? != "empty"
         || option("--approval-mode")? != "never"
-        || option("--max-model-steps")? != "3"
+        || !matches!(option("--max-model-steps")?, "1" | "3")
         || option("--model")? != "muse-spark-1.3-contributor"
         || option("--reasoning-effort")? != "low"
         || option("--contributor-mode")? != "on"
@@ -382,11 +385,133 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         println!("fixture_wait_ready");
         std::io::stdout().flush()?;
         let _ = child.wait()?;
+    } else if prompt.starts_with("Make one Factory product judgment") {
+        let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("judgment input absent")?.1)?;
+        let options=input["options"].as_object().ok_or("judgment options absent")?;
+        let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key=="discussion"{1}else{0}))).collect();
+        let answer=serde_json::json!({"selected":"discussion","confidence":1,"probabilities":probabilities});
+        println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
+    } else if prompt == "judgment" {
+        println!("{{\"schema_version\":1,\"payload_type\":\"run.terminal.completed\",\"payload\":{{\"terminal\":\"completed\",\"text\":\"{{\\\"selected\\\":\\\"new_issue\\\",\\\"confidence\\\":1,\\\"probabilities\\\":{{\\\"new_issue\\\":1,\\\"discussion\\\":0}}}}\"}}}}");
     } else if prompt == "finish" {
         println!("{{\"fixture\":\"ok\"}}");
     } else {
         return Err("unknown connector fixture prompt".into());
     }
+    Ok(())
+}
+
+fn judgment_connector(root: &Path, prepared: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use sha2::Digest;
+    use soda_desktop_runtime::factory_provider::{
+        JudgmentCalls, JudgmentRequest, MuseTool, ToolSelection,
+    };
+    use soda_execution_protocol::HarnessProfile;
+    use std::sync::{atomic::AtomicBool, Arc};
+    let fixture=if prepared {Some(serde_json::from_slice::<serde_json::Value>(&fs::read(root.join("judgment-fixture.json"))?)?)}else{None};
+    let profile = if let Some(fixture)=&fixture {fixture["capture"]["profile"].as_str().ok_or("fixture profile absent")?.into()}else{"a".repeat(32)};
+    let connection: String = sha2::Sha256::digest(format!("factory_muse_login\n{profile}"))
+        .iter()
+        .take(16)
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let executable = std::env::current_exe()?;
+    let sha256: String = sha2::Sha256::digest(fs::read(&executable)?)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let tool = ToolSelection {
+        tool: MuseTool {
+            harness: "muse",
+            version: "fixture".into(),
+            sha256: sha256.clone(),
+            executable,
+        },
+        channel: "declared-fixture",
+        checked_at_unix: 1,
+    };
+    let mut calls = JudgmentCalls::default();
+    let alive = Arc::new(AtomicBool::new(true));
+    let mut results = Vec::new();
+    let prompts=if let Some(fixture)=&fixture {vec![fixture["prompt"].as_str().ok_or("fixture prompt absent")?]}else{vec!["judgment","wait"]};
+    for (index, prompt) in prompts.into_iter().enumerate() {
+        let id = format!("{:032x}", index + 1);
+        let digest = "b".repeat(64);
+        let mut request = JudgmentRequest {
+            id: id.clone(),
+            digest: digest.clone(),
+            connection: connection.clone(),
+            tool_version: "fixture".into(),
+            tool_sha256: sha256.clone(),
+            prompt_sha256: sha2::Sha256::digest(prompt.as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+            harness: HarnessProfile {
+                model: "muse-spark-1.3-contributor".into(),
+                effort: "low".into(),
+                contributor: true,
+            },
+            deadline_unix_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_millis() as u64
+                + 10_000,
+            prompt: prompt.into(),
+        };
+        if let Some(fixture)=&fixture {
+            request.id=fixture["capture"]["id"].as_str().ok_or("fixture id absent")?.into();
+            request.digest=fixture["digest"].as_str().ok_or("fixture digest absent")?.into();
+            request.deadline_unix_ms=fixture["capture"]["deadline_unix_ms"].as_u64().ok_or("fixture deadline absent")?;
+        }
+        let id=request.id.clone();let digest=request.digest.clone();
+        calls.begin(root, &profile, request.clone(), tool.clone(), alive.clone())?;
+        let until = std::time::Instant::now() + Duration::from_secs(20);
+        let result = loop {
+            let result = calls.inspect(root, &id, &digest, index == 1)?;
+            if result["state"] == "complete" {
+                break result;
+            }
+            if std::time::Instant::now() >= until {
+                return Err("native judgment did not retire".into());
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        };
+        let process = &result["result"]["process"];
+        if process["tree_retired"] != true
+            || process["output_complete"] != true
+            || process["run"] != id
+            || process["prompt_sha256"] != request.prompt_sha256
+        {
+            return Err("native judgment lost actual process retirement or prompt binding".into());
+        }
+        if index == 0
+            && result["result"]["output"]
+                .as_str()
+                .is_none_or(|s| !s.contains(if prepared {"discussion"}else{"new_issue"}))
+        {
+            return Err("native judgment lost its terminal answer".into());
+        }
+        if index == 1 && process["reason"] != "cancelled" {
+            return Err("native judgment cancellation was not observed".into());
+        }
+        let repeated = calls.begin(root, &profile, request, tool.clone(), alive.clone())?;
+        if repeated != result {
+            return Err("native judgment replay differed or started again".into());
+        }
+        results.push(result);
+    }
+    calls.retire()?;
+    let mut restarted = JudgmentCalls::default();
+    if restarted.inspect(root, results[0]["result"]["id"].as_str().ok_or("result id absent")?,results[0]["result"]["digest"].as_str().ok_or("result digest absent")?, false)? != results[0] {
+        return Err("native judgment restart lost its original receipt".into());
+    }
+    fs::write(
+        root.join("judgment-result.json"),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"result":"pass","finite":true,"cancelled":!prepared,"replay":true,"restart":true,"provider":"declared local CLI, no model or authentication","results":results}),
+        )?,
+    )?;
+    println!("PASS: actual native judgment process, terminal text, {}tree retirement, same-call replay and retained restart; executable/provider facts declared, no model or credentials", if prepared {""}else{"cancellation/"});
     Ok(())
 }
 

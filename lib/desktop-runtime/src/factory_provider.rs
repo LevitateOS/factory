@@ -7,6 +7,7 @@ mod candidate;
 mod custody;
 mod executions;
 mod intent;
+pub(crate) mod judgment;
 pub(crate) mod launch;
 mod mcp;
 mod muse;
@@ -34,6 +35,7 @@ pub use executions::{
     ExecutionBinding, ExecutionOutcome, ExecutionTicket, Executions, RetirementReport,
 };
 pub use intent::{read_intent, LaunchIntent};
+pub use judgment::{Judgments as JudgmentCalls, Request as JudgmentRequest};
 pub use mcp::{WorkerMcp, WorkerMcpReply};
 pub(crate) use muse::connection as muse_connection;
 pub(crate) use muse::helper as muse_helper;
@@ -48,7 +50,7 @@ use serde_json::Value;
 pub use start::ExecutionStart;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
-pub use tool::{ToolSelection, Tools};
+pub use tool::{Tool as MuseTool, ToolSelection, Tools};
 
 const MAX_RUN: Duration = Duration::from_secs(4 * 60 * 60);
 const MAX_REQUEST_BYTES: usize = 256 * 1024;

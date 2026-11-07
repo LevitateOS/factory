@@ -17,6 +17,14 @@ use std::time::Duration;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Call {
+    BeginJudgment {
+        request: super::judgment::Request,
+    },
+    InspectJudgment {
+        id: String,
+        digest: String,
+        cancel: bool,
+    },
     Task {
         intent: String,
         parent: Parent,
@@ -189,6 +197,9 @@ pub(crate) async fn call(
                 Err(error) => return Err(error),
             }
             return Ok(json!({"intent_digest":intent.digest(),"retained":false}));
+        }
+        Call::BeginJudgment { .. } | Call::InspectJudgment { .. } => {
+            return Err(io::Error::other("native judgment owner required"))
         }
         Call::InspectMuseLogin => return Err(io::Error::other("native source owner required")),
         Call::InspectAccount { .. } => {

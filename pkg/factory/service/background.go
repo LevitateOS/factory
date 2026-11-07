@@ -42,6 +42,9 @@ func (s Background) Drive(ctx context.Context) {
 	if s.Store == nil || ctx.Err() != nil {
 		return
 	}
+	if pending, ok := s.Stages.Judge.(interface{ ReconcilePostJudgments(context.Context) }); ok {
+		pending.ReconcilePostJudgments(ctx)
+	}
 	_ = DrivePendingPosts(ctx, s.Store, s.Collaborators(), PostDriveLimit)
 	if ctx.Err() != nil {
 		return

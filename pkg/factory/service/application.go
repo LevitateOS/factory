@@ -34,6 +34,7 @@ type ApplicationPorts struct {
 	ContextChooser         control.ProductJudgment
 	CurrentChooser         func() control.ProductJudgment
 	IssueEffects           IssueMakerEffects
+	PostJudge              PostJudge
 }
 
 // Application composes canonical workflows over one store and coordinator.
@@ -44,6 +45,7 @@ type Application struct {
 	Coordinator  *control.Coordinator
 	Chooser      func() control.ProductJudgment
 	IssueEffects IssueMakerEffects
+	PostJudge    PostJudge
 }
 
 // NewApplication constructs the coordinator and its background workflow stages.
@@ -62,7 +64,7 @@ func NewApplication(ports ApplicationPorts) Application {
 	if ports.Planning != nil {
 		coordinator.Planning = &control.PlanningJudgments{Chooser: ports.Planning}
 	}
-	application := Application{Store: ports.Store, Coordinator: coordinator, Chooser: ports.CurrentChooser, IssueEffects: ports.IssueEffects}
+	application := Application{Store: ports.Store, Coordinator: coordinator, Chooser: ports.CurrentChooser, IssueEffects: ports.IssueEffects, PostJudge: ports.PostJudge}
 	coordinator.CommentDrive = application.Background().Drive
 	return application
 }
@@ -138,6 +140,10 @@ func (a Application) IssueMaker() *IssueMaker {
 // method never calls the chooser or starts work.
 func (a Application) Background() Background {
 	runner := Background{Store: a.Store, Chooser: a.Chooser}
+	runner.Stages.Judge = a.PostJudge
+	if a.PostJudge != nil {
+		runner.Stages.Prepare = (PostContext{Posts: Posts{Store: a.Store}}).Prepare
+	}
 	runner.Stages.IssueMaker = a.IssueMaker().Drive
 	if a.Coordinator != nil && a.Store != nil {
 		runner.Stages.Drafter = &IntentPostDrafter{Store: a.Store, Transport: a.Coordinator}

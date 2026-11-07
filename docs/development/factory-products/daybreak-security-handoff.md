@@ -40,12 +40,34 @@ and `factory/service/policies.go` under `pkg/` retain an explicit judgment
 provider/model/source and the separate `factory-judgment` sponsorship scope.
 `frontend/factory/work/role-settings.ts` uses existing policy CAS and source
 allowance commands. A25 records actual native/Go/PostgreSQL and declared-browser
-configuration checks; they prove no inference or broad authority gate. Exact
-remaining blocker: no admitted native judgment connector or exact-source charge
-and retirement receipt is composed. Before enabling it, prove selected-source
-admission, bounded spend, withdrawal/cancellation, original-result recovery and
-no automatic replacement, including installed scope. No source is implicitly
-authorized by having Coding or Review permission.
+configuration checks; they prove no inference or broad authority gate. Feed
+assessment now composes `runtime/native_judgment.go`, `factory/native_judgment.go`
+and `store/factory_native_judgment.go` under `pkg/`, with the existing command
+guard/usage ledger and `lib/desktop-runtime/src/factory_provider/judgment.rs`.
+The tool-free judgment capability grants no worker, filesystem or MCP authority.
+Calls use the existing fixed Muse connector, one model step, a 30-second deadline
+and 64 KiB output. Captured account/source admission and selected funding are
+checked; unknown sends retain their original command without authorizing a new
+call. Private request/result/transcript files remain in the owned profile.
+`/home/vince/tmp/fnative-judgment-source9.c4l9F7/result.log` proves actual local
+process → private IPC → Go validation/routing, original-source usage, command/
+usage replay, and deleted-source settlement after restart without adopting its
+answer. Tool admission and provider answers were declared. Native component
+cancellation/retirement passed in
+`/home/vince/tmp/fnative-judgment-call9.4ge99z/result.log`. No real model, saved
+authentication change or GitHub mutation ran; no broad gate is closed.
+
+Remaining A25 evidence: prove an official-current-tool start through the actual
+private callback and existing Muse subscription, retaining its original answer,
+process/retirement evidence and exact-source charge. Exercise withdrawal and
+source deletion/revocation/revision while active, including pre-start/completion
+races. The joined check covers deletion after process retirement; cancellation
+is only a native component proof. An abrupt crash without a result stays unknown:
+recover the original service/process and accounting without replay or inferring
+safe absence from a missing file. Tool changes/failed starts with a lost reply
+also remain held until the original outcome is proved. Installed admission and
+lifecycle remain open. Planning, priority, contribution and worker composition
+is still absent; Coding/Review permission grants no judgment-source authority.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

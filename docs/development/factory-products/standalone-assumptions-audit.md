@@ -84,7 +84,7 @@ corrections are now active; the old feature queue waits for their resolution.
   inference ran. Prepared/funded planning, successful Muse result encoding, A25
   judgment inference, graph delivery and connected/installed proof remain open.
 
-- **A25 — explicit judgment configuration implemented; inference pending.**
+- **A25 — configuration and native Feed judgment connector implemented; qualification/other consumers pending.**
   Policy `judgments` stores its own provider/model/account choice, separate from
   the two agent roles. The existing sponsorship allows an explicit
   `factory-judgment` scope; it does not become a workspace execution role. Shared
@@ -96,8 +96,26 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fjudgment-source-ui8.0Nfj5y/result.log` against the existing
   declared peer. Automation remained disabled, agent roles stayed separate and
   withdrawal retained the selection without fallback. No model request or
-  real provider call ran. Admitted inference, exact-source allowance charging,
-  cancellation, restart and connected/installed qualification remain pending.
+  real provider call ran in those configuration checks.
+  Native Feed assessment now captures one finite call on the existing command
+  journal and uses the selected Muse source/model through the existing tool-free
+  CLI owner. Calls have a 30-second deadline, one model step and 64 KiB output.
+  Captured GitHub admission and selected funding are checked before spending and
+  result adoption. Actual retired-process minutes charge the original source;
+  unknown sends stay held without replacement or replay. The existing background
+  owner also reconciles calls whose posts were removed or superseded.
+  Actual native process/cancellation/replay/retained-readback passed in
+  `/home/vince/tmp/fnative-judgment-call9.4ge99z/result.log` with a declared CLI.
+  The joined native/Go/PostgreSQL check passed in
+  `/home/vince/tmp/fnative-judgment-source9.c4l9F7/result.log`: process result
+  through private IPC, validated Feed routing, exact-source accounting, restart,
+  deleted-source settlement without adoption, command/usage replay and
+  withdrawn/unselected-source refusal. Tool admission and provider answers were
+  declared; no actual Muse inference, authentication or GitHub mutation ran.
+  Official-tool start/subscription inference, active withdrawal/source revision
+  races, abrupt-crash recovery and installed qualification remain open. Planning,
+  priority, contribution and worker judgments still need this selected-source
+  connector; they have no native TypeSafe fallback.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and
@@ -108,7 +126,7 @@ corrections are now active; the old feature queue waits for their resolution.
   one issue, idempotent replay, restart readback and withdrawn-account refusal.
   Provider facts and the routing answer were declared; no model or real GitHub
   request ran. Native conditional refinement remains unavailable and starts no
-  paid model. A25 judgment selection/inference, source edits/expiry and unknown
+  paid model. A25 connected inference/other consumers, source edits/expiry and unknown
   creation recovery, connected and installed qualification remain open.
 
 - **A01/A11 — CLI-managed setup and admitted execution implemented; qualification pending.**

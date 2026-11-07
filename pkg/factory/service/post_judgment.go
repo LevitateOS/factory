@@ -17,6 +17,20 @@ func (j *ChoicePostJudge) JudgePost(ctx context.Context, input PostJudgeInput) (
 	if j == nil || j.Chooser == nil {
 		return empty, control.ErrPriorityUnavailable
 	}
+	choices := PostJudgmentChoices(input)
+	answer, err := j.Chooser.Select(ctx, PostJudgeState(input), PostRouteRubric, choices)
+	if err != nil {
+		return empty, err
+	}
+	judgment, err := PostJudgmentFromSelection(answer.Selected, input.Candidates)
+	if err != nil {
+		return empty, err
+	}
+	judgment.Routing = PostRouting(answer, PostChoiceKeys(input.Candidates), input.Candidates)
+	return judgment, nil
+}
+
+func PostJudgmentChoices(input PostJudgeInput) map[string]any {
 	keys := PostChoiceKeys(input.Candidates)
 	choices := make(map[string]any, len(keys))
 	for _, key := range keys {
@@ -33,14 +47,5 @@ func (j *ChoicePostJudge) JudgePost(ctx context.Context, input PostJudgeInput) (
 			}
 		}
 	}
-	answer, err := j.Chooser.Select(ctx, PostJudgeState(input), PostRouteRubric, choices)
-	if err != nil {
-		return empty, err
-	}
-	judgment, err := PostJudgmentFromSelection(answer.Selected, input.Candidates)
-	if err != nil {
-		return empty, err
-	}
-	judgment.Routing = PostRouting(answer, keys, input.Candidates)
-	return judgment, nil
+	return choices
 }

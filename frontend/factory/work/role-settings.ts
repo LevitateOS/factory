@@ -30,6 +30,7 @@ interface SpendingSource {
   connection: string;
   label: string;
   available: boolean;
+  judgmentAvailable: boolean;
   tool: {
     state: keyof typeof toolStatusLabels;
     latest: string | undefined;
@@ -122,6 +123,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
           connection: source.connection as string,
           label: source.label,
           available: source.execution_available,
+          judgmentAvailable: source.judgment_available === true,
           tool: rawTool ? {
             state: rawTool.state as keyof typeof toolStatusLabels,
             latest: rawTool.upstream_version as string | undefined,
@@ -614,7 +616,9 @@ export class SodaFactoryRoleSettings extends LitElement {
                   ${role === judgmentRole ? html`<p>
                     Select a source for routing, planning and other product judgments. Leave both fields empty to keep
                     judgments unconfigured. The full pipeline waits for admitted judgment execution.
-                    Judgment execution through this source is not available yet.
+                    ${view.sources.some((source) => source.connection === selected.account && source.judgmentAvailable)
+                      ? 'This source can assess Feed requests. Other product judgments are not available yet.'
+                      : 'Judgment execution through this source is currently unavailable.'}
                   </p>` : ''}
                   <label
                     >Provider

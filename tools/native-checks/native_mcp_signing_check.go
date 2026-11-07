@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1278,7 +1279,13 @@ func main() {
 	}
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "declare-request-route" {
+		if os.Args[3] == "orphan-judgment-result" {
+			err = orphanJudgmentFixture(os.Args[1], os.Args[4])
+		} else if os.Args[3] == "prepare-judgment-result" || os.Args[3] == "check-judgment-result" {
+			err = judgmentResultFixture(os.Args[1], os.Args[4], os.Args[3] == "prepare-judgment-result")
+		} else if os.Args[3] == "check-judgment-journal" {
+			err = judgmentJournalFixture(os.Args[1], os.Args[4])
+		} else if os.Args[3] == "declare-request-route" {
 			err = declaredRequestRoute(os.Args[1], os.Args[4])
 		} else if strings.HasPrefix(os.Args[3], "check-background-") {
 			err = backgroundInputsFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -4559,6 +4566,211 @@ func declaredNativePreparation(ctx context.Context, config factoryruntime.Native
 }
 
 type declaredPostRouting struct{}
+
+func orphanJudgmentFixture(profile, post string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	db, err := store.OpenStandaloneContext(context.Background(), config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	detail, err := db.FeedPost(context.Background(), post)
+	if err != nil {
+		return err
+	}
+	_, err = db.DeleteFeedPost(context.Background(), post, detail.Record.Author, detail.Record.Revision)
+	return err
+}
+
+func judgmentResultFixture(profile, post string, prepare bool) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	path := filepath.Join(profile, "judgment-fixture.json")
+	var fixture struct {
+		Capture factory.NativeJudgmentCapture `json:"capture"`
+		Prompt  string                        `json:"prompt"`
+		Digest  string                        `json:"digest"`
+	}
+	if !prepare {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &fixture); err != nil {
+			return err
+		}
+		cmd, err := db.FactoryCommand(ctx, fixture.Capture.ID)
+		if err != nil {
+			return err
+		}
+		for cmd.Finished == "" && ctx.Err() == nil {
+			time.Sleep(100 * time.Millisecond)
+			cmd, err = db.FactoryCommand(ctx, fixture.Capture.ID)
+			if err != nil {
+				return err
+			}
+		}
+		var result struct {
+			Answer *factory.PriorityAnswer `json:"answer"`
+		}
+		detail, err := db.FeedPost(ctx, post)
+		if err != nil {
+			return err
+		}
+		if cmd.Finished == "" || json.Unmarshal([]byte(cmd.Outcome), &result) != nil ||
+			(!detail.Record.Deleted && (result.Answer == nil || result.Answer.Selected != "discussion" || result.Answer.Model != fixture.Capture.Selection.Model)) ||
+			(detail.Record.Deleted && result.Answer != nil) {
+			return errors.New("actual native result was not adopted by the Go judgment owner")
+		}
+		usage, err := db.RunUsage(ctx, fixture.Capture.ID)
+		if err != nil || usage.Validate() != nil || usage.Connection != fixture.Capture.Selection.Account {
+			return errors.New("actual native judgment did not charge its original source")
+		}
+		if detail.Record.Deleted {
+			fmt.Println("PASS: deleted source's original native result was accounted after restart without adopting its judgment; no inference replay")
+		} else {
+			fmt.Println("PASS: actual native process result crossed private IPC, passed Go choice validation, routed the real Feed post and charged its captured source; CLI/tool/provider answer declared, no model request")
+		}
+		return nil
+	}
+	detail, err := db.FeedPost(ctx, post)
+	if err != nil {
+		return err
+	}
+	policy, err := db.RepositoryPolicy(ctx, detail.Record.Repository)
+	if err != nil || policy.Judgments == nil {
+		return errors.New("fixture requires explicit judgment settings")
+	}
+	selection := *policy.Judgments
+	selection.Model = "muse-spark-1.3-contributor"
+	selection.Profile = factory.ExecutionProfile{Effort: "low", Contributor: true}
+	policy.Judgments = &selection
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	input, err := factoryservice.CollectPostJudgeInput(ctx, db, detail)
+	if err != nil {
+		return err
+	}
+	input, err = (factoryservice.PostContext{Posts: factoryservice.Posts{Store: db}}).Prepare(ctx, input)
+	if err != nil {
+		return err
+	}
+	prompt, err := factory.NativeJudgmentPrompt(factoryservice.PostJudgeState(input), factoryservice.PostRouteRubric, factoryservice.PostJudgmentChoices(input))
+	if err != nil {
+		return err
+	}
+	executable, err := os.ReadFile(os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_EXECUTABLE"))
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(executable)
+	capture := factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, detail.Record.Repository, post+":"+strconv.FormatInt(detail.Record.Revision, 10)), Profile: config.Profile, Repository: detail.Record.Repository, SourcePost: post, SourceRevision: detail.Record.Revision, Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), ToolVersion: "fixture", ToolSHA256: hex.EncodeToString(sum[:]), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
+	cmd, fresh, err := db.BeginNativeJudgment(ctx, capture)
+	if err != nil || !fresh {
+		return fmt.Errorf("declared tool admission: %v fresh=%v", err, fresh)
+	}
+	fixture.Capture, fixture.Prompt, fixture.Digest = capture, prompt, cmd.Digest
+	raw, _ := json.Marshal(fixture)
+	return os.WriteFile(path, raw, 0600)
+}
+
+func judgmentJournalFixture(profile, repository string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	repo, err := strconv.ParseInt(repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	policy, err := db.RepositoryPolicy(ctx, repo)
+	if err != nil || policy.Judgments == nil {
+		return errors.New("judgment selection absent")
+	}
+	source, err := db.Sponsorship(ctx, repo, policy.Judgments.Account)
+	if err != nil {
+		return err
+	}
+	capture := factory.NativeJudgmentCapture{ID: strings.Repeat("e", 32), Profile: config.Profile, Repository: repo, Selection: *policy.Judgments, PromptSHA256: strings.Repeat("a", 64), ToolVersion: "declared", ToolSHA256: strings.Repeat("b", 64), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
+	if _, _, err = db.BeginNativeJudgment(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("withdrawn source funded a judgment")
+	}
+	source.Active = true
+	if _, err = db.ApplyFactoryGrant(ctx, "declared-source-owner", source); err != nil {
+		return err
+	}
+	priorTotal, err := db.UsageTotal(ctx, repo, source.Connection)
+	if err != nil {
+		return err
+	}
+	command, fresh, err := db.BeginNativeJudgment(ctx, capture)
+	if err != nil || !fresh {
+		return fmt.Errorf("judgment admission: %v fresh=%v", err, fresh)
+	}
+	if replay, fresh, err := db.BeginNativeJudgment(ctx, capture); err != nil || fresh || replay.Digest != command.Digest {
+		return errors.New("judgment replay reserved another call")
+	}
+	other := capture
+	other.ID = strings.Repeat("f", 32)
+	if _, _, err = db.BeginNativeJudgment(ctx, other); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("unsettled judgment did not retain its source reservation")
+	}
+	changed := capture
+	changed.Selection.Model = "different-model"
+	if _, _, err = db.BeginNativeJudgment(ctx, changed); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("judgment borrowed an unselected model")
+	}
+	start := time.Now().Add(-2 * time.Second).UTC()
+	end := time.Now().UTC()
+	usage := factory.Usage{RunID: capture.ID, Repository: repo, Connection: source.Connection, Minutes: 1, StartedAt: start, EndedAt: end}
+	result := json.RawMessage(`{"provider_facts":"declared","selected":"new_issue"}`)
+	if err = db.CompleteNativeJudgment(ctx, capture, result, usage); err != nil {
+		return err
+	}
+	if err = db.CompleteNativeJudgment(ctx, capture, result, usage); err != nil {
+		return err
+	}
+	if total, err := db.UsageTotal(ctx, repo, source.Connection); err != nil || total != priorTotal+1 {
+		return errors.New("judgment result replay duplicated its source usage")
+	}
+	retained, err := db.FactoryCommand(ctx, capture.ID)
+	if err != nil || retained.Finished == "" || retained.Outcome != string(result) {
+		return errors.New("judgment result was not retained")
+	}
+	source, err = db.Sponsorship(ctx, repo, source.Connection)
+	if err != nil {
+		return err
+	}
+	source.Active = false
+	if _, err = db.ApplyFactoryGrant(ctx, "declared-source-owner", source); err != nil {
+		return err
+	}
+	if err = db.CheckNativeJudgmentSource(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
+		return errors.New("withdrawn judgment source remained current")
+	}
+	fmt.Println("PASS: actual PostgreSQL judgment source admission, one pending call, exact selection, result/usage replay and withdrawal; provider/process facts declared, no native inference")
+	return nil
+}
 
 func (declaredPostRouting) JudgePost(context.Context, factoryservice.PostJudgeInput) (factoryservice.PostJudgment, error) {
 	return factoryservice.PostJudgment{Route: factory.PostRouteNewIssue}, nil

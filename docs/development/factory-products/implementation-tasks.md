@@ -124,9 +124,12 @@ actual local one-creation/replay/restart/withdrawal check and declared-provider/
 routing limits. AI refinement remains unavailable without conditional delivery.
 The owner selected explicit provider/model/account configuration for product
 judgments (A25); a separate TypeSafe/JEV service is no longer required. Policy,
-source scope and shared Work now save that selection; A25 records actual native
-and browser configuration checks. Implement admitted inference and exact-source
-accounting before resuming dependent routing/planning;
+source scope and shared Work now save that selection. Native Feed assessment now
+uses the existing finite Muse process owner, command journal and exact-source
+usage ledger. A25 records configuration and joined local process/IPC/routing/
+accounting/deleted-source checks with declared tool/provider facts. Actual
+subscription inference and other judgment consumers remain pending; connect
+those consumers before resuming dependent planning;
 the full automated pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation
