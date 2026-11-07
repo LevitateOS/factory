@@ -118,6 +118,8 @@ export class SodaFactoryApp extends LitElement {
       check(context.selectedRepository === undefined || id(context.selectedRepository));
       if (context.selectedRepository !== undefined && 'repository' in context.route && context.route.repository !== undefined)
         check(context.selectedRepository === context.route.repository);
+      if (context.route.kind === 'feed' && !context.route.repository && context.selectedRepository)
+        context = {...context, route: {...context.route, repository: context.selectedRepository}};
       this.current = context;
       this.generation = context.transport.generation;
       void this.load(context);
@@ -164,6 +166,10 @@ export class SodaFactoryApp extends LitElement {
   private async load(context: FactoryAppContext) {
     const signal = this.lifetime.signal;
     if (!this.live(context, signal) || this.busy) return;
+    if (context.route.kind === 'feed' && !context.route.repository) {
+      this.message = 'Choose a repository to view its activity.';
+      return;
+    }
     this.busy = true;
     this.message = 'Opening ' + factoryRouteTitle(context.route) + '…';
     try {

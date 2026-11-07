@@ -21,7 +21,10 @@ existing lifecycle/isolation/authority evidence below. Relevant new dependencies
 **A24 navigation scope:** the owner selected repository-local Feed. The optional
 `selectedRepository` in `frontend/factory/app/factory-app.ts` retains navigation
 independently of route shape; `frontend/desktop/product.ts` supplies its admitted
-selection. A24 records the actual declared-browser navigation/rendering check.
+selection. The frame now resolves default Feed routes to that selection and
+prompts without resolving/fetching when it is absent; desktop refuses unscoped
+Feed resolution. A24 records the actual declared-browser selection/navigation/
+rendering checks.
 It supplies no provider or IPC admission proof. Existing account/repository switch,
 reconnect and installed/Fountain parity gates still need their actual host
 journeys with this metadata; navigation must never grant a wider transport scope.

@@ -275,6 +275,13 @@ corrections are now active; the old feature queue waits for their resolution.
   authority qualification ran. Other hosts
   must supply the optional selection field to retain navigation on routes without
   a repository; actual Fountain/installed host parity remains unqualified.
+  The shared frame now also normalizes default Feed routes to that selection,
+  and prompts without resolving/fetching when no repository is selected. Desktop
+  refuses unscoped Feed resolution. Actual declared-browser positive/empty
+  selection, navigation and Disconnect passed in
+  `/home/vince/tmp/ffeed-selection7.YF38N6/result.log`; typechecking and shared/
+  desktop bundles passed. This does not qualify provider scope or the older
+  Fountain host composition outside this checkout.
 
 - **A20 — standalone initialization separated; migration qualification pending.**
   Native startup now uses `OpenStandaloneContext`. Schema 93 records the

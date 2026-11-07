@@ -21,7 +21,9 @@ ports must match the selected route, transport and relevant actor/repository/
 issue/run scope. A mismatched binding renders unavailable before mounting a child.
 Hosts retaining a selected workspace supply `selectedRepository` independently
 of the route. Its repository navigation remains available on New request; Feed
-links keep that repository. Desktop supplies its admitted selection. Other hosts
+links keep that repository. Default Feed routes resolve to that repository; without
+a selected or routed repository the frame asks for one without fetching activity.
+Desktop supplies its admitted selection and refuses unscoped Feed resolution. Other hosts
 may omit this optional field and retain their route-derived navigation; adopting
 it does not grant access to another repository or enable aggregate Feed reads.
 

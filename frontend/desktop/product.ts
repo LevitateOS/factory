@@ -167,25 +167,19 @@ export class DesktopProduct {
           },
         };
       case 'feed': {
+        check(repository && route.repository === repository.id);
         const feedHost: FactoryFeedHost = {
           draftScope: scope,
           repositories: async (_wanted, signal) => {
             signal.throwIfAborted();
             return {
-              refs: new Map(
-                repository
-                  ? [
-                      [
-                        repository.id,
-                        {label: repository.name, path: routeURL({kind: 'feed', repository: repository.id})},
-                      ],
-                    ]
-                  : []
-              ),
+              refs: new Map([
+                [repository.id, {label: repository.name, path: routeURL({kind: 'feed', repository: repository.id})}],
+              ]),
               listedAll: true,
             };
           },
-          links: (id) => (id === repository?.id ? this.links(id) : undefined),
+          links: (id) => (id === repository.id ? this.links(id) : undefined),
           navigate: (path) => {
             void this.openLink(path, this.lifetime.signal);
           },
@@ -196,9 +190,9 @@ export class DesktopProduct {
             transport,
             host: feedHost,
             account: actor,
-            repository: route.repository ?? '',
-            ...(repository ? {repositoryName: repository.name} : {}),
-            global: route.repository === undefined,
+            repository: repository.id,
+            repositoryName: repository.name,
+            global: false,
           },
         };
       }
