@@ -776,6 +776,10 @@ async fn managed_muse_execution(
         Ok(())
     };
     let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
+    let withdraw = std::env::var("SODA_NATIVE_CHECK_MUSE_WITHDRAW").as_deref() == Ok("1");
+    if withdraw && live {
+        return Err("withdrawal check uses only the local CLI fixture".into());
+    }
     if live {
         command("check-owned-tool", "discovery")?;
     }
@@ -794,13 +798,24 @@ async fn managed_muse_execution(
     let fixture = profile.join("admitted-native-fixture.json");
     fs::write(
         &fixture,
-        serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,
+        serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Live":live,"Withdraw":withdraw,
         "Preparation":preparation["input"]["preparation"]["id"],"Executable":client.canonicalize()?}))?,
     )?;
     command(
         "launch-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
+    if withdraw {
+        command(
+            "withdraw-admitted-native",
+            fixture.to_str().ok_or("invalid fixture path")?,
+        )?;
+        supervisor.stop()?;
+        if Broker::next_profile_run(&ready.profile)?.is_some() {
+            return Err("withdrawn CLI source left an owned broker root".into());
+        }
+        return Ok(());
+    }
     let intent = LaunchIntent::from_go(&fs::read_to_string(
         profile
             .join("native-run-intents")

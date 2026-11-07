@@ -324,6 +324,9 @@ func (s *Store) ApplyFactoryGrant(ctx context.Context, principal string, change 
 	if err = settleGrantWithdrawalTx(ctx, tx, scope.repository, withdraw, scope.cause, principal, &result); err != nil {
 		return result, err
 	}
+	if err = revokeUnconsentedRunsTx(ctx, tx, scope.repository); err != nil {
+		return result, err
+	}
 	input, err := factoryAuthorityInput(ctx, tx, scope.repository, project.RoleCoder)
 	if err != nil {
 		return result, err

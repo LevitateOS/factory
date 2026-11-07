@@ -244,6 +244,11 @@ func settleOutcome(state execution.RunObservation) (factory.Outcome, bool) {
 	if state.Retirement != execution.Retired {
 		return "", false
 	}
+	// Confirmed cancellation kills the child; that signal is not an independent
+	// execution failure. Other signalled exits retain their failure outcome.
+	if state.Phase == project.FactoryStopped && state.Reason == "cancelled" {
+		return factory.Cancelled, true
+	}
 	// A native service can retire cleanly after its child was killed. Preserve
 	// the child's observed failure even if an adapter reports a completed phase.
 	if nativeExitFailure(state) != "" {

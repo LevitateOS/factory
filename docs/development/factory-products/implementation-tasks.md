@@ -88,7 +88,11 @@ The owner also delegates provider request/token internals to Muse; Factory keeps
 source/allowance, deadline, model-step and captured-output limits. Version-4 intent
 and host-process receipt facts keep this source distinct from the token lane.
 Product output is the final CLI answer; bounded native transcripts remain private.
-Source withdrawal/refusal during work, complete role/configuration confinement,
+Selected-source withdrawal during work now revokes its capability transactionally
+and requests native retirement independently of other active sources. The local
+CLI integration proved immediate MCP refusal, process/root cancellation, original
+source accounting and no capability revival; evidence is recorded in A01/A11.
+Connected withdrawal/refusal, complete role/configuration confinement,
 isolated task/workspace effects and broader crash/installed qualification remain
 dependencies. Completed-entry acknowledgement now frees native capacity after
 canonical accounting, and terminal receipts survive that release and restart.

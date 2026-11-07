@@ -108,8 +108,14 @@ corrections are now active; the old feature queue waits for their resolution.
   `/home/vince/tmp/fmuse-timeout-reconcile7.N2QE1d/result.log`, preserving its
   before-state and charging one admitted minute without rerunning inference.
   Accounting now cannot extend beyond the admitted deadline during later recovery.
+  Selected-source withdrawal now atomically revokes the run capability and retries
+  native retirement through the existing progress loop, even when another source
+  keeps repository dispatch open. Actual local CLI/MCP/process/root cancellation,
+  original-source usage, unrelated reviewer selection and refusal to revive the
+  old capability passed in `/home/vince/tmp/fmuse-withdraw7.1jegf3/result.log`.
+  No provider request or saved-login mutation ran in that check.
   Active-service/incomplete-receipt recovery, exact early-stop attribution after
-  delayed settlement, active withdrawal/refusal, reviewer execution, broader
+  delayed settlement, connected withdrawal/refusal, reviewer execution, broader
   role/configuration confinement and installed qualification remain open.
   No broad security or full-pipeline gate is closed.
 

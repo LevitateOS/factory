@@ -113,6 +113,19 @@ func lockMCPCapabilityTx(ctx context.Context, tx *sql.Tx, capabilityID, assignme
 	var capability factory.MCPCapability
 	var state string
 	var raw []byte
+	// Match grant withdrawal's gate-before-capability order. Legacy unbound
+	// fixture capabilities have no dispatch gate and never supply live proof.
+	var repository int64
+	if err := tx.QueryRowContext(ctx, `SELECT (data->>'repository')::bigint FROM factory_mcp_capabilities WHERE id=$1`, capabilityID).Scan(&repository); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return capability, ErrMCPSubmissionCapabilityInactive
+		}
+		return capability, err
+	}
+	var open bool
+	if err := tx.QueryRowContext(ctx, `SELECT open FROM factory_dispatch WHERE repository=$1 FOR SHARE`, repository).Scan(&open); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return capability, err
+	}
 	if err := tx.QueryRowContext(ctx, `SELECT state,data FROM factory_mcp_capabilities WHERE id=$1 FOR UPDATE`, capabilityID).Scan(&state, &raw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return capability, ErrMCPSubmissionCapabilityInactive
@@ -128,6 +141,9 @@ func lockMCPCapabilityTx(ctx context.Context, tx *sql.Tx, capabilityID, assignme
 	}
 	capability = data.MCPCapability
 	capability.State = state
+	if capability.Repository != repository {
+		return capability, ErrMCPCapabilityConflict
+	}
 	if data.Live {
 		if err := checkMCPWorkActiveTx(ctx, tx, capability); err != nil {
 			return capability, err

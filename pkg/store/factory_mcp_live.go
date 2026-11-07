@@ -31,6 +31,14 @@ func (s *Store) ActivateObservedMCPCapability(ctx context.Context, observed fact
 		return err
 	}
 	defer tx.Rollback()
+	// Grant changes take the repository gate before capability rows.
+	var open bool
+	if err = tx.QueryRowContext(ctx, `SELECT open FROM factory_dispatch WHERE repository=$1 FOR SHARE`, observed.Repository).Scan(&open); err != nil {
+		return err
+	}
+	if !open {
+		return ErrAdmissionChanged
+	}
 	var raw []byte
 	var state string
 	if err = tx.QueryRowContext(ctx, `SELECT state,data FROM factory_mcp_capabilities WHERE id=$1 FOR UPDATE`, observed.ID).Scan(&state, &raw); err != nil {
@@ -104,6 +112,13 @@ func checkMCPWorkActiveTx(ctx context.Context, tx *sql.Tx, capability factory.MC
 	var run factory.Run
 	if err := json.Unmarshal(raw, &run); err != nil {
 		return err
+	}
+	consent, err := runConsentTx(ctx, tx, assignment, run)
+	if err != nil {
+		return err
+	}
+	if !consent {
+		return ErrAdmissionChanged
 	}
 	if run.Native != nil {
 		if run.Validate() != nil || run.Admission == nil || run.Admission.Native == nil {

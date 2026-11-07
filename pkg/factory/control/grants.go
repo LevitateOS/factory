@@ -71,5 +71,27 @@ func (c *Coordinator) applyGrant(ctx context.Context, principal string, record a
 		c.cancelRepositoryPublications(bounded, repository)
 		c.cancelRepositoryMerges(bounded, repository)
 	}
+	if repository > 0 {
+		c.stopRevokedRuns(bounded, repository)
+	}
 	return result, nil
+}
+
+// The committed capability revocation remains the retry source if this request
+// ends before native retirement. It is independent of the progress-pass mutex.
+func (c *Coordinator) stopRevokedRuns(ctx context.Context, repository int64) {
+	if c.Host == nil || c.Broker == nil {
+		return
+	}
+	runs, err := c.Store.RevokedFactoryRuns(ctx, repository, MaxDispatchRecovery)
+	if err != nil {
+		return
+	}
+	budget := readinessBudgetFrom(ctx)
+	for _, run := range runs {
+		if ctx.Err() != nil || budget != nil && !budget.reserveNativeRPC(5) {
+			return
+		}
+		c.settleRun(ctx, run)
+	}
 }

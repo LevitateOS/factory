@@ -116,6 +116,7 @@ func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparati
 		}
 	}()
 	c.observeProgressStage("settlement")
+	c.stopRevokedRuns(ctx, 0)
 	budget := readinessBudgetFrom(ctx)
 	runs, err := c.Store.FactoryUnsettledRuns(ctx, MaxDispatchRecovery)
 	if err != nil {

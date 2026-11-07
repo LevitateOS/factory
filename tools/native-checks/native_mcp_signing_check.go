@@ -1238,7 +1238,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" {
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -1399,7 +1399,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	var input struct {
 		Run, Connection, Preparation, Executable string
-		MuseLogin, Live                          bool
+		MuseLogin, Live, Withdraw                bool
 	}
 	if json.Unmarshal(raw, &input) != nil || !factory.ValidID(input.Run) {
 		return errors.New("admitted fixture input invalid")
@@ -1479,6 +1479,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	var repository int64
 	if err = rawDB.QueryRowContext(ctx, `SELECT repository FROM factory_native_workspaces WHERE id=$1`, p.Project).Scan(&repository); err != nil {
 		return err
+	}
+	if action == "withdraw-admitted-native" {
+		return withdrawAdmittedNative(ctx, db, rawDB, port, input.Run, repository, input.Connection)
 	}
 	if action == "settled-admitted-native" {
 		run, err := db.FactoryRun(ctx, input.Run)
@@ -1602,6 +1605,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	if input.Live {
 		prompt = []byte("Disposable Factory connector integration task. Use the available Factory MCP tools only. Publish an artifact with upload_id 11111111111111111111111111111111, name native-worker.txt, media_type text/plain, content_base64 YWN0dWFsIGFkbWl0dGVkIG5hdGl2ZSB3b3JrZXIgYXJ0aWZhY3QK, final true. Then call finish_incomplete with outcome blocked and cause local_fixture_has_no_provider_result. This intentionally records an incomplete product result; do not invent an implementation, plan or provider permissions. Finish with OK after both tools succeed.")
 	}
+	if input.Withdraw {
+		prompt = append(prompt, []byte("\nwithdraw-source-fixture\n")...)
+	}
 	toolBytes, err := os.ReadFile(input.Executable)
 	if err != nil {
 		return err
@@ -1665,6 +1671,132 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
 	return nil
+}
+
+// Uses the existing admitted local CLI fixture: no provider request or login
+// mutation. The alternate source is declared metadata, never a fallback login.
+func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB, port factoryruntime.NativeExecution, runID string, repository int64, connection string) error {
+	var active factory.MCPCapability
+	until := time.Now().Add(12 * time.Second)
+	for {
+		cap, err := db.GetMCPCapability(ctx, runID)
+		if err != nil {
+			return err
+		}
+		var artifact bool
+		if err = rawDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_feed_artifacts WHERE assignment=$1 AND complete)`, cap.AssignmentID).Scan(&artifact); err != nil {
+			return err
+		}
+		if cap.State == factory.MCPCapabilityActive && artifact {
+			active = cap
+			break
+		}
+		if time.Now().After(until) || ctx.Err() != nil {
+			return errors.New("withdrawal fixture never reached a live admitted artifact")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	run, err := db.FactoryRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	observed, err := port.InspectRun(ctx, execution.RunAddress{Run: runID, Workspace: run.ProjectID})
+	if err != nil || !observed.Live {
+		return errors.New("withdrawal fixture is not actually live")
+	}
+	selected, err := db.Sponsorship(ctx, repository, connection)
+	if err != nil {
+		return err
+	}
+	coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
+	other := selected
+	other.Connection, other.Revision = factory.NewID(), 0
+	other.Native = &factory.NativeSponsorship{Profile: selected.Native.Profile, CredentialSHA256: strings.Repeat("a", 64)}
+	other.Roles = []string{project.RoleReviewer}
+	if _, err = coordinator.ApplySponsorship(ctx, "native-source-fixture", other); err != nil {
+		return err
+	}
+	policy, err := db.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
+	}
+	reviewer := policy.Roles[project.RoleReviewer]
+	reviewer.Account = other.Connection
+	policy.Roles[project.RoleReviewer] = reviewer
+	if _, err = coordinator.ApplyPolicy(ctx, "native-source-fixture", policy); err != nil {
+		return err
+	}
+	if cap, err := db.GetMCPCapability(ctx, runID); err != nil || cap.State != factory.MCPCapabilityActive {
+		return errors.New("unrelated reviewer selection revoked the coder")
+	}
+	selected.Active = false
+	result, err := coordinator.ApplySponsorship(ctx, "native-source-fixture", selected)
+	if err != nil {
+		return err
+	}
+	var open bool
+	if err = rawDB.QueryRowContext(ctx, `SELECT open FROM factory_dispatch WHERE repository=$1`, repository).Scan(&open); err != nil || !open || result.Withdrawn {
+		return fmt.Errorf("alternate active source did not preserve repository dispatch: %v", err)
+	}
+	if cap, err := db.GetMCPCapability(ctx, runID); err != nil || cap.State != factory.MCPCapabilityRevoked {
+		return errors.New("selected source withdrawal did not durably revoke its run")
+	}
+	admission := factoryservice.WorkerAdmission{Store: db, Inspect: port.InspectRun}
+	if _, err = admission.Prepare(ctx, active); err == nil {
+		return errors.New("withdrawn source still admits a cached worker capability")
+	}
+	submission := factory.MCPSubmission{AssignmentID: active.AssignmentID, SubmissionID: factory.NewID(), CapabilityID: active.ID, Tool: factory.MCPToolFinishIncomplete, Payload: []byte(`{"outcome":"blocked","cause":"must_be_refused"}`)}
+	if _, err = db.RecordMCPSubmission(ctx, submission); err == nil {
+		return errors.New("withdrawn source recorded new worker work")
+	}
+	var recorded bool
+	if err = rawDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_feed_posts WHERE idempotency=$1)`, submission.SubmissionID).Scan(&recorded); err != nil || recorded {
+		return errors.New("refused withdrawal submission left a work post")
+	}
+	until = time.Now().Add(12 * time.Second)
+	for {
+		run, err = db.FactoryRun(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if run.Reconciled {
+			break
+		}
+		if time.Now().After(until) || ctx.Err() != nil {
+			return errors.New("withdrawn native run retirement remains unconfirmed")
+		}
+		if _, err = coordinator.Stop(ctx, runID); err != nil {
+			return err
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if run.Outcome != factory.Cancelled || run.Native == nil || !run.Native.Settled() || run.Native.Provenance.Custody.State != execution.NotAcquired {
+		return fmt.Errorf("withdrawn run did not retain actual cancelled/retired source facts: %s", run.Outcome)
+	}
+	used, err := db.UsageTotal(ctx, repository, connection)
+	if err != nil || used < 1 {
+		return errors.New("withdrawn source usage was not attributed to its selected connection")
+	}
+	if used, err = db.UsageTotal(ctx, repository, other.Connection); err != nil || used != 0 {
+		return errors.New("withdrawal switched spending sources")
+	}
+	selected, err = db.Sponsorship(ctx, repository, connection)
+	if err != nil {
+		return err
+	}
+	selected.Active = true
+	if _, err = coordinator.ApplySponsorship(ctx, "native-source-fixture", selected); err != nil {
+		return err
+	}
+	if err = db.ActivateObservedMCPCapability(ctx, active); err == nil {
+		return errors.New("re-enabling a source revived its old run capability")
+	}
+	source, err := port.MuseLoginSource(ctx)
+	if err != nil || source.Connection != connection {
+		return errors.New("Factory withdrawal changed the Muse login source")
+	}
+	fmt.Println("PASS: selected-source withdrawal with another source active: immediate MCP refusal, actual process/root cancellation, original-source usage, no fallback or old-capability revival; local CLI fixture, no provider request/login mutation")
+	return port.AcknowledgeSettledRuns(ctx)
 }
 
 // Declared repository visibility; actual native keyring/owner observation,
@@ -2358,6 +2490,10 @@ func workerProfileFixture() error {
 	if cli {
 		if !admitted {
 			return errors.New("CLI fixture has no captured Go admission")
+		}
+		if strings.Contains(string(prompt), "withdraw-source-fixture") {
+			time.Sleep(120 * time.Second) // The real native owner must cancel this process.
+			return errors.New("withdrawal fixture was not cancelled")
 		}
 		if _, err := workerMCPCall(client, "factory.finish_incomplete", map[string]any{"outcome": "blocked", "cause": "local_fixture_has_no_provider_result"}); err != nil {
 			return err
