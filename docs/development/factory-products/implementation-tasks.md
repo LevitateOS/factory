@@ -131,8 +131,11 @@ accounting/deleted-source checks with declared tool/provider facts. Actual
 subscription inference remains pending. Planning/advice and worker context-bundle
 selection now use explicit repository scope on that owner; A25 records the local
 scoped-advice receipt check and its declared-input limits. Complete planning and
-worker context journeys, queue/delivery/contribution/consultation consumers still
-need their remaining proof or composition before dependent work resumes;
+worker context journeys still need qualification. Worker consultation primitives
+now use the same selected source and retain their single/batch contracts; A25
+records local typed-result/accounting proof and the pending authenticated worker
+journey. Queue/delivery/contribution consumers still need composition before
+dependent work resumes;
 the full automated pipeline remains required.
 Native New request planning/exploration commands now share the admitted request
 service and existing coordinator. A05/A21 records the actual draft/preparation

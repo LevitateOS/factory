@@ -265,6 +265,12 @@ not a funding or replay receipt. Optional journal-less advice keeps its existing
 behavior. The service introduces no credential/provider SDK, workflow grant,
 automatic retry or second ledger. MCP authentication, rate slots, envelope size
 and schema framing remain in transport, which supplies an admitted capability.
+Native transport binds its selected-source provider from that capability after
+admission. It preserves the three primitive contracts and one-call batches,
+uses one existing command per explicit invocation, and checks the worker again
+before adopting a result. Its usage envelope reports the actual elapsed process
+interval; no provider token counts are inferred. Completed native raw output is
+accounted before typed-answer validation and grants no workflow authority.
 
 `WorkerContext` loads already admitted worker context from canonical terminal,
 assignment, run, priority-receipt and required-current sources. Those shared

@@ -147,7 +147,7 @@ func (s WorkerConsultations) Evaluate(ctx context.Context, cap factory.MCPCapabi
 	for key, value := range answer {
 		result[key] = value
 	}
-	result["consultation"] = map[string]any{"post_id": factory.FeedConsultationPostID(snapshot), "work_post": map[string]any{"kind": "record", "id": cap.AssignmentID}, "follow_up": "Reply to this consultation with your interpretation and chosen next action. Use factory.record_decision for a durable decision. JEV output above is advice, not an implemented or authorized change."}
+	result["consultation"] = map[string]any{"post_id": factory.FeedConsultationPostID(snapshot), "work_post": map[string]any{"kind": "record", "id": cap.AssignmentID}, "follow_up": "Reply to this consultation with your interpretation and chosen next action. Use factory.record_decision for a durable decision. The judgment above is advice, not an implemented or authorized change."}
 	return result, nil
 }
 

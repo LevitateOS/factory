@@ -54,6 +54,12 @@ func (s NativeJudgments) ReconcilePostJudgments(ctx context.Context) {
 			continue
 		}
 		cancel := s.Store.CheckNativeJudgmentSource(ctx, capture) != nil
+		if capture.WorkerCapability != "" {
+			cap, err := s.Store.GetMCPCapability(ctx, capture.WorkerCapability)
+			if err != nil || cap.ScopeDigest() != capture.WorkerScope || cap.State != factory.MCPCapabilityActive || cap.Expired(time.Now()) || s.Store.CheckMCPWorkActive(ctx, cap) != nil {
+				cancel = true
+			}
+		}
 		if capture.SourcePost != "" {
 			post, err := s.Store.FeedPost(ctx, capture.SourcePost)
 			if err != nil && !errors.Is(err, store.ErrNotFound) {
@@ -97,6 +103,7 @@ type nativeRepositoryJudgment struct {
 	sourcePost     string
 	sourceRevision int64
 	admit          func(context.Context) error
+	worker         *factory.MCPCapability
 }
 
 type nativeJudgmentProcess struct {
@@ -137,6 +144,7 @@ type nativeJudgmentReply struct {
 }
 type nativeJudgmentOutcome struct {
 	Answer  *factory.PriorityAnswer `json:"answer,omitempty"`
+	Output  json.RawMessage         `json:"output,omitempty"`
 	Process nativeJudgmentProcess   `json:"process"`
 }
 
@@ -155,6 +163,18 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 	if err != nil {
 		return empty, err
 	}
+	outcome, err := s.infer(ctx, prompt, factory.NativeJudgmentOptionsDigest(optionKeys), "", &request)
+	if err != nil {
+		return empty, err
+	}
+	if outcome.Answer == nil || outcome.Answer.Validate(request) != nil {
+		return empty, control.ErrPriorityUnavailable
+	}
+	return *outcome.Answer, nil
+}
+
+func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDigest, outputKind string, request *factory.PriorityRequest) (nativeJudgmentOutcome, error) {
+	var empty nativeJudgmentOutcome
 	sha := factory.MCPInputDigest([]byte(prompt))
 	id := factory.NativeJudgmentID(s.Config.Profile, s.repository, s.subject)
 	cmd, err := s.Store.FactoryCommand(ctx, id)
@@ -176,7 +196,13 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 		if e != nil || tool.Native == nil {
 			return empty, factoryservice.ErrPostJudgmentPending
 		}
-		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: *policy.Judgments, PromptSHA256: sha, OptionsSHA256: factory.NativeJudgmentOptionsDigest(optionKeys), ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: *policy.Judgments, PromptSHA256: sha, OptionsSHA256: optionsDigest, OutputKind: outputKind, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		if s.worker != nil {
+			capture.WorkerCapability, capture.WorkerScope = s.worker.ID, s.worker.ScopeDigest()
+			if deadline := time.Unix(s.worker.DeadlineUnix, 0).UnixMilli(); deadline < capture.DeadlineUnixMS {
+				capture.DeadlineUnixMS = deadline
+			}
+		}
 		cmd, fresh, err = s.Store.BeginNativeJudgment(ctx, capture)
 		if errors.Is(err, store.ErrNativeJudgmentSource) || errors.Is(err, store.ErrNotFound) {
 			return empty, factoryservice.ErrPostJudgmentPending
@@ -196,7 +222,7 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 	if current == nil && (s.admit == nil || s.admit(ctx) != nil) {
 		current = factoryservice.ErrCapturedIssueSource
 	}
-	matchingInput := capture.PromptSHA256 == sha
+	matchingInput := capture.PromptSHA256 == sha && capture.OutputKind == outputKind && (capture.OptionsSHA256 == optionsDigest || (outputKind == "" && capture.OptionsSHA256 == ""))
 	if cmd.Finished != "" {
 		if !matchingInput {
 			return empty, control.ErrPriorityUnavailable
@@ -205,10 +231,10 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 			return empty, factoryservice.ErrPostJudgmentPending
 		}
 		var saved nativeJudgmentOutcome
-		if nativeDecode([]byte(cmd.Outcome), &saved) != nil || saved.Answer == nil || saved.Answer.Validate(request) != nil {
+		if nativeDecode([]byte(cmd.Outcome), &saved) != nil {
 			return empty, control.ErrPriorityUnavailable
 		}
-		return *saved.Answer, nil
+		return saved, nil
 	}
 	var reply nativeJudgmentReply
 	if fresh && current == nil {
@@ -227,19 +253,19 @@ func (s nativeRepositoryJudgment) Select(ctx context.Context, state any, questio
 	}
 	var originalOptions *factory.PriorityRequest
 	if matchingInput {
-		originalOptions = &request
+		originalOptions = request
 	}
 	outcome, err := finishNativeJudgment(ctx, s.NativeExecution, capture, cmd, reply.Result, originalOptions)
 	if err != nil {
 		return empty, err
 	}
+	if !matchingInput {
+		return empty, control.ErrPriorityUnavailable
+	}
 	if s.Store.CheckNativeJudgmentSource(ctx, capture) != nil || s.admit == nil || s.admit(ctx) != nil {
 		return empty, factoryservice.ErrPostJudgmentPending
 	}
-	if outcome.Answer == nil {
-		return empty, control.ErrPriorityUnavailable
-	}
-	return *outcome.Answer, nil
+	return outcome, nil
 }
 
 func finishNativeJudgment(ctx context.Context, native NativeExecution, capture factory.NativeJudgmentCapture, cmd factory.Command, r *nativeJudgmentResult, request *factory.PriorityRequest) (nativeJudgmentOutcome, error) {
@@ -252,26 +278,34 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 	}
 	outcome := nativeJudgmentOutcome{Process: p}
 	if p.ExitCode != nil && *p.ExitCode == 0 && p.Reason != nil && *p.Reason == "exited" && r.Output != nil {
-		var answer struct {
-			Selected      string             `json:"selected"`
-			Confidence    float64            `json:"confidence"`
-			Probabilities map[string]float64 `json:"probabilities"`
-		}
-		if nativeDecode([]byte(*r.Output), &answer) == nil {
-			keys := make([]string, 0, len(answer.Probabilities))
-			for key := range answer.Probabilities {
-				keys = append(keys, key)
+		if capture.OutputKind == "consultation" {
+			// Leave room for process evidence in the existing 64 KiB journal
+			// outcome. Oversized or malformed answers still settle actual usage.
+			if len(*r.Output) <= 48*1024 && json.Valid([]byte(*r.Output)) {
+				outcome.Output = json.RawMessage(*r.Output)
 			}
-			boundOptions := capture.OptionsSHA256 != "" && factory.NativeJudgmentOptionsDigest(keys) == capture.OptionsSHA256
-			if request == nil && capture.SourcePost == "" && boundOptions {
-				request = &factory.PriorityRequest{}
-				for _, key := range keys {
-					request.Candidates = append(request.Candidates, factory.PriorityCandidate{ID: key})
+		} else {
+			var answer struct {
+				Selected      string             `json:"selected"`
+				Confidence    float64            `json:"confidence"`
+				Probabilities map[string]float64 `json:"probabilities"`
+			}
+			if nativeDecode([]byte(*r.Output), &answer) == nil {
+				keys := make([]string, 0, len(answer.Probabilities))
+				for key := range answer.Probabilities {
+					keys = append(keys, key)
 				}
-			}
-			selected := factory.PriorityAnswer{Selected: answer.Selected, Confidence: answer.Confidence, Probabilities: answer.Probabilities, Model: capture.Selection.Model}
-			if request != nil && (capture.OptionsSHA256 == "" || boundOptions) && selected.Validate(*request) == nil {
-				outcome.Answer = &selected
+				boundOptions := capture.OptionsSHA256 != "" && factory.NativeJudgmentOptionsDigest(keys) == capture.OptionsSHA256
+				if request == nil && capture.SourcePost == "" && boundOptions {
+					request = &factory.PriorityRequest{}
+					for _, key := range keys {
+						request.Candidates = append(request.Candidates, factory.PriorityCandidate{ID: key})
+					}
+				}
+				selected := factory.PriorityAnswer{Selected: answer.Selected, Confidence: answer.Confidence, Probabilities: answer.Probabilities, Model: capture.Selection.Model}
+				if request != nil && (capture.OptionsSHA256 == "" || boundOptions) && selected.Validate(*request) == nil {
+					outcome.Answer = &selected
+				}
 			}
 		}
 	}

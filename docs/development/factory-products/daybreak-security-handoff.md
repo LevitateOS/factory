@@ -76,9 +76,23 @@ original option-key digest so background completion cannot accept an invented
 option set. `/home/vince/tmp/fnative-purpose-judgment9.BWTdCE/result.log` proves
 local scoped-advice adoption/cache replay and unscoped refusal with declared
 tool/answer/advice facts. Complete current planning and worker-context admission,
-source/account withdrawal races and installed journeys remain unverified. Queue,
-delivery, contribution and worker consultation composition remains absent;
-Coding/Review permission grants no judgment-source authority.
+source/account withdrawal races and installed journeys remain unverified.
+Worker consultation composition is now in `runtime/native_worker_judgment.go`,
+`runtime/native_worker_mcp.go` and `mcpserver/{dependencies,systemone}.go` under
+`pkg/factory/`. Production binds the authenticated capability, checks existing
+worker admission before dispatch/adoption, captures its ID/scope for background
+cancellation and bounds inference by the worker deadline. Each explicit call has
+one command, including one-call batches; raw retired output is not authority.
+`/home/vince/tmp/fnative-consultation9.IghMDx/result.log` proves local native
+process → IPC → bounded outcome/accounting and shared validation of probability,
+choice and score batches with declared tool/inputs/answers. It does not exercise
+the authenticated worker callback or production start. To close that scope, run
+a real admitted worker through each single/batch contract and its discussion
+journal; prove refusal/cancellation and no adoption across worker expiry/stop,
+capability/source withdrawal and interrupted-result recovery. Those checks depend
+on the production start/official Muse tool and admitted worker, remain
+unverified, and close no broad gate. Queue, delivery and contribution composition
+remains absent; Coding/Review permission grants no judgment-source authority.
 
 **A05/A21 native request-planning commands:** `runtime/native_product.go` and
 `service/request_progress.go` under `pkg/factory/` bind the existing request

@@ -35,7 +35,7 @@ func (p *TypeSafeSystemOne) Evaluate(ctx context.Context, kind string, state, in
 		if answer["type"] != kind {
 			return nil, errors.New("System One returned a different question type")
 		}
-		if err := validateSystemOneAnswer(kind, answer, criteria); err != nil {
+		if err := ValidateSystemOneAnswer(kind, answer, criteria); err != nil {
 			return nil, err
 		}
 		if err := validateSystemOneEnvelope(out); err != nil {
@@ -95,7 +95,7 @@ func (p *TypeSafeSystemOne) EvaluateQuestions(ctx context.Context, kind string, 
 			if answer["type"] != kind {
 				return nil, errors.New("System One batch is missing a typed answer")
 			}
-			if err := validateSystemOneAnswer(kind, answer, question.Criteria); err != nil {
+			if err := ValidateSystemOneAnswer(kind, answer, question.Criteria); err != nil {
 				return nil, err
 			}
 			batch[id] = answer
@@ -168,7 +168,9 @@ func systemOneDistribution(answer map[string]any, expected []string) (map[string
 	return dist, nil
 }
 
-func validateSystemOneAnswer(kind string, answer map[string]any, criteria any) error {
+// ValidateSystemOneAnswer checks the shared primitive contract independently of
+// the provider transport and its funding or usage envelope.
+func ValidateSystemOneAnswer(kind string, answer map[string]any, criteria any) error {
 	switch kind {
 	case "noul":
 		// The noul primitive carries no separate confidence field;

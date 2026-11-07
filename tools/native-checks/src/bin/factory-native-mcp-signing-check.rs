@@ -391,6 +391,21 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         let probabilities:serde_json::Map<String,serde_json::Value>=options.keys().map(|key|(key.clone(),serde_json::json!(if key=="discussion"{1}else{0}))).collect();
         let answer=serde_json::json!({"selected":"discussion","confidence":1,"probabilities":probabilities});
         println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
+    } else if prompt.starts_with("Answer the independent Factory consultation") {
+        let input:serde_json::Value=serde_json::from_str(prompt.split_once('\n').ok_or("consultation input absent")?.1)?;
+        let kind=input["type"].as_str().ok_or("consultation type absent")?;
+        let mut answers=serde_json::Map::new();
+        for (id,question) in input["questions"].as_object().ok_or("consultation questions absent")? {
+            let answer=match kind {
+                "noul"=>serde_json::json!({"type":"noul","noul":0.8}),
+                "score"=>serde_json::json!({"type":"score","score":0.75,"confidence":0.9,"legend":{"0":question["criteria"][0],"1":question["criteria"][1]},"probabilities":{"0":0.25,"1":0.75}}),
+                "choice"=>serde_json::json!({"type":"choice","choice":"discussion","confidence":1,"probabilities":{"discussion":1,"hold":0}}),
+                _=>return Err("unknown consultation type".into()),
+            };
+            answers.insert(id.clone(),answer);
+        }
+        let answer=serde_json::json!({"answers":answers});
+        println!("{}",serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":answer.to_string()}}));
     } else if prompt == "judgment" {
         println!("{{\"schema_version\":1,\"payload_type\":\"run.terminal.completed\",\"payload\":{{\"terminal\":\"completed\",\"text\":\"{{\\\"selected\\\":\\\"new_issue\\\",\\\"confidence\\\":1,\\\"probabilities\\\":{{\\\"new_issue\\\":1,\\\"discussion\\\":0}}}}\"}}}}");
     } else if prompt == "finish" {
@@ -487,7 +502,7 @@ fn judgment_connector(root: &Path, prepared: bool) -> Result<(), Box<dyn std::er
         if index == 0
             && result["result"]["output"]
                 .as_str()
-                .is_none_or(|s| !s.contains(if prepared {"discussion"}else{"new_issue"}))
+                .is_none_or(|s| !s.contains(if fixture.as_ref().is_some_and(|f| f["capture"]["output_kind"]=="consultation") {"answers"}else if prepared {"discussion"}else{"new_issue"}))
         {
             return Err("native judgment lost its terminal answer".into());
         }

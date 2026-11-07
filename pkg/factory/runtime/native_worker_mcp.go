@@ -22,11 +22,13 @@ func (p NativeExecution) workerDependencies(lifetime context.Context) mcpserver.
 	admission := service.WorkerAdmission{Store: p.Store, Inspect: p.InspectRun}
 	tasks := service.WorkerTasks{Store: p.Store, Inspect: p.InspectRun, Command: p.CommandTask}
 	return mcpserver.Dependencies{Capabilities: p.Store, Assignments: p.Store, Submissions: p.Store, Runs: p.Store,
-		Prepare:    admission.Prepare,
-		NativeTask: tasks.Execute,
-		Workspace:  tasks.Workspace,
-		ReadSource: (service.WorkerSource{Store: p.Store, Reader: p}).Read,
-		ListSource: (service.WorkerSource{Store: p.Store, Reader: p}).List,
+		SystemOneForWorker:  p.ConsultationsForWorker,
+		ConsultationJournal: p.Store,
+		Prepare:             admission.Prepare,
+		NativeTask:          tasks.Execute,
+		Workspace:           tasks.Workspace,
+		ReadSource:          (service.WorkerSource{Store: p.Store, Reader: p}).Read,
+		ListSource:          (service.WorkerSource{Store: p.Store, Reader: p}).List,
 		Observed: func(cap factory.MCPCapability) (control.MCPRunObservation, error) {
 			ctx, cancel := context.WithTimeout(lifetime, 5*time.Second)
 			defer cancel()

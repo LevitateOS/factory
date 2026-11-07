@@ -650,9 +650,10 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         let joined_judgment = std::env::var("SODA_NATIVE_CHECK_JUDGMENT_EXECUTABLE").ok();
         if let Some(executable) = &joined_judgment {
-          for mode in ["feed","orphan","purpose"] {
+          for mode in ["feed","orphan","purpose","consultation-choice","consultation-noul","consultation-score"] {
             let orphan=mode=="orphan";
             let purpose=mode=="purpose";
+            let consultation=mode.strip_prefix("consultation-");
             if mode!="feed" {
                 runtime.stop()?;
                 runtime=NativeSupervisor::start(payload,production,profile)?;
@@ -675,7 +676,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 "judgment fixture post was refused",
             )?;
             let post = saved.1["post_id"].as_str().ok_or("judgment post absent")?;
-            let scoped_post=if purpose {format!("purpose:{post}")}else{post.into()};
+            let scoped_post=if let Some(kind)=consultation {format!("consultation:{kind}:{post}")}else if purpose {format!("purpose:{post}")}else{post.into()};
             let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
             ensure(
                 std::process::Command::new(&helper)
@@ -706,7 +707,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             }
             runtime.start_execution_coordinator().await?;
             let until = Instant::now() + Duration::from_secs(15);
-            while !orphan && !purpose {
+            while !orphan && !purpose && consultation.is_none() {
                 let read = call(
                     &runtime,
                     &store,

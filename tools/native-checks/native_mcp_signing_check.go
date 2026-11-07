@@ -4586,6 +4586,10 @@ func orphanJudgmentFixture(profile, post string) error {
 }
 
 func judgmentResultFixture(profile, post string, prepare bool) error {
+	consultationKind := ""
+	if strings.HasPrefix(post, "consultation:") {
+		consultationKind, post, _ = strings.Cut(strings.TrimPrefix(post, "consultation:"), ":")
+	}
 	purpose := strings.HasPrefix(post, "purpose:")
 	post = strings.TrimPrefix(post, "purpose:")
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
@@ -4601,12 +4605,13 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	defer db.Close()
 	path := filepath.Join(profile, "judgment-fixture.json")
 	var fixture struct {
-		Capture  factory.NativeJudgmentCapture `json:"capture"`
-		Prompt   string                        `json:"prompt"`
-		Digest   string                        `json:"digest"`
-		State    json.RawMessage               `json:"state"`
-		Options  map[string]any                `json:"options"`
-		Question string                        `json:"question"`
+		Capture   factory.NativeJudgmentCapture              `json:"capture"`
+		Prompt    string                                     `json:"prompt"`
+		Digest    string                                     `json:"digest"`
+		State     json.RawMessage                            `json:"state"`
+		Options   map[string]any                             `json:"options"`
+		Question  string                                     `json:"question"`
+		Questions map[string]factory.SystemOneWorkerQuestion `json:"questions,omitempty"`
 	}
 	if !prepare {
 		raw, err := os.ReadFile(path)
@@ -4629,19 +4634,38 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		}
 		var result struct {
 			Answer *factory.PriorityAnswer `json:"answer"`
+			Output json.RawMessage         `json:"output"`
 		}
 		detail, err := db.FeedPost(ctx, post)
 		if err != nil {
 			return err
 		}
 		if cmd.Finished == "" || json.Unmarshal([]byte(cmd.Outcome), &result) != nil ||
-			(!detail.Record.Deleted && (result.Answer == nil || result.Answer.Selected != "discussion" || result.Answer.Model != fixture.Capture.Selection.Model)) ||
+			(consultationKind == "" && !detail.Record.Deleted && (result.Answer == nil || result.Answer.Selected != "discussion" || result.Answer.Model != fixture.Capture.Selection.Model)) ||
 			(detail.Record.Deleted && result.Answer != nil) {
 			return errors.New("actual native result was not adopted by the Go judgment owner")
 		}
 		usage, err := db.RunUsage(ctx, fixture.Capture.ID)
 		if err != nil || usage.Validate() != nil || usage.Connection != fixture.Capture.Selection.Account {
 			return errors.New("actual native judgment did not charge its original source")
+		}
+		if consultationKind != "" {
+			var response struct {
+				Answers map[string]map[string]any `json:"answers"`
+			}
+			if json.Unmarshal(result.Output, &response) != nil || len(response.Answers) != len(fixture.Questions) || result.Answer != nil {
+				return errors.New("native consultation lost its exact batch output")
+			}
+			for id, question := range fixture.Questions {
+				answer := response.Answers[id]
+				if answer["type"] != consultationKind {
+					return errors.New("native consultation changed question type")
+				}
+				if err := control.ValidateSystemOneAnswer(consultationKind, answer, question.Criteria); err != nil {
+					return err
+				}
+			}
+			fmt.Println("PASS: native consultation", consultationKind, "batch crossed private IPC, retained typed answers after restart and charged its exact source; tool/provider/input declared, authenticated worker journey pending")
 		}
 		if purpose {
 			native := factoryruntime.NativeJudgments{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}}
@@ -4664,7 +4688,7 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		}
 		if detail.Record.Deleted {
 			fmt.Println("PASS: deleted source's original native result was accounted after restart without adopting its judgment; no inference replay")
-		} else if !purpose {
+		} else if !purpose && consultationKind == "" {
 			fmt.Println("PASS: actual native process result crossed private IPC, passed Go choice validation, routed the real Feed post and charged its captured source; CLI/tool/provider answer declared, no model request")
 		}
 		return nil
@@ -4717,6 +4741,27 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 	capture := factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, detail.Record.Repository, subject), Profile: config.Profile, Repository: detail.Record.Repository, SourcePost: post, SourceRevision: detail.Record.Revision, Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OptionsSHA256: factory.NativeJudgmentOptionsDigest(keys), ToolVersion: "fixture", ToolSHA256: hex.EncodeToString(sum[:]), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
 	if purpose {
 		capture.SourcePost = ""
+	}
+	if consultationKind != "" {
+		criteria := any(nil)
+		switch consultationKind {
+		case "choice":
+			criteria = map[string]any{"discussion": "Discuss the supplied fact.", "hold": "Wait for more evidence."}
+		case "score":
+			criteria = []any{"missing evidence", "sufficient evidence"}
+		case "noul":
+			criteria = map[string]any{"true": "The supplied fact is sufficient.", "false": "More evidence is needed."}
+		default:
+			return errors.New("unknown declared consultation kind")
+		}
+		fixture.Questions = map[string]factory.SystemOneWorkerQuestion{"first": {Instructions: "Assess the supplied disposable fact.", Criteria: criteria}, "second": {Instructions: "Independently assess the supplied disposable fact.", Criteria: criteria}}
+		prompt, err = factory.NativeConsultationPrompt(consultationKind, state, fixture.Questions)
+		if err != nil {
+			return err
+		}
+		capture.ID = factory.NativeJudgmentID(config.Profile, detail.Record.Repository, "consultation:"+consultationKind+":"+post)
+		capture.SourcePost, capture.OptionsSHA256, capture.OutputKind = "", "", "consultation"
+		capture.PromptSHA256 = factory.MCPInputDigest([]byte(prompt))
 	}
 	cmd, fresh, err := db.BeginNativeJudgment(ctx, capture)
 	if err != nil || !fresh {

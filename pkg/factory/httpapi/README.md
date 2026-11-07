@@ -561,9 +561,13 @@ existing command/usage journals. Missing, withdrawn or unsupported sources wait
 without a fallback. Planning/advice and context-bundle selection also supply
 explicit repository scope to this owner, preserving their existing admission
 and completed-receipt reuse. Native calls without repository scope refuse
-funding. Queue, delivery and agent consultation consumers remain unavailable
-until composed. Local fixture checks do not qualify complete planning/context
-or connected/installed subscription inference.
+funding. Native worker consultations bind repository scope to their authenticated
+capability, preserving probability/choice/score and one-call batches on this
+source. Their existing discussion journal retains actual model/process usage;
+explicit repeats remain separate calls. Queue, delivery and contribution
+consumers remain unavailable until composed. Local fixture checks do not qualify
+complete planning/context, authenticated worker consultations or connected/
+installed subscription inference.
 
 Hosts bind the canonical actor/host and a separate nonsecret command principal;
 request bodies cannot choose attribution. Mutations require that principal and

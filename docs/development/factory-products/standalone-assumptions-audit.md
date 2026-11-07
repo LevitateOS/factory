@@ -123,9 +123,20 @@ corrections are now active; the old feature queue waits for their resolution.
   receipt replay and unscoped refusal check passed in
   `/home/vince/tmp/fnative-purpose-judgment9.BWTdCE/result.log`. Its product advice
   input, tool admission and answer were declared; it does not qualify a complete
-  planning walkthrough or worker context journey. Queue comparisons, delivery,
-  contribution and worker consultation primitives remain unconnected. No native
-  TypeSafe fallback is supplied.
+  planning walkthrough or worker context journey. Worker consultation primitives
+  now bind the authenticated capability and repository to this owner, preserving
+  single questions and one-call batches for probability, choice and score.
+  Explicit repeats get separate commands; polling never starts another call.
+  Native deadlines also respect the worker deadline. The existing consultation
+  journal receives the actual model and elapsed process usage, without invented
+  token counts. Local native process/private IPC/typed-result/source-accounting
+  checks passed for all three batch formats in
+  `/home/vince/tmp/fnative-consultation9.IghMDx/result.log`, with declared tool,
+  inputs and answers. This does not qualify the authenticated worker transport,
+  its live admission/withdrawal races or subscription inference. Oversized/invalid
+  output still accounts usage and cannot become an answer. Queue comparisons,
+  delivery and contribution invitations remain unconnected. No native TypeSafe
+  fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
   Feed submission captures its exact source revision, account, repository and
