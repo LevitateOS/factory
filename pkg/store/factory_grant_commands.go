@@ -105,7 +105,7 @@ func loadAuthorityProjectReadiness(ctx context.Context, q grantCommandSQL, repos
  JOIN project_approval_heads ah ON ah.project_id=rh.project_id JOIN project_approval_decisions a ON a.id=ah.decision
  JOIN factory_placements p ON p.repository=$2
  WHERE rh.project_id=$1 AND r.data->'native'=$3::jsonb AND a.data->'native'=$3::jsonb
- AND a.data->>'requirement'=r.id AND a.data->>'verified'='true'
+ AND a.data->>'requirement'=r.id AND (a.data->>'verified'='true' OR a.data->>'reviewed'='true')
  AND p.state='active' AND p.runtime=$4 AND p.generation=$5)`, environment.Project, repository, string(encoded), environment.Native.Runtime, environment.Native.Generation).Scan(&approved); err != nil {
 				return err
 			}

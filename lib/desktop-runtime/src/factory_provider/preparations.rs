@@ -47,7 +47,11 @@ fn save(path: &Path, value: &impl Serialize) -> io::Result<()> {
     save_bytes(path, &bytes)
 }
 fn load<T: serde::de::DeserializeOwned>(path: &Path) -> io::Result<T> {
-    serde_json::from_slice(&load_bytes(path, 2 * 1024 * 1024)?).map_err(io::Error::other)
+    serde_json::from_slice(&load_bytes(
+        path,
+        soda_execution_protocol::MAX_PREPARATION_REQUEST,
+    )?)
+    .map_err(io::Error::other)
 }
 struct DerivedSource {
     key: String,

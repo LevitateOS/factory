@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 type nativeOperationKey struct{}
@@ -229,8 +230,12 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 		return zero, errors.New("native operation unavailable")
 	}
 	defer response.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(response.Body, (2<<20)+1))
-	if err != nil || len(raw) > 2<<20 || ctx.Err() != nil {
+	responseLimit := 2 << 20
+	if read, ok := effect.(nativeReadEffect); ok && read.Query.Kind == "source_bundle" {
+		responseLimit = project.MaxSourceWire
+	}
+	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(responseLimit)+1))
+	if err != nil || len(raw) > responseLimit || ctx.Err() != nil {
 		return zero, errors.New("native observation unavailable")
 	}
 	if response.StatusCode != http.StatusOK {

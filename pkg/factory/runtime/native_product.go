@@ -141,6 +141,7 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		AdminAccess: bound.localResourceAccess}
 	product.Repositories.Runtime = factoryservice.RuntimeGrants{Writer: application.Coordinator, OperatorAccess: bound.localOwnerAccess,
 		Visibility: bound.visible, EnvironmentAccess: bound.localResourceAccess, NativeEnvironment: bound.nativeEnvironment}
+	product.Repositories.Setup = nativeWorkspaceSetup{bound, application.Coordinator}
 	product.Repositories.Sponsorships = factoryservice.Sponsorships{Store: application.Store, Writer: application.Coordinator, Visibility: bound.visible, Custody: bound.sponsorship}
 	product.Repositories.Policies = factoryservice.Policies{Writer: application.Coordinator, BindingAccess: bound.policyBinding,
 		WriteAccess: func(ctx context.Context, actor collaboration.ActorID, repository int64) error {

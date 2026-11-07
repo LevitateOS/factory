@@ -69,9 +69,34 @@ type RequirementDecision struct {
 	Approver     int64              `json:"approver"`
 	SourceInputs map[string]string  `json:"source_inputs,omitempty"`
 	Native       *NativeEnvironment `json:"native,omitempty"`
+	Recipe       *SetupRecipe       `json:"recipe,omitempty"`
+}
+
+// SetupRecipe retains what the local owner actually reviewed, without source
+// bundle bytes or a claim that any command has run.
+type SetupRecipe struct {
+	Files map[string][]byte `json:"files"`
+	Tools []string          `json:"tools"`
 }
 
 func (d RequirementDecision) Validate() error {
+	if d.Recipe != nil {
+		if d.Native == nil || (ApprovedSetup{Files: d.Recipe.Files}).ValidateFiles() != nil || len(d.Recipe.Tools) > MaxPrepareTools || d.SetupDigest != SetupDigestOf(d.Recipe.Files) {
+			return errors.New("invalid reviewed setup recipe")
+		}
+		names := make([]string, 0, len(d.Recipe.Files))
+		for name := range d.Recipe.Files {
+			names = append(names, name)
+		}
+		for _, tool := range d.Recipe.Tools {
+			if !ValidToolName(tool) {
+				return errors.New("invalid reviewed setup tool")
+			}
+		}
+		if d.InputsDigest != PreparationInputsDigestOf(names, d.SourceInputs, d.Recipe.Tools) {
+			return errors.New("reviewed setup inputs differ from acceptance")
+		}
+	}
 	if d.Native != nil && d.Native.Validate() != nil {
 		return errors.New("invalid native requirement owner")
 	}
@@ -95,18 +120,24 @@ func (d RequirementDecision) Ref(depth int64) RequirementAcceptance {
 // installed tool/service/resource results and readiness evidence. Verified
 // asserts the administrator inspected the live Project state.
 type ApprovalDecision struct {
-	ID              string             `json:"id"`
-	Predecessor     string             `json:"predecessor,omitempty"`
-	Project         string             `json:"project"`
-	Requirement     string             `json:"requirement"`
-	EffectsDigest   string             `json:"effects_digest"`
-	ReadinessDigest string             `json:"readiness_digest"`
-	Approver        int64              `json:"approver"`
-	Verified        bool               `json:"verified"`
-	Native          *NativeEnvironment `json:"native,omitempty"`
+	ID              string `json:"id"`
+	Predecessor     string `json:"predecessor,omitempty"`
+	Project         string `json:"project"`
+	Requirement     string `json:"requirement"`
+	EffectsDigest   string `json:"effects_digest"`
+	ReadinessDigest string `json:"readiness_digest"`
+	Approver        int64  `json:"approver"`
+	Verified        bool   `json:"verified"`
+	// Reviewed records native owner consent to intended isolated setup effects.
+	// It does not assert that setup has run or installed readiness was proved.
+	Reviewed bool               `json:"reviewed,omitempty"`
+	Native   *NativeEnvironment `json:"native,omitempty"`
 }
 
 func (d ApprovalDecision) Validate() error {
+	if d.Reviewed && d.Native == nil {
+		return errors.New("local setup review requires a native execution owner")
+	}
 	if d.Native != nil && d.Native.Validate() != nil {
 		return errors.New("invalid native approval owner")
 	}
@@ -114,10 +145,14 @@ func (d ApprovalDecision) Validate() error {
 		return errors.New("invalid privileged-effect approval identity")
 	}
 	if !ValidID(d.Project) || !ValidDecisionID(d.Requirement) || d.Approver <= 0 ||
-		!ValidDigest(d.EffectsDigest) || !ValidDigest(d.ReadinessDigest) {
+		!ValidDigest(d.EffectsDigest) || (!ValidDigest(d.ReadinessDigest) && !(d.Native != nil && d.Reviewed && d.ReadinessDigest == "")) {
 		return errors.New("invalid privileged-effect approval inputs")
 	}
 	return nil
+}
+
+func (d ApprovalDecision) AllowsPreparation() bool {
+	return d.Verified || d.Native != nil && d.Reviewed
 }
 
 // Ref converts the decision to the preparation approval reference ST01 records.

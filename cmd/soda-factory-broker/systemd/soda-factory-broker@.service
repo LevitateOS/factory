@@ -37,6 +37,6 @@ AmbientCapabilities=
 MemoryAccounting=yes
 TasksAccounting=yes
 TasksMax=16
-MemoryMax=64M
+MemoryMax=256M
 RuntimeMaxSec=4h5m
 KillMode=control-group

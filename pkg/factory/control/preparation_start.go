@@ -132,6 +132,19 @@ func preparationNeedsIntervention(state execution.PreparationState) bool {
 
 const maxStandingPreparationObservations = 4
 
+// ObserveStandingPreparation refreshes an admitted job without starting setup.
+// The setup screen can observe readiness before automated execution is enabled.
+func (c *Coordinator) ObserveStandingPreparation(ctx context.Context, record execution.PreparationRecord) (execution.PreparationRecord, error) {
+	if c.Host == nil {
+		return record, errors.New("standing preparation observer is unavailable")
+	}
+	state, err := c.Host.InspectWorkspacePreparation(ctx, record.Address())
+	if err != nil {
+		return record, err
+	}
+	return c.adoptStandingPreparation(ctx, record, state)
+}
+
 // Observe only: the serving owner never replays an administrator's setup.
 // Missing or unavailable native identities retain their admitted row, while
 // the fair cursor keeps a waiting Project from hiding another Project's result.
@@ -153,12 +166,11 @@ func (c *Coordinator) observeStandingPreparations(ctx context.Context, cursor *s
 			return
 		}
 		inspectCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		state, err := c.Host.InspectWorkspacePreparation(inspectCtx, record.Address())
+		_, err := c.ObserveStandingPreparation(inspectCtx, record)
 		cancel()
 		*cursor = record.Preparation.ID
 		if err != nil {
 			continue
 		}
-		_, _ = c.adoptStandingPreparation(ctx, record, state)
 	}
 }

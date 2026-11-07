@@ -8,7 +8,8 @@ mod muse;
 pub mod workspace;
 pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT};
 
-pub const MAX_STAGE_BUNDLE: usize = 512 * 1024;
+pub const MAX_STAGE_BUNDLE: usize = 64 * 1024 * 1024;
+pub const MAX_PREPARATION_REQUEST: usize = MAX_STAGE_BUNDLE.div_ceil(3) * 4 + 1024 * 1024;
 pub const MAX_TASK_MANIFEST: usize = 64 * 1024;
 pub const MAX_PROMPT: usize = 320 * 1024;
 pub const MAX_EXECUTABLE: u64 = 512 * 1024 * 1024;
@@ -218,8 +219,7 @@ impl ApprovedFiles {
             None => Some(false),
             Some(bytes) => serde_json::from_slice::<Network>(bytes)
                 .ok()
-                .filter(|network| network.access == "public_https")
-                .map(|_| true),
+                .and_then(|network|match network.access.as_str() {"none"=>Some(false),"public_https"=>Some(true),_=>None}),
         }
     }
     pub fn limits(&self) -> Option<SetupLimits> {

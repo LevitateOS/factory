@@ -1,6 +1,7 @@
 import {LitElement, html} from 'lit';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
+import './workspace-setup.js';
 
 interface RoleContext {
   readonly transport: FactoryTransport;
@@ -46,7 +47,7 @@ interface Settings {
   sources: SpendingSource[];
   editable: boolean;
   bindings: Record<string, unknown>[];
-  options: {targetBranch: string; mergeMethods: string[]} | undefined;
+  options: {targetBranch: string; mergeMethods: string[]; nativeSetup: boolean} | undefined;
 }
 interface SetupDraft {
   targetBranch: string;
@@ -146,6 +147,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
   const options =
     available && Array.isArray(available.merge_methods)
       ? {
+          nativeSetup: available.native_setup === true,
           targetBranch: typeof available.target_branch === 'string' ? available.target_branch : '',
           mergeMethods: available.merge_methods.filter(
             (value): value is string => typeof value === 'string' && Object.hasOwn(mergeLabels, value)
@@ -505,6 +507,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           this.checks().length <= 32 &&
           view.options?.mergeMethods.includes(this.setup.method)));
     return html`<section aria-label="Agent role settings">
+      ${view?.options?.nativeSetup ? html`<soda-factory-workspace-setup .context=${this.current}></soda-factory-workspace-setup>` : ''}
       <h3>Agent roles and judgments</h3>
       <p>
         Choose the provider, model and saved spending source for each role. Factory does not switch sources

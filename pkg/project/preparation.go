@@ -6,10 +6,12 @@
 package project
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/levitateos/factory/pkg/strictjson"
 	"maps"
 	"regexp"
 	"sort"
@@ -51,10 +53,10 @@ const (
 	MaxApprovedFiles    = 8
 	MaxApprovedFileSize = 32 * 1024
 	MaxApprovedTotal    = 128 * 1024
-	// MaxSourceBundle bounds the verified source bundle bytes. The first
-	// path serves small repositories; larger sources need an explicit
-	// chunked transport instead of a bigger silent cap.
-	MaxSourceBundle = 512 * 1024
+	// Source acquisition and preparation share this bounded repository pack.
+	// This is independent of the expanded checkout and diagnostic limits.
+	MaxSourceBundle = 64 * 1024 * 1024
+	MaxSourceWire   = (MaxSourceBundle+2)/3*4 + 1024*1024
 	// MaxPrepareTools bounds the required tool names per preparation.
 	MaxPrepareTools = 8
 )
@@ -251,6 +253,16 @@ type ApprovedSetup struct {
 }
 
 func (s ApprovedSetup) Validate() error {
+	if err := s.ValidateFiles(); err != nil {
+		return err
+	}
+	if len(s.Bundle) == 0 || len(s.Bundle) > MaxSourceBundle {
+		return errors.New("invalid source bundle size")
+	}
+	return nil
+}
+
+func (s ApprovedSetup) ValidateFiles() error {
 	if len(s.Files) == 0 || len(s.Files) > MaxApprovedFiles {
 		return errors.New("invalid approved file set")
 	}
@@ -273,8 +285,22 @@ func (s ApprovedSetup) Validate() error {
 	if total > MaxApprovedTotal {
 		return errors.New("approved inputs exceed the bounded size")
 	}
-	if len(s.Bundle) == 0 || len(s.Bundle) > MaxSourceBundle {
-		return errors.New("invalid source bundle size")
+	if raw, exists := s.Files["setup-network.json"]; exists {
+		var network struct {
+			Access string `json:"access"`
+		}
+		if strictjson.Decode(bytes.NewReader(raw), &network) != nil || network.Access != "none" && network.Access != "public_https" {
+			return errors.New("setup network access must be none or public_https")
+		}
+	}
+	if raw, exists := s.Files["setup-limits.json"]; exists {
+		var limits struct {
+			Setup int `json:"setup_seconds"`
+			Check int `json:"check_seconds"`
+		}
+		if strictjson.Decode(bytes.NewReader(raw), &limits) != nil || limits.Setup < 1 || limits.Setup > 1800 || limits.Check < 1 || limits.Check > 1800 {
+			return errors.New("setup and check limits must be 1..1800 seconds")
+		}
 	}
 	return nil
 }

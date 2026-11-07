@@ -1061,6 +1061,7 @@ type CompletionAuthority struct {
 	ApprovalEffectsDigest   string             `json:"approval_effects_digest"`
 	ApprovalReadinessDigest string             `json:"approval_readiness_digest"`
 	ApprovalVerified        bool               `json:"approval_verified"`
+	ApprovalReviewed        bool               `json:"approval_reviewed,omitempty"`
 	TargetBranch            string             `json:"target_branch"`
 	Roles                   []string           `json:"roles"`
 	ReassessmentMinutes     int                `json:"reassessment_minutes"`
@@ -1118,7 +1119,7 @@ func (a CompletionAuthority) validateScope() error {
 		return errors.New("invalid completion authority requirement source")
 	}
 	if !ValidDigest(a.RequirementSetupDigest) || !ValidDigest(a.RequirementInputsDigest) ||
-		!ValidDigest(a.ApprovalEffectsDigest) || !ValidDigest(a.ApprovalReadinessDigest) {
+		!ValidDigest(a.ApprovalEffectsDigest) || (!ValidDigest(a.ApprovalReadinessDigest) && !(a.ApprovalReviewed && a.ApprovalReadinessDigest == "")) {
 		return errors.New("invalid completion authority head digests")
 	}
 	if !ValidTargetBranch(a.TargetBranch) {

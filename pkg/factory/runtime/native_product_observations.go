@@ -49,6 +49,10 @@ type nativeRead struct {
 	Attempt        string                      `json:"attempt,omitempty"`
 	RunPage        uint32                      `json:"run_page,omitempty"`
 }
+type nativeReadEffect struct {
+	Kind  string     `json:"kind"`
+	Query nativeRead `json:"query"`
+}
 type nativeBranch struct {
 	Repository *collaboration.ObservedRepository `json:"repository"`
 	Name       string                            `json:"name"`
@@ -164,7 +168,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 		Publication      json.RawMessage             `json:"publication"`
 		Preservation     json.RawMessage             `json:"preservation"`
 	}
-	var effect any = map[string]any{"kind": "read", "query": query}
+	var effect any = nativeReadEffect{Kind: "read", Query: query}
 	if query.Kind == "inline_preparation" && query.Anchor != nil {
 		effect = nativeInlinePreparationEffect{Kind: "read", Query: nativeInlinePreparationQuery{Kind: query.Kind, Repository: query.Repository, Number: query.Number, Anchor: *query.Anchor}}
 	}
@@ -189,7 +193,7 @@ func (p *NativeCollaboration) read(ctx context.Context, query nativeRead, body a
 	}
 	expected := map[string]json.RawMessage{"source_bundle": envelope.Publication, "merge_completion": envelope.Publication, "publication_refs": envelope.Publication, "pull_required_checks": envelope.RequiredChecks, "automation_review": envelope.AutomationReview, "delivery_opinions": envelope.DeliveryOpinions, "automation_checks": envelope.AutomationChecks, "automation_inputs": envelope.Inputs, "reviewer_lookup": envelope.ReviewerLookup, "write_capabilities": envelope.Capabilities, "inline_preservation": envelope.Preservation, "inline_preparation": envelope.Preparation, "branch_creation": envelope.Preparation, "merge_preparation": envelope.Preparation, "pull_review_publication": envelope.Publication, "pull_pending_review_snapshot": envelope.Preparation, "pull_review_preparation": envelope.Preparation, "pull_branches": envelope.Branches, "issues": envelope.Issues, "issue": envelope.Issues, "pulls": envelope.Pulls, "pull": envelope.Pulls,
 		"issue_comments": envelope.Discussion, "pull_comments": envelope.Discussion, "pull_review_comment": envelope.ReviewComments, "pull_review_comments": envelope.ReviewComments, "pull_reviews": envelope.Reviews, "pull_review": envelope.Reviews, "pull_threads": envelope.Threads, "pull_review_requests": envelope.ReviewRequests, "pull_files": envelope.Files, "pull_commits": envelope.Commits, "pull_check_runs": envelope.Checks, "pull_commit_statuses": envelope.Statuses, "workflow_runs": envelope.Workflows, "workflow_run_jobs": envelope.Jobs, "pull_workflow_jobs": envelope.Jobs, "pull_protection": envelope.Protection}[query.Kind]
-	if query.Kind == "target_tip" {
+	if query.Kind == "target_tip" || query.Kind == "setup_source" {
 		expected = envelope.Publication
 	}
 	if query.Kind == "issue_creator_permission" {

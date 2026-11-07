@@ -623,6 +623,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                 Read::Identity
                     | Read::TargetTip { .. }
                     | Read::SourceBundle { .. }
+                    | Read::SetupSource { .. }
                     | Read::PublicationRefs { .. }
                     | Read::PullBranches { .. }
                     | Read::Pull { .. }
@@ -1023,7 +1024,7 @@ async fn dispatch(
         return Err(Failure::invalid());
     }
     let body_limit = if preparation {
-        1024 * 1024
+        soda_execution_protocol::MAX_PREPARATION_REQUEST
     } else if execution {
         soda_execution_protocol::MAX_MUSE_INPUT
     } else if background {

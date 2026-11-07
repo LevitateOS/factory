@@ -1281,6 +1281,8 @@ func main() {
 		var err error
 		if os.Args[3] == "check-review-policy" {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if strings.HasSuffix(os.Args[3], "onboarded-setup") {
+			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"))
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
 			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if strings.HasPrefix(os.Args[3], "native-graph-") {
@@ -1332,6 +1334,80 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func onboardedSetupFixture(profile, instance, repository string, retire bool) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var repo int64
+	if _, err = fmt.Sscan(repository, &repo); err != nil {
+		return err
+	}
+	grant, err := db.EnvironmentGrant(ctx, repo)
+	if err != nil {
+		return err
+	}
+	head, err := db.ApprovalHead(ctx, grant.Project)
+	if err != nil {
+		return err
+	}
+	approval, err := db.ApprovalDecision(ctx, head)
+	if err != nil {
+		return err
+	}
+	if !approval.Reviewed || approval.Verified || approval.ReadinessDigest != "" || approval.Native == nil {
+		return errors.New("onboarding invented installed readiness evidence")
+	}
+	preparations, err := db.StandingProjectPreparations(ctx, grant.Project)
+	if err != nil {
+		return err
+	}
+	if len(preparations) != 2 {
+		return errors.New("initial setup did not create exactly both role preparations")
+	}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	for _, prep := range preparations {
+		var state execution.PreparationState
+		if retire {
+			state, err = port.RetireWorkspacePreparation(ctx, prep.Address())
+		} else {
+			state, err = port.InspectWorkspacePreparation(ctx, prep.Address())
+		}
+		if err != nil {
+			return err
+		}
+		if retire {
+			if !state.Stopped || state.Ready || state.Retirement != "confirmed" {
+				return errors.New("onboarded workspace retirement incomplete")
+			}
+		} else if !state.Ready || state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" {
+			return errors.New("onboarding readiness lacks native source/setup/check observations")
+		}
+		prep.State = state
+		if err = db.ObservePreparation(ctx, prep); err != nil {
+			return err
+		}
+	}
+	if !retire {
+		input, err := db.FactoryAuthorityInput(ctx, repo)
+		if err != nil {
+			return err
+		}
+		if !input.PreparationReady {
+			return errors.New("reviewed native setup cannot reach canonical readiness")
+		}
+	}
+	fmt.Println("PASS: owner-reviewed initial setup retains Verified=false and no invented readiness digest; both roles have actual native setup/check/source observations", map[bool]string{true: "and confirmed retirement", false: "and canonical readiness"}[retire])
+	return nil
 }
 
 // This check declares only disabled local policy; account, issue history and

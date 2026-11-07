@@ -287,7 +287,7 @@ func (s *Store) RecordVerifiedApplication(ctx context.Context, a factory.Assignm
 	if err = json.Unmarshal(currentRaw, &approval); err != nil {
 		return err
 	}
-	if !approval.Verified || approval.Requirement != preparation.Preparation.Requirements.ID {
+	if !approval.AllowsPreparation() || approval.Requirement != preparation.Preparation.Requirements.ID {
 		return errors.New("application check approval is not current and verified")
 	}
 	outputDigest, err := checkVerifiedManifestExecutionTx(ctx, tx, current)

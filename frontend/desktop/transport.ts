@@ -91,7 +91,7 @@ export class DesktopTransport implements FactoryTransport {
             request = {kind: 'sponsorship', repository: sponsorship[1], connection: sponsorship[2], body};
           else {
             const setting =
-              /^\/api\/repositories\/([1-9][0-9]*)\/factory\/(placement|environment-grant|operator-grant|policy)$/.exec(
+              /^\/api\/repositories\/([1-9][0-9]*)\/factory\/(placement|environment-grant|operator-grant|policy|setup)$/.exec(
                 path
               );
             check(setting && id(setting[1]));

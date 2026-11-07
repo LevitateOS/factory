@@ -11,6 +11,51 @@ use sha2::{Digest, Sha256};
 use soda_execution_protocol::MAX_STAGE_BUNDLE;
 
 impl Reader<'_> {
+    pub(super) async fn setup_source(&self, q: &Value) -> Result<Value> {
+        let commit = r::text(q, "commit")?;
+        let target = r::text(q, "target_ref")?;
+        self.source_tip(target, commit).await?;
+        let mut files = serde_json::Map::new();
+        for name in [
+            "setup.sh",
+            "check.sh",
+            "setup-network.json",
+            "setup-limits.json",
+        ] {
+            let response = match self
+                .get(&format!("/contents/{name}"), &[("ref", commit.into())])
+                .await
+            {
+                Ok(response) => response,
+                Err(failure) if failure.status == 404 => continue,
+                Err(failure) => return Err(failure),
+            };
+            let raw = response.value;
+            if raw["type"] != "file" || raw["path"] != name || raw["encoding"] != "base64" {
+                return Err(Failure::protocol());
+            }
+            let encoded: String = r::text(&raw, "content")?
+                .chars()
+                .filter(|c| !c.is_ascii_whitespace())
+                .collect();
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|_| Failure::protocol())?;
+            if bytes.len() > 32768
+                || raw["size"].as_u64() != Some(bytes.len() as u64)
+                || std::str::from_utf8(&bytes).is_err()
+            {
+                return Err(Failure::new(413, "github_setup_file_unavailable"));
+            }
+            files.insert(
+                name.into(),
+                json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
+            );
+        }
+        self.source_tip(target, commit).await?;
+        Ok(json!({"repository":self.repository,"commit":commit,"target_ref":target,"files":files}))
+    }
+
     async fn source_tip(&self, target: &str, commit: &str) -> Result<()> {
         let (repository, advertisement) = tokio::try_join!(
             self.get("", &[]),
@@ -37,13 +82,13 @@ impl Reader<'_> {
         // Protocol v0, one known protected ancestor, no thin pack or sideband.
         // Git validates objects, prerequisites and ancestry inside the importer.
         let want = format!("want {commit} ofs-delta\n");
-        let have = format!("have {base}\n");
-        let body = format!(
-            "{:04x}{want}0000{:04x}{have}0009done\n",
-            want.len() + 4,
-            have.len() + 4
-        )
-        .into_bytes();
+        let have = if base.is_empty() {
+            String::new()
+        } else {
+            let line = format!("have {base}\n");
+            format!("{:04x}{line}", line.len() + 4)
+        };
+        let body = format!("{:04x}{want}0000{have}0009done\n", want.len() + 4,).into_bytes();
         let (reply, _) = self
             .client
             .git_request(&self.name, self.token, GitService::UploadPack, Some(body))
@@ -58,8 +103,12 @@ impl Reader<'_> {
         if pack.len() < 32 || !pack.starts_with(b"PACK") {
             return Err(Failure::protocol());
         }
-        let mut bundle =
-            format!("# v2 git bundle\n-{base} protected source\n{commit} HEAD\n\n").into_bytes();
+        let prerequisite = if base.is_empty() {
+            String::new()
+        } else {
+            format!("-{base} protected source\n")
+        };
+        let mut bundle = format!("# v2 git bundle\n{prerequisite}{commit} HEAD\n\n").into_bytes();
         if bundle.len() + pack.len() > MAX_STAGE_BUNDLE {
             return Err(Failure::new(413, "github_source_bundle_too_large"));
         }

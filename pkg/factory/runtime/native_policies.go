@@ -37,7 +37,7 @@ func (b *nativeProductAccount) policyOptions(ctx context.Context, actor collabor
 	if err != nil {
 		return nil, err
 	}
-	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}}
+	options := &factoryservice.RepositoryPolicyOptions{MergeMethods: []string{}, NativeSetup: true}
 	if branch := "refs/heads/" + observed.DefaultBranch; factory.ValidTargetBranch(branch) {
 		options.TargetBranch = branch
 	}

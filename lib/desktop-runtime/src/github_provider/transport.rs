@@ -276,7 +276,7 @@ impl Client {
                     request
                         .header(header::AUTHORIZATION, authorization)
                         .header(header::CACHE_CONTROL, "no-cache"),
-                    2 * 1024 * 1024,
+                    if posting && service == "git-upload-pack" { soda_execution_protocol::MAX_STAGE_BUNDLE + 65536 } else { 2 * 1024 * 1024 },
                 ))
             })))
             .await?;

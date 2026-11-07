@@ -13,6 +13,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // NativeMCPSecretDeriver asks the Rust owner for one recorded capability's
@@ -71,7 +72,7 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 	case "/api/native/execution":
 		requestLimit, responseLimit = factory.NativeJudgmentMaxWire, 8*1024*1024
 	case "/api/native/preparation":
-		requestLimit, responseLimit = 1024*1024, 2*1024*1024
+		requestLimit, responseLimit = project.MaxSourceWire, 2*1024*1024
 	default:
 		return errors.New("native callback route unavailable")
 	}

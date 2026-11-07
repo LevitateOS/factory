@@ -13,25 +13,32 @@ profile contents in this file.
 
 ## Standalone requirements audit dependencies — 2026-11-06
 
-**A21 initial workspace approval — open:** source inspection on 2026-11-07 found
-no production caller of `control.Coordinator.StartPreparation`. Workspace consent
-and readiness readback exist, but checks seed initial requirements/approvals and
-source bundles directly. Relevant files: `control/preparation_start.go`,
-`runtime/native_{product_environment,request_setup,preparation}.go`,
-`project/{grants,preparation}.go`, `store/{project_grants,preparation,
-factory_candidate_preparations}.go`, Rust `github_provider/git_fetch.rs`,
-`factory_provider/preparations.rs` and `frontend/desktop/placement.ts`.
-The owner has been asked to select automatic target-commit setup versus a local
-checkout. Native approval must distinguish reviewing intended setup effects from
-proof of already installed readiness: the current `ApprovalDecision.Verified`
-contract and declared check digests are not real installation evidence. Source
-fetch currently supports a known protected base for merged continuation, not an
-initial repository; the 512 KiB source transport/preparer limits remain coupled.
-Existing checks prove admitted preparation effects with declared inputs; they
-do not prove user onboarding. Closure needs the selected source capture and exact
-local-owner review/approval through the real app, both role preparations, native
-readiness/retirement, current-account/placement/approval withdrawal and retained
-recovery. Keep actual isolation/setup verification and all broad gates open.
+**A21 initial workspace approval — scoped composition proved; broad gates open.**
+The owner selected target-commit fetch with in-app review. The production path
+now composes `control/preparation_start.go`,
+`runtime/native_{setup_onboarding,preparation}.go`, `httpapi/repository_setup.go`,
+`project/{grants,preparation}.go`, the existing store decisions/preparations,
+Rust `github_provider/git_fetch.rs`, `factory_provider/preparations.rs` and shared
+`frontend/factory/work/workspace-setup.ts`. Native intended-effect review is
+separate from installed verification; approval retains `Verified=false` and no
+readiness digest. The coupled source pack/wire/preparer bound is now 64 MiB;
+broker memory is 256 MiB. Other read, candidate and expanded-tree bounds remain.
+`/home/vince/tmp/fsetup-onboarding18-final.BfmxW9/result.log` proves actual
+native/Go/SQL source fetch (1,049,477-byte pack), both isolated setup/checks,
+immutable replay, canonical readiness, environment withdrawal and retirement
+with declared HTTPS identity/source and dummy credentials. A21 records the
+separate real-component browser proof. Temporary privileged deployment was
+explicitly owner-authorized after automatic review rejection; `cleanup.log`
+confirms removal of its three helpers/five runtime registrations and socket.
+Earlier exact owned workspaces were retired through the standard broker;
+profiles/evidence were preserved. Cleanup's absent-service case requires
+systemd `LoadState=not-found` and `ActiveState=inactive`, never a failed stop.
+Remaining blockers: live-provider/installed onboarding; account, placement and
+approval withdrawal during I/O; changed-source review; restart/reactivation;
+maximum source/resource limits and actual dependency-download isolation. Closure
+needs those actual-channel observations plus retained recovery without replay;
+the complete model-driven pipeline also depends on the separate Muse encoding
+failure. This check is not broad D3/custody/authentication/IPC qualification.
 
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.

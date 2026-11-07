@@ -697,7 +697,33 @@ fn manager_unit(action: &str, unit: &str) -> io::Result<()> {
         .stderr(Stdio::null())
         .status()?;
     if !status.success() {
-        return Err(denied("fixed preparation service failed"));
+        // A setup-only host may not have the optional reviewer service.
+        // Absence is terminal only when systemd also reports it inactive.
+        if action == "stop" {
+            let state = Command::new("/usr/bin/systemctl")
+                .env_clear()
+                .args([
+                    "--system",
+                    "--no-ask-password",
+                    "show",
+                    "--property=LoadState",
+                    "--property=ActiveState",
+                    unit,
+                ])
+                .stdin(Stdio::null())
+                .stderr(Stdio::null())
+                .output()?;
+            let state = String::from_utf8_lossy(&state.stdout);
+            if state.lines().any(|line| line == "LoadState=not-found")
+                && state.lines().any(|line| line == "ActiveState=inactive")
+            {
+                return Ok(());
+            }
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("fixed preparation service failed: {action} {unit}"),
+        ));
     }
     Ok(())
 }

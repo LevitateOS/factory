@@ -85,6 +85,7 @@ impl Client {
                         "issue_creator_permission" => ("capabilities", reader.issue_creator_permission(q["number"].as_u64().ok_or_else(Failure::invalid)?, r::text(&q,"creator")?).await?),
                         "target_tip" => ("publication", reader.target_tip(r::text(&q, "target_ref")?).await?),
                         "source_bundle" => ("publication", reader.source_bundle(&q).await?),
+                        "setup_source" => ("publication", reader.setup_source(&q).await?),
                         "publication_refs" => ("publication", reader.publication_refs(&q).await?),
                         "merge_completion" => (
                             "publication",

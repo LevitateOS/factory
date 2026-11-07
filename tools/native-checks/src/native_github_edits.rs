@@ -550,6 +550,118 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             )?;
         }
         let initial = call(&runtime, &store, &connection, "GET", &settings_path, &[]).await?;
+        if std::env::var("SODA_NATIVE_CHECK_SETUP_ONBOARDING").as_deref() == Ok("1") {
+            let target = format!("{settings_path}/setup");
+            let preview = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+            ensure(
+                preview.0 == 200 && preview.1["available"] == true,
+                "initial source setup preview unavailable",
+            )?;
+            let mut files = preview.1["files"].clone();
+            files["setup-network.json"] = json!("{\"access\":\"none\"}");
+            files["setup-limits.json"] = json!("{\"setup_seconds\":10,\"check_seconds\":10}");
+            let approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            let approved = call(
+                &runtime,
+                &store,
+                &connection,
+                "PUT",
+                &target,
+                &serde_json::to_vec(&approval)?,
+            )
+            .await?;
+            ensure(
+                approved.0 == 200,
+                &format!(
+                    "initial setup approval refused: {} {}",
+                    approved.0, approved.1
+                ),
+            )?;
+            let until = Instant::now() + Duration::from_secs(40);
+            loop {
+                let read = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+                ensure(read.0 == 200, "initial setup readback failed")?;
+                let states = read.1["preparations"]
+                    .as_array()
+                    .ok_or("setup states absent")?;
+                if states.len() == 2
+                    && states
+                        .iter()
+                        .all(|s| s["current"] == true && s["state"]["ready"] == true)
+                {
+                    break;
+                }
+                ensure(
+                    Instant::now() < until,
+                    &format!(
+                        "initial setup did not become ready: {}",
+                        read.1["preparations"]
+                    ),
+                )?;
+                tokio::time::sleep(Duration::from_millis(150)).await;
+            }
+            let replay = call(
+                &runtime,
+                &store,
+                &connection,
+                "PUT",
+                &target,
+                &serde_json::to_vec(&approval)?,
+            )
+            .await?;
+            ensure(
+                replay.0 == 200
+                    && replay.1["requirement"] == approved.1["requirement"]
+                    && replay.1["approval"] == approved.1["approval"],
+                "setup replay changed immutable decisions",
+            )?;
+            let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
+            ensure(
+                std::process::Command::new(&helper)
+                    .arg(profile)
+                    .arg(runtime.health()?.instance)
+                    .arg("check-onboarded-setup")
+                    .arg(&repository)
+                    .status()?
+                    .success(),
+                "actual onboarding receipt check failed",
+            )?;
+            let withdrawn = call(
+                &runtime,
+                &store,
+                &connection,
+                "PUT",
+                &format!("{settings_path}/environment-grant"),
+                br#"{"expected_revision":1,"native":true,"active":false}"#,
+            )
+            .await?;
+            ensure(
+                withdrawn.0 == 200,
+                "onboarded environment withdrawal failed",
+            )?;
+            ensure(
+                call(&runtime, &store, &connection, "GET", &target, &[])
+                    .await?
+                    .1["available"]
+                    == false,
+                "withdrawn environment still offers setup",
+            )?;
+            ensure(
+                std::process::Command::new(&helper)
+                    .arg(profile)
+                    .arg(runtime.health()?.instance)
+                    .arg("retire-onboarded-setup")
+                    .arg(&repository)
+                    .status()?
+                    .success(),
+                "actual onboarding retirement failed",
+            )?;
+            store.withdraw(&connection).await?;
+            store.retire();
+            runtime.stop()?;
+            println!("PASS: actual shared product HTTP -> current native source preview/fetch -> local owner review -> both isolated role preparations, unchanged approval replay, canonical readiness, withdrawal and retirement; HTTPS identity/source fixture declared, no model/GitHub write/installed qualification");
+            return Ok(());
+        }
         ensure(
             initial.0 == 200
                 && initial.1["policy"]["revision"] == 1

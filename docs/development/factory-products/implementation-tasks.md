@@ -29,13 +29,15 @@ local-owner capacity/repository/workspace consent and policy settings (A02/A03).
 The latter passed the existing composed native product check with declared
 provider permissions; connected/installed authority and A04 review semantics
 remain open. Exact evidence and limitations live in the audit register.
-Current A21 source inspection also establishes that initial workspace setup has
-no production entry point: `StartPreparation` has no production caller. Existing
-workspace consent/readback does not fetch source, capture reviewed setup or start
-the initial preparations. The owner is choosing automatic target-commit setup
-versus a local checkout; implement that onboarding before treating fixture-seeded
-preparations as a usable end-to-end journey. A21 records the inherited approval/
-source-transport constraints and the evidence still needed.
+A21 initial workspace onboarding now fetches the selected target commit through
+the native connector, presents editable setup/check scripts, tools, network and
+limits in the shared settings UI, and records local-owner review before starting
+both role preparations through `StartPreparation`. Consent does not fabricate
+installed readiness. The actual native product check passed source fetch, both
+isolated setup/checks, immutable replay, canonical readiness, withdrawal and
+retirement; A21 records its declared-provider scope and retained evidence.
+Connected/installed onboarding, withdrawal races and retained reactivation remain
+open, as do the separate Muse result-encoding and full-pipeline dependencies.
 Native planning source reads and completion capture now also resolve enrolled
 workspaces (A05); the actual local source/worker/restart integration passed.
 Admitted agents can now call `factory.read_source` and `factory.list_source` for

@@ -617,7 +617,7 @@ func checkCandidatePreparationSetupTx(ctx context.Context, tx *sql.Tx, p project
 	}
 	if requirement.Validate() != nil || approval.Validate() != nil || !requirement.Ref(requirementDepth).Equal(p.Requirements) ||
 		approval.Ref(approvalDepth) != p.Approval || requirement.Project != p.Project || approval.Project != p.Project ||
-		requirement.SetupDigest != p.SetupDigest || approval.Requirement != requirement.ID || !approval.Verified {
+		requirement.SetupDigest != p.SetupDigest || approval.Requirement != requirement.ID || !approval.AllowsPreparation() {
 		return ErrCandidatePreparationConflict
 	}
 	return nil

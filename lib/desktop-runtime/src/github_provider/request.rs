@@ -20,6 +20,11 @@ pub enum Read {
         commit: String,
         target_ref: String,
     },
+    SetupSource {
+        repository: String,
+        commit: String,
+        target_ref: String,
+    },
     PublicationRefs {
         repository: String,
         name: String,
@@ -313,12 +318,17 @@ impl Read {
             ..
         } = self
         {
-            if !commit(base)
+            if !base.is_empty() && !commit(base)
                 || !commit(oid)
                 || !target_ref
                     .strip_prefix("refs/heads/")
                     .is_some_and(branch_name)
             {
+                return Err(Failure::invalid());
+            }
+        }
+        if let Self::SetupSource { commit: oid, target_ref, .. } = self {
+            if !commit(oid) || !target_ref.strip_prefix("refs/heads/").is_some_and(branch_name) {
                 return Err(Failure::invalid());
             }
         }

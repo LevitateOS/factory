@@ -1087,6 +1087,7 @@ func completionAuthorityTx(ctx context.Context, tx *sql.Tx, repository int64, pr
 		ApprovalEffectsDigest:   head.approval.EffectsDigest,
 		ApprovalReadinessDigest: head.approval.ReadinessDigest,
 		ApprovalVerified:        head.approval.Verified,
+		ApprovalReviewed:        head.approval.Native != nil && head.approval.Reviewed,
 		TargetBranch:            input.Policy.TargetBranch,
 		Roles:                   factory.PermittedCompletionRoles(input.Policy.Roles, input.Sponsorships),
 		ReassessmentMinutes:     factory.EffectiveReassessmentMinutes(input.Policy.ReassessmentMinutes),

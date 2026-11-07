@@ -1510,7 +1510,7 @@ Evidence: [setup environment/limits](../../../cmd/soda-factory-broker/src/prepar
 
 | Actual material/phase | Current bound | Defining source |
 | --- | --- | --- |
-| Staged source Git bundle, not raw repository size | 512 KiB | `lib/execution-protocol/src/lib.rs:7` |
+| Staged source Git bundle, not raw repository size | 64 MiB (implemented; 1 MiB pack exercised in A21) | `lib/execution-protocol/src/lib.rs` |
 | Candidate/result bundle | 4 MiB | `lib/execution-protocol/src/lib.rs:13` |
 | Each copied prepared tree: coder repository or HOME | 1 GiB / 100,000 entries independently | Shared `lib/execution-protocol/src/lib.rs` constants, consumed by preparer and worker |
 | Each approved setup/check script | Reviewed `setup-limits.json`: 1–1800 seconds each; absent file retains 10 seconds | `lib/execution-protocol/src/lib.rs`, `cmd/soda-factory-broker/src/prepared_setup.rs`, `cmd/soda-factory-worker/src/agent_environment.rs` |
@@ -1594,34 +1594,50 @@ evidence and remaining migration/installed qualification.
 
 ### A21 — Check fixtures can satisfy prerequisites that a user cannot reach
 
-**Initial workspace setup is still unreachable (2026-11-07).** Current source
-has no production caller of `control.Coordinator.StartPreparation`:
-`rg -n 'StartPreparation' pkg/factory` finds only its definition. Desktop
-`frontend/desktop/placement.ts` grants permission to create isolated workspaces;
-`runtime/native_request_setup.go` reads existing preparation readiness. Neither
-captures source/setup inputs or starts the initial approved preparations. The
-native check supplies these missing inputs and immutable approval rows directly
-in `tools/native-checks/native_mcp_signing_check.go` (`nativePreparationFixture`).
-Its passes do not prove reachable setup onboarding.
+**Initial workspace onboarding — implemented, scoped proof (2026-11-07).**
+Source inspection at `1b80a44` established that `StartPreparation` had no
+production caller and existing checks seeded initial approvals/source directly.
+The owner chose target-commit fetch followed by in-app review and approval.
+`runtime/native_setup_onboarding.go`, `httpapi/repository_setup.go` and shared
+`frontend/factory/work/workspace-setup.ts` now implement that journey. Rust
+`github_provider/git_fetch.rs` supplies pinned setup files and the initial Git
+bundle without a fabricated protected base. The saved recipe includes the exact
+reviewed scripts, tools, network and limits. Native approval records
+`Reviewed=true`, retains `Verified=false` and has no invented readiness digest;
+actual native setup/check receipts supply readiness. Refresh uses the existing
+coordinator observer even before automated execution is enabled. Historical
+runtime results are not presented as current readiness.
 
-The existing native `ApprovalDecision.Verified` contract also claims inspection
-of already installed privileged effects/readiness; the fixture supplies declared
-digests and `Verified=true`. A normal UI must not invent that evidence. Initial
-source acquisition currently has no authenticated native producer: the Rust
-`github_provider/git_fetch.rs` operation requires a known protected base and is
-used for merged-source continuation. Source bundles are capped at 512 KiB in
-`project/preparation.go` and the native protocol/preparer, independently of the
-larger prepared-tree bounds. Do not claim ordinary repository support from tiny
-fixture bundles or expand only one of these coupled limits.
+The coupled source acquisition/preparation bound is now 64 MiB with base64 wire
+headroom; other connector reads retain their existing limits. Broker memory is
+256 MiB for the larger bounded pack. Candidate delta and expanded-tree bounds
+remain 4 MiB and 1 GiB/100,000 entries. This is not maximum-size qualification.
 
-**Next dependency:** the owner has been asked to choose automatic target-commit
-fetch/review/approval in Factory versus an existing local checkout. Then compose
-the selected source capture, honest local-owner approval of exact intended
-effects, initial Builder/Reviewer preparation and shared UI readback through
-the existing coordinator/store/native owners. Preserve live setup/isolation
-verification, original inputs and refusal/recovery; no new sign-in or fake
-installed-readiness assertion is authorized by this finding. The Muse encoding
-failure remains a separate execution dependency.
+**Evidence:** `/home/vince/tmp/fsetup-onboarding18-final.BfmxW9/result.log`
+passed actual product HTTP, Rust source preview/fetch of a 1,049,477-byte pack,
+Go immutable consent/admission, both isolated role setup/checks, unchanged-command
+replay, canonical readiness, environment withdrawal and confirmed retirement.
+It uses a private profile/keyring, literal dummy grant and declared HTTPS peer;
+no live GitHub/model call or installed journey ran. The existing native check
+creates no initial approval rows directly in this mode. Chromium exercised the
+actual shared component's explicit consent, edited recipe/network/limits,
+readback and reset on changed approval in
+`/home/vince/tmp/fsetup-onboarding18.a6LJjq/ui/result-permitted.log`; its transport
+was declared. Go/helper/Rust builds, UI typecheck/build and boundary check passed.
+The owner explicitly authorized temporary privileged helpers/services after
+automatic review initially rejected deployment. Final `cleanup.log` confirms
+their removal; original failed profiles/evidence remain preserved. Four earlier
+owned preparations were retired through the normal broker, recorded in
+`/home/vince/tmp/fsetup-onboarding18.a6LJjq/retire-owned.log`. Cleanup now accepts
+a missing optional service only when systemd confirms it absent and inactive.
+
+**Remaining:** connected/installed onboarding and current-account/placement/
+approval withdrawal during I/O, changed-source consent, retained restart and
+reactivation, maximum source/resource bounds and ordinary dependency-download
+journeys. The initial recipe selects the exact source only; reviewed source-input
+refresh and complete automated progression still require qualification. The Muse
+encoding failure remains a separate execution dependency. No broad isolation,
+credential-custody, authentication or IPC gate closes from this scoped proof.
 
 **Evidence boundary.** The joined native check explicitly seeds policy, capacity,
 operator and sponsorship facts before exercising real packet/worker/MCP/storage

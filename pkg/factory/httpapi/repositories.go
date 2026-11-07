@@ -21,6 +21,7 @@ type Repositories struct {
 	Placements      factoryservice.Placements
 	Sponsorships    factoryservice.Sponsorships
 	Repair          factoryservice.RepairFunding
+	Setup           factoryservice.WorkspaceSetupPort
 	Host            collaboration.HostID
 	Actor           collaboration.ActorID
 	Principal       string
@@ -75,6 +76,8 @@ func (s Repositories) Handler() http.Handler {
 	register(http.MethodGet, base+"/activity", s.activity)
 	register(http.MethodPut, base+"/activity", s.activity)
 	register(http.MethodPut, base+"/policy", s.policy)
+	register(http.MethodGet, base+"/setup", s.workspaceSetup)
+	register(http.MethodPut, base+"/setup", s.workspaceSetup)
 	register(http.MethodPut, base+"/operator-grant", s.operatorGrant)
 	register(http.MethodPut, base+"/environment-grant", s.environmentGrant)
 	register(http.MethodGet, base+"/environment-grant", s.environmentGrant)

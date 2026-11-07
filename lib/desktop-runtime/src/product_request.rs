@@ -9,6 +9,19 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
     if target.len() > 2048 || !target.is_ascii() {
         return 65536;
     }
+    if method == "PUT" {
+        if let Some(repository) = target
+            .strip_prefix("/api/repositories/")
+            .and_then(|rest| rest.strip_suffix("/factory/setup"))
+        {
+            if repository
+                .parse::<i64>()
+                .is_ok_and(|id| id > 0 && id.to_string() == repository)
+            {
+                return 1024 * 1024;
+            }
+        }
+    }
     let Some(rest) = target.strip_prefix("/api/factory/collaboration/repositories/") else {
         return 65536;
     };
@@ -44,6 +57,7 @@ pub fn product_request_body_limit(method: &str, target: &str) -> usize {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RepositorySetting {
+    Setup,
     Placement,
     EnvironmentGrant,
     OperatorGrant,
@@ -119,6 +133,7 @@ impl ProductRequest {
                     return Err("invalid configuration repository".into());
                 }
                 let setting = match setting {
+                    RepositorySetting::Setup => "setup",
                     RepositorySetting::Placement => "placement",
                     RepositorySetting::EnvironmentGrant => "environment-grant",
                     RepositorySetting::OperatorGrant => "operator-grant",
