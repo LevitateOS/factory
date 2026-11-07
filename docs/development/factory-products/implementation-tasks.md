@@ -29,6 +29,13 @@ local-owner capacity/repository/workspace consent and policy settings (A02/A03).
 The latter passed the existing composed native product check with declared
 provider permissions; connected/installed authority and A04 review semantics
 remain open. Exact evidence and limitations live in the audit register.
+Current A21 source inspection also establishes that initial workspace setup has
+no production entry point: `StartPreparation` has no production caller. Existing
+workspace consent/readback does not fetch source, capture reviewed setup or start
+the initial preparations. The owner is choosing automatic target-commit setup
+versus a local checkout; implement that onboarding before treating fixture-seeded
+preparations as a usable end-to-end journey. A21 records the inherited approval/
+source-transport constraints and the evidence still needed.
 Native planning source reads and completion capture now also resolve enrolled
 workspaces (A05); the actual local source/worker/restart integration passed.
 Admitted agents can now call `factory.read_source` and `factory.list_source` for

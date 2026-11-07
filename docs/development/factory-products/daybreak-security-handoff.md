@@ -13,6 +13,26 @@ profile contents in this file.
 
 ## Standalone requirements audit dependencies — 2026-11-06
 
+**A21 initial workspace approval — open:** source inspection on 2026-11-07 found
+no production caller of `control.Coordinator.StartPreparation`. Workspace consent
+and readiness readback exist, but checks seed initial requirements/approvals and
+source bundles directly. Relevant files: `control/preparation_start.go`,
+`runtime/native_{product_environment,request_setup,preparation}.go`,
+`project/{grants,preparation}.go`, `store/{project_grants,preparation,
+factory_candidate_preparations}.go`, Rust `github_provider/git_fetch.rs`,
+`factory_provider/preparations.rs` and `frontend/desktop/placement.ts`.
+The owner has been asked to select automatic target-commit setup versus a local
+checkout. Native approval must distinguish reviewing intended setup effects from
+proof of already installed readiness: the current `ApprovalDecision.Verified`
+contract and declared check digests are not real installation evidence. Source
+fetch currently supports a known protected base for merged continuation, not an
+initial repository; the 512 KiB source transport/preparer limits remain coupled.
+Existing checks prove admitted preparation effects with declared inputs; they
+do not prove user onboarding. Closure needs the selected source capture and exact
+local-owner review/approval through the real app, both role preparations, native
+readiness/retirement, current-account/placement/approval withdrawal and retained
+recovery. Keep actual isolation/setup verification and all broad gates open.
+
 The [assumptions audit](standalone-assumptions-audit.md) is source-only. It ran no
 security probes, sign-ins, keyring operations or model calls and closes no gate.
 Its proposed corrections are not adopted policy or verified fixes. Retain all

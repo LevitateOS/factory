@@ -1594,6 +1594,35 @@ evidence and remaining migration/installed qualification.
 
 ### A21 — Check fixtures can satisfy prerequisites that a user cannot reach
 
+**Initial workspace setup is still unreachable (2026-11-07).** Current source
+has no production caller of `control.Coordinator.StartPreparation`:
+`rg -n 'StartPreparation' pkg/factory` finds only its definition. Desktop
+`frontend/desktop/placement.ts` grants permission to create isolated workspaces;
+`runtime/native_request_setup.go` reads existing preparation readiness. Neither
+captures source/setup inputs or starts the initial approved preparations. The
+native check supplies these missing inputs and immutable approval rows directly
+in `tools/native-checks/native_mcp_signing_check.go` (`nativePreparationFixture`).
+Its passes do not prove reachable setup onboarding.
+
+The existing native `ApprovalDecision.Verified` contract also claims inspection
+of already installed privileged effects/readiness; the fixture supplies declared
+digests and `Verified=true`. A normal UI must not invent that evidence. Initial
+source acquisition currently has no authenticated native producer: the Rust
+`github_provider/git_fetch.rs` operation requires a known protected base and is
+used for merged-source continuation. Source bundles are capped at 512 KiB in
+`project/preparation.go` and the native protocol/preparer, independently of the
+larger prepared-tree bounds. Do not claim ordinary repository support from tiny
+fixture bundles or expand only one of these coupled limits.
+
+**Next dependency:** the owner has been asked to choose automatic target-commit
+fetch/review/approval in Factory versus an existing local checkout. Then compose
+the selected source capture, honest local-owner approval of exact intended
+effects, initial Builder/Reviewer preparation and shared UI readback through
+the existing coordinator/store/native owners. Preserve live setup/isolation
+verification, original inputs and refusal/recovery; no new sign-in or fake
+installed-readiness assertion is authorized by this finding. The Muse encoding
+failure remains a separate execution dependency.
+
 **Evidence boundary.** The joined native check explicitly seeds policy, capacity,
 operator and sponsorship facts before exercising real packet/worker/MCP/storage
 behavior. This is legitimate component evidence and is documented as such, but
