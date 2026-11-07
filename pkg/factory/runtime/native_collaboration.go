@@ -26,14 +26,16 @@ type nativeOperation struct {
 	instance, operation string
 }
 
-// NativeCollaboration is available only inside a privately admitted product
-// request. It sends semantic selectors to Rust, never provider URLs or tokens.
+// NativeCollaboration uses a privately admitted product request or the exact
+// saved account selected by native policy for restricted background reads.
+// It sends semantic selectors to Rust, never provider URLs or tokens.
 // Current proves current custody, not remote identity; Identity must succeed
 // before the product owner transactionally maps an actor.
 type NativeCollaboration struct {
-	operation nativeOperation
-	mu        sync.Mutex
-	scope     *nativeScope
+	operation  nativeOperation
+	background *nativeScope
+	mu         sync.Mutex
+	scope      *nativeScope
 }
 
 type nativeScope struct {
@@ -186,7 +188,13 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	if ctx.Err() != nil {
 		return zero, errors.New("native operation cancelled")
 	}
-	body, err := json.Marshal(map[string]any{"operation": p.operation.operation, "call": effect})
+	var payload any = map[string]any{"operation": p.operation.operation, "call": effect}
+	route := "/api/native/collaboration"
+	if p.background != nil {
+		payload = map[string]any{"connection": p.background.Connection.Connection, "account": p.background.Connection.Account, "repository": p.background.Repository, "call": effect}
+		route += "/background"
+	}
+	body, err := json.Marshal(payload)
 	limit := 8192
 	switch effect.(type) {
 	case nativeInlinePreparationEffect:
@@ -207,7 +215,7 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://soda-native/api/native/collaboration", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://soda-native"+route, bytes.NewReader(body))
 	if err != nil {
 		return zero, errors.New("native operation unavailable")
 	}

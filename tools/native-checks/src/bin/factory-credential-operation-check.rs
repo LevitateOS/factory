@@ -1140,7 +1140,7 @@ async fn run_rotation(profile: &Path) -> Result<()> {
 }
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
     match (args.first().and_then(|arg| arg.to_str()), args.len()) {
-        (Some("--github-automation-acceptance"), 7) => {
+        (Some("--github-automation-acceptance"), 8) => {
             use serde_json::json;
             use soda_desktop_runtime::supervisor::NativeSupervisor;
             let field = |n: usize| {
@@ -1194,12 +1194,26 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(admitted.status==201,"connected native acceptance admission unavailable")?;
                 let accepted:serde_json::Value=serde_json::from_slice(&admitted.body)?;
                 ensure(accepted["decision_id"]==id && accepted["head"]==id,"native acceptance head differs")?;
+                let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
+                fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Decision":id}))?)?;
+                let check = |action: &str, instance: &str| {
+                    let mut command=tokio::process::Command::new(&args[7]);
+                    command.arg(profile).arg(instance).arg(action).arg(&background);
+                    async move { ensure(command.status().await?.success(),"native background product check failed") }
+                };
+                check("check-background-inputs",&ready.instance).await?;
+                runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
+                check("check-background-readiness",&ready.instance).await?;
                 runtime.take().expect("owned runtime").stop()?;
                 runtime=Some(NativeSupervisor::start(payload,production,profile)?);
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                 let replay=request.request("POST",&format!("{base}/acceptances"),&body).await?;
                 ensure(replay.status==201 && serde_json::from_slice::<serde_json::Value>(&replay.body)?==accepted,"native acceptance changed after retained restart replay")?;
-                println!("PASS: connected native account/Go/PostgreSQL acceptance preview, exact issue/history binding, local decision admission and retained restart replay; no GitHub write or execution");
+                let restarted=runtime.as_ref().expect("owned runtime").health()?;
+                check("check-background-restarted",&restarted.instance).await?;
+                store.withdraw(&saved.connection).await?;
+                check("check-background-withdrawn",&restarted.instance).await?;
+                println!("PASS: connected native approval, background evidence/readiness without a view, retained restart replay and exact account withdrawal; no GitHub write or execution");
                 Ok(())
             }.await;
             let removed = store.withdraw(&saved.connection).await;

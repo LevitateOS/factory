@@ -184,7 +184,11 @@ func (c *Coordinator) observePriorityRevision(ctx context.Context) (int64, bool,
 // the pass persists its cursor and resumes later.
 func (c *Coordinator) refreshPriorityCandidate(ctx context.Context, control factory.IssueControl, scanRevision int64) (factory.IssueControl, bool, error) {
 	if c.Readiness == nil {
-		return control, true, nil
+		if c.AcceptanceReads == nil {
+			return control, true, nil
+		}
+		refreshed, err := c.refreshReadiness(ctx, control)
+		return refreshed, err == nil, err
 	}
 	authorityChanged := false
 	if control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing {

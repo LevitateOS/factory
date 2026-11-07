@@ -122,9 +122,25 @@ task database also preserved its exact task/candidate/accounting state through
 opening the new auxiliary tables and restart:
 `/home/vince/tmp/fadmitted-tasks7.NgVBjI/native-inputs-upgrade.log`.
 
-Exact blockers/dependencies: background account custody and GitHub issue-specific
-readiness/dispatch are not composed. GitHub supplies no appliance-wide revision
-barrier, so cached SQL revision numbers cannot substitute for fresh native reads.
+Background source composition: `runtime/native_background.go` resolves the
+policy's exact saved profile/connection/actor/repository; Rust
+`collaboration.rs` reacquires a current finite credential lease through its
+existing native owner. The private background route accepts only current-custody,
+identity, repository and automation-input reads. It shares existing channel and
+scope validation; no provider writes or alternate-account fallback are admitted.
+`control/progress.go` and `readiness_work.go` obtain fresh issue evidence when no
+global revision observer exists. Actual production connector/application evidence:
+`/home/vince/tmp/fnative-background7.uR5leo/result.log`. No foreground operation
+was retained for background reads; disabled/unfunded local policy remained
+unauthorized. Restart replay and reads passed after trusted foreground
+re-admission; withdrawal of the exact owned credential refused subsequent reads.
+No GitHub write, model or execution ran, and the private fixture entry was removed.
+
+Exact blockers/dependencies: automatic dispatch/phase advancement, publication,
+and cross-account policy enrollment remain unqualified. After native-owner
+restart, background reads wait for trusted credential admission; saved SQL is no
+custody proof. GitHub supplies no appliance-wide revision barrier, so cached SQL
+revision numbers cannot substitute for fresh native reads.
 Remaining evidence: stale preview versus changed body/title, comment/edge remove-
 readd and hidden/incomplete history; concurrent observation/admission, account
 replacement/withdrawal, installed peers and Factory OAuth. Pairwise equality is

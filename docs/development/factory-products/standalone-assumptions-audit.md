@@ -636,12 +636,19 @@ corrections are now active; the old feature queue waits for their resolution.
   The older completed task profile also opened with the new native input tables
   and retained exact checkpoints/candidate/accounting after restart, without
   replay: `/home/vince/tmp/fadmitted-tasks7.NgVBjI/native-inputs-upgrade.log`.
-  Native/Go builds and dependency boundaries passed. Background account custody,
-  GitHub readiness/dispatch composition, automatic phase advancement, stale/
-  hidden inputs, nonempty dependencies/comments, UI and installed journeys still
-  require their own implementation or proof. The provider has no appliance-wide
-  revision counter; do not manufacture one or interpret cached revision state as
-  a fresh provider observation. No broad gate is closed.
+  Background inputs now resolve the policy's exact saved native connection and
+  reacquire current Rust custody for restricted read-only operations. The same
+  source supplies acceptance and dispatch inputs; readiness reassesses issue
+  evidence instead of reusing cached controls without a global provider revision.
+  `/home/vince/tmp/fnative-background7.uR5leo/result.log` passed actual GitHub
+  input/branch reads without a foreground operation, application-owned readiness
+  under a disabled unfunded policy, restart replay and exact credential withdrawal.
+  Only disabled local policy was fixture supplied; no model, GitHub write or
+  execution ran. A restarted owner waits for trusted foreground credential
+  admission; it cannot infer custody from saved SQL metadata. This does not prove
+  automatic dispatch/phase advancement or publication. Stale/hidden inputs,
+  nonempty dependencies/comments, UI and installed journeys remain unqualified.
+  Native/Go builds and dependency boundaries passed. No broad gate is closed.
 
 - **A02/A03 — local native integration verified.** Desktop now exposes explicit
   run-limit and repository-run consent alongside controller/workspace controls.

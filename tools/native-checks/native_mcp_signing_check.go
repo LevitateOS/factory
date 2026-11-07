@@ -1278,7 +1278,9 @@ func main() {
 	}
 	if len(os.Args) == 5 {
 		var err error
-		if os.Args[3] == "check-owned-tool" {
+		if strings.HasPrefix(os.Args[3], "check-background-") {
+			err = backgroundInputsFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
+		} else if os.Args[3] == "check-owned-tool" {
 			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-schema" {
 			err = nativeSchemaFixture(os.Args[1], os.Args[4])
@@ -1313,6 +1315,89 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// This check declares only disabled local policy; account, issue history and
+// branch evidence come from the production native connector, without a view.
+func backgroundInputsFixture(profile, instance, action, path string) error {
+	var input struct{ Repository, Issue, Connection, Decision string }
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(raw, &input); err != nil {
+		return err
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	connection, err := db.CollaborationConnection(ctx, collaboration.ConnectionID(input.Connection))
+	if err != nil {
+		return err
+	}
+	var repository, issue int64
+	if _, err = fmt.Sscan(input.Repository, &repository); err != nil {
+		return err
+	}
+	if _, err = fmt.Sscan(input.Issue, &issue); err != nil {
+		return err
+	}
+	source := factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}
+	if action == "check-background-inputs" {
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}
+		}
+		if err = db.SaveRepositoryPolicy(ctx, factory.RepositoryPolicy{
+			Repository: repository, GrantedBy: int64(connection.Actor), TargetBranch: "refs/heads/main", MergeMethod: "merge",
+			ReassessmentMinutes: factory.DefaultReassessmentMinutes, AttemptLimits: factory.DefaultAttemptLimits(), Checks: []string{"fixture/check"},
+			Roles:   map[string]factory.RoleSelection{project.RoleCoder: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}, project.RoleReviewer: {Harness: project.FactoryHarnessMuse, Model: "fixture-unavailable"}},
+			Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge),
+		}); err != nil {
+			return err
+		}
+	}
+	if action == "check-background-readiness" {
+		for {
+			control, e := db.IssueControl(ctx, repository, issue)
+			if e == nil && control.Acceptance == input.Decision && control.NativeRev > 0 && control.Readiness == factory.ReadinessNotAuthorized && control.Reason == factory.BlockerAuthorityMissing {
+				fmt.Println("PASS: actual native application refreshes background issue readiness and keeps disabled, unfunded execution unauthorized")
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("background readiness did not settle: %+v: %v", control, e)
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}
+	evidence, err := source.ReadAcceptanceEvidence(ctx, input.Repository, input.Issue, nil)
+	if action == "check-background-withdrawn" {
+		if err == nil {
+			return errors.New("withdrawn native account still supplied background inputs")
+		}
+		fmt.Println("PASS: withdrawn saved account refuses background evidence without choosing another account")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	dispatch, err := source.ReadDispatchInputs(ctx, input.Repository, input.Issue, nil, "refs/heads/main")
+	if err != nil {
+		return err
+	}
+	if evidence.Revision <= 0 || evidence.Issue.Index != input.Issue || !evidence.Issue.Verified || dispatch.Revision != evidence.Revision || dispatch.TipRef != "refs/heads/main" || !factory.ValidCommit(dispatch.Tip) {
+		return errors.New("background evidence and dispatch scope differ")
+	}
+	fmt.Println("PASS: actual saved native account reads exact GitHub issue/history and dispatch branch without a foreground operation")
+	return nil
 }
 
 func nativeSchemaFixture(profile, phase string) error {

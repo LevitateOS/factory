@@ -29,6 +29,17 @@ func (c *Coordinator) progressPass(ctx context.Context) (context.Context, func()
 // Store authority can reopen without advancing the native revision.
 func (c *Coordinator) refreshReadiness(ctx context.Context, control factory.IssueControl) (factory.IssueControl, error) {
 	if c.Readiness == nil {
+		if c.AcceptanceReads != nil {
+			reserved, err := c.reserveIssueAssessment(ctx, factory.DependenceRef{Repository: control.Repository, Issue: control.Issue})
+			if err != nil {
+				return factory.IssueControl{}, err
+			}
+			if !reserved {
+				return factory.IssueControl{}, ErrReadinessPassPending
+			}
+			observed, err := c.assessOne(ctx, control.Repository, control.Issue)
+			return observed.control, err
+		}
 		return control, nil
 	}
 	authorityChanged := false

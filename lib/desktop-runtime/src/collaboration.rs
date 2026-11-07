@@ -59,6 +59,7 @@ struct State {
     execution_error: Arc<Mutex<Option<String>>>,
     retired: watch::Sender<bool>,
     scopes: Mutex<BTreeMap<String, Weak<Scope>>>,
+    background_credentials: RwLock<Option<Arc<Credentials>>>,
     slots: Arc<Semaphore>,
     finalizations: jobs::Sender<Finalize>,
     executions: Arc<Mutex<crate::factory_provider::Executions>>,
@@ -266,7 +267,7 @@ impl Port {
         let id: String = random.iter().map(|b| format!("{b:02x}")).collect();
         let (cancelled, _) = watch::channel(false);
         let scope = Arc::new(Scope {
-            credentials,
+            credentials: credentials.clone(),
             capability,
             repository,
             deadline: Instant::now() + LIFETIME,
@@ -284,6 +285,11 @@ impl Port {
             return Err("native operation admission unavailable".into());
         }
         scopes.insert(id.clone(), Arc::downgrade(&scope));
+        *self
+            .0
+            .background_credentials
+            .write()
+            .map_err(|_| "native credential owner unavailable")? = Some(credentials);
         Ok(NativeRequest {
             id,
             scope,
@@ -345,6 +351,7 @@ impl Owner {
             execution_error,
             retired,
             scopes: Mutex::new(BTreeMap::new()),
+            background_credentials: RwLock::new(None),
             slots: Arc::new(Semaphore::new(MAX_OPERATIONS)),
             finalizations,
             executions,
@@ -480,6 +487,80 @@ async fn finalize(job: Finalize) {
 struct Call {
     operation: String,
     call: Effect,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BackgroundCall {
+    connection: String,
+    account: String,
+    repository: String,
+    call: BackgroundEffect,
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+enum BackgroundEffect {
+    Current,
+    Read { query: Read },
+}
+
+async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Value, Failure> {
+    let call: BackgroundCall = serde_json::from_slice(body).map_err(|_| Failure::invalid())?;
+    if !opaque_id(&call.connection) || !remote_id(&call.account) || !remote_id(&call.repository) {
+        return Err(Failure::invalid());
+    }
+    let effect = match call.call {
+        BackgroundEffect::Current => Effect::Current,
+        BackgroundEffect::Read { query }
+            if matches!(
+                query,
+                Read::Identity | Read::Repository { .. } | Read::AutomationInputs { .. }
+            ) =>
+        {
+            Effect::Read { query }
+        }
+        _ => return Err(Failure::new(403, "native_background_read_unavailable")),
+    };
+    let credentials = state
+        .background_credentials
+        .read()
+        .map_err(|_| Failure::unavailable())?
+        .clone()
+        .ok_or_else(|| Failure::new(401, "native_account_owner_unavailable"))?;
+    let permit = state
+        .slots
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| Failure::unavailable())?;
+    let deadline = Instant::now() + CALL_TIMEOUT;
+    let work = async {
+        let capability = credentials
+            .capability(&call.connection)
+            .await
+            .map_err(|_| Failure::new(401, "native_credential_unavailable"))?;
+        let account = capability.account();
+        if !credentials.is_profile(&state.channel.profile)
+            || account.provider != Provider::Github
+            || account.origin != "https://github.com"
+            || account.account != call.account
+        {
+            return Err(Failure::new(401, "native_account_changed"));
+        }
+        let (cancelled, _) = watch::channel(false);
+        let scope = Arc::new(Scope {
+            credentials,
+            capability,
+            repository: Some(call.repository),
+            deadline,
+            cancelled,
+            write_claimed: AtomicBool::new(false),
+            _permit: permit,
+        });
+        observe_scope(state, scope, &effect).await
+    };
+    tokio::time::timeout_at(deadline.into(), work)
+        .await
+        .map_err(|_| Failure::unavailable())?
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -764,6 +845,7 @@ async fn dispatch(
         return Err(Failure::new(401, "native_channel_required"));
     }
     let target = request.uri().path_and_query().map(|target| target.as_str());
+    let background = target == Some("/api/native/collaboration/background");
     let signing = target == Some("/api/native/mcp-sign");
     let verifying = target == Some("/api/native/mcp-verify");
     let execution = target == Some("/api/native/execution");
@@ -773,6 +855,7 @@ async fn dispatch(
             target,
             Some(
                 "/api/native/collaboration"
+                    | "/api/native/collaboration/background"
                     | "/api/native/mcp-sign"
                     | "/api/native/mcp-verify"
                     | "/api/native/execution"
@@ -790,7 +873,7 @@ async fn dispatch(
         1024 * 1024
     } else if execution {
         512 * 1024
-    } else if signing || verifying {
+    } else if signing || verifying || background {
         8192
     } else {
         512 * 1024
@@ -800,6 +883,9 @@ async fn dispatch(
         .await
         .map_err(|_| Failure::invalid())?
         .to_bytes();
+    if background {
+        return background_read(state, &body).await;
+    }
     if preparation {
         #[derive(Deserialize)]
         #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
@@ -1028,21 +1114,6 @@ async fn dispatch(
         .and_then(Weak::upgrade)
         .filter(|scope| scope.current())
         .ok_or_else(|| Failure::new(401, "native_operation_retired"))?;
-    if let Effect::Read { query } = &call.call {
-        query.validate()?;
-        let value = query.value();
-        let identity = matches!(query, Read::Identity);
-        if !identity
-            && (value["repository"].as_str().is_none()
-                || value["repository"].as_str() != scope.repository.as_deref()
-                || matches!(
-                    query,
-                    Read::CanonicalIssues { .. } | Read::CanonicalIssue { .. }
-                ))
-        {
-            return Err(Failure::new(403, "native_repository_scope"));
-        }
-    }
     if let Some((command_id, digest, not_after, repository)) = call.call.mutation() {
         match &call.call {
             Effect::CreateInline { inline, .. } => inline.validate()?,
@@ -1074,11 +1145,34 @@ async fn dispatch(
             return Err(Failure::new(403, "native_repository_scope"));
         }
     }
+    observe_scope(state, scope, &call.call).await
+}
+
+async fn observe_scope(
+    state: &State,
+    scope: Arc<Scope>,
+    effect: &Effect,
+) -> std::result::Result<Value, Failure> {
+    if let Effect::Read { query } = effect {
+        query.validate()?;
+        let value = query.value();
+        let identity = matches!(query, Read::Identity);
+        if !identity
+            && (value["repository"].as_str().is_none()
+                || value["repository"].as_str() != scope.repository.as_deref()
+                || matches!(
+                    query,
+                    Read::CanonicalIssues { .. } | Read::CanonicalIssue { .. }
+                ))
+        {
+            return Err(Failure::new(403, "native_repository_scope"));
+        }
+    }
     let mut cancelled = scope.cancelled.subscribe();
     let mut retired = state.retired.subscribe();
     let work = scope
         .credentials
-        .with_token_operation(&scope.capability, async |token: &[u8]| match &call.call {
+        .with_token_operation(&scope.capability, async |token: &[u8]| match effect {
             Effect::Current => Ok(Value::Null),
             Effect::Read { query } => {
                 state

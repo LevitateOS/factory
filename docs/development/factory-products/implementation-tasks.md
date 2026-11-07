@@ -44,8 +44,11 @@ handoff; unobserved/missing-evidence and broader installed recovery remain pendi
 Native accepted-input reads and local acceptance preview/admission now use the
 complete Rust GitHub connector and Go canonical history/revision mapping. The
 actual stable issue/account/PostgreSQL/restart check is recorded in A05/A21;
-background source custody, GitHub readiness/dispatch and automatic phase
-advancement remain dependencies. Controlled root installation of the execution
+background reads now use the policy's saved connection and current Rust custody.
+The actual application refreshed issue readiness without a view, kept disabled
+execution unauthorized, and refused the withdrawn account; restart and branch
+input reads also passed. Automatic dispatch/phase advancement and publication
+remain dependencies. Controlled root installation of the execution
 boundary also passed on this host; A18 preserves its exact scope and remaining
 installed desktop/upgrade gates.
 Dependent planning dispatch, delivery/repair and lifecycle journeys still need

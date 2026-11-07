@@ -67,7 +67,8 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	defer func() { runErr = errors.Join(runErr, db.Close()) }()
 	instance := collaboration.NewID()
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
-	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native}, binding)
+	inputs := NativeInputSource{native}
+	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, AcceptanceReads: inputs, DispatchReads: inputs}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {
 		if ctx.Err() != nil {
