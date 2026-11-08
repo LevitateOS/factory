@@ -4,10 +4,10 @@ Current product owner: [LevitateOS/factory](https://github.com/LevitateOS/factor
 This is the single current task list for finishing Factory, consolidated on
 2026-11-08 from the milestone queue, assumptions audit, security handoff and
 freshness requirements after redesign D1–D8. It includes unfinished behavior,
-qualification, release work and unresolved decisions. The ordered prompts below
-are prepared for separate user invocation; creating this queue starts no product
-implementation or live check. The earlier cleared product goal is not silently
-resumed. Factory is not finished. Source/fixture completion never substitutes for connected, installed or security qualification.
+qualification, release work and unresolved decisions. On 2026-11-08 the owner
+explicitly started the goal to execute Q01–Q30 in order. Factory is not finished.
+Source/fixture completion never substitutes for connected, installed or security
+qualification.
 
 Read the [owner decisions and findings](standalone-assumptions-audit.md),
 [selected language allocation](language-allocation.md),
@@ -21,11 +21,12 @@ required only for work or checks that look like hacking.
 
 ## Where to continue
 
-No implementation task is newly Active. Invoke Q01 first, then each following
-prompt only after its earlier ordinary prerequisites are verified complete.
+Q01 is Active. Continue to each following prompt only after its earlier ordinary
+prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. When implementation resumes, first
-reconcile the retained CONNECT evidence and status conflict below; diagnose the
-recorded pre-consent crash before another browser challenge. Independently trace
+reconcile the retained CONNECT evidence and status conflict below; capture current
+pre-consent diagnostics before another browser challenge. Retain the unavailable
+historical crash cause as unknown under the owner clarification at Q01. Independently trace
 the retained Muse typed-result failure without changing the strict result schema.
 Then close the prerequisite journeys below and take dependency-ready milestone
 work, one usable journey at a time. A historical Complete row does not remove
@@ -45,12 +46,14 @@ single-Builder model and existing bounded journals/cancellation/retirement.
 
 ## Sequential non-Daybreak execution queue
 
-Use one complete code block per request, starting at Q01. All Q01–Q30 entries
-are **Pending**; this document does not execute them. Every prompt rechecks all
+The owner's goal authorizes sequential execution starting at Q01. The copy-ready
+blocks remain usable as individual requests. Every prompt rechecks all
 earlier pieces and repairs the earliest incomplete prerequisite before its own
 scope. Reuse exact retained evidence when source/inputs still support its claim;
 a status label, a commit alone or an isolated component pass is not completion.
-Finish one requested piece, commit it and stop before starting the next prompt.
+Finish and commit each piece before continuing to the next. This latest owner
+instruction supersedes the blocks' original per-request stop instruction; stop
+the sequence at a genuine blocker and do not skip unmet prerequisites.
 
 These Q labels divide the existing A/T outcomes into executable scopes. They do
 not replace or silently close the original milestones. Early scopes such as
@@ -88,7 +91,7 @@ recording any newly proved current conclusion separately.
 
 | Prompt | Ordinary completion scope | Existing requirement | Status |
 | --- | --- | --- | --- |
-| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Pending |
+| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Active |
 | [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Pending |
 | [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Pending |
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Pending |
@@ -123,12 +126,20 @@ recording any newly proved current conclusion separately.
 
 ### Q01 — Desktop connection and current session
 
+Owner clarification (2026-11-08): original pre-consent crash logs/cores were
+confirmed lost. Q01 may close on current native diagnostics and the complete
+connected lifecycle passing, with the historical crash cause explicitly unknown.
+This supersedes a requirement to reconstruct that unavailable crash; it does
+not waive any current lifecycle check. The human historical row/note below stays
+verbatim. D1–D8 sources and recorded checks are unchanged since their verified
+completion; their scoped evidence is reused, not treated as installed proof.
+
 ```text
 Implement Q01 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 
 Verify D1–D8 are complete within their recorded scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
 
-Reconcile the retained CONNECT evidence and the human Active versus committed Complete conflict. Preserve the original row/note verbatim; record any new operative conclusion separately. Diagnose the retained pre-consent native crash before a new browser challenge. Fix concrete failures and prove the actual production connect, account/repository switch, minimize/restore, reconnect, unknown/failed status, explicit Disconnect, execution-unavailable/retry and Quit paths. Do not infer physical/native behavior from a browser peer. Installed variants belong to Q26/Q27.
+Reconcile the retained CONNECT evidence and the human Active versus committed Complete conflict. Preserve the original row/note verbatim; record any new operative conclusion separately. Use current native pre-consent diagnostics before a new browser challenge; retain the unavailable historical crash cause as unknown under the owner clarification above. Fix concrete failures and prove the actual production connect, account/repository switch, minimize/restore, reconnect, unknown/failed status, explicit Disconnect, execution-unavailable/retry and Quit paths. Do not infer physical/native behavior from a browser peer. Installed variants belong to Q26/Q27.
 
 Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
 ```
@@ -632,9 +643,9 @@ their original IDs, dependencies, outcomes and statuses verbatim.
 
 The committed snapshot records T06-CONNECT Complete. The pre-existing human
 Active edit and appended note are preserved below; neither is overwritten by
-this history cut. The later instruction to clear the old queue is still in
-effect. These statuses conflict and remain unresolved; no new Active task is
-selected here.
+this history cut. These historical statuses remain conflicting. The owner's
+2026-11-08 goal now selects Q01 as the operative current task; its acceptance
+clarification and eventual result are recorded separately from that human history.
 
 <a id="sequential-implementation-order"></a>
 <a id="remaining-product-milestones-2026-11-06"></a>
@@ -678,7 +689,8 @@ checks, the Muse typed-result failure and the read-only reviewer check pending.
 ## Preserved human status conflict
 
 The following pre-existing row and note are verbatim, including their status.
-They are evidence of the unresolved conflict, not a restart of the product queue.
+They preserve the historical conflict; the newly authorized Q queue above owns
+current execution status without rewriting that history.
 
 | Order | Slice | Depends on | Required outcome | Status |
 | --- | --- | --- | --- | --- |

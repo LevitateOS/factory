@@ -145,7 +145,14 @@ func emptyCollaborationLedger(ctx context.Context, tx *sql.Tx) (bool, error) {
 	}
 	for _, table := range tables {
 		var present bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM public."`+strings.ReplaceAll(table, `"`, `""`)+`" LIMIT 1)`).Scan(&present); err != nil {
+		query := `SELECT EXISTS(SELECT 1 FROM public."` + strings.ReplaceAll(table, `"`, `""`) + `" LIMIT 1)`
+		if table == "factory_priority_scans" {
+			// The coordinator can capture an empty inventory before the first
+			// account connects. Only a scan with no members or progress is
+			// identity-neutral; candidate rows remain checked separately.
+			query = `SELECT EXISTS(SELECT 1 FROM factory_priority_scans WHERE cursor<>0 OR subjects NOT IN ('[]'::jsonb,'null'::jsonb))`
+		}
+		if err := tx.QueryRowContext(ctx, query).Scan(&present); err != nil {
 			return false, err
 		}
 		if present {

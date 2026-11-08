@@ -301,6 +301,23 @@ func TestCollaborationFountainAdoptionRollsBackAndSerializes(t *testing.T) {
 func TestCollaborationRegistryIdentityAndConnections(t *testing.T) {
 	s, dsn := postgresFixture(t)
 	ctx := t.Context()
+	// Native startup captures an empty priority inventory before sign-in.
+	// Both encodings of no members must retain their bytes through binding.
+	for _, subjects := range [][]PriorityInventorySubject{nil, {}} {
+		if _, err := s.SavePriorityScan(ctx, 1, PriorityInventory{LocalDigest: "empty-startup", Subjects: subjects}); err != nil {
+			t.Fatal(err)
+		}
+		before := retainedLedgerFingerprint(t, s)
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		empty, err := emptyCollaborationLedger(ctx, tx)
+		_ = tx.Rollback()
+		if err != nil || !empty || retainedLedgerFingerprint(t, s) != before {
+			t.Fatalf("empty startup scan prevented binding or changed data: empty=%v err=%v", empty, err)
+		}
+	}
 	if err := s.InitializeEmptyCollaborationLedger(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -540,6 +557,12 @@ func TestCollaborationRegistryConstraintsAndConcurrentObservation(t *testing.T) 
 func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 	s, dsn := postgresFixture(t)
 	ctx := t.Context()
+	if _, err := s.SavePriorityScan(ctx, 1, PriorityInventory{LocalDigest: "retained", Subjects: []PriorityInventorySubject{{Repository: 7, Issue: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.InitializeEmptyCollaborationLedger(ctx); !errors.Is(err, collaboration.ErrUnboundLedger) {
+		t.Fatalf("identity-bearing priority scan initialized as empty: %v", err)
+	}
 	if err := s.UpsertUser(ctx, User{ID: 42, Login: "retained-person"}); err != nil {
 		t.Fatal(err)
 	}
@@ -552,7 +575,13 @@ func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Stage a genuine pre-registry database only in this disposable fixture.
+	for _, table := range []string{"project_requirement_decisions", "project_approval_decisions", "project_requirement_heads", "project_approval_heads", "project_preparations"} {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE `+table+` DROP CONSTRAINT IF EXISTS `+table+`_native_fkey, DROP CONSTRAINT IF EXISTS `+table+`_appliance_fkey`); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, ddl := range []string{
+		`DROP TABLE factory_placements,factory_native_workspaces,factory_native_input_heads,factory_native_occurrences,factory_native_check_heads,factory_native_review_heads`,
 		`DROP TABLE collaboration_repository_connections,collaboration_connections,collaboration_runtimes,collaboration_repositories,collaboration_actors,collaboration_teams,collaboration_ledger,collaboration_profiles,collaboration_hosts`,
 		`DROP FUNCTION soda_collaboration_allocation()`, `DROP FUNCTION soda_collaboration_identity()`,
 	} {
@@ -681,6 +710,10 @@ func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer db.Close()
+		// The feed resolves a recorded run's runtime kind, never a missing ID.
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO factory_runs(id,active,settled,data) VALUES('unassigned-run',false,true,'{"native":null}')`); err != nil {
+			t.Fatal(err)
+		}
 		registrySnapshot := func() string {
 			var snapshot string
 			if err := db.db.QueryRowContext(ctx, `SELECT jsonb_build_object(

@@ -407,6 +407,28 @@ security D1/D2/D3/D5, remain open. Original uncertain commands remain fenced.
 This completes the redesign cuts only; it neither resumes the old queue nor
 claims Factory, installed isolation/custody/IPC or provider parity finished.
 
+### Q01 follow-up: first native account binding (2026-11-08)
+
+The newly authorized Q01–Q30 goal is active; Q01 remains incomplete. Current
+pre-consent Tauri/WebKit/Go/PostgreSQL startup and production Quit passed in
+`/home/vince/Projects/q01-preconsent-verified/run.log`. The owner accepts current
+diagnostics and the complete connected lifecycle while retaining the lost
+historical crash cause as unknown. This does not waive current checks.
+
+The approved isolated connected check found that the coordinator's empty
+priority scan prevented first account binding. Under the existing ledger/table
+locks, only scans with no subjects and zero cursor now count as identity-neutral;
+candidate rows and every identity-bearing scan still require adoption. No rows
+are deleted or rewritten. Existing identity/connection and retained-adoption
+checks passed, including reopen and canonical scope:
+`/home/vince/Projects/q01-ledger-check.log` (`go test -mod=readonly ./pkg/store
+-run '^TestCollaborationRegistry(IdentityAndConnections|RetainedDataWaitsForAdoption)$'
+-count=1 -v` with the private PostgreSQL fixture). The old fixture's later native
+foreign keys and missing run record were repaired in that existing check.
+Connected session/status, minimize/restore and execution retry proof remains
+pending; the encrypted approved grant and failed attempts are preserved under
+`/home/vince/Projects/q01-connected-verified/`. No installed/security gate closes.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

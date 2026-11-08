@@ -24,8 +24,11 @@ corrections at lines 14–1462; retained recovery and connected evidence at
 history at 3010–5661. Earlier statements that native coordinator/MCP ports or the
 Fountain connector are absent are historical, superseded by the current source
 and evidence below. Original outcome records are not rewritten by this summary.
-The pre-existing T06-CONNECT Active row/note remain verbatim in the queue with
-its conflict unresolved. The old product goal stays cleared.
+The pre-existing T06-CONNECT Active row/note remain verbatim as historical
+conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
+Q01 is Active. The owner accepted current native diagnostics plus the complete
+connected lifecycle as its closure evidence, retaining the unavailable historical
+crash cause as unknown. No current lifecycle requirement is waived.
 
 ## Current gates, owners and closure evidence
 
@@ -51,8 +54,10 @@ its conflict unresolved. The old product goal stays cleared.
    `pkg/factory/runtime/native_{application,server}.go`.
    Remaining: real installed startup/sign-in/Quit, authenticated admission across
    restart, provider withdrawal and OS sleep/wake. The retained pre-consent
-   heap/segmentation failure still needs diagnosis; preserve its failed profiles
-   and credentials. The human CONNECT note does not establish its resolution.
+   heap/segmentation failure has unavailable original artifacts and its cause
+   remains unknown; preserve retained profiles/evidence. The owner's Q01
+   clarification accepts current diagnostics rather than reconstruction of the
+   lost crash. Neither the human CONNECT note nor a current pass diagnoses it.
 
 3. **GitHub credential custody / revocation (T06-GITHUB and consumers).**
    Rust `credentials/` and `github_provider/` own authenticated connectors;
