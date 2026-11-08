@@ -2501,3 +2501,53 @@ pub fn muse_signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), St
         _ => Err("unknown Muse observer stage".into()),
     }
 }
+
+pub fn start_owner_policy(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let result = async {
+            let state = app.state::<Desktop>();
+            let root = state.paths.profile.parent().ok_or("owned check root missing")?;
+            let proxy = std::fs::read_to_string(root.join("proxy-address")).map_err(|_| "owned declared proxy missing")?;
+            ensure(root.join("owner-policy-check").is_file()
+                && std::env::var("HTTPS_PROXY").ok().as_deref() == Some(proxy.trim()), "owner policy requires its owned declared provider")?;
+            let io = root.join("io");
+            prepare_profile(&io)?;
+            std::fs::write(io.join("mode"), "work-read-only").map_err(|_| "owned provider mode unavailable")?;
+            let store = state.credentials()?;
+            ensure(store.status().await.map_err(|e| e.to_string())?.is_empty(), "owner policy requires empty owned Factory custody")?;
+            // Same declared identity/token as the existing native product check.
+            // The native connector still verifies it when binding the product.
+            let account = Account::new(Provider::Github, "https://github.com", "321")
+                .and_then(|account| account.with_label("declared-owner-policy")).map_err(|e| e.to_string())?;
+            let token = Token::new(b"factory-declared-edit".to_vec()).map_err(|e| e.to_string())?;
+            let saved = store.store(account, token).await.map_err(|e| e.to_string())?;
+            let script = include_str!("owner_policy_check.js").replace("__CONNECTION__", &serde_json::to_string(&saved.connection).map_err(|_| "connection encoding failed")?);
+            app.get_webview_window("main").ok_or("main window missing")?.eval(&script).map_err(|_| "owner policy observer unavailable")?;
+            Ok::<(), String>(())
+        }.await;
+        if let Err(error) = result { eprintln!("Native owner policy check failed: {error}"); app.exit(1); }
+    });
+}
+
+pub fn finish_owner_policy(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let result = async {
+            let state = app.state::<Desktop>();
+            let store = state.credentials()?;
+            let accounts = store.status().await.map_err(|e| e.to_string())?;
+            ensure(accounts.len() == 1 && accounts[0].account == "321" && accounts[0].label.as_deref() == Some("declared-owner-policy"), "owned policy account changed")?;
+            store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
+            ensure(store.status().await.map_err(|e| e.to_string())?.is_empty(), "owned policy account retained")?;
+            write_consent_evidence(&app, "owner-policy-result.json", &serde_json::json!({
+                "native_webkit_go_pg":true,"declared_read_only_github":true,
+                "disabled_policy_bootstrap":true,"explicit_coder_reviewer_and_judgment_choices":true,
+                "current_ownership_grants_and_cas":true,"withdrawal_without_fallback":true,
+                "selected_model_availability":true,"owned_factory_account_removed":true,
+                "model_call":false,"billing_identity_qualified":false,"installed_qualified":false
+            }))?;
+            check::owner_policy_done(&app);
+            Ok::<(), String>(())
+        }.await;
+        if let Err(error) = result { eprintln!("Native owner policy completion failed: {error}"); app.exit(1); }
+    });
+}

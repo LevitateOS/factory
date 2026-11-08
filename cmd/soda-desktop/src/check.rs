@@ -19,6 +19,7 @@ pub(super) struct Scenario {
     pub enabled: bool,
     pub startup_error: bool,
     pub muse_login: bool,
+    pub owner_policy: bool,
     pub crash: bool,
     pub preconsent: bool,
     pub resume: bool,
@@ -59,6 +60,7 @@ impl Options {
             }
             Some("--check-control") => scenario.control = true,
             Some("--check-muse-login") => scenario.muse_login = true,
+            Some("--check-owner-policy") => scenario.owner_policy = true,
             Some("--check-signin") => scenario.signin = Some(SignInMode::Declared),
             Some("--check-signin-live") => scenario.signin = Some(SignInMode::Live),
             Some("--check-signin-consent") => {
@@ -78,6 +80,9 @@ impl Options {
     }
     pub fn finish(self) -> Result<Check, &'static str> {
         let scenario = self.scenario;
+        if scenario.owner_policy && (scenario.signin.is_some() || scenario.muse_login || scenario.credentials || scenario.control || scenario.preconsent || scenario.startup_error || scenario.crash || scenario.resume || scenario.github_writes || scenario.issue_read || scenario.retain_account || scenario.revocation || scenario.revocation_cleanup) {
+            return Err("owner policy requires its own native-check invocation");
+        }
         if scenario.muse_login && (scenario.signin.is_some() || scenario.credentials || scenario.control || scenario.preconsent || scenario.startup_error || scenario.crash || scenario.resume || scenario.github_writes || scenario.issue_read) {
             return Err("Muse login requires its own native-check invocation");
         }
@@ -112,7 +117,7 @@ impl Scenario {
             600
         } else if self.signin == Some(SignInMode::Consent) || self.muse_login {
             1000
-        } else if self.issue_read {
+        } else if self.issue_read || self.owner_policy {
             180
         } else if self.signin.is_some() || self.control {
             90
@@ -127,6 +132,12 @@ impl Scenario {
             "PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability"
         }
     }
+}
+
+pub fn owner_policy_done(app: &tauri::AppHandle) {
+    app.state::<Desktop>().check.stage.store(2, Ordering::SeqCst);
+    println!("PASS: native shared owner policy/bootstrap, explicit role/judgment choices, allowance/CAS/withdrawal and model availability; declared read-only collaboration, no model or installed qualification");
+    quit(app.clone());
 }
 pub struct Check {
     pub(super) scenario: Scenario,
@@ -567,6 +578,10 @@ pub fn report(
             _ => return Err("unknown execution retry stage".into()),
         }
     }
+    if state.check.scenario.owner_policy && stage == "owner-policy-complete" {
+        crate::check_credentials::finish_owner_policy(app);
+        return Ok(());
+    }
     if state.check.scenario.github_writes
         && stage == "github-writes-complete"
     {
@@ -667,6 +682,10 @@ pub fn report(
     );
     if state.check.scenario.github_writes {
         crate::check_credentials::start_github_writes(app);
+        return Ok(());
+    }
+    if state.check.scenario.owner_policy {
+        crate::check_credentials::start_owner_policy(app);
         return Ok(());
     }
     if state.check.scenario.muse_login {

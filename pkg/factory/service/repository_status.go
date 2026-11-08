@@ -46,6 +46,7 @@ type SpendingSource struct {
 	Label              string                    `json:"label"`
 	Native             factory.NativeSponsorship `json:"native"`
 	ExecutionAvailable bool                      `json:"execution_available"`
+	AllowanceAvailable bool                      `json:"allowance_available"`
 	JudgmentAvailable  bool                      `json:"judgment_available"`
 	JudgmentModels     []string                  `json:"judgment_models,omitempty"`
 	ToolStatus         *SpendingToolStatus       `json:"tool_status,omitempty"`
