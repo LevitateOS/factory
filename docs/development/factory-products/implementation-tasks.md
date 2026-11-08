@@ -25,7 +25,8 @@ Q01 is Complete within its source/native scope. Q02 is Complete within its
 source/component scope; Q03 is Complete within its configuration/admission scope.
 Q04 is Complete within local placement scope; Q05 is Complete within ordinary
 boundary admission scope; Q06 is Complete within ordinary preparation scope;
-Q07 is Complete within ordinary native onboarding scope; Q08 is Active.
+Q07 is Complete within ordinary native onboarding scope; Q08 is Blocked pending
+clarification of its historical attribution requirement.
 Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
@@ -101,7 +102,7 @@ recording any newly proved current conclusion separately.
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Complete (ordinary boundary admission scope) |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Complete (ordinary preparation scope) |
 | [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Complete (ordinary native onboarding scope) |
-| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Active |
+| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Blocked |
 | [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Pending |
 | [Q10](#q10) | Connected GitHub permissions and remote revocation | T06-GITHUB; A14; custody and pending reviewer work | Pending |
 | [Q11](#q11) | Connected CI, provider rules and merge contracts | A04/A07; T06-GITHUB rules/CI qualification | Pending |
@@ -316,7 +317,7 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ### Q08 — Muse typed plan and sequential Builder completion
 
-Active: `5bd4c825a2bb076984d56d850684608b110d6b00` passes the approved
+Blocked: `5bd4c825a2bb076984d56d850684608b110d6b00` passes the approved
 live two-task native Muse journey, including typed planning, public Builder
 advancement, exact task/final receipts, candidate export, source accounting and
 restart without inference replay. Combined live transcripts cover missing-file

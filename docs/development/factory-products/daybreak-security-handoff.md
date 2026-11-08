@@ -304,8 +304,8 @@ passes the owner-approved live Architect/two-task Builder journey in
 `/home/vince/tmp/q08-native-plan8/result.log`, including exact receipts,
 candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
-Historical string encoding remains unattributed; Q08 closure clarification and
-Q09–Q30 remain pending. All 13 security gates stay open. See the
+Q08 is Blocked on historical string-encoding attribution and the pending owner
+clarification; Q09–Q30 remain pending. All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
