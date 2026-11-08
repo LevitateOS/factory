@@ -879,7 +879,7 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
         .map(|byte| format!("{byte:02x}"))
         .collect();
     let mut identities = Vec::new();
-    for _ in 0..4 {
+    for _ in 0..6 {
         let mut bytes = [0u8; 16];
         getrandom::fill(&mut bytes)?;
         identities.push(
@@ -909,6 +909,68 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
                 .parse::<u32>()
                 .is_ok_and(|pid| pid > 0))
     };
+    if std::env::var("SODA_NATIVE_CHECK_LOW_SPACE").as_deref() == Ok("1") {
+        let approved = ApprovedFiles { files: BTreeMap::from([
+            ("setup.sh".into(), b"printf must-not-start\n".to_vec()),
+            ("check.sh".into(), b"printf must-not-check\n".to_vec()),
+        ]), tools: Vec::new() };
+        if Broker::prepare_source(&runs[0], profile, Role::Coder, &bundle, &approved, &candidate, AgentCancellation::default()).is_ok()
+            || live(&runs[0])? || !Broker::retire_unlaunched(&runs[0], profile, &digest)?
+            || Broker::next_profile_run(profile)?.is_some() {
+            return Err("low-space preparation gained effects or failed exact retirement".into());
+        }
+        println!("PASS: low-space preparation refused before starting a preparer; exact staged root retired");
+        return Ok(());
+    }
+    if std::env::var("SODA_NATIVE_CHECK_SATURATION").as_deref() == Ok("1") {
+        let mut active = Vec::new();
+        let mut refused = false;
+        for run in runs {
+            let cancellation = AgentCancellation::default();
+            let signal = cancellation.clone();
+            let (run_id, profile, bundle, candidate) = (run.clone(), profile.clone(), bundle.clone(), candidate.clone());
+            let (sent, received) = std::sync::mpsc::sync_channel(1);
+            let thread = std::thread::spawn(move || {
+                let approved = ApprovedFiles { files: BTreeMap::from([
+                    ("setup.sh".into(), b"sleep 60\n".to_vec()),
+                    ("check.sh".into(), b"printf checked\n".to_vec()),
+                    ("setup-limits.json".into(), br#"{"setup_seconds":65,"check_seconds":1}"#.to_vec()),
+                ]), tools: Vec::new() };
+                let result = Broker::prepare_source(&run_id, &profile, Role::Coder, &bundle, &approved, &candidate, signal);
+                let _ = sent.send(result.is_ok());
+                result
+            });
+            let until = Instant::now() + Duration::from_secs(6);
+            loop {
+                if let Ok(success) = received.try_recv() {
+                    if success || active.is_empty() || live(run)? { return Err("capacity fixture did not refuse before effects".into()); }
+                    refused = true;
+                    break;
+                }
+                if live(run)? { break; }
+                if Instant::now() >= until { return Err("capacity fixture did not observe admission or refusal".into()); }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            active.push((cancellation, thread, run));
+            if refused { break; }
+        }
+        for (cancel, _, _) in &active { cancel.cancel(); }
+        for (_, thread, run) in active {
+            if thread.join().map_err(|_| "capacity preparation panicked")?.is_ok()
+                || !Broker::retire_unlaunched(run, profile, &digest)? { return Err("capacity preparation retirement failed".into()); }
+        }
+        if !refused || Broker::next_profile_run(profile)?.is_some() { return Err("preparation capacity was not bounded".into()); }
+        println!("PASS: active preparation reservations saturate capacity before another preparer starts; all exact roots retired");
+        return Ok(());
+    }
+    let pending = ApprovedFiles {
+        files: BTreeMap::from([
+            ("setup.sh".into(), b"sleep 20\n".to_vec()),
+            ("check.sh".into(), b"printf checked\n".to_vec()),
+            ("setup-limits.json".into(), br#"{"setup_seconds":25,"check_seconds":1}"#.to_vec()),
+        ]),
+        tools: Vec::new(),
+    };
     for run in &runs[..2] {
         let cancellation = AgentCancellation::default();
         let signal = cancellation.clone();
@@ -916,18 +978,8 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
         let profile = profile.clone();
         let bundle = bundle.clone();
         let candidate = candidate.clone();
+        let approved = pending.clone();
         let thread = std::thread::spawn(move || {
-            let approved = ApprovedFiles {
-                files: BTreeMap::from([
-                    ("setup.sh".into(), b"sleep 20\n".to_vec()),
-                    ("check.sh".into(), b"printf checked\n".to_vec()),
-                    (
-                        "setup-limits.json".into(),
-                        br#"{"setup_seconds":25,"check_seconds":1}"#.to_vec(),
-                    ),
-                ]),
-                tools: Vec::new(),
-            };
             Broker::prepare_source(
                 &run,
                 &profile,
@@ -948,6 +1000,19 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
         std::thread::sleep(Duration::from_millis(20));
     }
     println!("Observed two live preparers with separate exact-run identities");
+    let waiter_cancel = AgentCancellation::default();
+    let waiter = {
+        let signal = waiter_cancel.clone();
+        let (run, profile, bundle, candidate) = (runs[0].clone(), profile.clone(), bundle.clone(), candidate.clone());
+        std::thread::spawn(move || Broker::prepare_source(&run, &profile, Role::Coder, &bundle, &pending, &candidate, signal))
+    };
+    std::thread::sleep(Duration::from_millis(100));
+    let started = Instant::now();
+    waiter_cancel.cancel();
+    if waiter.join().map_err(|_| "same-run waiter panicked")?.is_ok()
+        || started.elapsed() > Duration::from_secs(2) || !live(&runs[0])? {
+        return Err("cancelled same-run waiter retained its client or disturbed the preparer".into());
+    }
     let (cancel, thread) = slow.pop().ok_or("second preparer missing")?;
     let started = Instant::now();
     cancel.cancel();
@@ -1002,7 +1067,13 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
     {
         return Err("parallel preparation final retirement unconfirmed".into());
     }
-    println!("PASS: overlapping live preparations; cancellation and an independent setup complete promptly; all exact staged roots retired");
+    let replacement = Broker::prepare_source(&runs[0], profile, Role::Coder, &bundle, &approved, &candidate, AgentCancellation::default())?;
+    if replacement.setup_sha256 != approved.digest() || replacement.setup_exit != Some(0)
+        || replacement.check_exit != Some(0) || !Broker::retire_unlaunched(&runs[0], profile, &digest)?
+        || Broker::next_profile_run(profile)?.is_some() {
+        return Err("later same-run preparation inherited a cancelled waiter or failed exact retirement".into());
+    }
+    println!("PASS: overlapping live preparations; cancelled same-run waiter has no effects; independent and later replacement setups complete; all exact staged roots retired");
     Ok(())
 }
 

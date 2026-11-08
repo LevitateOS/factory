@@ -20,7 +20,7 @@ use tokio::task::JoinSet;
 
 const BYTES: u64 = 512 * 1024 * 1024;
 fn denied() -> io::Error {
-    io::Error::other("approved setup public HTTPS unavailable")
+    io::Error::new(io::ErrorKind::PermissionDenied, "approved setup public HTTPS unavailable")
 }
 
 pub(super) struct SetupNetwork {
@@ -165,7 +165,7 @@ async fn target(authority: &str) -> io::Result<Vec<SocketAddr>> {
         url::Host::Domain(host) => {
             tokio::time::timeout(Duration::from_secs(4), tokio::net::lookup_host((host, 443)))
                 .await
-                .map_err(|_| denied())??
+                .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "setup DNS timed out"))??
                 .take(65)
                 .collect()
         }
@@ -238,8 +238,13 @@ async fn connection(mut stream: UnixStream, bytes: Arc<AtomicU64>) -> io::Result
     let addresses = match target(authority).await {
         Ok(addresses) => addresses,
         Err(error) => {
+            let response = match error.kind() {
+                io::ErrorKind::PermissionDenied => b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".as_slice(),
+                io::ErrorKind::TimedOut => b"HTTP/1.1 504 Gateway Timeout\r\nContent-Length: 0\r\n\r\n".as_slice(),
+                _ => b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n".as_slice(),
+            };
             stream
-                .write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                .write_all(response)
                 .await?;
             return Err(error);
         }
@@ -253,7 +258,10 @@ async fn connection(mut stream: UnixStream, bytes: Arc<AtomicU64>) -> io::Result
             break;
         }
     }
-    let mut remote = connected.ok_or_else(denied)?;
+    let Some(mut remote) = connected else {
+        stream.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n").await?;
+        return Err(io::Error::new(io::ErrorKind::NotConnected, "setup destination unavailable"));
+    };
     stream
         .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         .await?;

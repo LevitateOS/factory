@@ -4172,6 +4172,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_PROJECT_TOOLCHAIN") != "" {
 		duration = 330 * time.Second
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
+		duration = 180 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
@@ -4287,6 +4290,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if mode != "network-off" {
 			files["setup-network.json"] = []byte(`{"access":"public_https"}`)
 			prefix = "for target in https://127.0.0.1/ https://localhost/ 'https://[::1]/' http://registry.npmjs.org/is-number; do\n  if curl --fail --silent --show-error --max-time 4 --proxy \"$HTTPS_PROXY\" \"$target\"; then echo 'unexpected forbidden network access'; exit 1; fi\ndone\n"
+			prefix += "status=$(curl --silent --max-time 6 --proxy \"$HTTPS_PROXY\" --write-out '%{http_connect}' --output /dev/null https://factory-setup-check.invalid/ || true)\ncase \"$status\" in 502|504) ;; *) echo 'DNS failure mislabeled as policy denial'; exit 1 ;; esac\n"
 		}
 		files["setup-limits.json"] = []byte(`{"setup_seconds":30,"check_seconds":5}`)
 		files["setup.sh"] = []byte(prefix + "cp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\n: > \"$HOME/user.npmrc\"\n: > \"$HOME/global.npmrc\"\nnpm ci --ignore-scripts --no-audit --no-fund --progress=false --fetch-retries=0 --fetch-timeout=5000 --cache \"$HOME/.npm\" --userconfig=\"$HOME/user.npmrc\" --globalconfig=\"$HOME/global.npmrc\"\n")
@@ -4324,9 +4328,21 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		tools = append(tools, "curl", "unzip", "bun")
 		files["setup-network.json"] = []byte(`{"access":"public_https"}`)
 		files["setup-limits.json"] = []byte(`{"setup_seconds":75,"check_seconds":10}`)
-		install := fmt.Sprintf("test ! -e \"$HOME/.factory-setup-once\"\nprintf ready > \"$HOME/.factory-setup-once\"\nmkdir -p \"$HOME/.bun/bin\"\ncurl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 45 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\nprintf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\nunzip -q \"$TMPDIR/bun.zip\" -d \"$TMPDIR/bun\"\ncp \"$TMPDIR/bun/bun-linux-x64/bun\" \"$HOME/.bun/bin/bun\"\nrm -rf \"$TMPDIR/bun\" \"$TMPDIR/bun.zip\"\ncp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\nbun install --ignore-scripts --no-progress --no-cache\n", release.Version, release.SHA256)
+		install := fmt.Sprintf("test ! -e \"$HOME/.factory-setup-once\"\nprintf ready > \"$HOME/.factory-setup-once\"\nmkdir -p \"$HOME/.bun/bin\"\ncurl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 45 --retry 2 --retry-delay 1 --retry-max-time 45 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\nprintf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\nunzip -q \"$TMPDIR/bun.zip\" -d \"$TMPDIR/bun\"\ncp \"$TMPDIR/bun/bun-linux-x64/bun\" \"$HOME/.bun/bin/bun\"\nrm -rf \"$TMPDIR/bun\" \"$TMPDIR/bun.zip\"\ncp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\nbun install --ignore-scripts --no-progress --no-cache\n", release.Version, release.SHA256)
+		if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
+			// Build the actual shared UI source bundle, including its ordinary
+			// root lifecycle script, rather than generating a larger toy file.
+			files["package.json"] = []byte(`{"name":"factory-preparation-check","private":true,"type":"module","scripts":{"postinstall":"bun scripts/build-factory-ui.ts --out .artifacts/factory-ui"},"dependencies":{"lit":"3.3.3","@pierre/diffs":"1.6.4","marked":"18.1.3","dompurify":"3.4.17"}}`)
+			delete(files, "package-lock.json")
+			install = strings.Replace(install, "cp /run/factory-source/approved/package.json /run/factory-source/approved/package-lock.json .\nbun install --ignore-scripts", "cp /run/factory-source/approved/package.json .\nbun install", 1)
+			files["setup-limits.json"] = []byte(`{"setup_seconds":120,"check_seconds":30}`)
+		}
 		files["setup.sh"] = append(files["setup.sh"], []byte(install)...)
-		files["check.sh"] = append(files["check.sh"], []byte(fmt.Sprintf("test \"$(bun --version)\" = '%s'\nbun -e 'if (!require(\"is-number\")(42)) process.exit(1)'\nprintf 'checked-by-native privately provisioned Bun %s and cold dependency\\n'\n", version, version))...)
+		if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
+			files["check.sh"] = append(files["check.sh"], []byte("test -s .artifacts/factory-ui/factory-app.js\ntest -s .artifacts/factory-ui/factory.css\nbun scripts/build-factory-ui.ts --out .artifacts/factory-ui-offline\ncmp .artifacts/factory-ui/factory-app.js .artifacts/factory-ui-offline/factory-app.js\nprintf 'checked-by-native actual shared UI lifecycle build and offline snapshot rebuild\\n'\n")...)
+		} else {
+			files["check.sh"] = append(files["check.sh"], []byte(fmt.Sprintf("test \"$(bun --version)\" = '%s'\nbun -e 'if (!require(\"is-number\")(42)) process.exit(1)'\nprintf 'checked-by-native privately provisioned Bun %s and cold dependency\\n'\n", version, version))...)
+		}
 	}
 	tools, err = nativeProjectToolchain(files, tools)
 	if err != nil {

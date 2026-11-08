@@ -333,7 +333,7 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
             OsString::from("1"),
         ),
     ]);
-    let arguments = [
+    let arguments: Vec<OsString> = [
         "-c",
         "core.autocrlf=false",
         "-c",
@@ -345,6 +345,7 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
     .chain(arguments.iter().copied())
     .map(OsString::from)
     .collect();
+    let command = format!("{arguments:?}");
     let process = processes
         .launch(Invocation {
             executable: &executable,
@@ -369,7 +370,9 @@ fn git(processes: &mut Processes, arguments: &[&str], duration: Duration) -> io:
     if observed.reason != Some(StopReason::Exited)
         || observed.exit.and_then(|exit| exit.code) != Some(0)
     {
-        return Err(refused("agent Git command failed"));
+        let diagnostic = fs::read(&observed.output)?;
+        return Err(io::Error::new(io::ErrorKind::PermissionDenied,
+            format!("agent Git command failed: {command}; exit {:?}; {}", observed.exit.and_then(|exit| exit.code), String::from_utf8_lossy(&diagnostic).escape_debug())));
     }
     fs::read(&observed.output)
 }
