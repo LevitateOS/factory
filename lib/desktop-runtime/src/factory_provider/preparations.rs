@@ -714,3 +714,40 @@ impl Preparations {
         }
     }
 }
+
+#[derive(Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum Call {
+    Prepare { request: Value },
+    Candidate { request: Value, source: Value },
+    Context { request: Value },
+    Inspect { address: Value },
+    Retire { address: Value },
+}
+
+impl Preparations {
+    pub(crate) async fn callback(
+        self: Arc<Self>,
+        call: Call,
+        execution_available: bool,
+    ) -> std::result::Result<Value, crate::github_provider::Failure> {
+        use crate::github_provider::Failure;
+        if matches!(&call, Call::Prepare { .. } | Call::Candidate { .. }) && !execution_available {
+            return Err(Failure::new(503, "native_execution_unavailable"));
+        }
+        let owner = self;
+        tokio::task::spawn_blocking(move || match call {
+            Call::Prepare { request } => owner.prepare(request),
+            Call::Candidate { request, source } => owner.prepare_candidate(request, &source),
+            Call::Context { request } => owner.context(&request),
+            Call::Inspect { address } => owner.inspect(&address),
+            Call::Retire { address } => owner.retire(&address),
+        })
+        .await
+        .map_err(|_| Failure::unavailable())?
+        .map_err(|error| {
+            eprintln!("native preparation callback: {error}");
+            Failure::new(503, "native_preparation_unavailable")
+        })
+    }
+}

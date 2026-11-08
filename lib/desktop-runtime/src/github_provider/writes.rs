@@ -150,3 +150,206 @@ pub(super) fn check_receipt(receipt: &Value) -> Result<()> {
     }
     Ok(())
 }
+
+/// Fixed native write vocabulary, independent of callback wire encoding and custody.
+pub(crate) enum WriteOperation {
+    SetIssueDependency(super::IssueDependency),
+    CreateInline(super::InlineCreate),
+    MergePull(super::PullMerge),
+    AppendPendingThread(super::InlineDraft),
+    PublishBranch(super::BranchPublish),
+    CreateBranch(super::BranchCreate),
+    CreateComment(super::Comment),
+    CreateIssue(super::IssueCreate),
+    CreatePull(super::PullCreate),
+    CreateReview(super::ReviewCreate),
+    SubmitPendingReview(super::PendingReviewSubmit),
+    SetDiscussionState(super::DiscussionState),
+    EditDiscussion(super::DiscussionEdit),
+    SetDiscussionLock(super::DiscussionLock),
+    SetThreadResolution(super::ThreadResolution),
+    SetReviewRequest(super::ReviewRequestChange),
+}
+impl WriteOperation {
+    pub(crate) fn validate(&self) -> Result<&str> {
+        match self {
+            Self::SetIssueDependency(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreateInline(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::MergePull(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::AppendPendingThread(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::PublishBranch(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreateBranch(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreateComment(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreateIssue(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreatePull(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::CreateReview(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::SubmitPendingReview(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::SetDiscussionState(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::EditDiscussion(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::SetDiscussionLock(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::SetThreadResolution(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+            Self::SetReviewRequest(value) => {
+                value.validate()?;
+                Ok(&value.repository)
+            }
+        }
+    }
+    pub(crate) async fn apply(
+        &self,
+        provider: &Client,
+        token: &[u8],
+        account: &str,
+        deadline: Instant,
+    ) -> (&'static str, WriteOutcome) {
+        match self {
+            Self::SubmitPendingReview(review) => (
+                "applied",
+                provider
+                    .review_submit_account(token, account, review, Some(deadline))
+                    .await,
+            ),
+            Self::SetDiscussionState(state) => (
+                "applied",
+                provider
+                    .state_account(token, account, state, Some(deadline))
+                    .await,
+            ),
+            Self::SetIssueDependency(dependency) => (
+                "applied",
+                provider
+                    .dependency_account(token, account, dependency, Some(deadline))
+                    .await,
+            ),
+            Self::EditDiscussion(edit) => (
+                "applied",
+                provider
+                    .edit_account(token, account, edit, Some(deadline))
+                    .await,
+            ),
+            Self::SetDiscussionLock(lock) => (
+                "applied",
+                provider
+                    .lock_account(token, account, lock, Some(deadline))
+                    .await,
+            ),
+            Self::SetThreadResolution(thread) => (
+                "applied",
+                provider
+                    .thread_resolution_account(token, account, thread, Some(deadline))
+                    .await,
+            ),
+            Self::SetReviewRequest(request) => (
+                "applied",
+                provider
+                    .review_request_account(token, account, request, Some(deadline))
+                    .await,
+            ),
+            Self::MergePull(merge) => (
+                "applied",
+                provider
+                    .merge_account(token, account, merge, Some(deadline))
+                    .await,
+            ),
+            Self::CreateInline(inline) => (
+                "created",
+                provider
+                    .inline_create_account(token, account, inline, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::AppendPendingThread(inline) => (
+                "created",
+                provider
+                    .inline_draft_account(token, account, inline, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::PublishBranch(branch) => (
+                "applied",
+                provider
+                    .branch_publish_account(token, account, branch, Some(deadline))
+                    .await,
+            ),
+            Self::CreateBranch(branch) => (
+                "created",
+                provider
+                    .branch_create_account(token, account, branch, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::CreateComment(comment) => (
+                "created",
+                provider
+                    .comment_account(token, account, comment, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::CreateIssue(issue) => (
+                "created",
+                provider
+                    .issue_create_account(token, account, issue, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::CreatePull(pull) => (
+                "created",
+                provider
+                    .pull_create_account(token, account, pull, Some(deadline))
+                    .await
+                    .into(),
+            ),
+            Self::CreateReview(review) => (
+                "created",
+                provider
+                    .review_create_account(token, account, review, Some(deadline))
+                    .await
+                    .into(),
+            ),
+        }
+    }
+}

@@ -92,3 +92,31 @@ pub(super) async fn entered<T, E: std::fmt::Display>(
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 }
+
+// Exercise the production private callback wire; never accepts a foreign endpoint.
+pub(super) async fn callback(
+    runtime: &NativeSupervisor,
+    profile: &Path,
+    route: &str,
+    body: serde_json::Value,
+) -> Result<(u16, serde_json::Value)> {
+    let health = runtime.health()?;
+    let bearer = fs::read_to_string(profile.join("backend.key"))?;
+    let response = soda_unix_http::request_authenticated_async(
+        &profile.join("host.sock"),
+        "POST",
+        route,
+        "soda-native",
+        &serde_json::to_vec(&body)?,
+        &bearer,
+        &[("X-Soda-Native-Instance", health.instance.as_str())],
+        Duration::from_secs(5),
+        soda_unix_http::Limits {
+            header_bytes: 4096,
+            body_bytes: 512 * 1024,
+        },
+    )
+    .await
+    .map_err(|error| format!("private callback transport: {error:?}"))?;
+    Ok((response.status, serde_json::from_slice(&response.body)?))
+}

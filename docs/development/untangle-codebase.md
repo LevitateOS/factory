@@ -2,7 +2,7 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1–D4 implemented and verified locally; D5–D8 remain pending design only.
+Status: D1–D5 implemented and verified locally; D6–D8 remain pending design only.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -207,6 +207,28 @@ leases, one-shot claims, deadlines and uncertain replies. No new RPC version,
 generic operation registry, provider abstraction or background actor.
 **Proof:** existing affected native operation checks must retain exact requests,
 receipts, foreground/background refusals and cancellation/Quit retirement.
+
+Completion (2026-11-08): verified D1–D4 code and retained checks against
+`f2db7cf`, `a8bd728` and `f3e1a4c`; no prerequisite gap found. Strict existing
+wire DTOs now convert once to private observations or commands with one
+descriptor and typed write. The connector owns payload validation/dispatch;
+existing execution and preparation owners handle semantic callbacks while the
+collaboration runtime retains admission, credential leases, claims, cancellation
+and joined shutdown. Background conversion keeps its separate explicit allowlist
+before custody. Wire errors and causal/uncertain receipts remain unchanged.
+Rust runtime/native checker builds and `bun run check:boundaries` passed.
+The extended existing `--github-issue-product-declared` journey passed exact
+writing/receipts, replay, loss/cancel races, withdrawal and restart, plus raw
+foreground/background decoding, refusal-before-custody, owner errors and admitted
+background current/read/write. Reproduction: `bash
+/home/vince/Projects/d5-operation-session.sh NEW_SCRATCH_ROOT`; results:
+`/home/vince/Projects/d5-operation-verified/{run.log,issue-product-result.json}`.
+Existing managed MCP/recovery checks also passed both startup/restart phases,
+peer/channel refusals and joined retirement:
+`/home/vince/Projects/d5-mcp-verified/run.log` (`factory-native-mcp-signing-check
+SCRATCH PG_PAYLOAD SERVER NATIVE_HELPER`). Provider facts are declared;
+no connected/installed or worker execution qualification. Seven pre-existing
+modified files preserved. D6–D8 remain pending; old product queue stays cleared.
 
 ### D6. Put Fountain ordinary ownership below issue/pull orchestration
 

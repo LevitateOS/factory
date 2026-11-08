@@ -246,6 +246,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
     fs::set_permissions(&io, fs::Permissions::from_mode(0o700))?;
     set_mode(&io, "positive")?;
     let mut runtime = NativeSupervisor::start(payload, production, profile)?;
+    callback_refusals(&runtime, profile).await?;
     let mut store = Arc::new(Credentials::open(profile, &runtime.health()?.profile)?);
     ensure(
         store.status().await?.is_empty(),
@@ -899,6 +900,8 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         !io.join("unexpected-request").exists(),
         "issue product fixture saw an unexpected request",
     )?;
+    background_callback(&runtime, profile, &connection, &io).await?;
+    cases.push("private-callback-background-admission".into());
     store.withdraw(&connection).await?;
     ensure(
         store.status().await?.is_empty(),
@@ -913,5 +916,229 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?,
     )?;
     println!("PASS: composed native/Rust/Go/PG issue creation retains exact writing, causal identity, readable destination, one-shot replay, ambiguous replies, cancel races, withdrawal, other-account refusal and restart; dummy-only provider, no actual GitHub or installed gate qualification");
+    Ok(())
+}
+
+async fn callback_refusals(runtime: &NativeSupervisor, profile: &Path) -> Result<()> {
+    use super::native_github_fixture::callback;
+    let background = "/api/native/collaboration/background";
+    let foreground = "/api/native/collaboration";
+    let execution = "/api/native/execution";
+    let preparation = "/api/native/preparation";
+    let base =
+        |call| json!({"connection":"1".repeat(32),"account":"321","repository":"123","call":call});
+    // No credential owner has been admitted. Disallowed operations must refuse
+    // before even attempting custody; allowed operations retain the custody error.
+    for (call, status, code) in [
+        (
+            json!({"kind":"read","query":{"kind":"repositories","page":1,"limit":1}}),
+            403,
+            "native_background_read_unavailable",
+        ),
+        (
+            json!({"kind":"edit_discussion","command_id":"1".repeat(32),"digest":"a".repeat(64),"not_after":1,"edit":{"repository":"123","subject":"pull","subject_id":"700","number":7,"title":"Exact title","body":null,"original_title":"Before","original_body_sha256":"a".repeat(64)}}),
+            403,
+            "native_background_read_unavailable",
+        ),
+        (
+            json!({"kind":"read","query":{"kind":"identity"},"extra":true}),
+            400,
+            "invalid_native_read",
+        ),
+        (
+            json!({"kind":"set_discussion_state"}),
+            400,
+            "invalid_native_read",
+        ),
+        (
+            json!({"kind":"current"}),
+            401,
+            "native_account_owner_unavailable",
+        ),
+    ] {
+        let reply = callback(runtime, profile, background, base(call)).await?;
+        ensure(
+            reply.0 == status && reply.1["error"] == code,
+            &format!(
+                "background allowlist/custody order changed: expected {status}/{code}: {reply:?}"
+            ),
+        )?;
+    }
+    for (route, body, status, code) in [
+        (
+            foreground,
+            json!({"operation":"1".repeat(32),"call":{"kind":"read","query":{"kind":"identity"},"extra":true}}),
+            400,
+            "invalid_native_read",
+        ),
+        (
+            foreground,
+            json!({"operation":"1".repeat(32),"call":{"kind":"current"}}),
+            401,
+            "native_operation_retired",
+        ),
+        (
+            execution,
+            json!({"operation":"inspect_account","connection":"missing"}),
+            503,
+            "github_unavailable",
+        ),
+        (
+            execution,
+            json!({"operation":"recovery_target"}),
+            503,
+            "native_work_recovery_unavailable",
+        ),
+        (
+            execution,
+            json!({"operation":"recover","intent":"invalid","checkout_id":"invalid"}),
+            503,
+            "native_work_recovery_unavailable",
+        ),
+        (
+            execution,
+            json!({"operation":"cancel","intent":"invalid"}),
+            503,
+            "native_execution_unavailable",
+        ),
+        (
+            execution,
+            json!({"operation":"inspect_judgment","id":"invalid","digest":"invalid","cancel":false}),
+            503,
+            "native_judgment_unavailable",
+        ),
+        (
+            execution,
+            json!({"operation":"cancel","intent":"invalid","extra":true}),
+            400,
+            "invalid_native_read",
+        ),
+        (
+            preparation,
+            json!({"operation":"context","request":{}}),
+            503,
+            "native_preparation_unavailable",
+        ),
+        (
+            preparation,
+            json!({"operation":"context","request":{},"extra":true}),
+            400,
+            "invalid_native_read",
+        ),
+    ] {
+        let reply = callback(runtime, profile, route, body).await?;
+        ensure(
+            reply.0 == status && reply.1["error"] == code,
+            &format!("private callback error changed: {route}: {reply:?}"),
+        )?;
+    }
+    let completed = callback(
+        runtime,
+        profile,
+        execution,
+        json!({"operation":"completed"}),
+    )
+    .await?;
+    ensure(
+        completed.0 == 200 && completed.1 == json!({"items":[]}),
+        "execution completion wire changed",
+    )?;
+    let unknown = callback(runtime, profile, execution, json!({"operation":"inspect_judgment","id":"1".repeat(32),"digest":"a".repeat(64),"cancel":true})).await?;
+    ensure(
+        unknown.0 == 200 && unknown.1 == json!({"state":"unknown"}),
+        "unknown judgment invented a result",
+    )?;
+    let login = callback(
+        runtime,
+        profile,
+        execution,
+        json!({"operation":"inspect_muse_login"}),
+    )
+    .await?;
+    ensure(
+        login.0 == 200 && login.1["native"]["authentication"] == "muse_login",
+        "native login inspection wire changed",
+    )?;
+    println!("PASS: strict callback DTOs, explicit background refusals before custody, retired foreground scopes and execution/preparation/judgment owner responses");
+    Ok(())
+}
+
+async fn background_callback(
+    runtime: &NativeSupervisor,
+    profile: &Path,
+    connection: &str,
+    io: &Path,
+) -> Result<()> {
+    use super::native_github_fixture::callback;
+    let route = "/api/native/collaboration/background";
+    let base =
+        |call| json!({"connection":connection,"account":"321","repository":"123","call":call});
+    let current = callback(runtime, profile, route, base(json!({"kind":"current"}))).await?;
+    ensure(
+        current.0 == 200
+            && current.1["connection"]["connection"] == connection
+            && current.1["repository"] == "123"
+            && current.1["observation"].is_null(),
+        "background current binding changed",
+    )?;
+    let read = callback(
+        runtime,
+        profile,
+        route,
+        base(json!({"kind":"read","query":{"kind":"identity"}})),
+    )
+    .await?;
+    ensure(
+        read.0 == 200
+            && read.1["connection"]["account"] == "321"
+            && !read.1["observation"].is_null(),
+        "background read lost its admitted account",
+    )?;
+    let deadline = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs()
+        + 60;
+    let command_id = "dc".repeat(16);
+    let digest = "e".repeat(64);
+    let title = "Exact background creation π";
+    let body = "Retain these bytes 🍵\n";
+    let write = json!({"kind":"create_issue","command_id":command_id,"digest":digest,"not_after":deadline,"issue":{"repository":"123","title":title,"body":body}});
+    let before = posts(io)?;
+    for (field, value, status, code) in [
+        ("digest", json!("INVALID"), 400, "invalid_native_write"),
+        (
+            "not_after",
+            json!(deadline + 600),
+            400,
+            "invalid_native_write",
+        ),
+        ("repository", json!("999"), 403, "native_repository_scope"),
+    ] {
+        let mut invalid = write.clone();
+        if field == "repository" {
+            invalid["issue"][field] = value;
+        } else {
+            invalid[field] = value;
+        }
+        let reply = callback(runtime, profile, route, base(invalid)).await?;
+        ensure(
+            reply.0 == status && reply.1["error"] == code && posts(io)? == before,
+            "background invalid descriptor/scope sent an effect",
+        )?;
+    }
+    let created = callback(runtime, profile, route, base(write)).await?;
+    let observation = &created.1["observation"];
+    ensure(
+        created.0 == 200
+            && observation["command_id"] == command_id
+            && observation["digest"] == digest
+            && observation["state"] == "created"
+            && observation["failure"].is_null()
+            && observation["receipt"]["issue"]["title_sha256"] == sha(title)
+            && observation["receipt"]["issue"]["body_sha256"] == sha(body)
+            && posts(io)? == before + 1,
+        "background typed write lost exact request, descriptor or causal receipt",
+    )?;
+    println!("PASS: admitted background current/read/write retain scope, exact command/digest and causal receipt; invalid descriptors/repository refuse without provider mutations");
     Ok(())
 }

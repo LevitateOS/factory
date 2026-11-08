@@ -469,3 +469,208 @@ fn observation(
         "output":output,"output_complete":terminal.is_some_and(|result| result.output_complete) && output.is_some(),
     })
 }
+
+/// Borrowed callback owners; the collaboration runtime retains and joins them.
+pub(crate) struct Callbacks<'a> {
+    pub channel: &'a crate::supervisor::NativeChannel,
+    pub signer: &'a crate::mcp_signing::Signer,
+    pub alive: &'a Arc<AtomicBool>,
+    pub execution_error: &'a Mutex<Option<String>>,
+    pub executions: &'a Arc<Mutex<Executions>>,
+    pub judgments: &'a Mutex<super::judgment::Judgments>,
+    pub tools: &'a std::sync::RwLock<Option<Arc<super::Tools>>>,
+    pub preparations: &'a Arc<super::preparations::Preparations>,
+    pub execution_accounts:
+        &'a Arc<std::sync::RwLock<std::collections::BTreeMap<String, Arc<super::launch::Account>>>>,
+    pub work: &'a Arc<super::work::Work>,
+}
+impl Callbacks<'_> {
+    pub(crate) async fn call(
+        &self,
+        call: Call,
+    ) -> std::result::Result<Value, crate::github_provider::Failure> {
+        use crate::github_provider::Failure;
+        match call {
+            Call::BeginJudgment { request } => {
+                let tools = self
+                    .tools
+                    .read()
+                    .map_err(|_| Failure::unavailable())?
+                    .clone()
+                    .ok_or_else(Failure::unavailable)?;
+                let tool = tools.inspect().await.map_err(|_| Failure::unavailable())?;
+                return self
+                    .judgments
+                    .lock()
+                    .map_err(|_| Failure::unavailable())?
+                    .begin(
+                        self.channel
+                            .socket
+                            .parent()
+                            .ok_or_else(Failure::unavailable)?,
+                        &self.channel.profile,
+                        request,
+                        tool,
+                        self.alive.clone(),
+                    )
+                    .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
+            }
+            Call::InspectJudgment { id, digest, cancel } => {
+                return self
+                    .judgments
+                    .lock()
+                    .map_err(|_| Failure::unavailable())?
+                    .inspect(
+                        self.channel
+                            .socket
+                            .parent()
+                            .ok_or_else(Failure::unavailable)?,
+                        &id,
+                        &digest,
+                        cancel,
+                    )
+                    .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
+            }
+            Call::InspectMuseLogin => {
+                let connection = crate::factory_provider::muse_connection(&self.channel.profile);
+                let tools = self
+                    .tools
+                    .read()
+                    .map_err(|_| Failure::unavailable())?
+                    .clone();
+                let tool_status = tools
+                    .as_ref()
+                    .map(|tools| tools.status())
+                    .transpose()
+                    .map_err(|_| Failure::unavailable())?;
+                let judgment_available = crate::factory_provider::muse_helper().is_ok()
+                    && tool_status.as_ref().is_some_and(|status| {
+                        status.state == "ready"
+                            && status.checked_at_unix.is_some_and(|checked| {
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .is_ok_and(|now| {
+                                        now.as_secs().saturating_sub(checked)
+                                            < crate::factory_provider::Tools::REFRESH.as_secs()
+                                    })
+                            })
+                    });
+                let available = judgment_available
+                    && self
+                        .execution_error
+                        .lock()
+                        .is_ok_and(|error| error.is_none());
+                return Ok(json!({"connection":connection,"label":"This Muse login",
+                "native":{"profile":self.channel.profile,"authentication":"muse_login"},
+                "execution_available":available,"judgment_available":judgment_available,"judgment_models":[crate::factory_provider::MODEL],"tool_status":tool_status}));
+            }
+            Call::InspectAccount { connection } => {
+                let account = self
+                    .execution_accounts
+                    .read()
+                    .map_err(|_| Failure::unavailable())?
+                    .get(&connection)
+                    .cloned()
+                    .ok_or_else(Failure::unavailable)?;
+                let observed = account
+                    .observe(&self.channel.profile)
+                    .await
+                    .map_err(|_| Failure::unavailable())?;
+                if !self.alive.load(Ordering::SeqCst) {
+                    return Err(Failure::unavailable());
+                }
+                return Ok(observed);
+            }
+            Call::RecoveryTarget => {
+                return self
+                    .work
+                    .recovery_target()
+                    .map_err(|_| Failure::new(503, "native_work_recovery_unavailable"));
+            }
+            Call::Recover {
+                intent,
+                checkout_id,
+            } => {
+                let owner = self.work.clone();
+                let preparations = self.preparations.clone();
+                return tokio::task::spawn_blocking(move || {
+                    owner.recover(&intent, &checkout_id, &preparations)
+                })
+                .await
+                .map_err(|_| Failure::unavailable())?
+                .map_err(|error| {
+                    eprintln!("native work recovery: {error}");
+                    Failure::new(503, "native_work_recovery_unavailable")
+                });
+            }
+            Call::Launch {
+                intent,
+                manifest,
+                prompt,
+                capability,
+                secret,
+                scope_digest,
+                tools,
+            } => {
+                if self
+                    .execution_error
+                    .lock()
+                    .map_or(true, |error| error.is_some())
+                {
+                    return Err(Failure::new(503, "native_execution_unavailable"));
+                }
+                if !self
+                    .signer
+                    .verify(&capability, &scope_digest, &secret)
+                    .map_err(|_| Failure::unavailable())?
+                {
+                    return Err(Failure::invalid());
+                }
+                return crate::factory_provider::launch::launch(
+                    self.channel.clone(),
+                    self.alive.clone(),
+                    self.executions.clone(),
+                    self.preparations.clone(),
+                    self.execution_accounts.clone(),
+                    crate::factory_provider::launch::Input {
+                        intent,
+                        manifest,
+                        prompt,
+                        capability,
+                        secret,
+                        tools,
+                    },
+                )
+                .await
+                .map_err(|error| {
+                    eprintln!("native launch callback: {error}");
+                    Failure::new(503, "native_launch_unavailable")
+                });
+            }
+            call => {
+                let tools = self
+                    .tools
+                    .read()
+                    .map_err(|_| Failure::unavailable())?
+                    .clone();
+                return crate::factory_provider::port::call(
+                    self.executions.clone(),
+                    self.alive.clone(),
+                    tools,
+                    self.channel
+                        .socket
+                        .parent()
+                        .ok_or_else(Failure::unavailable)?
+                        .to_path_buf(),
+                    self.channel.profile.clone(),
+                    call,
+                )
+                .await
+                .map_err(|error| {
+                    eprintln!("native execution callback: {error}");
+                    Failure::new(503, "native_execution_unavailable")
+                });
+            }
+        }
+    }
+}

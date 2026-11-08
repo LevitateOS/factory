@@ -53,6 +53,7 @@ pub use locks::DiscussionLock;
 pub use merges::PullMerge;
 pub use states::{DiscussionState, StateOutcome};
 pub use writes::{CreateOutcome, WriteOutcome};
+pub(crate) use writes::WriteOperation;
 pub type CommentOutcome = CreateOutcome;
 pub use oauth::{DeviceAuthorization, DevicePrompt};
 pub use pull_branches::PullBranchRead;

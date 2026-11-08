@@ -6,7 +6,7 @@ use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::github_provider::{
     BranchCreate, BranchPublish, Client, Comment, DiscussionEdit, DiscussionLock, DiscussionState,
     Failure, InlineCreate, InlineDraft, IssueCreate, IssueDependency, PendingReviewSubmit, PullCreate, PullMerge,
-    Read, ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOutcome,
+    Read, ReviewCreate, ReviewRequestChange, ThreadResolution, WriteOperation, WriteOutcome,
 };
 use crate::mcp_signing::Signer;
 use crate::product::Products;
@@ -509,7 +509,12 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
-    SetIssueDependency { command_id: String, digest: String, not_after: u64, dependency: IssueDependency },
+    SetIssueDependency {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        dependency: IssueDependency,
+    },
     EditDiscussion {
         command_id: String,
         digest: String,
@@ -558,65 +563,98 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
-        BackgroundEffect::SetIssueDependency { command_id, digest, not_after, dependency } => Effect::SetIssueDependency { command_id, digest, not_after, dependency },
-        BackgroundEffect::EditDiscussion { command_id, digest, not_after, edit }
-            if edit.subject == "issue" => Effect::EditDiscussion { command_id, digest, not_after, edit },
+        BackgroundEffect::SetIssueDependency {
+            command_id,
+            digest,
+            not_after,
+            dependency,
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::SetIssueDependency(dependency),
+        }),
+        BackgroundEffect::EditDiscussion {
+            command_id,
+            digest,
+            not_after,
+            edit,
+        } if edit.subject == "issue" => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::EditDiscussion(edit),
+        }),
         BackgroundEffect::CreateIssue {
             command_id,
             digest,
             not_after,
             issue,
-        } => Effect::CreateIssue {
-            command_id,
-            digest,
-            not_after,
-            issue,
-        },
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::CreateIssue(issue),
+        }),
         BackgroundEffect::MergePull {
             command_id,
             digest,
             not_after,
             merge,
-        } => Effect::MergePull {
-            command_id,
-            digest,
-            not_after,
-            merge,
-        },
-        BackgroundEffect::Current => Effect::Current,
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::MergePull(merge),
+        }),
         BackgroundEffect::PublishBranch {
             command_id,
             digest,
             not_after,
             branch,
-        } => Effect::PublishBranch {
-            command_id,
-            digest,
-            not_after,
-            branch,
-        },
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::PublishBranch(branch),
+        }),
         BackgroundEffect::CreatePull {
             command_id,
             digest,
             not_after,
             pull,
-        } => Effect::CreatePull {
-            command_id,
-            digest,
-            not_after,
-            pull,
-        },
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::CreatePull(pull),
+        }),
         BackgroundEffect::CreateReview {
             command_id,
             digest,
             not_after,
             review,
-        } => Effect::CreateReview {
-            command_id,
-            digest,
-            not_after,
-            review,
-        },
+        } => Operation::Mutation(Command {
+            descriptor: Descriptor {
+                command_id,
+                digest,
+                not_after,
+            },
+            operation: WriteOperation::CreateReview(review),
+        }),
+        BackgroundEffect::Current => Operation::Current,
         BackgroundEffect::Read { query }
             if matches!(
                 query,
@@ -646,17 +684,20 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
                     | Read::PullPendingReviewSnapshot { .. }
             ) =>
         {
-            Effect::Read { query }
+            Operation::Read(query)
         }
         _ => return Err(Failure::new(403, "native_background_read_unavailable")),
     };
     if !matches!(
         &effect,
-        Effect::CreateReview { .. }
-            | Effect::CreateIssue { .. }
-            | Effect::PublishBranch { .. }
-            | Effect::CreatePull { .. }
-            | Effect::MergePull { .. }
+        Operation::Mutation(Command {
+            operation: WriteOperation::CreateReview(..)
+                | WriteOperation::CreateIssue(..)
+                | WriteOperation::PublishBranch(..)
+                | WriteOperation::CreatePull(..)
+                | WriteOperation::MergePull(..),
+            ..
+        })
     ) && body.len() > 8192
     {
         return Err(Failure::invalid());
@@ -718,7 +759,12 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
-    SetIssueDependency { command_id: String, digest: String, not_after: u64, dependency: IssueDependency },
+    SetIssueDependency {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        dependency: IssueDependency,
+    },
     CreateInline {
         command_id: String,
         digest: String,
@@ -814,101 +860,234 @@ enum Effect {
         request: ReviewRequestChange,
     },
 }
-impl Effect {
-    fn mutation(&self) -> Option<(&str, &str, u64, &str)> {
-        match self {
-            Self::CreateInline {
+// Wire repetition ends here: admission and custody see one descriptor per command.
+struct Descriptor {
+    command_id: String,
+    digest: String,
+    not_after: u64,
+}
+struct Command {
+    descriptor: Descriptor,
+    operation: WriteOperation,
+}
+enum Operation {
+    Current,
+    Read(Read),
+    Mutation(Command),
+}
+impl From<Effect> for Operation {
+    fn from(effect: Effect) -> Self {
+        match effect {
+            Effect::Current => Self::Current,
+            Effect::Read { query } => Self::Read(query),
+            Effect::SetIssueDependency {
+                command_id,
+                digest,
+                not_after,
+                dependency,
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SetIssueDependency(dependency),
+            }),
+            Effect::CreateInline {
                 command_id,
                 digest,
                 not_after,
                 inline,
-            } => Some((command_id, digest, *not_after, &inline.repository)),
-            Self::MergePull {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreateInline(inline),
+            }),
+            Effect::MergePull {
                 command_id,
                 digest,
                 not_after,
                 merge,
-            } => Some((command_id, digest, *not_after, &merge.repository)),
-            Self::AppendPendingThread {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::MergePull(merge),
+            }),
+            Effect::AppendPendingThread {
                 command_id,
                 digest,
                 not_after,
                 inline,
-            } => Some((command_id, digest, *not_after, &inline.repository)),
-            Self::PublishBranch {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::AppendPendingThread(inline),
+            }),
+            Effect::PublishBranch {
                 command_id,
                 digest,
                 not_after,
                 branch,
-            } => Some((command_id, digest, *not_after, &branch.repository)),
-            Self::CreateBranch {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::PublishBranch(branch),
+            }),
+            Effect::CreateBranch {
                 command_id,
                 digest,
                 not_after,
                 branch,
-            } => Some((command_id, digest, *not_after, &branch.repository)),
-            Self::CreateComment {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreateBranch(branch),
+            }),
+            Effect::CreateComment {
                 command_id,
                 digest,
                 not_after,
                 comment,
-            } => Some((command_id, digest, *not_after, &comment.repository)),
-            Self::CreateIssue {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreateComment(comment),
+            }),
+            Effect::CreateIssue {
                 command_id,
                 digest,
                 not_after,
                 issue,
-            } => Some((command_id, digest, *not_after, &issue.repository)),
-            Self::CreatePull {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreateIssue(issue),
+            }),
+            Effect::CreatePull {
                 command_id,
                 digest,
                 not_after,
                 pull,
-            } => Some((command_id, digest, *not_after, &pull.repository)),
-            Self::CreateReview {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreatePull(pull),
+            }),
+            Effect::CreateReview {
                 command_id,
                 digest,
                 not_after,
                 review,
-            } => Some((command_id, digest, *not_after, &review.repository)),
-            Self::SubmitPendingReview {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::CreateReview(review),
+            }),
+            Effect::SubmitPendingReview {
                 command_id,
                 digest,
                 not_after,
                 review,
-            } => Some((command_id, digest, *not_after, &review.repository)),
-            Self::SetDiscussionState {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SubmitPendingReview(review),
+            }),
+            Effect::SetDiscussionState {
                 command_id,
                 digest,
                 not_after,
                 state,
-            } => Some((command_id, digest, *not_after, &state.repository)),
-            Self::SetIssueDependency {command_id,digest,not_after,dependency} => Some((command_id,digest,*not_after,&dependency.repository)),
-            Self::EditDiscussion {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SetDiscussionState(state),
+            }),
+            Effect::EditDiscussion {
                 command_id,
                 digest,
                 not_after,
                 edit,
-            } => Some((command_id, digest, *not_after, &edit.repository)),
-            Self::SetDiscussionLock {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::EditDiscussion(edit),
+            }),
+            Effect::SetDiscussionLock {
                 command_id,
                 digest,
                 not_after,
                 lock,
-            } => Some((command_id, digest, *not_after, &lock.repository)),
-            Self::SetThreadResolution {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SetDiscussionLock(lock),
+            }),
+            Effect::SetThreadResolution {
                 command_id,
                 digest,
                 not_after,
                 thread,
-            } => Some((command_id, digest, *not_after, &thread.repository)),
-            Self::SetReviewRequest {
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SetThreadResolution(thread),
+            }),
+            Effect::SetReviewRequest {
                 command_id,
                 digest,
                 not_after,
                 request,
-            } => Some((command_id, digest, *not_after, &request.repository)),
-            _ => None,
+            } => Self::Mutation(Command {
+                descriptor: Descriptor {
+                    command_id,
+                    digest,
+                    not_after,
+                },
+                operation: WriteOperation::SetReviewRequest(request),
+            }),
         }
     }
 }
@@ -1043,231 +1222,33 @@ async fn dispatch(
         return background_read(state, &body).await;
     }
     if preparation {
-        #[derive(Deserialize)]
-        #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
-        enum PreparationCall {
-            Prepare { request: Value },
-            Candidate { request: Value, source: Value },
-            Context { request: Value },
-            Inspect { address: Value },
-            Retire { address: Value },
-        }
-        let call: PreparationCall =
-            serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
-        if matches!(
-            &call,
-            PreparationCall::Prepare { .. } | PreparationCall::Candidate { .. }
-        ) && state
+        let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        let execution_available = state
             .execution_error
             .lock()
-            .map_or(true, |error| error.is_some())
-        {
-            return Err(Failure::new(503, "native_execution_unavailable"));
-        }
-        let owner = state.preparations.clone();
-        return tokio::task::spawn_blocking(move || match call {
-            PreparationCall::Prepare { request } => owner.prepare(request),
-            PreparationCall::Candidate { request, source } => {
-                owner.prepare_candidate(request, &source)
-            }
-            PreparationCall::Context { request } => owner.context(&request),
-            PreparationCall::Inspect { address } => owner.inspect(&address),
-            PreparationCall::Retire { address } => owner.retire(&address),
-        })
-        .await
-        .map_err(|_| Failure::unavailable())?
-        .map_err(|error| {
-            eprintln!("native preparation callback: {error}");
-            Failure::new(503, "native_preparation_unavailable")
-        });
+            .is_ok_and(|error| error.is_none());
+        return state
+            .preparations
+            .clone()
+            .callback(call, execution_available)
+            .await;
     }
     if execution {
-        let call: crate::factory_provider::port::Call =
-            serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
-        if let crate::factory_provider::port::Call::BeginJudgment { request } = call {
-            let tools = state
-                .tools
-                .read()
-                .map_err(|_| Failure::unavailable())?
-                .clone()
-                .ok_or_else(Failure::unavailable)?;
-            let tool = tools.inspect().await.map_err(|_| Failure::unavailable())?;
-            return state
-                .judgments
-                .lock()
-                .map_err(|_| Failure::unavailable())?
-                .begin(
-                    state
-                        .channel
-                        .socket
-                        .parent()
-                        .ok_or_else(Failure::unavailable)?,
-                    &state.channel.profile,
-                    request,
-                    tool,
-                    state.alive.clone(),
-                )
-                .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
+        let call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
+        return crate::factory_provider::port::Callbacks {
+            channel: &state.channel,
+            signer: &state.signer,
+            alive: &state.alive,
+            execution_error: &state.execution_error,
+            executions: &state.executions,
+            judgments: &state.judgments,
+            tools: &state.tools,
+            preparations: &state.preparations,
+            execution_accounts: &state.execution_accounts,
+            work: &state.work,
         }
-        if let crate::factory_provider::port::Call::InspectJudgment { id, digest, cancel } = call {
-            return state
-                .judgments
-                .lock()
-                .map_err(|_| Failure::unavailable())?
-                .inspect(
-                    state
-                        .channel
-                        .socket
-                        .parent()
-                        .ok_or_else(Failure::unavailable)?,
-                    &id,
-                    &digest,
-                    cancel,
-                )
-                .map_err(|_| Failure::new(503, "native_judgment_unavailable"));
-        }
-        if matches!(&call, crate::factory_provider::port::Call::InspectMuseLogin) {
-            let connection = crate::factory_provider::muse_connection(&state.channel.profile);
-            let tools = state
-                .tools
-                .read()
-                .map_err(|_| Failure::unavailable())?
-                .clone();
-            let tool_status = tools
-                .as_ref()
-                .map(|tools| tools.status())
-                .transpose()
-                .map_err(|_| Failure::unavailable())?;
-            let judgment_available = crate::factory_provider::muse_helper().is_ok()
-                && tool_status.as_ref().is_some_and(|status| {
-                    status.state == "ready"
-                        && status.checked_at_unix.is_some_and(|checked| {
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .is_ok_and(|now| {
-                                    now.as_secs().saturating_sub(checked)
-                                        < crate::factory_provider::Tools::REFRESH.as_secs()
-                                })
-                        })
-                });
-            let available = judgment_available
-                && state
-                    .execution_error
-                    .lock()
-                    .is_ok_and(|error| error.is_none());
-            return Ok(json!({"connection":connection,"label":"This Muse login",
-                "native":{"profile":state.channel.profile,"authentication":"muse_login"},
-                "execution_available":available,"judgment_available":judgment_available,"judgment_models":[crate::factory_provider::MODEL],"tool_status":tool_status}));
-        }
-        if matches!(&call, crate::factory_provider::port::Call::Launch { .. })
-            && state
-                .execution_error
-                .lock()
-                .map_or(true, |error| error.is_some())
-        {
-            return Err(Failure::new(503, "native_execution_unavailable"));
-        }
-        if let crate::factory_provider::port::Call::InspectAccount { connection } = call {
-            let account = state
-                .execution_accounts
-                .read()
-                .map_err(|_| Failure::unavailable())?
-                .get(&connection)
-                .cloned()
-                .ok_or_else(Failure::unavailable)?;
-            let observed = account
-                .observe(&state.channel.profile)
-                .await
-                .map_err(|_| Failure::unavailable())?;
-            if !state.alive.load(Ordering::SeqCst) {
-                return Err(Failure::unavailable());
-            }
-            return Ok(observed);
-        }
-        if matches!(&call, crate::factory_provider::port::Call::RecoveryTarget) {
-            return state
-                .work
-                .recovery_target()
-                .map_err(|_| Failure::new(503, "native_work_recovery_unavailable"));
-        }
-        if let crate::factory_provider::port::Call::Recover {
-            intent,
-            checkout_id,
-        } = call
-        {
-            let owner = state.work.clone();
-            let preparations = state.preparations.clone();
-            return tokio::task::spawn_blocking(move || {
-                owner.recover(&intent, &checkout_id, &preparations)
-            })
-            .await
-            .map_err(|_| Failure::unavailable())?
-            .map_err(|error| {
-                eprintln!("native work recovery: {error}");
-                Failure::new(503, "native_work_recovery_unavailable")
-            });
-        }
-        if let crate::factory_provider::port::Call::Launch {
-            intent,
-            manifest,
-            prompt,
-            capability,
-            secret,
-            scope_digest,
-            tools,
-        } = call
-        {
-            if !state
-                .signer
-                .verify(&capability, &scope_digest, &secret)
-                .map_err(|_| Failure::unavailable())?
-            {
-                return Err(Failure::invalid());
-            }
-            return crate::factory_provider::launch::launch(
-                state.channel.clone(),
-                state.alive.clone(),
-                state.executions.clone(),
-                state.preparations.clone(),
-                state.execution_accounts.clone(),
-                crate::factory_provider::launch::Input {
-                    intent,
-                    manifest,
-                    prompt,
-                    capability,
-                    secret,
-                    tools,
-                },
-            )
-            .await
-            .map_err(|error| {
-                eprintln!("native launch callback: {error}");
-                Failure::new(503, "native_launch_unavailable")
-            });
-        }
-        let tools = state
-            .tools
-            .read()
-            .map_err(|_| Failure::unavailable())?
-            .clone();
-        return crate::factory_provider::port::call(
-            state.executions.clone(),
-            state.alive.clone(),
-            tools,
-            state
-                .channel
-                .socket
-                .parent()
-                .ok_or_else(Failure::unavailable)?
-                .to_path_buf(),
-            state.channel.profile.clone(),
-            call,
-        )
-        .await
-        .map_err(|error| {
-            eprintln!("native execution callback: {error}");
-            Failure::new(503, "native_execution_unavailable")
-        });
+        .call(call)
+        .await;
     }
     if signing {
         let call: SignCall = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
@@ -1286,26 +1267,28 @@ async fn dispatch(
         return Ok(json!({"valid":valid}));
     }
     let call: Call = serde_json::from_slice(&body).map_err(|_| Failure::invalid())?;
-    let descriptor_limit = match &call.call {
-        Effect::Read {
-            query: Read::InlinePreparation { .. },
-        } => 64 * 1024,
+    let effect = Operation::from(call.call);
+    let descriptor_limit = match &effect {
+        Operation::Read(Read::InlinePreparation { .. }) => 64 * 1024,
         _ => 8192,
     };
     if !matches!(
-        &call.call,
-        Effect::CreateComment { .. }
-            | Effect::PublishBranch { .. }
-            | Effect::MergePull { .. }
-            | Effect::CreateInline { .. }
-            | Effect::AppendPendingThread { .. }
-            | Effect::CreateIssue { .. }
-            | Effect::CreatePull { .. }
-            | Effect::CreateReview { .. }
-            | Effect::SubmitPendingReview { .. }
-            | Effect::SetIssueDependency { .. }
-            | Effect::EditDiscussion { .. }
-            | Effect::SetDiscussionLock { .. }
+        &effect,
+        Operation::Mutation(Command {
+            operation: WriteOperation::CreateComment(..)
+                | WriteOperation::PublishBranch(..)
+                | WriteOperation::MergePull(..)
+                | WriteOperation::CreateInline(..)
+                | WriteOperation::AppendPendingThread(..)
+                | WriteOperation::CreateIssue(..)
+                | WriteOperation::CreatePull(..)
+                | WriteOperation::CreateReview(..)
+                | WriteOperation::SubmitPendingReview(..)
+                | WriteOperation::SetIssueDependency(..)
+                | WriteOperation::EditDiscussion(..)
+                | WriteOperation::SetDiscussionLock(..),
+            ..
+        })
     ) && body.len() > descriptor_limit
     {
         return Err(Failure::invalid());
@@ -1321,42 +1304,27 @@ async fn dispatch(
         .and_then(Weak::upgrade)
         .filter(|scope| scope.current())
         .ok_or_else(|| Failure::new(401, "native_operation_retired"))?;
-    observe_scope(state, scope, &call.call).await
+    observe_scope(state, scope, &effect).await
 }
 
-fn validate_mutation(scope: &Scope, effect: &Effect) -> std::result::Result<(), Failure> {
-    if let Some((command_id, digest, not_after, repository)) = effect.mutation() {
-        match &effect {
-            Effect::CreateInline { inline, .. } => inline.validate()?,
-            Effect::MergePull { merge, .. } => merge.validate()?,
-            Effect::CreateComment { comment, .. } => comment.validate()?,
-            Effect::AppendPendingThread { inline, .. } => inline.validate()?,
-            Effect::CreateIssue { issue, .. } => issue.validate()?,
-            Effect::PublishBranch { branch, .. } => branch.validate()?,
-            Effect::CreateBranch { branch, .. } => branch.validate()?,
-            Effect::CreatePull { pull, .. } => pull.validate()?,
-            Effect::CreateReview { review, .. } => review.validate()?,
-            Effect::SubmitPendingReview { review, .. } => review.validate()?,
-            Effect::SetDiscussionState { state, .. } => state.validate()?,
-            Effect::SetIssueDependency { dependency, .. } => dependency.validate()?,
-            Effect::EditDiscussion { edit, .. } => edit.validate()?,
-            Effect::SetDiscussionLock { lock, .. } => lock.validate()?,
-            Effect::SetThreadResolution { thread, .. } => thread.validate()?,
-            Effect::SetReviewRequest { request, .. } => request.validate()?,
-            _ => unreachable!(),
-        }
-        if !opaque_id(command_id)
-            || digest.len() != 64
-            || !digest
-                .bytes()
-                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-            || not_after == 0
-        {
-            return Err(Failure::new(400, "invalid_native_write"));
-        }
-        if scope.repository.as_deref() != Some(repository) {
-            return Err(Failure::new(403, "native_repository_scope"));
-        }
+fn validate_mutation(scope: &Scope, command: &Command) -> std::result::Result<(), Failure> {
+    let repository = command.operation.validate()?;
+    let Descriptor {
+        command_id,
+        digest,
+        not_after,
+    } = &command.descriptor;
+    if !opaque_id(command_id)
+        || digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || *not_after == 0
+    {
+        return Err(Failure::new(400, "invalid_native_write"));
+    }
+    if scope.repository.as_deref() != Some(repository) {
+        return Err(Failure::new(403, "native_repository_scope"));
     }
     Ok(())
 }
@@ -1364,10 +1332,12 @@ fn validate_mutation(scope: &Scope, effect: &Effect) -> std::result::Result<(), 
 async fn observe_scope(
     state: &State,
     scope: Arc<Scope>,
-    effect: &Effect,
+    effect: &Operation,
 ) -> std::result::Result<Value, Failure> {
-    validate_mutation(&scope, effect)?;
-    if let Effect::Read { query } = effect {
+    if let Operation::Mutation(command) = effect {
+        validate_mutation(&scope, command)?;
+    }
+    if let Operation::Read(query) = effect {
         query.validate()?;
         let value = query.value();
         let identity = matches!(query, Read::Identity);
@@ -1387,14 +1357,14 @@ async fn observe_scope(
     let work = scope
         .credentials
         .with_token_operation(&scope.capability, async |token: &[u8]| match effect {
-            Effect::Current => Ok(Value::Null),
-            Effect::Read { query } => {
+            Operation::Current => Ok(Value::Null),
+            Operation::Read(query) => {
                 state
                     .provider
                     .read_account(token, &scope.capability.account().account, query)
                     .await
             }
-            effect => mutate(&state.provider, &scope, token, effect).await,
+            Operation::Mutation(command) => mutate(&state.provider, &scope, token, command).await,
         });
     let observation = tokio::select! {
         biased;
@@ -1416,9 +1386,13 @@ async fn mutate(
     provider: &Client,
     scope: &Scope,
     token: &[u8],
-    effect: &Effect,
+    command: &Command,
 ) -> std::result::Result<Value, Failure> {
-    let (command_id, digest, not_after, _) = effect.mutation().ok_or_else(Failure::invalid)?;
+    let Descriptor {
+        command_id,
+        digest,
+        not_after,
+    } = &command.descriptor;
     if scope.write_claimed.swap(true, Ordering::SeqCst) {
         return Err(Failure::new(409, "native_effect_already_claimed"));
     }
@@ -1426,112 +1400,15 @@ async fn mutate(
     let wall = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| Failure::unavailable())?;
-    if not_after > wall.as_secs().saturating_add(300) {
+    if *not_after > wall.as_secs().saturating_add(300) {
         return Err(Failure::new(400, "invalid_native_write"));
     }
-    let deadline = measured + Duration::from_secs(not_after).saturating_sub(wall);
+    let deadline = measured + Duration::from_secs(*not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
-    let (success, outcome) = match effect {
-        Effect::SubmitPendingReview { review, .. } => (
-            "applied",
-            provider
-                .review_submit_account(token, account, review, Some(deadline))
-                .await,
-        ),
-        Effect::SetDiscussionState { state, .. } => (
-            "applied",
-            provider
-                .state_account(token, account, state, Some(deadline))
-                .await,
-        ),
-        Effect::SetIssueDependency { dependency, .. } => ("applied", provider.dependency_account(token,account,dependency,Some(deadline)).await),
-        Effect::EditDiscussion { edit, .. } => (
-            "applied",
-            provider
-                .edit_account(token, account, edit, Some(deadline))
-                .await,
-        ),
-        Effect::SetDiscussionLock { lock, .. } => (
-            "applied",
-            provider
-                .lock_account(token, account, lock, Some(deadline))
-                .await,
-        ),
-        Effect::SetThreadResolution { thread, .. } => (
-            "applied",
-            provider
-                .thread_resolution_account(token, account, thread, Some(deadline))
-                .await,
-        ),
-        Effect::SetReviewRequest { request, .. } => (
-            "applied",
-            provider
-                .review_request_account(token, account, request, Some(deadline))
-                .await,
-        ),
-        Effect::MergePull { merge, .. } => (
-            "applied",
-            provider
-                .merge_account(token, account, merge, Some(deadline))
-                .await,
-        ),
-        Effect::CreateInline { inline, .. } => (
-            "created",
-            provider
-                .inline_create_account(token, account, inline, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::AppendPendingThread { inline, .. } => (
-            "created",
-            provider
-                .inline_draft_account(token, account, inline, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::PublishBranch { branch, .. } => (
-            "applied",
-            provider
-                .branch_publish_account(token, account, branch, Some(deadline))
-                .await,
-        ),
-        Effect::CreateBranch { branch, .. } => (
-            "created",
-            provider
-                .branch_create_account(token, account, branch, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::CreateComment { comment, .. } => (
-            "created",
-            provider
-                .comment_account(token, account, comment, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::CreateIssue { issue, .. } => (
-            "created",
-            provider
-                .issue_create_account(token, account, issue, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::CreatePull { pull, .. } => (
-            "created",
-            provider
-                .pull_create_account(token, account, pull, Some(deadline))
-                .await
-                .into(),
-        ),
-        Effect::CreateReview { review, .. } => (
-            "created",
-            provider
-                .review_create_account(token, account, review, Some(deadline))
-                .await
-                .into(),
-        ),
-        _ => return Err(Failure::invalid()),
-    };
+    let (success, outcome) = command
+        .operation
+        .apply(provider, token, account, deadline)
+        .await;
     let (state, receipt, failure) = match outcome {
         WriteOutcome::Applied(receipt) => (success, Some(receipt), None),
         WriteOutcome::NotSent(failure) => ("not_sent", None, Some(failure)),
