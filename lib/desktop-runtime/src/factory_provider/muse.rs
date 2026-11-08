@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 fn refused(message: &'static str) -> io::Error {
     io::Error::other(message)
 }
+pub(super) const USER_ENV: &[&str] = &["HOME", "USER", "LOGNAME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"];
 pub(crate) fn connection(profile: &str) -> String {
     Sha256::digest(format!("factory_muse_login\n{profile}"))
         .iter()
@@ -166,17 +167,7 @@ impl MuseConnector {
                 request.duration_ms.div_ceil(1000) + 150
             ))
             .arg(format!("--working-directory={}", directory.display()));
-        for name in [
-            "HOME",
-            "USER",
-            "LOGNAME",
-            "XDG_CONFIG_HOME",
-            "XDG_DATA_HOME",
-            "XDG_CACHE_HOME",
-            "XDG_STATE_HOME",
-            "XDG_RUNTIME_DIR",
-            "DBUS_SESSION_BUS_ADDRESS",
-        ] {
+        for name in USER_ENV {
             if let Some(value) = std::env::var_os(name) {
                 let mut argument = std::ffi::OsString::from(format!("--setenv={name}="));
                 argument.push(value);

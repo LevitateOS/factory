@@ -1,5 +1,6 @@
 import {SodaFactoryApp} from '../factory/app/browser.js';
 import {mountAccounts} from './accounts.js';
+import {mountMuseLogin} from './muse-login.js';
 import {mountConnections} from './connections.js';
 import type {Core} from './transport.js';
 interface RuntimeStatus {
@@ -14,6 +15,7 @@ const app = new SodaFactoryApp();
 document.querySelector('#application')!.replaceChildren(app);
 const connections = mountConnections(core, app);
 const refreshAccounts = mountAccounts(core, (accounts) => connections.accounts(accounts));
+const refreshMuse = mountMuseLogin(core);
 const status = document.querySelector<HTMLElement>('#runtime-status')!;
 const retry = document.querySelector<HTMLButtonElement>('#retry')!;
 let reading = false,
@@ -38,12 +40,12 @@ async function refresh() {
     retry.hidden = value.phase !== 'failed' && !(value.phase === 'ready' && value.execution_error);
     retry.textContent = value.phase === 'ready' ? 'Retry execution' : 'Retry startup';
     connections.refresh(value.phase === 'ready', value.generation, value.profile);
-    await refreshAccounts(value.phase === 'ready', value.generation);
+    await Promise.all([refreshAccounts(value.phase === 'ready', value.generation), refreshMuse(value.phase === 'ready', value.generation)]);
   } catch {
     status.textContent = 'Factory is unavailable. Your saved work is kept.';
     app.context = undefined;
     connections.refresh(false, epoch, null);
-    await refreshAccounts(false, epoch);
+    await Promise.all([refreshAccounts(false, epoch), refreshMuse(false, epoch)]);
   } finally {
     reading = false;
   }

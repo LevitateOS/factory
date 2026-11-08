@@ -507,6 +507,30 @@ obtained and the personal login was untouched. The supported no-model
 verified billing identity or authority to choose a different source. Q02 stays
 incomplete and Q03–Q30 remain pending; no security/installed gate closes.
 
+### Q02 verified increment: initial Muse login (2026-11-08)
+
+The production desktop now exposes the official CLI's initial login through its
+existing native tool owner. Only a validated Meta device URL and its matching
+public confirmation code reach the UI; the CLI retains its own credentials.
+The fixed helper verifies the captured executable and required `login --help`
+interface. Missing/stale adapters explicitly disable sign-in. Window ownership,
+runtime generation, cancellation and joined shutdown retire pending login work;
+source/model/spending choices and the personal launcher/login are preserved.
+
+Actual native WebKit acquisition/sign-in/browser handoff, owner-close cancellation,
+other-window refusal, stale cancel/open refusal, approved completion and production
+Quit passed in `/home/vince/Projects/q02-login-preconsent-verified/run.log` and
+`muse-login-result.json`. Its expired first challenge remains in `expired-attempt/`.
+Restarted isolated Secret Service/home loaded the saved CLI login through the
+no-model `usage --json` command: `/home/vince/Projects/q02-muse-reopen.log` reports
+`server_sent_no_usage`, not verified billing identity. Private login retained.
+Regular/native-check builds and TypeScript passed in
+`/home/vince/Projects/q02-login-final-{regular,native}-build.log` and
+`q02-freshness-typecheck.log`. Normal fixed-helper finish/cancel and joined service
+retirement passed in `/home/vince/Projects/q02-muse-connector-final-verified.log`.
+Q02 remains incomplete for automatic dependency freshness/current-input work;
+Q03–Q30 and all installed/security gates remain pending.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

@@ -14,6 +14,7 @@ use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.len() == 2 && args[0] == "login" && args[1] == "--help" { return Ok(()); }
     if args.first().is_some_and(|arg| arg == "exec") {
         let fixture = fs::read("/proc/self/exe")?;
         if fixture.ends_with(b"\0factory-tool-pause-probe") {

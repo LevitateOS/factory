@@ -8,6 +8,8 @@ use product::{
 };
 mod signin;
 use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
+mod muse_signin;
+use muse_signin::{muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status};
 #[cfg(feature = "native-check")]
 mod check;
 #[cfg(feature = "native-check")]
@@ -56,6 +58,7 @@ struct Desktop {
     #[cfg(feature = "native-check")]
     streams: Mutex<HashMap<String, bridge::Observation>>,
     signin: signin::SignIn,
+    muse_signin: muse_signin::MuseSignIn,
     product: product::Connections,
     #[cfg(feature = "native-check")]
     check: check::Check,
@@ -127,7 +130,8 @@ impl Desktop {
         });
     }
     fn retire_credentials(&self) -> Vec<tauri::async_runtime::JoinHandle<()>> {
-        let tasks = self.product.retire(None);
+        let mut tasks = self.product.retire(None);
+        if let Some(task) = self.muse_signin.retire() { tasks.push(task); }
         if let Some(store) = self.credentials.lock().unwrap().take() {
             store.retire();
         }
@@ -289,7 +293,8 @@ async fn credential_withdraw(
     let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     #[cfg(feature = "native-check")]
     state.cancel_streams();
-    let tasks = state.product.retire(None);
+    let mut tasks = state.product.retire(None);
+    if let Some(task) = state.muse_signin.retire() { tasks.push(task); }
     state.status.lock().unwrap().generation = generation;
     for task in tasks {
         let _ = task.await;
@@ -459,6 +464,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(feature = "native-check")]
         streams: Mutex::new(HashMap::new()),
         signin: signin::SignIn::new(),
+        muse_signin: muse_signin::MuseSignIn::new(),
         product: product::Connections::new(),
         #[cfg(feature = "native-check")]
         check,
@@ -486,6 +492,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        muse_sign_in,
+        muse_sign_in_status,
+        muse_sign_in_cancel,
+        muse_sign_in_open,
         factory_query,
         factory_connect,
         factory_prepare_connection,
@@ -513,6 +523,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        muse_sign_in,
+        muse_sign_in_status,
+        muse_sign_in_cancel,
+        muse_sign_in_open,
         factory_connect,
         factory_prepare_connection,
         factory_find_repository,
@@ -544,6 +558,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .signin
                         .cancel(None, Some(&label))
                         .await;
+                    app.state::<Desktop>().muse_signin.cancel(None, Some(&label)).await;
                 });
                 let state = window.state::<Desktop>();
                 join_streams(state.product.retire(Some(window.label())));

@@ -18,6 +18,7 @@ pub struct Options {
 pub(super) struct Scenario {
     pub enabled: bool,
     pub startup_error: bool,
+    pub muse_login: bool,
     pub crash: bool,
     pub preconsent: bool,
     pub resume: bool,
@@ -57,6 +58,7 @@ impl Options {
                 return true;
             }
             Some("--check-control") => scenario.control = true,
+            Some("--check-muse-login") => scenario.muse_login = true,
             Some("--check-signin") => scenario.signin = Some(SignInMode::Declared),
             Some("--check-signin-live") => scenario.signin = Some(SignInMode::Live),
             Some("--check-signin-consent") => {
@@ -76,6 +78,9 @@ impl Options {
     }
     pub fn finish(self) -> Result<Check, &'static str> {
         let scenario = self.scenario;
+        if scenario.muse_login && (scenario.signin.is_some() || scenario.credentials || scenario.control || scenario.preconsent || scenario.startup_error || scenario.crash || scenario.resume || scenario.github_writes || scenario.issue_read) {
+            return Err("Muse login requires its own native-check invocation");
+        }
         if scenario.retain_account && scenario.signin != Some(SignInMode::Consent) {
             return Err("retained check account requires the consent check");
         }
@@ -105,7 +110,7 @@ impl Scenario {
     fn timeout(self) -> Duration {
         Duration::from_secs(if self.github_writes {
             600
-        } else if self.signin == Some(SignInMode::Consent) {
+        } else if self.signin == Some(SignInMode::Consent) || self.muse_login {
             1000
         } else if self.issue_read {
             180
@@ -147,6 +152,11 @@ pub fn consent_done(app: &tauri::AppHandle) {
         .stage
         .store(2, Ordering::SeqCst);
     println!("{}", app.state::<Desktop>().check.scenario.consent_result());
+    quit(app.clone());
+}
+pub fn muse_login_done(app: &tauri::AppHandle) {
+    app.state::<Desktop>().check.stage.store(2, Ordering::SeqCst);
+    println!("PASS: actual WebKit/native CLI initial Muse login, public browser handoff, owner close/cancellation and stale-attempt refusal; private CLI login retained, no model or installed qualification");
     quit(app.clone());
 }
 pub fn github_writes_done(app: tauri::AppHandle) {
@@ -566,6 +576,9 @@ pub fn report(
     if state.check.scenario.control && stage.starts_with("control-") {
         return control(&app, &stage);
     }
+    if state.check.scenario.muse_login && stage.starts_with("muse-signin-") {
+        return crate::check_credentials::muse_signin_control(&app, &stage);
+    }
     if state.check.scenario.signin.is_some() && stage == "signin-done" {
         state.check.stage.store(2, Ordering::SeqCst);
         println!("PASS: actual Linux Tauri/WebKit desktop sign-in, native prompt/metadata custody and cancellation; declared positive authorization is separate from real human consent");
@@ -654,6 +667,10 @@ pub fn report(
     );
     if state.check.scenario.github_writes {
         crate::check_credentials::start_github_writes(app);
+        return Ok(());
+    }
+    if state.check.scenario.muse_login {
+        crate::check_credentials::start_muse_signin(app);
         return Ok(());
     }
     if state.check.scenario.credentials {

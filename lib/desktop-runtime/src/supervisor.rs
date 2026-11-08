@@ -399,6 +399,10 @@ impl NativeSupervisor {
             .select_execution_tools(directory)
             .await
     }
+    /// Native host access to the existing tool owner; no caller supplies a path.
+    pub fn execution_tools(&self) -> Result<Arc<crate::factory_provider::Tools>> {
+        self.collaboration.as_ref().ok_or("native collaboration unavailable")?.execution_tools()
+    }
     /// Exact-run delivery over the native private channel. Go independently
     /// checks the capability and current worker on every protocol request.
     pub async fn worker_mcp(

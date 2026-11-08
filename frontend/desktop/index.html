@@ -19,6 +19,17 @@
         <button id="quit" type="button">Quit Factory</button>
       </nav>
     </header>
+    <section class="desktop-accounts" aria-labelledby="muse-heading">
+      <h1 id="muse-heading">Muse</h1>
+      <p id="muse-status" role="status">Checking Muse sign-in…</p>
+      <button id="muse-sign-in" type="button" disabled>Sign in to Muse</button>
+      <div id="muse-prompt" hidden>
+        <p>Confirm this code on Meta:</p>
+        <code id="muse-user-code" tabindex="0" aria-label="Muse verification code"></code>
+        <button id="muse-open" type="button">Open Meta</button>
+      </div>
+      <button id="muse-cancel" type="button" hidden>Cancel sign-in</button>
+    </section>
     <section class="desktop-accounts" aria-labelledby="github-heading">
       <h1 id="github-heading">GitHub</h1>
       <p id="github-status" role="status">Opening saved accounts…</p>

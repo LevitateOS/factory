@@ -208,6 +208,11 @@ impl Port {
         *selection = Some(tools);
         Ok(verified)
     }
+    pub fn execution_tools(&self) -> Result<Arc<crate::factory_provider::Tools>> {
+        if !self.0.alive.load(Ordering::SeqCst) { return Err("native tool owner retired".into()); }
+        self.0.tools.read().map_err(|_| "native tools unavailable")?
+            .clone().ok_or_else(|| "native tools unavailable".into())
+    }
     async fn finalize(&self, scope: Arc<Scope>) -> Result<()> {
         if !scope.current() || !self.0.alive.load(Ordering::SeqCst) {
             return Err("native operation retired".into());

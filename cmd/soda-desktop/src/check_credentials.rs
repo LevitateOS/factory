@@ -2402,3 +2402,102 @@ async fn run(app: &tauri::AppHandle) -> Result<(), String> {
     )?;
     Ok(())
 }
+
+pub fn start_muse_signin(app: tauri::AppHandle) {
+    let state = app.state::<Desktop>();
+    let Some(root) = state.paths.profile.parent() else { app.exit(1); return; };
+    if std::env::var_os("HOME").as_deref() != Some(root.join("home").as_os_str())
+        || !root.join("muse-login-check").is_file()
+    {
+        eprintln!("Muse login check requires its owned isolated child home");
+        app.exit(1);
+        return;
+    }
+    let script = r#"(async()=>{
+      const invoke=window.__TAURI__.core.invoke,assert=(ok,message)=>{if(!ok)throw Error(message)};
+      const view=()=>invoke('muse_sign_in_status');
+      const report=stage=>invoke('report',{stage,error:null});
+      const until=async(check,label)=>{const deadline=Date.now()+180000;for(;;){const value=await check();if(value)return value;assert(Date.now()<deadline,'Muse UI deadline: '+label);await new Promise(r=>setTimeout(r,50));}};
+      const waiting=()=>until(async()=>{const s=await view();assert(s.phase!=='failed',s.error);return s.phase==='waiting'&&!document.querySelector('#muse-prompt').hidden&&document.querySelector('#muse-user-code').textContent===s.prompt.user_code&&s;},'public prompt');
+      try {
+        await until(()=>!document.querySelector('#muse-sign-in').disabled,'verified initial acquisition');
+        document.querySelector('#muse-sign-in').click();const first=await waiting();
+        await report('muse-signin-other-window');
+        await until(async()=>{try{await report('muse-signin-other-window-done');return true;}catch{return false;}},'other window refusal');
+        await invoke('close_window');
+        await until(async()=>(await view()).phase==='cancelled','owner close retires login');
+        await report('muse-signin-reopen');
+        await until(()=>!document.querySelector('#muse-sign-in').disabled&&document.querySelector('#muse-prompt').hidden,'cancelled prompt retired');
+        document.querySelector('#muse-sign-in').click();const current=await waiting();
+        assert(current.attempt>first.attempt,'attempt did not advance');
+        const stale=await invoke('muse_sign_in_cancel',{attempt:first.attempt});
+        assert(stale.attempt===current.attempt&&stale.phase==='waiting','stale cancel retired current login');
+        await report('muse-signin-browser-reset');
+        let refused=false;try{await invoke('muse_sign_in_open',{attempt:first.attempt});}catch{refused=true;}assert(refused,'stale prompt opened browser');
+        document.querySelector('#muse-open').click();
+        await until(async()=>{try{await report('muse-signin-browser-opened');return true;}catch{return false;}},'owned browser handoff');
+        await until(()=>!document.querySelector('#muse-open').disabled,'browser action completion');
+        assert(document.querySelector('#muse-status').textContent.includes('Confirm the matching code'),'browser action failed');
+        await report('muse-signin-prompt');
+        const deadline=Date.now()+580000;
+        for(;;){const s=await view();if(s.phase==='complete')break;assert(s.phase==='waiting'||s.phase==='requesting',s.error??'Muse sign-in stopped');assert(Date.now()<deadline,'Muse approval deadline');await new Promise(r=>setTimeout(r,250));}
+        await until(()=>document.querySelector('#muse-status').textContent.includes('sign-in finished'),'completion UI');
+        assert(document.querySelector('#muse-prompt').hidden,'completed code remained visible');
+        await report('muse-signin-complete');
+      }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+    })()"#;
+    if app.get_webview_window("main").is_none_or(|window| window.eval(script).is_err()) { app.exit(1); }
+}
+
+pub fn muse_signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String> {
+    let state = app.state::<Desktop>();
+    let root = state.paths.profile.parent().ok_or("fixture parent missing")?;
+    match stage {
+        "muse-signin-other-window" => {
+            let window = app.webview_windows().into_values().find(|window| window.label() != "main").ok_or("secondary window missing")?;
+            let view = serde_json::to_value(crate::muse_signin::status(app, "main")).map_err(|_| "Muse observer encoding failed")?;
+            let attempt = view["attempt"].as_u64().ok_or("attempt missing")?;
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let checked = crate::muse_signin::muse_sign_in_cancel(window.clone(), app.clone(), attempt).await
+                    .and_then(|view| serde_json::to_value(view).map_err(|_| "Muse observer encoding failed".into()));
+                if !checked.is_ok_and(|view| view["attempt"] == attempt && view["phase"] == "waiting" && view["can_control"] == false)
+                    || window.close().is_err()
+                    || write_consent_evidence(&app, "muse-other-window-checked", &serde_json::json!({"passed":true})).is_err()
+                { app.exit(1); }
+            });
+            Ok(())
+        }
+        "muse-signin-other-window-done" => ensure(root.join("muse-other-window-checked").is_file(), "other window check pending"),
+        "muse-signin-reopen" => open(app, "main"),
+        "muse-signin-browser-reset" => {
+            match std::fs::remove_file(root.join("browser-url")) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(_) => Err("owned browser marker reset failed".into()),
+            }
+        }
+        "muse-signin-browser-opened" => {
+            let view = serde_json::to_value(crate::muse_signin::status(app, "main")).map_err(|_| "Muse observer encoding failed")?;
+            ensure(std::fs::read_to_string(root.join("browser-url")).ok().is_some_and(|uri| Some(uri.trim()) == view["prompt"]["verification_uri"].as_str()), "owned browser did not receive the current URL")
+        }
+        "muse-signin-prompt" => {
+            let view = serde_json::to_value(crate::muse_signin::status(app, "main")).map_err(|_| "Muse observer encoding failed")?;
+            ensure(view["phase"] == "waiting" && view["can_control"] == true, "Muse prompt is no longer current")?;
+            write_consent_evidence(app, "muse-user-code.json", &view["prompt"])
+        }
+        "muse-signin-complete" => {
+            let view = serde_json::to_value(crate::muse_signin::status(app, "main")).map_err(|_| "Muse observer encoding failed")?;
+            ensure(view["phase"] == "complete" && view["prompt"].is_null(), "Muse login did not complete")?;
+            write_consent_evidence(app, "muse-login-result.json", &serde_json::json!({
+                "actual_native_webkit":true,"actual_official_cli_login":true,"initial_acquisition_and_interface_verified":true,
+                "public_meta_url_and_matching_code_only":true,"native_browser_handoff":true,"owner_close_cancelled_first_attempt":true,
+                "other_window_did_not_cancel_owner":true,"stale_cancel_and_open_refused":true,"cli_login_retained_in_private_child_home":true,
+                "personal_login_changed":false,"model_call":false,"grant_reload_qualified":false,"installed_qualified":false
+            }))?;
+            check::muse_login_done(app);
+            Ok(())
+        }
+        _ => Err("unknown Muse observer stage".into()),
+    }
+}

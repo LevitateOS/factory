@@ -195,9 +195,7 @@ mod connector {
     }
     // Offline interface admission uses the same defining argv builder. It can
     // inspect flags or the shared terminal envelope, never borrow a saved login.
-    fn inspect_tool(path: &Path, expected: &str, mode: &str) -> io::Result<()> {
-        let root = std::env::current_dir()?;
-        private(&root)?;
+    fn tool_file(path: &Path, expected: &str) -> io::Result<File> {
         let mut file = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
         if !(4..=soda_execution_protocol::MAX_EXECUTABLE).contains(&file.metadata()?.len()) {
             return Err(refused("Muse protocol executable exceeds its bound"));
@@ -213,6 +211,12 @@ mod connector {
         if observed != expected {
             return Err(refused("Muse protocol executable identity changed"));
         }
+        Ok(file)
+    }
+    fn inspect_tool(path: &Path, expected: &str, mode: &str) -> io::Result<()> {
+        let root = std::env::current_dir()?;
+        private(&root)?;
+        let file = tool_file(path, expected)?;
         let request = MuseInvocation {
             run: "0".repeat(32), service: "0".repeat(32),
             executable: path.to_string_lossy().into_owned(), executable_sha256: expected.into(),
@@ -225,6 +229,7 @@ mod connector {
         let mut argv = arguments(&root, &request)?;
         match mode {
             "flags" => argv.push("--help".into()),
+            "login-help" => argv = vec!["login".into(), "--help".into()],
             "json" => {
                 // Echo exercises MSP without inference. Meta-only knobs are
                 // checked by the flags pass and remain unchanged for real work.
@@ -246,6 +251,18 @@ mod connector {
             .env("HOME", &root).env("TMPDIR", root.join("tmp"))
             .stdin(Stdio::null()).exec();
         Err(error)
+    }
+    fn login_tool(path: &Path, expected: &str) -> io::Result<()> {
+        let root = std::env::current_dir()?;
+        private(&root)?;
+        let file = tool_file(path, expected)?;
+        let mut command = Command::new(format!("/proc/self/fd/{}", file.as_raw_fd()));
+        command.arg("login").env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
+            .env("TMPDIR", root.join("tmp")).env("BROWSER", "/usr/bin/false").stdin(Stdio::null());
+        for name in ["HOME", "USER", "LOGNAME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"] {
+            if let Some(value) = std::env::var_os(name) { command.env(name, value); }
+        }
+        Err(command.exec())
     }
     fn observation(
         request: &MuseInvocation,
@@ -337,6 +354,9 @@ mod connector {
         }
         if args.len() == 5 && args[1] == "--inspect-tool" {
             return inspect_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, args[4].to_str().ok_or_else(|| refused("Muse probe mode invalid"))?);
+        }
+        if args.len() == 4 && args[1] == "--login" {
+            return login_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?);
         }
         if args.len() != 1 {
             return Err(refused("Muse connector arguments invalid"));

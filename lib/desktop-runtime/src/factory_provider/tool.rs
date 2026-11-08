@@ -71,7 +71,7 @@ pub struct Tools {
     selected: tokio::sync::Mutex<Option<(Instant, ToolSelection, std::fs::Metadata)>>,
 }
 impl Tools {
-    pub(crate) const REFRESH: Duration = Duration::from_secs(300);
+    pub const REFRESH: Duration = Duration::from_secs(300);
     pub fn discover(profile: &Path) -> io::Result<Self> {
         let mut directories: Vec<PathBuf> = std::env::var_os("PATH")
             .map(|paths| {
@@ -293,7 +293,7 @@ impl Tools {
             let mut prompt = OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.0.join("prompt"))?;
             std::io::Write::write_all(&mut prompt, b"Factory native protocol probe")?;
             drop(prompt);
-            for mode in ["flags", "json"] {
+            for mode in ["flags", "json", "login-help"] {
                 if cancelled.load(Ordering::SeqCst) { return Err(refused()); }
                 let output_path = directory.0.join(mode);
                 let output = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&output_path)?;
