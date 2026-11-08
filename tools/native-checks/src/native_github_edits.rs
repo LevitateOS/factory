@@ -583,6 +583,64 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 println!("PASS: actual product HTTP rejects invalid setup input before recording consent or starting preparation; original heads unchanged; owned fixture credential withdrawn and runtime stopped; no privileged fixture deployment");
                 return Ok(());
             }
+            if let Ok(race) = std::env::var("SODA_NATIVE_CHECK_SETUP_RACE") {
+                ensure(matches!(race.as_str(), "account" | "placement" | "approval"), "unknown setup race")?;
+                set_mode(&io, "pause-setup-source")?;
+                let body = serde_json::to_vec(&approval)?;
+                let waiting = call(&runtime, &store, &connection, "PUT", &target, &body);
+                let withdraw = async {
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    while !io.join("entered").is_file() {
+                        ensure(Instant::now() < deadline, "setup source I/O did not enter")?;
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                    let result: Result<()> = async {
+                        match race.as_str() {
+                            "account" => { store.withdraw(&connection).await?; }
+                            "placement" => {
+                                let path = format!("{settings_path}/placement");
+                                let current = call(&runtime, &store, &connection, "GET", &path, &[]).await?;
+                                ensure(current.0 == 200, "current controller unavailable")?;
+                                let change = serde_json::to_vec(&json!({"state":"retiring","expected_revision":current.1["placement"]["revision"]}))?;
+                                ensure(call(&runtime, &store, &connection, "PUT", &path, &change).await?.0 == 200, "controller withdrawal refused")?;
+                            }
+                            "approval" => {
+                                let mut replacement = approval.clone();
+                                replacement["command_id"] = json!("b17b17b17b17b17b17b17b17b17b17b1");
+                                let reply = call(&runtime, &store, &connection, "PUT", &target, &serde_json::to_vec(&replacement)?).await?;
+                                ensure(reply.0 == 200, "replacement approval refused")?;
+                            }
+                            _ => unreachable!(),
+                        }
+                        Ok(())
+                    }.await;
+                    fs::write(io.join("release"), b"")?;
+                    result
+                };
+                let (refused, withdrawn) = tokio::join!(waiting, withdraw);
+                withdrawn?;
+                ensure(matches!(refused, Err(_) | Ok((400..=599, _))), "superseded setup source I/O was accepted")?;
+                let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
+                if race == "approval" {
+                    let until = Instant::now() + Duration::from_secs(40);
+                    loop {
+                        let read = call(&runtime, &store, &connection, "GET", &target, &[]).await?;
+                        let ready = read.1["preparations"].as_array().is_some_and(|states| states.len() == 2 && states.iter().all(|state| state["current"] == true && state["state"]["ready"] == true));
+                        if read.0 == 200 && ready { break; }
+                        ensure(Instant::now() < until, "replacement preparations did not become ready")?;
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                } else {
+                    ensure(fs::read_dir(profile.join("native-preparations"))?.next().is_none(), "withdrawn source started a native preparation")?;
+                }
+                let mode = if race == "approval" { "check-onboarded-setup" } else { "check-refused-onboarded-setup" };
+                ensure(std::process::Command::new(&helper).arg(profile).arg(runtime.health()?.instance).arg(mode).arg(&repository).status()?.success(), "setup withdrawal observations differ")?;
+                if race != "account" { store.withdraw(&connection).await?; }
+                store.retire();
+                runtime.stop()?;
+                println!("PASS: actual native/Go/PG {race} withdrawal during controlled source I/O refuses the superseded approval; only an explicitly reviewed replacement may prepare; source/identity responses declared, no model or live GitHub/installed qualification");
+                return Ok(());
+            }
             let mut mismatched=approval.clone();mismatched["source_inputs"]["README.md"]=json!("0".repeat(64));
             ensure(call(&runtime,&store,&connection,"PUT",&target,&serde_json::to_vec(&mismatched)?).await?.0==412,"source approval accepted a substituted file digest")?;
             let approved = call(

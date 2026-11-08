@@ -1292,6 +1292,8 @@ func main() {
 			expectedSources := 14
 			if os.Args[3] == "check-ui-onboarded-setup" {
 				expectedSources = 2
+			} else if os.Args[3] == "check-refused-onboarded-setup" {
+				expectedSources = 0
 			}
 			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"), expectedSources)
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
@@ -1369,6 +1371,25 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 	if err != nil {
 		return err
 	}
+	if expectedSources == 0 {
+		requirements, err := db.RequirementDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		approvals, err := db.ApprovalDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		preparations, err := db.StandingProjectPreparations(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		if requirements != 0 || approvals != 0 || len(preparations) != 0 {
+			return errors.New("withdrawn setup source I/O recorded consent or preparation")
+		}
+		fmt.Println("PASS: authority withdrawn during source I/O left zero requirement, approval or preparation records")
+		return nil
+	}
 	head, err := db.ApprovalHead(ctx, grant.Project)
 	if err != nil {
 		return err
@@ -1379,6 +1400,19 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 	}
 	if !approval.Reviewed || approval.Verified || approval.ReadinessDigest != "" || approval.Native == nil {
 		return errors.New("onboarding invented installed readiness evidence")
+	}
+	if expectedSources == 14 {
+		requirements, err := db.RequirementDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		approvals, err := db.ApprovalDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		if requirements != 1 || approvals != 1 {
+			return errors.New("initial onboarding recorded more than the one current reviewed decision")
+		}
 	}
 	preparations, err := db.StandingProjectPreparations(ctx, grant.Project)
 	if err != nil {
