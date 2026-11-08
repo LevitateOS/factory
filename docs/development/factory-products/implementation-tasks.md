@@ -9,11 +9,13 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-08, Factory `ec4dc07`):** 17 queue entries remain:
-Q09–Q13 are complete within their recorded ordinary scopes, Q14–Q29 are pending,
+**Current snapshot (2026-11-08, Factory `a977bba`):** 17 queue entries remain:
+Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
+Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q13 request is complete and does not resume later implementation.
+bounded Q14 request stopped at its conditional-refinement blocker and does not
+resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -45,7 +47,14 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**When authorized, start with Q14.** Q13's admitted contribution assessment,
+**Resume Q14 only after its blocker is resolved.** GitHub's issue update has no
+documented atomic unchanged-content condition; read-then-update can overwrite a
+concurrent human edit. Required conditional updates now refuse and Issue Maker
+holds before paid refinement. The original connected judgment/issue receipt and
+prepared source are retained; do not resubmit their writes or inference. See
+[Q14's exact state and next action](#q14).
+
+Q13's admitted contribution assessment,
 invitation/reply, grouped single-repository priority choices, eligibility/source
 fences, actual native dispatch and original-charge recovery are in its
 [completion evidence](../untangle-codebase.md#q13-completion-contributions-and-single-repository-queue-2026-11-08).
@@ -191,7 +200,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q11 — CI and merge rules](#q11) | Real app-bound CI/test-merge evaluation, current rule/ref/status/policy/permission fences, human veto restrictions and causal merge verified; unchanged merge/squash/rebase and source-preparation evidence reused. Ambiguous captures stay fenced; full composition remains Q15. | Complete within ordinary producer/operation scope |
 | [Q12 — judgments](#q12) | Live selected-source Feed/planning/context adoption and authenticated worker probability/choice/score, long-input Begin, typed refusal, exact charges, withdrawal/eligibility races and crash recovery verified. Seeded work/content and broader composition limits remain explicit. | Complete within ordinary judgment owner/consumer scope |
 | [Q13 — contributions and priority](#q13) | Admitted contribution preflight/claim/live assessment/invitation/authenticated reply and 256-candidate grouped queue choices, eligibility/source fences, native dispatch and original-charge restart verified. Declared queue inventory/worker and cancelled worker outcome stay explicit; mixed funding remains unavailable. | Complete within ordinary contribution and queue-producer/dispatch scope |
-| [Q14 — Feed and graph authoring](#q14) | Prove real funded request → judgment → issue creation/refinement and dependency graph delivery, preserving human edits, partial completed writes and safe restart. | Pending |
+| [Q14 — Feed and graph authoring](#q14) | Resolve safe GitHub refinement semantics, then finish funded authoring, additional slots, graph delivery and recovery from retained original receipts. | **Blocked** |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
 | [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
 | [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
@@ -649,6 +658,42 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q14"></a>
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
+
+**BLOCKED (2026-11-08), requested/actual task Q14.** D1–D8/Q01–Q13 remain
+verified within their recorded ordinary scopes. Safety change
+`a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
+unchanged base and holds Issue Maker before paid refinement. GitHub's documented
+`UpdateIssueInput` has no revision/body precondition, and unsafe REST methods do
+not support conditional requests unless explicitly documented. A preflight read
+cannot guarantee preservation of edits arriving before the mutation. This blocks
+the required conditional-refinement journey; no downstream work was started.
+
+The actual connected partial check `/home/vince/Projects/q14-authoring/` retains
+post `f2a674ef1e426788c5fd5de093e854df`, real judgment
+`0ae6f5a335cfc7f8c7c3293ee245d689` (one original-source minute), and issue-create
+`99dbf0effc37227a91bbc2d6392042b4` for fixture issue #13. Both native role
+preparations completed at source `987c937481ec321607de68872bad7e5759d992fb`.
+Planning stopped at explicit intent funding; no authoring assignment, additional
+slot, graph or completed refinement is claimed. Original journals and the
+uncommitted connected-check patch are retained outside the repository.
+
+Existing checks passed in `/home/vince/Projects/q14-edit-refusal2/result.log` and
+`/home/vince/Projects/q14-refinement-refusal3/result.log`: native no-send refusal,
+Go pre-spend hold, exact-step replay/restart, human-content preservation and local
+withdrawal. Provider/routing inputs there are declared; they do not close the
+connected journey. Production Go/driver, locked Cargo/native builds and engine
+boundaries passed. All owned checks/processes were joined, temporary fixture units
+removed, local connected grant withdrawn and both stashes preserved. Detailed
+[evidence and limitations](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08).
+
+**Exact next action:** obtain an owner-approved safe refinement contract (or a
+documented provider conditional-write capability). Then recover the original
+profile/receipts without another creation or routing call. Establish the approved
+continuation's fresh explicit authority and funding without renewing the expired
+capture, prepare current native instances from its retained approved source, and
+finish Q14's remaining connected scope.
+Never renew expired old write authority or replay an unknown send. Q15–Q30 stay
+pending; Q24's appliance deferral and all broad security gates remain open.
 
 ```text
 Execute through Q14 — Feed authoring, conditional refinement and graph delivery. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q14 despite the document's historical paused snapshot; it does not authorize work beyond Q14 or resuming the old product queue.

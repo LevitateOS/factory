@@ -310,7 +310,8 @@ candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
 The owner accepted current checks while retaining the historical encoding cause
 as unknown. Q08–Q13 are Complete within their recorded ordinary scopes;
-Q14–Q30 remain pending. All 13 security gates stay open. See the
+Q14 is blocked on safe conditional GitHub refinement; Q15–Q30 remain pending.
+All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
@@ -404,3 +405,15 @@ authenticated account admission and native effects are real. All owned resources
 are joined and original attempts/stashes retained. Mixed-repository judgment
 funding remains unresolved/unavailable. Q14/Q15 composition, installed
 qualification and all 13 broad gates stay open. Q14 was not started.
+
+Q14 blocker (2026-11-08): `a977bba` refuses required conditional GitHub edits
+before mutation and holds Issue Maker before paid refinement. GitHub's documented
+issue update has no atomic unchanged-content condition, so its read/update gap
+cannot preserve concurrent human edits. The existing native and Go/PostgreSQL
+refusal/restart/human-content checks passed; their provider inputs are declared.
+The partial connected run retained one real routing judgment, one source minute,
+original issue #13 and two ready preparations; no funded authoring assignment or
+graph started. All owned processes/fixture units joined and the local grant was
+withdrawn. See [Q14's exact receipts, blocker and resume action](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08).
+Resolve the safe refinement contract before dependent work. Q14 is BLOCKED;
+Q15–Q30, installed qualification and every broad security gate remain open.

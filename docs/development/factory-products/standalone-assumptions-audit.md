@@ -248,6 +248,12 @@ corrections are now active; the old feature queue waits for their resolution.
   unqualified. No native TypeSafe fallback is supplied.
 
 - **A05/A21 — native Feed issue capture implemented; judgment/refinement pending.**
+  Q14 found the documented GitHub edit is only preflight-checked, not an atomic
+  unchanged-content update. `a977bba` now refuses required conditional edits and
+  holds before paid refinement; the historical declared successes below do not
+  qualify concurrent human-edit preservation. Q14 is **BLOCKED** pending a safe
+  refinement contract; its [current receipts and exact next action](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08)
+  preserve the completed original issue and judgment without replay.
   Feed submission captures its exact source revision, account, repository and
   issue context. Background creation reacquires that captured connection through
   Rust and uses the existing durable issue-create command/receipt, without

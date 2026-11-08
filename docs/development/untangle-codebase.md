@@ -1988,6 +1988,97 @@ joined. Profiles, keyring files, original receipts, both original stashes and th
 unrelated stashed README remain intact. No new unit-test root, provider fallback
 or product journal was added. Next task is Q14 only when authorized.
 
+### Q14 blocker: conditional GitHub refinement (2026-11-08)
+
+Requested/actual task: **Q14, BLOCKED**. Safety implementation:
+`a977bba566b97cc4137596d5b2715458ae6a68dc`. No Q15 work started. Current relevant
+Go admission/dispatch/judgment/graph owners and Rust connector were inspected;
+47 Factory and two canonical Fountain ancestor references were checked (the
+37 Factory/two Fountain references in `/home/vince/Projects/q11-prerequisites.log`,
+plus the Q11–Q13 code/completion commits recorded above through `e4a13eb`).
+Retained Q09 launch/reopen, Q12 connected/worker/long/crash and Q13 contribution/
+queue settlement results were read and reused within their stated scopes.
+Earlier Q11/Q12 unknown commands remain fenced; Q13's cancelled selected worker
+is still dispatch evidence, not delivery. No earlier ordinary prerequisite was
+found unfinished.
+
+**Concrete blocker:** the connector checked original title/body before GitHub's
+unconditional GraphQL update. A human edit after that read could be replaced.
+The current [UpdateIssueInput reference](https://docs.github.com/en/graphql/reference/issues#updateissueinput)
+has no expected revision/body condition; GitHub's
+[conditional-request documentation](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate)
+does not support unsafe-method conditions unless an endpoint documents them.
+This is insufficient for Q14's preservation requirement; another preflight or
+post-write check cannot close the race. The existing adapter itself documented
+that its check was not a provider CAS. No undocumented If-Match guarantee or
+silent alternate refinement semantics was introduced.
+
+Go now derives `require_unchanged` from the immutable edit command's `Expected`,
+including historical captures. Rust refuses that requirement with definitive
+`github_conditional_edit_unavailable` before provider I/O. Issue Maker holds
+before paid admission. Explicit manual edits without that condition retain their
+existing behavior. Original committed receipts remain readable; unknown dispatches
+stay unknown and never reach a fresh send. Graph edits use this same conditional
+command path; completed prefixes are preserved and cannot falsely become verified
+after a refused remaining edit. No all-or-nothing graph requirement was restored.
+
+**Actual connected partial state:** `/home/vince/Projects/q14-authoring/` retains
+`result.log`, `setup-{preview,approval,ready}.json`, `feed-admission.json`,
+`authoring.json`, `retained-journal.json` and the original profile. Captured GitHub
+connection `37437adf2f5a15dd4a2e5c517e6b0167`, account `16469623`, external repo
+`1448277000`; Feed post `f2a674ef1e426788c5fd5de093e854df` revision 0. Real Muse
+judgment `0ae6f5a335cfc7f8c7c3293ee245d689` selected `new_issue` (0.90), model
+`muse-spark-1.3-contributor`, official tool SHA
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`.
+Its actual 19:24:30.143–19:24:49.647 UTC process retired and settled once for one
+minute on source `5b6b55f0b1b89228208a903720777e70`. Original create command
+`99dbf0effc37227a91bbc2d6392042b4` has a committed causal receipt for
+[issue #13](https://github.com/LevitateOS/factory-team-public-check-20261106/issues/13),
+external ID `6274700822`. Independent connected readback retained its exact
+original writing and creation/update timestamp 19:24:52 UTC; no edit/comment was
+sent to it. Both actual native role preparations were ready at source
+`987c937481ec321607de68872bad7e5759d992fb` with reviewed harmless setup/check and
+network disabled. The initial connected runner used retained backend SHA
+`081a8298ffb98fce1447c34f5434d7f3d1a710b71845c981560294249b45a131`
+(build metadata `d588efb`, modified); this partial run is not current-backend or
+full connected qualification.
+
+Retained draft intent `de271d2b64dd2b42f1061502e`, revision
+`d744ff2255559eb10e60727b8`, stopped at **explicit intent funding required**.
+Read-only SQL confirms zero assignments and exactly the judgment/creation
+commands and one usage row. No authoring worker, additional slot or graph was
+started. Once the preservation blocker was found, the identified callback was
+stopped and its parent withdrew the local fixture grant and joined shutdown.
+The unfinished connected-check source patch is retained only at
+`q14-authoring/check-in-progress.patch`; it is not committed qualification.
+Do not rerun its launch script, renew the expired capture, repeat the routing
+call or recreate issue #13.
+
+**Verified safety checks:** current production Go/driver builds, locked Cargo
+native build, `bun run check:boundaries` and `git diff --check` passed.
+`/home/vince/Projects/q14-edit-refusal2/result.log` passed the existing native
+edit check, including no-send conditional refusal and unchanged explicit manual
+edit behavior. `/home/vince/Projects/q14-refinement-refusal3/result.log` passed
+the existing Go/native/PostgreSQL request check: pre-spend hold, direct same-step
+refusal, restart/replay, human-content preservation, unowned-key refusal and
+local withdrawal. Provider/routing inputs in these checks are declared; no model
+or actual provider mutation ran there. Initial declared launchers failed before
+their required fixture scenario was set; refinement2 then reached all safety
+assertions but failed its stale final write-count expectation. Their retained
+profiles/logs were preserved; refinement3 verifies the corrected assertion.
+Owned check processes, native services, temporary PostgreSQL/keyring/bus and
+fixture units were joined/removed. Unrelated services, both stashes (including
+the unrelated README), historical journals and remote human text were preserved.
+
+**Next action:** the owner must resolve a safe refinement contract or supply a
+documented conditional-write capability. Recover these original receipts first,
+then implement the approved continuation under fresh explicit authority/funding
+without extending the expired capture. Complete funded authoring/additional
+slots, source/expiry races and the actual model-to-graph remaining-step/restart
+journey; keep execution held until whole-graph verification. All 13 broad
+security gates, installed qualification and Q15–Q30 remain open. Ordinary checks
+needed no Daybreak session; Q24's shared-appliance deferral is unchanged.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
