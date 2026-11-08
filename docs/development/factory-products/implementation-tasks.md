@@ -22,7 +22,8 @@ required only for work or checks that look like hacking.
 ## Where to continue
 
 Q01 is Complete within its source/native scope. Q02 is Complete within its
-source/component scope; Q03 is Active. Continue to each following prompt only after its earlier ordinary
+source/component scope; Q03 is Complete within its configuration/admission scope.
+Q04 is Active. Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
 updates; the retained Muse typed-result failure remains pending in its dependent
@@ -92,8 +93,8 @@ recording any newly proved current conclusion separately.
 | --- | --- | --- | --- |
 | [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
 | [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Complete (source/component scope) |
-| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Active |
-| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Pending |
+| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Complete (configuration/admission scope) |
+| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Active |
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Pending |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Pending |
 | [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Pending |
@@ -181,6 +182,13 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q03"></a>
 
 ### Q03 — Local-owner policy, role funding and judgment selection
+
+Completion (2026-11-08): Factory `d4b05f0`. Full native UI/Go/PostgreSQL owner
+configuration, disabled policy, explicit role/judgment choices, current allowance
+prerequisites, model availability, conflicts and key-independent withdrawal passed.
+[Decision/evidence](../untangle-codebase.md#q03-completion-owner-configuration-and-explicit-funding-2026-11-08).
+The GitHub peer is declared read-only; the approved isolated Muse home is reused.
+No paid execution, billing identity, installed or security gate closes here.
 
 ```text
 Implement Q03 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.

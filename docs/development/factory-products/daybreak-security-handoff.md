@@ -27,7 +27,8 @@ and evidence below. Original outcome records are not rewritten by this summary.
 The pre-existing T06-CONNECT Active row/note remain verbatim as historical
 conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
 Q01 is Complete within its source/native scope; Q02 is Complete within its
-source/component scope and Q03 is Active. The owner accepted current native diagnostics plus the complete
+source/component scope; Q03 is Complete within configuration/admission scope and
+Q04 is Active. The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
 Q01 implementation/evidence: Factory `d5b4506`, `67b6b16`, `5544082` and the
@@ -42,6 +43,11 @@ real refresh cadence, tool races and current source checks are recorded in its
 [completion evidence](../untangle-codebase.md#q02-completion-current-inputs-and-owning-update-paths-2026-11-08).
 Remote dependency-job activation is still pending publication/finalization;
 installed updater activation remains Q28. All 13 security gates remain open.
+Q03 configuration/admission: `d4b05f0`; actual native disabled-policy/funding,
+explicit role/judgment choices, prerequisites, conflicts and withdrawal passed
+with declared read-only provider facts and the retained isolated Muse home.
+[Evidence and limits](../untangle-codebase.md#q03-completion-owner-configuration-and-explicit-funding-2026-11-08).
+Paid execution, connected permission matrices and installed/security gates remain open.
 
 ## Current gates, owners and closure evidence
 

@@ -570,6 +570,34 @@ installed baseline, model result, billing identity or security qualification is
 claimed. Q03–Q30 remain unfinished; personal login/launcher and all private
 profiles/keyrings, failed attempts and historical evidence are preserved.
 
+### Q03 completion: owner configuration and explicit funding (2026-11-08)
+
+Factory `d4b05f0` completes Q03's configuration/pre-execution admission scope.
+D1–D8, canonical Fountain references and Q01–Q02 retain their verified scopes.
+Go projects allowance availability through the same read-only workspace/placement
+check as sponsorship admission. Shared settings explicitly disable unavailable
+funding, retain the chosen source, require observed ownership for withdrawal and
+permit withdrawing an owned recorded native allowance without a usable source.
+Judgment availability now checks the chosen model and active role allowance;
+advertised models are shown without changing the user's choice.
+
+The existing native check owner gained `--check-owner-policy`. The complete actual
+WebKit/Go/PostgreSQL journey passed in
+`/home/vince/Projects/q03-owner-policy-verified/{run.log,owner-policy-result.json}`:
+disabled first policy, explicit run/controller/workspace consent, separate agent
+and judgment choices, missing-grant/model/actor refusal, source/policy conflicts,
+concurrent-policy preservation, withdrawal after workspace permission removal,
+retired-context refusal, owned-account cleanup and production Quit. Reproduction:
+`bash /home/vince/Projects/q03-native-session.sh NEW_PRIVATE_ROOT`. It reuses the
+approved isolated Muse home and existing declared read-only GitHub fixture;
+source inspection is unavailable in that fixture and is not qualified here.
+No model call, copied login, billing identity or installed/provider-permission
+qualification is claimed. TypeScript, required Lit analysis, regular/native-check
+builds and ordinary Go cases passed in `/home/vince/Projects/q03-*.log`.
+All six original edit sets, private profiles/keyrings and failed attempts remain.
+Q04 is next. Actual execution/charges remain Q08/Q09/Q12/Q13; all 13 security gates
+and later integrated/installed work remain open.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.
