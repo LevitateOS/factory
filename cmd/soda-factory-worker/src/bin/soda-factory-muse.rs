@@ -344,6 +344,24 @@ mod connector {
         output.flush()
     }
 
+    fn retain_terminal(
+        root: &Path,
+        request: &MuseInvocation,
+        state: &Observation,
+    ) -> io::Result<(MuseObservation, Vec<u8>)> {
+        if !state.finished {
+            return Err(refused("Muse retirement unconfirmed"));
+        }
+        let bytes = fs::read(&state.output)?;
+        if bytes.len() != state.output_bytes || bytes.len() > request.output_bytes {
+            return Err(refused("Muse captured output differs"));
+        }
+        let terminal = observation(request, state, Some(&bytes))?;
+        create(&root.join("result.json"), &serde_json::to_vec(&terminal)?)?;
+        File::open(root)?.sync_all()?;
+        Ok((terminal, bytes))
+    }
+
     pub fn run() -> io::Result<()> {
         unsafe {
             libc::umask(0o077);
@@ -419,23 +437,19 @@ mod connector {
             })
             .map_err(io::Error::other)?;
         let mut output = io::stdout().lock();
-        let started = process.observe();
-        if !started.finished {
-            reply(&mut output, &observation(&request, &started, None)?, &[])?;
-        }
         let deadline = Instant::now() + Duration::from_millis(remaining) + Duration::from_secs(10);
+        let mut retained = false;
         let result = (|| {
+            let started = process.observe();
+            if !started.finished {
+                reply(&mut output, &observation(&request, &started, None)?, &[])?;
+            }
             let mut sequence = 0u64;
             loop {
                 let state = process.observe();
                 if state.finished {
-                    let bytes = fs::read(&state.output)?;
-                    if bytes.len() != state.output_bytes || bytes.len() > request.output_bytes {
-                        return Err(refused("Muse captured output differs"));
-                    }
-                    let terminal = observation(&request, &state, Some(&bytes))?;
-                    create(&root.join("result.json"), &serde_json::to_vec(&terminal)?)?;
-                    File::open(&root)?.sync_all()?;
+                    let (terminal, bytes) = retain_terminal(&root, &request, &state)?;
+                    retained = true;
                     reply(&mut output, &terminal, &bytes)?;
                     return Ok(());
                 }
@@ -457,7 +471,6 @@ mod connector {
                 if ready > 0 {
                     let mut command = [0u8; 1];
                     if input.read_exact(&mut command).is_err() {
-                        process.cancel();
                         break;
                     }
                     match command[0] {
@@ -486,22 +499,18 @@ mod connector {
                     }
                 }
             }
-            // A vanished parent still requires actual process retirement. Its
-            // disconnected pipe cannot acknowledge or erase the retained facts.
-            let state = process.wait(Duration::from_secs(10));
-            if !state.finished {
-                return Err(refused("Muse disconnected retirement unconfirmed"));
-            }
-            let bytes = fs::read(&state.output)?;
-            create(
-                &root.join("result.json"),
-                &serde_json::to_vec(&observation(&request, &state, Some(&bytes))?)?,
-            )?;
-            File::open(&root)?.sync_all()
+            Ok(())
         })();
+        // Every pipe failure joins the actual process and retains its observed
+        // terminal facts, including failure before the first reply was read.
         process.cancel();
         let retirement = processes.retire().map_err(io::Error::other);
-        result.and(retirement)
+        let evidence = if retained {
+            Ok(())
+        } else {
+            retain_terminal(&root, &request, &process.observe()).map(|_| ())
+        };
+        result.and(retirement).and(evidence)
     }
 }
 

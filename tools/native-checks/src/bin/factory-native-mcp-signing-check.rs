@@ -629,6 +629,7 @@ fn muse_connector(
     use sha2::Digest;
     use soda_desktop_runtime::factory_provider::{MuseConnector, Tools};
     use soda_execution_protocol::{HarnessProfile, MuseInvocation};
+    let owner_exit = std::env::var("SODA_NATIVE_CHECK_OWNER_EXIT_AFTER_SEND").as_deref() == Ok("1");
     let (executable, sha256) = if live {
         let selection = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -648,6 +649,8 @@ fn muse_connector(
     };
     let modes: &[&str] = if live {
         &["login"]
+    } else if owner_exit {
+        &["cancel"]
     } else {
         &["finish", "cancel"]
     };
@@ -684,6 +687,13 @@ fn muse_connector(
             },
         )?;
         let directory = connector.directory().to_path_buf();
+        if owner_exit {
+            fs::write(root.join("interrupted-service"), directory.file_name().ok_or("service missing")?.as_encoded_bytes())?;
+            // Queue a reply, then lose both pipes without running Drop. The
+            // delegated service must retain its actual cancellation facts.
+            let _ = connector.inspect(Duration::from_nanos(1));
+            std::process::exit(0);
+        }
         let until = std::time::Instant::now() + Duration::from_secs(if live { 40 } else { 12 });
         if *mode == "cancel" {
             while !directory.join("work/child.pid").exists() {
@@ -753,15 +763,52 @@ fn muse_connector(
         let binding: serde_json::Value =
             serde_json::from_slice(&fs::read(directory.join("binding.json"))?)?;
         let unit = binding["unit"].as_str().ok_or("connector unit missing")?;
-        let state = Command::new("/usr/bin/systemctl")
-            .args(["--user", "show", unit, "--property=MainPID", "--value"])
-            .output()?;
-        if !String::from_utf8_lossy(&state.stdout).trim().is_empty()
-            && String::from_utf8_lossy(&state.stdout).trim() != "0"
-        {
-            return Err("connector user service still has a process".into());
-        }
+        connector_service_retired(unit)?;
         println!("PASS: {mode}: fixed CLI source, exact process/output receipt, tree retired and service MainPID zero ({})",directory.display());
+    }
+    if !live {
+        let interrupted = root.join("owner-loss");
+        DirBuilder::new().mode(0o700).create(&interrupted)?;
+        if !Command::new(std::env::current_exe()?).arg(&interrupted).arg(helper).arg("muse-connector")
+            .env("SODA_NATIVE_CHECK_OWNER_EXIT_AFTER_SEND", "1").status()?.success() {
+            return Err("interrupted connector owner did not send its launch".into());
+        }
+        let service = fs::read_to_string(interrupted.join("interrupted-service"))?;
+        if service.len() != 32 || !service.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err("interrupted connector service identity invalid".into());
+        }
+        let directory = interrupted.join("native-muse-runs").join(&service);
+        let until = std::time::Instant::now() + Duration::from_secs(12);
+        while !directory.join("result.json").is_file() {
+            if std::time::Instant::now() >= until {
+                return Err("lost owner left no durable terminal receipt".into());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let result: soda_execution_protocol::MuseObservation = serde_json::from_slice(&fs::read(directory.join("result.json"))?)?;
+        let binding: serde_json::Value = serde_json::from_slice(&fs::read(directory.join("binding.json"))?)?;
+        let output = fs::read(directory.join(&result.invocation).join("terminal.log"))?;
+        let digest: String = sha2::Sha256::digest(&output).iter().map(|b| format!("{b:02x}")).collect();
+        if !result.finished || !result.tree_retired || !result.output_complete || result.stopped_unix_ms.is_none()
+            || result.reason.as_deref() != Some("cancelled") || result.uid != unsafe { libc::geteuid() }
+            || result.service != service || binding["run"] != result.run || binding["executable_sha256"] != result.executable_sha256
+            || binding["prompt_sha256"] != result.prompt_sha256 || output.len() != result.output_length
+            || result.output_sha256.as_deref() != Some(digest.as_str()) {
+            return Err("lost owner terminal process/output binding differs".into());
+        }
+        connector_service_retired(binding["unit"].as_str().ok_or("interrupted unit missing")?)?;
+        println!("PASS: owner lost after launch/observation send; actual terminal process/output receipt survives disconnected pipes, exact service retires; no model or inference replay");
+    }
+    Ok(())
+}
+
+fn connector_service_retired(unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let state = Command::new("/usr/bin/systemctl").env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .args(["--user", "show", unit, "--property=MainPID,ActiveState"]).output()?;
+    let text = String::from_utf8(state.stdout)?;
+    if !text.lines().any(|line| line == "MainPID=0")
+        || !text.lines().any(|line| matches!(line, "ActiveState=inactive" | "ActiveState=failed")) {
+        return Err("connector user service retirement unconfirmed".into());
     }
     Ok(())
 }

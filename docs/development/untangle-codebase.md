@@ -1398,6 +1398,20 @@ and canonical Fountain references reuse their preceding verified evidence.
 Q09 is Active; Q10–Q30, installed qualifications and all 13 security gates
 remain open. Factory is unfinished.
 
+### Q09 active: retain terminal facts after a lost reply
+
+The existing native connector check reproduced `Broken pipe` followed by a
+missing terminal receipt (`/home/vince/Projects/q09-loss-before.log`). The Muse
+helper now routes initial/observation pipe failures through joined retirement
+and retains the actual finished process/output facts in its existing journal;
+normal completion still persists before replying. Unknown retirement stays
+unconfirmed. The check also requires actual manager fields instead of treating
+empty inspection output as zero processes. Helper/check builds and the same
+finish/cancel/abrupt-owner-loss check passed (`q09-loss-{helper,check}-build.log`,
+`q09-loss-after.log`). No model or account credential was used. This component
+increment does not complete Q09's admitted controls/recovery journey; Q09
+remains Active, with historical unknown sends preserved and all security gates open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
