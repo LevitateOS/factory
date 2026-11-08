@@ -1,5 +1,251 @@
 # Factory untangling decisions
 
+## Current redesign — 2026-11-08
+
+Status: design only; all changes below remain unimplemented. This is step 3 of
+`untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
+at Factory `502147c`, consolidated in canonical main through `42f2684`.
+The old product implementation goal remains cleared. Optional comment/test
+cleanup is outside this design pass.
+
+### Ownership and compatibility decisions
+
+| Owner | Defining responsibility | Dependencies |
+| --- | --- | --- |
+| Go application/service | Product admission, workflow and host composition | Stable product contracts, Store, admitted semantic ports |
+| Go Store | Product transactions, command journals and retained schema | Product contracts and PostgreSQL; no native resource custody |
+| Rust runtime | Authenticated provider sessions, native effects, cancellation and retirement | Native capability/resource owners; no product SQL writes |
+| Lit work-detail screen | Current read generation and presentation state | Existing typed API observations and explicit child events |
+| Fountain Go host | Its native ownership, operations and gateway | Its ledger and dependency-neutral execution contracts |
+
+Calls remain UI -> Go product service -> admitted native operations -> Rust.
+Go records intent/outcome through Store. Fountain host work stays in Fountain.
+Public JSON, command identities/digests, persisted receipts, actor attribution,
+unknown outcomes and withdrawal/retirement guarantees remain compatible.
+
+### D1. Compose a complete native work feature in one binding
+
+**Design:** `runtime/native_product.go` owns a fixed work-feature binding using
+the existing `service.Issues`, `RunStatus`, `Interventions` and Coordinator.
+Each request supplies one current bound account; it supplies all required ports
+or returns an explicit unavailable result for the affected feature. Existing
+read-only browsing remains available without admitted execution.
+
+Bind issue Status to Coordinator acceptance evidence; Authority to current
+local-resource plus provider admission; Membership to the enrolled native
+workspace/profile. Bind run repository identity through canonical Store records,
+Inspect through admitted native run observation, Availability/Writer to the same
+Coordinator, and RecoveryTarget to an actually admitted recovery destination.
+A stored project ID or login alone never supplies these facts. Required-port
+validation belongs in this feature binding, not in a generic service registry.
+
+**Problems solved:** audit 1: Issues/RunStatus constructed with mandatory ports
+unset, and run Commands not constructed at all.
+**Removes:** duplicate assembly conventions and partial service literals.
+**Retains:** canonical services, one coordinator/ledger, per-request account
+revalidation and explicit unavailable execution/recovery. Missing adapters are
+unfinished integration work; completing them is not a line-reduction claim.
+**Proof:** existing composed native HTTP journey must read an actual recorded
+issue/run and perform an already-supported intervention with its exact receipt;
+missing authority/inspector/recovery ports must hold that action. Fixture scope
+remains distinct from connected and installed qualification.
+
+### D2. Make the work-detail screen own its read generation
+
+**Design:** `work/detail.ts` loads issue detail/journey and repository access once
+per refresh and publishes one locally scoped, typed snapshot. Reuse the existing
+decoders. The snapshot is bound to transport generation, repository, issue and
+refresh generation; it does not claim an atomic provider snapshot across HTTP
+reads. A newer refresh or context change cancels/discards older responses.
+
+`journey.ts` renders the supplied journey. Acceptance and completion-retry
+children receive the same observation/access generation and retain their existing
+write transports and pending-command records. Child refresh/action-success events
+ask the parent to reload. Story hosts supply snapshots directly; they do not
+require another runtime loader. Failed current access disables controls while
+retained history is explicitly stale. Server mutation admission stays authoritative.
+
+**Problems solved:** audit 4: duplicate reads and parent refresh leaving sibling
+views on older snapshots; reinforces D1's usable inspection/intervention journey.
+**Removes:** child issue/access GET orchestration and independent read lifetimes.
+**Retains:** local editing/pending writes, stable draft scope, control-specific
+write behavior, navigation ports and backend checks.
+**Proof:** existing browser journey must show parent/children advancing together
+after refresh and an action, bounded issue/access reads, and old replies ignored
+after account/repository changes. Retained commands must survive refresh unchanged.
+
+### D3. Separate historical migration input from mutable fresh-schema text
+
+**Design:** `store/factory_delivery_repair_schema.go` owns explicit known prior
+and current constraint expressions. The current expression may also be used by
+fresh-schema construction; the prior expression is an intentionally frozen
+historical contract. Remove extraction by column delimiter and final-branch text.
+Keep PostgreSQL normalization and exact retained-constraint comparison.
+
+The existing version-96 label alone does not prove this initializer's constraint
+transition ran. Keep the bounded idempotent comparison until the shared migration
+owner explicitly versions that transition. Any later version advance must commit
+with its constraint change, and must admit both already-current and known-prior
+profiles. There is no additional migration registry or version ledger.
+
+**Problems solved:** audit 2: formatting/branch ordering in fresh DDL controlling
+old-profile startup.
+**Removes:** CREATE TABLE scans, delimiter cuts and suffix-derived old definitions.
+**Retains:** transaction/row locking, exact known-form admission and refusal of
+unknown constraints. No normalization of unknown schemas into accepted state.
+**Proof:** existing PostgreSQL upgrade/reopen cases for known-prior, already-current
+and unknown constraints, plus preservation of stored rows/receipts. Reformatting
+fresh-schema construction must not change an old profile's upgrade input.
+
+### D4. Make coordinator serialization explicit and cancellation-aware
+
+**Design:** replace the private ordinary progress mutex admission with one
+context-aware gate. Acquisition returns context, release and error; cancellation
+before or immediately after acquisition returns without starting work. Update all
+existing progress-pass callers together. Only an internally owned pass context
+permits nested reuse. Retain one Coordinator and its existing durable journals.
+
+Separate observation I/O from protected transitions where existing journals and
+revision guards already permit it: read immutable observations outside the gate,
+then acquire and revalidate captured state/authority before recording or using
+them. An external effect leaves the gate only after its existing durable intent
+has claimed ownership; its existing outcome path reconciles the reply. Without
+that ownership or revalidation, retain bounded serialization. Do not infer
+per-repository independence or introduce new queues, leases or worker schedulers.
+
+**Problems solved:** audit 3: expired interactive callers waiting on a mutex and
+unrelated observation I/O extending the shared critical section.
+**Removes:** uninterruptible admission and unnecessary ownership around pure I/O.
+**Retains:** dispatch/publication ordering, reentrant internal passes, existing
+revision/admission transactions and uncertain-effect handling. Global conflicting
+transitions remain serialized.
+**Proof:** existing coordinator/native checks must hold one slow observation while
+an expired waiter exits without effects, then show a current request succeeds;
+changed revisions must invalidate observations fetched outside the gate.
+
+### D5. Give the native callback boundary one internal operation representation
+
+**Design:** preserve strict existing wire DTOs and convert them once into a private
+read or mutation representation. A mutation contains one descriptor
+(command ID, digest, deadline) and a typed operation. Descriptor validation,
+repository binding and claim handling operate on this representation once.
+Background conversion has an explicit allowlist checked before credentials or
+write claims; adding a foreground operation never enables it in background.
+
+`collaboration.rs` owns admitted callback/request lifetime. Existing
+`factory_provider::Executions`, preparations, work and judgment owners receive
+their typed operations and retain their resource lifetimes. Move semantic callback
+handling into those existing owners rather than wrapping each match in another
+forwarding module. Keep their references in the owning runtime and preserve joined
+shutdown. Existing Go semantic operations and Rust receipts remain the contract.
+
+**Problems solved:** audit 6: repeated mutation metadata and parallel dispatcher
+lists mixed with execution/preparation internals.
+**Removes:** repeated internal metadata extraction/validation and callback bodies
+that belong to existing native owners. Legacy wire DTO repetition may remain
+where required for strict decoding and compatible bytes.
+**Retains:** wire formats/errors, narrow background admission, credential revision
+leases, one-shot claims, deadlines and uncertain replies. No new RPC version,
+generic operation registry, provider abstraction or background actor.
+**Proof:** existing affected native operation checks must retain exact requests,
+receipts, foreground/background refusals and cancellation/Quit retirement.
+
+### D6. Put Fountain ordinary ownership below issue/pull orchestration
+
+**Design:** one small Fountain `services/nativeownership` leaf owns ordinary
+claim/capability-file/release lifetime. It depends on `models/nativeoperation`
+and dependency-neutral `modules/nativeoperation`, not issue, pull or the
+orchestrating nativeoperation service. All three callers use it. Pure ordinary
+resource construction/parsing lives in `modules/nativeoperation` so recovery and
+writers share it. That module retains its prohibition on importing models/services.
+
+Pass the caller's already-validated scope encoding through the shared primitive;
+retain current codecs and bytes. Operation-specific permission/effect/recovery
+rules stay in the orchestrating service. Global reservation/revision semantics
+stay unchanged; finer locking is not established by the audit.
+
+**Problems solved:** audit 5: import cycles forcing mirrored ownership protocols
+and resource-label builders whose drift strands recovery.
+**Removes:** duplicated claim/release mechanics and mirrored resource encodings.
+**Retains:** nested ownership, cancellation-independent release, capability-file
+custody, crash barriers, global fencing and operation-specific recovery.
+**Proof:** existing ordinary/conditional ownership and recovery checks must cover
+nested calls, cancelled callers, failed release and unchanged retained formats.
+Fountain changes remain separately owned and do not close D2 or another gate.
+
+### D7. Put native-check configuration in its existing feature-gated owner
+
+**Design:** `cmd/soda-desktop/src/check.rs` parses scenario options into one typed
+configuration and owns scenario timeout/result selection. `main.rs` retains
+production path/options parsing and a narrow feature-gated call into that owner.
+The same production startup/sign-in/Quit functions run under either configuration.
+Remove repeated process-argument reads after configuration has been resolved.
+
+**Problems solved:** audit 7: scenario booleans/combinations and checks mixed into
+ordinary desktop startup; repeated argument interpretation in check callbacks.
+**Removes:** the scenario flag ladder in main and duplicated interpretation.
+**Retains:** current flags, refusal of invalid combinations, private fixture
+boundaries and actual application checks. Large check files are not deleted
+merely for their size; shared setup is consolidated only where duplication is
+proved. There is no replacement test framework or new acceptance hierarchy.
+**Proof:** build ordinary/native-check configurations and run the existing
+lifecycle scenario affected by the extraction. Required live cases remain open.
+
+### D8. Keep current decisions short and historical evidence immutable
+
+**Design:** keep `implementation-tasks.md` as the single current queue with stable
+IDs, dependency-ready outcomes and current blockers. Freeze its long historical
+version at a recorded Git commit and link to that exact version for prior
+requirements/evidence. Apply the same current-versus-history rule to the handoff;
+each open gate retains its blocker, files, proved scope and closure evidence once.
+The assumptions audit remains a findings/owner-decision register.
+
+Preserve human edits verbatim and identify status conflicts explicitly; the
+uncommitted Active edit must be reconciled with the owner before it is replaced.
+Existing evidence locations stay valid. Factory and Fountain work is consolidated
+in each canonical repository; replace the redundant Fountain review patches with
+direct source/commit references after its canonical source is preserved.
+
+**Problems solved:** audit 8 and the observed duplicate patch package: several
+maintained narratives and review copies for one underlying fact.
+**Removes:** repeated active prose and unnecessary review copies, with historical
+content retained in Git. This is documentation reduction, counted separately
+from production-code changes. No 15,000-line deletion target is assumed.
+**Proof:** current entries resolve to their exact historical requirements/evidence;
+all open gates and original human edits remain accounted for. No artifact/profile
+or ignored evidence is deleted as an incidental refactor step.
+
+### Implementation order and completion boundary
+
+1. D1 + D2: one native work inspection/intervention journey across Go and Lit.
+   Preserve unavailable recovery/execution until its real ports are supplied.
+2. D3: independently stabilize old-profile startup without changing stored records.
+3. D4: cancellation-aware admission first; move only I/O covered by existing
+   ownership/revalidation. D1's interaction supplies the observable consumer.
+4. D5 and D6: separate native and Fountain ownership cuts, preserving each wire
+   boundary and using their existing checks. Neither depends on new provider breadth.
+5. D7: encapsulate existing check support without changing the product lifecycle.
+6. D8: reduce current documentation against the resulting sources and retained
+   evidence; preserve unresolved human status choices until answered.
+
+Each cut ends after its defining behavior and smallest affected existing proof.
+Reuse earlier audit evidence and current check owners. No additional audit suite,
+parallel state machine, speculative case matrix or recurring report is required.
+Any further structural finding needs a concrete link to the cut being implemented.
+
+Completion of this document means the redesign is specified. Implemented cuts
+must later record their actual result here; none currently qualifies the full
+provider pipeline, real Fountain desktop login/placement, installed startup,
+worker isolation, custody/IPC or D1/D2/D3/D5. Muse payload encoding, connected
+permission checks and the pending reviewer-permission work retain their existing
+blockers. These are product/qualification dependencies, not permission to weaken
+admission or fabricate completion.
+
+## Earlier implementation record — 2026-11-06
+
+The following record is preserved historical evidence. Its completed sections
+do not mark the current redesign implemented or the product finished.
+
 Goal started 2026-11-06 at `6df3784`. This is the current structural decision log;
 product requirements and open qualification gates remain in
 [the implementation plan](factory-products/implementation-tasks.md). The previous
