@@ -179,6 +179,7 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "owned_account_removed": !retained,
                     "completed_reply_dropped_and_retained": fixture["drop_approval_reply"] == true,
                     "recovered_after_native_restart_and_source_change": fixture["reopen"] == true && fixture["resume_review"] != true,
+                    "connected_acceptance_preview": fixture["preview_issue"] == true,
                     "oauth_source": "user_authorized_gh_grant",
                     "factory_device_scope_qualified": false,
                     "installed_qualified": false,

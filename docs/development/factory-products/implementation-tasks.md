@@ -277,14 +277,12 @@ Verified increment: `41a1a17c9bab8615071fd92c5c8c90024286b991` prevents
 approval of edited or unsuccessfully loaded source selections. The real native
 UI journey reached both ready role preparations with consent still unverified;
 file-selection bounds passed separately in the same connected journey before
-the display fixture's broker visibility was corrected. Q07 remains Active:
-acceptance with nonempty comments/dependencies, withdrawal during I/O,
-changed-source consent and native pending-approval restart/reactivation remain
-pending. `c55b33619b141e2598c5c9f84c4079467cab6b8d` additionally captures exact
+the display fixture's broker visibility was corrected.
+`c55b33619b141e2598c5c9f84c4079467cab6b8d` additionally captures exact
 command provenance in existing consent records and recovers a lost approval
 reply after native restart/source change without replay. Fresh consent produced
 both ready preparations for the corrected source; original journals stayed
-byte-identical. Acceptance, withdrawal during I/O and qualification of legacy
+byte-identical. Q07 remains Active: acceptance, withdrawal during I/O and qualification of legacy
 pending records without captured command provenance remain open.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 

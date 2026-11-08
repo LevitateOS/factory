@@ -160,6 +160,20 @@
       await until(() => !setup.busy, 'native observation settled');
       return setup.view.preparations.length === 2 && setup.view.preparations.every(row => row.current && row.state.ready);
     }, 'both actual role workspaces ready: ' + setup.message);
+    if (fixture.preview_issue) {
+      stage = 'connected acceptance preview';
+      location.hash = new URLSearchParams({view: 'work-detail', repository: context.repository, issue: String(fixture.issue_number)});
+      let acceptance;
+      await until(() => {
+        acceptance = document.querySelector('soda-factory-requirements-acceptance');
+        return acceptance?.allowed && acceptance.ready && !acceptance.busy;
+      }, 'current shared work observation and acceptance authority');
+      await click(acceptance, 'Review current requirements');
+      await until(() => !acceptance.busy, 'native acceptance preview settled');
+      assert(acceptance.preview?.repository === context.repository && acceptance.preview.issue === String(fixture.issue_number),
+        'connected issue preview unavailable: ' + acceptance.message);
+      assert(!acceptance.reviewed && button(acceptance, 'Accept requirements')?.disabled, 'preview invented owner acceptance');
+    }
     assert((await api()).policy.enabled === false, 'setup started automation');
     await invoke('report', {stage: 'github-writes-complete', error: null});
   } catch (error) {
