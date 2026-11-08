@@ -5,6 +5,31 @@ use serde_json::{json, Value};
 use std::io;
 use std::path::Path;
 
+pub(super) fn muse_bundle(
+    profile: &Path,
+    intent: &LaunchIntent,
+    receipt: &super::MuseRun,
+    candidate: &str,
+) -> io::Result<Vec<u8>> {
+    if !receipt.root_retired || receipt.candidate.as_deref() != Some(candidate) {
+        return Err(io::Error::other("native candidate unavailable"));
+    }
+    let manifest = intent.retained_manifest(profile)?;
+    let result = super::Broker::retained_task_receipt(
+        profile,
+        &intent.scope()?,
+        &manifest,
+        &soda_execution_protocol::workspace::Parent::from_muse(&receipt.process),
+        &soda_execution_protocol::workspace::Command::Final {
+            expected_head: candidate.into(),
+        },
+    )?;
+    if result.status != "committed" || result.bundle.is_empty() {
+        return Err(io::Error::other("native candidate unavailable"));
+    }
+    Ok(result.bundle)
+}
+
 pub(super) fn export(
     profile: &Path,
     profile_id: &str,
@@ -36,27 +61,15 @@ pub(super) fn export(
         if receipt.candidate.as_deref() != Some(candidate) {
             return Ok(json!({"intent_digest":intent.digest(),"status":"candidate_mismatch"}));
         }
-        let manifest = intent.retained_manifest(profile)?;
-        let result = super::Broker::retained_task_receipt(
-            profile,
-            &scope,
-            &manifest,
-            &soda_execution_protocol::workspace::Parent::from_muse(&receipt.process),
-            &soda_execution_protocol::workspace::Command::Final {
-                expected_head: candidate.into(),
-            },
-        )?;
+        let bundle = muse_bundle(profile, &intent, &receipt, candidate)?;
         use sha2::{Digest, Sha256};
-        if result.status != "committed" || result.bundle.is_empty() {
-            return Err(denied());
-        }
-        let sha256: String = Sha256::digest(&result.bundle)
+        let sha256: String = Sha256::digest(&bundle)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect();
         return Ok(
             json!({"intent_digest":intent.digest(),"status":"exported","candidate":candidate,"sha256":sha256,
-            "bundle":base64::engine::general_purpose::STANDARD.encode(&result.bundle)}),
+            "bundle":base64::engine::general_purpose::STANDARD.encode(&bundle)}),
         );
     }
     let receipt = read_retained(profile, &scope)?.ok_or_else(denied)?;

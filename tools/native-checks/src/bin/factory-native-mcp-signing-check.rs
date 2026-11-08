@@ -254,6 +254,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ready = supervisor.health()?;
         let fixture = profile.join("admitted-native-fixture.json");
         let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+        if std::env::var("SODA_NATIVE_CHECK_EXPECT_RECOVERY_FENCED").as_deref() == Ok("1") {
+            if supervisor.execution_error().is_none() {
+                return Err("incomplete active service did not disable execution".into());
+            }
+            if !Command::new(&args[3])
+                .arg(&profile)
+                .arg(&ready.instance)
+                .arg("check-retained-native-fenced")
+                .arg(&fixture)
+                .status()?
+                .success()
+            {
+                return Err("incomplete active service was not safely fenced".into());
+            }
+            supervisor.stop()?;
+            println!("PASS: native product/database health remains available while incomplete active-service recovery disables execution");
+            return Ok(());
+        }
         if args[4] == "recover-muse"
             && captured["Tasks"] == true
             && captured["ParentRun"]
@@ -289,6 +307,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .success()
         {
             return Err("original retained execution reconciliation failed".into());
+        }
+        if std::env::var("SODA_NATIVE_CHECK_RECOVER_WORK").as_deref() == Ok("1") {
+            let destination = root.join("recovered-work");
+            DirBuilder::new().mode(0o700).create(&destination)?;
+            let target = supervisor.register_recovery_checkout(&destination)?;
+            fs::write(profile.join("native-recovery-target.id"), target)?;
+            fs::write(
+                profile.join("native-recovery-canonical.id"),
+                captured["Run"].as_str().ok_or("original run missing")?,
+            )?;
+            let recover = |mode: &str| -> Result<(), Box<dyn std::error::Error>> {
+                if !Command::new(&args[3])
+                    .arg(&profile)
+                    .arg(&ready.instance)
+                    .arg("check-owned-execution")
+                    .arg(mode)
+                    .status()?
+                    .success()
+                {
+                    return Err(format!("retained native recovery {mode} failed").into());
+                }
+                Ok(())
+            };
+            recover("recover_started")?;
+            if fs::read(destination.join("checkout/native-task.txt"))? != b"second\n" {
+                return Err("recovery lost the original two-task candidate".into());
+            }
+            fs::write(destination.join("checkout/README.md"), b"Human edit after recovery\n")?;
+            recover("recover_replay")?;
+            let retained = root.join("recovered-work-retained");
+            fs::rename(&destination, &retained)?;
+            let stale = recover("recover_stale");
+            fs::rename(&retained, &destination)?;
+            stale?;
+            if fs::read(destination.join("checkout/README.md"))? != b"Human edit after recovery\n"
+                || destination.join("checkout/.factory-build").exists()
+                || destination.join("checkout/factory-env").exists()
+            {
+                return Err("recovery retry changed human work or included the worker environment".into());
+            }
         }
         supervisor.stop()?;
         return Ok(());
@@ -1795,10 +1853,20 @@ async fn managed_muse_execution(
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
     if withdraw {
+        if matches!(std::env::var("SODA_NATIVE_CHECK_CONTROL").as_deref(), Ok("pause" | "stop")) {
+            let destination = root.join("recovered-work");
+            DirBuilder::new().mode(0o700).create(&destination)?;
+            supervisor.register_recovery_checkout(&destination)?;
+        }
         command(
             "withdraw-admitted-native",
             fixture.to_str().ok_or("invalid fixture path")?,
         )?;
+        if matches!(std::env::var("SODA_NATIVE_CHECK_CONTROL").as_deref(), Ok("owner-exit" | "owner-active")) {
+            // Lose the owning process and its reply pipes without graceful Drop.
+            // The next check must recover this exact admitted run from journals.
+            std::process::exit(0);
+        }
         supervisor.stop()?;
         if Broker::next_profile_run(&ready.profile)?.is_some() {
             return Err("withdrawn CLI source left an owned broker root".into());

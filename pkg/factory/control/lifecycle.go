@@ -34,6 +34,14 @@ func (c *Coordinator) PauseRepository(ctx context.Context, principal string, rep
 	if err != nil {
 		return factory.PauseResult{}, err
 	}
+	result := factory.PauseResult{Withdrawal: withdrawal, Runs: outcomes, Paused: true}
+	for _, run := range outcomes {
+		if !run.Confirmed || run.Uncertain {
+			// Dispatch is closed, but the native stop is still pending. Return
+			// its exact receipt; clocks cannot freeze until retirement confirms.
+			return result, nil
+		}
+	}
 	_, gateRevision, _, err := c.Store.DispatchState(bounded, repository)
 	if err != nil {
 		return factory.PauseResult{}, err
@@ -41,7 +49,7 @@ func (c *Coordinator) PauseRepository(ctx context.Context, principal string, rep
 	if err = c.Store.FreezeAttemptAllowances(bounded, repository, gateRevision, time.Now()); err != nil {
 		return factory.PauseResult{}, err
 	}
-	return factory.PauseResult{Withdrawal: withdrawal, Runs: outcomes, Paused: true}, nil
+	return result, nil
 }
 
 // withdrawAndStopRuns closes dispatch first and then settles every

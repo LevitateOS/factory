@@ -343,6 +343,12 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ### Q09 — Live work controls, source withdrawal and recovery
 
+Active: admitted native pause/stop, resume, queued retry, Muse takeover and
+retained failed/successful/cancelled recovery now pass their scoped checks,
+including active-service/incomplete-receipt refusal. Shared Project lifecycle
+and the remaining ordinary interrupted-effect/source-withdrawal journey are
+still pending. [Evidence and limits](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery).
+
 ```text
 Implement Q09 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 

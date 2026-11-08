@@ -1412,6 +1412,39 @@ finish/cancel/abrupt-owner-loss check passed (`q09-loss-{helper,check}-build.log
 increment does not complete Q09's admitted controls/recovery journey; Q09
 remains Active, with historical unknown sends preserved and all security gates open.
 
+### Q09 active: admitted controls and retained Muse recovery
+
+Fixed two failures exposed by the admitted journey: pause now returns its exact
+pending native-stop receipts while deferring clock freeze until retirement;
+native takeover now consumes the existing Muse receipt and verified final task
+bundle, rather than requiring the older worker receipt format. Incomplete task
+candidates still refuse. Export and takeover share the final-bundle validation.
+
+Production Go and regular desktop builds passed. Existing native checks passed
+admitted pause/stop, unsettled resume/takeover and missing-adapter refusal,
+stop-based original-source usage, consumed reservations, resume, native takeover,
+human-edit preservation and queued retry receipt replay (`q09-controls-pause5.log`,
+`q09-controls-stop.log`, under `/home/vince/Projects`). Authority in these local
+fixtures is declared; this is not connected GitHub permission qualification.
+Original Q08 Builder runs were recovered without inference: plan7 retained its
+failed outcome (`q09-retained-plan7.log`); plan8 recovered the actual two-task
+candidate, reused its receipt without overwriting human work and refused a stale
+destination (`q09-retained-plan8-work.log`). The `d7ec0c1` lost-reply correction
+also passed through an actual admitted worker and restart
+(`q09-admitted-loss{,-reopen}.log`). With its actual service held active and its
+receipt incomplete, restart kept execution fenced, product/database health
+available, original run unchanged and reservation held; resuming that exact
+service then recovered the cancelled outcome (`q09-active-loss{,-fenced,-recovered}.log`).
+
+Q09 remains **INCOMPLETE/Active**. Shared Project stop/start belongs to
+`/home/vince/Projects/sodaos/internal/web/api/lifecycle.go`, through Factory's
+existing Project service; passing a desktop workspace to that appliance API
+correctly refused (`q09-controls-project-stop.log`). Its actual admitted-worker
+journey and the remaining ordinary source/role withdrawal and interrupted-effect
+coverage must be completed before Q10. The owner authorized supplying the owning
+integration rather than requiring them to locate it. Installed/reboot variants,
+historical unknown sends and all 13 security gates retain their prior open scope.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

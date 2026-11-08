@@ -175,17 +175,38 @@ impl Work {
         {
             return Err(denied());
         }
-        let receipt = read_retained(&self.profile, &scope)?.ok_or_else(denied)?;
-        let candidate = match receipt.candidate_state.as_str() {
-            "captured" => receipt.result_candidate.as_deref().ok_or_else(denied)?,
-            "unchanged" => scope.candidate,
-            "not_applicable" if scope.role == super::Role::Reviewer => scope.candidate,
-            _ => return Err(denied()),
+        let (candidate, bundle) = if intent.muse_login() {
+            let receipt = super::muse_receipt::retained(&self.profile, &intent)?
+                .filter(|receipt| receipt.root_retired)
+                .ok_or_else(denied)?;
+            match receipt.candidate.as_deref() {
+                Some(candidate) => (
+                    candidate.to_owned(),
+                    Some(super::candidate::muse_bundle(
+                        &self.profile, &intent, &receipt, candidate,
+                    )?),
+                ),
+                None if !intent.has_tasks() => (scope.candidate.to_owned(), None),
+                None => return Err(denied()),
+            }
+        } else {
+            let receipt = read_retained(&self.profile, &scope)?.ok_or_else(denied)?;
+            match receipt.candidate_state.as_str() {
+                "captured" => (
+                    receipt.result_candidate.ok_or_else(denied)?,
+                    Some(receipt.candidate_bundle),
+                ),
+                "unchanged" => (scope.candidate.to_owned(), None),
+                "not_applicable" if scope.role == super::Role::Reviewer => {
+                    (scope.candidate.to_owned(), None)
+                }
+                _ => return Err(denied()),
+            }
         };
         let expected = Installed {
             intent: intent.digest(),
             target: id.into(),
-            candidate: candidate.into(),
+            candidate: candidate.clone(),
         };
         let checkout = target.path.join("checkout");
         if checkout.try_exists()? {
@@ -244,8 +265,8 @@ impl Work {
         {
             return Err(denied());
         }
-        if receipt.candidate_state == "captured" {
-            write_bytes(&pending.join("candidate.bundle"), &receipt.candidate_bundle)?;
+        if let Some(bundle) = &bundle {
+            write_bytes(&pending.join("candidate.bundle"), bundle)?;
             git(
                 &self.alive,
                 &pending,
@@ -276,7 +297,7 @@ impl Work {
                 &self.alive,
                 &pending,
                 &work,
-                &["merge-base", "--is-ancestor", scope.candidate, candidate],
+                &["merge-base", "--is-ancestor", scope.candidate, &candidate],
             )?;
             git(
                 &self.alive,
@@ -390,7 +411,7 @@ impl Work {
         File::open(&target.path)?.sync_all()?;
         // Only files owned by this successful staging operation are removed.
         fs::remove_file(pending.join("base.bundle"))?;
-        if receipt.candidate_state == "captured" {
+        if bundle.is_some() {
             fs::remove_file(pending.join("candidate.bundle"))?;
         }
         fs::remove_file(pending.join("git-output"))?;

@@ -1068,7 +1068,7 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 		fmt.Println("PASS: explicit native coordinator startup settled the actual local run and excludes a competing controller")
 		return nil
 	}
-	if mode == "recover" || mode == "recover_replay" || mode == "recover_started" {
+	if mode == "recover" || mode == "recover_replay" || mode == "recover_started" || mode == "recover_stale" {
 		targetID, readErr := os.ReadFile(filepath.Join(profile, "native-recovery-target.id"))
 		if readErr != nil {
 			return readErr
@@ -1078,6 +1078,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 			Source: execution.NativeWorkspaceRef{Profile: provenance.Profile, InstanceID: provenance.InstanceID, WorktreeID: provenance.WorktreeID},
 			Target: execution.NativeCheckoutRef{Profile: config.Profile, CheckoutID: string(targetID)},
 		}}
+		if mode == "recover_stale" {
+			if _, err = port.RecoverWork(ctx, request); err == nil {
+				return errors.New("stale native recovery destination admitted a cached receipt")
+			}
+			fmt.Println("PASS: stale registered native destination refused despite an existing recovery receipt")
+			return nil
+		}
 		if mode == "recover" || mode == "recover_started" {
 			coordinator := control.NewCoordinator(db, port, port)
 			defer coordinator.Close()
@@ -1328,7 +1335,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "launch-admitted-tasks" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" {
+		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "launch-admitted-tasks" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" || os.Args[3] == "check-retained-native-fenced" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -3035,6 +3042,35 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	defer db.Close()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	if action == "check-retained-native-fenced" {
+		prior, err := db.FactoryRun(ctx, input.Run)
+		if err != nil || prior.Reconciled || prior.Native == nil || prior.Native.Intent == "" || prior.Native.Settled() {
+			return errors.New("incomplete original run is not fenced")
+		}
+		c := control.NewCoordinator(db, port, port)
+		defer c.Close()
+		report, err := c.Reconcile(ctx)
+		if err != nil || len(report.Settled) != 0 || !slices.ContainsFunc(report.Fenced, func(v control.FencedRun) bool { return v.ID == prior.ID }) {
+			return fmt.Errorf("incomplete original run was not refused: %+v %v", report, err)
+		}
+		current, err := db.FactoryRun(ctx, input.Run)
+		if err != nil || !reflect.DeepEqual(prior, current) {
+			return errors.New("incomplete recovery changed original run facts")
+		}
+		a, err := db.AssignmentByRun(ctx, input.Run)
+		if err != nil || a.Stage != factory.AssignmentAssigned {
+			return errors.New("incomplete recovery invented an assignment result")
+		}
+		reservation, err := db.Reservation(ctx, a.ID)
+		if err != nil || reservation.State != factory.ReservationHeld {
+			return errors.New("incomplete recovery released reserved capacity")
+		}
+		if _, err = db.RunUsage(ctx, input.Run); !errors.Is(err, store.ErrNotFound) {
+			return errors.New("incomplete recovery invented usage")
+		}
+		fmt.Println("PASS: active service/incomplete receipt stays fenced; original run unchanged, no result or charge and reservation retained")
+		return nil
+	}
 	if action == "acknowledge-native" {
 		return port.AcknowledgeSettledRuns(ctx)
 	}
@@ -3093,8 +3129,10 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			expectedOutcome = factory.Succeeded
 		case project.FactoryFailed:
 			expectedOutcome = factory.Failed
+		case project.FactoryStopped:
+			expectedOutcome = factory.Cancelled
 		default:
-			return errors.New("original native run has no confirmed completed/failed outcome")
+			return errors.New("original native run has no confirmed terminal outcome")
 		}
 		completedTasks := input.Tasks && prior.FinalCheckpoint != nil && prior.FinalCheckpoint.Status == "committed"
 		stopped, err := coordinator.Stop(ctx, input.Run)
@@ -3136,13 +3174,18 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 		if !input.Live {
 			stopTime := prior.Native.Provenance.Process.StoppedAt
-			if stopTime == nil || !usage.EndedAt.Equal(*stopTime) || !stopTime.Before(prior.Deadline) || a.Outcome != factory.NeedsHuman {
+			_, found, terminalErr := db.TerminalMCPProposal(ctx, a.ID)
+			expectedProduct := factory.NeedsHuman
+			if !found && expectedOutcome == factory.Cancelled {
+				expectedProduct = factory.Cancelled
+			}
+			if terminalErr != nil || stopTime == nil || !usage.EndedAt.Equal(*stopTime) || !stopTime.Before(prior.Deadline) || a.Outcome != expectedProduct {
 				return errors.New("original early stop or incomplete product result was not retained")
 			}
 			if _, err = rawDB.ExecContext(ctx, `UPDATE factory_runs SET data=jsonb_set(data,'{native,provenance,process,stopped_at}',to_jsonb($2::text)) WHERE id=$1`, input.Run, stopTime.Add(time.Second).Format(time.RFC3339Nano)); err == nil || !strings.Contains(err.Error(), "native process stop cannot change") {
 				return fmt.Errorf("database did not enforce the recorded stop timestamp: %v", err)
 			}
-			fmt.Println("PASS: original early-stopped process recovered without inference replay; usage ends at its retained immutable native stop, excluding offline delay; product result remains blocked")
+			fmt.Println("PASS: original early-stopped process recovered without inference replay; usage ends at its retained immutable native stop, excluding offline delay; product outcome", a.Outcome)
 		} else if input.Tasks {
 			terminal, found, err := db.TerminalMCPProposal(ctx, a.ID)
 			reservation, reservationErr := db.Reservation(ctx, a.ID)
@@ -3459,10 +3502,12 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	var queued factory.IssueControl
-	if input.Tasks {
+	if input.Tasks || os.Getenv("SODA_NATIVE_CHECK_CONTROL") != "" {
 		if err = nativeStandingReviewer(ctx, db, port, prep); err != nil {
 			return err
 		}
+	}
+	if input.Tasks {
 		assessment := control.NewCoordinator(db, port, port)
 		assessment.AcceptanceReads = nativeReviewChildReads{actor, p.SourceCommit}
 		queued, _, err = assessment.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: factory.NewID(), Repository: repository, Issue: 3})
@@ -3612,6 +3657,160 @@ func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryru
 	return nil
 }
 
+// Exercise the shared intervention service against the admitted, running local
+// CLI fixture. Authority is declared local fixture scope, not a GitHub claim.
+func controlAdmittedNative(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, run factory.Run, repository int64, action string) error {
+	if action != factory.ActionPause && action != factory.ActionStop {
+		return errors.New("unsupported native control check")
+	}
+	a, err := db.AssignmentByRun(ctx, run.ID)
+	if err != nil {
+		return err
+	}
+	c := control.NewCoordinator(db, port, port)
+	defer c.Close()
+	c.AcceptanceReads = nativeReviewChildReads{a.ActorID, a.SourceCommit}
+	actor := collaboration.ActorID(a.ActorID)
+	current := true
+	s := factoryservice.Interventions{Store: db, Writer: c,
+		WriteAccess: func(ctx context.Context, selected collaboration.ActorID, repo collaboration.RepositoryID) error {
+			if !current || selected != actor || int64(repo) != repository {
+				return factoryservice.ErrInterventionAccess
+			}
+			return ctx.Err()
+		},
+		RunRepository: func(context.Context, collaboration.ActorID, factory.Run) (collaboration.RepositoryID, error) {
+			return collaboration.RepositoryID(repository), nil
+		},
+		RecoveryTarget: func(ctx context.Context, _ collaboration.ActorID, _ collaboration.RepositoryID, _ factory.Run) (execution.RecoveryTarget, error) {
+			var target execution.NativeCheckoutRef
+			if err := nativeFixtureCall(ctx, port.Config, port.Instance, "/api/native/execution", map[string]any{"operation": "recovery_target"}, &target); err != nil {
+				return execution.RecoveryTarget{}, factoryservice.ErrInterventionRecoveryTarget
+			}
+			return execution.RecoveryTarget{Native: &target}, nil
+		}}
+	command := func(in factoryservice.RunCommand) (any, error) {
+		return s.Run(ctx, actor, "native-control-fixture", run.ID, in)
+	}
+	repositoryCommand := func(action string) (any, error) {
+		return s.Repository(ctx, actor, "native-control-fixture", collaboration.RepositoryID(repository), factoryservice.RepositoryCommand{Action: action})
+	}
+	current = false
+	if _, err = command(factoryservice.RunCommand{Action: factory.ActionStop}); !errors.Is(err, factoryservice.ErrInterventionAccess) {
+		return errors.New("stale account admitted a stop")
+	}
+	current = true
+	unavailable := s
+	unavailable.Writer = nil
+	if _, err = unavailable.Run(ctx, actor, "native-control-fixture", run.ID, factoryservice.RunCommand{Action: factory.ActionStop}); !errors.Is(err, factoryservice.ErrInterventionUnavailable) {
+		return errors.New("missing execution writer did not refuse")
+	}
+	if _, err = repositoryCommand(factory.ActionResume); err == nil {
+		return errors.New("resume admitted an unsettled worker")
+	}
+	if _, err = command(factoryservice.RunCommand{Action: factory.ActionTakeover}); err == nil {
+		return errors.New("takeover admitted an unsettled worker")
+	}
+	if state, err := port.InspectRun(ctx, execution.RunAddress{Run: run.ID, Workspace: run.ProjectID}); err != nil || !state.Live {
+		return errors.New("refused control changed the live worker")
+	}
+	switch action {
+	case factory.ActionPause:
+		for {
+			receipt, err := repositoryCommand(factory.ActionPause)
+			if err != nil {
+				return fmt.Errorf("pause worker: %w", err)
+			}
+			paused, ok := receipt.(factory.PauseResult)
+			if !ok || !paused.Paused || len(paused.Runs) != 1 || paused.Runs[0].ID != run.ID {
+				return fmt.Errorf("pause lost the exact worker receipt: %+v", receipt)
+			}
+			if paused.Runs[0].Confirmed && !paused.Runs[0].Uncertain && paused.Runs[0].Outcome == string(factory.Cancelled) {
+				break
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("pause did not confirm the exact worker: %+v", receipt)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	default:
+		for {
+			receipt, err := command(factoryservice.RunCommand{Action: factory.ActionStop})
+			if err != nil {
+				return err
+			}
+			stopped, ok := receipt.(control.StopResult)
+			if !ok || stopped.RunID != run.ID {
+				return fmt.Errorf("stop lost the exact worker receipt: %+v", receipt)
+			}
+			if stopped.Confirmed && !stopped.Uncertain && stopped.Outcome == string(factory.Cancelled) {
+				break
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("stop did not confirm the exact worker: %+v", receipt)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	settled, err := db.FactoryRun(ctx, run.ID)
+	if err != nil || !settled.Reconciled || settled.Outcome != factory.Cancelled || settled.Native == nil || !settled.Native.Settled() || settled.Native.Provenance.Process == nil || settled.Native.Provenance.Process.StoppedAt == nil || settled.Native.Provenance.Custody.State != execution.NotAcquired {
+		return errors.New("control did not retain actual cancelled process/custody retirement")
+	}
+	usage, err := db.RunUsage(ctx, run.ID)
+	if err != nil || usage.Validate() != nil || usage.Connection != a.Connection || !usage.StartedAt.Equal(run.Started) || !usage.EndedAt.Equal(*settled.Native.Provenance.Process.StoppedAt) {
+		return errors.New("control usage is not bound to the original source and exact stop")
+	}
+	reservation, err := db.Reservation(ctx, a.ID)
+	if err != nil || reservation.State != factory.ReservationConsumed {
+		return errors.New("control left an unsettled reservation")
+	}
+	if _, err = repositoryCommand(factory.ActionResume); err != nil {
+		return fmt.Errorf("resume after retirement: %w", err)
+	}
+	missing := s
+	missing.RecoveryTarget = nil
+	if _, err = missing.Run(ctx, actor, "native-control-fixture", run.ID, factoryservice.RunCommand{Action: factory.ActionTakeover}); !errors.Is(err, factoryservice.ErrInterventionUnavailable) {
+		return errors.New("missing recovery target did not refuse")
+	}
+	recovered, err := command(factoryservice.RunCommand{Action: factory.ActionTakeover})
+	if err != nil {
+		return fmt.Errorf("takeover after retirement: %w", err)
+	}
+	record, ok := recovered.(factory.TakeoverRecord)
+	if !ok || record.Run != run.ID || record.Native == nil || record.Validate() != nil {
+		return errors.New("takeover lost its exact native receipt")
+	}
+	human := filepath.Join(record.Dest, "README.md")
+	if err = os.WriteFile(human, []byte("Human edit after native takeover\n"), 0600); err != nil {
+		return err
+	}
+	replayed, err := command(factoryservice.RunCommand{Action: factory.ActionTakeover})
+	if err != nil || !reflect.DeepEqual(recovered, replayed) {
+		return errors.New("takeover receipt changed on replay")
+	}
+	if text, err := os.ReadFile(human); err != nil || string(text) != "Human edit after native takeover\n" {
+		return errors.New("takeover retry overwrote human work")
+	}
+	retry := factoryservice.RunCommand{Action: factory.ActionRetry, CommandID: factory.NewID()}
+	queued, err := command(retry)
+	if err != nil {
+		return fmt.Errorf("retry after retirement: %w", err)
+	}
+	decision, ok := queued.(factory.RetryDecision)
+	if !ok || !decision.Queued || decision.Prior != run.ID || decision.CommandID != retry.CommandID {
+		return errors.New("retry lost its exact queued receipt")
+	}
+	replayed, err = command(retry)
+	if err != nil || !reflect.DeepEqual(queued, replayed) {
+		return errors.New("retry receipt changed on replay")
+	}
+	if err = port.AcknowledgeSettledRuns(ctx); err != nil {
+		return err
+	}
+	fmt.Println("PASS: admitted native", action, "through shared controls; stale account/missing adapters and unsettled resume/takeover refused, exact cancellation/stop-based usage/reservation, resume, native takeover/human-edit replay and queued retry receipt")
+	return nil
+}
+
 // Uses the existing admitted local CLI fixture: no provider request or login
 // mutation. The alternate source is declared metadata, never a fallback login.
 func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB, port factoryruntime.NativeExecution, runID string, repository int64, connection string) error {
@@ -3642,6 +3841,27 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	observed, err := port.InspectRun(ctx, execution.RunAddress{Run: runID, Workspace: run.ProjectID})
 	if err != nil || !observed.Live {
 		return errors.New("withdrawal fixture is not actually live")
+	}
+	if action := os.Getenv("SODA_NATIVE_CHECK_CONTROL"); action != "" {
+		if action == "owner-exit" || action == "owner-active" {
+			if action == "owner-active" {
+				if observed.Native == nil || observed.Native.Connector == nil {
+					return errors.New("active CLI service identity missing")
+				}
+				unit := "soda-factory-muse-" + run.ID + "-" + observed.Native.Connector.Service + ".service"
+				command := exec.CommandContext(ctx, "systemctl", "--user", "kill", "--kill-whom=all", "--signal=STOP", unit)
+				command.Env = append(os.Environ(), "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/"+strconv.Itoa(os.Getuid())+"/bus")
+				if output, err := command.CombinedOutput(); err != nil {
+					return fmt.Errorf("hold actual CLI service: %v %s", err, output)
+				}
+				if err = os.WriteFile(filepath.Join(port.Config.Directory, "check-active-muse-unit"), []byte(unit), 0600); err != nil {
+					return err
+				}
+			}
+			fmt.Println("PASS: actual admitted CLI worker, active capability and published artifact observed before abrupt owner exit")
+			return nil
+		}
+		return controlAdmittedNative(ctx, db, port, run, repository, action)
 	}
 	selected, err := db.Sponsorship(ctx, repository, connection)
 	if err != nil {
