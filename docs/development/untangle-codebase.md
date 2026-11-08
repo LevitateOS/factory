@@ -2002,9 +2002,51 @@ replay/restart and unchanged human title/body. This is not connected completion.
 Original worker `5b2adca2669040a1e9e94f094e4c6fcc` has a definite pre-inference
 exit/retirement and was settled from that receipt with its original source charge
 at `q14-authoring/profile/connected-authoring-startup-recovery.json`. Subsequent
-`c2`/`c3` continuation receipts have no new worker; current work fixes the failed
-attempt/wait selection and stale background queue status without renewing old
-commands or erasing results. Full Q14 and downstream qualification remain incomplete.
+`c2`/`c3` continuation receipts have no new worker. Checkpoints
+`c04575c4dc245da8758c27aa806a8f21ed31d2bb` and
+`b5c15c9ffa867ebbf7ec21bc445f1a2ef5542a6c` implement the approved contract and
+repair continuation, native Muse temporary storage and missing worker-tool wiring.
+Current issuer scope, source/role/intake lock ordering, immutable retry-command
+identity and the captured native deadline govern fresh admission and worker calls.
+Old/unknown scope metadata grants no authority; expired proofs are never silently
+reissued. The existing capability revocation/retirement owner stops stale work.
+
+The original `c4` continuation completed inference
+`01696bf61c0c3aaf7afbdab10ca5a34b` and the final refinement of #13. Its worker-native
+issue tools were unavailable; that missing additional-slot gate remains explicit
+in `q14-authoring/retained-partial.log`. This completed inference was not replayed.
+The distinct follow-up qualification at `/home/vince/Projects/q14-native-authoring/`
+passed actual routing, funded/prepared inference, authenticated worker create/refine,
+typed finish correction, final refinement and retained process/accounting recovery:
+
+- Post `d4c07a5b9d90481b25365bc55adf2312`; worker
+  `b9fcc2ad2681f2021f203fdc98fb77e9`, official Muse ELF
+  `0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`,
+  approved source `987c937481ec321607de68872bad7e5759d992fb`.
+- Issue #14 command `2559c6f60afe0afe0cc6b9247425ca1f`; additional slot #15
+  `8513e37a8ce19c639cbc26017a4da9f0`; append-only comments
+  `d79124d1f2d671bd0e60e117c67ed507` / `3b332bbd75c60a88403d6faf8eccf035`.
+  All four original receipts are committed/complete for GitHub account 16469623,
+  repository 1448277000, with exact provider response/target identities retained
+  in `journal-after-authoring.json`.
+- Routing `4e8e903ee0af7d1fb2fe1a3ba06e4bdd` and context choice
+  `257c347268c770993529416581186104` each consumed one original-source minute;
+  worker usage is two minutes from admitted start `20:39:26Z` to native stop
+  `20:40:53.939Z`, excluding offline recovery delay. All use source
+  `cb2905e2aafc06470dc1df1a41ef5c64`; `accounted-retained.log`, the per-run
+  recovery JSON and `connected-judgment-evidence.json` verify those exact facts.
+- `q14-store-continuation-check.log` passed eight existing PostgreSQL integration
+  checks. `q14-source-consent-check3.log` extends the existing real PostgreSQL
+  grant/mutation integration with fresh-command replay, old-scope refusal,
+  missing proof/scope, expiry, changed revision, withdrawal and a source edit
+  blocked by admission's row lock. Issuer/model facts there are declared; no
+  provider call or inference ran in these negative cases.
+
+All owned processes/checks are joined, local credentials withdrawn and temporary
+fixture services removed; both stashes and canonical Fountain remain unchanged.
+Full Q14 remains **INCOMPLETE**: actual accepted planning into a dependency graph,
+known-prefix restart, only-remaining-step recovery and whole-graph execution hold
+still require their connected evidence. Q15–Q30 have not started.
 
 Requested/actual task: **Q14, BLOCKED**. Safety implementation:
 `a977bba566b97cc4137596d5b2715458ae6a68dc`. No Q15 work started. Current relevant

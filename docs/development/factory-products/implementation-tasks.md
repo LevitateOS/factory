@@ -666,21 +666,34 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 explicitly approved append-only refinement comments during Q30. Implementation
 and verification are in progress; the prior contract blocker is resolved.
 Existing conditional-edit refusal remains in place for historical commands.
-Append-only refinement passed the existing native/Rust/Go/PostgreSQL check at
-`/home/vince/Projects/q14-append-refinement3/result.log`: one comment per retained
-step, replay/restart, preservation of subsequent human title/body and unowned-key
-refusal. Provider facts/content there are declared; this closes no connected gate.
-The original connected worker `5b2adca2669040a1e9e94f094e4c6fcc` exited before
-inference because Muse rejected its MCP temporary-output path; its exact failed
-result and source charge were settled without replay at
-`q14-authoring/profile/connected-authoring-startup-recovery.json`. Explicit
-continuations ending `c2` and `c3` launched no worker. Their original receipts
-remain retained. The waiting `c3` callback was joined; its parent withdrew the
-local credential and stopped the runtime, and temporary fixture units were removed.
-Owned uncommitted continuation work remains in the post retry/queue/planning and
-native Muse launch owners plus the existing connected driver. Next: verify the
-fresh-attempt binding and normal background continuation of the original post,
-then finish Q14's actual inference/additional slot, graph and retained scope.
+Verified checkpoints: append-only refinement
+`c04575c4dc245da8758c27aa806a8f21ed31d2bb`; funded recovery, native worker tools
+and captured-source admission `b5c15c9ffa867ebbf7ec21bc445f1a2ef5542a6c`.
+The actual connected authoring check at `/home/vince/Projects/q14-native-authoring/`
+passed through real Feed judgment, issue #14, prepared/funded Issue Maker run
+`b9fcc2ad2681f2021f203fdc98fb77e9`, additional slot #15 and append-only refinements.
+Its original terminal receipt was reconciled after restart without model replay.
+`accounted-retained.log` verifies the captured deadline and exact source charges:
+one routing minute, one context-choice minute and two admitted-worker minutes,
+all on source `cb2905e2aafc06470dc1df1a41ef5c64`. Full native command receipts are
+in `journal-after-authoring.json`; detailed references are in the decision log.
+
+The existing declared-provider check `q14-append-refinement3/result.log` proves
+exact-step replay/restart and unchanged human title/body. Existing real PostgreSQL
+checks passed at `q14-store-continuation-check.log` and
+`q14-source-consent-check3.log`: unchanged one-funding refusals, fresh explicit
+continuation, expired/withdrawn/changed/unknown-source refusal and source edit
+exclusion while admission holds its row locks. Issuer/provider facts in the
+negative transaction cases are declared; these are not connected graph proof.
+The original `/home/vince/Projects/q14-authoring/` partial attempts, failures,
+charges and issue #13 remain intact; completed inference `01696bf61c0c3aaf7afbdab10ca5a34b`
+was retained without replay after its missing native-tool binding was diagnosed.
+All owned checks are joined, local grants withdrawn and fixture services removed.
+No owned uncommitted implementation remains at this checkpoint. **Remaining:**
+the actual funded/accepted dependency-graph journey, known-prefix restart/full
+verification and the rest of Q14's mapped scope. Next: use the current prepared
+profile and existing request/planning/graph owners for that journey; inspect its
+journals before another effect. Q15–Q30 remain pending.
 
 **Historical blocker and evidence:** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
@@ -691,7 +704,7 @@ not support conditional requests unless explicitly documented. A preflight read
 cannot guarantee preservation of edits arriving before the mutation. This blocks
 the required conditional-refinement journey; no downstream work was started.
 
-The actual connected partial check `/home/vince/Projects/q14-authoring/` retains
+Historical initial snapshot: the actual connected partial check `/home/vince/Projects/q14-authoring/` retains
 post `f2a674ef1e426788c5fd5de093e854df`, real judgment
 `0ae6f5a335cfc7f8c7c3293ee245d689` (one original-source minute), and issue-create
 `99dbf0effc37227a91bbc2d6392042b4` for fixture issue #13. Both native role
@@ -709,11 +722,10 @@ boundaries passed. All owned checks/processes were joined, temporary fixture uni
 removed, local connected grant withdrawn and both stashes preserved. Detailed
 [evidence and limitations](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08).
 
-**Exact next action:** finish the approved append-only implementation and recover the original
-profile/receipts without another creation or routing call. Establish the approved
-continuation's fresh explicit authority and funding without renewing the expired
-capture, prepare current native instances from its retained approved source, and
-finish Q14's remaining connected scope.
+**Exact next action:** qualify the actual funded/accepted native dependency graph
+using the existing prepared source and original journals. Preserve known partial
+writes, restart and resume only remaining steps, verify the whole graph before
+execution, and finish Q14's mapped scope. Reuse the qualified authoring above.
 Never renew expired old write authority or replay an unknown send. Q15–Q30 stay
 pending; Q24's appliance deferral and all broad security gates remain open.
 
