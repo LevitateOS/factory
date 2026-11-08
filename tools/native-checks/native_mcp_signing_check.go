@@ -3668,6 +3668,9 @@ func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryru
 	if err != nil {
 		return err
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_LAUNCH_LOSS") == "1" {
+		return launchNativeWithoutReply(ctx, db, port, request)
+	}
 	observed, err := port.LaunchRun(ctx, request)
 	if err != nil {
 		return err
@@ -3676,6 +3679,78 @@ func launchNativeFixtureRun(ctx context.Context, db *store.Store, port factoryru
 		return errors.New("public Go launch did not observe its actual live worker")
 	}
 	fmt.Println("PASS: actual native packet/capability admitted and launched through the public Go execution port")
+	return nil
+}
+
+// Drop only the real native launch response. All admission/signing requests
+// still use the public Go launcher and authenticated native owner unchanged.
+func launchNativeWithoutReply(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, request execution.LaunchRequest) error {
+	directory, err := os.MkdirTemp(port.Config.Directory, "launch-loss-")
+	if err != nil {
+		return err
+	}
+	listener, err := net.Listen("unix", filepath.Join(directory, "host.sock"))
+	if err != nil {
+		return err
+	}
+	if err = os.Chmod(listener.Addr().String(), 0600); err != nil {
+		listener.Close()
+		return err
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", filepath.Join(port.Config.Directory, "host.sock"))
+	}, DisableKeepAlives: true}
+	defer transport.CloseIdleConnections()
+	dropped := make(chan bool, 1)
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(io.LimitReader(r.Body, factory.NativeJudgmentMaxWire+1))
+		if err != nil || len(body) > factory.NativeJudgmentMaxWire {
+			http.Error(w, "bounded request unavailable", 400)
+			return
+		}
+		var command struct{ Operation string }
+		_ = json.Unmarshal(body, &command)
+		forward := r.Clone(ctx)
+		forward.RequestURI, forward.URL.Scheme, forward.URL.Host = "", "http", "soda-native"
+		forward.Body = io.NopCloser(bytes.NewReader(body))
+		response, err := transport.RoundTrip(forward)
+		if err != nil {
+			http.Error(w, "native owner unavailable", 502)
+			return
+		}
+		defer response.Body.Close()
+		if command.Operation == "launch" {
+			var receipt struct{ Accepted bool }
+			err := json.NewDecoder(response.Body).Decode(&receipt)
+			dropped <- err == nil && response.StatusCode == 200 && receipt.Accepted
+			connection, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				connection.Close()
+			}
+			return
+		}
+		w.WriteHeader(response.StatusCode)
+		_, _ = io.Copy(w, response.Body)
+	})}
+	joined := make(chan struct{})
+	go func() { defer close(joined); _ = server.Serve(listener) }()
+	defer func() { _ = server.Close(); <-joined }()
+	probe := port
+	probe.Config.Directory = directory
+	_, launchErr := probe.LaunchRun(ctx, request)
+	select {
+	case accepted := <-dropped:
+		if !accepted || launchErr == nil {
+			return errors.New("initial launch reply was not lost after actual native acceptance")
+		}
+	default:
+		return fmt.Errorf("public launch never reached native acceptance: %v", launchErr)
+	}
+	run, err := db.FactoryRun(ctx, request.Address().Run)
+	if err != nil || run.Reconciled || run.Native == nil || run.Native.Intent == "" || run.Native.Provenance.Process != nil || run.Native.Provenance.Connector != nil {
+		return errors.New("lost launch reply invented process evidence or settlement")
+	}
+	fmt.Println("PASS: public Go launch loses the real accepted native reply; exact admitted intent/reservation retained without a product process observation or retry")
 	return nil
 }
 
@@ -6304,6 +6379,9 @@ func workerProfileFixture() error {
 			return errors.New("CLI fixture has no captured Go admission")
 		}
 		if strings.Contains(string(prompt), "withdraw-source-fixture") {
+			if err := os.WriteFile("native-fixture-ready", []byte("actual admitted artifact published\n"), 0600); err != nil {
+				return err
+			}
 			time.Sleep(120 * time.Second) // The real native owner must cancel this process.
 			return errors.New("withdrawal fixture was not cancelled")
 		}
