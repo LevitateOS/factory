@@ -1233,6 +1233,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "progress-gate" {
+		if err := progressGateFixture(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 6 && os.Args[1] == "workspace-manifest" {
 		if err := workspaceManifest(os.Args[2], os.Args[3], os.Args[4], os.Args[5]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -7091,4 +7098,195 @@ func seedWorkDetail(profile, instance, argument string) error {
 	}
 	_, _, err = db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: 12, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("a", 64), Authority: strings.Repeat("b", 64)}, now)
 	return err
+}
+
+// Declared observations exercise the production Coordinator over disposable PG.
+type progressCheckObserver func(context.Context, factory.CheckTarget, int64) (factory.ObservedChecks, error)
+
+func (f progressCheckObserver) ObserveChecks(ctx context.Context, target factory.CheckTarget, actor int64) (factory.ObservedChecks, error) {
+	return f(ctx, target, actor)
+}
+
+type progressGraphObserver struct {
+	factoryruntime.NativeGraphs
+	observe func(context.Context) (int64, error)
+}
+
+func (g progressGraphObserver) GraphActor(context.Context, int64, int64) (int64, error) {
+	return 1, nil
+}
+func (g progressGraphObserver) CheckIntentOwner(ctx context.Context, _, _, _ int64) (int64, error) {
+	return g.observe(ctx)
+}
+
+func progressGateFixture() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	config, err := factoryruntime.LoadNative(os.Getenv("SODA_NATIVE_FACTORY_CONFIG"))
+	if err != nil {
+		return err
+	}
+	db, dsn, cleanup, err := store.OpenEphemeral(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	raw, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer raw.Close()
+	p := factory.Publication{ID: strings.Repeat("a", 32), AssignmentID: strings.Repeat("b", 32), Repository: 7, Issue: 12, PRNumber: 3, PRID: 11, Stage: factory.PublicationPublished, Candidate: strings.Repeat("a", 40), PRCreate: factory.PublicationOperation{Work: &factory.PublicationIntent{}, IssueID: 13, HeadRef: "refs/heads/factory/check", BaseRef: "refs/heads/main", BaseOID: strings.Repeat("b", 40)}}
+	policy := factory.RepositoryPolicy{Repository: 7, Revision: 1, Checks: []string{"ci/gate"}}
+	for _, row := range []struct {
+		query string
+		value any
+	}{
+		{`INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',7,12,'declared-run','published',0,$1)`, p},
+		{`INSERT INTO factory_policies(repository,revision,data) VALUES(7,1,$1)`, policy},
+	} {
+		encoded, e := json.Marshal(row.value)
+		if e != nil {
+			return e
+		}
+		if _, e = raw.ExecContext(ctx, row.query, string(encoded)); e != nil {
+			return e
+		}
+	}
+	c := control.NewCoordinator(db, nil, nil)
+	entered := make(chan context.Context, 2)
+	release := make(chan struct{}, 2)
+	c.Checks = progressCheckObserver(func(pass context.Context, target factory.CheckTarget, _ int64) (factory.ObservedChecks, error) {
+		// This nested public pass must borrow the internal live owner, not deadlock.
+		if nested := c.PublishPass(pass); !nested.Unavailable || len(nested.Errors) != 0 {
+			return factory.ObservedChecks{}, errors.New("nested pass lost admission")
+		}
+		entered <- context.WithoutCancel(pass)
+		select {
+		case <-release:
+		case <-pass.Done():
+			return factory.ObservedChecks{}, pass.Err()
+		}
+		return factory.ObservedChecks{NativeRev: 1, ObservedContexts: 1, HeadTip: target.HeadOID, BaseTip: target.BaseOID, Complete: true, Checks: []factory.ObservedCheck{{Context: "ci/gate", State: "pending"}}}, nil
+	})
+	done := make(chan control.CheckReport, 1)
+	go func() { done <- c.CheckPass(ctx) }()
+	var retained context.Context
+	select {
+	case retained = <-entered:
+	case <-ctx.Done():
+		return errors.New("slow check observation was not reached")
+	}
+	deadline, expire := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer expire()
+	waiter := make(chan error, 1)
+	go func() {
+		_, e := c.RetryCompletion(deadline, strings.Repeat("c", 32), "1", 7, factory.CompletionRetryRequest{EventID: strings.Repeat("d", 32), ExpectedPriorCycle: strings.Repeat("e", 32)})
+		waiter <- e
+	}()
+	select {
+	case e := <-waiter:
+		if !errors.Is(e, context.DeadlineExceeded) {
+			return fmt.Errorf("expired waiter did not return deadline: %v", e)
+		}
+	case <-time.After(3 * time.Second):
+		return errors.New("expired waiter remained behind observation")
+	}
+	if _, e := db.CheckAssessment(ctx, 7, 3); !errors.Is(e, store.ErrNotFound) {
+		return errors.New("blocked observation recorded an assessment")
+	}
+	var commands int
+	if e := raw.QueryRowContext(ctx, `SELECT count(*) FROM factory_commands`).Scan(&commands); e != nil || commands != 0 {
+		return errors.New("expired waiter recorded a command")
+	}
+	expired, expireNow := context.WithCancel(ctx)
+	expireNow()
+	if e := c.Start(expired, ""); !errors.Is(e, context.Canceled) {
+		return errors.New("cancelled Start attempted admission")
+	}
+	if len(c.Dispatch(expired).Errors) != 1 || len(c.CheckPass(expired).Errors) != 1 || len(c.PublishPass(expired).Errors) != 1 || len(c.MergePass(expired).Errors) != 1 || len(c.DriveCompletions(expired, control.CompletionDriveDeps{}).Held) != 1 {
+		return errors.New("cancelled progress caller lost refusal")
+	}
+	if _, e := c.StartCompletionRetry(expired, factory.ReassessmentRetry{}); !errors.Is(e, context.Canceled) {
+		return errors.New("cancelled completion retry attempted work")
+	}
+	if _, e := c.GenerateAcceptedIntent(expired, "", "", 1); !errors.Is(e, context.Canceled) {
+		return errors.New("cancelled graph attempted observation")
+	}
+	release <- struct{}{}
+	first := <-done
+	if len(first.Errors) != 0 || len(first.Assessed) != 1 || first.Assessed[0].Revision != 1 {
+		return fmt.Errorf("current check pass failed: %+v", first)
+	}
+	// A context captured by a completed pass no longer confers ownership.
+	go func() { done <- c.CheckPass(ctx) }()
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		return errors.New("later valid pass did not reach observation")
+	}
+	staleCtx, stopStale := context.WithTimeout(retained, 50*time.Millisecond)
+	defer stopStale()
+	staleDone := make(chan control.PublishReport, 1)
+	go func() { staleDone <- c.PublishPass(staleCtx) }()
+	select {
+	case result := <-staleDone:
+		if len(result.Errors) != 1 || result.Errors[0].Reason != "progress_pass_cancelled" {
+			return fmt.Errorf("retired pass context bypassed admission: %+v", result)
+		}
+	case <-time.After(3 * time.Second):
+		return errors.New("retired pass context did not cancel")
+	}
+	release <- struct{}{}
+	second := <-done
+	if len(second.Errors) != 0 || len(second.Assessed) != 1 || second.Assessed[0].Revision != 2 {
+		return fmt.Errorf("later valid request failed: %+v", second)
+	}
+	// A slow authority read runs outside admission; a changed accepted head
+	// invalidates it before any generation journal or native effect is created.
+	idea := factory.ProductIdea{ID: "d" + strings.Repeat("1", 24), Description: "Declared gate check", Consequence: "Check revision admission", Decision: "accept", Source: "requested", Provenance: "human", Actor: 1}
+	r := factory.IntentRevision{ID: "d" + strings.Repeat("2", 24), Intent: "d" + strings.Repeat("3", 24), Owner: 1, Repository: 7, Objective: "Check graph observation admission", State: "accepted", MaxIssues: 1, CreatedUnix: time.Now().Unix(), Ideas: []factory.ProductIdea{idea}, Tasks: []factory.IntentTask{{Key: "d" + strings.Repeat("5", 24), Objective: "Check gate", Outcomes: []string{"No stale effect"}, IdeaIDs: []string{idea.ID}}}}
+	if e := db.SaveIntentRevision(ctx, r); e != nil {
+		return e
+	}
+	graphEntered := make(chan struct{})
+	graphRelease := make(chan struct{})
+	c.Graph = progressGraphObserver{observe: func(observeCtx context.Context) (int64, error) {
+		close(graphEntered)
+		select {
+		case <-graphRelease:
+			return 1, nil
+		case <-observeCtx.Done():
+			return 0, observeCtx.Err()
+		}
+	}}
+	graphDone := make(chan error, 1)
+	go func() { _, e := c.GenerateAcceptedIntent(ctx, r.Intent, r.ID, r.Owner); graphDone <- e }()
+	select {
+	case <-graphEntered:
+	case <-ctx.Done():
+		return errors.New("graph authority read did not start")
+	}
+	unrelated, stopUnrelated := context.WithTimeout(ctx, time.Second)
+	free := c.PublishPass(unrelated)
+	stopUnrelated()
+	if !free.Unavailable || len(free.Errors) != 0 {
+		return errors.New("pure graph observation held progress admission")
+	}
+	successor := r
+	successor.Predecessor = r.ID
+	successor.ID = "d" + strings.Repeat("4", 24)
+	successor.Objective = "Changed accepted direction"
+	if e := db.SaveIntentRevision(ctx, successor); e != nil {
+		return e
+	}
+	close(graphRelease)
+	if e := <-graphDone; !errors.Is(e, store.ErrStaleRevision) {
+		return fmt.Errorf("changed head did not invalidate outside observation: %v", e)
+	}
+	if _, e := db.IntentGeneration(ctx, r.ID); !errors.Is(e, store.ErrNotFound) {
+		return errors.New("stale observation created a generation")
+	}
+	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it, later valid check writes revision 2; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
+	return nil
 }

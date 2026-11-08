@@ -72,7 +72,11 @@ func (c *Coordinator) DriveCompletions(ctx context.Context, deps CompletionDrive
 	if c.Store == nil {
 		return report
 	}
-	ctx, unlock := c.progressPass(ctx)
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		report.Held = append(report.Held, "progress_pass_cancelled")
+		return report
+	}
 	defer unlock()
 	// The drive owns no new budget: it reuses the caller's readiness
 	// pass when one exists (the production advanceProgressPage pass) and
@@ -582,7 +586,10 @@ func (c *Coordinator) StartCompletionRetry(ctx context.Context, retry factory.Re
 	if c.Store == nil {
 		return "", store.ErrNotFound
 	}
-	ctx, unlock := c.progressPass(ctx)
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		return "", err
+	}
 	defer unlock()
 	if err := c.checkCompletionRetry(ctx, retry); err != nil {
 		return "", err

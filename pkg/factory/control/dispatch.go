@@ -502,7 +502,12 @@ type activeDispatchKey struct{}
 // queued issues within current limits. It never fails: every operational
 // failure lands in the report, and a later pass retries.
 func (c *Coordinator) Dispatch(ctx context.Context) DispatchReport {
-	ctx, unlock := c.progressPass(ctx)
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		report := newDispatchReport()
+		report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "dispatch pass cancelled"})
+		return report
+	}
 	defer unlock()
 	defer c.observeProgressStage("idle")
 	ctx = context.WithValue(ctx, activeDispatchKey{}, c)

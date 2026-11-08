@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -13,14 +14,37 @@ const progressInterval = 10 * time.Second
 
 type progressPassKey struct{}
 
-// Nested dispatch/publication/check/merge passes share one owner. Native
+type progressPassOwner struct {
+	coordinator *Coordinator
+	active      atomic.Bool
+}
+
+// Nested internal passes borrow the live owner's admission. A retained context
+// cannot bypass acquisition after that owner releases the gate. Native
 // withdrawal remains independent so a running CLI never delays revocation.
-func (c *Coordinator) progressPass(ctx context.Context) (context.Context, func()) {
-	if ctx.Value(progressPassKey{}) == c {
-		return ctx, func() {}
+func (c *Coordinator) progressPass(ctx context.Context) (context.Context, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return ctx, func() {}, err
 	}
-	c.progressMu.Lock()
-	return context.WithValue(ctx, progressPassKey{}, c), c.progressMu.Unlock
+	if owner, ok := ctx.Value(progressPassKey{}).(*progressPassOwner); ok && owner.coordinator == c && owner.active.Load() {
+		return ctx, func() {}, nil
+	}
+	c.progressOnce.Do(func() { c.progressGate = make(chan struct{}, 1) })
+	select {
+	case c.progressGate <- struct{}{}:
+	case <-ctx.Done():
+		return ctx, func() {}, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		<-c.progressGate
+		return ctx, func() {}, err
+	}
+	owner := &progressPassOwner{coordinator: c}
+	owner.active.Store(true)
+	return context.WithValue(ctx, progressPassKey{}, owner), func() {
+		owner.active.Store(false)
+		<-c.progressGate
+	}, nil
 }
 
 // Publication and Actions activity advances the native revision without an
@@ -116,7 +140,10 @@ func (c *Coordinator) advanceProgress(ctx context.Context) {
 }
 
 func (c *Coordinator) advanceProgressPage(ctx context.Context, standingPreparationCursor *string) {
-	ctx, unlock := c.progressPass(ctx)
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		return
+	}
 	defer unlock()
 	ctx, ownsPass, cancelPass := c.readinessPass(ctx)
 	defer cancelPass()

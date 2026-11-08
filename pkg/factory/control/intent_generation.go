@@ -238,8 +238,9 @@ func (c *Coordinator) GenerateAcceptedIntentFromChoice(ctx context.Context, inte
 type generationPlanValidator func(context.Context, factory.IntentGeneration) (*DispatchWait, error)
 
 func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expectedRevision string, owner int64, chosen *ChosenIntentPlan, validate generationPlanValidator) (factory.IntentGeneration, error) {
-	ctx, unlock := c.progressPass(ctx)
-	defer unlock()
+	if err := ctx.Err(); err != nil {
+		return factory.IntentGeneration{}, err
+	}
 	if c.Store == nil || !c.graphAvailable() {
 		return factory.IntentGeneration{}, errors.New("native issue graph is unavailable")
 	}
@@ -253,6 +254,8 @@ func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expe
 	if r.State != "accepted" {
 		return factory.IntentGeneration{}, errors.New("product direction is not accepted")
 	}
+	// This read grants no journal/effect ownership. Revalidate the accepted head
+	// and actor under admission; generation submission retains its native checks.
 	actor, err := c.graphActor(ctx, r.Repository, r.Owner)
 	if err != nil {
 		return factory.IntentGeneration{}, err
@@ -260,6 +263,21 @@ func (c *Coordinator) generateAcceptedIntent(ctx context.Context, intentID, expe
 	revision, err := c.Graph.CheckIntentOwner(ctx, r.Repository, r.Owner, actor)
 	if err != nil {
 		return factory.IntentGeneration{}, err
+	}
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		return factory.IntentGeneration{}, err
+	}
+	defer unlock()
+	if err := c.currentAcceptedIntent(ctx, r); err != nil {
+		return factory.IntentGeneration{}, err
+	}
+	currentActor, err := c.graphActor(ctx, r.Repository, r.Owner)
+	if err != nil {
+		return factory.IntentGeneration{}, err
+	}
+	if currentActor != actor {
+		return factory.IntentGeneration{}, store.ErrStaleRevision
 	}
 	g, done, err := c.loadAcceptedGeneration(ctx, r, revision, chosen)
 	if done || err != nil {

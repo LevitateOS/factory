@@ -27,7 +27,10 @@ func (c *Coordinator) RetryCompletion(ctx context.Context, commandID, principal 
 		Target: fmt.Sprintf("repository/%d/completion/%s", repository, request.EventID), Payload: string(payload),
 	}
 	cmd.Digest = factory.SettingsDigest(cmd.Type, cmd.Target, cmd.Payload)
-	bounded, unlock := c.progressPass(bounded)
+	bounded, unlock, err := c.progressPass(bounded)
+	if err != nil {
+		return zero, err
+	}
 	defer unlock()
 	// An admitted request retains its identity and author after the successor
 	// advances. Current native repository/session authority is checked by API.

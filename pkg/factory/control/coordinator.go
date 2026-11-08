@@ -103,13 +103,14 @@ type Coordinator struct {
 	cascadeMu           sync.Mutex
 	closing             atomic.Bool
 	ownerMu             sync.Mutex
-	progressMu          sync.Mutex
+	progressOnce        sync.Once
+	progressGate        chan struct{}
 	dispatchObservation atomic.Pointer[DispatchObservation]
 	progressCancel      context.CancelFunc
 	progressDone        chan struct{}
 	// ownerMu also protects the bounded child-result recovery cursor.
 	publicationChildCursor string
-	// progressMu protects the bounded recovery and verification cursors below.
+	// The progress gate protects the bounded recovery and verification cursors below.
 	creationRepositoryCursor int64
 	intentGenerationCursor   string
 	deliveryIntentCursor     string
@@ -126,7 +127,10 @@ func NewCoordinator(db *store.Store, host HostFactory, broker BrokerExecution) *
 // concurrently.
 func (c *Coordinator) Start(ctx context.Context, lockPath string) error {
 	lifetime := ctx
-	ctx, unlock := c.progressPass(ctx)
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		return err
+	}
 	defer unlock()
 	ctx, ownsPass, cancelPass := c.readinessPass(ctx)
 	defer cancelPass()

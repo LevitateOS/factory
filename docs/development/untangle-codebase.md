@@ -2,7 +2,7 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1–D3 implemented and verified locally; D4–D8 remain pending design only.
+Status: D1–D4 implemented and verified locally; D5–D8 remain pending design only.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -161,6 +161,25 @@ transitions remain serialized.
 **Proof:** existing coordinator/native checks must hold one slow observation while
 an expired waiter exits without effects, then show a current request succeeds;
 changed revisions must invalidate observations fetched outside the gate.
+
+Completion (2026-11-08): prerequisite code, D1 native receipts, D2 browser
+checks and D3 PostgreSQL upgrade/reopen evidence were reviewed; no gap remained.
+One context-aware gate replaces the progress mutex at all ten acquisition sites,
+including zero-value Coordinators. Cancellation is checked before/after acquisition;
+only a live private pass owner permits nested reuse. Initial graph ownership I/O
+runs before admission; the accepted head/digest and actor are revalidated under it,
+and existing native checks still precede generation admission/submission. Check,
+settlement, dispatch, publication/merge and completion sequences retain bounded
+serialization where their coupled transitions lack a safe independent handoff.
+Production Go/helper builds and dependency boundaries passed. Existing native
+PG/helper `progress-gate` check passed: slow check observation, deadline waiter
+with no command/assessment effects, all public callers' pre-cancelled refusals,
+live nested reuse, retired-context refusal, later assessment revision 2, independent
+admission during graph observation and changed-head refusal before journal/effects.
+Result: `/home/vince/Projects/d4-progress-verified.log` via
+`soda-native-pg-check --once … -- .artifacts/bin/native-mcp-helper progress-gate`.
+Observations are declared; no connected/installed qualification. D5–D8 remain
+pending, and the old product queue remains cleared.
 
 ### D5. Give the native callback boundary one internal operation representation
 
