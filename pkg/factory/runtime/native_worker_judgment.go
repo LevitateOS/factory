@@ -93,6 +93,9 @@ func (s nativeWorkerJudgments) EvaluateQuestions(ctx context.Context, kind strin
 		if nativeDecode([]byte(cmd.Payload), &capture) != nil || s.Store.CheckNativeJudgmentSource(bounded, capture) != nil {
 			return nil, control.ErrPriorityUnavailable
 		}
+		if s.admit == nil || s.admit(bounded) != nil {
+			return nil, service.ErrWorkerBinding
+		}
 		if cmd.Finished != "" {
 			continue
 		}

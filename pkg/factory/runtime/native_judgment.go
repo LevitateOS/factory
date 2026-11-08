@@ -51,6 +51,24 @@ func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (f
 	return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
 }
 
+// A product receipt may reuse an answer, but cannot bypass its original source
+// and current repository admission after withdrawal or policy replacement.
+func (s NativeJudgments) CheckJudgment(ctx context.Context, repository int64, subject string) error {
+	cmd, err := s.Store.FactoryCommand(ctx, factory.NativeJudgmentID(s.Config.Profile, repository, subject))
+	var capture factory.NativeJudgmentCapture
+	if err != nil || nativeDecode([]byte(cmd.Payload), &capture) != nil || capture.Profile != s.Config.Profile || capture.Repository != repository || cmd.Finished == "" {
+		return control.ErrPriorityUnavailable
+	}
+	if err := s.Store.CheckNativeJudgmentSource(ctx, capture); err != nil {
+		return err
+	}
+	account, err := (NativeInputSource{s.NativeExecution}).account(ctx, strconv.FormatInt(repository, 10), factory.OpRefPublish)
+	if err != nil {
+		return err
+	}
+	return account.visible(ctx, account.binding.Actor.ID, account.repository.ID)
+}
+
 func (s NativeJudgments) SelectScoped(ctx context.Context, repository int64, subject string, state any, question string, options map[string]any) (factory.PriorityAnswer, error) {
 	if repository <= 0 || subject == "" || len(subject) > 256 {
 		return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
@@ -222,6 +240,15 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 			return empty, e
 		}
 		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: selection, PromptSHA256: sha, OptionsSHA256: optionsDigest, OutputKind: outputKind, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		policy, e := s.Store.RepositoryPolicy(ctx, s.repository)
+		if e != nil {
+			return empty, e
+		}
+		source, e := s.Store.Sponsorship(ctx, s.repository, selection.Account)
+		if e != nil {
+			return empty, e
+		}
+		capture.PolicyRevision, capture.FundingRevision = &policy.Revision, &source.Revision
 		if deadline, ok := ctx.Deadline(); ok && deadline.UnixMilli() < capture.DeadlineUnixMS {
 			capture.DeadlineUnixMS = deadline.UnixMilli()
 		}
@@ -301,11 +328,11 @@ func finishNativeJudgment(ctx context.Context, native NativeExecution, capture f
 	if r.ID != capture.ID || r.Digest != cmd.Digest || p.Kind != "factory_muse_process" || p.Version != 1 || p.Run != capture.ID ||
 		!factory.ValidID(p.Service) || !factory.ValidID(p.Invocation) || p.ExecutableSHA256 != capture.ToolSHA256 || p.PromptSHA256 != capture.PromptSHA256 ||
 		p.UID <= 0 || p.PID <= 0 || p.StartedUnixMS <= 0 || p.StoppedUnixMS == nil || *p.StoppedUnixMS < p.StartedUnixMS ||
-		!p.Finished || !p.TreeRetired || !p.OutputComplete || p.Live == nil || *p.Live {
+		!p.Finished || !p.TreeRetired || !p.OutputComplete && (p.Reason == nil || *p.Reason != "output_limit") || p.Live == nil || *p.Live {
 		return nativeJudgmentOutcome{}, control.ErrPriorityUnavailable
 	}
 	outcome := nativeJudgmentOutcome{Process: p}
-	if p.ExitCode != nil && *p.ExitCode == 0 && p.Reason != nil && *p.Reason == "exited" && r.Output != nil {
+	if p.OutputComplete && p.ExitCode != nil && *p.ExitCode == 0 && p.Reason != nil && *p.Reason == "exited" && r.Output != nil {
 		if capture.OutputKind == "consultation" {
 			// Leave room for process evidence in the existing 64 KiB journal
 			// outcome. Oversized or malformed answers still settle actual usage.

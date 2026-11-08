@@ -61,9 +61,32 @@ struct Header {
 }
 
 fn valid(intent: &LaunchIntent, process: &MuseObservation, output: &[u8]) -> bool {
+    process.output_complete
+        && valid_process(
+            process,
+            intent.run(),
+            intent.tool_sha256(),
+            intent
+                .scope()
+                .ok()
+                .map(|s| s.prompt_sha256().to_owned())
+                .as_deref()
+                .unwrap_or(""),
+            output,
+            MAX_OUTPUT,
+        )
+}
+fn valid_process(
+    process: &MuseObservation,
+    run: &str,
+    tool: &str,
+    prompt: &str,
+    output: &[u8],
+    limit: usize,
+) -> bool {
     process.kind == "factory_muse_process"
         && process.version == 1
-        && process.run == intent.run()
+        && process.run == run
         && super::hex(&process.service, 32)
         && super::hex(&process.invocation, 32)
         && process.uid == unsafe { libc::geteuid() }
@@ -75,19 +98,14 @@ fn valid(intent: &LaunchIntent, process: &MuseObservation, output: &[u8]) -> boo
         && process
             .stopped_unix_ms
             .is_none_or(|stopped| stopped >= process.started_unix_ms)
-        && process.executable_sha256 == intent.tool_sha256()
-        && process.prompt_sha256
-            == intent
-                .scope()
-                .ok()
-                .map(|scope| scope.prompt_sha256().to_owned())
-                .unwrap_or_default()
+        && process.executable_sha256 == tool
+        && process.prompt_sha256 == prompt
         && process.finished
         && process.live == Some(false)
         && process.sequence == 0
         && process.tree_retired
-        && process.output_complete
-        && output.len() <= MAX_OUTPUT
+        && (process.output_complete || process.reason.as_deref() == Some("output_limit"))
+        && output.len() <= limit
         && process.output_length == output.len()
         && process.output_sha256.as_deref() == Some(&digest(output))
         && matches!(
@@ -223,6 +241,29 @@ pub(super) fn task_candidate(
 // private service directory. Import only one exact binding; never select a
 // directory by modification time or infer that its service/root has stopped.
 fn legacy(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> {
+    if let Some((process, output)) = retained_process(
+        profile,
+        intent.run(),
+        intent.tool_sha256(),
+        intent.scope()?.prompt_sha256(),
+        MAX_OUTPUT,
+    )? {
+        write(profile, intent, &process, &output)?;
+        result(profile, intent, process, output).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+// A judgment has the same native helper evidence as an execution, without a
+// worker root or LaunchIntent. Import exactly one bound process; never launch.
+pub(super) fn retained_process(
+    profile: &Path,
+    run: &str,
+    tool: &str,
+    prompt: &str,
+    limit: usize,
+) -> io::Result<Option<(MuseObservation, Vec<u8>)>> {
     let root = profile.join("native-muse-runs");
     let entries = match fs::read_dir(&root) {
         Ok(entries) => entries,
@@ -247,16 +288,16 @@ fn legacy(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> 
         }
         let binding: serde_json::Value =
             serde_json::from_slice(&read(&entry.path().join("binding.json"), 4096)?)?;
-        if binding["run"] != intent.run() {
+        if binding["run"] != run {
             continue;
         }
         if found.is_some()
             || binding["kind"] != "factory_muse_binding"
             || binding["version"] != 1
             || binding["service"] != name
-            || binding["unit"] != format!("soda-factory-muse-{}-{name}.service", intent.run())
-            || binding["executable_sha256"] != intent.tool_sha256()
-            || binding["prompt_sha256"] != intent.scope()?.prompt_sha256()
+            || binding["unit"] != format!("soda-factory-muse-{run}-{name}.service")
+            || binding["executable_sha256"] != tool
+            || binding["prompt_sha256"] != prompt
         {
             return Err(denied());
         }
@@ -268,17 +309,12 @@ fn legacy(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> 
         let invocation = entry.path().join(&process.invocation);
         super::muse::private(&invocation)?;
         let output = read(&invocation.join("terminal.log"), MAX_OUTPUT)?;
-        if !valid(intent, &process, &output) {
+        if !valid_process(&process, run, tool, prompt, &output, limit) {
             return Err(denied());
         }
         found = Some((process, output));
     }
-    if let Some((process, output)) = found {
-        write(profile, intent, &process, &output)?;
-        result(profile, intent, process, output).map(Some)
-    } else {
-        Ok(None)
-    }
+    Ok(found)
 }
 
 pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::Result<()> {

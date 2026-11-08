@@ -36,7 +36,7 @@ func nativeJudgmentSource(ctx context.Context, q grantCommandSQL, c factory.Nati
 	if err := loadGrantQuery(ctx, q, "factory_policies", "repository", c.Repository, &policy); err != nil {
 		return factory.Sponsorship{}, err
 	}
-	if policy.Judgments == nil || !reflect.DeepEqual(*policy.Judgments, c.Selection) {
+	if policy.Judgments == nil || !reflect.DeepEqual(*policy.Judgments, c.Selection) || c.PolicyRevision != nil && policy.Revision != *c.PolicyRevision {
 		return factory.Sponsorship{}, ErrNativeJudgmentSource
 	}
 	var raw []byte
@@ -46,7 +46,7 @@ func nativeJudgmentSource(ctx context.Context, q grantCommandSQL, c factory.Nati
 	var source factory.Sponsorship
 	if json.Unmarshal(raw, &source) != nil || source.Validate() != nil || source.Repository != c.Repository || source.Connection != c.Selection.Account || !source.Active ||
 		source.Native == nil || source.Native.Profile != c.Profile || source.Native.Authentication != factory.NativeMuseLogin ||
-		!slices.Contains(source.Roles, factory.RoleJudgment) {
+		!slices.Contains(source.Roles, factory.RoleJudgment) || c.FundingRevision != nil && source.Revision != *c.FundingRevision {
 		return factory.Sponsorship{}, ErrNativeJudgmentSource
 	}
 	return source, nil

@@ -41,6 +41,11 @@ fn now() -> io::Result<u64> {
 fn valid_id(id: &str) -> bool {
     super::hex(id, 32)
 }
+fn transcript_limit(prompt: &str) -> io::Result<usize> {
+    // Muse emits the supplied prompt in its input and lifecycle JSON events.
+    // The final answer remains bounded separately by final_text and Go's journal.
+    Ok(2 * serde_json::to_vec(prompt)?.len() + 65536)
+}
 struct Job {
     cancel: Arc<AtomicBool>,
     thread: JoinHandle<io::Result<()>>,
@@ -115,7 +120,7 @@ impl Judgments {
                 executable_sha256: request.tool_sha256.clone(), prompt: request.prompt.clone(), harness: request.harness.clone(),
                 duration_ms: request.deadline_unix_ms.saturating_sub(now()?).min(30_000),
                 deadline_unix_ms: request.deadline_unix_ms, max_model_steps: 1,
-                output_bytes: 65536, mcp: None,
+                output_bytes: transcript_limit(&request.prompt)?, mcp: None,
             })?;
             let mut cancelling = false;
             loop {
@@ -126,8 +131,8 @@ impl Judgments {
                 if connector.terminal().is_some() { break; }
                 let _ = connector.observe(Duration::from_millis(20))?;
             }
-            let (process, output) = connector.finish()?;
-            let text = super::muse_attempt::final_text(&output);
+            let (process, output) = connector.finish_judgment()?;
+            let text = process.output_complete.then(|| super::muse_attempt::final_text(&output)).flatten();
                 publish_bytes(&directory.join(format!("{}.output", request.id)), &output)?;
             let result = json!({"id":request.id,"digest":request.digest,"process":process,"output":text});
             publish_bytes(&directory.join(format!("{}.result", request.id)), &serde_json::to_vec(&result)?)
@@ -165,6 +170,29 @@ impl Judgments {
         let bytes = match read_bytes(&directory.join(format!("{id}.result")), 512 * 1024) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                if !self.jobs.contains_key(id) {
+                    if let Some((process, output)) = super::muse_receipt::retained_process(
+                        profile,
+                        id,
+                        &request.tool_sha256,
+                        &request.prompt_sha256,
+                        transcript_limit(&request.prompt)?,
+                    )? {
+                        super::muse_receipt::service_stopped(profile, &process)?;
+                        let text = process
+                            .output_complete
+                            .then(|| super::muse_attempt::final_text(&output))
+                            .flatten();
+                        let result =
+                            json!({"id":id,"digest":digest,"process":process,"output":text});
+                        publish_bytes(&directory.join(format!("{id}.output")), &output)?;
+                        publish_bytes(
+                            &directory.join(format!("{id}.result")),
+                            &serde_json::to_vec(&result)?,
+                        )?;
+                        return Ok(json!({"state":"complete","result":result}));
+                    }
+                }
                 let state = if self
                     .jobs
                     .get(id)
