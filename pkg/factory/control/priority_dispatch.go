@@ -337,7 +337,10 @@ func launchSelectedCandidate(ctx context.Context, deps DispatchDeps, selection p
 	final := deps
 	final.collectPlan = nil
 	final.checkPlan = func(plan *attemptPlan) bool {
-		if plan.inputs.Revision != confirmed {
+		// Zero means this adapter has no global revision observer. Native
+		// desktop reads retain per-issue revisions, checked against the control
+		// in prepareAttemptInputs and again in the exact candidate below.
+		if confirmed != 0 && plan.inputs.Revision != confirmed {
 			return false
 		}
 		after, _ := priorityExactSnapshot([]factory.PriorityCandidate{priorityCandidate(plan)})

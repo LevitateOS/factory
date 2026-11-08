@@ -2233,7 +2233,17 @@ showed zero assignments, runs, judgments and usage; no paid inference was replay
 
 This qualifies startup/status composition, not Q15 delivery. The observed priority
 comparison of a per-issue revision with the absent global-observer zero is the
-next correction to qualify through the same acceptance. CI variable
+next correction: retain global revision equality when an observer supplies it;
+otherwise retain the existing per-issue revision check and exact final candidate
+comparison. Actual `q15-connected/resume5.log` then dispatched investigation
+assignment `a2ee5daec512df78287ededdbcf0daeb`, run
+`d49c27ebece977b817a7d34b43d61c78`, which succeeded and reconciled/retired/sealed.
+The coordinator advanced it to implementation child
+`b80eecd44521ddaf9fd40b063ed192f6` / run
+`abd8dd765833bd1b79caf59d42fa6098` without repeating investigation. The first
+context judgment `8adf38d4e111ec9c48b03196fd370583` and investigation each retain
+one minute on the original selected source. Implementation is still running;
+the zero-execution resume mode is now forbidden. CI variable
 `Q15_EXPECT_PASS=false` was originally absent and still needs restoration before
 terminal stop. Full delivery/review/correction/CI/merge and later gates remain open.
 
