@@ -1297,6 +1297,37 @@ message was posted, no model ran, Q08–Q30 remain pending and all 13 security g
 remain open. Verified implementation and the six original dirty edit sets are
 unchanged by this status update.
 
+### Q07 completion: connected accepted inputs (2026-11-08)
+
+The owner approved posting the exact [fixture comment](https://github.com/LevitateOS/factory-team-public-check-20261106/issues/3#issuecomment-6720378010).
+`9ecb2989a03b3ab03a132d94e7e0f8b4423c74a8` passed the existing native
+WebKit/IPC/Go/PostgreSQL journey in `q07-acceptance2/run.log` and
+`github-ui-write-result.json`: current source review, both actual ready roles,
+real selected comment and prerequisite, refusal while that comment was minimized,
+refusal after removing/re-adding its prerequisite occurrence, refusal to invent
+an unaccepted code prerequisite, and fresh explicit acceptance (`201`). Exactly
+one decision persisted. Native dispatch-input readback matched its title/body/
+comment revisions; the production source assembler read the approved file bytes
+for a fixture draft derived from those inputs. No model, draft row or run was
+seeded; actual Muse planning/execution remains Q08.
+
+The first `q07-acceptance/run.log` preserves its successful acceptance receipt
+and the check's incorrect expectation of HTTP 200; only that affected journey
+was repeated after correcting the assertion. The final run used its own keyring
+copy, removed its local test account, confirmed both native retirement markers
+and production Quit, restored comment visibility and retained the prerequisite.
+Native-check/regular desktop and helper builds passed (`q07-acceptance-*build.log`);
+`q07-acceptance-original-edits.log` confirms all six original edit sets preserved.
+
+Combined with the preceding Q07 setup, bounds, changed-source/restart/receipt
+recovery and controlled authority-withdrawal evidence, Q07 is **COMPLETE within
+ordinary native onboarding scope**. The single final artifact deliberately does
+not claim all reused cases itself. D1–D8/Q01–Q06 references remain ancestors;
+Fountain still retains D6 `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and its gateway
+source. Relevant current owners and retained checks were reused. Q08 is Active;
+Q09–Q30, installed variants and all 13 security gates remain open. Factory is
+unfinished; historical status conflicts and failed profiles remain preserved.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

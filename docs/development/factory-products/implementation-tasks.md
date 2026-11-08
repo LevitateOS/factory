@@ -25,7 +25,7 @@ Q01 is Complete within its source/native scope. Q02 is Complete within its
 source/component scope; Q03 is Complete within its configuration/admission scope.
 Q04 is Complete within local placement scope; Q05 is Complete within ordinary
 boundary admission scope; Q06 is Complete within ordinary preparation scope;
-Q07 is Blocked on fixture-comment permission.
+Q07 is Complete within ordinary native onboarding scope; Q08 is Active.
 Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
@@ -100,8 +100,8 @@ recording any newly proved current conclusion separately.
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Complete (local placement scope) |
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Complete (ordinary boundary admission scope) |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Complete (ordinary preparation scope) |
-| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Blocked (fixture-comment permission) |
-| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Pending |
+| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Complete (ordinary native onboarding scope) |
+| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Active |
 | [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Pending |
 | [Q10](#q10) | Connected GitHub permissions and remote revocation | T06-GITHUB; A14; custody and pending reviewer work | Pending |
 | [Q11](#q11) | Connected CI, provider rules and merge contracts | A04/A07; T06-GITHUB rules/CI qualification | Pending |
@@ -292,14 +292,14 @@ body limit, bounded source reads, pre-consent planning-size refusal and real
 64-file preparation/material readback. `a312951` explicitly refuses automatic
 recovery of legacy commands lacking exact provenance; the actual retained-profile
 UI check preserves their pending command and historical decisions without replay.
-Q07 is Blocked: nonempty comment/dependency acceptance and hidden/stale
-acceptance inputs remain open. The exact pending permission is for one comment
-on [disposable issue 3](https://github.com/LevitateOS/factory-team-public-check-20261106/issues/3).
-Read-only revalidation found ordinary fixture issues 3 and 5 still have zero
-comments; the fallback search found only unrelated Soda OS issues. Posting the
-comment requires explicit permission under the developer messaging instructions.
-An existing commented fixture designated by the user is an alternative. No
-message was posted; Q08–Q30 remain pending.
+`9ecb2989a03b3ab03a132d94e7e0f8b4423c74a8` closes the remaining connected
+comment/dependency acceptance and hidden/stale-input checks after the owner
+approved the [fixture comment](https://github.com/LevitateOS/factory-team-public-check-20261106/issues/3#issuecomment-6720378010).
+The real UI accepted the current native comment and prerequisite; exact accepted
+inputs and approved planning-source assembly passed. Together with the retained
+setup/bounds/recovery and controlled withdrawal evidence above, Q07 is Complete
+within ordinary native onboarding scope. No model or installed qualification is
+claimed; all 13 security gates remain open. Q08 is the next active prerequisite.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
 ```text

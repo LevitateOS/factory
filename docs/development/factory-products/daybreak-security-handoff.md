@@ -287,8 +287,12 @@ preparations, exact pending-consent recovery and the shared acceptance preview
 now have current evidence, including a 64-file material readback. Controlled
 native account/controller/approval withdrawal during source I/O also passed.
 `4bed2b1967b6e63a5b10cdc249dbe473c8a204da` completes the setup envelope and bounded
-read/planning-limit fixes. Full nonempty comment/dependency acceptance and
-hidden/stale inputs remain pending the exact fixture-comment permission.
+read/planning-limit fixes. With owner-approved fixture comment
+`6720378010`, `9ecb2989a03b3ab03a132d94e7e0f8b4423c74a8` completes the ordinary
+Q07 scope: real UI comment/dependency acceptance, native hidden/stale refusals,
+exact accepted-input readback and approved planning-source assembly passed in
+`/home/vince/Projects/q07-acceptance2/run.log`. Actual Muse planning/execution is
+still Q08; installed variants remain pending.
 `a312951` qualifies explicit legacy recovery refusal without inventing missing
 provenance or replaying setup; automatic legacy recovery remains unavailable.
 No model call or security-gate closure
