@@ -11,7 +11,7 @@ libc = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-base64 = "=0.22.1"
+base64 = "=0.23.1"
 time = { version = "=0.3.55", features = ["parsing"] }
 tokio = { workspace = true, default-features = true, features = ["io-util", "macros", "net", "rt", "time"] }
 soda-native-process = { path = "../../lib/native-process" }

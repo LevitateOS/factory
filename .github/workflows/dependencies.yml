@@ -1,0 +1,62 @@
+name: Dependency validation
+on:
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+      - Cargo.lock
+      - '**/package.json'
+      - bun.lock
+      - go.mod
+      - go.sum
+      - rust-toolchain.toml
+      - '.github/**'
+      - 'scripts/build-desktop*'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TMPDIR: /home/runner/factory-tmp
+    steps:
+      - name: Home-local scratch
+        run: mkdir -p "$TMPDIR"
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: stable
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: latest
+      - name: Current toolchain and native build inputs
+        run: |
+          mkdir -p "$TMPDIR"
+          rustup update stable --no-self-update
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libdbus-1-dev podman
+      - name: Locked UI and analyzer checks
+        run: |
+          bun install --frozen-lockfile --ignore-scripts
+          bun run typecheck
+          bun run check:lit
+          bun run check:lit --fixtures
+          bun run build:desktop-ui
+      - name: Native configurations
+        run: |
+          cargo build --locked --workspace
+          cargo build --locked -p soda-desktop --features native-ui
+          cargo build --locked -p soda-desktop --features native-check
+      - name: Go product and existing PostgreSQL checks
+        shell: bash
+        run: |
+          fixture_env=$(cargo run --locked -q -p soda-pg-fixture -- start)
+          eval "$fixture_env"
+          export SODA_PG_HOST SODA_PG_PORT SODA_PG_DATABASES SODA_PG_DIR SODA_PG_SUPER_PASSWORD_FILE
+          trap 'cargo run --locked -q -p soda-pg-fixture -- stop "$SODA_PG_CONTAINER"' EXIT
+          go test -mod=readonly ./...
+# Passing source checks is not connected/native-desktop or installed qualification.
+# Promotion and component activation retain their owning queue gates.

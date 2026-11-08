@@ -10,7 +10,7 @@ getrandom = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 soda-unix-http = { path = "../../lib/unix-http" }
-base64 = "=0.22.1"
+base64 = "=0.23.1"
 libc = { workspace = true }
 url = { workspace = true }
 soda-desktop-runtime = { path = "../../lib/desktop-runtime" }

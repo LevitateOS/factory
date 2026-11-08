@@ -16,7 +16,9 @@ isolated dependencies. Both failed approaches were executed and retained.
 
 `scripts/check-lit.ts` builds an ignored, development-only runner. Every compiler
 import in the analyzer, web-component-analyzer and ts-simple-type is resolved to
-this workspace's installed classic compiler. Other packages stay external in their
+this workspace's installed classic compiler (currently the final JavaScript API
+channel, TypeScript 6.0.3). The product remains on current TS7; changing this
+analyzer's compiler to TS7 requires an upstream API replacement. Other packages stay external in their
 installed directories (the CSS language service has relative runtime requires).
 This is a normal tool build, not a patch/fork of their source or a node_modules edit.
 The runner asserts the analyzer context's *default* compiler version, the tool's

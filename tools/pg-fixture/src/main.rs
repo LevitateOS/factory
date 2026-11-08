@@ -1,5 +1,5 @@
-//! Ephemeral PostgreSQL 18 for Soda/Forgejo tests (A10 runtime fixture).
-//! Same pinned image and role==database shape as the appliance cluster, with
+//! Ephemeral current-stable PostgreSQL for Soda/Forgejo tests (A10 runtime fixture).
+//! The appliance's role==database shape, with
 //! random per-run passwords that never appear in argv, stdout or logs.
 //!
 //! ```sh
@@ -38,9 +38,9 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-// Must match Image= in system/host/services/soda-postgres.container.
-const IMAGE: &str =
-    "docker.io/library/postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4";
+// Resolve before each new fixture, then hold the returned immutable image ID.
+// Existing fixtures and native retained profiles keep their captured version.
+const IMAGE: &str = "docker.io/library/postgres:latest";
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 
 fn main() {
@@ -341,27 +341,20 @@ fn read_database_list() -> Result<(String, Vec<String>), i32> {
     Ok((databases, list))
 }
 
-fn ensure_image() -> Result<(), i32> {
-    let have_image = Command::new("podman")
-        .args(["image", "exists", IMAGE])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success());
-    if have_image {
-        return Ok(());
-    }
+fn ensure_image() -> Result<String, i32> {
     let pulled = Command::new("podman")
-        .args(["pull", IMAGE])
-        .stdout(Stdio::null())
+        .args(["pull", "--quiet", IMAGE])
         .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success());
-    if !pulled {
-        eprintln!("postgres fixture image unavailable");
-        return Err(3);
+        .output();
+    if let Ok(output) = pulled {
+        let image = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        let digest = image.strip_prefix("sha256:").unwrap_or(&image);
+        if output.status.success() && digest.len() == 64
+            && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        { return Ok(image); }
     }
-    Ok(())
+    eprintln!("current postgres fixture image unavailable");
+    Err(3)
 }
 
 fn write_role_passwords(dir: &SecretDir, roles: &[&str]) -> Result<HashMap<String, String>, i32> {
@@ -380,7 +373,7 @@ fn write_role_passwords(dir: &SecretDir, roles: &[&str]) -> Result<HashMap<Strin
     Ok(passwords)
 }
 
-fn run_postgres(dir: &SecretDir, name: &str) -> Result<(), i32> {
+fn run_postgres(dir: &SecretDir, name: &str, image: &str) -> Result<(), i32> {
     let super_secret = format!(
         "{}/postgres.passwd:/run/secrets/soda-pg-super:ro,z",
         dir.path.display()
@@ -399,7 +392,7 @@ fn run_postgres(dir: &SecretDir, name: &str) -> Result<(), i32> {
             &super_secret,
             "-e",
             "POSTGRES_PASSWORD_FILE=/run/secrets/soda-pg-super",
-            IMAGE,
+            image,
         ])
         .stdout(Stdio::null())
         .status()
@@ -544,9 +537,10 @@ fn cmd_start() -> i32 {
         Ok((databases, list)) => (databases, list),
         Err(code) => return code,
     };
-    if let Err(code) = ensure_image() {
-        return code;
-    }
+    let image = match ensure_image() {
+        Ok(image) => image,
+        Err(code) => return code,
+    };
     let dir = match secret_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -569,7 +563,7 @@ fn cmd_start() -> i32 {
     // `soda-pg-test-$$-$RANDOM`.
     let random = u16::from_ne_bytes(rand) % 32768;
     let name = format!("soda-pg-test-{}-{random}", std::process::id());
-    if let Err(code) = run_postgres(&dir, &name) {
+    if let Err(code) = run_postgres(&dir, &name, &image) {
         return code;
     }
     if let Err(code) = wait_ready(&name, Instant::now() + READY_TIMEOUT) {

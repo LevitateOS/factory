@@ -239,9 +239,10 @@ export class SodaFactoryDiff extends LitElement {
       const patch = file.patch.startsWith('@@')
         ? `diff --git ${JSON.stringify('a/' + (file.old_path || file.new_path))} ${JSON.stringify('b/' + (file.new_path || file.old_path))}\n--- ${file.old_path ? JSON.stringify('a/' + file.old_path) : '/dev/null'}\n+++ ${file.new_path ? JSON.stringify('b/' + file.new_path) : '/dev/null'}\n${file.patch}`
         : file.patch;
-      const files = parsePatchFiles(patch, JSON.stringify([file.diff, file.old_path, file.new_path]), true).flatMap(
-        (p) => p.files
-      );
+      const files = parsePatchFiles(patch, {
+        cacheKeyPrefix: JSON.stringify([file.diff, file.old_path, file.new_path]),
+        throwOnError: true,
+      }).flatMap((p) => p.files);
       if (files.length !== 1) throw Error('Expected one file patch.');
       const metadata = files[0];
       if (

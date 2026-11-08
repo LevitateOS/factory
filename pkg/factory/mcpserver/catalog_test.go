@@ -616,10 +616,9 @@ func TestFactoryCatalogReadsSpendNothingAndDiscloseNothing(t *testing.T) {
 	}
 	submissionID := factory.NewID()
 	mutPayload, _ := catalogPayload(map[string]any{
-		"task_id": "t1", "manifest_digest": strings.Repeat("d", 64),
-		"output_digest": strings.Repeat("e", 64), "evidence_refs": []any{"r1"},
+		"candidate": strings.Repeat("e", 40),
 	}, admitted)
-	if _, _, err := server.serve(ctx, factory.MCPToolSubmitTaskOutput, mcpCallArgs{
+	if _, _, err := server.serve(ctx, factory.MCPToolFinishImplement, mcpCallArgs{
 		CapabilityID: sink.capability.ID, SubmissionID: submissionID,
 		Payload: mutPayload,
 	}); err != nil {

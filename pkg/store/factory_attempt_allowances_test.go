@@ -703,7 +703,7 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	if _, _, err := db.AdmitPreparation(ctx, native); err != nil {
 		t.Fatal(err)
 	}
-	meta := candidatePreparationRegistration{Repository: a.Repository, Issue: a.Issue, ActorID: a.ActorID, Project: a.ProjectID, OwnerAssignment: a.ID, ChildAssignment: factory.NewID(), AttemptRoot: a.AttemptRoot, Connection: a.Connection, NotAfter: time.Now().Add(time.Minute).Unix()}
+	meta := candidatePreparationRegistration{Repository: a.Repository, Issue: a.Issue, ActorID: a.ActorID, Project: a.ProjectID, OwnerAssignment: a.ID, ChildAssignment: a.ID, AttemptRoot: a.AttemptRoot, Connection: a.Connection, Authority: a.Authority, Control: dispatchTestControlFor(t, db, a), NotAfter: time.Now().Add(time.Minute).Unix()}
 	raw, err := marshalCandidatePreparation(native, meta)
 	if err != nil {
 		t.Fatal(err)
@@ -721,11 +721,11 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	defer db.Close()
 	unobserved := native
 	unobserved.State = execution.PreparationState{}
-	if _, _, err := db.AdmitCandidatePreparation(ctx, unobserved, registrationFromMeta(meta)); !errors.Is(err, ErrAdmissionChanged) {
-		t.Fatal("native candidate used appliance preparation authority", err)
+	if _, _, err := db.AdmitCandidatePreparation(ctx, unobserved, registrationFromMeta(meta)); !errors.Is(err, ErrDispatchClosed) {
+		t.Fatal("native candidate bypassed the paused dispatch gate", err)
 	}
-	if _, err := db.AuthorizeCandidatePreparation(ctx, native.Preparation.ID); !errors.Is(err, ErrAdmissionChanged) {
-		t.Fatal("retained native candidate used appliance reauthorization", err)
+	if _, err := db.AuthorizeCandidatePreparation(ctx, native.Preparation.ID); !errors.Is(err, ErrDispatchClosed) {
+		t.Fatal("retained native candidate bypassed the paused dispatch gate", err)
 	}
 	retained, err := db.CandidatePreparation(ctx, native.Preparation.ID)
 	if err != nil || retained.NotAfter != meta.NotAfter || retained.Preparation.Preparation.Revision != native.Preparation.Revision {

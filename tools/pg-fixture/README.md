@@ -1,13 +1,16 @@
 # soda-pg-fixture
 
-Start a disposable PostgreSQL 18 container for Soda and Forgejo development
+Start a disposable current-stable PostgreSQL container for Soda and Forgejo development
 tests. Each run gets random passwords, a loopback-only port and separate roles
 and databases. This tool is for test authors who need a local database fixture.
 
 ## Start and stop a fixture
 
 Run from the repository root on Linux with Podman available. The tool pulls the
-pinned PostgreSQL image if it is missing. Keep fixture secrets in a private
+official PostgreSQL `latest` channel before every new fixture and runs the returned
+immutable image ID. A failed refresh refuses startup; a cached image alone is not
+freshness evidence. Running fixtures retain their selected bytes. This does not
+upgrade retained native database profiles. Keep fixture secrets in a private
 directory on the workspace disk:
 
 ```sh
@@ -40,7 +43,7 @@ An explicitly empty list creates only the superuser cluster.
 
 `stop` force-removes the named fixture container and its anonymous volumes.
 Password files remain in the caller-owned directory; remove that run's private
-files after the container stops. Exit `3` means Podman or the pinned image is
+files after the container stops. Exit `3` means Podman or the current image is
 unavailable and lets a test driver report a skipped fixture.
 
 See [testing](../../docs/development/testing.md) for validation scope and

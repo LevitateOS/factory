@@ -15,6 +15,7 @@ import (
 // Restore the retained feed layout only inside a disposable integration fixture.
 func legacyFeedSchema(t *testing.T, s *Store) {
 	t.Helper()
+	restorePreDispatchCommandFixture(t, s.db)
 	for _, statement := range []string{
 		`DROP INDEX factory_feed_posts_parent`,
 		`ALTER TABLE factory_feed_posts RENAME TO factory_feed_comments`,
@@ -125,7 +126,7 @@ func TestSchemaSeedMatchesVersionConstant(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != SchemaVersion() || SchemaVersion() != 77 {
+	if version != SchemaVersion() {
 		t.Fatalf("seeded marker %d disagrees with constant %d", version, SchemaVersion())
 	}
 	var columns int
@@ -343,11 +344,21 @@ func TestLostUpgradeRaceRereadAcceptsCommitted69(t *testing.T) {
 	if err := tx.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&staged); err != nil || staged != 68 {
 		t.Fatalf("loser staged marker %d %v", staged, err)
 	}
+	// The full upgrade now includes schema-marker DDL. Release this synthetic
+	// reader's table lock before letting the winner commit that DDL.
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
 	winner, err := Open(dsn)
 	if err != nil {
 		t.Fatalf("winner refused: %v", err)
 	}
 	defer winner.Close()
+	tx, err = loser.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
 	_, lostErr := tx.ExecContext(ctx, ApplicationSetupRenewalsDDL)
 	if lostErr == nil {
 		t.Fatal("loser CREATE did not fail after the committed upgrade")

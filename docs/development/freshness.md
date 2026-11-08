@@ -39,20 +39,33 @@ Factory cache; the user's launcher, login and retained binaries are preserved.
 The actual public-artifact acquisition/Go readback/restart check is recorded in
 A16 of the standalone assumptions audit. Discovery with no installed launcher
 now uses that same cache owner; an empty-HOME acquisition and restart check passed.
-Provider sign-in/onboarding, interrupted-transfer/release-change behavior and
-installed distribution qualification remain unfinished. This is not installed
-updater qualification or coverage of other providers/dependencies.
+Initial native CLI-owned sign-in, retained-login reopen, interrupted transfers,
+changed-release refusal and captured active/new executable selection now have
+[Q02 source/native evidence](untangle-codebase.md#q02-verified-increment-initial-muse-login-2026-11-08).
+The real five-minute refresh was exercised without shortening its interval.
+Installed distribution/activation remains Q28; other providers remain unavailable
+until their own adapters exist.
 Shared Work now shows checking/download/failure/verified status, upstream and
 selected versions and the last successful verification. Source execution
 availability requires current native verification as well as its other local
 dependencies. Native status readback and declared browser states have scoped
-proof in A16; interrupted downloads and installed update UX are still unqualified.
+proof in A16/Q02; installed update UX remains unqualified.
 
 Other dependencies need event-driven updates where available and frequent
-automatic checks otherwise. This checkout has no Dependabot configuration;
-automated coverage must not be claimed. Checksum descriptors, build inputs,
-independently published SDKs and installed Factory updates need their owning
-resolvers and activation paths. A bot proposal alone does not
+automatic checks otherwise. The source now configures hourly Dependabot discovery
+for Bun/workspace libraries, Cargo/workspace libraries, Go modules, the Rust
+toolchain and GitHub Actions, with no cooldown or major-release exclusion.
+The dependency workflow selects current stable Go/Bun/Rust, then runs the existing
+locked UI/analyzer/native configurations and real PostgreSQL/Go checks. These
+remote jobs still require publication to the default branch; local configuration
+is not evidence of deployed automation. The explicitly separate classic analyzer
+compiler follows the current classic API channel; the product compiler stays TS7.
+Every new container fixture refreshes the official PostgreSQL stable image and
+captures its immutable image ID. Desktop packaging checks the supplied native
+PostgreSQL version against official current-stable metadata before building and
+records that selection. It does not upgrade a retained database. Independently
+published SDKs use their package owners; installed Factory payload delivery and
+activation remain Q28. A bot proposal alone does not
 make a dependency updated: apply it, run the affected checks and ship it through
 the owning component's update path. Do not rebuild the host OS to update an
 independent CLI or rerun unrelated expensive checks.

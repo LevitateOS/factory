@@ -123,6 +123,7 @@ func TestFactoryFeedNativeRunEndProducers(t *testing.T) {
 		outcome   factory.Outcome
 		component string
 	}{{factory.Succeeded, "F02"}, {factory.Cancelled, "F08"}, {factory.Failed, "F09"}} {
+		before := len(factoryEventCards(t, s, 7)[test.component])
 		run := factoryRun(time.Now())
 		run.ProjectID = takeoverFixture().Project
 		if err := s.RecordFactoryRun(ctx, run); err != nil {
@@ -132,7 +133,7 @@ func TestFactoryFeedNativeRunEndProducers(t *testing.T) {
 		if err := s.SaveFactoryRun(ctx, run); err != nil {
 			t.Fatal(err)
 		}
-		if len(factoryEventCards(t, s, 7)[test.component]) != 0 {
+		if len(factoryEventCards(t, s, 7)[test.component]) != before {
 			t.Fatal("run end appeared before native resources settled")
 		}
 		run.Reconciled = true
@@ -142,7 +143,7 @@ func TestFactoryFeedNativeRunEndProducers(t *testing.T) {
 			}
 		}
 		cards := factoryEventCards(t, s, 7)[test.component]
-		if len(cards) != 1 || cards[0].Status != "run:"+string(test.outcome) {
+		if len(cards) != before+1 || cards[0].Status != "run:"+string(test.outcome) {
 			t.Fatalf("native outcome presentation: %+v", cards)
 		}
 	}

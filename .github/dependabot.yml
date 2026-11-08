@@ -1,0 +1,46 @@
+version: 2
+# Discovery only: an update still needs the owning checks and release path.
+# Provider-tool discovery/activation is owned by the native five-minute loop.
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: '0 * * * *'
+    cooldown:
+      default-days: 0
+    open-pull-requests-limit: 20
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: '0 * * * *'
+    cooldown:
+      default-days: 0
+    allow:
+      - dependency-type: all
+    open-pull-requests-limit: 20
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: '0 * * * *'
+    cooldown:
+      default-days: 0
+    allow:
+      - dependency-type: all
+    open-pull-requests-limit: 20
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: '0 * * * *'
+    cooldown:
+      default-days: 0
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: cron
+      cronjob: '0 * * * *'
+    cooldown:
+      default-days: 0

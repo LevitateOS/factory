@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 )
 
 // Application hosting belongs to retained appliance databases. New standalone
@@ -47,7 +48,7 @@ func verifyApplicationHosting(ctx context.Context, tx *sql.Tx) error {
 		`SELECT application_id,revision,spec FROM application_revisions LIMIT 0`,
 	} {
 		if _, err := tx.ExecContext(ctx, query); err != nil {
-			return err
+			return fmt.Errorf("database schema is incomplete: %w", err)
 		}
 	}
 	return verifyImmutableApplications(ctx, tx)

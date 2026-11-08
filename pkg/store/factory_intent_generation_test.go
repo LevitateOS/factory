@@ -115,6 +115,14 @@ func TestIntentGenerationPinsParentBeforeEffects(t *testing.T) {
 		t.Fatal("graph origin escaped its repository", generated, pending, err)
 	}
 	current, found, err := s.GeneratedIntentCurrent(ctx, b.AcceptanceID)
+	if err != nil || !found || current {
+		t.Fatal("committed graph became authoritative before completion", current, found, err)
+	}
+	g.State = "completed"
+	if err := s.RecordIntentGeneration(ctx, g, factory.GraphReceiptFacts{}); err != nil {
+		t.Fatal(err)
+	}
+	current, found, err = s.GeneratedIntentCurrent(ctx, b.AcceptanceID)
 	if err != nil || !found || !current {
 		t.Fatal(current, found, err)
 	}

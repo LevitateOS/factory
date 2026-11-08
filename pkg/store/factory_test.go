@@ -129,6 +129,9 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	policy := grantTestPolicy()
 	policy.Repository, policy.GrantedBy = int64(repository.ID), int64(actor.ID)
 	connection := factory.NewID()
+	roleChoice := policy.Roles[project.RoleCoder]
+	roleChoice.Account = connection
+	policy.Roles[project.RoleCoder] = roleChoice
 	for _, err := range []error{
 		s.SaveCapacity(ctx, factory.Capacity{UpdatedBy: int64(actor.ID), MaxConcurrentRuns: 2}),
 		s.SaveRepositoryPolicy(ctx, policy),

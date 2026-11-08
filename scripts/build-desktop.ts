@@ -18,8 +18,27 @@ function contains(parent: string, child: string): boolean {
 if (contains(payload, out) || contains(out, payload)) throw Error('Output must be separate from the native payload');
 if (values.check && await Bun.file(resolve(out, 'install.sh')).exists())
   throw Error('Check builds require a separate stage without an app installer');
+// Packaging selects a new payload; it never upgrades an existing profile here.
+const versionsResponse = await fetch('https://www.postgresql.org/versions.json', {signal: AbortSignal.timeout(15_000)});
+if (!versionsResponse.ok) throw Error('Official PostgreSQL release metadata unavailable');
+const versions: unknown = await versionsResponse.json();
+if (!Array.isArray(versions)) throw Error('Invalid PostgreSQL release metadata');
+const current = versions.filter(version => version?.current === true && version.supported === true);
+if (current.length !== 1 || !/^\d+$/.test(current[0].major) || !/^\d+$/.test(current[0].latestMinor))
+  throw Error('Ambiguous current PostgreSQL stable release');
+const upstreamPostgres = `${current[0].major}.${current[0].latestMinor}`;
+const postgres = Bun.spawn([resolve(payload, 'bin/postgres'), '--version'], {
+  stdout: 'pipe', stderr: 'pipe',
+  env: {...process.env, LD_LIBRARY_PATH: [resolve(payload, 'lib'), process.env.LD_LIBRARY_PATH].filter(Boolean).join(':')},
+});
+const [postgresStatus, postgresVersion] = await Promise.all([postgres.exited, new Response(postgres.stdout).text(), new Response(postgres.stderr).text()]);
+const selectedPostgres = /^postgres \(PostgreSQL\) (\d+\.\d+)(?:\s|$)/.exec(postgresVersion)?.[1];
+if (postgresStatus !== 0 || selectedPostgres !== upstreamPostgres)
+  throw Error(`Native PostgreSQL payload must match official current stable ${upstreamPostgres}`);
+const postgresSelection = {checked_at: new Date().toISOString(), source: versionsResponse.url, version: selectedPostgres};
 await buildDesktopUI(resolve(root, '.artifacts/desktop-ui'));
 await mkdir(resolve(out, 'factory-runtime'), {recursive: true});
+await writeFile(resolve(out, 'factory-runtime/postgresql-selection.json'), JSON.stringify(postgresSelection) + '\n');
 async function run(args: string[]) {
   const child = Bun.spawn(args, {cwd: root, stdout: 'inherit', stderr: 'inherit'});
   if ((await child.exited) !== 0) throw Error('Native desktop build failed');
