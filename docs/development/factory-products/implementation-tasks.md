@@ -9,13 +9,12 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-08, Factory `a977bba`):** 17 queue entries remain:
-Q09–Q13 are complete within their recorded ordinary scopes, Q14 is in progress,
-Q15–Q29 are pending,
-and Q30 is the finalization pass.
-All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q30 request is resuming Q14 after the owner's explicit append-only
-refinement decision; dependent tasks wait for verified prerequisites.
+**Current snapshot (2026-11-08, Factory `b8a4ee1`):** 16 queue entries remain:
+Q09–Q14 are complete within their recorded ordinary scopes. Q30 has reached Q15;
+Q16–Q29 remain pending and Q30 remains the finalization pass.
+All 13 broad security gates remain open. The historical ordered-goal pause is
+superseded for this submitted Q30 request, which authorizes remaining prerequisites
+in order. Dependent tasks still wait for verified prerequisites.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -47,15 +46,13 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Resume Q14 under the approved append-only contract.** During Q30 the owner
-explicitly approved new journaled refinement comments preserving existing issue
-text. Implement and verify that continuation from the retained receipts before
-proceeding. GitHub's issue update has no
-documented atomic unchanged-content condition; read-then-update can overwrite a
-concurrent human edit. Required conditional updates now refuse and Issue Maker
-holds before paid refinement. The original connected judgment/issue receipt and
-prepared source are retained; do not resubmit their writes or inference. See
-[Q14's exact state and next action](#q14).
+**Continue Q15 from Q14's verified receipts.** Q14 passed the approved append-only
+authoring contract and actual prepared/funded plan, walkthrough review, accepted
+graph, confirmed-prefix restart and complete adoption after a lost reply and
+write expiry. Original source charges and write identities remain unchanged.
+GitHub conditional text replacement remains unavailable; the owner-approved
+refinements are journaled comments. See [Q14's exact evidence](#q14). Inspect
+existing delivery work and original receipts before any Q15 effects or inference.
 
 Q13's admitted contribution assessment,
 invitation/reply, grouped single-repository priority choices, eligibility/source
@@ -203,7 +200,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q11 — CI and merge rules](#q11) | Real app-bound CI/test-merge evaluation, current rule/ref/status/policy/permission fences, human veto restrictions and causal merge verified; unchanged merge/squash/rebase and source-preparation evidence reused. Ambiguous captures stay fenced; full composition remains Q15. | Complete within ordinary producer/operation scope |
 | [Q12 — judgments](#q12) | Live selected-source Feed/planning/context adoption and authenticated worker probability/choice/score, long-input Begin, typed refusal, exact charges, withdrawal/eligibility races and crash recovery verified. Seeded work/content and broader composition limits remain explicit. | Complete within ordinary judgment owner/consumer scope |
 | [Q13 — contributions and priority](#q13) | Admitted contribution preflight/claim/live assessment/invitation/authenticated reply and 256-candidate grouped queue choices, eligibility/source fences, native dispatch and original-charge restart verified. Declared queue inventory/worker and cancelled worker outcome stay explicit; mixed funding remains unavailable. | Complete within ordinary contribution and queue-producer/dispatch scope |
-| [Q14 — Feed and graph authoring](#q14) | Resolve safe GitHub refinement semantics, then finish funded authoring, additional slots, graph delivery and recovery from retained original receipts. | **Blocked** |
+| [Q14 — Feed and graph authoring](#q14) | Approved append-only authoring, actual funded plan/review/graph, original-source charges and retained recovery verified. | **Complete within ordinary scope** |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
 | [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
 | [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
@@ -662,7 +659,41 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**INCOMPLETE (2026-11-08), requested ceiling Q30; actual task Q14.** The owner
+**COMPLETE within ordinary scope (2026-11-08), requested ceiling Q30.** Code:
+`c04575c4dc245da8758c27aa806a8f21ed31d2bb`,
+`b5c15c9ffa867ebbf7ec21bc445f1a2ef5542a6c`,
+`e12c73fb325f520383f60526979371937523cd05` and
+`b8a4ee1d42535e616d90bdde5aa9bf90ba18a760`.
+The retained authoring below and the distinct actual accepted-graph journey now
+pass through the real native owners. Graph planner `3b167d55c0fab4ae5d348b2c6f935a4c`
+authored two tasks and one dependency at the approved source. The owner explicitly
+authorized a fresh walkthrough review after the cancelled original; original
+failure/charge `dd9b101f61f9cbbb6d48f060d1a4b8bb` remains intact. Completed review
+`58f453d7698e66f856bc0a84866faf0f` and consistency
+`6e39592718e395549178ac6a73bd9b2d` were reused without replay.
+Graph `intent-d444444444444444444444444` created #16/#17 and their dependency.
+`graph-generation.log` proves the first confirmed prefix, zero task bindings and
+execution assignment, native restart and the second issue; its later reply was
+lost after all three writes committed. `graph-known-receipt-recovery.log` proves
+full verification/adoption after original write expiry; its final assertion used
+the wrong acceptance identifier, corrected by read-only `graph-retained.log`,
+which passes both actual task acceptances, another restart and native product
+`completed` readback. All are under `/home/vince/Projects/q14-native-authoring/`.
+`journal-after-graph-completed.json` preserves byte-identical original three
+write payloads/outcomes, write revision 7 and deadline 1794175602; fresh read
+verification is revision 8. The profile has exactly nine original-source minutes,
+including the cancelled review, and no later model calls. Legacy unknown-send
+refusal reuses `/home/vince/tmp/fgraph12.vYXmZU/result.log`; its unchanged refusal
+owner was inspected. The attempted extra declared fixture stopped before provider
+startup and established no new evidence. Negative source/conditional cases below
+remain scoped declared-provider/real-transaction checks. Go/native builds,
+TypeScript and dependency boundaries pass. All owned checks are joined, temporary
+units removed and local grants withdrawn; both stashes and Fountain are preserved.
+Detailed [completion evidence](../untangle-codebase.md#q14-completion-authoring-and-accepted-graph-recovery-2026-11-08).
+Next: Q15's complete delivery journey. Installed qualification, unsupported
+conditional replacements, Q24's appliance and broad security gates remain open.
+
+**Historical authoring checkpoint, INCOMPLETE:** The owner
 explicitly approved append-only refinement comments during Q30. Implementation
 and verification are in progress; the prior contract blocker is resolved.
 Existing conditional-edit refusal remains in place for historical commands.
@@ -689,11 +720,9 @@ The original `/home/vince/Projects/q14-authoring/` partial attempts, failures,
 charges and issue #13 remain intact; completed inference `01696bf61c0c3aaf7afbdab10ca5a34b`
 was retained without replay after its missing native-tool binding was diagnosed.
 All owned checks are joined, local grants withdrawn and fixture services removed.
-No owned uncommitted implementation remains at this checkpoint. **Remaining:**
-the actual funded/accepted dependency-graph journey, known-prefix restart/full
-verification and the rest of Q14's mapped scope. Next: use the current prepared
-profile and existing request/planning/graph owners for that journey; inspect its
-journals before another effect. Q15–Q30 remain pending.
+No owned uncommitted implementation remained at that checkpoint. Its remaining
+funded/accepted graph and known-prefix recovery gates are qualified in the
+completion above; the original authoring evidence and failed attempts stay kept.
 
 **Historical blocker and evidence:** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
@@ -722,12 +751,10 @@ boundaries passed. All owned checks/processes were joined, temporary fixture uni
 removed, local connected grant withdrawn and both stashes preserved. Detailed
 [evidence and limitations](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08).
 
-**Exact next action:** qualify the actual funded/accepted native dependency graph
-using the existing prepared source and original journals. Preserve known partial
-writes, restart and resume only remaining steps, verify the whole graph before
-execution, and finish Q14's mapped scope. Reuse the qualified authoring above.
-Never renew expired old write authority or replay an unknown send. Q15–Q30 stay
-pending; Q24's appliance deferral and all broad security gates remain open.
+**Exact next action:** Q15; inspect existing delivery operations and original
+receipts before new effects. Reuse Q14's completed model and graph facts. Never
+renew expired old write authority or replay an unknown send. Q24's appliance
+deferral and all broad security gates remain open.
 
 ```text
 Execute through Q14 — Feed authoring, conditional refinement and graph delivery. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q14 despite the document's historical paused snapshot; it does not authorize work beyond Q14 or resuming the old product queue.
@@ -750,7 +777,12 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
-**Not started: blocked by [Q14](#q14).** The Q15 prerequisite check re-read
+**INCOMPLETE, requested ceiling Q30; actual task Q15.** Q14 is now verified above.
+Next: inspect the retained publication/review/CI/merge operations and actual
+coordinator wiring, then complete Q15's real full journey. No Q15 inference or
+provider effect has started during this Q30 continuation.
+
+**Historical hold:** The Q15 prerequisite check re-read
 `a977bba`/`99a03cb`, the current refusal code and original Q14 receipts. The safe
 refinement contract is still unresolved. No owned Q14 process remains active;
 no inference, provider write or successful check was repeated. Resolve Q14's

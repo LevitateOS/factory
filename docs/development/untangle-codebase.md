@@ -1988,6 +1988,78 @@ joined. Profiles, keyring files, original receipts, both original stashes and th
 unrelated stashed README remain intact. No new unit-test root, provider fallback
 or product journal was added. Next task is Q14 only when authorized.
 
+### Q14 completion: authoring and accepted graph recovery (2026-11-08)
+
+Requested ceiling Q30; actual completed prerequisite Q14. The authoring evidence
+below combines with the actual native graph journey in
+`/home/vince/Projects/q14-native-authoring/`. Code checkpoints:
+`c04575c4dc245da8758c27aa806a8f21ed31d2bb`,
+`b5c15c9ffa867ebbf7ec21bc445f1a2ef5542a6c`,
+`e12c73fb325f520383f60526979371937523cd05`,
+`b8a4ee1d42535e616d90bdde5aa9bf90ba18a760`.
+
+- `connected-graph-plan.json`: real typed planner
+  `3b167d55c0fab4ae5d348b2c6f935a4c`, one minute, approved source
+  `987c937481ec321607de68872bad7e5759d992fb`, two tasks/one dependency and authored
+  walkthrough. Context choice `1dba7e222f052970827884fb4953321d` costs one minute.
+  These are a distinct graph request, not a claim that authoring #14/#15 became
+  graph #16/#17. Both actual routes use the same captured actor/repository/source.
+- A lost pending cause stopped the first walkthrough check. Original cancelled
+  `dd9b101f61f9cbbb6d48f060d1a4b8bb` is retired and charged one minute in
+  `connected-graph-recovery.json`. The owner explicitly authorized fresh review
+  command `14141414141414141414141414141414`. Replacement consolidation
+  `58f453d7698e66f856bc0a84866faf0f` and consistency
+  `6e39592718e395549178ac6a73bd9b2d` each cost one minute; consistency is 0.92 with
+  no findings. Pending errors now retain their cause through HTTP. Explicit
+  failed-review retries keep parent outcomes, exclude pending/answered duplicates
+  and retain the native capture in successful advice. Lost retry identity recovers
+  the existing call. `q14-judgment-retry-disposable-copy/result4.log` verifies the
+  actual PostgreSQL admission/replay boundaries with declared process facts;
+  `graph-command-validation.log` verifies pending/invalid-ID HTTP and original
+  receipt settlement without inference. Originals were never edited by that copy.
+- `graph-generation.log`: actual accepted intent
+  `d141414141414141414141414`, revision `d444444444444444444444444`, operation
+  `intent-d444444444444444444444444`; native #16 create
+  `7fc49a37a7e64903efeb191d28496d5f`, #17 create
+  `528aeca09608f6f5088b1962df1ec0b8`, dependency
+  `56fe5220366ec2735672a64e9298bde1`. First prefix has zero bindings/execution
+  assignments; restart prepares identical approved bytes and sends only remaining
+  steps. The final HTTP reply was lost after the dependency committed.
+- `graph-known-receipt-recovery.log` verifies all three original committed
+  receipts before any reauthorization, then completes actual graph readback and
+  adoption after write expiry using fresh same-account read authority. Its final
+  fixture assertion passed a revision instead of an acceptance ID; corrected
+  read-only `graph-retained.log` passes both bindings, native restart and product
+  `completed` readback. `connected-graph-completed.json` retains acceptances
+  `da653ebf9ce33f3ba40d949fc` / `df768367668daacdce6a21b70`.
+  `journal-after-graph-completed.json` matches all three original payloads/outcomes
+  byte for byte against `journal-after-graph-lost-reply.json`: write revision 7,
+  deadline 1794175602 unchanged; verification revision 8 is a separate read fact.
+  Whole-graph verification requires every original step to be committed; unknown
+  or pending sends cannot enter it. Partial-step dispatch keeps its original
+  revision/expiry guards. Legacy unknown-send refusal reuses
+  `/home/vince/tmp/fgraph12.vYXmZU/result.log` and its unchanged current owner.
+
+Accepted review replay now checks the exact current acceptance and its immutable
+draft predecessor without funding a chooser. Native preparation replacement is
+allowed only across runtime instances with the same profile, approved source,
+setup, requirement, approval and captured bundle bytes. A completed advice fact
+may survive writer reconnection only with the same judgment selection and
+original funding revision; in-flight policy checks remain exact. Generation uses
+the existing bounded detached command pattern so a disappearing view need not
+discard completed work. Current provider permission still gates reads/adoption.
+
+Final profile accounting is nine minutes on
+`cb2905e2aafc06470dc1df1a41ef5c64`: four authoring, two planner/context, one failed
+review and two authorized review judgments. No model was replayed after success
+and no write was repeated. Production Go/native builds, TypeScript and engine
+boundaries pass. All owned checks are joined, local grants withdrawn and fixture
+units removed; retained profiles, both stashes and canonical Fountain are intact.
+The unnecessary attempted extra local graph fixture stopped before provider
+startup and supplies no qualification. Conditional text replacement remains
+unavailable; approved refinements are append-only. Installed/full delivery and
+broad security gates are separate. Next: Q15 under the submitted Q30 authority.
+
 ### Q14 blocker: conditional GitHub refinement (2026-11-08)
 
 **Q30 resume, owner decision:** the owner explicitly chose “Allow append-only
@@ -2044,9 +2116,9 @@ typed finish correction, final refinement and retained process/accounting recove
 
 All owned processes/checks are joined, local credentials withdrawn and temporary
 fixture services removed; both stashes and canonical Fountain remain unchanged.
-Full Q14 remains **INCOMPLETE**: actual accepted planning into a dependency graph,
-known-prefix restart, only-remaining-step recovery and whole-graph execution hold
-still require their connected evidence. Q15–Q30 have not started.
+At that authoring checkpoint Q14 remained incomplete; the graph and recovery
+evidence is now recorded in the completion above. The following original blocker
+and initial state are historical; their uncertain outcomes remain preserved.
 
 Requested/actual task: **Q14, BLOCKED**. Safety implementation:
 `a977bba566b97cc4137596d5b2715458ae6a68dc`. No Q15 work started. Current relevant
