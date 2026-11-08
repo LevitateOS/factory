@@ -150,7 +150,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
             ).map_err(|_| "invalid fixture")?;
             let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft"
                 || (fixture["mode"] == "reviewer_requests" || fixture["issue_navigation"] == true)
-                    && fixture["retain_account"] == true;
+                    && fixture["retain_account"] == true
+                || fixture["mode"] == "onboarding" && fixture["retain_account"] == true;
             if fixture["mode"] == "onboarding" {
                 let repository = std::fs::read_to_string(root.join("onboarding-repository"))
                     .map_err(|_| "onboarding repository not observed")?;
@@ -175,7 +176,9 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "source_selection_stale_consent": true,
                     "both_native_role_preparations_ready": true,
                     "approval_verified": false,
-                    "owned_account_removed": true,
+                    "owned_account_removed": !retained,
+                    "completed_reply_dropped_and_retained": fixture["drop_approval_reply"] == true,
+                    "recovered_after_native_restart_and_source_change": fixture["reopen"] == true && fixture["resume_review"] != true,
                     "oauth_source": "user_authorized_gh_grant",
                     "factory_device_scope_qualified": false,
                     "installed_qualified": false,

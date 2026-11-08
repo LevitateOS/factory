@@ -75,12 +75,16 @@ type RequirementDecision struct {
 // SetupRecipe retains what the local owner actually reviewed, without source
 // bundle bytes or a claim that any command has run.
 type SetupRecipe struct {
-	Files map[string][]byte `json:"files"`
-	Tools []string          `json:"tools"`
+	Files         map[string][]byte `json:"files"`
+	Tools         []string          `json:"tools"`
+	CommandDigest string            `json:"command_digest,omitempty"`
 }
 
 func (d RequirementDecision) Validate() error {
 	if d.Recipe != nil {
+		if d.Recipe.CommandDigest != "" && !ValidDigest(d.Recipe.CommandDigest) {
+			return errors.New("invalid reviewed setup command digest")
+		}
 		if d.Native == nil || (ApprovedSetup{Files: d.Recipe.Files}).ValidateFiles() != nil || len(d.Recipe.Tools) > MaxPrepareTools || d.SetupDigest != SetupDigestOf(d.Recipe.Files) {
 			return errors.New("invalid reviewed setup recipe")
 		}

@@ -186,7 +186,7 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 	}
 	for _, preparation := range preparations {
 		if preparation.Preparation.Requirements.ID == view.Requirement && preparation.Preparation.Approval.ID == view.Approval {
-			current := preparation.Native != nil && preparation.Native.Profile == b.port.operation.config.Profile && preparation.Native.InstanceID == b.port.operation.instance && b.store.AuthorizeStandingPreparation(ctx, preparation) == nil
+			current := preparation.Preparation.SourceCommit == tip.Tip && maps.Equal(preparation.Preparation.Requirements.SourceInputs, view.SourceInputs) && preparation.Native != nil && preparation.Native.Profile == b.port.operation.config.Profile && preparation.Native.InstanceID == b.port.operation.instance && b.store.AuthorizeStandingPreparation(ctx, preparation) == nil
 			if current {
 				observed, observeErr := b.coordinator.ObserveStandingPreparation(ctx, preparation)
 				if observeErr == nil {
@@ -214,6 +214,48 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 	if err := in.Validate(); err != nil {
 		return empty, err
 	}
+	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
+		return empty, err
+	}
+	identity := func(prefix, kind string) string {
+		sum := sha256.Sum256([]byte("native-workspace-setup/v1:" + string(b.binding.Profile.ID) + ":" + strconv.FormatInt(int64(repository), 10) + ":" + in.ID + ":" + kind))
+		return prefix + hex.EncodeToString(sum[:12])
+	}
+	wire, err := json.Marshal(in)
+	if err != nil {
+		return empty, err
+	}
+	sum := sha256.Sum256(wire)
+	commandDigest := hex.EncodeToString(sum[:])
+	recorded, err := b.store.ApprovalDecision(ctx, identity("d", "approval"))
+	if err == nil {
+		requirement, readErr := b.store.RequirementDecision(ctx, identity("d", "requirements"))
+		if readErr != nil {
+			return empty, readErr
+		}
+		if requirement.Recipe != nil && requirement.Recipe.CommandDigest != "" {
+			// Resolve the exact immutable consent receipt. No source acquisition,
+			// native admission or setup replay belongs to a retained retry.
+			if requirement.Validate() != nil || recorded.Validate() != nil || requirement.Recipe.CommandDigest != commandDigest ||
+				recorded.Requirement != requirement.ID || recorded.Project != requirement.Project || recorded.Approver != int64(actor) || requirement.Approver != int64(actor) ||
+				requirement.Native == nil || recorded.Native == nil || *requirement.Native != *recorded.Native || requirement.Native.Profile != b.port.operation.config.Profile || !recorded.Reviewed {
+				return empty, store.ErrCommandConflict
+			}
+			return b.ReadSetup(ctx, actor, repository, setupPaths(in.SourceInputs))
+		}
+		// Preserve exact admission for older recipes whose original full
+		// command was never captured; do not invent a receipt for them.
+		commandDigest = ""
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return empty, err
+	} else {
+		requirement, readErr := b.store.RequirementDecision(ctx, identity("d", "requirements"))
+		if readErr == nil && requirement.Recipe != nil && requirement.Recipe.CommandDigest == "" {
+			commandDigest = ""
+		} else if readErr != nil && !errors.Is(readErr, store.ErrNotFound) {
+			return empty, readErr
+		}
+	}
 	files := make(map[string][]byte, len(in.Files))
 	names := make([]string, 0, len(in.Files))
 	for name, contents := range in.Files {
@@ -240,11 +282,7 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 	if !maps.Equal(observedInputs, in.SourceInputs) {
 		return empty, store.ErrStaleRevision
 	}
-	identity := func(prefix, kind string) string {
-		sum := sha256.Sum256([]byte("native-workspace-setup/v1:" + string(b.binding.Profile.ID) + ":" + strconv.FormatInt(int64(repository), 10) + ":" + in.ID + ":" + kind))
-		return prefix + hex.EncodeToString(sum[:12])
-	}
-	requirement := project.RequirementDecision{ID: identity("d", "requirements"), Predecessor: in.Requirement, Project: grant.Project, SourceCommit: in.Source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf(names, in.SourceInputs, in.Tools), SourceInputs: in.SourceInputs, Approver: int64(actor), Native: grant.Native, Recipe: &project.SetupRecipe{Files: files, Tools: in.Tools}}
+	requirement := project.RequirementDecision{ID: identity("d", "requirements"), Predecessor: in.Requirement, Project: grant.Project, SourceCommit: in.Source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf(names, in.SourceInputs, in.Tools), SourceInputs: in.SourceInputs, Approver: int64(actor), Native: grant.Native, Recipe: &project.SetupRecipe{Files: files, Tools: in.Tools, CommandDigest: commandDigest}}
 	// Consent binds the complete intended recipe and execution owner. Actual
 	// setup/check exits and worker readiness come only from native observations.
 	effects, err := json.Marshal(struct {
@@ -257,7 +295,7 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 	if err != nil {
 		return empty, err
 	}
-	sum := sha256.Sum256(effects)
+	sum = sha256.Sum256(effects)
 	approval := project.ApprovalDecision{ID: identity("d", "approval"), Predecessor: in.Approval, Project: grant.Project, Requirement: requirement.ID, Approver: int64(actor), EffectsDigest: hex.EncodeToString(sum[:]), Reviewed: true, Native: grant.Native}
 	account := b.nativeProductAccount
 	var source struct {

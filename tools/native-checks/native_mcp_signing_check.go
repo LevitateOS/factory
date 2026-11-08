@@ -1384,6 +1384,15 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 	if err != nil {
 		return err
 	}
+	if expectedSources == 2 {
+		current := preparations[:0]
+		for _, prep := range preparations {
+			if prep.Preparation.Approval.ID == approval.ID {
+				current = append(current, prep)
+			}
+		}
+		preparations = current
+	}
 	if len(preparations) != 2 {
 		return errors.New("initial setup did not create exactly both role preparations")
 	}

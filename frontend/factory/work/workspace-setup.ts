@@ -328,7 +328,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         return html`<div>
           <p>
             ${state.role === 'soda-coder' ? 'Builder' : 'Reviewer'}:
-            ${entry.current === true ? String(state.phase || 'not started') : 'saved result from an earlier session'}
+            ${entry.current === true ? String(state.phase || 'not started') : 'saved result for another source or session'}
             ${entry.current === true && state.ready === true ? ' — ready' : ''}
           </p>
           ${

@@ -38,12 +38,16 @@
     await until(() => app.querySelector('soda-factory-role-settings')?.querySelector('[aria-label="Coding model"]'), 'role settings');
     const roles = app.querySelector('soda-factory-role-settings'), context = roles.current;
     const base = `repositories/${context.repository}/factory`;
-    let approvalReply = '';
+    let approvalReply = '', selectionReply = '', loseReply = fixture.drop_approval_reply === true;
     const request = context.transport.request.bind(context.transport);
     context.transport.request = async (path, options) => {
       const response = await request(path, options);
-      if (path === base + '/setup' && options?.method === 'PUT')
+      if (path === base + '/setup' && options?.method === 'POST')
+        selectionReply = response.status + (response.ok ? '' : ' ' + (await response.clone().text()).slice(0, 1000));
+      if (path === base + '/setup' && options?.method === 'PUT') {
         approvalReply = response.status + ' ' + (await response.clone().text()).slice(0, 1000);
+        if (response.ok && loseReply) { loseReply = false; throw Error('Native check dropped the completed approval reply'); }
+      }
       return response;
     };
     await invoke('report', {stage: 'onboarding-repository:' + context.repository, error: null});
@@ -55,6 +59,7 @@
     const roleInput = (label, value) => input(roles.querySelector(`[aria-label="${label}"]`), value);
     const roleClick = async name => { await until(() => !roles.busy, 'roles idle'); await click(roles, name); await until(() => !roles.busy, name + ' settled'); };
     const initial = await api();
+    if (!fixture.reopen) {
     assert(initial.policy === null && initial.sponsorships.length === 0, 'fresh profile invented policy/funding');
     stage = 'disabled policy and placement';
     roleInput('Coding model', 'muse-spark-1.3-contributor');
@@ -71,10 +76,33 @@
     await until(async () => (await api(base + '/placement')).placement?.state === 'active', 'active placement');
     await click(document, 'Allow isolated workspaces');
     await until(async () => (await api()).environment_grant?.active === true, 'workspace grant');
+    }
     const setup = document.querySelector('soda-factory-workspace-setup');
     await click(setup, 'Refresh workspace setup');
     await until(() => !setup.busy && setup.view?.available, 'setup available');
-    assert(!setup.view.approval && !setup.view.requirement && setup.view.preparations.length === 0, 'fresh setup seeded');
+    if (fixture.reopen) {
+      stage = 'retained approval recovery';
+      if (fixture.resume_review) {
+        assert(!setup.command && setup.view.preparations.every(row => !row.current), 'settled approval or historical observations changed');
+      } else {
+      assert(initial.policy?.enabled === false && setup.command && setup.view.preparations.length === 2 &&
+        setup.view.preparations.every(row => !row.current), 'reopen lost pending approval or invented current readiness');
+      const changed = await context.transport.request(base + '/setup', {method: 'PUT', body: JSON.stringify({
+        command_id: setup.command.command_id, ...setup.command.payload, target: 'refs/heads/main',
+      })});
+      assert(changed.status === 409 && (await changed.json()).error.code === 'command_conflict', 'changed approval command was not refused exactly');
+      const recovery = button(setup, 'Retry saved approval');
+      const consent = recovery.closest('form').querySelector('input[type=checkbox]');
+      assert(consent && !consent.checked, 'recovered approval consent default'); consent.click();
+      await click(setup, 'Retry saved approval');
+      await until(() => !setup.busy, 'retained receipt read settled');
+      assert(!setup.command && setup.view.preparations.every(row => !row.current),
+        'pending receipt did not settle without replay: ' + approvalReply + ' ' + setup.message);
+      assert(!setup.querySelector('form input[type=checkbox]').checked, 'changed source retained old consent');
+      }
+    } else {
+      assert(!setup.view.approval && !setup.view.requirement && setup.view.preparations.length === 0, 'fresh setup seeded');
+    }
     assert(setup.view.source === fixture.source, 'fixture branch source differs');
     const approve = () => button(setup, 'Approve and prepare both roles');
     const paths = () => setup.querySelector('textarea[name=paths]');
@@ -103,7 +131,8 @@
       'exact aggregate selection bound refused');
     }
     await select(['README.md', 'q07/input.md']);
-    assert(setup.selectionCurrent && Object.keys(setup.view.source_inputs).length === 2, 'reviewed planning inputs');
+    assert(setup.selectionCurrent && Object.keys(setup.view.source_inputs).length === 2,
+      'reviewed planning inputs: ' + selectionReply + ' ' + setup.message + '; missing: ' + setup.view.missing_paths.join(', '));
     let consent = setup.querySelector('form input[type=checkbox]');
     consent.click();
     input(paths(), 'README.md');
@@ -122,7 +151,10 @@
     consent.click();
     await click(setup, 'Approve and prepare both roles');
     await until(() => !setup.busy, 'approval settled');
-    assert(!setup.command && setup.view.approval && setup.view.requirement, 'approval not confirmed: ' + setup.message + ' ' + approvalReply);
+    if (fixture.drop_approval_reply)
+      assert(setup.command && approvalReply.startsWith('200 '), 'lost reply was not retained: ' + approvalReply);
+    else
+      assert(!setup.command && setup.view.approval && setup.view.requirement, 'approval not confirmed: ' + setup.message + ' ' + approvalReply);
     await until(async () => {
       await click(setup, 'Refresh workspace setup');
       await until(() => !setup.busy, 'native observation settled');
