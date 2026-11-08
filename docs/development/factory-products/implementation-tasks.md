@@ -9,12 +9,14 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-09, Factory `84b04c4`):** 16 queue entries remain:
-Q09–Q14 are complete within their recorded ordinary scopes. Q30 has reached Q15;
-Q16–Q29 remain pending and Q30 remains the finalization pass.
+**Current snapshot (2026-11-09, Factory `90bde70` plus active implementation):** 16 queue entries remain:
+Q09–Q14 are complete within their recorded ordinary scopes. Q15–Q29 remain
+outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
+instruction replaces blanket numeric sequencing: implement ready work while
+preserving actual dependencies, authorization and retained receipts.
 All 13 broad security gates remain open. The historical ordered-goal pause is
-superseded for this submitted Q30 request, which authorizes remaining prerequisites
-in order. Dependent tasks still wait for verified prerequisites.
+superseded by the outstanding-queue instruction. A blocker affects only actions
+that need its concrete missing behavior, input, authority or environment.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -46,7 +48,11 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Continue Q15 from Q14's verified receipts.** Q14 passed the approved append-only
+**Current work: Q25 installed qualification and Q15 native Retry recovery.**
+Q25 does not depend on a GitHub merge or Q24’s appliance. Q14’s receipts remain
+complete and preserved. Resume Q15 only from its recorded original outcomes.
+
+**Retained Q14 evidence.** Q14 passed the approved append-only
 authoring contract and actual prepared/funded plan, walkthrough review, accepted
 graph, confirmed-prefix restart and complete adoption after a lost reply and
 write expiry. Original source charges and write identities remain unchanged.
@@ -80,16 +86,10 @@ reuse controls, withdrawal, lost workspace reply and correction from `e91534b`
 and `feaa292`. No live provider review or installed recovery is qualified.
 Q30 remains the finalization pass.
 
-Continue to each following prompt only after its earlier ordinary prerequisites
-are verified complete and the owner resumes the ordered goal. Q02 owns current
-inputs and provider-tool updates. The owner accepted Q08's current live checks
-while retaining the original encoding cause as unknown; reconstructing that
-unavailable historical cause is no longer a prerequisite. The historical CONNECT
-row/note stay verbatim, with its unavailable crash cause also unknown under the
-owner's Q01 clarification. Take the ordered prerequisite
-journeys one at a time. A historical Complete row does not remove
-an open qualification requirement. Do not replay successful checks without a
-specific unresolved risk.
+Continue every ready outstanding request. Reuse scoped prior evidence, verify
+actual dependencies and preserve the human CONNECT history and unavailable
+historical crash/encoding causes. No task number, status label or later queued
+message creates or discharges a technical dependency.
 
 The required product outcome is the full automated pipeline, including reachable
 setup/funding, accepted planning, Builder implementation, candidate publication,
@@ -102,17 +102,21 @@ The local owner controls execution/spending; never enable automation, choose a
 paying source or switch accounts silently. Preserve the selected sequential
 single-Builder model and existing bounded journals/cancellation/retirement.
 
-## Sequential non-Daybreak execution queue
+## Outstanding non-Daybreak execution queue
 
-The owner started an ordered goal and subsequently paused it. Preparing these
-prompts does not resume implementation. Submitting one complete prompt authorizes
-work through its named Q task: first finish missing earlier prerequisites, then
-that task, then stop. This queued-prompt rule supersedes earlier automatic
-continuation beyond the requested task. Every prompt verifies prior scoped
-completion against current code, exact retained commits and checks; a status
-label, prior reply, clean tree or isolated component pass is not completion.
-Reuse qualifying evidence instead of rerunning unchanged successful journeys.
+**Owner override (2026-11-09):** Q14–Q29 are outstanding requests until their
+required scope is verified or their own genuine blocking dependency is established.
+Q14 is already verified within its recorded ordinary scope. Q30 may audit now;
+its final completion still requires every mandatory outcome and its evidence.
+The older fenced prompts below are retained scope/history. Their blanket numeric
+ordering, finish-every-earlier-task, stop-at-first-blocker and stop-after-one-task
+rules are superseded. Preserve their behavioral requirements, current authority,
+uncertain-send/inference fences, human text and Daybreak boundary.
 
+For each action state the concrete prerequisite it uses. Record a blocker once
+in that task’s existing record and name exactly the actions it prevents; continue
+independent implementation and qualification. Do not repeat blocker replies,
+create status-only commits or ask the owner to resubmit the remaining queue.
 These Q labels divide the existing A/T outcomes into executable scopes. They do
 not replace or silently close the original milestones. Early scopes such as
 boundary admission, configuration and component freshness can finish while their
@@ -139,7 +143,7 @@ run it here, invent an adversarial suite, waive it or infer Daybreak access.
 A piece may be COMPLETE for its stated ordinary scope with separately named
 Daybreak checks still pending; its broader gate remains open. If the missing
 check prevents required ordinary admission or a downstream journey, report the
-blocker and stop the chain rather than executing without that admission.
+specific affected action as blocked; continue work that does not use that admission.
 
 Mixed-repository funding may remain explicitly unavailable under the current
 owner boundary; it is not silently decided or qualified by single-repository
@@ -156,35 +160,32 @@ goal remains paused after the bounded correction increment below.
 
 ### Queueing and interruption recovery
 
-Copy each entire fenced prompt from Q09 through Q30 as a separate queued message,
-in order, using this working checkout. Each block contains its own task scope,
-prerequisite rule, completion gate and interruption instructions. Do not execute
-these dependent tasks concurrently against the shared tree. The last Q30 prompt
-is the full finalization pass.
+Queued requests remain outstanding across blockers, later messages and turn
+boundaries. Recover existing operations, receipts, claims, cursors and processes
+before effects. A prior COMPLETE reply/build/component check alone is insufficient;
+reuse qualifying exact evidence and never replay an uncertain send or inference.
 
-If Q09 stops with unfinished work, the queued Q10 prompt must finish Q09 first,
-then Q10 only after Q09 is verified. The same rule applies at every boundary,
-even when an earlier response said COMPLETE without the required evidence. If
-Q24 needs an unavailable appliance, Q25 must report Q24 as the blocker and keep
-Q25 pending; another queued message is not permission to skip it. An unchanged
-blocker needs no repeated side effects or duplicate evidence entries.
+On interruption leave one concise recovery note in the existing active task
+record: completed work, exact blockers and affected actions, owned edits, running
+processes/uncertain effects and the next executable action. Keep original state
+and human history. When an answer, implementation or evidence removes a blocker,
+resume its retained work. A missing appliance does not block desktop packaging,
+store migration or unrelated GitHub/Fountain code.
 
-Use one concise completion/resume note in the existing active Q section, with
-detailed check evidence in the existing decision log/handoff. On interruption,
-record INCOMPLETE, the requested task versus actual task reached, verified
-commits/check artifacts, owned uncommitted paths, running check/session or
-uncertain effect, and the exact next action. On a genuine blocker, record BLOCKED
-and the exact external requirement. Keep the requested later task pending.
-Update this existing note rather than creating another task registry or journal.
-Do not mark work complete just because a turn ended or the next message arrived.
+### Actual dependencies for outstanding work
 
-Prompts cannot guarantee uninterrupted execution or stop the application from
-consuming later queued messages. These checks prevent later work from silently
-skipping an unfinished prerequisite. After a blocker is resolved, resubmit the
-first unfinished prompt and the remaining sequence. Any prompt can safely be
-resubmitted: verify completion first, reuse exact receipts and avoid repeating
-effects. If the final Q30 prompt itself is interrupted, resubmit Q30; no later
-message exists to supply that recovery automatically.
+| Scope | Concrete requirement for its full qualification | Work that can proceed independently |
+| --- | --- | --- |
+| Q15 | Owner authorization for fresh paid Retry after the preserved failed Builder; working GitHub publication/review/check/merge composition. | Original-receipt recovery and unrelated product work. |
+| Q16–Q17 | Admitted GitHub policy, exact issue/PR provenance and fork authority; functioning delivery phases for their full journeys. | Polling/cursors, admission, withdrawal and adoption implementation do not require the Q15 label to close. |
+| Q18 | Actual configured Fountain host OAuth/enrollment/refresh and immutable profile proof. | Canonical host/desktop implementation and authorized host checks do not depend on GitHub. |
+| Q19–Q21 | Current Fountain enrollment, central placement and per-operation grants; issue-only scope needs an actual issue-only fixture; publication needs a native candidate. | Host grant/journal/read/UI and transfer implementation can progress before any GitHub journey. |
+| Q22–Q23 | Fountain policy/source consent, admitted execution/publication and host review/check/merge or fork authority. | Issue intake and external-PR adoption are separate entry paths; neither needs the other’s task completion. |
+| Q24 | A current authorized installed appliance and its actual installation owners. Retired soda is forbidden. | Its absence blocks that installed appliance journey and shared Project stop/start only. |
+| Q25 | Fresh matching payloads, production UI/notices/integrity and actual supported-host installer checks. | Ready now; no Q15 or Q24 dependency. |
+| Q26–Q27 | Actual installed Q25 assets; provider authority and implemented delivery/adoption for full journeys. | Installed sign-in/UI/lifecycle checks can proceed before provider delivery is complete. |
+| Q28 | Disposable retained profiles and actual known-prior/current installed assets for upgrade/activation. | Store migration/refusal/reconciliation and installer recovery do not require completed CI/merge journeys. |
+| Q29 | Both installed consumers of the same shared presentation owner and current selected-repository permissions. | Shared UI fixes/builds do not need appliance stop/start or all provider journeys to close. |
 
 ### Remaining checklist
 
@@ -777,10 +778,16 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
-**INCOMPLETE, requested ceiling Q30; actual task Q15.** Q14 is verified above.
-Q15 is held pending explicit owner authorization for fresh paid Retry command
-`15151515151515151515151515151503`; Q30 forbids repeating paid inference.
-No Retry has been sent. Continue here before Q16 or finalization.
+**INCOMPLETE, outstanding under Q30; Q14 remains complete.** The owner authorized
+Retry `15151515151515151515151515151503`. It committed but launched no model:
+native Retry omitted the native launch capture and failed packet admission.
+Its original preparation was retired by its owner; `retry-retirement.log` proves
+read-only adoption after restart, without setup/inference/authority renewal.
+The owner then authorized replacement command
+`15151515151515151515151515151504`. The guarded replacement check is running
+(session 48651, `/home/vince/Projects/q15-connected/replacement1.log`), using
+`q15-server8`/`q15-delivery9-callback` and actual Q25-installed services.
+Inspect its command and original journals before any next effect.
 
 Verified production corrections: `9137c916d79412de60bfa360bc9e864ddb49f076`
 retains/polls one native coordinator startup and exposes existing dispatch waits;
@@ -811,24 +818,20 @@ before dispatch (`withdrawal-{13,14,15,16}.json`). Remote CI workflow commits
 `df452dd82157e0c9689786d9247712f17abe92bd`,
 `918165b27124bcaccfec8f2a94f62a5b48e3d262` and
 `4522d2f4e33424b4965b71deda0b8953b6a70498` are additive fixture inputs.
-Temporary `Q15_EXPECT_PASS=false` is removed and its original absence verified
-HTTP 404 in `ci-variable-restored.*`. All checks are joined, local GitHub grant
-withdrawn and temporary native units removed; no owned worker remains running.
+The first temporary CI gate was removed and original absence verified HTTP 404
+in `ci-variable-restored.*`. `Q15_EXPECT_PASS=false` is now temporarily set again
+to hold the replacement's CI for human-blocker qualification; restore original
+absence when this check settles. Earlier checks are joined and their local
+grants withdrawn. The replacement owns its current native runtime; actual Q25
+installed services replace the removed temporary fixture units.
 
-**Exact next action:** obtain the pending fresh Retry authorization; first inspect
-any newer receipts/processes. `retry-preflight.log` passed on the stopped actual
-profile without inference, confirming the exact retired outcomes, all finished
-commands and seven retained source minutes. Do not use `delivery-resume` (it
-requires zero prior execution), recreate #18, edit the original plan or replay old
-commands. After authorization, run the existing temporary Q05 fixture units and
-`/home/vince/Projects/q15-connected/resume.sh delivery-retry` with helper
-`q15-delivery5-callback`; it rechecks original receipts, binds current authority,
-prepares the same approved bytes and invokes the new explicit native Retry.
-Its command/paid/full-journey path has not run. Restore any new temporary CI gate
-before terminal stop. Finish the entire Q15 scope including paid delivery
+**Exact next action:** recover the running replacement's receipts before another
+command. Preserve the original two runs, seven-minute source charge and both
+Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
+renew retired preparation or change the original model plan. Finish paid delivery
 judgment, publication/review/correction, real checks/merge, human/pending/inline
 blockers, changed target/head/base, next-Builder preparation and send recovery.
-Q24's retired-appliance boundary and all broader gates remain open.
+Independent Q18–Q29 work remains outstanding and can proceed on its actual inputs.
 
 **Historical hold:** The Q15 prerequisite check re-read
 `a977bba`/`99a03cb`, the current refusal code and original Q14 receipts. The safe
@@ -857,10 +860,7 @@ Final reply: requested Q15, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q16 — GitHub automatic own-issue intake
 
-**Not started: blocked by [Q14](#q14); Q15 remains unverified.** Current refusal
-code, exact commits and original Q14 receipts were rechecked for this request.
-The blocker is unchanged; no inference, writes, cursor advancement or checks were
-replayed. No owned native check is active. Resume at Q14's recorded next action.
+Outstanding. Polling/provenance/cursor and withdrawal work is independent of Q15’s Retry decision. Full own-issue delivery still needs working admitted GitHub delivery phases and real paid/host evidence.
 
 ```text
 Execute through Q16 — GitHub automatic own-issue intake. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q16 despite the document's historical paused snapshot; it does not authorize work beyond Q16 or resuming the old product queue.
@@ -883,11 +883,7 @@ Final reply: requested Q16, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q17 — GitHub external PR adoption
 
-**Not started: blocked by [Q14](#q14); Q15–Q16 remain unverified.** Current
-refusal code, exact commits and original Q14 receipts were rechecked. The safe
-refinement contract is still unresolved. No inference, provider writes, worker
-launch or adoption ran. Resume at Q14's recorded next action; no Daybreak check
-was attempted.
+Outstanding. Exact PR/head/base/policy/fork admission and adoption implementation can proceed independently. Full correction/review/CI progression needs those delivery phases, not blanket Q01–Q16 completion.
 
 ```text
 Execute through Q17 — GitHub external PR adoption. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q17 despite the document's historical paused snapshot; it does not authorize work beyond Q17 or resuming the old product queue.
@@ -910,15 +906,7 @@ Final reply: requested Q17, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q18 — Fountain configured-host login and grant lifecycle
 
-**Not started: blocked by [Q14](#q14); Q15–Q17 remain unverified.** Current
-refusal code and original Q14 receipts were rechecked; the safe refinement
-contract remains unresolved. Canonical Fountain is clean and retains D6
-`e88b50dadb91b5ea4bb39dcf80307939d3270fed`, gateway merge
-`2e57559c0e4844baba861a86632d083192537ff3` and both gateway ancestors
-`778e08aa98329848ddca1c07295120cf5fd082a8` /
-`1a29a5e86e06e370486afeee689eaaf54ea04b7b`. No Fountain source, grant,
-reservation, credentials or retained state changed; no login/refresh or inference
-was repeated. Resolve Q14's recorded blocker before dependent work.
+Outstanding. Canonical Fountain is at `2e57559c0e4844baba861a86632d083192537ff3`, retaining ownership `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and gateway ancestors. Real configured-host OAuth/grant qualification is independent of GitHub delivery.
 
 ```text
 Execute through Q18 — Fountain configured-host login and grant lifecycle. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q18 despite the document's historical paused snapshot; it does not authorize work beyond Q18 or resuming the old product queue.
@@ -941,10 +929,7 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
-**Not started: blocked by [Q14](#q14); Q15–Q18 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unchanged safe
-refinement blocker. Canonical Fountain remains clean at `2e57559`; no placement,
-grant, operation or retained state changed. Resume Q14's recorded next action.
+Outstanding. Implement/qualify central Fountain placement and privileged operations against current host enrollment/profile/repository grants; no GitHub prerequisite. Read-only enrollment cannot authorize execution or publication.
 
 ```text
 Execute through Q19 — Fountain placement and authenticated operations. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q19 despite the document's historical paused snapshot; it does not authorize work beyond Q19 or resuming the old product queue.
@@ -967,10 +952,7 @@ Final reply: requested Q19, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q20 — Fountain issue-only collaborator capability
 
-**Not started: blocked by [Q14](#q14); Q15–Q19 remain unverified.** Current
-refusal code, exact commits and original receipts were rechecked; the safe
-refinement contract is still unresolved. No Fountain authorization, grant,
-permission, provider effect or retained state changed. Resume Q14 first.
+Outstanding. Requires separately authorized issue-only host grants and an actual fixture without code-unit read. Implement and qualify that capability in its canonical host; code-reader evidence cannot close it. No GitHub prerequisite.
 
 ```text
 Execute through Q20 — Fountain issue-only collaborator capability. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q20 despite the document's historical paused snapshot; it does not authorize work beyond Q20 or resuming the old product queue.
@@ -993,10 +975,7 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
-**Not started: blocked by [Q14](#q14); Q15–Q20 remain unverified.** Current
-refusal code, exact commits and original receipts were rechecked; the safe
-refinement contract remains unresolved. No transfer, publication, grant,
-inference or retained operation changed. Resolve Q14 before dependent work.
+Outstanding. Native candidate execution exists within Q08/Q09 scope; Fountain publication needs admitted Q19 operation/placement authority and exact transfer receipts. Transfer/staging implementation does not depend on GitHub completion.
 
 ```text
 Execute through Q21 — Fountain candidate transfer and conditional publication. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q21 despite the document's historical paused snapshot; it does not authorize work beyond Q21 or resuming the old product queue.
@@ -1019,10 +998,7 @@ Final reply: requested Q21, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q22 — Fountain automatic issue intake
 
-**Not started: blocked by [Q14](#q14); Q15–Q21 remain unverified.** Current
-refusal code, exact commits and original receipts were rechecked; the safe
-refinement contract is unresolved. No intake, work, spending, host authority or
-retained state changed. Resume Q14's recorded next action before dependent work.
+Outstanding. Full automatic Fountain delivery requires host issue provenance/policy, admitted operations, native execution and review/check/merge. Its implementation and ordinary admission checks do not depend on Q15 or Q23.
 
 ```text
 Execute through Q22 — Fountain automatic issue intake. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q22 despite the document's historical paused snapshot; it does not authorize work beyond Q22 or resuming the old product queue.
@@ -1045,10 +1021,7 @@ Final reply: requested Q22, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q23 — Fountain external PR adoption
 
-**Not started: blocked by [Q14](#q14); Q15–Q22 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unchanged safe
-refinement blocker. No PR adoption, launch, spending, host authority or retained
-state changed; no Daybreak check ran. Resume Q14's recorded next action.
+Outstanding. External Fountain PR adoption needs exact current host/fork/head/base authority and working review/correction/check phases. It does not require automatic own-issue intake to finish first.
 
 ```text
 Execute through Q23 — Fountain external PR adoption. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q23 despite the document's historical paused snapshot; it does not authorize work beyond Q23 or resuming the old product queue.
@@ -1071,16 +1044,7 @@ Final reply: requested Q23, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q24 — Installed Fountain appliance/Forge journey
 
-Includes the owner-deferred shared Project stop/start qualification from Q09:
-actual admitted workers, current authority, dispatch withdrawal, maintenance
-hold, host service stop, retirement/accounting and verified restart. Keep this
-pending until a current appliance is available; the old `soda` target is retired.
-
-**Not started: blocked by [Q14](#q14); Q15–Q23 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unchanged safe
-refinement blocker. No appliance was contacted, installed or restarted; current
-appliance availability was not qualified. The retired target remains untouched.
-Resume Q14's recorded next action; Q25 stays pending.
+BLOCKED for the actual installed appliance journey and shared Project stop/start: no current authorized replacement appliance is recorded. The retired `soda` target remains forbidden. This does not block Q25 or unrelated host/desktop implementation. Reconsider when a current authorized installation becomes available.
 
 ```text
 Execute through Q24 — Installed Fountain appliance/Forge journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q24 despite the document's historical paused snapshot; it does not authorize work beyond Q24 or resuming the old product queue.
@@ -1105,11 +1069,7 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
-**Pending: blocked by [Q14](#q14); Q15–Q24 remain unverified.** Current refusal
-code, exact commits and original receipts confirm the unchanged safe refinement
-blocker. Q24 has no qualified installed appliance journey; its current-appliance
-availability remains unverified. No package/install effects or appliance contact
-ran. Resume Q14 first; this queued request does not waive Q24.
+INCOMPLETE — fresh release packaging and recoverable installation implemented; installed app/host qualification remains. `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final.log`, `boundaries-final.log`). This qualifies packaging and the changed recovery boundary on Rocky x86_64; it does not qualify the full supported-host matrix, actual installed app lifecycle or Q26/Q27. Next: launch the actual installed release, qualify host dependencies/capabilities without development tools and finish required supported-host evidence. Q15/Q24 do not block independent installation work. Q15's later native Retry fix needs a subsequent fresh payload before installed delivery qualification.
 
 ```text
 Execute through Q25 — Fresh Linux distribution and installers. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q25 despite the document's historical paused snapshot; it does not authorize work beyond Q25 or resuming the old product queue.
@@ -1132,10 +1092,7 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
-**Not started: blocked by [Q14](#q14); Q15–Q25 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unresolved safe
-refinement contract. Q25 has no qualified installation to use here. No installed
-app, account, provider effect or retained state changed. Resume Q14 first.
+Outstanding. Actual installed Q25 payload is required; sign-in/UI/lifecycle can then proceed independently. Full GitHub installed delivery needs automatic issue/PR adoption and delivery behavior, not completed unrelated Fountain tasks.
 
 ```text
 Execute through Q26 — Installed GitHub desktop product journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q26 despite the document's historical paused snapshot; it does not authorize work beyond Q26 or resuming the old product queue.
@@ -1158,10 +1115,7 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
-**Not started: blocked by [Q14](#q14); Q15–Q26 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unresolved safe
-refinement contract. Required installed/host journeys are not qualified. No app,
-host, credentials, grants or retained state changed. Resume Q14 first.
+Outstanding. Requires actual installed desktop assets and current Fountain login/placement/grant/publication/adoption behavior. No GitHub qualification prerequisite; preserve actual host and app revisions.
 
 ```text
 Execute through Q27 — Installed Fountain desktop product journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q27 despite the document's historical paused snapshot; it does not authorize work beyond Q27 or resuming the old product queue.
@@ -1184,10 +1138,7 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
 
-**Not started: blocked by [Q14](#q14); Q15–Q27 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unresolved safe
-refinement contract. No profile copying, migration, update, uninstall or command
-replay ran; original profiles and retained captures remain intact. Resume Q14.
+Outstanding. Use disposable profile copies. Store migration/refusal and installer recovery can proceed independently; installed upgrade/download/activation checks require known prior/current payloads. Full provider journeys are not blanket prerequisites.
 
 ```text
 Execute through Q28 — Retained upgrade, interrupted recovery and updates. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q28 despite the document's historical paused snapshot; it does not authorize work beyond Q28 or resuming the old product queue.
@@ -1210,11 +1161,7 @@ Final reply: requested Q28, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q29 — Installed shared-component and host parity
 
-**Not started: blocked by [Q14](#q14); Q15–Q28 remain unverified.** Current
-refusal code, exact commits and original receipts confirm the unresolved safe
-refinement contract. No cosmetic changes, consumer rebuild/install or installed
-parity claim was made. Both canonical trees and retained state are preserved;
-resume Q14's recorded next action.
+Outstanding. Visible parity requires both actual installed consumers and current repository permissions. Shared code/build work can proceed independently; do not invent a cosmetic correction or treat the missing appliance’s stop/start check as a UI dependency.
 
 ```text
 Execute through Q29 — Installed shared-component and host parity. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q29 despite the document's historical paused snapshot; it does not authorize work beyond Q29 or resuming the old product queue.

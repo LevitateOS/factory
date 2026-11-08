@@ -2,6 +2,7 @@ import {chmod, copyFile, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {copyNotices} from './factory-browser-assets.js';
+import {stageDistributionNotices, writeDistributionIntegrity} from './desktop-distribution.js';
 
 /** Add the user installer to the existing app stage, without runtime state. */
 export async function stageDesktopInstaller(out: string) {
@@ -24,9 +25,11 @@ export async function stageDesktopInstaller(out: string) {
   await writeFile(resolve(out, 'platform'), 'Linux-' + arch + '\n');
   for (const name of ['LICENSE', 'NOTICE']) await copyFile(resolve(root, name), resolve(out, name));
   await copyNotices(out);
+  await stageDistributionNotices(out);
   await copyFile(resolve(root, 'assets/branding/icons/hicolor/512x512/apps/soda-os.png'), resolve(out, 'factory.png'));
   await copyFile(resolve(root, 'scripts/install-desktop.sh'), resolve(out, 'install.sh'));
   await chmod(resolve(out, 'install.sh'), 0o755);
+  await writeDistributionIntegrity(out);
 }
 
 if (import.meta.main) {

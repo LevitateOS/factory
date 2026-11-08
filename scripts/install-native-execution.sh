@@ -19,6 +19,14 @@ if [[ "$install_root" == / && "$EUID" != 0 ]]; then
   exit 2
 fi
 bundle=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+distribution=$(cd -- "$bundle/../.." && pwd -P)
+[[ -f "$distribution/bundle.sha256" && ! -L "$distribution/bundle.sha256" && -f "$bundle/files.list" && ! -L "$bundle/files.list" ]] &&
+  (cd -- "$distribution" && sha256sum --check --strict --status bundle.sha256) || { echo 'Verified distribution inventory is required for execution installation.' >&2; exit 1; }
+read -r platform < "$distribution/platform"
+[[ "$platform" == "$(uname -s)-$(uname -m)" ]] || { echo 'This execution bundle does not match this computer.' >&2; exit 1; }
+if [[ "$install_root" == / ]]; then
+  [[ -d /run/systemd/system && -f /sys/fs/cgroup/cgroup.controllers ]] && systemctl --version >/dev/null || { echo 'Execution installation requires systemd and cgroup v2.' >&2; exit 1; }
+fi
 binaries=()
 units=()
 while IFS=$'\t' read -r kind name extra; do
@@ -42,7 +50,8 @@ for directory in "${install_root%/}/usr" "$libexec" "${install_root%/}/etc" "${i
     [[ -d "$directory" && ! -L "$directory" && "$(realpath -e -- "$directory")" == "$directory" ]] || { echo 'Installation directories must be canonical directories.' >&2; exit 1; }
   fi
 done
-# Check the complete destination before writing. Upgrades need their own retained-run protocol.
+# Read every source before admitting an installation. Upgrades still need their
+# retained-run protocol; only this exact bundle/user may resume partial files.
 for source in "${binaries[@]}" "${units[@]}"; do
   [[ -f "$source" && ! -L "$source" ]] || { echo 'Execution payload must contain regular files.' >&2; exit 1; }
   name=${source##*/}
@@ -52,34 +61,72 @@ for source in "${binaries[@]}" "${units[@]}"; do
   else
     target="$systemd/${name%.in}"
   fi
-  [[ ! -e "$target" && ! -L "$target" ]] || { echo "Existing installation file requires upgrade handling: $target" >&2; exit 1; }
   targets+=("$target")
 done
-created=()
-committed=0
-cleanup() {
-  local result=$?
-  if (( result && ! committed )); then
-    for target in "${created[@]}"; do rm -f -- "$target"; done
+# Keep the admitted manifest before publishing any target. A hard interruption
+# can then adopt exact completed files, without overwriting an unknown file or
+# inferring ownership from its pathname. The lock also covers service activation.
+state="${install_root%/}/var/lib/soda-factory-install"
+for directory in "${install_root%/}/var" "${install_root%/}/var/lib" "$state"; do
+  if [[ -e "$directory" || -L "$directory" ]]; then
+    [[ -d "$directory" && ! -L "$directory" && "$(realpath -e -- "$directory")" == "$directory" ]] || { echo 'Installation state must use canonical directories.' >&2; exit 1; }
   fi
-}
+done
+if [[ -d "$state" ]]; then
+  [[ "$(stat -c %u -- "$state")" == "$EUID" && "$(stat -c %a -- "$state")" == 700 ]] || { echo 'Installation state ownership or permissions differ.' >&2; exit 1; }
+else
+  install -d -m 0700 -- "$state"
+fi
+[[ ! -L "$state/lock" && ( ! -e "$state/lock" || ( -f "$state/lock" && "$(stat -c %u -- "$state/lock")" == "$EUID" ) ) ]] || { echo 'Installation lock ownership differs.' >&2; exit 1; }
+exec 9>>"$state/lock"
+flock -n 9 || { echo 'Another execution installer owns this root.' >&2; exit 1; }
+stage=$(mktemp -d -- "$state/stage.XXXXXXXX")
+pending_file=
+cleanup() { if [[ -n "$pending_file" ]]; then rm -f -- "$pending_file"; fi; rm -rf -- "$stage"; }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+printf 'user=%s\nuid=%s\n' "$execution_user" "$execution_uid" > "$stage/manifest"
+index=0
+for source in "${binaries[@]}" "${units[@]}"; do
+  target=${targets[index]}
+  mode=0755
+  if [[ "$source" == "$bundle/libexec/"* ]]; then
+    install -m "$mode" -- "$source" "$stage/$index"
+  else
+    mode=0644
+    sed -e "s/@DESKTOP_USER@/$execution_user/g" -e "s/@DESKTOP_UID@/$execution_uid/g" -- "$source" | install -m "$mode" /dev/stdin "$stage/$index"
+  fi
+  digest=$(sha256sum "$stage/$index"); digest=${digest%% *}
+  printf '%s\t%s\t%s\n' "$digest" "$mode" "${target#"${install_root%/}"}" >> "$stage/manifest"
+  ((index+=1))
+done
+if [[ -e "$state/manifest" || -L "$state/manifest" ]]; then
+  [[ -f "$state/manifest" && ! -L "$state/manifest" ]] && cmp -s -- "$stage/manifest" "$state/manifest" || { echo 'Execution installation differs; retained upgrade handling is required.' >&2; exit 1; }
+else
+  for target in "${targets[@]}"; do
+    [[ ! -e "$target" && ! -L "$target" ]] || { echo "Existing installation file requires upgrade handling: $target" >&2; exit 1; }
+  done
+  ln -T -- "$stage/manifest" "$state/manifest"
+fi
 for directory in "$libexec" "$systemd"; do
   if [[ ! -d "$directory" ]]; then install -d -m 0755 -- "$directory"; fi
 done
 index=0
-for source in "${binaries[@]}"; do
-  target=${targets[index++]}
-  created+=("$target")
-  install -m 0755 -- "$source" "$target"
-done
-for source in "${units[@]}"; do
-  target=${targets[index++]}
-  created+=("$target")
-  sed -e "s/@DESKTOP_USER@/$execution_user/g" -e "s/@DESKTOP_UID@/$execution_uid/g" -- "$source" | install -m 0644 /dev/stdin "$target"
+for target in "${targets[@]}"; do
+  if [[ ! -e "$target" && ! -L "$target" ]]; then
+    # Linking a complete file is atomic and refuses a competing destination.
+    # Stage beside the destination: /var and /usr may be separate filesystems.
+    pending_file=$(mktemp -- "${target%/*}/.soda-factory-install.XXXXXXXX")
+    install -m "$(stat -c %a -- "$stage/$index")" -- "$stage/$index" "$pending_file"
+    ln -T -- "$pending_file" "$target"
+    rm -f -- "$pending_file"
+    pending_file=
+  fi
+  [[ -f "$target" && ! -L "$target" && "$(stat -c %u -- "$target")" == "$EUID" && "$(stat -c %a -- "$target")" == "$(stat -c %a -- "$stage/$index")" ]] && cmp -s -- "$stage/$index" "$target" || { echo "Execution installation file changed: $target" >&2; exit 1; }
+  ((index+=1))
 done
 # Leave a complete payload available for diagnosis if service activation fails.
-committed=1
 if [[ "$install_root" == / ]]; then
   systemctl daemon-reload
   systemctl enable --now soda-factory-broker.socket

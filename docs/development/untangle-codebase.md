@@ -2263,6 +2263,43 @@ processes are joined, local GitHub grant withdrawn and temporary units removed.
 current task section records the pending command and exact next action; Q15 and
 later ordinary/security/installed gates remain open.
 
+## Q25 packaging and installer recovery checkpoint (2026-11-09)
+
+The owner replaced blanket task-number sequencing with actual dependencies;
+Q14 remains complete and Q15–Q29 remain outstanding. Q24's missing authorized
+replacement appliance blocks that installed journey and shared Project stop/start,
+not independent distribution, desktop, migration or Fountain implementation.
+
+The production packager now builds release native binaries and records actual
+Go/Rust/Bun/PostgreSQL inputs and compiled Rust package identities. It distributes
+the JavaScript runtime closure, compiled Go module and Rust legal notices,
+toolchain/PostgreSQL notices, exact published-commit license repairs and MPL
+covered source. Complete file SHA-256/link inventories bind installation and
+same-bundle recovery. Existing stages, profiles and credentials are preserved.
+The app installer verifies architecture/runtime/inventory before staging,
+publishes a complete app atomically, and resumes matching entries while refusing
+changed/human files. The privileged installer admits a user/UID/content manifest
+before publishing helpers/services, adopts only exact partial files, serializes
+activation and verifies the distribution before host writes. Unknown upgrades
+remain unavailable pending Q28's retained-run protocol.
+
+Evidence lives in `/home/vince/Projects/q25-package/`: official checksummed Go
+1.27.3/Bun 1.4.4/PostgreSQL 18.6 inputs, stable Rust 1.99.1, completed PostgreSQL
+source build, `build-release.log`, `notices-release.log`, `stage-release` (engine
+`90bde70cbf78d3dddd34d725e220b6cf874dd33e` and captured dirty packaging paths),
+`install-recovery.log`, `execution-recovery.log`, `execution-host.log`,
+`typecheck-final2.log` and `boundaries-final.log`. Actual app-copy SIGKILL,
+post-publication failure/resume, corrupted-bundle, unknown-file and lock refusal
+passed. Actual execution-file publication SIGKILL/resume, changed service and
+lock refusal passed. The verified bundle's real `/etc/systemd/system` services
+are installed for vince/1000; broker socket is enabled/active and repeat install
+passed on Rocky 10.2 x86_64. No temporary fixture service remains installed.
+
+This checkpoint qualifies its changed packaging/recovery boundary, not full Q25,
+the host matrix, installed app/provider journeys, updater or broad security gates.
+Next: actual installed app launch/lifecycle and remaining host qualification;
+subsequent native Retry fixes require a fresh package before installed delivery.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
