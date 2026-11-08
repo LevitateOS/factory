@@ -22,6 +22,8 @@ Audited revisions:
 The later consolidation brought Factory's implementation history and the four
 existing Daybreak commits through `0c0db8f` into canonical Factory main. Those
 Daybreak changes were not newly qualified by this audit or consolidation. The
+six uncommitted Daybreak reviewer-permission changes are also preserved in main
+as uncommitted work; their connected read-only-role check remains pending. The
 original main-checkout plan edit remains uncommitted: its T06-CONNECT `Active`
 status overrides the incoming committed `Complete` status, and its original
 appended note is preserved verbatim.
