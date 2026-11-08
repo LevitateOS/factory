@@ -93,6 +93,13 @@ checks. The final pass must report any unresolved decision and whether it blocks
 a selected requirement. Likewise, preserve the human CONNECT history while
 recording any newly proved current conclusion separately.
 
+**Owner deferral (2026-11-08):** standalone Factory work does not require a
+running SodaOS appliance. Shared Project stop/start qualification moves from
+Q09 to Q24; do not start or rebuild an appliance to finish Q09. Once Q09's
+remaining standalone requirements pass, this deferred appliance check does not
+block Q10. Its evidence and broader gates remain pending in Q24. Implementation
+is currently paused at the owner's request.
+
 | Prompt | Ordinary completion scope | Existing requirement | Status |
 | --- | --- | --- | --- |
 | [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
@@ -346,15 +353,16 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 Active: admitted native pause/stop, resume, queued retry, Muse takeover and
 retained failed/successful/cancelled recovery now pass their scoped checks,
 including active-service/incomplete-receipt refusal. Shared Project lifecycle
-and the remaining ordinary interrupted-effect/source-withdrawal journey are
-still pending. [Evidence and limits](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery).
+qualification is deferred to Q24 by the owner; the remaining standalone
+interrupted-effect/source-withdrawal journey still needs its completion review.
+[Evidence and limits](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery).
 
 ```text
 Implement Q09 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 
 First verify D1–D8 and Q01–Q08 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
 
-Finish actual pause/resume/stop/retry/takeover/project-stop behavior on admitted workers. Prove exact receipts, current repository/account authority, missing/stale recovery refusal, source/role withdrawal while another source remains usable, cancellation, exact stop-based accounting and process/root/custody retirement. Complete interrupted launch/write/lost-reply, active-service/incomplete-receipt, candidate/outcome and crash/reboot recovery through the existing journals; include actual correction, not a fixture-supplied terminal result. Historical unsealed/unknown sends remain fenced without invented intent or replay. Keep unsupported token-task execution unavailable. Close only those parent execution gates whose full ordinary evidence is now present; installed recovery remains later.
+Finish actual standalone pause/resume/stop/retry/takeover behavior on admitted workers. Shared appliance Project stop/start is explicitly deferred to Q24 and is not a prerequisite for this piece. Prove exact receipts, current repository/account authority, missing/stale recovery refusal, source/role withdrawal while another source remains usable, cancellation, exact stop-based accounting and process/root/custody retirement. Complete interrupted launch/write/lost-reply, active-service/incomplete-receipt, candidate/outcome and crash/reboot recovery through the existing journals; include actual correction, not a fixture-supplied terminal result. Historical unsealed/unknown sends remain fenced without invented intent or replay. Keep unsupported token-task execution unavailable. Close only those parent execution gates whose full ordinary evidence is now present; installed recovery remains later.
 
 Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
 ```
@@ -558,6 +566,11 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q24"></a>
 
 ### Q24 — Installed Fountain appliance/Forge journey
+
+Includes the owner-deferred shared Project stop/start qualification from Q09:
+actual admitted workers, current authority, dispatch withdrawal, maintenance
+hold, host service stop, retirement/accounting and verified restart. Keep this
+pending until a current appliance is available; the old `soda` target is retired.
 
 ```text
 Implement Q24 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.

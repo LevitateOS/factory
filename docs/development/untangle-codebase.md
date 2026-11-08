@@ -1436,14 +1436,23 @@ receipt incomplete, restart kept execution fenced, product/database health
 available, original run unchanged and reservation held; resuming that exact
 service then recovered the cancelled outcome (`q09-active-loss{,-fenced,-recovered}.log`).
 
-Q09 remains **INCOMPLETE/Active**. Shared Project stop/start belongs to
+Q09 remains **INCOMPLETE**, with implementation paused by the owner. Shared
+Project stop/start belongs to
 `/home/vince/Projects/sodaos/internal/web/api/lifecycle.go`, through Factory's
 existing Project service; passing a desktop workspace to that appliance API
-correctly refused (`q09-controls-project-stop.log`). Its actual admitted-worker
-journey and the remaining ordinary source/role withdrawal and interrupted-effect
-coverage must be completed before Q10. The owner authorized supplying the owning
-integration rather than requiring them to locate it. Installed/reboot variants,
-historical unknown sends and all 13 security gates retain their prior open scope.
+correctly refused (`q09-controls-project-stop.log`). Its consumer binding was
+verified in SodaOS `e931481ab52922f20c9e21b4f512be3537fbc369` (production builds,
+existing PostgreSQL lifecycle and retained metadata checks); this did not move
+Factory's engine back into SodaOS or qualify a real shared-service stop.
+
+The owner confirmed the old `soda` appliance was retired, then explicitly
+deferred this appliance work on 2026-11-08. Actual shared Project stop/start now
+belongs to Q24 and does not block Q09's standalone completion or subsequent
+standalone pieces. Do not start/rebuild SodaOS for Q09. The remaining standalone
+source/role withdrawal and interrupted-effect coverage still needs its completion
+review; retain the uncommitted check changes and their evidence. Installed/reboot
+variants, historical unknown sends and all 13 security gates retain their prior
+open scope. No Factory or security completion is claimed.
 
 ## Verification and completion
 
