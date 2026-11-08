@@ -9,6 +9,18 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
+**Current snapshot (2026-11-08, Factory `feaa292`):** 22 queue entries remain:
+Q09 is partly complete, Q10–Q29 are pending, and Q30 is the finalization pass.
+All 13 broad security gates remain open. The ordered goal is **paused**; this
+document update does not resume implementation. The working tree was cleaned
+after the verified correction increment; unrelated work is preserved in the
+stash identified under [Q10](#q10).
+
+Jump to the [remaining checklist](#remaining-checklist),
+[open security gates](#security-closure-coverage),
+[deferrals and decisions](#retained-uncertainty-and-decisions), or
+[finalization prompt](#q30).
+
 Read the [owner decisions and findings](standalone-assumptions-audit.md),
 [selected language allocation](language-allocation.md),
 [current security handoff](daybreak-security-handoff.md) and
@@ -26,13 +38,26 @@ source/component scope; Q03 is Complete within its configuration/admission scope
 Q04 is Complete within local placement scope; Q05 is Complete within ordinary
 boundary admission scope; Q06 is Complete within ordinary preparation scope;
 Q07 is Complete within ordinary native onboarding scope; Q08 is Complete within
-ordinary native planning/execution scope. Q09 is Active.
-Continue to each following prompt only after its earlier ordinary
-prerequisites are verified complete, under the owner's standing goal authorization.
-Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
-updates; the retained Muse typed-result failure remains pending in its dependent
-prompt. The historical CONNECT row/note stay verbatim, with the unavailable crash
-cause unknown under the owner's Q01 clarification. Take the ordered prerequisite
+ordinary native planning/execution scope. Redesign D1–D8 is complete within its
+recorded scope, including the canonical Fountain ownership/gateway references.
+These are completed prerequisites, not work to repeat merely because broader
+milestones remain open.
+
+**When resumed, start with Q09's interrupted-launch completion review.** Native
+controls, withdrawal, lost workspace reply, actual correction and retained
+reopen now have evidence; determine the exact remaining launch/lost-initial-reply
+gap before changing code or repeating a check. The latest correction is
+`feaa292`; [its evidence and limits](../untangle-codebase.md#q09-native-correction-and-retained-reopen)
+do not qualify a live provider review or installed recovery. Q10 comes next,
+after Q09's ordinary scope closes. Q30 remains the finalization pass.
+
+Continue to each following prompt only after its earlier ordinary prerequisites
+are verified complete and the owner resumes the ordered goal. Q02 owns current
+inputs and provider-tool updates. The owner accepted Q08's current live checks
+while retaining the original encoding cause as unknown; reconstructing that
+unavailable historical cause is no longer a prerequisite. The historical CONNECT
+row/note stay verbatim, with its unavailable crash cause also unknown under the
+owner's Q01 clarification. Take the ordered prerequisite
 journeys one at a time. A historical Complete row does not remove
 an open qualification requirement. Do not replay successful checks without a
 specific unresolved risk.
@@ -50,14 +75,16 @@ single-Builder model and existing bounded journals/cancellation/retirement.
 
 ## Sequential non-Daybreak execution queue
 
-The owner's goal authorizes sequential execution starting at Q01. The copy-ready
-blocks remain usable as individual requests. Every prompt rechecks all
+The owner started an ordered goal and subsequently paused it. On explicit
+resumption, use the remaining checklist below in order. The copy-ready blocks
+remain usable as individual requests. Every prompt rechecks all
 earlier pieces and repairs the earliest incomplete prerequisite before its own
 scope. Reuse exact retained evidence when source/inputs still support its claim;
 a status label, a commit alone or an isolated component pass is not completion.
-Finish and commit each piece before continuing to the next. This latest owner
-instruction supersedes the blocks' original per-request stop instruction; stop
-the sequence at a genuine blocker and do not skip unmet prerequisites.
+Finish and commit each piece before continuing to the next. Within a resumed
+ordered run, the standing sequential instruction supersedes the blocks' original
+per-request stop instruction; stop at a genuine blocker and do not skip unmet
+prerequisites. Documentation maintenance does not resume that run.
 
 These Q labels divide the existing A/T outcomes into executable scopes. They do
 not replace or silently close the original milestones. Early scopes such as
@@ -100,38 +127,45 @@ remaining standalone requirements pass, this deferred appliance check does not
 block Q10. Its evidence and broader gates remain pending in Q24. The ordered
 goal remains paused after the bounded correction increment below.
 
-| Prompt | Ordinary completion scope | Existing requirement | Status |
-| --- | --- | --- | --- |
-| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
-| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Complete (source/component scope) |
-| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Complete (configuration/admission scope) |
-| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Complete (local placement scope) |
-| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Complete (ordinary boundary admission scope) |
-| [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Complete (ordinary preparation scope) |
-| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Complete (ordinary native onboarding scope) |
-| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Complete |
-| [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Active |
-| [Q10](#q10) | Connected GitHub permissions and remote revocation | T06-GITHUB; A14; custody and pending reviewer work | Pending |
-| [Q11](#q11) | Connected CI, provider rules and merge contracts | A04/A07; T06-GITHUB rules/CI qualification | Pending |
-| [Q12](#q12) | Judgment owner and planning/worker consumers | A25; Feed/planning/context/consultation | Pending |
-| [Q13](#q13) | Contribution invitations and queue preference | A25; contribution and priority consumers | Pending |
-| [Q14](#q14) | Feed authoring, conditional refinement and graph delivery | A05/A21/A25 | Pending |
-| [Q15](#q15) | Complete connected GitHub delivery and correction | A04/A05/A07/A21/A25; integrated T09-EXECUTION consumer | Pending |
-| [Q16](#q16) | GitHub automatic own-issue intake | T11-INTAKE; security D1 | Pending |
-| [Q17](#q17) | GitHub external PR adoption | T12-GITHUB-PRS | Pending |
-| [Q18](#q18) | Fountain configured-host login and grant lifecycle | T10-GATEWAY; authentication/grant part of security D2 | Pending |
-| [Q19](#q19) | Fountain placement and authenticated operations | T10-GATEWAY; remote T12-PLACEMENT | Pending |
-| [Q20](#q20) | Fountain issue-only collaborator capability | security D5; issue-only host parity | Pending |
-| [Q21](#q21) | Fountain candidate transfer and conditional publication | T10-PUBLISH | Pending |
-| [Q22](#q22) | Fountain automatic issue intake | T10-INTAKE | Pending |
-| [Q23](#q23) | Fountain external PR adoption | T12-FOUNTAIN-PRS | Pending |
-| [Q24](#q24) | Installed Fountain appliance/Forge journey | T13-FORGE; A24 | Pending |
-| [Q25](#q25) | Fresh Linux distribution and installers | T14-PACKAGE; A18/A22 | Pending |
-| [Q26](#q26) | Installed GitHub desktop product journey | T13-GITHUB; installed A01/A11/A12–A21 | Pending |
-| [Q27](#q27) | Installed Fountain desktop product journey | T13-FOUNTAIN; installed security D2/D5 | Pending |
-| [Q28](#q28) | Retained upgrade, interrupted recovery and updates | T14-UPGRADE; A16/A18/A20 | Pending |
-| [Q29](#q29) | Installed shared-component and host parity | T14-PARITY; A24 | Pending |
-| [Q30](#q30) | Full finalization of non-Daybreak Factory work | all remaining ordinary work; final pass | Pending |
+### Remaining checklist
+
+Each link opens its separate copy-ready prompt in this same document. Q01–Q08
+completion records follow the checklist; the requirement/qualification mapping
+and all security gates follow the prompts. A pending row may already have
+implemented components: finish its stated journey, not a replacement subsystem.
+
+| Piece | What is still needed | Status |
+| --- | --- | --- |
+| [Q09 — execution recovery](#q09) | Finish the interrupted-launch/lost-initial-reply coverage review and any concrete missing ordinary recovery. Reuse the passed controls, withdrawal, lost edit reply, correction and reopen checks. | Incomplete; paused |
+| [Q10 — GitHub permissions](#q10) | Finish the saved reviewer-permission changes through real read-only UI/API denial, full action/token/role cases, remote revocation and retained observer migration; restore the fixture team's original permission. | Pending |
+| [Q11 — CI and merge rules](#q11) | Qualify real nonempty/app-bound CI, test-merge/rule races, supported merge/squash/rebase receipts, human approval/veto rules and resulting-commit preparation. | Pending |
+| [Q12 — judgments](#q12) | Connect actual selected-source inference to Feed admission, planning/advice/context and worker probability/choice/score tools; prove long input, withdrawal, exact charges and crash recovery. | Pending |
+| [Q13 — contributions and priority](#q13) | Complete contribution claim → inference → invitation/reply and same-repository queue tournaments/dispatch, including eligibility changes and exact retained charges. Keep mixed-repository funding unresolved/unavailable. | Pending |
+| [Q14 — Feed and graph authoring](#q14) | Prove real funded request → judgment → issue creation/refinement and dependency graph delivery, preserving human edits, partial completed writes and safe restart. | Pending |
+| [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
+| [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
+| [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
+| [Q18 — Fountain login](#q18) | Finish real configured-host OAuth/enrollment/refresh, old-install migration, expiry/withdrawal and concurrent reservation first-read behavior in canonical Fountain. | Pending |
+| [Q19 — Fountain authority](#q19) | Complete central runtime placement, operation grants/journals/lookups and shared views; prove expiry/withdrawal and competing-controller refusal. Read enrollment grants no execution authority. | Pending |
+| [Q20 — issue-only collaboration](#q20) | Implement the separately authorized host capability and prove real issue-only reads/writes and out-of-scope denial without requiring code read or broadening execution permission. | Pending |
+| [Q21 — Fountain publication](#q21) | Complete digest-bound candidate upload/staging and conditional branch/PR publication, exact receipts and lost-upload/write/withdrawal recovery. | Pending |
+| [Q22 — automatic Fountain issues](#q22) | Prove explicit-policy automatic issue → work → review/correction/checks → merge, exact charges and no duplicate appliance/desktop dispatch. | Pending |
+| [Q23 — external Fountain PRs](#q23) | Complete eligible external PR adoption with exact fork/head/base authority, actual workflow progression, withdrawal and retained restart. | Pending |
+| [Q24 — installed appliance](#q24) | Qualify the real installed Fountain/Forge journey and shared Project stop/start, retirement/accounting and restart. Needs a current appliance; the retired `soda` host is not a test target. | Deferred; pending |
+| [Q25 — Linux package](#q25) | Ship a fresh architecture-matching app/runtime/provider bundle with notices, integrity and supported single-user systemd host checks; prove safe/interrupted install without developer tools. | Pending |
+| [Q26 — installed GitHub app](#q26) | Prove the installed full GitHub journey, real keyboard/UI, consent/revocation, execution retry, Quit/restart/wake and installed custody/recovery. | Pending |
+| [Q27 — installed Fountain app](#q27) | Prove installed Fountain login, placement, funding, execution/upload/review/merge and external adoption, grant expiry/withdrawal and credential retirement. | Pending |
+| [Q28 — upgrades and updates](#q28) | Qualify retained old/schema-93 profiles, concurrent/interrupted migrations, pending effects and active-run-safe update/uninstall; finish installed freshness/download/status activation. | Pending |
+| [Q29 — shared UI parity](#q29) | Demonstrate the same meaningful shared presentation behavior in installed Fountain and desktop, with correct repository navigation and policy options. Reuse qualifying evidence; invent no cosmetic work. | Pending |
+| [Q30 — finalization](#q30) | Verify all prior pieces, 15 milestone outcomes, 13 security gates, cross-repository commits and fresh release inputs. Fix concrete regressions, reconcile docs/notices/update publication and preserve original uncertain outcomes. Record exact remaining blockers or justified Daybreak checks. | Pending; last |
+
+## Completed prerequisite records (Q01–Q08)
+
+These scoped completion records and original prompts explain what has already
+been done. They are not a second remaining queue. Owner clarifications and later
+completion evidence supersede historical blockers or next-step statements here;
+in particular, Q08's missing historical encoding cause was explicitly accepted
+as unknown. The current remaining checklist above governs resumption.
 
 <a id="q01"></a>
 
@@ -333,7 +367,7 @@ read, output-ready, early-finish and reused-ID cases. The original source is
 unchanged; the earlier single-task pass does not qualify sequential completion.
 The owner accepted these current checks with the historical string payload's
 producer-side cause explicitly unknown. No historical encoding fix is claimed.
-Q09 is Active; Q10–Q30 and installed/security qualifications remain pending. See the
+Q09 is incomplete and paused; Q10–Q30 and installed/security qualifications remain pending. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 ```text
@@ -346,11 +380,13 @@ Trace the original string-versus-object finish failure from retained native/MCP/
 Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
 ```
 
+## Remaining work prompts (Q09–Q30)
+
 <a id="q09"></a>
 
 ### Q09 — Live work controls, source withdrawal and recovery
 
-Active: admitted native pause/stop, resume, queued retry, Muse takeover and
+Incomplete (ordered goal paused): admitted native pause/stop, resume, queued retry, Muse takeover and
 retained failed/successful/cancelled recovery now pass their scoped checks,
 including active-service/incomplete-receipt refusal. Shared Project lifecycle
 qualification is deferred to Q24 by the owner; the remaining standalone
@@ -371,6 +407,14 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q10"></a>
 
 ### Q10 — Connected GitHub permissions and remote revocation
+
+The six reviewer-permission edits are preserved in stash object
+`56669001735070eec7e9b381e6ac9e08ad3e3d4c` (currently `stash@{0}`), created after
+`feaa292`. It also contains an unrelated README edit. For Q10, inspect and restore
+only the six paths named in the [pending permission evidence](daybreak-security-handoff.md#preserved-pending-reviewer-permission-work)
+against the then-current base; preserve the stash and unrelated README work.
+The edits have not passed their required connected read-only journey. They were
+saved to make the tree clean, not discarded or certified complete.
 
 ```text
 Implement Q10 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
@@ -669,24 +713,25 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ## Unfinished integration and qualification
 
-All entries below are Pending unless explicitly marked unresolved. They expand
-the existing A/T requirements into the remaining journeys; they are not new
-architecture or a second set of milestone IDs. The evidence links identify what
-already passed and must not be rebuilt or requalified without a concrete reason.
+The rows below map existing A/T requirements to the current Q queue. Completed
+source/native scopes are identified explicitly; only the named remaining
+journeys are pending. These are not new architecture or a second queue. Reuse
+recorded checks unless a changed boundary or specific unresolved risk requires
+another run.
 
 | Existing work | Remaining outcome and completion evidence | Dependency / existing evidence |
 | --- | --- | --- |
 | T06-CONNECT; A12–A15 — current desktop session | Q01 source/native session scope is complete with current diagnostics; historical crash cause remains unknown under the owner's clarification. Qualify real installed sign-in/startup/Quit, restart and sleep/wake in Q26/Q27. | Historical status conflict remains verbatim; current Q01 completion is separate. [Q01 evidence](../untangle-codebase.md#q01-completion-current-native-session-2026-11-08), [desktop/IPC gate](daybreak-security-handoff.md#current-gates-owners-and-closure-evidence), [human note](#preserved-human-status-conflict). |
-| A01/A19; T09-EXECUTION — Muse typed planning and task results | Trace the string-versus-object finish failure from original native/MCP/CLI bytes; fix its actual owner and prove accepted typed planning, public Builder advancement, implementation/final checks, candidate, exact-source accounting and retained restart without inference replay. Qualify real correction, admitted cancellation and incomplete/active-service receipt recovery. Retain all original failed runs; final text never substitutes for an accepted result. | **Blocking full pipeline.** Latest run `518ab9643f2a381dd81b4814df003979` at `/home/vince/tmp/fmuse-ready-admission8.z4gCPL/`; [current blocker](daybreak-security-handoff.md#current-product-blockers-and-scoped-evidence), [A19 findings](standalone-assumptions-audit.md#a19--cli-integration-includes-a-second-provider-wire-policy-implementation). Reuse existing login; no source switch or weaker schema. |
-| A21/A05 — real onboarding and accepted inputs | Prove the actual connected setup/source-selection/approval/role-preparation path; current account, placement and approval withdrawal during I/O; changed-source consent; native preparation restart/reactivation; nonempty comments/dependencies and hidden/stale acceptance inputs. Qualify maximum source/resource bounds, selected-file aggregation, merged-source refresh and browser/native/installed pending-approval recovery without replay. Approval alone remains unverified until real check receipts exist. | Required before dependent planning/delivery. [Setup scope/evidence](daybreak-security-handoff.md#current-product-blockers-and-scoped-evidence), [A21 remaining work](standalone-assumptions-audit.md#a21--check-fixtures-can-satisfy-prerequisites-that-a-user-cannot-reach). |
-| A11/A01 — role funding and source lifecycle | Qualify connected enablement, actual coder/reviewer use of independently selected sources, current grant/allowance/role checks, withdrawal during admission/execution, exact original-source charges and refusal without fallback. Prove reviewer/tool confinement and retained active-service/incomplete-receipt recovery. Keep unsupported token-task execution unavailable; its missing task owner/early-stop receipt is not CLI-lane parity. | Before paid/admitted consumers; [verified corrections](standalone-assumptions-audit.md#verified-corrections), security D3 rows below. Only Muse is currently offered; additional providers need explicit scope, not an inferred requirement. |
+| A01/A19; T09-EXECUTION — Muse typed planning and task results | Q08's live typed plan/two-task Builder, candidate/accounting/reopen passed. Q09's local native correction, cancellation and active-service/incomplete-receipt cases passed; interrupted-launch completion review remains. Finish actual connected model/review/publication composition in Q15 and installed recovery in Q26–Q28. Retain original failed runs and the historical encoding cause as unknown under the owner's clarification. | [Q08 evidence](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08), [latest Q09 correction](../untangle-codebase.md#q09-native-correction-and-retained-reopen). The older `518ab9643f2a381dd81b4814df003979` failure is retained history, not the current typed-plan blocker. No source switch or weaker schema. |
+| A21/A05 — real onboarding and accepted inputs | Q07's ordinary native setup, source bounds, comment/dependency acceptance, hidden/stale refusal and pending-consent recovery passed. Remaining: compose these inputs with actual authoring/delivery in Q14/Q15, merged-result preparation in Q11/Q15 and installed/browser recovery boundaries in Q26–Q28. Approval alone never substitutes for real preparation receipts. | [Q07 completion](#q07), [setup evidence](../untangle-codebase.md#q07-completion-connected-accepted-inputs-2026-11-08). Retain explicit refusal for legacy recovery lacking provenance. |
+| A11/A01 — role funding and source lifecycle | Q03 configuration/admission and Q09 local source/role withdrawal/accounting now have evidence. Finish connected independently selected coder/reviewer sources, real model/tool confinement and paid consumer races in Q12/Q13/Q15; qualify installed lifecycle in Q26–Q28. Keep unsupported token-task execution unavailable; its missing task owner/early-stop receipt is not CLI-lane parity. | [Q03](#q03), [Q09](#q09) and security gates 7–11 below. Only Muse is currently offered; additional providers need explicit scope, not an inferred requirement. |
 | A25 — judgment consumers and funding | Qualify real Feed admission, complete planning/advice/context-bundle selection, authenticated worker probability/choice/score consultation, contribution claim -> inference -> invitation/reply, same-repository queue tournaments and complete delivery judgment -> funded receipt/acceptance -> resolution/merge. Prove current source/policy/eligibility/withdrawal races, abrupt-crash recovery, long-input production Begin and installed accounting/replay. | Configuration, one real tool-free judgment and declared consumer cases already passed: [A25 correction/evidence](standalone-assumptions-audit.md#verified-corrections). **Mixed-repository tournament funding is unresolved**; remain unavailable until the owner decides. No mandatory TypeSafe/provider fallback. |
 | A05/A21 — Feed authoring, refinement and graph | Finish connected/installed request -> judgment -> original issue creation and conditional refinement, with captured account/source, additional created slots, concurrent human edits, source edits/expiry and unknown-send recovery. Qualify native graph generation/delivery and funded prepared planning; retain exact creation/edit commands and human content. | A25 and current account/setup before dependent paid work; [Feed/planning corrections](standalone-assumptions-audit.md#verified-corrections). Declared native create/edit/restart checks do not prove real inference or provider authoring. |
-| T06-GITHUB; A14 — permissions, revocation and rules | Finish real provider-side revocation/refusal, retained Go-observer consumer migration, complete action/token/role matrix and current branch/check policy races. Qualify nonempty/app-bound checks, test-merge evaluation and required-check changes. Finish the retained read-only reviewer case with effective read permission, real WebKit UI, POST 403/exact-command GET 404, normal PR readback, local withdrawal and original team permission restored. | CONNECT evidence before new consent. Six pre-existing reviewer files remain uncommitted/unverified for this live case. [Exact pending check and fixture](daybreak-security-handoff.md#preserved-pending-reviewer-permission-work); security gates 1/3 below. |
-| A05/A15; T09-EXECUTION — live work controls | Qualify pause/resume/stop/retry/takeover and project stop against actual admitted workers, with exact command receipts, current account/repository authority, source accounting and process/custody settlement. Prove cancellation, stale/missing recovery targets, withdrawal and retained restart; keep each affected action explicitly unavailable when its adapter is not admitted. | Composed read/pause and shared-refresh checks passed in redesign D1/D2; [implementation/evidence](../untangle-codebase.md). Those checks do not qualify live worker control or its installed lifecycle. |
+| T06-GITHUB; A14 — permissions, revocation and rules | Finish real provider-side revocation/refusal, retained Go-observer consumer migration, complete action/token/role matrix and current branch/check policy races. Qualify nonempty/app-bound checks, test-merge evaluation and required-check changes. Finish the retained read-only reviewer case with effective read permission, real WebKit UI, POST 403/exact-command GET 404, normal PR readback, local withdrawal and original team permission restored. | Q10/Q11; CONNECT evidence before new consent. Six reviewer files are saved, still unverified for this live case, in the [Q10 stash](#q10). [Exact pending check and fixture](daybreak-security-handoff.md#preserved-pending-reviewer-permission-work); security gates 1/3 below. |
+| A05/A15; T09-EXECUTION — live work controls | Q09's ordinary admitted pause/resume/stop/retry/takeover, withdrawal, current authority, stop accounting and retained recovery now pass their scoped checks. Finish the remaining interrupted-launch review in Q09; qualify shared Project stop/start in deferred Q24 and installed lifecycle in Q26–Q28. Keep actions explicitly unavailable when their adapters are missing. | [Q09 controls](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery), [withdrawal/lost reply](../untangle-codebase.md#q09-active-withdrawal-lost-write-reply-and-historical-fencing). No retired appliance access or rebuild is required to finish standalone Q09. |
 | A04/A05/A07; T09-EXECUTION — complete delivery/review/CI/merge | Compose actual plan/Builder/reviewer/CI/publication/correction/merge phases without fixture-supplied advancement, model verdicts or synthetic CI. Qualify enabled merge/squash/rebase, exact candidate versus resulting commit and next-Builder preparation; actual provider approval/human-veto rules, pending reviews/inline findings, changed head/base/PR target/repository identity, permission withdrawal and interrupted/expired sends/first adoption. Finish definitive no-send retry generations and fresh authorization after expiry without renewing old authority or rerunning a model. | A01/A19, A21, A11/A25, admitted T09 execution and placement. Connected publication/COMMENT/merge components already exist; [A04/A07/A21 evidence](standalone-assumptions-audit.md#verified-corrections). Unsupported complex rules stay unavailable. Security D1/D3 remain open. |
-| A17 — representative setup, network and resource recovery | Qualify larger representative cold builds and supported lifecycle-script/dependency behavior, saturation/low-space refusal, same-run replacement/waiter races, overlapping preparation/restart and snapshot cancellation. Resolve retained public-artifact HTTP refusals; prove network interruption/DNS/address/limit handling, bounded storage/memory and exact cleanup over lost replies and installed runs. Keep private registries unavailable unless separately admitted under the custody policy. | Ordinary preparation scope passed in [Q06](#q06); installed/lost-outcome qualification remains Q09/Q26–Q28. Small cold Node/Bun/Go/Rust provisioning and offline prepared rechecks already passed; [A17 evidence](standalone-assumptions-audit.md#verified-corrections). Keep actual supported ceilings explicit; do not re-list ordinary Go/Rust provisioning as absent. Broad security D3 still open. |
-| A16/A18; T14-UPGRADE — freshness and update delivery | Finish provider sign-in/onboarding, interrupted downloads, release-change/active-run races, actual five-minute discovery/pre-work refresh cadence and installed update/status failure UX. New work must select current verified official bytes while running work retains captured executables. Supply missing automatic freshness coverage and owning activation paths for Factory-managed dependencies, tools, SDKs/build inputs, PostgreSQL and app updates. Recheck current official metadata before a new qualification/promotion. | [Mandatory freshness requirements](../freshness.md), [A16/A18 evidence](standalone-assumptions-audit.md#verified-corrections). Existing Muse acquisition/cache/status proof is not installed updater or other-dependency coverage. Preserve launcher/login and still-referenced artifacts. |
+| A17 — representative setup, network and resource recovery | Q06's ordinary larger builds, public/offline/DNS/download limits, capacity/waiter races, overlapping transfer/reopen and snapshot cancellation passed. Qualify these boundaries in the supported installed environment, including resource ceilings, low-space/network interruption and exact cleanup after lost outcomes, in Q25–Q28. Preserve historical refused/unknown captures; do not infer their outcome. Keep private registries unavailable unless separately admitted. | [Q06](#q06), Q09 recovery and [A17 evidence](standalone-assumptions-audit.md#verified-corrections). Do not re-list ordinary Go/Rust provisioning as absent. Broad security D3 still open. |
+| A16/A18; T14-UPGRADE — freshness and update delivery | Q02's source/native sign-in/reopen, interrupted acquisition, release/active-run selection and real five-minute refresh passed. Remaining: publish/activate configured dependency jobs, qualify installed download/status/update activation and deliver updates through the actual owners of dependencies, SDKs, PostgreSQL and app payloads. Recheck official current inputs before new qualification/promotion while running work retains captured bytes. | Q25/Q28/Q30; [mandatory freshness requirements](../freshness.md), [Q02](#q02). Local job configuration is not deployed automation; cached/source proof is not installed updater qualification. Preserve launcher/login and still-referenced artifacts. |
 | A20; T14-UPGRADE — retained schemas and recovery | Qualify older upgrades, retained schema-93 composition, concurrent/interrupted migration and installed reopen with all existing profile data, credentials and pending effects intact. Preserve known-prior/current/unknown refusal and exact journal/receipt identities; historical unscoped writing gains no inferred authority. | Standalone schema separation and redesign D3 constraint upgrade/reopen checks already passed; [A20 evidence](standalone-assumptions-audit.md#verified-corrections), [redesign record](../untangle-codebase.md). Wider migration qualification is pending. |
 | T10-GATEWAY; security D2/D5 — Fountain host work | Finish configured-host desktop OAuth/refresh and old-install grant migration, withdrawal/expiry races and reservation first-read concurrency; central placement, operation grants/journals, candidate transfer/publication and automatic intake follow the milestone dependencies. Separately implement/qualify authorized issue-only collaborator capability and denial outside scope. Qualify selected-workspace navigation/policy options and shared host behavior. | Work in canonical Fountain/Forge owners. [Retained exact source/commits](fountain-gateway-review/README.md), [D2 and D5 closure](daybreak-security-handoff.md#current-gates-owners-and-closure-evidence). Existing read-only gateway/TLS/keyring proof grants no execution or publication authority. |
 | A18/A22/A24; T14/T13 — release, installation and parity | Finish fresh architecture-matching payload/runtime/notices/distribution integrity and supported single-user systemd host matrix; actual installed desktop/provider journeys; interrupted install and retained-run-safe update/uninstall. Qualify shared navigation/components in Fountain and desktop, production keyboard/UI and physical execution-retry behavior, install/restart/wake, crash/reboot and upgrade/recovery. | Detailed dependent milestones below. Existing image/per-user installers and one installed execution-boundary fixture are implemented, not an installed product release. [A18/A22/A24 evidence](standalone-assumptions-audit.md#verified-corrections). |
@@ -701,19 +746,26 @@ scope, source owners and evidence remain in the
 
 | Handoff gate | Owning remaining work | Evidence required before closure |
 | --- | --- | --- |
-| 1 — workflow/protection | T06-GITHUB; delivery/rules | Actual provider revocation/refusal, retained observer migration, complete rules/permissions and installed admission. |
-| 2 — desktop auth/IPC | T06-CONNECT; T13-GITHUB/T13-FOUNTAIN | Resolve crash/status conflict; actual installed peer/instance admission, sign-in/Quit/restart/wake and withdrawal. |
-| 3 — GitHub custody/revocation | T06-GITHUB; permissions | Remote provider revocation and installed custody/refusal, plus pending permission cases; local account removal is insufficient. |
-| 4 — security D1 automation | T11-INTAKE; T12-GITHUB-PRS | Eligible own-issue intake/polling/cursors/wake, no recursion or unauthorized spending, real full pipeline and admitted placement. |
-| 5 — security D2 Fountain | T10-GATEWAY/PUBLISH/INTAKE | Real configured-host login, migrations/revocation/expiry/custody, central placement and separately admitted operations. |
-| 6 — native recovery intent | T09-EXECUTION; A20/T14-UPGRADE | Exact sealed intent over interrupted launch/write/lost reply, atomic candidate/outcome settlement and crash/reboot/installed Quit. |
-| 7 — security D3 worker | T09-NATIVE-EXECUTOR/EXECUTION | Actual distinct UID/mount/worktree/role, file/process/keyring/session/network/quota/cross-run denial; scoped custody, bounded retirement, real finite task and durable reconciliation. |
-| 8 — reviewer/coder tools | A11/A19; T09-EXECUTION | Actual admitted model/tool allowed and denied events through trusted role policy and production execution/retirement. |
-| 9 — provider proxy | A01/A11; T09-NATIVE-EXECUTOR | Successful owner-held credentials with exact-run endpoint/network confinement, response admission, expiry/withdrawal/death/restart denial and settlement. |
-| 10 — worker MCP | A19; T09-EXECUTION | Real provider Factory-tool task with canonical capability/current-work/role/backend/instance checks, expiry/revocation, no root/IPC/provider secrets in worker and recovered outcome. |
-| 11 — MCP signer custody | T09-NATIVE-EXECUTOR/EXECUTION | Actual isolated worker delivery/current-state refusal, key rotation/restart and root-key absence from Go/UI/logs; no same-UID IPC authority leakage. |
-| 12 — other native boundaries | Every activated broker/worker/desktop/HTTP/IPC/grant path | Actual authenticated instance/profile/run/resource binding, foreign/stale refusal, cancellation/retirement and secret-free observations. |
-| 13 — security D5 issue-only parity | Fountain capability; T13-FORGE/T13-FOUNTAIN | Separately authorized host capability with actual issue-only reads/writes and out-of-scope denial. |
+| 1 — workflow/protection | Q10/Q11/Q15/Q26; T06-GITHUB | Actual provider revocation/refusal, retained observer migration, complete rules/permissions and installed admission. |
+| 2 — desktop auth/IPC | Q26–Q28; T06-CONNECT/T13 | Actual installed peer/instance admission, sign-in/Quit/restart/wake and withdrawal. Reuse Q01; retain the accepted unknown historical crash cause and human status conflict. |
+| 3 — GitHub custody/revocation | Q10/Q26/Q28; T06-GITHUB | Remote provider revocation and installed custody/refusal, plus pending permission cases; local account removal is insufficient. |
+| 4 — security D1 automation | Q15–Q17/Q26; T11-INTAKE/T12-GITHUB-PRS | Eligible own-issue intake/polling/cursors/wake, no recursion or unauthorized spending, real full pipeline and admitted placement. |
+| 5 — security D2 Fountain | Q18/Q19/Q21–Q24/Q27/Q28; T10 | Real configured-host login, migrations/revocation/expiry/custody, central placement and separately admitted operations. |
+| 6 — native recovery intent | Q09/Q15/Q24/Q26–Q28; T09/A20 | Finish interrupted-launch review; qualify exact sealed intent, atomic candidate/outcome settlement and worker/owner crash/reboot/installed Quit. Reuse passed lost-write-reply, correction and reopen checks. |
+| 7 — security D3 worker | Q09/Q15/Q24–Q28; T09 | Complete production/installed evidence for distinct UID/mount/worktree/role, file/process/keyring/session/network/quota/cross-run denial, scoped custody, bounded retirement, real finite task and durable reconciliation. Reuse Q05/Q06/Q08/Q09 within their recorded scope. |
+| 8 — reviewer/coder tools | Q15/Q26/Q27; A11/A19/T09 | Actual admitted model/tool allowed and denied events through trusted role policy and production execution/retirement. A finite local reviewer fixture is not live provider review proof. |
+| 9 — provider proxy | Q15/Q26–Q28; A01/A11/T09 | Successful owner-held credentials with exact-run endpoint/network confinement, response admission, expiry/withdrawal/death/restart denial and settlement. Unsupported token-task execution stays unavailable. |
+| 10 — worker MCP | Q09/Q15/Q26–Q28; A19/T09 | Complete provider-tool/current-work/role/backend/instance admission, expiry/revocation, no root/IPC/provider secrets in worker and recovered outcome, including installed recovery. Reuse Q08's live task evidence without promoting it to whole-gate closure. |
+| 11 — MCP signer custody | Q09/Q15/Q26–Q28; T09 | Actual isolated worker delivery/current-state refusal, key rotation/restart and root-key absence from Go/UI/logs; no same-UID IPC authority leakage. |
+| 12 — other native boundaries | Q10/Q18–Q21/Q24–Q28; every activated path | Actual authenticated instance/profile/run/resource binding, foreign/stale refusal, cancellation/retirement and secret-free observations at broker/worker/desktop/HTTP/IPC/grant boundaries. |
+| 13 — security D5 issue-only parity | Q20/Q24/Q27; Fountain capability/T13 | Separately authorized host capability with actual issue-only reads/writes and out-of-scope denial. |
+
+Ordinary implementation and qualification for these gates stays in the Q queue.
+Any exact hacking-like check must be named, justified and left for a user-started
+Daybreak session; the gate stays open until that evidence exists. There is no
+blanket transfer of these 13 gates to Daybreak. Q30 must enumerate any remaining
+such checks and distinguish them from unfinished ordinary work before reporting
+READY FOR DAYBREAK.
 
 ## Retained uncertainty and decisions
 
@@ -726,14 +778,27 @@ otherwise keep the explicit needs-intervention/indeterminate outcome. This
 includes the protected-branch command and two Free-plan team requests, earlier
 publication/launch attempts and blocked Muse runs.
 
-Two decisions remain unresolved: the CONNECT status conflict and funding for
-mixed-repository judgment tournaments. Existing owner decisions already settle
-local control, the full pipeline, Muse session reuse and single-account agent
-inspection; do not reopen them. Missing authorized credentials/host capabilities
-or actual channel evidence are specific blockers, not permission to substitute
-fixture qualification. Retain all current edits, profiles, keyrings, worktrees,
-ignored artifacts and evidence. No broad refactor, new provider framework or
-replacement test system is needed to use this list.
+The retained command cases include protected-branch command
+`3023a7d539af47ac9a7253d51165c186` and Free-plan team commands
+`3563790745944bdba7991a168752a014` and `a7ed6e3aa27448539b46b515477e8546`.
+They retain indeterminate/needs-intervention state and no causal receipt; the
+handoff records their exact profiles. Q09 also preserves the original Q05/Q06
+unknown runs fenced. Current successful checks do not retroactively settle them.
+
+| Open record or dependency | Required handling |
+| --- | --- |
+| Mixed-repository judgment tournament funding | Owner decision remains unresolved. Keep it explicitly unavailable; Q13 qualifies same-repository funding without selecting a payer for mixed work. |
+| Human CONNECT status conflict | Preserve the original Active row/note verbatim. Current Q01 source/native completion is a separate fact; Q30 reconciles current reporting without rewriting that history. |
+| Historical pre-consent crash and Muse encoding causes | Both remain unknown under the owner's accepted current-evidence closures. Do not turn missing original logs into new prerequisites or claim the old cause was diagnosed. |
+| Shared Project lifecycle / current appliance | Deferred to Q24. No replacement appliance is available now; do not contact retired `soda`, start/rebuild SodaOS or require it for Q09's standalone closure. If still unavailable when Q24 is reached, report that exact blocker. |
+| Actual provider/host permissions and installed environments | Obtain the authorized real fixtures/capabilities when their owning Q piece is reached. Missing authority blocks the affected journey; simulated facts cannot qualify it. |
+| Dependency-job publication and release delivery | Current source configuration still needs actual default-branch activation and owning release/update delivery in Q25/Q28/Q30. A local commit is not a published workflow or installed update. |
+
+Existing owner decisions already settle local control, the full pipeline, Muse
+session reuse and single-account agent inspection; do not reopen them. Retain
+saved unrelated edits, profiles, keyrings, worktrees, ignored artifacts and all
+evidence. No broad refactor, provider framework or replacement test system is
+needed to use this list.
 
 ## Frozen requirements and evidence
 
@@ -743,6 +808,13 @@ security handoff in `docs/development/factory-products/`, plus
 `docs/development/freshness.md` and `docs/development/untangle-codebase.md`.
 Those documents retain their evidence/decision roles; update this task list for
 future status/order changes. This consolidation closes no product task or gate.
+
+The complete queue immediately before this refresh, including the latest native
+correction evidence, remains in exact Git object
+`feaa292:docs/development/factory-products/implementation-tasks.md`.
+The detailed decision log at the same commit retains all Q01–Q09 increments.
+Earlier Active/Blocked/Incomplete statements there are dated history; the
+remaining checklist above is the current execution position.
 
 The complete prior plan is retained exactly in Factory Git object
 `fe40c5ef51d1f6be0b541efa1a9d8f723d7092da:docs/development/factory-products/implementation-tasks.md`.
@@ -800,8 +872,10 @@ D1/D2/D3/D5 are the historical gate IDs in the handoff, distinct from the
 completed redesign decisions D1–D8. The Linux completion boundary still includes
 all remaining rows; issue-only collaborator parity additionally requires security
 D5. An unavailable credential, host capability or authorized real fixture is a
-blocker, never permission to substitute a simulation. Keep unperformed live
-checks, the Muse typed-result failure and the read-only reviewer check pending.
+blocker, never permission to substitute a simulation. Keep unperformed live and
+installed checks and the read-only reviewer check pending. Q08's accepted current
+typed-result evidence supersedes its earlier blocker; the original failure and
+unknown cause remain preserved, not reclassified as successful.
 
 ## Preserved human status conflict
 
