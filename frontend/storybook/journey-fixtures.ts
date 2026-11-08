@@ -1,3 +1,6 @@
+import {factoryIssueDetail} from '../factory/api/work-response.js';
+import {workJourney} from '../factory/api/journey-response.js';
+import type {FactoryTransport} from '../factory/api/transport.js';
 import type {JourneyContext} from '../factory/work/journey.js';
 import type {FactoryWorkLinks} from '../factory/app/navigation.js';
 
@@ -34,32 +37,35 @@ export function journeyResponse() {
   };
 }
 
-/** A declared read peer only; no discovery, login, provider or worker calls. */
+/** Story hosts supply the same typed observation as a work-detail screen. */
 export function journeyStoryContext(state: JourneyStoryState): JourneyContext {
+  const transport: FactoryTransport = {
+    generation: `storybook-journey:${state}`,
+    assetBase: '/',
+    async request() {
+      throw Error('Journey presentation performs no reads.');
+    },
+  };
   return {
     repository: journeyRepository,
     issue: journeyIssue,
     links: journeyLinks(),
-    transport: {
-      generation: `storybook-journey:${state}`,
-      assetBase: '/',
-      async request(path, init) {
-        init?.signal?.throwIfAborted();
-        if (path !== `repositories/${journeyRepository}/factory/issues/${journeyIssue}` || init?.method !== 'GET')
-          return Response.json({error: {code: 'not_found'}}, {status: 404});
-        if (state === 'loading') {
-          const signal = init.signal;
-          if (!signal) throw Error('A read lifetime is required.');
-          return new Promise((_, reject) => {
-            signal.addEventListener('abort', () => reject(signal.reason), {once: true});
-          });
-        }
-        if (state === 'unavailable' || state === 'denied')
-          return Response.json({error: {code: state}}, {status: state === 'denied' ? 403 : 503});
-        return Response.json(
-          state === 'empty' ? {repository: journeyRepository, issue: journeyIssue} : journeyResponse()
-        );
-      },
+    transport,
+    observation: {
+      transport,
+      generation: transport.generation,
+      repository: journeyRepository,
+      issue: journeyIssue,
+      refresh: 1,
+      state: state === 'loading' ? 'loading' : state === 'unavailable' || state === 'denied' ? 'stale' : 'ready',
+      detail: factoryIssueDetail(
+        {repository: journeyRepository, issue: journeyIssue, status: {valid: true}},
+        journeyRepository,
+        journeyIssue
+      ),
+      ...(state === 'recorded'
+        ? {journey: workJourney(journeyResponse().journey, journeyRepository, journeyIssue)}
+        : {}),
     },
   };
 }

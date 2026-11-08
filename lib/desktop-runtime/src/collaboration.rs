@@ -1184,6 +1184,12 @@ async fn dispatch(
             }
             return Ok(observed);
         }
+        if matches!(&call, crate::factory_provider::port::Call::RecoveryTarget) {
+            return state
+                .work
+                .recovery_target()
+                .map_err(|_| Failure::new(503, "native_work_recovery_unavailable"));
+        }
         if let crate::factory_provider::port::Call::Recover {
             intent,
             checkout_id,

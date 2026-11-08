@@ -1,3 +1,7 @@
+import {factoryIssueDetail} from '../factory/api/work-response.js';
+import {factoryAccess} from '../factory/api/progress-response.js';
+import {workJourney} from '../factory/api/journey-response.js';
+import type {WorkObservation} from '../factory/work/observation.js';
 import type {FactoryTransport} from '../factory/api/transport.js';
 import type {FactoryAcceptanceLinks} from '../factory/app/navigation.js';
 import type {RequirementsAcceptanceContext} from '../factory/work/acceptance.js';
@@ -143,12 +147,56 @@ export function decisionStoryPeer(state: DecisionStoryState) {
     signal.throwIfAborted();
     return scope;
   };
+  let refresh = 0;
+  function observation(): WorkObservation {
+    const issue = {
+      repository: decisionRepository,
+      issue: decisionIssue,
+      status: {valid: true, ...(fullReview ? {acceptance: {id: 'd' + '1'.repeat(24)}} : {})},
+    };
+    return {
+      transport,
+      generation,
+      repository: decisionRepository,
+      issue: decisionIssue,
+      refresh: ++refresh,
+      state: state === 'loading' ? 'loading' : state === 'offline' ? 'stale' : 'ready',
+      detail: factoryIssueDetail(issue, decisionRepository, decisionIssue),
+      access: factoryAccess(
+        {repository: decisionRepository, viewer: {code_write: state !== 'denied', session_current: state !== 'denied'}},
+        decisionRepository
+      ),
+      journey: workJourney(
+        {
+          repository: decisionRepository,
+          issue: decisionIssue,
+          gates: omitGates
+            ? []
+            : [
+                {
+                  repository: decisionRepository,
+                  completion_id: (advanced ? 'e' : 'c').repeat(32),
+                  cycle_id: (advanced ? 'f' : 'b').repeat(32),
+                  state: 'attention',
+                  retryable: true,
+                  generation: 1,
+                },
+              ],
+        },
+        decisionRepository,
+        decisionIssue
+      ),
+    };
+  }
   const acceptance: RequirementsAcceptanceContext = {
     transport,
     repository: decisionRepository,
     issue: decisionIssue,
     links: decisionLinks(),
     commandScope,
+    get observation() {
+      return snapshot;
+    },
   };
   const retry: RetryContext = {
     transport,
@@ -179,16 +227,19 @@ export function decisionStoryPeer(state: DecisionStoryState) {
       }
     );
   }
+  let snapshot = observation();
   return {
     acceptance,
     retry,
     calls,
     fullReview() {
       fullReview = true;
+      snapshot = observation();
     },
     advanceGate(omit = false) {
       advanced = true;
       omitGates = omit;
+      snapshot = observation();
     },
     receipt(patch: Record<string, unknown>, status = 201) {
       receiptPatch = patch;

@@ -15,6 +15,8 @@ func (s Runs) statusError(w http.ResponseWriter, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, factoryservice.ErrRunStatusUnavailable):
+		writeError(w, 503, "runtime_unavailable", "Current run execution observation is unavailable.")
 	case errors.Is(err, factoryservice.ErrRunStatusAccess):
 		s.authorityError(w, err)
 	case errors.Is(err, factory.ErrNotFound):
@@ -37,6 +39,8 @@ func (s Runs) interventionError(w http.ResponseWriter, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, factoryservice.ErrInterventionUnavailable):
+		writeError(w, 503, "runtime_unavailable", "Current execution or recovery adapter is unavailable.")
 	case errors.Is(err, factoryservice.ErrInterventionAccess):
 		s.authorityError(w, err)
 	case errors.Is(err, factoryservice.ErrInterventionAction):
@@ -46,7 +50,7 @@ func (s Runs) interventionError(w http.ResponseWriter, err error) {
 	case errors.Is(err, factoryservice.ErrInterventionPayload):
 		writeError(w, 400, "invalid_request", "The action requires its exact saved context or completion scope; pause and resume do not use command IDs.")
 	case errors.Is(err, factoryservice.ErrInterventionRecoveryTarget):
-		writeError(w, 403, "membership_required", "Join the project before taking over its work.")
+		writeError(w, 403, "membership_required", "A current admitted recovery destination is required before taking over this work.")
 	default:
 		lifecycleControlError(w, err)
 	}

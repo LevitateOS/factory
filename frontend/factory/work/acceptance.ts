@@ -3,7 +3,8 @@ import {check, id, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryAcceptanceLinks} from '../app/navigation.js';
 import {decisionID, newDecisionID} from '../api/request-response.js';
-import {factoryAccess} from '../api/progress-response.js';
+import {currentWorkObservation, requestWorkRefresh} from './observation.js';
+import type {WorkObservation} from './observation.js';
 import {factoryIssueDetail, sodaErrorDetail} from '../api/work-response.js';
 import {acceptanceCommentIDs, acceptanceErrorMessage, acceptancePreview} from '../api/acceptance-response.js';
 import type {AcceptancePreview} from '../api/acceptance-response.js';
@@ -11,6 +12,7 @@ import {readAcceptance, retainAcceptance, sameAcceptance, settleAcceptance} from
 import type {AcceptanceAddress, AcceptanceDecision} from './acceptance-record.js';
 
 export interface RequirementsAcceptanceContext {
+  readonly observation?: WorkObservation;
   readonly transport: FactoryTransport;
   readonly repository: string;
   readonly links?: FactoryAcceptanceLinks;
@@ -42,6 +44,7 @@ async function read(context: RequirementsAcceptanceContext, path: string, signal
 
 // Native text stays in the native issue. Only the exact reviewed selections
 // from acceptance-preview enter this existing maintainer decision contract.
+/** @fires soda-factory-work-refresh */
 export class SodaFactoryRequirementsAcceptance extends LitElement {
   static properties = {
     allowed: {state: true},
@@ -101,14 +104,15 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       context?.transport.generation === this.generation &&
       context?.issue === prior?.issue
     ) {
-      this.current = context;
+      this.current = context && {...context};
+      if (context?.observation !== prior?.observation && context) this.observe(context);
       if (context?.links !== prior?.links) this.requestUpdate();
       return;
     }
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.generation = context?.transport.generation ?? '';
-    this.current = context;
+    this.current = context && {...context};
     this.serial++;
     this.allowed = this.ready = false;
     this.address = undefined;
@@ -122,7 +126,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
     this.reviewed = false;
     this.busy = false;
     this.message = '';
-    if (context) void this.loadAuthority(context, this.serial);
+    if (context) this.observe(context);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -146,25 +150,16 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
   private base(context: RequirementsAcceptanceContext): string {
     return `repositories/${context.repository}/factory/issues/${context.issue}`;
   }
-  private async loadAuthority(context: RequirementsAcceptanceContext, serial: number) {
-    if (!this.live(serial, context)) return;
-    this.allowed = false;
-    this.message = 'Checking current acceptance authority…';
-    try {
-      const access = factoryAccess(
-        await this.read(context, `repositories/${context.repository}/factory/access`),
-        context.repository
-      );
-      if (!this.live(serial, context)) return;
-      this.allowed = access.viewer.code_write && access.viewer.session_current;
-      await this.resolveIdentity(context, serial);
-      if (!this.live(serial, context)) return;
-      if (!this.allowed)
-        this.message = 'Accepting requirements needs current repository code-write authority and a current session.';
-    } catch (error) {
-      if (this.live(serial, context))
-        this.message = error instanceof Error ? error.message : 'Current acceptance authority is unavailable.';
-    }
+  private observe(context: RequirementsAcceptanceContext) {
+    const observation = currentWorkObservation(context);
+    this.allowed =
+      observation?.state === 'ready' &&
+      !!observation.access?.viewer.code_write &&
+      !!observation.access.viewer.session_current;
+    if (!this.allowed) {
+      this.message =
+        'Accepting requirements needs current repository code-write authority and a current session. Refresh the work detail.';
+    } else if (!this.busy) void this.resolveIdentity(context, this.serial);
   }
   private async resolveIdentity(context: RequirementsAcceptanceContext, serial: number): Promise<boolean> {
     this.ready = false;
@@ -228,14 +223,11 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
       if (new Set(selected).size !== selected.length || selected.length > 50)
         throw Error('Select at most 50 distinct comment IDs across requirements and resolutions.');
       const query = new URLSearchParams(selected.map((comment) => ['comment_id', comment])).toString();
-      const [value, detailValue] = await Promise.all([
-        this.read(context, `${this.base(context)}/acceptance-preview${query ? `?${query}` : ''}`),
-        this.read(context, this.base(context)),
-      ]);
-      if (!this.live(serial, context)) return;
+      const observation = currentWorkObservation(context);
+      const value = await this.read(context, `${this.base(context)}/acceptance-preview${query ? `?${query}` : ''}`);
+      if (!this.live(serial, context) || observation !== currentWorkObservation(this.current!) || !this.allowed) return;
       const preview = acceptancePreview(value, context.repository, context.issue, selected);
-      const detail = factoryIssueDetail(detailValue, context.repository, context.issue);
-      this.predecessor = detail.status.acceptance?.id;
+      this.predecessor = observation?.detail?.status.acceptance?.id;
       this.choices = preview.dependencies.map((edge) => ({
         ...edge,
         endpoint_repository: '',
@@ -326,6 +318,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         this.message = 'The saved acceptance or account changed. Review it before accepting.';
         return;
       }
+      if (!this.allowed || !this.live(serial, context)) return;
       const decision = this.pending ?? candidate;
       if (!decision) return;
       this.pending = decision;
@@ -484,12 +477,7 @@ export class SodaFactoryRequirementsAcceptance extends LitElement {
         Acceptance uses its exact title and body, plus the comments you select.
       </p>
       <p role="status">${this.message}</p>
-      <button
-        type="button"
-        class="ui button"
-        ?disabled=${this.busy}
-        @click=${() => this.loadAuthority(context, this.serial)}
-      >
+      <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => requestWorkRefresh(this)}>
         Refresh acceptance authority
       </button>
       <fieldset ?disabled=${!this.allowed || !this.ready || this.busy || this.pending !== undefined}>

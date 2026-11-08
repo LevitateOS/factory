@@ -48,6 +48,7 @@ pub(crate) enum Call {
     InspectAccount {
         connection: String,
     },
+    RecoveryTarget,
     Recover {
         intent: String,
         checkout_id: String,
@@ -205,7 +206,7 @@ pub(crate) async fn call(
         Call::InspectAccount { .. } => {
             return Err(io::Error::other("native account owner required"))
         }
-        Call::Recover { .. } => {
+        Call::RecoveryTarget | Call::Recover { .. } => {
             return Err(io::Error::other("native work recovery owner required"))
         }
         Call::Launch { .. } => return Err(io::Error::other("native launch owner required")),

@@ -2,7 +2,8 @@
 
 ## Current redesign — 2026-11-08
 
-Status: design only; all changes below remain unimplemented. This is step 3 of
+Status: D1 and D2 implemented and verified locally; D3–D8 remain design only.
+The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
 The old product implementation goal remains cleared. Optional comment/test
@@ -50,6 +51,18 @@ issue/run and perform an already-supported intervention with its exact receipt;
 missing authority/inspector/recovery ports must hold that action. Fixture scope
 remains distinct from connected and installed qualification.
 
+Completion (2026-11-08): one account-bound work binding supplies complete
+issue/run/intervention services from the same Store/Coordinator. Canonical run
+scope, enrolled native membership and Rust-admitted recovery destinations replace
+inference from project/login IDs; missing adapters hold affected controls.
+Production Go, Rust runtime/checker builds and dependency boundaries passed.
+The existing native issue product check (`SODA_NATIVE_CHECK_WORK=1`, existing Go
+helper) passed recorded issue/run reads, exact pause receipt and refreshed controls,
+read-only/withdrawn account refusal and missing inspector/authority/recovery holds.
+Result: `/home/vince/Projects/d12-native-verified/work-detail-result.json`;
+reproduction: `bash /home/vince/Projects/work-native-session.sh NEW_SCRATCH_ROOT`.
+Provider/history are declared; no worker, connected or installed qualification.
+
 ### D2. Make the work-detail screen own its read generation
 
 **Design:** `work/detail.ts` loads issue detail/journey and repository access once
@@ -73,6 +86,19 @@ write behavior, navigation ports and backend checks.
 **Proof:** existing browser journey must show parent/children advancing together
 after refresh and an action, bounded issue/access reads, and old replies ignored
 after account/repository changes. Retained commands must survive refresh unchanged.
+
+Completion (2026-11-08): the screen publishes one scoped observation per refresh;
+children consume it and request shared refreshes. New refresh/context generations
+abort/discard older reads. Failed current reads retain labeled stale history with
+controls disabled; local editing and pending write identities survive refresh.
+Typecheck/Lit and Chromium passed exact acceptance, lost completion-retry replay,
+unchanged retained bytes, one issue/access GET pair per refresh, failed access and
+old replies delivered after newer refresh/account/repository observations:
+`TMPDIR=/home/vince/Projects bun /home/vince/Projects/d12-browser.ts`.
+The existing requirements/code-prerequisite browser journey also passed from
+`/home/vince/Projects/d12-work-controls.test.ts` (scratch copy corrects obsolete
+host-link expectations only; retained original unchanged). Declared browser scope;
+no connected/installed claim. The old product queue remains cleared; D3–D8 stay open.
 
 ### D3. Separate historical migration input from mutable fresh-schema text
 

@@ -36,13 +36,14 @@ type WorkCapabilities struct {
 }
 
 type workCapabilityInput struct {
-	AuthorityReason string
-	HasRun          bool
-	RunSettled      bool
-	RetryQueued     bool
-	Member          bool
-	DispatchOpen    bool
-	SessionCurrent  bool
+	AuthorityReason     string
+	HasRun              bool
+	RunSettled          bool
+	RetryQueued         bool
+	Member              bool
+	RecoveryUnavailable bool
+	DispatchOpen        bool
+	SessionCurrent      bool
 }
 
 func workCapabilityGates(in workCapabilityInput) (mutating, attempt string) {
@@ -87,12 +88,14 @@ func workRetryCapability(in workCapabilityInput, attempt string) WorkCapability 
 }
 
 func workTakeoverCapability(in workCapabilityInput, attempt string) WorkCapability {
-	view := WorkCapability{Available: attempt == "" && in.Member}
+	view := WorkCapability{Available: attempt == "" && in.Member && !in.RecoveryUnavailable}
 	switch {
 	case attempt != "":
 		view.Reason = attempt
 	case !in.Member:
 		view.Reason = workCapMembership
+	case in.RecoveryUnavailable:
+		view.Reason = WorkAuthorityUnavailable
 	}
 	return view
 }

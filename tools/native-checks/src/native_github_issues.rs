@@ -277,6 +277,39 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         .ok_or("canonical repository absent")?
         .to_owned();
     let base = format!("/api/factory/collaboration/repositories/{repository}");
+    if std::env::var("SODA_NATIVE_CHECK_WORK").as_deref() == Ok("1") {
+        let work = format!("/api/repositories/{repository}/factory");
+        for (suffix, body) in [("placement", json!({"expected_revision":"","state":"active"})),
+            ("environment-grant", json!({"expected_revision":0,"active":true,"native":true}))] {
+            let reply = call(&runtime, &store, &connection, "PUT", &format!("{work}/{suffix}"), &serde_json::to_vec(&body)?).await?;
+            ensure(reply.0 == 200, &format!("native work enrollment: {} {}", reply.0,reply.1))?;
+        }
+        let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
+        ensure(std::process::Command::new(helper).arg(profile).arg(runtime.health()?.instance).arg("seed-work-detail").arg(&repository).status()?.success(), "work history seed failed")?;
+        let issue = call(&runtime,&store,&connection,"GET",&format!("{work}/issues/12"),&[]).await?;
+        ensure(issue.0 == 200 && issue.1["readiness"]["revision"] == 1 && issue.1["journey"]["issue"] == "12", &format!("native issue binding failed: {} {}",issue.0,issue.1))?;
+        let run_path = format!("/api/factory/runs/{}", "a".repeat(32));
+        let run = call(&runtime,&store,&connection,"GET",&run_path,&[]).await?;
+        ensure(run.0 == 200 && run.1["run"]["id"] == "a".repeat(32) && run.1["view"]["repository"] == repository, &format!("native run binding failed: {} {}",run.0,run.1))?;
+        let takeover = call(&runtime,&store,&connection,"POST",&format!("{run_path}/actions"), br#"{"action":"takeover"}"#).await?;
+        ensure(takeover.0 == 403 && takeover.1["error"]["code"] == "membership_required", "missing recovery destination admitted takeover")?;
+        let pause = call(&runtime,&store,&connection,"POST",&format!("{work}/actions"),br#"{"action":"pause"}"#).await?;
+        ensure(pause.0 == 200 && pause.1["paused"] == true && pause.1["withdrawal"]["repository"] == repository && pause.1["runs"] == json!([]), &format!("native pause exact receipt failed: {} {}",pause.0,pause.1))?;
+        let refreshed = call(&runtime,&store,&connection,"GET",&format!("{work}/issues/12"),&[]).await?;
+        ensure(refreshed.0 == 200 && refreshed.1["capabilities"]["pause"]["available"] == false && refreshed.1["capabilities"]["resume"]["available"] == true, "native work refresh missed intervention")?;
+        set_mode(&io, "work-read-only")?;
+        let readonly = call(&runtime,&store,&connection,"GET",&format!("{work}/issues/12"),&[]).await?;
+        ensure(readonly.0 == 200 && readonly.1["capabilities"]["resume"]["available"] == false && readonly.1["capabilities"]["resume"]["reason"] == "repository_write_required", "read-only work invented mutation authority")?;
+        let denied = call(&runtime,&store,&connection,"POST",&format!("{work}/actions"),br#"{"action":"resume"}"#).await?;
+        ensure(denied.0 == 403 && denied.1["error"]["code"] == "repository_write_required", "missing provider authority admitted intervention")?;
+        set_mode(&io,"positive")?;
+        fs::write(root.join("work-detail-result.json"),serde_json::to_vec_pretty(&json!({"issue":issue.1,"run":run.1,"pause":pause.1,"refreshed":refreshed.1,"missing_recovery":takeover.1,"missing_authority":denied.1,"scope":"declared provider/history, actual native HTTP/Go/PG"}))?)?;
+        store.withdraw(&connection).await?;
+        ensure(call(&runtime,&store,&connection,"POST",&format!("{work}/actions"),br#"{"action":"resume"}"#).await.is_err(),"withdrawn account admitted intervention")?;
+        runtime.stop()?;
+        println!("PASS: composed native work issue/run inspection, exact pause receipt, shared coordinator readback, absent recovery and withdrawn-account refusal; declared history/provider, no worker/connected/installed qualification");
+        return Ok(());
+    }
     if std::env::var("SODA_NATIVE_CHECK_REQUEST_CAPTURE").as_deref() == Ok("1") {
         let original = "Capture this original request without running a model.";
         let body = serde_json::to_vec(

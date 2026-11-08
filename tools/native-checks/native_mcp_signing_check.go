@@ -1303,6 +1303,8 @@ func main() {
 			err = ownedToolFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-schema" {
 			err = nativeSchemaFixture(os.Args[1], os.Args[4])
+		} else if os.Args[3] == "seed-work-detail" {
+			err = seedWorkDetail(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-preparation" {
 			err = nativePreparationFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-owned-execution" {
@@ -7039,5 +7041,54 @@ func nativeGraphLegacyFixture(ctx context.Context, db *store.Store, config facto
 	// This private fixture declares retained pre-protocol history; it does not
 	// downgrade a user profile or claim an installed upgrade is qualified.
 	_, err = conn.ExecContext(ctx, `UPDATE schema_version SET version=95`)
+	return err
+}
+
+// Declared history for the composed native HTTP journey, never worker evidence.
+func seedWorkDetail(profile, instance, argument string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	repository, err := strconv.ParseInt(argument, 10, 64)
+	if err != nil {
+		return err
+	}
+	workspace, native, err := db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
+	if err != nil || native == nil || native.Profile != config.Profile {
+		return errors.New("fixture native enrollment absent")
+	}
+	now := time.Now().UTC()
+	run := factory.Run{ID: strings.Repeat("a", 32), ProjectID: workspace, Role: "reviewer", InputSHA: strings.Repeat("a", 40), Started: now, Deadline: now.Add(time.Hour), Harness: "muse-fixture-1", Model: "local-fixture"}
+	run.Native = &execution.NativeRecord{Tool: execution.NativeTool{Harness: "muse", Version: "fixture-1", SHA256: strings.Repeat("b", 64), Executable: "/home/fixture/bin/muse"}, BundleSHA256: strings.Repeat("d", 64), PromptSHA256: strings.Repeat("e", 64), Provenance: execution.NativeProvenance{TrustMode: "isolated_system_worker", Profile: config.Profile, InstanceID: instance, WorktreeID: "declared-native-checkout", BrokerRun: strings.Repeat("c", 32), Custody: execution.NativeCustody{State: execution.NotAcquired}}, Retirement: execution.NotStarted}
+	if err = db.RecordFactoryRun(ctx, run); err != nil {
+		return err
+	}
+	run.Native.Sealed, run.Native.Retirement, run.Reconciled, run.Outcome = true, execution.Retired, true, factory.Cancelled
+	if err = db.SaveFactoryRun(ctx, run); err != nil {
+		return err
+	}
+	if _, _, err = db.RecordFactoryRunView(ctx, factory.RunView{RunID: run.ID, Repository: repository, Issue: 12}); err != nil {
+		return err
+	}
+	c := control.NewCoordinator(db, nil, nil)
+	unavailable := factoryservice.RunStatus{Store: db, WriteAccess: func(context.Context, collaboration.ActorID, collaboration.RepositoryID) error { return nil }, RunRepository: func(context.Context, collaboration.ActorID, factory.Run) (collaboration.RepositoryID, error) {
+		return collaboration.RepositoryID(repository), nil
+	}}
+	if _, e := unavailable.Read(ctx, 1, run.ID); !errors.Is(e, factoryservice.ErrRunStatusUnavailable) {
+		return errors.New("missing inspector admitted run read")
+	}
+	commands := factoryservice.Interventions{Store: db, Writer: c}
+	if _, e := commands.Repository(ctx, 1, "1", collaboration.RepositoryID(repository), factoryservice.RepositoryCommand{Action: factory.ActionPause}); !errors.Is(e, factoryservice.ErrInterventionUnavailable) {
+		return errors.New("missing authority admitted mutation")
+	}
+	_, _, err = db.RecordIssueAssessment(ctx, factory.IssueControl{Repository: repository, Issue: 12, Readiness: factory.ReadinessQueued, Reason: factory.ReasonEligible, Fingerprint: strings.Repeat("a", 64), Authority: strings.Repeat("b", 64)}, now)
 	return err
 }

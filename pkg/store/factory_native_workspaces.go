@@ -233,3 +233,17 @@ func requireNativeDecisionTx(ctx context.Context, tx *sql.Tx, workspace string, 
 	}
 	return nil
 }
+
+// RecordedWorkspaceRepository resolves canonical history without admitting execution.
+func (s *Store) RecordedWorkspaceRepository(ctx context.Context, workspace string, native bool) (collaboration.RepositoryID, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	repository, err := recordedWorkspaceRepositoryTx(ctx, tx, workspace, native)
+	if err != nil {
+		return 0, err
+	}
+	return collaboration.RepositoryID(repository), tx.Commit()
+}

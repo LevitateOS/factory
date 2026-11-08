@@ -21,12 +21,14 @@ type IssueStatusReader func(context.Context, collaboration.ActorID, collaboratio
 type IssueNavigation func(context.Context, collaboration.ActorID, collaboration.RepositoryID, int64, int64) (*IssueLinks, error)
 
 type Issues struct {
-	Store      *store.Store
-	Visibility WorkVisibility
-	Status     IssueStatusReader
-	Authority  WorkControlAccess
-	Membership WorkRuntimeMembership
-	Navigation IssueNavigation
+	ExecutionUnavailable bool
+	Store                *store.Store
+	Visibility           WorkVisibility
+	Status               IssueStatusReader
+	Authority            WorkControlAccess
+	Membership           WorkRuntimeMembership
+	Recovery             WorkRuntimeMembership
+	Navigation           IssueNavigation
 }
 
 var (
@@ -131,7 +133,7 @@ func (s Issues) Read(ctx context.Context, actor collaboration.ActorID, repositor
 		return nil, err
 	}
 	view.Closure = workClosureDTO(publication, merged)
-	controls, err := (WorkControls{Store: s.Store, Authority: s.Authority, Membership: s.Membership}).project(ctx, actor, repository, issue, owner, acceptance)
+	controls, err := (WorkControls{ExecutionUnavailable: s.ExecutionUnavailable, Store: s.Store, Authority: s.Authority, Membership: s.Membership, Recovery: s.Recovery}).project(ctx, actor, repository, issue, owner, acceptance)
 	if err != nil {
 		return nil, err
 	}

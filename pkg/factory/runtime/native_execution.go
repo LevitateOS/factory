@@ -103,8 +103,14 @@ func (p NativeExecution) observe(ctx context.Context, address execution.RunAddre
 	if err != nil {
 		return empty, err
 	}
-	if run.ProjectID != address.Workspace || run.Native == nil || run.Native.Intent == "" ||
+	if run.ProjectID != address.Workspace || run.Native == nil ||
 		run.Native.Provenance.Profile != p.Config.Profile {
+		return empty, execution.ErrRunChanged
+	}
+	if run.Native.Intent == "" {
+		if run.Reconciled && run.Native.Settled() {
+			return empty, execution.ErrRunNotObserved
+		}
 		return empty, execution.ErrRunChanged
 	}
 	reconciled := run.Reconciled

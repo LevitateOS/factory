@@ -11,6 +11,10 @@ import type {FactoryWorkLinks, FactoryAcceptanceLinks} from '../app/navigation.j
 import {check, id, projectId, readSodaJSON} from '../api/models.js';
 import {factoryCommandId, factoryRunID, factoryRunStatusResponse, factoryRunText} from '../api/run-response.js';
 import type {FactoryRunDetail} from '../api/run-response.js';
+import {workJourney} from '../api/journey-response.js';
+import {object} from '../api/models.js';
+import {factoryAccess} from '../api/progress-response.js';
+import type {WorkObservation} from './observation.js';
 import {statusText} from '../shared/format.js';
 
 import {
@@ -142,6 +146,7 @@ export class SodaFactoryWorkDetail extends LitElement {
     busy: {state: true},
     acting: {state: true},
     retryReady: {state: true},
+    observation: {state: true},
   };
   declare private detail: FactoryIssueDetail | undefined;
   declare private runs: RunEntry[];
@@ -150,6 +155,9 @@ export class SodaFactoryWorkDetail extends LitElement {
   declare private busy: boolean;
   declare private acting: InterventionKind | undefined;
   declare private retryReady: boolean;
+  declare private observation: WorkObservation | undefined;
+  private readSerial = 0;
+  private readRequest: AbortController | undefined;
   private current: WorkDetailContext | undefined;
   private armedStop = false;
   private serial = 0;
@@ -182,17 +190,20 @@ export class SodaFactoryWorkDetail extends LitElement {
           (context.environmentID === undefined || projectId(context.environmentID))
       );
     if (sameDetail(context, this.current) && context?.transport.generation === this.generation) {
-      this.current = context;
+      this.current = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
       this.requestUpdate();
       return;
     }
+    this.readRequest?.abort();
+    this.readSerial++;
+    this.observation = undefined;
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.generation = context?.transport.generation ?? '';
     this.pendingRetry = undefined;
     this.retryAddress = undefined;
     this.retryReady = false;
-    this.current = context;
+    this.current = context && {...context, runIDs: [...context.runIDs], capabilities: {...context.capabilities}};
     this.serial++;
     this.detail = undefined;
     this.runs = [];
@@ -223,32 +234,58 @@ export class SodaFactoryWorkDetail extends LitElement {
   }
   private async load() {
     const context = this.current;
-    if (!context || !this.live(this.serial, context) || this.busy) return;
-    const serial = this.serial;
+    if (!context || !this.live(this.serial, context)) return;
+    const serial = this.serial,
+      refresh = ++this.readSerial;
+    this.readRequest?.abort();
+    const request = new AbortController();
+    this.readRequest = request;
+    const signal = AbortSignal.any([request.signal, this.lifetime.signal]);
+    const current = () => this.live(serial, context) && refresh === this.readSerial;
+    const observation = {
+      transport: context.transport,
+      generation: this.generation,
+      repository: context.repository,
+      issue: context.issue,
+      refresh,
+    };
     this.busy = true;
+    this.retryReady = false;
+    this.observation = {...observation, state: 'loading', detail: this.detail, journey: this.observation?.journey};
     try {
-      const detail = await readDetailIssue(context, this.lifetime.signal);
-      if (!this.live(serial, context)) return;
-      if (!detail.detail) {
-        this.detail = undefined;
-        this.runs = [];
-        this.message = detail.message;
-        this.retryReady = false;
-        return;
-      }
-      const runs = await readDetailRuns(context, this.lifetime.signal);
-      if (this.live(serial, context)) {
-        this.detail = detail.detail;
-        this.runs = runs;
-        this.message = detail.message;
-        if (context.capabilities.retry && this.backendGate('retry').available)
-          await this.resolveRetryIdentity(context, serial);
-      }
+      const [detail, accessResult, runs] = await Promise.all([
+        readDetailIssue(context, signal),
+        getJSON(context.transport, `repositories/${context.repository}/factory/access`, signal)
+          .then((value) => {
+            check(object(value).repository === context.repository);
+            return factoryAccess(value, context.repository);
+          })
+          .catch(() => undefined),
+        readDetailRuns(context, signal),
+      ]);
+      if (!current()) return;
+      const ready = !!detail.detail && !!accessResult;
+      this.detail = detail.detail ?? this.detail;
+      this.runs = runs;
+      this.observation = {
+        ...observation,
+        state: ready ? 'ready' : 'stale',
+        detail: this.detail,
+        journey: detail.detail ? detail.journey : this.observation?.journey,
+        ...(ready ? {access: accessResult} : {}),
+      };
+      this.message = ready
+        ? ''
+        : `${detail.message || 'Current repository access is unavailable.'} Retained work history is stale; controls are unavailable.`;
+      if (ready && context.capabilities.retry && this.backendGate('retry').available)
+        await this.resolveRetryIdentity(context, serial);
     } catch (error) {
-      if (this.live(serial, context))
-        this.message = error instanceof Error ? error.message : 'Work detail is unavailable.';
+      if (current()) {
+        this.observation = {...observation, state: 'stale', detail: this.detail, journey: this.observation?.journey};
+        this.message = 'Work detail is unavailable. Retained work history is stale; controls are unavailable.';
+      }
     } finally {
-      if (this.live(serial, context)) this.busy = false;
+      if (current()) this.busy = false;
     }
   }
   private act = (kind: InterventionKind) => {
@@ -311,7 +348,8 @@ export class SodaFactoryWorkDetail extends LitElement {
     return true;
   }
   private backendGate(kind: InterventionKind): {available: boolean; reasonText: string} {
-    if (!this.detail) return {available: false, reasonText: 'Current work authority is unavailable.'};
+    if (!this.detail || this.observation?.state !== 'ready')
+      return {available: false, reasonText: 'Current work authority is unavailable.'};
     return capabilityGate(this.detail.capabilities, kind);
   }
   private async runIntervention(kind: InterventionKind) {
@@ -383,7 +421,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         }
       }
       this.applyPosted(kind, context, posted, commandID, runID, retryAddress);
-      if (refreshesDetail(kind)) void this.load();
+      void this.load();
     } catch {
       if (!this.live(serial, context)) return;
       this.setMark(
@@ -427,6 +465,7 @@ export class SodaFactoryWorkDetail extends LitElement {
     if (
       !context ||
       !this.live(this.serial, context) ||
+      this.observation?.state !== 'ready' ||
       !this.detail?.capabilities.watch.available ||
       !this.runs.some((entry) => entry.id === runID)
     )
@@ -474,20 +513,20 @@ export class SodaFactoryWorkDetail extends LitElement {
   protected render() {
     const context = this.current;
     if (!context) return html``;
-    const watchable = this.detail?.capabilities.watch.available ?? false;
-    return html`<section aria-label="Factory work detail">
+    const watchable = this.observation?.state === 'ready' && (this.detail?.capabilities.watch.available ?? false);
+    return html`<section aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
       <p data-work-message aria-live="polite">${this.message}</p>
       <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
       ${this.detail ? renderWorkDetail(describeIssueDetail(this.detail, context.detailLinks ? context.detailLinks(this.detail) : context.links)) : this.busy ? html`<p>Loading work detail…</p>` : ''}
       <soda-factory-work-journey
-        .context=${this.detail && {transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
+        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
       ></soda-factory-work-journey>
       <soda-factory-requirements-acceptance
-        .context=${this.detail && {transport: context.transport, repository: context.repository, links: context.acceptanceLinks, issue: context.issue, commandScope: context.commandScope}}
+        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.acceptanceLinks, issue: context.issue, commandScope: context.commandScope}}
         @soda-factory-requirements-accepted=${() => this.load()}
       ></soda-factory-requirements-acceptance>
       <soda-factory-completion-retry
-        .context=${this.detail && {transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope}}
+        .context=${{observation: this.observation, transport: context.transport, repository: context.repository, issue: context.issue, commandScope: context.commandScope}}
         @soda-completion-retry-queued=${() => this.load()}
       ></soda-factory-completion-retry>
       ${this.watchNote() ? html`<p>${this.watchNote()}</p>` : ''}
@@ -511,10 +550,6 @@ export class SodaFactoryWorkDetail extends LitElement {
 }
 customElements.define('soda-factory-work-detail', SodaFactoryWorkDetail);
 
-function refreshesDetail(kind: InterventionKind): boolean {
-  return kind === 'pause' || kind === 'resume' || kind === 'stop' || kind === 'project_stop';
-}
-
 function interventionTarget(
   context: WorkDetailContext | undefined,
   kind: InterventionKind,
@@ -529,14 +564,18 @@ function interventionTarget(
 async function readDetailIssue(
   context: WorkDetailContext,
   signal: AbortSignal
-): Promise<{detail?: FactoryIssueDetail; message: string}> {
+): Promise<{detail?: FactoryIssueDetail; journey?: import('../api/journey-response.js').WorkJourney; message: string}> {
   try {
-    const detail = factoryIssueDetail(
-      await getJSON(context.transport, `repositories/${context.repository}/factory/issues/${context.issue}`, signal),
-      context.repository,
-      context.issue
+    const value = await getJSON(
+      context.transport,
+      `repositories/${context.repository}/factory/issues/${context.issue}`,
+      signal
     );
-    return {detail, message: ''};
+    const raw = object(value);
+    check(raw.repository === context.repository && raw.issue === context.issue);
+    const journey = raw.journey === undefined ? undefined : workJourney(raw.journey, context.repository, context.issue);
+    const detail = factoryIssueDetail(value, context.repository, context.issue);
+    return {detail, ...(journey ? {journey} : {}), message: ''};
   } catch (error) {
     const input = failureInput(error);
     const failure = readFailureText(input.status, input.detail, 'Work item not found.', 'Work detail is unavailable.');

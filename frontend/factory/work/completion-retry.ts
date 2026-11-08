@@ -2,8 +2,8 @@ import {LitElement, html} from 'lit';
 import type {FactoryTransport} from '../api/transport.js';
 import {check, id, object, readSodaJSON} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
-import {factoryAccess} from '../api/progress-response.js';
-import {workJourney} from '../api/journey-response.js';
+import {currentWorkObservation, requestWorkRefresh} from './observation.js';
+import type {WorkObservation} from './observation.js';
 import type {JourneyGate} from '../api/journey-response.js';
 import {
   readCompletionRetry,
@@ -14,6 +14,7 @@ import {
 import type {CompletionRetryAddress, PendingCompletionRetry} from './completion-retry-record.js';
 
 export interface RetryContext {
+  readonly observation?: WorkObservation;
   readonly transport: FactoryTransport;
   readonly repository: string;
   readonly issue: string;
@@ -25,6 +26,7 @@ interface RetryCommand extends PendingCompletionRetry {
   readonly confirmed: boolean;
 }
 
+/** @fires soda-factory-work-refresh */
 export class SodaFactoryCompletionRetry extends LitElement {
   static properties = {
     gates: {state: true},
@@ -70,20 +72,21 @@ export class SodaFactoryCompletionRetry extends LitElement {
       context?.transport.generation === this.generation &&
       context?.issue === prior?.issue
     ) {
-      this.current = context;
+      this.current = context && {...context};
+      if (context?.observation !== prior?.observation && context) this.observe(context);
       return;
     }
     this.lifetime.abort();
     this.lifetime = new AbortController();
     this.generation = context?.transport.generation ?? '';
-    this.current = context;
+    this.current = context && {...context};
     this.serial++;
     this.gates = [];
     this.allowed = this.busy = this.ready = false;
     this.address = undefined;
     this.message = '';
     this.pending = undefined;
-    if (context) void this.load(context, this.serial);
+    if (context) this.observe(context);
   }
   disconnectedCallback() {
     this.context = undefined;
@@ -97,44 +100,15 @@ export class SodaFactoryCompletionRetry extends LitElement {
     }
     return true;
   }
-  private async read(context: RetryContext, path: string) {
-    const serial = this.serial;
-    if (!this.live(serial, context)) throw Error('Completion context retired.');
-    const response = await context.transport.request(path, {
-      method: 'GET',
-      signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]),
-    });
-    if (!this.live(serial, context)) throw Error('Completion context retired.');
-    check(response.ok);
-    return readSodaJSON(response);
-  }
-  private async load(context: RetryContext, serial: number) {
-    if (!this.live(serial, context)) return;
-    if (!this.message) this.message = 'Loading completion reviews…';
-    try {
-      const [accessValue, issueValue] = await Promise.all([
-        this.read(context, `repositories/${context.repository}/factory/access`),
-        this.read(context, `repositories/${context.repository}/factory/issues/${context.issue}`),
-      ]);
-      const access = factoryAccess(accessValue, context.repository);
-      const journey = object(issueValue).journey;
-      const gates = journey === undefined ? [] : workJourney(journey, context.repository, context.issue).gates;
-      if (!this.live(serial, context)) return;
-      this.allowed = access.viewer.code_write && access.viewer.session_current;
-      this.gates = gates.filter((gate) => gate.state === 'attention' && gate.retryable);
-      if (
-        this.message.startsWith('Could not load completion reviews.') ||
-        this.message === 'Loading completion reviews…'
-      )
-        this.message = '';
-      await this.resolveIdentity(context, serial);
-    } catch {
-      if (this.live(serial, context)) {
-        this.allowed = false;
-        this.ready = false;
-        this.message = 'Could not load completion reviews. Refresh the work detail.';
-      }
-    }
+  private observe(context: RetryContext) {
+    const observation = currentWorkObservation(context);
+    this.allowed =
+      observation?.state === 'ready' &&
+      !!observation.access?.viewer.code_write &&
+      !!observation.access.viewer.session_current;
+    this.gates = observation?.journey?.gates.filter((gate) => gate.state === 'attention' && gate.retryable) ?? [];
+    if (!this.allowed) this.message = 'Current completion review authority is unavailable. Refresh the work detail.';
+    else if (!this.busy) void this.resolveIdentity(context, this.serial);
   }
   private async resolveIdentity(context: RetryContext, serial: number): Promise<boolean> {
     this.ready = false;
@@ -171,23 +145,14 @@ export class SodaFactoryCompletionRetry extends LitElement {
       return false;
     }
   }
-  private async refresh() {
-    const context = this.current,
-      serial = this.serial;
-    if (!context || !this.live(serial, context) || this.busy) return;
-    this.busy = true;
-    await this.load(context, serial);
-    if (this.live(serial, context)) this.busy = false;
-  }
   private sameGate(command: PendingCompletionRetry, gate: JourneyGate) {
     return command.event === gate.completion_id && command.cycle === gate.cycle_id;
   }
-  private confirmed(context: RetryContext, command: RetryCommand) {
+  private confirmed(command: RetryCommand) {
     this.pending = {...command, confirmed: true};
     this.message =
       'Completion review retry queued. Factory will reassess the recorded result in a new bounded attempt.';
     this.dispatchEvent(new CustomEvent('soda-completion-retry-queued', {bubbles: true, composed: true}));
-    void this.load(context, this.serial);
   }
   private async retry(gate?: JourneyGate) {
     const context = this.current,
@@ -216,6 +181,8 @@ export class SodaFactoryCompletionRetry extends LitElement {
         this.message = 'The saved completion retry or account changed. Review it before retrying.';
         return;
       }
+      if (!this.allowed || !this.live(serial, context)) return;
+      if (!this.pending && gate && !this.gates.includes(gate)) return;
       if (!gate && !this.pending) return;
       const command: RetryCommand = this.pending ?? {
         command: factoryCommandId(),
@@ -260,7 +227,7 @@ export class SodaFactoryCompletionRetry extends LitElement {
         this.message = 'The saved completion retry changed. Refresh completion reviews to read its current state.';
         return;
       }
-      this.confirmed(context, command);
+      this.confirmed(command);
     } catch {
       if (this.live(serial, context))
         this.message =
@@ -304,7 +271,12 @@ export class SodaFactoryCompletionRetry extends LitElement {
       <p role="status">${this.message}</p>
       ${
         this.message && !this.busy
-          ? html`<button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.refresh()}>
+          ? html`<button
+              type="button"
+              class="ui button"
+              ?disabled=${this.busy}
+              @click=${() => requestWorkRefresh(this)}
+            >
               Refresh completion reviews
             </button>`
           : ''

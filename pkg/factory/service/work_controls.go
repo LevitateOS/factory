@@ -20,10 +20,12 @@ type WorkControlAccess func(context.Context, collaboration.ActorID, collaboratio
 type WorkRuntimeMembership func(context.Context, collaboration.ActorID, collaboration.RepositoryID, string) (bool, error)
 
 type WorkControls struct {
-	Store      *store.Store
-	Visibility WorkVisibility
-	Authority  WorkControlAccess
-	Membership WorkRuntimeMembership
+	ExecutionUnavailable bool
+	Store                *store.Store
+	Visibility           WorkVisibility
+	Authority            WorkControlAccess
+	Membership           WorkRuntimeMembership
+	Recovery             WorkRuntimeMembership
 }
 
 type WorkControlView struct {
@@ -110,6 +112,13 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 		if err != nil {
 			return empty, err
 		}
+		if in.Member && s.Recovery != nil {
+			available, err := s.Recovery(ctx, actor, repository, attempt.ProjectID)
+			if err != nil {
+				return empty, err
+			}
+			in.RecoveryUnavailable = !available
+		}
 	}
 	open, _, _, err := s.Store.DispatchState(ctx, int64(repository))
 	if err != nil {
@@ -129,5 +138,10 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 	if err := ctx.Err(); err != nil {
 		return empty, err
 	}
-	return WorkControlView{Capabilities: workCapabilitiesDTO(in), Requested: requested}, nil
+	capabilities := workCapabilitiesDTO(in)
+	if s.ExecutionUnavailable {
+		unavailable := WorkCapability{Reason: WorkAuthorityUnavailable}
+		capabilities.Watch, capabilities.Stop, capabilities.Retry, capabilities.Takeover = unavailable, unavailable, unavailable, unavailable
+	}
+	return WorkControlView{Capabilities: capabilities, Requested: requested}, nil
 }

@@ -22,7 +22,7 @@ var errNativeWriteDenied = errors.New("native repository write denied")
 // account or expand its native repository scope. Construction starts no work.
 func BindNativeProduct(ctx context.Context, application factoryservice.Application) (factoryhttp.Product, error) {
 	var empty factoryhttp.Product
-	if application.Store == nil || application.Coordinator == nil {
+	if application.Store == nil || application.Coordinator == nil || application.Coordinator.Store != application.Store {
 		return empty, errors.New("native product application unavailable")
 	}
 	port, err := NativeRequestPort(ctx)
@@ -77,7 +77,6 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 		},
 		Feed:     factoryhttp.Feed{Service: factoryservice.Feed{Store: application.Store}, Posts: posts, Visibility: bound.visibility},
 		Requests: factoryhttp.Requests{Service: factoryservice.Requests{Store: application.Store, Setup: bound.requestSetup, WriteAccess: bound.writeAccess}, Posts: posts, AuthorityError: nativeProductResourceError, VisibilityError: nativeProductResourceError},
-		Work:     factoryhttp.Work{Reads: factoryservice.WorkReads{Store: application.Store, Visibility: bound.visible}, Issues: factoryservice.Issues{Store: application.Store, Visibility: bound.visible}, VisibilityError: nativeProductResourceError},
 		Repositories: factoryhttp.Repositories{Store: application.Store, Visibility: bound.visible,
 			Access: factoryservice.RepositoryAccess{Store: application.Store, Visibility: bound.visible,
 				Viewer: bound.repositoryViewer, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
@@ -85,9 +84,9 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
 				Bindings: bound.policyBindings, PolicyOptions: bound.policyOptions, SpendingSources: bound.spendingSources, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
-		Runs:    factoryhttp.Runs{Store: application.Store, Visibility: bound.visible, Status: factoryservice.RunStatus{Store: application.Store}, VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
+	product.Work, product.Runs = bound.bindWork(application)
 	reads := nativeCollaborationReads{bound}
 	postContext := factoryservice.PostContext{Posts: posts, Issues: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, q factoryservice.PostIssueQuery) (collaboration.Page[collaboration.Issue], error) {
 		return (factoryservice.CollaborationIssues{Source: reads}).Read(ctx, actor, repository, factoryservice.CollaborationIssueQuery{Cursor: q.Cursor, Number: q.Number, Limit: q.Limit})

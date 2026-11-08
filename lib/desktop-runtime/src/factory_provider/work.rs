@@ -96,6 +96,25 @@ impl Work {
             targets: Mutex::new(targets),
         })
     }
+    // A destination is usable only when exactly one registered checkout is current.
+    // Multiple registrations require explicit destination selection by the host.
+    pub(crate) fn recovery_target(&self) -> io::Result<Value> {
+        if !self.alive.load(Ordering::SeqCst) {
+            return Err(denied());
+        }
+        let targets = self.targets.lock().map_err(|_| denied())?;
+        if targets.len() != 1 {
+            return Err(denied());
+        }
+        let target = targets
+            .values()
+            .next()
+            .ok_or_else(denied)?
+            .lock()
+            .map_err(|_| denied())?;
+        target.current()?;
+        Ok(json!({"profile":self.profile_id,"checkout_id":target.id}))
+    }
     pub(crate) fn register(&self, path: &Path) -> io::Result<String> {
         if !self.alive.load(Ordering::SeqCst) {
             return Err(denied());
