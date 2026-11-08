@@ -2,7 +2,7 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1 and D2 implemented and verified locally; D3–D8 remain design only.
+Status: D1–D3 implemented and verified locally; D4–D8 remain pending design only.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -122,6 +122,19 @@ unknown constraints. No normalization of unknown schemas into accepted state.
 **Proof:** existing PostgreSQL upgrade/reopen cases for known-prior, already-current
 and unknown constraints, plus preservation of stored rows/receipts. Reformatting
 fresh-schema construction must not change an old profile's upgrade input.
+
+Completion (2026-11-08): prerequisite review confirmed D1's complete native
+bindings and retained HTTP/PG receipts/refusals; the retained D2 Chromium journey
+was rerun and passed shared refresh, exact replay and stale-response checks.
+D3 now owns frozen prior/current checks; fresh DDL uses the current definitions
+with different formatting. PostgreSQL normalization, exact comparison, transaction
+and schema-row locks, unknown-state refusal and version 96 remain unchanged.
+The existing `TestOpenCreatesOnlyTheCurrentSchema` passed through
+`soda-native-pg-check --once` on disposable native PostgreSQL: known-prior/current
+reopen, exact fresh-versus-upgraded definitions, unknown refusal and unchanged
+ledger rows/command receipts/version marker. Output:
+`/home/vince/Projects/d3-pg-verified.log`. No new registry or version inference.
+D4–D8 remain pending; the old product queue remains cleared.
 
 ### D4. Make coordinator serialization explicit and cancellation-aware
 

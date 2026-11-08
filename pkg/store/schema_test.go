@@ -939,7 +939,12 @@ func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
 			t.Fatalf("native Project identity was reinterpreted: %+v %v", got, err)
 		}
 	})
-	s, _ := postgresFixture(t)
+	s, dsn := postgresFixture(t)
+	t.Cleanup(func() {
+		if s != nil {
+			_ = s.Close()
+		}
+	})
 	ctx := context.Background()
 	var version, count int
 	if err := s.db.QueryRowContext(ctx, `SELECT count(*),max(version) FROM schema_version`).Scan(&count, &version); err != nil || count != 1 || version != SchemaVersion() {
@@ -960,32 +965,45 @@ func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES(7,3,'retained-scope',0,'{"keep":true}')`); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"factory_assignments", "factory_attempt_allowances"} {
-		branch, end := deliveryRepairAssignmentScope, "), run TEXT NOT NULL"
-		if table == "factory_attempt_allowances" {
-			branch, end = deliveryRepairAllowanceScope, "), root_assignment TEXT PRIMARY KEY"
-		}
-		var old string
-		for _, statement := range schemaStatements {
-			if strings.HasPrefix(statement, "CREATE TABLE "+table+"(") {
-				_, tail, _ := strings.Cut(statement, "issue BIGINT NOT NULL CHECK(")
-				expression, _, _ := strings.Cut(tail, end)
-				old, _ = strings.CutSuffix(expression, " OR ("+branch+")")
-			}
-		}
-		var name string
-		if err := s.db.QueryRowContext(ctx, `SELECT conname FROM pg_constraint WHERE conrelid=$1::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%delivery_repair%'`, table).Scan(&name); err != nil {
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO factory_commands(id,type,target,principal,digest,payload,outcome,created) VALUES($1,'retained','repository/7/repair-grant','native:42','retained-digest','{"original":"exact payload 🍵"}','{"receipt":"retain exact bytes"}','2026-10-31T00:00:00Z')`, strings.Repeat("a", 32)); err != nil {
+		t.Fatal(err)
+	}
+	before := retainedLedgerFingerprint(t, s)
+	currentChecks := map[string]string{}
+	for _, scope := range []struct{ table, prior string }{
+		{"factory_assignments", deliveryRepairPriorAssignmentCheck},
+		{"factory_attempt_allowances", deliveryRepairPriorAllowanceCheck},
+	} {
+		table, old := scope.table, scope.prior
+		var name, definition string
+		if err := s.db.QueryRowContext(ctx, `SELECT conname,pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid=$1::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%delivery_repair%'`, table).Scan(&name, &definition); err != nil {
 			t.Fatal(err)
 		}
+		currentChecks[table] = definition
 		if _, err := s.db.ExecContext(ctx, `ALTER TABLE `+table+` DROP CONSTRAINT `+name+`, ADD CONSTRAINT `+table+`_issue_scope_check CHECK(`+old+`)`); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := initializeDeliveryRepairSchema(ctx, s.db); err != nil {
-		t.Fatalf("exact retained delivery repair scope adoption: %v", err)
-	}
-	if err := initializeDeliveryRepairSchema(ctx, s.db); err != nil {
-		t.Fatalf("delivery repair scope adoption replay: %v", err)
+	// Both shapes carry the current version marker. Open must inspect the
+	// retained constraint, not assume this initializer ran from version alone.
+	for _, shape := range []string{"known-prior", "current"} {
+		if err := s.Close(); err != nil {
+			t.Fatal(err)
+		}
+		var err error
+		s, err = Open(dsn)
+		if err != nil {
+			t.Fatalf("reopen %s delivery repair scope: %v", shape, err)
+		}
+		if retainedLedgerFingerprint(t, s) != before {
+			t.Fatalf("%s upgrade/reopen changed retained rows or receipts", shape)
+		}
+		for table, expected := range currentChecks {
+			var actual string
+			if err := s.db.QueryRowContext(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid=$1::regclass AND contype='c' AND pg_get_constraintdef(oid) LIKE '%completion%' AND pg_get_constraintdef(oid) LIKE '%intent%'`, table).Scan(&actual); err != nil || actual != expected {
+				t.Fatalf("%s %s scope differs from fresh current definition: %v", shape, table, err)
+			}
+		}
 	}
 	for _, table := range []string{"factory_assignments", "factory_attempt_allowances"} {
 		var retained bool
@@ -1004,13 +1022,21 @@ func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
 	if err := s.db.QueryRowContext(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='factory_assignments_issue_scope_check'`).Scan(&unknown); err != nil {
 		t.Fatal(err)
 	}
-	if err := initializeDeliveryRepairSchema(ctx, s.db); err == nil {
+	refused, err := Open(dsn)
+	if refused != nil {
+		_ = refused.Close()
+	}
+	if err == nil {
 		t.Fatal("unknown retained scope was silently adopted")
+	}
+	if retainedLedgerFingerprint(t, s) != before {
+		t.Fatal("refused reopen changed retained rows or receipts")
 	}
 	var after string
 	if err := s.db.QueryRowContext(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='factory_assignments_issue_scope_check'`).Scan(&after); err != nil || after != unknown {
 		t.Fatalf("refused scope changed: %v", err)
 	}
+	t.Log("delivery repair known-prior/current reopen and unknown refusal preserve retained rows, command payloads/receipts and the current schema marker")
 }
 
 // legacyFingerprint captures the staged legacy content a refused Open must

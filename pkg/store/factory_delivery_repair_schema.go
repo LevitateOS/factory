@@ -11,6 +11,16 @@ const deliveryRepairAssignmentScope = `issue=0 AND COALESCE(data->'subject'->>'k
 
 const deliveryRepairAllowanceScope = `issue=0 AND COALESCE(data->'delivery_repair'->>'delivery_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'delivery_repair'->>'failed_verification_run_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'delivery_repair'->>'failure_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->'delivery_repair'->>'inventory_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->'delivery_repair'->>'cycle_id','')=root_assignment AND COALESCE(data->'intent','null'::JSONB)='null'::JSONB AND COALESCE(data->'completion','null'::JSONB)='null'::JSONB AND COALESCE(data->'delivery','null'::JSONB)='null'::JSONB AND COALESCE(data->'stall','null'::JSONB)='null'::JSONB AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'root_assignment','')=root_assignment`
 
+// Frozen predecessor: historical admission must not follow future fresh-schema edits.
+const deliveryRepairPriorAssignmentCheck = `issue>0 OR (issue=0 AND COALESCE(data->'subject'->>'kind','')='completion' AND COALESCE(data->'subject'->'completion'->>'completion_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'subject'->'completion'->>'cycle_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'subject'->'completion'->>'inventory_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->>'phase','')='reassess' AND COALESCE(data->>'role','')='soda-coder' AND COALESCE(data->>'parent_assignment','')='' AND COALESCE(data->>'publication_assignment','')='' AND COALESCE(data->>'id','')~'^[a-f0-9]{32}$' AND COALESCE(data->>'id','')=id AND COALESCE(data->>'attempt_root','')=id AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'acceptance','')='') OR (issue=0 AND COALESCE(data->'subject'->>'kind','')='intent' AND COALESCE(data->'subject'->'intent'->>'intent_id','')~'^d[0-9a-f]{24}$' AND COALESCE(data->'subject'->'intent'->>'owner_id','')~'^[1-9][0-9]*$' AND COALESCE(data->>'phase','')='decompose' AND COALESCE(data->>'role','')='soda-coder' AND COALESCE(data->>'parent_assignment','')='' AND COALESCE(data->>'publication_assignment','')='' AND COALESCE(data->>'id','')~'^[a-f0-9]{32}$' AND COALESCE(data->>'id','')=id AND COALESCE(data->>'attempt_root','')=id AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'acceptance','')='') OR (issue=0 AND COALESCE(data->'subject'->>'kind','')='delivery' AND COALESCE(data->'subject'->'delivery'->>'delivery_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'subject'->'delivery'->>'intent_id','')~'^d[0-9a-f]{24}$' AND COALESCE(data->'subject'->'delivery'->>'accepted_revision','')~'^d[0-9a-f]{24}$' AND COALESCE(data->>'phase','')='verify' AND COALESCE(data->>'role','')='soda-reviewer' AND COALESCE(data->>'parent_assignment','')='' AND COALESCE(data->>'publication_assignment','')='' AND COALESCE(data->>'id','')=id AND COALESCE(data->>'attempt_root','')=id AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'acceptance','')='') OR (issue=0 AND COALESCE(data->'subject'->>'kind','')='stall' AND COALESCE(data->'subject'->'stall'->>'stall_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'subject'->'stall'->>'cycle_id','')=id AND COALESCE(data->'subject'->'stall'->>'inventory_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->>'phase','')='repair' AND COALESCE(data->>'role','')='soda-coder' AND COALESCE(data->>'parent_assignment','')='' AND COALESCE(data->>'publication_assignment','')='' AND COALESCE(data->>'id','')=id AND COALESCE(data->>'attempt_root','')=id AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'acceptance','')='')`
+
+const deliveryRepairAssignmentCheck = deliveryRepairPriorAssignmentCheck + ` OR (` + deliveryRepairAssignmentScope + `)`
+
+// Frozen predecessor: historical admission must not follow future fresh-schema edits.
+const deliveryRepairPriorAllowanceCheck = `(issue>0 AND COALESCE(data->'completion','null'::JSONB)='null'::JSONB AND COALESCE(data->'intent','null'::JSONB)='null'::JSONB) OR (issue=0 AND COALESCE(data->'completion'->>'completion_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'completion'->>'cycle_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'completion'->>'inventory_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'root_assignment','')=root_assignment) OR (issue=0 AND COALESCE(data->'intent'->>'intent_id','')~'^d[0-9a-f]{24}$' AND COALESCE(data->'intent'->>'owner_id','')~'^[1-9][0-9]*$' AND COALESCE(data->'completion','null'::JSONB)='null'::JSONB AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'root_assignment','')=root_assignment) OR (issue=0 AND COALESCE(data->'delivery'->>'delivery_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'intent','null'::JSONB)='null'::JSONB AND COALESCE(data->'completion','null'::JSONB)='null'::JSONB AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'root_assignment','')=root_assignment) OR (issue=0 AND COALESCE(data->'stall'->>'stall_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'stall'->>'cycle_id','')~'^[a-f0-9]{32}$' AND COALESCE(data->'stall'->>'inventory_digest','')~'^[a-f0-9]{64}$' AND COALESCE(data->'intent','null'::JSONB)='null'::JSONB AND COALESCE(data->'completion','null'::JSONB)='null'::JSONB AND COALESCE(data->'delivery','null'::JSONB)='null'::JSONB AND COALESCE(data->>'repository','')=repository::TEXT AND COALESCE(data->>'issue','')='0' AND COALESCE(data->>'root_assignment','')=root_assignment)`
+
+const deliveryRepairAllowanceCheck = deliveryRepairPriorAllowanceCheck + ` OR (` + deliveryRepairAllowanceScope + `)`
+
 // Normalize only the previous and new canonical expressions with PostgreSQL's
 // own parser. The temporary shape is transaction-local; no retained table or
 // row changes until the existing constraint exactly matches the known old form.
@@ -37,33 +47,16 @@ func initializeDeliveryRepairSchema(ctx context.Context, db *sql.DB) error {
 	if err = tx.QueryRowContext(ctx, `SELECT version FROM schema_version FOR UPDATE`).Scan(&version); err != nil {
 		return err
 	}
-	for _, table := range []string{"factory_assignments", "factory_attempt_allowances"} {
-		branch, end := deliveryRepairAssignmentScope, "), run TEXT NOT NULL"
-		if table == "factory_attempt_allowances" {
-			branch, end = deliveryRepairAllowanceScope, "), root_assignment TEXT PRIMARY KEY"
-		}
-		var expression string
-		for _, statement := range schemaStatements {
-			if strings.HasPrefix(statement, "CREATE TABLE "+table+"(") {
-				_, tail, ok := strings.Cut(statement, "issue BIGINT NOT NULL CHECK(")
-				if !ok {
-					return errors.New("canonical repair scope is unavailable")
-				}
-				expression, _, ok = strings.Cut(tail, end)
-				if !ok {
-					return errors.New("canonical repair scope end is unavailable")
-				}
-			}
-		}
-		old, ok := strings.CutSuffix(expression, " OR ("+branch+")")
-		if !ok {
-			return errors.New("canonical delivery repair branch differs")
-		}
-		previous, err := canonicalDeliveryRepairCheck(ctx, tx, old)
+	for _, scope := range []struct{ table, prior, current string }{
+		{"factory_assignments", deliveryRepairPriorAssignmentCheck, deliveryRepairAssignmentCheck},
+		{"factory_attempt_allowances", deliveryRepairPriorAllowanceCheck, deliveryRepairAllowanceCheck},
+	} {
+		table := scope.table
+		previous, err := canonicalDeliveryRepairCheck(ctx, tx, scope.prior)
 		if err != nil {
 			return err
 		}
-		next, err := canonicalDeliveryRepairCheck(ctx, tx, expression)
+		next, err := canonicalDeliveryRepairCheck(ctx, tx, scope.current)
 		if err != nil {
 			return err
 		}
