@@ -14,7 +14,7 @@ Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
 Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q24 request stopped at Q14's conditional-refinement blocker and does not
+bounded Q25 request stopped at Q14's conditional-refinement blocker and does not
 resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
@@ -659,7 +659,7 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**BLOCKED (2026-11-08), latest requested ceiling Q24; actual task Q14.** D1–D8/Q01–Q13 remain
+**BLOCKED (2026-11-08), latest requested ceiling Q25; actual task Q14.** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
 `a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
 unchanged base and holds Issue Maker before paid refinement. GitHub's documented
@@ -990,6 +990,12 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q25"></a>
 
 ### Q25 — Fresh Linux distribution and installers
+
+**Pending: blocked by [Q14](#q14); Q15–Q24 remain unverified.** Current refusal
+code, exact commits and original receipts confirm the unchanged safe refinement
+blocker. Q24 has no qualified installed appliance journey; its current-appliance
+availability remains unverified. No package/install effects or appliance contact
+ran. Resume Q14 first; this queued request does not waive Q24.
 
 ```text
 Execute through Q25 — Fresh Linux distribution and installers. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q25 despite the document's historical paused snapshot; it does not authorize work beyond Q25 or resuming the old product queue.
