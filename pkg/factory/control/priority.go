@@ -19,6 +19,22 @@ type PriorityChooser interface {
 	Choose(context.Context, factory.PriorityRequest) (factory.PriorityAnswer, error)
 }
 
+// A retained preference carries no continuing authority from its paying source.
+type PriorityAdmission interface {
+	CheckPriority(context.Context, factory.PriorityRequest) error
+}
+
+func checkPriorityReceipt(ctx context.Context, deps *PriorityJudgments, receipt factory.PriorityReceipt) error {
+	if admission, ok := deps.Chooser.(PriorityAdmission); ok {
+		for _, call := range receipt.Calls {
+			if err := admission.CheckPriority(ctx, call.Request); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 type PriorityJudgments struct {
 	Journal       PriorityJournal
 	Chooser       PriorityChooser
@@ -111,6 +127,9 @@ func (t *priorityTournament) admitTournament() (string, bool, error) {
 		return "", false, readErr
 	}
 	if readErr == nil && (previous.Outcome == "selected" || previous.Outcome == "fairness") {
+		if err := checkPriorityReceipt(t.ctx, t.deps, previous); err != nil {
+			return "", false, err
+		}
 		for _, candidate := range t.candidates {
 			if candidate.ID == previous.Selected {
 				if t.fairness {
@@ -164,6 +183,9 @@ func (t *priorityTournament) runTournament() (string, error) {
 	if t.fairness {
 		t.receipt.Selected, t.receipt.Outcome = t.oldest.ID, "fairness"
 	}
+	if err := checkPriorityReceipt(t.ctx, t.deps, t.receipt); err != nil {
+		return "", err
+	}
 	if err := t.deps.Journal.RecordPriorityJudgment(t.ctx, t.receipt); err != nil {
 		return "", err
 	}
@@ -181,7 +203,7 @@ func (t *priorityTournament) judgePriorityGroup(group []factory.PriorityCandidat
 			break
 		}
 	}
-	request := factory.PriorityRequest{Snapshot: t.snapshot, Repository: repository, Candidates: group, Rubric: factory.PriorityRubric}
+	request := factory.PriorityRequest{Snapshot: t.snapshot, Repository: repository, Candidates: factory.PriorityJudgmentCandidates(group), Rubric: factory.PriorityRubric}
 	bounded, cancel := context.WithTimeout(t.ctx, 30*time.Second)
 	answer, callErr := t.deps.Chooser.Choose(bounded, request)
 	cancel()

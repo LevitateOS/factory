@@ -401,6 +401,17 @@ func completePrioritySelection(ctx context.Context, deps DispatchDeps, nativeRev
 	if !ok {
 		return report
 	}
+	if len(candidates) > 1 {
+		snapshot, err := factory.PrioritySnapshot(candidates)
+		if err != nil {
+			return report
+		}
+		receipt, err := deps.Priority.Journal.PriorityJudgment(ctx, snapshot)
+		if err != nil || checkPriorityReceipt(ctx, deps.Priority, receipt) != nil {
+			report.Waits = append(report.Waits, DispatchWait{Reason: "priority_unavailable", Detail: "original priority source is no longer admitted"})
+			return report
+		}
+	}
 	return launchSelectedCandidate(ctx, deps, selection, selected, confirmed, report)
 }
 
@@ -418,6 +429,10 @@ func priorityCandidate(plan *attemptPlan) factory.PriorityCandidate {
 }
 
 func priorityExactSnapshot(candidates []factory.PriorityCandidate) (string, error) {
+	candidates = append([]factory.PriorityCandidate(nil), candidates...)
+	for i := range candidates {
+		candidates[i].PromptDigest = ""
+	}
 	data, err := json.Marshal(candidates)
 	if err != nil {
 		return "", err

@@ -25,26 +25,46 @@ var _ control.PriorityChooser = NativeJudgments{}
 // Choose uses the configured judgment source only when every candidate belongs
 // to one repository. Cross-repository spending has no selected funding owner.
 func (s NativeJudgments) Choose(ctx context.Context, request factory.PriorityRequest) (factory.PriorityAnswer, error) {
-	var empty factory.PriorityAnswer
+	options, subject, err := nativePriorityScope(request)
+	if err != nil {
+		return factory.PriorityAnswer{}, err
+	}
+	return s.SelectScoped(ctx, request.Repository, subject, map[string]any{"snapshot": request.Snapshot, "repository": request.Repository}, request.Rubric, options)
+}
+
+func nativePriorityScope(request factory.PriorityRequest) (map[string]any, string, error) {
 	if len(request.Candidates) < 2 || len(request.Candidates) > 255 || request.Rubric != factory.PriorityRubric {
-		return empty, control.ErrPriorityUnavailable
+		return nil, "", control.ErrPriorityUnavailable
 	}
 	repository := request.Repository
 	options := make(map[string]any, len(request.Candidates))
+	fingerprintOptions := make(map[string]any, len(request.Candidates))
 	for _, candidate := range request.Candidates {
 		if repository <= 0 || candidate.Control.Repository != repository || candidate.Acceptance.Repository != repository || candidate.ID == "" {
-			return empty, control.ErrPriorityUnavailable
+			return nil, "", control.ErrPriorityUnavailable
 		}
 		if _, duplicate := options[candidate.ID]; duplicate {
-			return empty, control.ErrPriorityUnavailable
+			return nil, "", control.ErrPriorityUnavailable
 		}
-		options[candidate.ID] = candidate
+		// Admission identities remain in the full request fingerprint and
+		// durable tournament receipt. The model needs preference facts once,
+		// rather than two copies of every internal grant and acceptance tuple.
+		options[candidate.ID] = candidate.PreferenceFacts()
+		fingerprintOptions[candidate.ID] = candidate
 	}
-	fingerprint, err := factory.JudgmentFingerprint(factory.JudgmentNextWork, request, request.Rubric, options)
+	fingerprint, err := factory.JudgmentFingerprint(factory.JudgmentNextWork, request, request.Rubric, fingerprintOptions)
 	if err != nil {
-		return empty, err
+		return nil, "", err
 	}
-	return s.SelectScoped(ctx, repository, "priority:"+fingerprint, request, request.Rubric, options)
+	return options, "priority:" + fingerprint, nil
+}
+
+func (s NativeJudgments) CheckPriority(ctx context.Context, request factory.PriorityRequest) error {
+	_, subject, err := nativePriorityScope(request)
+	if err != nil {
+		return err
+	}
+	return s.CheckJudgment(ctx, request.Repository, subject)
 }
 
 func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {

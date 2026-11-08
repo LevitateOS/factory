@@ -43,8 +43,10 @@ fn valid_id(id: &str) -> bool {
 }
 fn transcript_limit(prompt: &str) -> io::Result<usize> {
     // Muse emits the supplied prompt in its input and lifecycle JSON events.
+    // A large choice distribution also emits many small output-delta events;
+    // their envelopes need room beyond the separately bounded 64 KiB answer.
     // The final answer remains bounded separately by final_text and Go's journal.
-    Ok(2 * serde_json::to_vec(prompt)?.len() + 65536)
+    Ok(2 * serde_json::to_vec(prompt)?.len() + 16 * 65536)
 }
 struct Job {
     cancel: Arc<AtomicBool>,

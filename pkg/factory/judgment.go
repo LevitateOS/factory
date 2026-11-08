@@ -30,6 +30,12 @@ type PriorityCandidate struct {
 	Effort              string         `json:"effort,omitempty"`
 }
 
+// PreferenceFacts omits product admission internals from the model's choices.
+// Those identities remain bound by the full request and its durable receipt.
+func (c PriorityCandidate) PreferenceFacts() map[string]any {
+	return map[string]any{"objective": c.Objective, "accepted_sections": c.AcceptedSections, "first_seen_unix": c.Control.FirstSeenUnix, "impact": c.Impact, "risk": c.Risk, "effort": c.Effort, "planned_minutes": c.PlannedMinutes}
+}
+
 const PriorityRubric = "Choose the eligible issue whose next execution best advances its accepted objective. Prefer evidenced prerequisite leverage and material user impact, then reduce evidenced delivery risk and effort. Use only provided facts; missing impact, risk and effort are unknown, not zero. Queue age breaks equivalent preferences. Eligibility, acceptance, authority, spending and launch are decided by code, never by this preference."
 
 type PriorityRequest struct {
@@ -113,12 +119,7 @@ func SystemOneWorkerBatchSnapshot(capabilityID string, tool MCPTool, state any, 
 
 // PrioritySnapshot binds the complete candidate evidence and current rubric.
 func PrioritySnapshot(candidates []PriorityCandidate) (string, error) {
-	candidates = append([]PriorityCandidate(nil), candidates...)
-	for i := range candidates {
-		candidates[i].Control.NativeRev = 0
-		candidates[i].Control.AssessedUnix = 0
-		candidates[i].PromptDigest = ""
-	}
+	candidates = PriorityJudgmentCandidates(candidates)
 	seen := make(map[string]bool, len(candidates))
 	for _, c := range candidates {
 		if c.ID == "" || seen[c.ID] {
@@ -135,6 +136,19 @@ func PrioritySnapshot(candidates []PriorityCandidate) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// A regenerated execution prompt contains a new deadline. It is not a new
+// comparison when the accepted objective, authority and preparation are equal.
+// Use the same stable inputs for both the tournament and each paid group.
+func PriorityJudgmentCandidates(candidates []PriorityCandidate) []PriorityCandidate {
+	candidates = append([]PriorityCandidate(nil), candidates...)
+	for i := range candidates {
+		candidates[i].Control.NativeRev = 0
+		candidates[i].Control.AssessedUnix = 0
+		candidates[i].PromptDigest = ""
+	}
+	return candidates
 }
 
 // Validate checks coverage and normalization, not the model's factual accuracy.
