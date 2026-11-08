@@ -86,6 +86,7 @@ export class SodaFactoryPullReviewers extends LitElement {
     const head = object(caps).head;
     check(head === null || typeof head === 'string' && /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(head));
     this.allowed = pull.state === 'open' && snapshot.allTargetsVisible &&
+      pullActionAllowed(caps, context.repository, context.actor, context.parent, head as string | null, 'pull.create') &&
       pullActionAllowed(caps, context.repository, context.actor, context.parent, head as string | null, 'pull.review');
     if (!snapshot.allTargetsVisible) this.message = 'Some reviewer identities are hidden. Reviewer changes are unavailable.';
   }

@@ -121,6 +121,13 @@ func (s nativeHumanReviewRequests) PrepareHumanReviewRequest(ctx context.Context
 	if err := s.admit(ctx, q); err != nil {
 		return empty, err
 	}
+	capabilities, err := (nativeCollaborationReads{s.nativeProductAccount}).ReadCapabilities(ctx, q.Actor, q.Repository, factoryservice.CapabilityQuery{Subject: "repository"})
+	if err != nil {
+		return empty, err
+	}
+	if capabilities.Actions[collaboration.CreatePull].State != collaboration.Allowed {
+		return empty, factoryservice.ErrHumanReviewRequestAdmission
+	}
 	target, err := s.target(ctx, q)
 	if err != nil {
 		return empty, err

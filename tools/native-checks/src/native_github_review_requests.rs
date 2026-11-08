@@ -2025,6 +2025,8 @@ pub(super) async fn effects(profile: &Path) -> Result<()> {
         ("archived", 403),
         ("disabled", 403),
         ("readonly-unknown", 403),
+        ("push-denied", 403),
+        ("push-unobserved", 403),
         ("target-changed", 409),
         ("team-foreign", 409),
         ("hidden-absence", 409),

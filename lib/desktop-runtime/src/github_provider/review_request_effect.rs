@@ -83,6 +83,7 @@ impl Client {
             }
             if repository["archived"].as_bool() != Some(false)
                 || repository["disabled"].as_bool() != Some(false)
+                || repository["permissions"]["push"].as_bool() != Some(true)
             {
                 return Err(Failure::new(403, "github_repository_read_only"));
             }

@@ -245,6 +245,21 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 }))?;
                 return Ok::<(), String>(());
             }
+            if fixture["mode"] == "role_readonly" {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "webkit": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "read_only_merge_and_reviewer_refused_before_capture": true,
+                    "read_role_comment_review_committed": true,
+                    "reader_comment_review_capabilities_allowed": true,
+                    "owned_account_removed": true,
+                    "oauth_source": "factory_device",
+                    "granted_scope": accounts[0].grant.as_ref().ok_or("OAuth grant metadata missing")?.scope,
+                    "installed_qualified": false,
+                }))?;
+                return Ok::<(), String>(());
+            }
             if fixture["mode"] == "other_actor" || fixture["mode"] == "reviewer_requests" {
                 let oauth = fixture["oauth_source"] == "factory_device";
                 let evidence_name = if fixture["mode"] == "other_actor" {

@@ -355,6 +355,54 @@
       assert(response.ok, 'normal read refused: ' + suffix);
       return response.json();
     };
+    if (fixture.mode === 'role_readonly') {
+      stage = 'read-only-role';
+      await navigate('reviews');
+      const pull = await read('');
+      assert(pull.ref.external_id === fixture.pull_id && pull.head.commit === fixture.head && pull.state === 'open', 'read-only fixture changed');
+      const caps = await read('/capabilities');
+      assert(['merge', 'squash', 'rebase'].every(method => caps.merge_methods?.[method]?.state !== 'allowed'), 'read-only role offered merge');
+      assert(['pull.comment', 'pull.review', 'pull.review.comment'].every(action => caps.actions?.[action]?.state === 'allowed'),
+        'read-only role lost comment/review permission');
+      assert(caps.actions?.['pull.create']?.state !== 'allowed', 'read-only role offered push authority');
+      const reviewers = () => document.querySelector('soda-factory-pull-reviewers');
+      await until(() => reviewers()?.querySelector('input[name=name]'), 'read-only reviewer lookup unavailable');
+      reviewers().querySelector('select[name=kind]').value = 'team';
+      input(reviewers().querySelector('input[name=name]'), fixture.reviewer);
+      await click(reviewers(), 'Find reviewer');
+      const reviewerAction = () => button(reviewers(), 'Request review from ' + fixture.reviewer) ||
+        button(reviewers(), 'Remove request for ' + fixture.reviewer);
+      await until(reviewerAction, 'read-only reviewer not found');
+      assert(reviewerAction().disabled, 'read-only role offered reviewer change');
+      const transport = document.querySelector('soda-factory-pull').context.transport;
+      const base = 'factory/collaboration/repositories/' + repo + '/pulls/' + fixture.number;
+      const denied = async (path, body) => {
+        const command = crypto.randomUUID().replaceAll('-', '');
+        const response = await transport.request(base + path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({command_id: command, ...body})});
+        assert(response.status === 403, 'read-only write was not refused');
+        const lookup = await transport.request(base + path + '/commands/' + command, {method: 'GET'});
+        assert(lookup.status === 404, 'read-only write captured a command');
+      };
+      await denied('/merges', {method: 'merge', message: 'Read-only refusal fixture', expected_head: fixture.head});
+      const reviewer = await read('/review-requests/lookup?kind=team&name=' + encodeURIComponent(fixture.reviewer));
+      assert(reviewer.team?.id, 'read-only reviewer target unavailable');
+      await denied('/review-requests', {reviewer_kind: 'team', reviewer_id: reviewer.team.id, requested: true});
+      const actor = document.querySelector('soda-factory-pull').context.actor;
+      assert(!(await read('/reviews?limit=20')).items.some(row => row.state === 'pending' && row.author?.id === actor),
+        'read-role fixture has an existing pending review; preserve its writing');
+      await until(() => document.querySelector('soda-factory-pull-review textarea:not([disabled])'), 'read-role review editor unavailable');
+      const body = 'Factory Q10 read-role comment permission check.';
+      input(document.querySelector('soda-factory-pull-review textarea'), body);
+      await write('soda-factory-pull-review', 'Submit comment', 'Check saved review', 'pull-review-saved');
+      assert((await read('/reviews?limit=20')).items.some(row => row.state === 'commented' && row.author?.id === actor && row.body === body),
+        'read-role comment review readback failed');
+      const after = await read('');
+      assert(after.ref.external_id === fixture.pull_id && after.state === 'open' && after.head.commit === fixture.head,
+        'read-only fixture changed after denied writes');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.mode === 'branch_rule') {
       stage = 'protected-branch-merge';
       await navigate('reviews');
