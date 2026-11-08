@@ -1258,6 +1258,32 @@ acceptance-input checks await the exact fixture-comment permission. Legacy pendi
 entries without complete captured command provenance remain unqualified. No
 comment or model call ran. Q08–Q30 and all 13 security gates remain open.
 
+### Q07 legacy pending recovery refusal
+
+`a312951` refuses known legacy setup retries before source acquisition, consent
+admission or native execution when their immutable requirement lacks the full
+command digest. The API/UI explicitly report automatic recovery unavailable and
+retain the pending command. No provenance is inferred or old record migrated;
+modern exact receipts keep their existing recovery path and qualification above.
+
+The existing native WebKit/IPC/Go/PostgreSQL check passed against a copy of the
+actual retained `q07-ui3` profile: `q07-legacy/reopen.log` and
+`github-ui-write-result.json`. It confirmed the legacy decisions still validate,
+no new preparation admission, unchanged historical observations and exact pending
+record bytes (`q07-legacy-preservation.log`). The first attempt stopped before
+the journey because its retained-account fixture flag was missing; that log is
+preserved. Cleanup shared the old fixture's isolated keyring and withdrew its
+test entry; the same authorized grant was restored under the original
+profile/connection with a fresh credential revision, without printing the token
+(`q07-legacy/restore-fixture-keyring.log`). The copied profile remains withdrawn;
+personal login was untouched. Future retained-profile copies need isolated
+keyring copies. TypeScript/Lit, UI, backend/helper and both desktop configurations
+passed (`q07-legacy-*.log`); all six original dirty edit sets remain exact.
+
+**INCOMPLETE:** Q07's nonempty comment/dependency acceptance and hidden/stale
+acceptance-input journey still await the pending exact fixture-comment permission.
+No comment or model call ran. Q08–Q30 and all 13 security gates remain open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

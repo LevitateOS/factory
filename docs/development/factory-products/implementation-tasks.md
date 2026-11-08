@@ -289,9 +289,11 @@ withdrawal during controlled source I/O through the existing native check;
 provider responses in those negative cases are declared.
 `4bed2b1967b6e63a5b10cdc249dbe473c8a204da` completes the setup-specific native
 body limit, bounded source reads, pre-consent planning-size refusal and real
-64-file preparation/material readback. Q07 remains Active:
-nonempty comment/dependency acceptance, hidden/stale acceptance inputs and qualification of legacy pending records
-without captured command provenance remain open. Fixture-comment permission is
+64-file preparation/material readback. `a312951` explicitly refuses automatic
+recovery of legacy commands lacking exact provenance; the actual retained-profile
+UI check preserves their pending command and historical decisions without replay.
+Q07 remains Active: nonempty comment/dependency acceptance and hidden/stale
+acceptance inputs remain open. Fixture-comment permission is
 pending; no message was posted.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 

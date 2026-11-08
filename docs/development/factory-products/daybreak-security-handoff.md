@@ -288,8 +288,10 @@ now have current evidence, including a 64-file material readback. Controlled
 native account/controller/approval withdrawal during source I/O also passed.
 `4bed2b1967b6e63a5b10cdc249dbe473c8a204da` completes the setup envelope and bounded
 read/planning-limit fixes. Full nonempty comment/dependency acceptance and
-hidden/stale inputs remain pending the exact fixture-comment permission; legacy
-pending provenance remains unqualified. No model call or security-gate closure
+hidden/stale inputs remain pending the exact fixture-comment permission.
+`a312951` qualifies explicit legacy recovery refusal without inventing missing
+provenance or replaying setup; automatic legacy recovery remains unavailable.
+No model call or security-gate closure
 is claimed. Preserve the historical scope/status text above; current references
 and limitations are in the [Q07 decision evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
