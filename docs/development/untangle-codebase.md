@@ -1891,6 +1891,103 @@ and bus processes were joined, local GitHub grants withdrawn and profiles/receip
 retained. Both original stashes, including the unrelated README, remain intact.
 No remote human text was edited.
 
+### Q13 completion: contributions and single-repository queue (2026-11-08)
+
+Requested/actual ceiling: Q13. **COMPLETE within ordinary contribution and queue
+producer/dispatch scope**, in `50a2d209e69a2eca04248f71d9522844c7d5c93b`,
+`6cb79cc2da1ed1dc2449b72c2418aeba246ad9c6` and
+`ec4dc079f615cb4df099866fc9a2941b21b1618b`. Q14 was not started.
+D1–D8/Q01–Q12 were rechecked against actual relevant owners and retained native/
+PostgreSQL outputs, the 37 Factory and two canonical Fountain ancestor references
+in `/home/vince/Projects/q11-prerequisites.log`, Q11 `a9ecf59`/`41e600d`/`d588efb`
+and Q12 `51a80d4`/`39712e2`/`6ed9f48`. No earlier ordinary prerequisite needed
+replaying. Earlier unknown Q11/Q12 commands remain fenced exactly as recorded.
+
+Go now observes each admitted contribution role and rechecks its source context
+before claiming. The existing selected-source allowance preflight remains before
+claim, and the assessment deadline accommodates sequential thirty-second role
+batches. Each batch retains the three original formulations; it is one actual
+inference, not three independent calls. The usefulness/confidence thresholds,
+single invitation, existing-worker-only discussion authority and exact-source
+reply consumption are unchanged. No alternate provider fallback was introduced.
+
+Queue snapshots and paid groups share stable comparison inputs; regenerated
+execution deadlines/prompt digests cannot create a different paid command or
+prevent final admission when all semantic inputs match. The full request remains
+in its original fingerprint/receipt. Only preference facts go into the model
+prompt, once per alternative, so a supported group does not duplicate internal
+admission tuples past the prompt bound. Cached, completed and pre-dispatch choices
+check their original captured source/policy/funding revision. Re-enabling a source
+does not renew old authority. Final dispatch still checks current inventory,
+selected work, capacity, grants, preparation and accepted input.
+
+Rust now allows bounded JSON output-delta envelopes beyond the two prompt echoes:
+twice the encoded prompt plus 1 MiB, with the existing 30-second/one-step call and
+separate 64 KiB final-answer limit unchanged. The real 255-alternative transcript
+was 247,004 bytes; the earlier 180,366-byte limit had stopped its predecessor.
+Go retains product decisions/transactions, Rust custody/process/native provider
+effects and Lit its unchanged shared presentation. Ordinary authorized fixture
+checks required no Daybreak session or SodaOS appliance.
+
+All live inference used the existing CLI-managed Muse login, selected
+`muse-spark-1.3-contributor`, official stable `1.4.14-R7309.1`, SHA-256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`.
+Native judgment evidence binds the exact model/source/revisions/tool/prompt and
+actual retired process interval. Each listed judgment has one original elapsed
+minute after ceiling rounding; these are ledger minutes, not invented token,
+monetary or provider billing-account claims.
+
+| Required behavior | Exact retained evidence |
+| --- | --- |
+| Current admitted role, funding readiness, claim, real usefulness assessment, invitation and authenticated reply | `/home/vince/Projects/q13-contributions4/{result.log,recovery.log,execution-profile/contribution-journey.json,execution-profile/connected-judgment-evidence.json}`. Command `d9d46798307d24050026280b7bc97c66`, source `0718f65e908d0a9ad04f26542bd4b2ee`, capability `93ffb016c51bf0d421a8b310f0a2138c`. Architect assessment of post `130b58647214ffdafae0634e2504a371` revision 0 retained all three original questions, minimum probability/confidence 0.97, assignment `5b48ade668b136bd475b63bfffcc26bb` and actual reply `9c7e3ae698c30a41bbacea06b1ddd634`. Actual MCP inbox/discussion/reply passed; a second reply refused. Restart preserved the exact consumed assessment and one charge without inference replay. |
+| Withdrawal and allowance controls | `/home/vince/Projects/q13-contributions3/{result.log,recovery.log,execution-profile/connected-judgment-evidence.json}`: helper `f0ea923bd779f1663e572fa09005a45b` began before its judgment funding role was withdrawn; cancelled/accounted once, no invitation. Source `32dc470ea596fdc1c2073b2f0fb609d2`. Missing capability and withdrawn judgment eligibility prevented claim/inference. Existing actual PostgreSQL remaining-allowance/one-pending-call checks in `/home/vince/tmp/fnative-judgment-capacity9.A7mwQz/result.log` were inspected/reused; their provider declarations are not live inference proof. |
+| Complete grouped comparison and retained continuation | `/home/vince/Projects/q13-queue4/{result.log,resume.log,resume2.log,resume3.log,settlement.log}` and `execution-profile/priority-{eligibility-evidence,journey}.json`. Actual coordinator readiness over 256 declared accepted objectives, 255-member group and two-winner final. Original commands `802c6cf436bf13cd38ff10a9531415cf` / `7ca56087d49e93de26e019c8fc5752ec`; snapshot `1f7f66d0fcda6d3f7311d779c4d72cff437b040370c725e80899b5cf1e416801`. Original answers were reused after driver timeout/reopen, never resent. |
+| Eligibility/source races and current native dispatch | Same queue profile: valid blocker/fingerprint change after selection produced `priority_snapshot_changing` and no launch. Removing/restoring the selected judgment funding role refused both original paid choices. Current commands `e92100b5ebe6d274c4a905068327aa43` / `8f0587d4ba0003b6c9ecd91cd67d4c18`, snapshot `64bbe705cfbe83a42bcc6225f87ecb39518039064b50323d9930f4f86829aec3`, selected local candidate `1/1`. Public Go/native dispatch assignment `eda816746f00a358dd94df473f5b5978`, run `dd687418f00f9dbaba086f1cf49ee9c4`, with actual process start/stop and retained custody/retirement. Current role preparations used the same accepted source/setup through the existing owner; old native-instance workspaces were not launched. |
+| Exact retained results and charges | `execution-profile/connected-judgment-evidence.json` plus `/home/vince/Projects/q13-queue4/{settlement.log,final-journal.json}`. Source `1f6458ba161a6b9f77370be12a7cce39`: four completed choice commands, funding revisions 1/1/3/3, one minute each. Worker startup separately captured context command `c165c0d90a3f7c14db48cb8151a35c5a`; its original 19:00:01.046–19:00:01.067 UTC cancellation settled once for one minute. The worker's admitted-run row is one minute ending at native stop 18:59:55.068 UTC, excluding later reconciliation time. All five commands finished; no Q13 judgment remained pending. |
+
+**Dispatch scope/terminal outcome:** the fixture's four-call accounting assertion
+encountered the additional startup context capture and stopped its owner after
+the selected process had actually started. The original worker and context call
+were cancelled. `settle.sh` reused only their retained receipts; canonical worker
+outcome is **cancelled**, with joined resources and original-source accounting.
+No worker relaunch, repeated choice or replacement terminal outcome was used.
+This closes Q13's selection/dispatch and retained result boundary; it does not
+claim successful selected-worker MCP output, implementation or delivery. The
+unchanged positive admitted-worker/MCP/result journeys remain Q05/Q09/Q12
+evidence, and complete connected delivery remains Q15.
+
+**Preserved attempts:** `q13-contributions/` stopped before inference and its
+original failed worker was reconciled. `q13-contributions2/` retains two cancelled
+calls/charges and failed rate-limited fixture worker, settled from original
+receipts. `q13-contributions3/` retains the withdrawal above plus successful
+assessment `46c8e25f2bf8e5f87946981808d4f4b7`; its fixture used an invalid reply
+field, so no reply is claimed there. All original calls/workers are settled;
+the corrected reply case is contributions4. `q13-queue/` and `q13-queue2/` stopped
+at readiness capacity/preparation admission with empty command/usage journals.
+`q13-queue3/retained-journal.json` keeps original
+`64d262bc2fd2db8c5f101f8c01cf3aa3`: confirmed output_limit, no adopted answer,
+one original source minute, no worker launch or resend. Queue4 preserves its
+intermediate logs/journals and successful choices despite fixture resume errors;
+`final-journal.json` is the subsequent settled readback, not a rewritten history.
+
+**Limits and remaining gates:** GitHub account/repository admission was real on
+fixture external repository `1448277000`; its 256 accepted queue objectives and
+local CLI worker were declared. Contributions used an actual admitted local CLI
+role and real selected Muse inference. No GitHub human content, team permission,
+remote issue or PR was changed. These checks do not qualify installed behavior,
+256 real provider issues or complete GitHub delivery. Mixed-repository inference
+still refuses before spending, including a same-repository subgroup of a mixed
+tournament; its paying source remains an unresolved owner decision. All 13 broad
+security gates, Q14 authoring/graph, Q15 delivery and later installation gates
+remain open. No downstream task was started.
+
+Production Go and existing native-check Go builds, affected Cargo/native build,
+`bun run check:boundaries` and `git diff --check` passed. Every owned check/session,
+Muse service, fixture worker/preparer, temporary PostgreSQL, keyring and bus was
+joined. Profiles, keyring files, original receipts, both original stashes and the
+unrelated stashed README remain intact. No new unit-test root, provider fallback
+or product journal was added. Next task is Q14 only when authorized.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

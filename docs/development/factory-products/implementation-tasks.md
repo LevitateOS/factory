@@ -9,11 +9,11 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-08, Factory `39712e2`):** 18 queue entries remain:
-Q09–Q12 are complete within their recorded ordinary scopes, Q13–Q29 are pending,
+**Current snapshot (2026-11-08, Factory `ec4dc07`):** 17 queue entries remain:
+Q09–Q13 are complete within their recorded ordinary scopes, Q14–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q12 request is complete and does not resume later implementation.
+bounded Q13 request is complete and does not resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -45,7 +45,13 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**When authorized, start with Q13.** Q12's live selected-source Feed, planning,
+**When authorized, start with Q14.** Q13's admitted contribution assessment,
+invitation/reply, grouped single-repository priority choices, eligibility/source
+fences, actual native dispatch and original-charge recovery are in its
+[completion evidence](../untangle-codebase.md#q13-completion-contributions-and-single-repository-queue-2026-11-08).
+Queue objectives/worker inputs are declared; its selected worker's retained
+outcome is cancelled, not a completed delivery. Mixed-repository judgment funding
+remains unresolved and unavailable. Q12's live selected-source Feed, planning,
 context and authenticated worker consultations, long-input Begin, exact accounting,
 withdrawal/eligibility races and crash recovery are in its
 [completion evidence](../untangle-codebase.md#q12-completion-selected-source-judgment-owner-and-consumers-2026-11-08).
@@ -184,7 +190,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q10 — GitHub permissions](#q10) | Supported connected permission cases, read-role COMMENT, UI/API pre-capture refusals, remote revocation and observer migration verified; fixture team permission/request restored. | Complete within ordinary connected scope |
 | [Q11 — CI and merge rules](#q11) | Real app-bound CI/test-merge evaluation, current rule/ref/status/policy/permission fences, human veto restrictions and causal merge verified; unchanged merge/squash/rebase and source-preparation evidence reused. Ambiguous captures stay fenced; full composition remains Q15. | Complete within ordinary producer/operation scope |
 | [Q12 — judgments](#q12) | Live selected-source Feed/planning/context adoption and authenticated worker probability/choice/score, long-input Begin, typed refusal, exact charges, withdrawal/eligibility races and crash recovery verified. Seeded work/content and broader composition limits remain explicit. | Complete within ordinary judgment owner/consumer scope |
-| [Q13 — contributions and priority](#q13) | Complete contribution claim → inference → invitation/reply and same-repository queue tournaments/dispatch, including eligibility changes and exact retained charges. Keep mixed-repository funding unresolved/unavailable. | Pending |
+| [Q13 — contributions and priority](#q13) | Admitted contribution preflight/claim/live assessment/invitation/authenticated reply and 256-candidate grouped queue choices, eligibility/source fences, native dispatch and original-charge restart verified. Declared queue inventory/worker and cancelled worker outcome stay explicit; mixed funding remains unavailable. | Complete within ordinary contribution and queue-producer/dispatch scope |
 | [Q14 — Feed and graph authoring](#q14) | Prove real funded request → judgment → issue creation/refinement and dependency graph delivery, preserving human edits, partial completed writes and safe restart. | Pending |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
 | [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
@@ -590,6 +596,38 @@ Final reply: requested Q12, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q13"></a>
 
 ### Q13 — Contribution invitations and queue preference
+
+**COMPLETE (2026-11-08), ordinary contribution and single-repository queue
+producer/dispatch scope.** Commits
+`50a2d209e69a2eca04248f71d9522844c7d5c93b`,
+`6cb79cc2da1ed1dc2449b72c2418aeba246ad9c6` and
+`ec4dc079f615cb4df099866fc9a2941b21b1618b`.
+D1–D8/Q01–Q12 were verified against actual owners, exact ancestor commits and
+retained checks. Real selected Muse assessment passed current worker/source
+preflight, claim, the original three formulations, usefulness gate, invitation,
+authenticated inbox/discussion/reply, single consumption and retained reopen in
+`/home/vince/Projects/q13-contributions4/{result.log,recovery.log}`. Actual helper
+withdrawal/accounting and allowance controls were reused within their recorded
+scope. Roles remain sequential, with one bounded three-question batch per role.
+
+`/home/vince/Projects/q13-queue4/{resume.log,resume3.log,settlement.log,final-journal.json}`
+retains two real 256-candidate tournaments (255-member group and two-member final),
+eligibility loss after selection, funding-role withdrawal/reactivation refusal,
+the fresh selected native dispatch and exact original-source charges across
+restart. Four choice calls and one interrupted startup context call each have
+one original minute; the selected worker has one admitted-run minute through
+its retained native stop. The fixture accounting assertion stopped its owner
+after launch: the worker and context call were cancelled and reconciled without
+relaunch or inference replay. This qualifies selection/dispatch and recovery,
+not successful worker delivery. Accepted queue objectives/local CLI worker are
+declared; authenticated account admission, model answers and native effects are
+real. All owned processes/checks and fixture units are joined.
+
+[Exact receipts, scope and retained attempts](../untangle-codebase.md#q13-completion-contributions-and-single-repository-queue-2026-11-08).
+Mixed-repository funding is still an unresolved owner decision and stays
+unavailable; no payer or provider fallback was invented. Q14 authoring/graph,
+Q15 complete delivery, installed qualification and all 13 broad security gates
+remain open. Requested/actual ceiling Q13; Q14 was not started.
 
 ```text
 Execute through Q13 — Contribution invitations and queue preference. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q13 despite the document's historical paused snapshot; it does not authorize work beyond Q13 or resuming the old product queue.

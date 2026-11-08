@@ -309,8 +309,8 @@ passes the owner-approved live Architect/two-task Builder journey in
 candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
 The owner accepted current checks while retaining the historical encoding cause
-as unknown. Q08–Q12 are Complete within their recorded ordinary scopes;
-Q13–Q30 remain pending. All 13 security gates stay open. See the
+as unknown. Q08–Q13 are Complete within their recorded ordinary scopes;
+Q14–Q30 remain pending. All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
@@ -387,3 +387,20 @@ records exact receipts, declared work/content limits and the first failed-start
 command still held without an outcome. Preserve that fence and all earlier
 unknown commands. Q13/Q14/Q15 composition, installed qualification and all 13
 broad gates remain open; Q13 was not started.
+
+Q13 completion (2026-11-08): `50a2d20`/`6cb79cc`/`ec4dc07` qualify ordinary
+admitted contributions and single-repository queue producer/dispatch scope.
+Actual selected Muse assessment reached an authenticated invitation/reply and
+single consumption in `/home/vince/Projects/q13-contributions4/`; retained
+helper-withdrawal and allowance checks keep their precise scopes. Queue4 retains
+two 256-candidate grouped tournaments, current eligibility/source fences, one
+actual native dispatch and exact original-source restart/accounting. Its worker
+and additional startup context call were cancelled after a fixture accounting
+assertion stopped the owner; their original receipts were reconciled, not
+replayed. No successful selected-worker delivery is claimed. See the
+[exact Q13 evidence and limitations](../untangle-codebase.md#q13-completion-contributions-and-single-repository-queue-2026-11-08).
+Accepted queue inventory/local CLI worker inputs are declared; model answers,
+authenticated account admission and native effects are real. All owned resources
+are joined and original attempts/stashes retained. Mixed-repository judgment
+funding remains unresolved/unavailable. Q14/Q15 composition, installed
+qualification and all 13 broad gates stay open. Q14 was not started.
