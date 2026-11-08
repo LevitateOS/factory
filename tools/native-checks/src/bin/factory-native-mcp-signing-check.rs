@@ -774,7 +774,9 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_NETWORK_LIMIT").as_deref() == Ok("1") {
+    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_NETWORK_INTERRUPT").as_deref() == Ok("1") {
+        &["network-pending"]
+    } else if std::env::var("SODA_NATIVE_CHECK_NETWORK_LIMIT").as_deref() == Ok("1") {
         &["network-limit"]
     } else if std::env::var("SODA_NATIVE_CHECK_PUBLIC_SETUP").as_deref() == Ok("1") {
         &["ready", "network-off"]
@@ -801,7 +803,7 @@ fn managed_preparations(
         }
         let entries: Vec<_> =
             fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
-        if entries.is_empty() || mode == "pending" && entries.len() != 1 {
+        if entries.is_empty() || mode == "pending" && entries.len() != 1 || mode == "network-pending" && entries.len() != 2 {
             return Err("native preparation identity missing".into());
         }
         let run = entries[0]
@@ -819,7 +821,11 @@ fn managed_preparations(
             );
         }
         fs::write(root.join("execution-runs.ids"), roots.join("\n"))?;
-        if mode == "pending" {
+        let retained: Vec<_> = if mode == "network-pending" {
+            entries.iter().map(|entry| Ok((entry.path(), fs::read(entry.path().join("request.json"))?)))
+                .collect::<std::io::Result<_>>()?
+        } else { Vec::new() };
+        if mode == "pending" || mode == "network-pending" {
             let until = std::time::Instant::now() + Duration::from_secs(5);
             loop {
                 let state = Command::new("systemctl")
@@ -845,6 +851,20 @@ fn managed_preparations(
             }
             println!("Observed live pending preparer; testing supervisor Quit");
         }
+        if mode == "network-pending" {
+            let observer = std::env::var("SODA_NATIVE_CHECK_SETUP_OBSERVER")?;
+            for entry in &entries {
+                let until = std::time::Instant::now() + Duration::from_secs(15);
+                loop {
+                    let observed = Command::new(&observer).arg(entry.file_name()).output()?;
+                    let bytes = String::from_utf8_lossy(&observed.stdout).trim().parse::<u64>()?;
+                    if observed.status.success() && bytes > 0 && bytes < 16 * 1024 * 1024 { break; }
+                    if std::time::Instant::now() >= until { return Err("actual in-flight setup transfer was not observed".into()); }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+            println!("Observed actual partial download bytes in both isolated preparations");
+        }
         supervisor.stop()?;
         if Broker::next_profile_run(&ready.profile)?.is_some() {
             return Err("native supervisor left preparation roots".into());
@@ -855,8 +875,24 @@ fn managed_preparations(
         {
             return Err("native preparation retirement acknowledgement missing".into());
         }
+        if mode == "network-pending" {
+            let retired: Vec<_> = entries.iter().map(|entry| fs::read(entry.path().join("retired.json")))
+                .collect::<std::io::Result<_>>()?;
+            let restarted = NativeSupervisor::start(payload, backend, &profile)?;
+            if restarted.health()?.instance == ready.instance || Broker::next_profile_run(&ready.profile)?.is_some() {
+                return Err("preparation restart reused its incarnation or replayed interrupted setup".into());
+            }
+            for ((path, request), retirement) in retained.iter().zip(&retired) {
+                if fs::read(path.join("request.json"))? != *request || fs::read(path.join("retired.json"))? != *retirement {
+                    return Err("preparation restart changed retained input or retirement evidence".into());
+                }
+            }
+            restarted.stop()?;
+        }
     }
-    if modes.contains(&"network-limit") {
+    if modes.contains(&"network-pending") {
+        println!("PASS: two overlapping public HTTPS preparations interrupted by joined Quit; new supervisor retains exact inputs/retirement without setup replay");
+    } else if modes.contains(&"network-limit") {
         println!("PASS: aggregate encrypted setup transfer budget refused readiness and retired the exact preparation");
     } else if modes.contains(&"network-off") {
         println!("PASS: approved public HTTPS setup installs a cold declared npm dependency; proxy refuses loopback/plain HTTP, absent approval keeps setup offline; exact preparation/root retirement confirmed");
@@ -913,6 +949,54 @@ fn parallel_preparations(root: &Path) -> Result<(), Box<dyn std::error::Error>> 
                 .parse::<u32>()
                 .is_ok_and(|pid| pid > 0))
     };
+    if std::env::var("SODA_NATIVE_CHECK_SNAPSHOT_CANCEL").as_deref() == Ok("1") {
+        let approved = ApprovedFiles { files: BTreeMap::from([
+            ("setup.sh".into(), b"test ! -e \"$HOME/setup-once\"\nprintf once > \"$HOME/setup-once\"\nmkdir -p .factory-build\ndd if=/dev/zero of=.factory-build/snapshot.bin bs=1048576 count=512 status=none\n".to_vec()),
+            ("check.sh".into(), b"test -f \"$HOME/setup-once\"\ntest \"$(wc -c < .factory-build/snapshot.bin)\" = 536870912\nprintf checked\n".to_vec()),
+            ("setup-limits.json".into(), br#"{"setup_seconds":20,"check_seconds":5}"#.to_vec()),
+        ]), tools: vec!["git".into(), "bash".into(), "dd".into(), "wc".into()] };
+        let original = Broker::prepare_source(&runs[0], profile, Role::Coder, &bundle, &approved, &candidate, AgentCancellation::default())?;
+        if original.setup_exit != Some(0) || original.check_exit != Some(0) { return Err("snapshot source did not become ready".into()); }
+        let reference = soda_execution_protocol::PreparedSourceRef { run: runs[0].clone(), candidate: candidate.clone() };
+        let cancel = AgentCancellation::default();
+        let preparation = Broker::preparing(cancel.clone());
+        if preparation.stage_bundle(&runs[1], profile, Role::Coder, &"a".repeat(64), &"b".repeat(64), &bundle, Some(&reference))? != digest {
+            return Err("snapshot staging changed the source".into());
+        }
+        let (run, profile_id, source_digest, source_commit) = (runs[1].clone(), profile.clone(), digest.clone(), candidate.clone());
+        let thread = std::thread::spawn(move || preparation.prepare_reviewer(&run, &profile_id, &source_digest, &source_commit));
+        let observer = std::env::var("SODA_NATIVE_CHECK_SETUP_OBSERVER")?;
+        let until = Instant::now() + Duration::from_secs(12);
+        loop {
+            let observed = Command::new(&observer).args([runs[1].as_str(), "snapshot"]).output()?;
+            let bytes = String::from_utf8_lossy(&observed.stdout).trim().parse::<u64>()?;
+            if observed.status.success() && bytes > 0 && bytes < 128 * 1024 * 1024 { break; }
+            if Instant::now() >= until { return Err("an in-progress snapshot copy was not observed".into()); }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let started = Instant::now();
+        cancel.cancel();
+        if thread.join().map_err(|_| "snapshot copy panicked")?.is_ok()
+            || !Broker::retire_unlaunched(&runs[1], profile, &digest)?
+            || started.elapsed() > Duration::from_secs(6) || live(&runs[1])? {
+            return Err("cancelled snapshot did not join and retire its exact root".into());
+        }
+        if Broker::read_source_setup(&runs[0], profile, &digest, &candidate, AgentCancellation::default())? != original {
+            return Err("cancelled snapshot changed its frozen source".into());
+        }
+        let replacement = Broker::preparing(AgentCancellation::default());
+        replacement.stage_bundle(&runs[2], profile, Role::Coder, &"a".repeat(64), &"b".repeat(64), &bundle, Some(&reference))?;
+        replacement.prepare_reviewer(&runs[2], profile, &digest, &candidate)?;
+        let receipt = Broker::read_source_setup(&runs[2], profile, &digest, &candidate, AgentCancellation::default())?;
+        if receipt.prepared_source.as_ref() != Some(&reference) || receipt.setup_exit != Some(0) || receipt.check_exit != Some(0)
+            || !Broker::retire_unlaunched(&runs[2], profile, &digest)?
+            || !Broker::retire_unlaunched(&runs[0], profile, &digest)?
+            || Broker::next_profile_run(profile)?.is_some() {
+            return Err("later snapshot failed source reuse or exact retirement".into());
+        }
+        println!("PASS: actual 512 MiB snapshot copy cancelled in flight and joined; frozen source unchanged; later snapshot rechecks without repeating setup; exact roots retired");
+        return Ok(());
+    }
     if std::env::var("SODA_NATIVE_CHECK_LOW_SPACE").as_deref() == Ok("1") {
         let approved = ApprovedFiles { files: BTreeMap::from([
             ("setup.sh".into(), b"printf must-not-start\n".to_vec()),

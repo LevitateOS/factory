@@ -783,7 +783,7 @@ impl Broker {
         }
     }
 
-    pub(super) fn preparing(cancellation: AgentCancellation) -> BrokerPreparation {
+    pub fn preparing(cancellation: AgentCancellation) -> BrokerPreparation {
         BrokerPreparation {
             cancellation: Some(cancellation),
         }
@@ -843,7 +843,8 @@ impl Broker {
     }
 }
 
-pub(super) struct BrokerPreparation {
+/// One cancellable staging/preparation lifetime; fields and wire framing stay private.
+pub struct BrokerPreparation {
     cancellation: Option<AgentCancellation>,
 }
 

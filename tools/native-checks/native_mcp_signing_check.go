@@ -4347,6 +4347,12 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			files["setup.sh"] = []byte(fmt.Sprintf("for attempt in $(seq 1 32); do\n curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 30 --retry 2 --retry-delay 1 --retry-max-time 30 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\n printf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\n printf 'verified artifact %%s\\n' \"$attempt\"\ndone\nexit 1\n", release.Version, release.SHA256))
 			files["check.sh"] = []byte("exit 1\n")
 		}
+		if mode == "network-pending" {
+			tools = []string{"git", "bash", "curl"}
+			files["setup-limits.json"] = []byte(`{"setup_seconds":120,"check_seconds":1}`)
+			files["setup.sh"] = []byte(fmt.Sprintf("curl --fail --show-error --progress-bar --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 110 --limit-rate 128k --retry 1 --retry-delay 1 --retry-max-time 15 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\nprintf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\n", release.Version, release.SHA256))
+			files["check.sh"] = []byte("printf 'checked-by-native\\n'\n")
+		}
 		if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
 			files["check.sh"] = append(files["check.sh"], []byte("test -s .artifacts/factory-ui/factory-app.js\ntest -s .artifacts/factory-ui/factory.css\nbun scripts/build-factory-ui.ts --out .artifacts/factory-ui-offline\ncmp .artifacts/factory-ui/factory-app.js .artifacts/factory-ui-offline/factory-app.js\nprintf 'checked-by-native actual shared UI lifecycle build and offline snapshot rebuild\\n'\n")...)
 		} else {
@@ -4413,6 +4419,29 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	record.State = state
 	if err = db.ObservePreparation(ctx, record); err != nil {
 		return err
+	}
+	if mode == "network-pending" {
+		second := prep
+		second.ID, second.Role = "f"+factory.NewID()[:24], project.RoleReviewer
+		secondRef := &execution.NativeWorkspaceRef{Profile: config.Profile, InstanceID: instance, WorktreeID: second.ID}
+		secondRecord, _, err := db.AdmitStandingPreparation(ctx, execution.PreparationRecord{Preparation: second, Native: secondRef})
+		if err != nil {
+			return err
+		}
+		secondRequest := execution.StandingPreparationRequest{Input: project.Prepare{Preparation: secondRecord.Preparation, Setup: project.ApprovedSetup{Files: files, Bundle: bundle}}, Native: secondRef}
+		secondState, err := port.PrepareWorkspace(ctx, secondRequest)
+		if err != nil {
+			return err
+		}
+		secondRecord.State = secondState
+		if err = db.ObservePreparation(ctx, secondRecord); err != nil {
+			return err
+		}
+		if state.Ready || secondState.Ready || state.Phase != project.PrepareRunning || secondState.Phase != project.PrepareRunning {
+			return errors.New("overlapping network preparations were not admitted as running")
+		}
+		fmt.Println("PASS: two role preparations admitted; native check must observe actual transfer bytes before Quit")
+		return nil
 	}
 	if mode == "pending" {
 		if state.Ready {

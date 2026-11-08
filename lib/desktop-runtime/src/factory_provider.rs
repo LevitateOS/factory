@@ -29,7 +29,7 @@ pub(crate) mod work;
 mod workspace_receipts;
 pub use attempt::{AttemptObservation, AttemptPhase, RunExecution, RunView};
 pub use broker::{
-    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, RelayAttestation, TaskWorkspace,
+    AgentCancellation, AgentProcess, AgentRun, AgentStarted, Broker, BrokerPreparation, RelayAttestation, TaskWorkspace,
 };
 pub use custody::{read_custody, CustodyObservation, CustodyState, RunCustody};
 pub use executions::{
