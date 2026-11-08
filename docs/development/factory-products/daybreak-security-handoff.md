@@ -27,8 +27,9 @@ and evidence below. Original outcome records are not rewritten by this summary.
 The pre-existing T06-CONNECT Active row/note remain verbatim as historical
 conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
 Q01 is Complete within its source/native scope; Q02 is Complete within its
-source/component scope; Q03 is Complete within configuration/admission scope and
-Q04 is Active. The owner accepted current native diagnostics plus the complete
+source/component scope; Q03 is Complete within configuration/admission scope;
+Q04 is Complete within local placement scope and Q05 is Active.
+The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
 Q01 implementation/evidence: Factory `d5b4506`, `67b6b16`, `5544082` and the
@@ -48,6 +49,13 @@ explicit role/judgment choices, prerequisites, conflicts and withdrawal passed
 with declared read-only provider facts and the retained isolated Muse home.
 [Evidence and limits](../untangle-codebase.md#q03-completion-owner-configuration-and-explicit-funding-2026-11-08).
 Paid execution, connected permission matrices and installed/security gates remain open.
+
+Q04 local placement: `23508db`; the full native journey passed current generation
+consent, placement conflicts, explicit enrollment/disable and account/repository
+retirement. Existing PostgreSQL controller-race and disabled/unfunded admission
+checks passed. [Evidence and limits](../untangle-codebase.md#q04-completion-canonical-local-placement-2026-11-08).
+Only the owned read-only fixture was enrolled; no model call or real repository
+intake ran. Remote placement is Q19; all security gates remain open.
 
 ## Current gates, owners and closure evidence
 

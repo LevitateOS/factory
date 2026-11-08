@@ -598,6 +598,33 @@ All six original edit sets, private profiles/keyrings and failed attempts remain
 Q04 is next. Actual execution/charges remain Q08/Q09/Q12/Q13; all 13 security gates
 and later integrated/installed work remain open.
 
+### Q04 completion: canonical local placement (2026-11-08)
+
+Factory `23508db` completes Q04's local placement scope after verification of
+D1–D8, Q01–Q03 and the retained canonical Fountain references. Shared policy
+settings now expose explicit enrollment and disable through the existing command
+owner; disabling remains available after funding withdrawal and retains observed
+choices. Workspace permission is current only for the active controller's exact
+runtime and generation, fixing stale consent presentation after reselection.
+
+The complete existing native WebKit/Go/PostgreSQL journey passed in
+`/home/vince/Projects/q04-owner-placement-verified/{run.log,owner-policy-result.json}`:
+retirement/new generation, stale placement refusal, explicit workspace reenrollment,
+disabled/unfunded enrollment refusal, enrollment/disable, missing execution,
+conflicts, withdrawal, actual repository/account replacement and production Quit.
+Reproduce with `bash /home/vince/Projects/q04-native-session.sh NEW_PRIVATE_ROOT`.
+The earlier failed attempt exposed a check navigation assumption, corrected before
+the successful full run. Both owned fixture accounts were removed; profiles,
+keyrings and failed evidence are retained. No model call or real repository intake
+ran. Existing `TestNativeCheckpointRetentionPG` and
+`TestRecordDispatchPacketRequiresEffectiveAuthority` passed against isolated
+ephemeral native databases (`/home/vince/Projects/q04-placement-authority.log`),
+including competing controllers, stale generations, appliance admission and
+disabled/withdrawn-funding refusal. TypeScript, required Lit, UI and both native
+build configurations passed (`/home/vince/Projects/q04-*.log`). All six original
+edit sets remain intact. Q05 is next; remote placement/T12 completion remains Q19,
+and all 13 security gates and later integrated/installed work remain open.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

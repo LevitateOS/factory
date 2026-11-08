@@ -23,7 +23,8 @@ required only for work or checks that look like hacking.
 
 Q01 is Complete within its source/native scope. Q02 is Complete within its
 source/component scope; Q03 is Complete within its configuration/admission scope.
-Q04 is Active. Continue to each following prompt only after its earlier ordinary
+Q04 is Complete within local placement scope; Q05 is Active.
+Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
 updates; the retained Muse typed-result failure remains pending in its dependent
@@ -94,8 +95,8 @@ recording any newly proved current conclusion separately.
 | [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
 | [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Complete (source/component scope) |
 | [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Complete (configuration/admission scope) |
-| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Active |
-| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Pending |
+| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Complete (local placement scope) |
+| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Active |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Pending |
 | [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Pending |
 | [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Pending |
@@ -203,6 +204,14 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q04"></a>
 
 ### Q04 — Canonical runtime placement
+
+Completion (2026-11-08): Factory `23508db`. Actual native UI/Go/PostgreSQL
+controller retirement/new generation, stale placement/workspace consent refusal,
+explicit policy enrollment/disable and account/repository retirement passed.
+Existing PostgreSQL controller-race and disabled/unfunded dispatch checks passed.
+[Evidence and limits](../untangle-codebase.md#q04-completion-canonical-local-placement-2026-11-08).
+No real repository intake or model call ran; missing execution remains unavailable.
+The parent T12 milestone remains pending for remote Fountain placement in Q19.
 
 ```text
 Implement Q04 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
