@@ -2,7 +2,8 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1–D7 implemented and verified locally; D8 remains pending design only.
+Status: D1–D8 implemented and verified within their recorded local scopes.
+Product qualification and all broad security gates remain open.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -327,8 +328,11 @@ validation. User-triggered writes retain their separate context lifetime.
 TypeScript passed. The retained D12 Chromium journey, extended in
 `/home/vince/Projects/d8-browser.ts`, passed acceptance, exact completion replay,
 shared sibling refresh, access refusal, superseded/account/repository replies
-and late retry-scope success/failure (`d8-browser-verified.log` in that directory).
-This is declared browser evidence, not connected/installed qualification.
+and late retry-scope/saved-run success/failure with retained command bytes
+unchanged (`d8-browser-verified.log` in that directory). The same race case fails
+against exact prior source `fe40c5e` (`d8-browser-prior.log`: older scope-0
+overwrites newer scope-1). Fix committed in `63a6155`. This is declared browser
+evidence, not connected/installed qualification.
 
 **Design:** keep `implementation-tasks.md` as the single current queue with stable
 IDs, dependency-ready outcomes and current blockers. Freeze its long historical
@@ -352,6 +356,57 @@ from production-code changes. No 15,000-line deletion target is assumed.
 all open gates and original human edits remain accounted for. No artifact/profile
 or ignored evidence is deleted as an incidental refactor step.
 
+Completion (2026-11-08): D1–D7 sources and actual retained check outputs were
+reviewed, including Fountain's D6 commit and both gateway commits. The D2 race
+above was fixed first. No other concrete regression was found in the changed
+binding, schema, gate, dispatch, ownership or lifecycle paths. Earlier successful
+native/PG/operation/ownership/lifecycle checks were reused; only the new refresh
+race and the combined gateway source required new execution.
+
+| Redesign | Completed behavior | Verified implementation reference |
+| --- | --- | --- |
+| D1 | Complete account-bound native issue/run/intervention binding; explicit unavailable adapters | Factory `f2db7cf`; composed native work journey recorded above |
+| D2 | One parent observation generation shared by children, together refresh and stale reply refusal | Factory `f2db7cf`, corrected `63a6155`; full retained Chromium journey plus late scope/saved-run cases |
+| D3 | Frozen prior/current constraints, exact PostgreSQL normalization, locking/unknown refusal and data preservation | Factory `a8bd728`; existing upgrade/reopen checks |
+| D4 | Context-aware progress acquisition at all callers; bounded serialization and revision revalidation | Factory `f3e1a4c`; expired waiter/no effects then valid request, nested/retired context and stale-head checks |
+| D5 | One private request conversion, consolidated metadata/dispatch under semantic owners, early background allowlist | Factory `3f530ce`; existing operation and managed MCP lifecycle journeys |
+| D6 | One small ordinary ownership leaf and dependency-neutral resource codecs | Fountain `e88b50dadb91b5ea4bb39dcf80307939d3270fed`; existing nesting/cancellation/failed-release/recovery checks |
+| D7 | Typed scenario parsing and timeout/result choice in check owner, narrow main gate | Factory `fe40c5ef51d1f6be0b541efa1a9d8f723d7092da`; regular/check builds, CLI cases and production lifecycle |
+| D8 | Current queue/handoff reduced, exact historical Git references and canonical gateway source | This completion entry; Fountain merge `2e57559c0e4844baba861a86632d083192537ff3` |
+
+The full prior plan and handoff are frozen at Factory
+`fe40c5ef51d1f6be0b541efa1a9d8f723d7092da` with their exact paths/locators in
+the reduced documents. All 15 Pending rows, the pre-existing human CONNECT
+Active row and its note are preserved verbatim. The committed Complete status,
+human Active edit and cleared product goal remain explicitly unresolved.
+The six other pre-existing code edits and pending reviewer evidence are
+preserved; no permission-check completion is inferred.
+
+Canonical Fountain main now merges gateway originals
+`778e08aa98329848ddca1c07295120cf5fd082a8` and
+`1a29a5e86e06e370486afeee689eaaf54ea04b7b` atop D6. All ten gateway paths
+match the original head exactly; D6 remains intact. Existing PostgreSQL
+`TestNativeDesktopEnrollment` passed on the combined source (S256 exchange,
+enrollment/replay/read, withdrawal/inactive/403 and bound-proof refusals):
+`/home/vince/Projects/d8-gateway-verified/run.log`; reproduction:
+`bash /home/vince/Projects/d8-gateway-check.sh`. Pinned Go 1.26.10 integration
+build passed (`d8-gateway-build.log` in that directory's parent). Native TLS/
+keyring/profile reopen proof is reused, not requalified. Only then were the two
+tracked Factory review patches replaced by direct source/commit references.
+Original worktree/branch, ignored artifacts, profiles, keyrings and evidence
+remain retained. Documentation reduction is separate from the production fix.
+Exact preservation/history/ancestry and all changed local links/evidence paths
+passed (`/home/vince/Projects/d8-doc-verified.log`); existing incoming milestone
+anchors remain valid. Only the two tracked review patches are deleted.
+
+No redesign prerequisite remains blocked. Product blockers remain: the human
+CONNECT conflict/pre-consent crash, Muse typed-result encoding, unperformed
+read-only reviewer qualification, real Fountain login/placement/operations and
+installed full-pipeline recovery. All 13 handoff gates, including historical
+security D1/D2/D3/D5, remain open. Original uncertain commands remain fenced.
+This completes the redesign cuts only; it neither resumes the old queue nor
+claims Factory, installed isolation/custody/IPC or provider parity finished.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.
@@ -370,9 +425,8 @@ Reuse earlier audit evidence and current check owners. No additional audit suite
 parallel state machine, speculative case matrix or recurring report is required.
 Any further structural finding needs a concrete link to the cut being implemented.
 
-Completion of this document means the redesign is specified. Implemented cuts
-must later record their actual result here; none currently qualifies the full
-provider pipeline, real Fountain desktop login/placement, installed startup,
+The redesign cuts above are implemented with their recorded evidence; none
+qualifies the full provider pipeline, real Fountain desktop login/placement, installed startup,
 worker isolation, custody/IPC or D1/D2/D3/D5. Muse payload encoding, connected
 permission checks and the pending reviewer-permission work retain their existing
 blockers. These are product/qualification dependencies, not permission to weaken
