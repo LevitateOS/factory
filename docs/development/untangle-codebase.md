@@ -1663,6 +1663,149 @@ T06-GITHUB/T11/A14 evidence; Q11 provider-rule qualification, installed custody/
 admission, later full delivery and all 13 broad security gates remain open.
 Q11 is next only on authorization; it was not started.
 
+### Q11 completion: connected CI and merge contracts (2026-11-08)
+
+Requested/actual ceiling: Q11. **COMPLETE within ordinary producer/operation
+contract scope**, in `a9ecf59ed5c8fab668cbfa4ac2c75a0b00b632ff` and
+`41e600d2692e12b85a960136728a5a0cc47e0c19`. Q12 was not started.
+Rust now binds CI to the current prospective merge's exact head/base parents,
+selects its checks when present and otherwise the head, and retains separate
+latest push/PR suites instead of rejecting duplicate app/context names. Every
+returned source must pass; a green suite cannot conceal a red source. Actions
+workflow jobs require a supported runner event; app-authored check reports remain
+distinct from workflow jobs. Go persists the evaluated commit separately from
+the reviewed head/base, and Lit displays only explicitly supplied evaluation
+identity. Legacy assessments remain readable; jobs/older hosts gain no invented
+evaluation identity. Factory's selected checks remain success-only. Automatic observations
+remain bounded to same-repository, open, non-draft PRs.
+
+Current writer vetoes use the existing Rust
+`latestOpinionatedReviews(writersOnly:true)` projection. Go shares one bound
+opinion decoder between delivery material and automatic merge admission.
+Effective change requests withhold automatic eligibility even when the aggregate
+review decision is null. These reads run outside the native mutation RPC:
+putting them inside every native merge-preparation snapshot exceeded the existing
+eight-second boundary. The final change preserves the original native mutation,
+credential and callback deadlines and conservative `CLEAN` readiness. Required
+approvals/code owners/last-push approvals/signatures/linear history/resolved
+threads/up-to-date or other incomplete rules remain unavailable. Personal-account
+agent inspection is still COMMENT; its declared verdict is not a provider vote.
+
+D1–D8/Q01–Q10 were checked against actual owners, ancestor commits and retained
+checks, not completion labels. `/home/vince/Projects/q11-prerequisites.log`
+contains 37 exact Factory prerequisite commits through `b80840a` and canonical
+Fountain `e88b50d`/`2e57559`. Q09's actual interrupted initial launch/reopen logs,
+Q08's live sequential Builder, Q10's fresh OAuth read-role UI/API checks and its
+retained revocation/observer hashes were reused within their original scopes.
+The stash `56669001735070eec7e9b381e6ac9e08ad3e3d4c`, its unrelated README and the
+second stash remain intact. No earlier ordinary prerequisite was left unfinished.
+
+| Contract | Retained actual evidence |
+| --- | --- |
+| Nonempty app-bound CI, canonical API and durable evaluated commit | `/home/vince/Projects/q11-success2/{result.log,checks-7.json,observed-checks.json}`; final PostgreSQL assessment in `/home/vince/Projects/q11-owner/retained-journal.json` |
+| Real pending/failing/recovered runner evidence | `/home/vince/Projects/q11-fixture/{runs-evaluated.json,merge-state-after-approval.json,failure-run.json,recovery-run.json}`; run `42496683183` attempts 1–3; `/home/vince/Projects/q11-merge/ci-phases/merge-phase-{00,01}.json` and `resume2.log` |
+| Human veto, approval and unsupported required-review policy | `/home/vince/Projects/q11-merge/first-phases/merge-phase-{00,01}.json`; `/home/vince/Projects/q11-fixture/reviews-approved.json`: actual `sodaos` change request `5818528640`, later approval `5818543462`; one required approval stays incomplete even after approval |
+| Current methods, stale head/base and mismatched test-merge parents | `/home/vince/Projects/q11-merge/ref-phases/merge-phase-{00,01,02}.json`, `resume3.log`; `/home/vince/Projects/q11-fixture/current-test-merge-parents.json` |
+| Real writer-to-reader permission loss after preparation | `/home/vince/Projects/q11-permission/{result.log,writer-preparation.json,reader-preparation.json,reader-capabilities.json,role-loss.log,team-before.json,team-restored.json}` |
+| Current native exact-head merge, policy race and joined restart/withdrawal | `/home/vince/Projects/q11-owner/{result.log,native-merge.json,native-policy-fence.json,retained-journal.json}` |
+| Current authenticated merged-result fetch and Git objects | `/home/vince/Projects/q11-source/{fetch.log,source.json,verified.json,index-pack.log,result-commit.txt,result-file.txt}` |
+
+The permission check used fresh owner-approved `sodaos` Factory OAuth. Native
+preparation observed push=true, then the fixture team's actual provider role
+changed to Read. The original frozen native merge request returned **NotSent,
+403 `github_merge_unavailable`**; canonical merge capability was not allowed
+while review remained allowed. This probe reserves no Go merge command. Its
+local grant was withdrawn, native/backend/PG/keyring children joined, and the
+team's original Push permission was restored byte-for-byte. Q10's real read-role
+WebKit/API and provider-side revocation evidence remains applicable; local
+withdrawal here is not a new provider OAuth revocation claim.
+
+The final standard Actions-job fixture is
+[PR 12](https://github.com/LevitateOS/factory-team-public-check-20261106/pull/12).
+Run `42501648843` (PR) and `42501644966` (push) succeeded on real hosted runners;
+required `q11-build` is bound to GitHub Actions app `15368`. The fixture tests
+actual Git checkout, fixture content and a controlled failing/recovered input;
+it does not claim Factory release CI. The saved passing assessment records:
+reviewed candidate `899df6dec32a11a4432137a0cf0286621f21eff8`, base
+`5d263e23cf38e84bbc8206bbfd93e50078fd2ed3`, evaluated test merge
+`83db7cd9cf78f103c0457c499856e828f0b81d53`. The causal merge result is the distinct
+`f43eac34f0c1fb0c2fbc65fa4c8f72045201415a`.
+
+The terminal Go command is `ca54cce26326e6bbbc27afd17908f077`, workflow operation
+`soda-2f2cb40e2d2e5f4ccc983e292ea0f012-merge-1`, review `5818724247` (COMMENT).
+Its receipt binds method/actor/PR/head/base/result, expected-head provider
+condition and bounded base preflight. GitHub returned HTTP 200, request
+`9C60:7038D:22FEFD8:33F9B09:6AF0A847`, response SHA-256
+`8cb76f8e790f64e14b32f7510227a6103a49c0aecc8f17822687a506a6e477ef`.
+Actual completion confirms the result in the base, PR closure and original issue
+closure. The original fixture issue was explicitly closed after this isolated
+non-default-branch merge; default-branch automatic closure is only the reused
+prior native-merge evidence, consistent with
+[GitHub's documented branch restriction](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue).
+Local workflow/publication/generation/agent verdict inputs are declared; no model
+or full coordinator delivery ran.
+
+The existing unclaimed cancellation fixture also exercised a real PostgreSQL
+policy pause: `dispatch_closed` before command capture, then policy restoration
+left assessment policy 3 stale against policy 5. Cancellation is terminal, and
+original committed receipt adoption, replay and cancellation survived native
+restart and exact grant withdrawal without provider resend. No global GitHub
+policy/base/permission barrier is claimed: expected head is provider-conditional;
+the other observations are bounded and unsupported rules remain unavailable.
+
+Unchanged native merge/squash/rebase receipt contracts were reverified using
+`/home/vince/tmp/fgw-1106.cqnVjg/live2/{connected-merge-result.json,recovery.log}`
+(repository `1447742773`): real native custody, Go HTTP/store, normal readback,
+all three methods and restart/replay/owned-account removal. Native effect owner
+`github_provider/merges.rs` and its Go human writer remain unchanged from
+`bfe725261391c74f34639c3373ce10107726006e`; no successful merge was replayed.
+The recorded method/provenance/source PostgreSQL checks remain valid at
+`/home/vince/tmp/fmerge-method6.j7C0l6/`, `fmerge-provenance6.tYJZeB/` and
+`fmerge-source-current6.Mlv6gf/` (original exact paths remain in A07).
+
+The new causal result was fetched through the authenticated native source owner;
+bundle SHA-256 is `0de5eb0a45eb5cdb3c2bbe54c44cfcee0251f781e320264798c9f4ce361454d9`.
+Git verified its pack, result object, both exact parents and actual fixture file.
+This is not product preparation admission. Unchanged native incremental import,
+approved setup/check, context/diff, replay and exact retirement are reused from
+`/home/vince/tmp/fmsimport7.mVdcrs/result.log`; canonical recorded-merge source
+admission/different-merge refusal from `/home/vince/tmp/fmsguard7.ChBXp5/result.log`
+and owning `8307538` were inspected. Together these qualify the Q11 producer
+contracts; complete coordinator-to-next-Builder composition remains Q15.
+
+Three failed fixture captures remain fenced; later success settles none of them:
+
+| Profile / subject | Exact held command and actual outcome |
+| --- | --- |
+| `/home/vince/Projects/q11-current2/`, PR 7 | `f8a231426f46fa490e14ffad30237df1`, reserved/no outcome after the fixture's oversized 15-minute descriptor hit native `invalid_native_write`; operation `soda-e0b0511ba3d3a6509aad89b701c428f1-merge-1` |
+| `/home/vince/Projects/q11-final/`, PR 9 | `136c1ecf1f49e337e2324a35d8ccd659`, indeterminate/needs_intervention `invalid_github_response`; operation `soda-28c0928ce7dea260ad7059d92fff9d0f-merge-1` |
+| `/home/vince/Projects/q11-runner-final/`, PR 10 | `420aadf284a4cf0bdca96cd1fe4037da`, reserved/no outcome after `native_collaboration_deadline`; operation `soda-581f74bc5fc8c325dbd0312334991e53-merge-1`. Normal readback shows merged, but supplies no causal receipt. |
+
+Their exact `retained-journal.json` files were obtained with read-only SQL and
+joined inspection databases. Do not resend them, renew their authority or infer
+attribution from indirect/current PR state. The fixture lease was corrected
+before new admission, not renewed on an old intent. All subsequent effect checks
+used distinct PR subjects. Earlier malformed case expectations, GitHub's ignored
+wrong-app request, unspecified app=null rule, rejected all-method disablement and
+stale cached prospective merges remain retained under `q11-fixture/`,
+`q11-missing/`, `q11-wrong-app/`, `q11-current/` and `q11-merge/`; they are not
+successful qualifications. The supported final rule requires the real job
+context, and automatic merge still refuses `UNSTABLE` or unknown readiness.
+
+Production Go backend/helper, affected Cargo native check, TypeScript/Lit,
+shared UI build and engine/provider boundaries passed. Commands used
+`TMPDIR=/home/vince/Projects/q11-fixture`, `go build -mod=readonly`,
+`cargo build --locked -p factory-native-checks --bin factory-credential-operation-check`,
+`bun run typecheck`, `bun run check:lit`, `bun run build:factory-ui` and
+`bun run check:boundaries`. Retained build output includes
+`/home/vince/Projects/q11-{native-build9,typecheck-final,ui-build-final}.log`.
+Final checks found no owned native/backend/keyring/PG process or running fixture
+Actions job; fixture main/default branch and merge methods are unchanged, team
+permission restored and the controlled CI variable removed (404). No credentials,
+profiles or artifacts were committed. All 13 broad security gates, installed
+qualification, later queue tasks and full Q15 composition remain open. Q12 is
+next only on authorization; stop after Q11.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

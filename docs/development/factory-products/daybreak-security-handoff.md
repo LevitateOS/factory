@@ -309,8 +309,8 @@ passes the owner-approved live Architect/two-task Builder journey in
 candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
 The owner accepted current checks while retaining the historical encoding cause
-as unknown. Q08–Q10 are Complete within their recorded ordinary scopes;
-Q11–Q30 remain pending. All 13 security gates stay open. See the
+as unknown. Q08–Q11 are Complete within their recorded ordinary scopes;
+Q12–Q30 remain pending. All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
@@ -365,3 +365,14 @@ and matching artifacts are in the
 [Q10 completion decision](../untangle-codebase.md#q10-completion-connected-permissions-and-retained-provider-evidence-2026-11-08).
 All broad security gates remain open; no installed, Q11 rule matrix or historical
 unknown-send completion is inferred. The stash and unrelated README work remain.
+
+Q11 completion (2026-11-08): `a9ecf59`/`41e600d` qualify connected CI and
+merge producer contracts, actual app-bound runner/test-merge evaluation, current
+writer vetoes, rule/ref/status/policy/permission fences and a causal native merge
+with joined restart/withdrawal. Original team permission/settings are restored.
+The exact three new held fixture commands and their read-only journal evidence
+are in the [Q11 completion decision](../untangle-codebase.md#q11-completion-connected-ci-and-merge-contracts-2026-11-08).
+Preserve their fences: normal merged/indirect PR state and later successful
+operations do not settle an earlier missing causal receipt. Unsupported rules,
+installed/security gates and Q15 full composition remain open. No broad gate is
+closed; Q12 was not started.

@@ -11,8 +11,8 @@ const MaxObservedCheckContext = 256
 // MaxObservedCheckState bounds one observed native check state.
 const MaxObservedCheckState = 64
 
-// ObservedCheck is the latest native status for one context on the exact
-// head. Empty State means the context has no status on this head.
+// ObservedCheck is the latest native status for one context on the evaluated
+// commit. Empty State means that commit has no status for the context.
 type ObservedCheck struct {
 	Context string `json:"context"`
 	State   string `json:"state,omitempty"`
@@ -32,7 +32,7 @@ func (c ObservedCheck) Validate() error {
 
 // ObservedChecks is one bracketed native observation for a check target:
 // the source observation revision, the observed head/base tips, the latest status
-// per context on the exact head, and whether anything required was hidden.
+// per context on the evaluation commit, and whether anything required was hidden.
 type ObservedChecks struct {
 	Checks           []ObservedCheck `json:"checks,omitempty"`
 	NativeRev        int64           `json:"native_revision"`
@@ -77,8 +77,8 @@ func (o ObservedChecks) Validate() error {
 const SnapshotPageBound = 50
 
 // CheckResult is one required check's verdict: its latest observed native
-// state on the exact head and whether that state passes. Empty State
-// means the check is missing on this head.
+// state on the evaluated commit and whether that state passes. Empty State
+// means the check is missing on that commit.
 type CheckResult struct {
 	Context string `json:"context"`
 	State   string `json:"state,omitempty"`
