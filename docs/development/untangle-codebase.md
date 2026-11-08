@@ -461,6 +461,30 @@ the owner's clarification; the human status row/note and six pre-existing edits
 remain verbatim. Installed startup/restart/sleep-wake, remote revocation and all
 13 security gates stay open. Q01 does not complete Factory.
 
+### Q02 active: tool selection races (2026-11-08)
+
+D1–D8 and Q01 prerequisites are complete within their recorded scopes. Q02 is
+incomplete. The native tool owner now publishes selection failures while holding
+its existing selection lock, so an older failure cannot overwrite a newer ready
+status. It rechecks the official channel after acquisition and refuses changed
+or withdrawn releases without deleting the verified prior bytes. Its existing
+explicit refresh entry is available to native hosts; no browser/provider URL or
+new registry was added.
+
+The existing `factory-native-mcp-signing-check ROOT tool-races` passed interrupted
+download cancellation/staging cleanup, changed-release refusal, status recovery,
+an active process retaining its actual ELF and a new process capturing the next
+verified ELF. Declared no-forwarding HTTPS fixture/evidence:
+`/home/vince/Projects/q02-tool-{fixture.go,races-verified/result.log}`.
+The existing composed Go/native `tool-discovery` case passed against real official
+metadata and the installed current Muse `1.4.14-R7309.1`, SHA-256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`:
+`/home/vince/Projects/q02-tool-discovery-verified/result.log`.
+No model call, login, personal launcher change or installed qualification ran.
+Remaining Q02: required CLI/protocol verification in the tool owner, reachable
+initial sign-in when needed, actual five-minute cadence, automatic dependency
+freshness coverage and affected current-input checks. Q03–Q30 remain pending.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

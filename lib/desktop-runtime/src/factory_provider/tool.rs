@@ -41,7 +41,7 @@ pub struct ToolStatus {
     pub origin: Option<&'static str>,
     pub error: Option<&'static str>,
 }
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq, Eq)]
 struct Channel {
     channel: String,
     version: String,
@@ -273,7 +273,8 @@ impl Tools {
     pub async fn inspect(&self) -> io::Result<ToolSelection> {
         self.select(false).await
     }
-    pub(crate) async fn refresh(&self) -> io::Result<ToolSelection> {
+    /// Refresh the official selection without replacing captured executables.
+    pub async fn refresh(&self) -> io::Result<ToolSelection> {
         self.select(true).await
     }
     pub fn status(&self) -> io::Result<ToolStatus> {
@@ -283,7 +284,8 @@ impl Tools {
             .map_err(|_| refused())
     }
     async fn select(&self, refresh: bool) -> io::Result<ToolSelection> {
-        let result = self.select_inner(refresh).await;
+        let mut selected = self.selected.lock().await;
+        let result = self.select_inner(refresh, &mut selected).await;
         if result.is_err() {
             if let Ok(mut status) = self.status.lock() {
                 status.state = "unavailable";
@@ -293,8 +295,11 @@ impl Tools {
         }
         result
     }
-    async fn select_inner(&self, refresh: bool) -> io::Result<ToolSelection> {
-        let mut selected = self.selected.lock().await;
+    async fn select_inner(
+        &self,
+        refresh: bool,
+        selected: &mut Option<(Instant, ToolSelection, std::fs::Metadata)>,
+    ) -> io::Result<ToolSelection> {
         if let Some((checked, selection, identity)) = selected.as_ref() {
             if !refresh
                 && checked.elapsed() < Self::REFRESH
@@ -391,6 +396,14 @@ impl Tools {
                 }
             }
         };
+        // A download may outlive the release it began against. Retain those
+        // verified bytes for existing captures, but never publish them as the
+        // current selection after the channel has changed or been withdrawn.
+        let current: Channel = self.metadata(CHANNEL).await?;
+        if current != channel {
+            self.status.lock().map_err(|_| refused())?.upstream_version = None;
+            return Err(refused());
+        }
         let selection = ToolSelection {
             tool: Tool {
                 harness: "muse",

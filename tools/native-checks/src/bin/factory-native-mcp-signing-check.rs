@@ -17,6 +17,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.first().is_some_and(|arg| arg == "exec") {
         return muse_fixture(&args);
     }
+    if args.first().is_some_and(|arg| arg == "tool-capture") {
+        use sha2::Digest;
+        let captured = fs::read("/proc/self/exe")?;
+        let captured_sha: String = Sha256::digest(&captured).iter().map(|byte| format!("{byte:02x}")).collect();
+        println!("{captured_sha}");
+        std::io::stdout().flush()?;
+        let mut input = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
+        if unsafe { libc::poll(&mut input, 1, 10000) } != 1 {
+            return Err("captured tool release missing".into());
+        }
+        if fs::read("/proc/self/exe")? != captured {
+            return Err("active captured executable changed".into());
+        }
+        println!("{captured_sha}");
+        return Ok(());
+    }
     if args
         .first()
         .is_some_and(|arg| arg == "muse-fixture-descendant")
@@ -25,6 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let root = PathBuf::from(args.first().ok_or("scratch root required")?);
+    if args.len() == 2 && args[1] == "tool-races" {
+        return tokio::runtime::Builder::new_current_thread().enable_all().build()?
+            .block_on(tool_races(&root));
+    }
     if args.len() == 3 && args[2] == "workspace" {
         return workspace_check(&root, Path::new(&args[1]));
     }
@@ -2362,5 +2382,80 @@ fn task_manifest_bindings(profile: &Path) -> Result<(), Box<dyn std::error::Erro
         }
     }
     println!("PASS: exact Go task intent/manifest readback for token and CLI sources; altered bytes and a pending manifest marker refused; no task or provider admitted");
+    Ok(())
+}
+
+async fn tool_races(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    use soda_desktop_runtime::factory_provider::Tools;
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+    let tools = Tools::new(None, root)?;
+    let mode = |value: &str| fs::write(root.join("mode"), value);
+    mode("interrupt")?;
+    let mut pending = Box::pin(tools.inspect());
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !root.join("download-entered").is_file() {
+        tokio::select! {
+            result = &mut pending => return Err(format!("interrupted download completed early: {:?}", result.err()).into()),
+            _ = tokio::time::sleep(Duration::from_millis(10)) => (),
+        }
+        if std::time::Instant::now() > deadline {
+            return Err("tool download barrier missing".into());
+        }
+    }
+    drop(pending);
+    let cache = root.join("native-tools/muse");
+    if fs::read_dir(&cache)?.next().is_some() || tools.status()?.state == "ready" {
+        return Err("cancelled download published a tool or retained staging bytes".into());
+    }
+    mode("change")?;
+    if tools.inspect().await.is_ok() || tools.status()?.state != "unavailable" {
+        return Err("changed release was published as current".into());
+    }
+    mode("v1")?;
+    let first = tools.inspect().await?;
+    let first_bytes = fs::read(&first.tool.executable)?;
+    let mut child = Command::new(&first.tool.executable)
+        .arg("tool-capture").stdin(Stdio::piped()).stdout(Stdio::piped())
+        .stderr(Stdio::null()).spawn()?;
+    let result = async {
+        let mut output = BufReader::new(child.stdout.take().ok_or("capture output missing")?);
+        let mut initial = String::new();
+        output.read_line(&mut initial)?;
+        if initial.trim() != first.tool.sha256 {
+            return Err("active tool did not capture the selected bytes".into());
+        }
+        mode("v2")?;
+        let second = tools.refresh().await?;
+        if first.tool.sha256 == second.tool.sha256
+            || first.tool.executable == second.tool.executable
+            || fs::read(&first.tool.executable)? != first_bytes
+            || tools.status()?.selected_version.as_deref() != Some(&second.tool.version)
+            || tools.status()?.state != "ready"
+        {
+            return Err("new selection replaced active bytes or retained stale status".into());
+        }
+        child.stdin.take().ok_or("capture release missing")?.write_all(b"x")?;
+        let mut retained = String::new();
+        output.read_line(&mut retained)?;
+        if retained != initial || !child.wait()?.success() {
+            return Err("active tool changed after selecting the new release".into());
+        }
+        let next = Command::new(&second.tool.executable).arg("tool-capture").output()?;
+        if !next.status.success()
+            || std::str::from_utf8(&next.stdout)?.lines().next() != Some(second.tool.sha256.as_str())
+        {
+            return Err("new run did not capture the new verified tool".into());
+        }
+        if fs::read_dir(&cache)?.filter_map(Result::ok).any(|entry| entry.file_name().to_string_lossy().starts_with('.')) {
+            return Err("tool selection left a pending artifact".into());
+        }
+        Ok::<(), Box<dyn std::error::Error>>(())
+    }.await;
+    let _ = child.kill();
+    let retirement = child.wait();
+    result?;
+    retirement?;
+    println!("PASS: native tool owner cancels an interrupted download without publication/staging bytes, refuses a release changed during acquisition, recovers current status, preserves active captured ELF bytes and selects the new verified ELF for the next run; declared no-forwarding releases, no provider/model/login");
     Ok(())
 }
