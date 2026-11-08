@@ -318,6 +318,18 @@ security qualification. D8 remains pending; old product queue stays cleared.
 
 ### D8. Keep current decisions short and historical evidence immutable
 
+D8 prerequisite review (2026-11-08): the existing D1–D7 implementations and
+recorded checks were inspected. One D2 gap was found: parent retry-identity and
+saved-run reads only checked account/repository lifetime, so an older refresh
+could overwrite a newer refresh's retry state. They now use the same refresh
+guard and abort signal as issue/access/run reads; retry state is published after
+validation. User-triggered writes retain their separate context lifetime.
+TypeScript passed. The retained D12 Chromium journey, extended in
+`/home/vince/Projects/d8-browser.ts`, passed acceptance, exact completion replay,
+shared sibling refresh, access refusal, superseded/account/repository replies
+and late retry-scope success/failure (`d8-browser-verified.log` in that directory).
+This is declared browser evidence, not connected/installed qualification.
+
 **Design:** keep `implementation-tasks.md` as the single current queue with stable
 IDs, dependency-ready outcomes and current blockers. Freeze its long historical
 version at a recorded Git commit and link to that exact version for prior

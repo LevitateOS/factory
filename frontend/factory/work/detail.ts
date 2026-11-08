@@ -278,7 +278,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         ? ''
         : `${detail.message || 'Current repository access is unavailable.'} Retained work history is stale; controls are unavailable.`;
       if (ready && context.capabilities.retry && this.backendGate('retry').available)
-        await this.resolveRetryIdentity(context, serial);
+        await this.resolveRetryIdentity(context, current, signal);
     } catch (error) {
       if (current()) {
         this.observation = {...observation, state: 'stale', detail: this.detail, journey: this.observation?.journey};
@@ -291,17 +291,20 @@ export class SodaFactoryWorkDetail extends LitElement {
   private act = (kind: InterventionKind) => {
     void this.runIntervention(kind);
   };
-  private async resolveRetryIdentity(context: WorkDetailContext, serial: number): Promise<boolean> {
+  private async resolveRetryIdentity(
+    context: WorkDetailContext,
+    current: () => boolean,
+    signal: AbortSignal
+  ): Promise<boolean> {
     try {
       if (!context.commandScope) throw Error('Missing retry identity');
-      const scope = await context.commandScope(AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(15000)]));
-      if (!this.live(serial, context)) return false;
+      const scope = await context.commandScope(AbortSignal.any([signal, AbortSignal.timeout(15000)]));
+      if (!current()) return false;
       const address: RunRetryAddress = {scope, repository: context.repository, issue: context.issue};
       const captured = readRunRetry(address);
-      this.retryAddress = address;
-      this.pendingRetry = undefined;
-      this.retryReady = false;
       if (captured.blocked) {
+        this.retryReady = false;
+        this.pendingRetry = undefined;
         this.setMark(
           'retry',
           'failed',
@@ -312,13 +315,14 @@ export class SodaFactoryWorkDetail extends LitElement {
       const pending = captured.pending;
       if (pending && pending.run !== context.runID && !context.runIDs.includes(pending.run)) {
         const run = factoryRunStatusResponse(
-          await getJSON(context.transport, `factory/runs/${pending.run}`, this.lifetime.signal),
+          await getJSON(context.transport, `factory/runs/${pending.run}`, signal),
           pending.run,
           context.repository
         );
-        if (!this.live(serial, context)) return false;
+        if (!current()) return false;
         check(run.view?.issue === context.issue);
       }
+      this.retryAddress = address;
       this.pendingRetry = pending;
       this.retryReady = true;
       if (pending)
@@ -329,7 +333,7 @@ export class SodaFactoryWorkDetail extends LitElement {
         );
       return true;
     } catch {
-      if (this.live(serial, context)) {
+      if (current()) {
         this.retryReady = false;
         this.pendingRetry = undefined;
         this.setMark(
@@ -364,7 +368,11 @@ export class SodaFactoryWorkDetail extends LitElement {
     const serial = this.serial;
     this.acting = kind;
     try {
-      if (kind === 'retry' && !(await this.resolveRetryIdentity(context, serial))) return;
+      if (
+        kind === 'retry' &&
+        !(await this.resolveRetryIdentity(context, () => this.live(serial, context), this.lifetime.signal))
+      )
+        return;
       if (!this.live(serial, context) || !this.backendGate(kind).available) return;
       const runID = kind === 'retry' ? this.retryRunID() : context.runID;
       if ((kind === 'stop' || kind === 'retry' || kind === 'takeover') && !runID) {
