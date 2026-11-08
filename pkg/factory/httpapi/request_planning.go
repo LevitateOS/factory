@@ -29,7 +29,9 @@ func (s Requests) generate(w http.ResponseWriter, r *http.Request) {
 	if !s.current(w, r) {
 		return
 	}
-	generation, wait, err := s.Planning.Generate(r.Context(), s.Actor, r.PathValue("intentID"), in.Revision)
+	opCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 3*time.Minute)
+	defer cancel()
+	generation, wait, err := s.Planning.Generate(opCtx, s.Actor, r.PathValue("intentID"), in.Revision)
 	if err != nil {
 		switch {
 		case errors.Is(err, factoryservice.ErrRequestNotFound):

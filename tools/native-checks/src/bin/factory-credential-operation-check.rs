@@ -1200,7 +1200,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let profile = Path::new(&args[3]);
             let resume_merge=args.len()==10 && field(9)?=="merge-resume";
             let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
-            let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review");
+            let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review"|"authoring-graph-generate"|"authoring-graph-adopt"|"authoring-graph-retained");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
             if resume_merge || resume_judgments || resume_authoring || connected_graph {
@@ -1242,12 +1242,33 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
                 if connected_graph {
                     let root=profile.parent().ok_or("profile parent missing")?;
-                    let resume_review=field(9)?=="authoring-graph-review";
+                    let adopt_committed=field(9)?=="authoring-graph-adopt";
+                    let resume_generation=adopt_committed || field(9)?=="authoring-graph-generate";
+                    let resume_review=resume_generation || field(9)?=="authoring-graph-review";
                     let background=root.join(if resume_review {"graph-current.json"}else{"graph.json"});
                     let intent="d141414141414141414141414";
                     let draft="d242424242424242424242424";
                     let accepted="d444444444444444444444444";
                     let base=format!("/api/factory/intents/{intent}");
+                    let check=|phase:&str,instance:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE",phase).kill_on_drop(true);
+                        async move {ensure(command.status().await?.success(),"connected graph check failed; recover original journals before another effect")}
+                    };
+                    if field(9)?=="authoring-graph-retained" {
+                        fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Intent":intent,"Revision":draft,"Accepted":accepted}))?)?;
+                        check("graph-completed",&ready.instance).await?;
+                        runtime.take().expect("owned runtime").stop()?;
+                        runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                        check("graph-completed",&runtime.as_ref().expect("owned runtime").health()?.instance).await?;
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("GET",&format!("{base}/generation"),&[]).await?;
+                        fs::write(root.join("graph-retained-product.json"),&reply.body)?;
+                        let value:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        ensure(reply.status==200 && value["state"]=="completed","retained graph product read missing")?;
+                        println!("PASS: both original graph task acceptances are current after native restart; complete receipt/product readback, no authority renewal, no provider write or inference");
+                        return Ok(());
+                    }
                     if field(9)?=="authoring-graph-recover" {
                         let recovery=root.join("graph-recovery-current.json");
                         let mut fixture:serde_json::Value=serde_json::from_slice(&fs::read(&background)?)?;
@@ -1263,6 +1284,20 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     let old=request.request("GET",&base,&[]).await?;
                     if old.status==200 {
                         let head:serde_json::Value=serde_json::from_slice(&old.body)?;
+                        if resume_generation {
+                            let original:serde_json::Value=serde_json::from_slice(&fs::read(root.join("graph-accepted.json"))?)?;
+                            ensure(head==original && head["id"]==accepted && head["state"]=="accepted","original graph acceptance changed")?;
+                            let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let prior=request.request("GET",&format!("{base}/generation"),&[]).await?;
+                            let prior:serde_json::Value=serde_json::from_slice(&prior.body)?;
+                            if adopt_committed {
+                                ensure(prior["operation_id"]==format!("intent-{accepted}") && matches!(prior["state"].as_str(),Some("pending"|"committed"|"completed")),"original graph generation unavailable")?;
+                                fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Intent":intent,"Revision":draft,"Accepted":accepted}))?)?;
+                                check("graph-committed-steps",&ready.instance).await?;
+                            } else {
+                                ensure(prior["state"]=="pending" && prior["operation_id"].is_null(),"generation already exists: never rebind its original write authority")?;
+                            }
+                        } else {
                         ensure(head["id"]==draft && head["state"]=="draft","original graph head advanced; inspect its grant and receipts before resuming")?;
                         let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                         let prior=request.request("GET",&format!("{base}/plan"),&[]).await?;
@@ -1271,6 +1306,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         if resume_review {
                             let original:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-graph-plan.json"))?)?;
                             ensure(prior["run_id"]==original["run"]["id"] && original["run"]["reconciled"]==true,"original completed planner receipt changed")?;
+                        }
                         }
                     } else {ensure(old.status==404,"original graph head unreadable")?;}
                     let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
@@ -1288,6 +1324,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     let reply=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
                     fs::write(root.join("graph-policy-receipt.json"),&reply.body)?;
                     ensure(reply.status==200,&format!("graph policy refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Intent":intent,"Revision":draft,"Accepted":accepted}))?)?;
+                    if resume_generation {check("graph-prepare",&ready.instance).await?;} else {
                     let idea1="d343434343434343434343434";
                     let idea2="d454545454545454545454545";
                     let direction=json!({"id":draft,"intent":intent,"repository":repository,"objective":"Q14 disposable graph qualification: plan exactly two documentation tasks and one dependency. First author an illustrative plain-text or pseudocode example that records a short personal note and reads it back, explicitly saying this is illustrative and not an implemented app. Second independently verify that the displayed note equals the entered note and that the example is labelled illustrative; this task depends on the first. Produce one candidate with exactly these two tasks and the single dependency. Do not modify repository files or existing issues during planning.","ideas":[{"id":idea1,"description":"An illustrative note record and readback documentation example, clearly labelled as illustration rather than a working app.","consequence":"A reader can follow the concrete example without assuming a shipped application exists.","assumption":false,"decision":"accept","source":"requested","provenance":"human","actor":actor},{"id":idea2,"description":"Independent documentation verification, after the example exists, checks matching input/output and its illustrative label.","consequence":"The reader sees a checked, accurately labelled example.","assumption":false,"decision":"accept","source":"requested","provenance":"human","actor":actor}],"tasks":[],"effective_outcomes":[idea1,idea2],"state":"draft","max_issues":2,"planning_calls":0});
@@ -1295,12 +1333,6 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     let reply=request.request("POST","/api/factory/intents",&serde_json::to_vec(&direction)?).await?;
                     fs::write(root.join("graph-draft.json"),&reply.body)?;
                     ensure(reply.status==201,&format!("graph draft refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
-                    fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Intent":intent,"Revision":draft,"Accepted":accepted}))?)?;
-                    let check=|phase:&str,instance:&str| {
-                        let mut command=tokio::process::Command::new(&args[7]);
-                        command.arg(profile).arg(instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE",phase).kill_on_drop(true);
-                        async move {ensure(command.status().await?.success(),"connected graph check failed; recover original journals before another effect")}
-                    };
                     if resume_review {check("graph-prepare",&ready.instance).await?;} else {
                     let mut driver=tokio::process::Command::new(&args[7]);
                     let mut driver=driver.arg(profile).arg(&ready.instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE","graph-plan").kill_on_drop(true).spawn()?;
@@ -1333,7 +1365,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fs::write(root.join("graph-walkthrough-review.json"),&review.body)?;
                         let result:serde_json::Value=serde_json::from_slice(&review.body)?;
                         if review.status==200 {
-                            ensure(result["consistency"]["mismatches"].as_array().is_some_and(|m|m.is_empty()),"actual walkthrough review requires attention")?;
+                            ensure((result["consistency"]["mismatches"].is_null() || result["consistency"]["mismatches"].as_array().is_some_and(|m|m.is_empty())) && result["consistency"]["confidence"].as_f64().is_some_and(|c|c>=0.5),"actual walkthrough review requires attention")?;
                             break;
                         }
                         ensure(review.status==503 && result["error"]["code"]=="judgment_pending" && Instant::now()<until,&format!("walkthrough review refused: {} {result}",review.status))?;
@@ -1350,6 +1382,20 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                     let reply=request.request("POST","/api/factory/intents",&serde_json::to_vec(&acceptance)?).await?;
                     fs::write(root.join("graph-accepted.json"),&reply.body)?;
                     ensure(reply.status==201,&format!("graph acceptance refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    }
+                    if adopt_committed {
+                        check("graph-adopt",&ready.instance).await?;
+                        check("graph-completed",&ready.instance).await?;
+                        runtime.take().expect("owned runtime").stop()?;
+                        runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                        check("graph-completed",&runtime.as_ref().expect("owned runtime").health()?.instance).await?;
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let status=admitted.request("GET",&format!("{base}/generation"),&[]).await?;
+                        let status:serde_json::Value=serde_json::from_slice(&status.body)?;
+                        ensure(status["state"]=="completed","native product did not expose retained completed graph")?;
+                        println!("PASS: original fully committed graph recovered after lost reply/withdrawal with current read authority, original write revision/deadline, complete graph verification/adoption and native product restart; no inference or provider resend");
+                        return Ok(());
+                    }
                     let command=serde_json::to_vec(&json!({"revision":accepted}))?;
                     let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                     let reply=request.request("POST",&format!("{base}/generate"),&command).await?;

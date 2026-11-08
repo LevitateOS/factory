@@ -30,6 +30,19 @@ type PurposeAdvice struct {
 // now instead of requiring attention.
 var ErrConsultationFailed = fmt.Errorf("%w: consultation failed, the next pass retries", ErrPriorityUnavailable)
 
+// The graph's read-only review replay answers the exact predecessor of its
+// current acceptance. Live calls still require the draft itself to be current.
+func (c *Coordinator) checkIntentAdvice(ctx context.Context, draft factory.IntentRevision) error {
+	if c.acceptedAdvice == nil {
+		return c.Store.CheckIntentJudgment(ctx, draft)
+	}
+	accepted := *c.acceptedAdvice
+	if c.Planning != nil || accepted.State != "accepted" || accepted.Predecessor != draft.ID || accepted.Intent != draft.Intent || accepted.Owner != draft.Owner || bindAcceptedScope(accepted, draft) != nil {
+		return store.ErrStaleRevision
+	}
+	return c.currentAcceptedIntent(ctx, accepted)
+}
+
 func buildPurposeRequest(advice PurposeAdvice) (factory.PriorityRequest, string, error) {
 	fingerprint, err := factory.JudgmentFingerprint(advice.Purpose, advice.State, advice.Question, advice.Options)
 	if err != nil {

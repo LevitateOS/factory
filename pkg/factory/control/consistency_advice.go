@@ -78,7 +78,7 @@ func (c *Coordinator) JudgeConsistency(ctx context.Context, r factory.IntentRevi
 		Options:    options,
 		Outcome:    "consistency",
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
-			return true, c.Store.CheckIntentJudgment(ctx, r)
+			return true, c.checkIntentAdvice(ctx, r)
 		},
 	})
 	if err != nil {

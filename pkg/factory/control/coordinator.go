@@ -81,6 +81,7 @@ type Coordinator struct {
 	Merges          MergeExecutor
 	Priority        *PriorityJudgments
 	Planning        *PlanningJudgments
+	acceptedAdvice  *factory.IntentRevision
 	ContextChooser  ProductJudgment
 	// CompletionEnumerator supplies native inventory pages for the D13
 	// completion fence; CompletionLocalCapture captures the local half

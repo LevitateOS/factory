@@ -6630,6 +6630,23 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 		if e != nil {
 			return e
 		}
+		if phase == "graph-committed-steps" || phase == "graph-adopt" {
+			if len(prefix.Effects) != 3 {
+				return errors.New("read-only graph recovery requires all three original committed step receipts")
+			}
+			if phase == "graph-adopt" {
+				original := g
+				g, wait, e := app.Coordinator.GenerateAcceptedIntentFromRecordedPlan(ctx, head.Intent, head.ID, head.Owner)
+				if e != nil || wait != nil || g.State != "completed" {
+					return fmt.Errorf("known committed graph adoption: state=%s wait=%+v error=%w", g.State, wait, e)
+				}
+				if g.OperationID != original.OperationID || g.NativeRev != original.NativeRev || g.NotAfter != original.NotAfter || !reflect.DeepEqual(g.Payload, original.Payload) {
+					return errors.New("committed graph recovery renewed original write authority")
+				}
+			}
+			fmt.Println("PASS: read-only original committed graph steps/recovery; no write authority renewed", g.OperationID)
+			return nil
+		}
 		lookup, e := graph.LookupGraph(ctx, g, repository)
 		if e != nil {
 			return e
@@ -6654,9 +6671,11 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 			if g.State != "completed" || len(prefix.Effects) != 3 || len(bindings) != 2 || lookup.Record == nil || lookup.Record.Effect != collaboration.EffectCommitted {
 				return errors.New("graph lacks complete native verification and adoption")
 			}
-			current, generated, e := db.GeneratedIntentCurrent(ctx, head.ID)
-			if e != nil || !current || !generated {
-				return errors.New("complete graph lacks canonical current bindings")
+			for _, binding := range bindings {
+				current, generated, e := db.GeneratedIntentCurrent(ctx, binding.AcceptanceID)
+				if e != nil || !current || !generated {
+					return errors.New("complete graph lacks canonical current bindings")
+				}
 			}
 			if e = retainJudgmentEvidence(ctx, config, repository, "", 0); e != nil {
 				return e

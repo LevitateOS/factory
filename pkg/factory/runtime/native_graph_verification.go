@@ -75,12 +75,22 @@ func (s NativeGraphs) taskRefs(ctx context.Context, g factory.IntentGeneration, 
 	return refs, nil
 }
 func (s NativeGraphs) verifyGraph(ctx context.Context, g factory.IntentGeneration, p nativeGraphPacket, progress nativeGraphProgress) (json.RawMessage, error) {
+	if progress.blocked != nil || progress.next != nativeGraphCount(p) || len(progress.commands) != nativeGraphCount(p) {
+		return nil, errors.New("native graph verification requires every original committed step")
+	}
 	revision, err := s.Store.IntentGenerationHead(ctx, g.RevisionID)
 	if err != nil {
 		return nil, err
 	}
 	if revision.Intent != g.IntentID || revision.State != "accepted" || revision.Digest() != g.IntentDigest {
 		return nil, store.ErrStaleRevision
+	}
+	// Fully committed writes may be verified after expiry or reconnect. This
+	// current read authority never replaces the original generation's write
+	// revision/deadline; pending and unknown steps still use the original guard.
+	verification, err := s.CheckIntentOwner(ctx, p.Repository, revision.Owner, g.ActorID)
+	if err != nil {
+		return nil, err
 	}
 	scoped := revision
 	scoped.Tasks = g.SubmittedTasks
@@ -103,7 +113,7 @@ func (s NativeGraphs) verifyGraph(ctx context.Context, g factory.IntentGeneratio
 			return nil, err
 		}
 		issue := observed.Issue
-		if issue == nil || !issue.Visible || !issue.Complete || issue.IsPull || issue.IsLocked || issue.ID != ref.ExternalID || issue.Index != strconv.FormatInt(ref.Number, 10) || issue.Creator == nil || int64(*issue.Creator) != g.ActorID || observed.AuthorityRevision != g.NativeRev {
+		if issue == nil || !issue.Visible || !issue.Complete || issue.IsPull || issue.IsLocked || issue.ID != ref.ExternalID || issue.Index != strconv.FormatInt(ref.Number, 10) || issue.Creator == nil || int64(*issue.Creator) != g.ActorID || observed.AuthorityRevision != verification {
 			return nil, errNativeReadScope
 		}
 		if _, delivered := g.Delivered[task.Key]; !delivered && (issue.IsClosed || issue.Title != desired.Creates[index].Title || issue.Content != desired.Creates[index].Body) {
@@ -135,15 +145,15 @@ func (s NativeGraphs) verifyGraph(ctx context.Context, g factory.IntentGeneratio
 	if err != nil {
 		return nil, err
 	}
-	if authority != g.NativeRev {
+	if authority != verification {
 		return nil, errNativeReadScope
 	}
-	return json.Marshal(nativeGraphReceipt{Version: 1, Operation: g.OperationID, Repository: p.Repository, Actor: g.ActorID, Commands: progress.commands, Versions: versions})
+	return json.Marshal(nativeGraphReceipt{Version: 1, Operation: g.OperationID, Repository: p.Repository, Actor: g.ActorID, Commands: progress.commands, Versions: versions, VerificationRevision: verification})
 }
 func (s NativeGraphs) DecodeGraphReceipt(ctx context.Context, raw json.RawMessage) (factory.GraphReceiptFacts, error) {
 	var facts factory.GraphReceiptFacts
 	var receipt nativeGraphReceipt
-	if nativeDecode(raw, &receipt) != nil || receipt.Version != 1 || receipt.Operation == "" || receipt.Repository <= 0 || receipt.Actor <= 0 || len(receipt.Commands) > 64 || len(receipt.Versions) > 64 {
+	if nativeDecode(raw, &receipt) != nil || receipt.Version != 1 || receipt.Operation == "" || receipt.Repository <= 0 || receipt.Actor <= 0 || receipt.VerificationRevision < 0 || len(receipt.Commands) > 64 || len(receipt.Versions) > 64 {
 		return facts, errNativeRead
 	}
 	generation, err := s.Store.IntentGenerationOperation(ctx, receipt.Operation)

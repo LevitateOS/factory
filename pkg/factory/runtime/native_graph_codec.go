@@ -27,12 +27,13 @@ type nativeGraphPacket struct {
 	Graph      collaboration.GraphIntent `json:"graph"`
 }
 type nativeGraphReceipt struct {
-	Version    int            `json:"version"`
-	Operation  string         `json:"operation"`
-	Repository int64          `json:"repository,string"`
-	Actor      int64          `json:"actor,string"`
-	Commands   []string       `json:"commands"`
-	Versions   map[string]int `json:"versions"`
+	Version              int            `json:"version"`
+	Operation            string         `json:"operation"`
+	Repository           int64          `json:"repository,string"`
+	Actor                int64          `json:"actor,string"`
+	Commands             []string       `json:"commands"`
+	Versions             map[string]int `json:"versions"`
+	VerificationRevision int64          `json:"verification_revision,omitempty"`
 }
 
 func (s NativeGraphs) EncodeGraph(graph collaboration.GraphIntent, repository int64) (json.RawMessage, error) {

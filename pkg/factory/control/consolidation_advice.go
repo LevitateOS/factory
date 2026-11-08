@@ -53,7 +53,7 @@ func (c *Coordinator) JudgeConsolidation(ctx context.Context, r factory.IntentRe
 		Options:    options,
 		Outcome:    "consolidation",
 		Admit: func(ctx context.Context, snapshot string) (bool, error) {
-			return true, c.Store.CheckIntentJudgment(ctx, r)
+			return true, c.checkIntentAdvice(ctx, r)
 		},
 	})
 	if err != nil {

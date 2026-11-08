@@ -131,7 +131,7 @@ func (c *Coordinator) ResolveAcceptedPlanChoice(ctx context.Context, owner int64
 	}
 	// The recorded walkthrough admits before any funded choice: a missing
 	// or unchecked walkthrough refuses without spending a comparison.
-	if err := c.admitRecordedWalkthroughReview(ctx, in.Head, *out); err != nil {
+	if err := c.admitRecordedWalkthroughReview(ctx, r, in.Head, *out); err != nil {
 		return empty, nil, err
 	}
 	chosen, err := c.ChoosePlannedCandidate(ctx, r, in, *out)
@@ -291,11 +291,9 @@ func settlePlanChoiceStatus(a factory.Assignment) (*factory.SemanticPlannerOutpu
 
 // recheckPlanChoiceSource proves the recorded plan still inspects the
 // current source: the ready role preparation behind this repository
-// must be the exact preparation the run settled — same identity, not
-// merely the same commit — and every staged evidence reference must
-// answer that preparation's source commit. A volatile preparation
-// waits truthfully; a moved source or a replacement preparation
-// refuses as stale.
+// must be the recorded preparation, or a fresh native preparation of the
+// identical approved bytes after a runtime restart. Original run captures and
+// deadlines stay fixed; changed source, setup or approval refuses as stale.
 func (c *Coordinator) recheckPlanChoiceSource(ctx context.Context, r factory.IntentRevision, a factory.Assignment, in factory.SemanticPlannerInput) (*DispatchWait, error) {
 	workspace, native, err := c.Store.ExecutionWorkspace(ctx, collaboration.RepositoryID(r.Repository))
 	if errors.Is(err, store.ErrNotFound) {
@@ -317,7 +315,30 @@ func (c *Coordinator) recheckPlanChoiceSource(ctx context.Context, r factory.Int
 		return nil, errors.New("recorded plan carries no preparation binding")
 	}
 	if plan.prep.Preparation.ID != a.Preparation {
-		return nil, fmt.Errorf("%w: recorded plan answers another preparation", ErrPlanChoiceStale)
+		if plan.prep.Native == nil {
+			return nil, fmt.Errorf("%w: recorded plan answers another preparation", ErrPlanChoiceStale)
+		}
+		prior, err := c.Store.Preparation(ctx, a.Preparation)
+		if err != nil {
+			return nil, fmt.Errorf("%w: original preparation unreadable", ErrPlanChoiceStore)
+		}
+		run, err := c.Store.FactoryRun(ctx, a.Run)
+		if err != nil {
+			return nil, fmt.Errorf("%w: original source capture unreadable", ErrPlanChoiceStore)
+		}
+		old, current := prior.Preparation, plan.prep.Preparation
+		if prior.Native == nil || run.Native == nil {
+			return nil, fmt.Errorf("%w: original native source capture missing", ErrPlanChoiceStale)
+		}
+		sameCapture := prior.Native.Profile == plan.prep.Native.Profile && prior.Native.InstanceID != plan.prep.Native.InstanceID &&
+			run.Native.Provenance.Profile == prior.Native.Profile && run.Native.Provenance.InstanceID == prior.Native.InstanceID &&
+			run.Native.Provenance.WorktreeID == a.Preparation && run.Native.BundleSHA256 != "" && run.Native.BundleSHA256 == plan.prep.State.SourceBundleSHA256
+		sameApproval := old.Project == current.Project && old.Role == current.Role && old.SourceCommit == a.SourceCommit && old.SourceCommit == current.SourceCommit &&
+			old.SetupDigest == current.SetupDigest && old.Requirements.Equal(current.Requirements) && old.Approval == current.Approval &&
+			old.Requirements.ID == a.Authority.RequirementsID && old.Approval.ID == a.Authority.ApprovalID
+		if !sameCapture || !sameApproval {
+			return nil, fmt.Errorf("%w: current preparation changes the captured approved source", ErrPlanChoiceStale)
+		}
 	}
 	if plan.prep.Preparation.SourceCommit != a.SourceCommit {
 		return nil, fmt.Errorf("%w: recorded plan inspects another source commit", ErrPlanChoiceStale)
@@ -353,14 +374,14 @@ func (c *Coordinator) recheckPlanChoiceAfterComparison(ctx context.Context, r fa
 // missing check refuses without funding new judgments at serving time;
 // the person checks the walkthrough explicitly, then native work may
 // proceed. Deterministic effect findings refuse the same way.
-func (c *Coordinator) admitRecordedWalkthroughReview(ctx context.Context, head factory.IntentRevision, out factory.SemanticPlannerOutput) error {
+func (c *Coordinator) admitRecordedWalkthroughReview(ctx context.Context, accepted, head factory.IntentRevision, out factory.SemanticPlannerOutput) error {
 	if out.Walkthroughs == nil {
 		return fmt.Errorf("%w: recorded plan carries no authored walkthrough", ErrPlanChoiceReview)
 	}
 	if err := factory.ValidatePlanningWalkthroughs(head, *out.Walkthroughs); err != nil {
 		return fmt.Errorf("%w: %v", ErrPlanChoiceReview, err)
 	}
-	replay := &Coordinator{Store: c.Store}
+	replay := &Coordinator{Store: c.Store, acceptedAdvice: &accepted}
 	recommended, err := replay.JudgeConsolidation(ctx, head, *out.Walkthroughs)
 	if err != nil {
 		return fmt.Errorf("%w: recorded walkthrough has no checked review", ErrPlanChoiceReview)

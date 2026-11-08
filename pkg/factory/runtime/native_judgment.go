@@ -109,6 +109,17 @@ func (s NativeJudgments) CheckJudgment(ctx context.Context, repository int64, su
 			return control.ErrPriorityUnavailable
 		}
 	}
+	// Completed advice is a paid fact, not a renewed operation. Reconnecting
+	// the same repository writer may change the policy revision; reuse still
+	// requires the identical judgment selection and original funding revision.
+	// In-flight dispatch/settlement retains its exact captured policy check.
+	policy, err := s.Store.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
+	}
+	if capture.PolicyRevision != nil {
+		capture.PolicyRevision = &policy.Revision
+	}
 	if err := s.Store.CheckNativeJudgmentSource(ctx, capture); err != nil {
 		return err
 	}
