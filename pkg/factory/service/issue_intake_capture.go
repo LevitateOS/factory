@@ -77,7 +77,7 @@ func (s IssueIntakeCapture) Capture(ctx context.Context, actor collaboration.Act
 			return err
 		}
 		return ctx.Err()
-	} else if !errors.Is(err, store.ErrNotFound) && !errors.Is(err, ErrCapturedIssueAuthority) {
+	} else if !errors.Is(err, store.ErrNotFound) {
 		return err
 	}
 	if s.Authorize == nil {

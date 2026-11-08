@@ -256,7 +256,13 @@ func (d *IntentPostDrafter) DraftPostIssue(ctx context.Context, comment store.Fe
 func (d *IntentPostDrafter) postPlanAttempt(ctx context.Context, head factory.IntentRevision, author int64) (factory.Assignment, error) {
 	var empty factory.Assignment
 	if attempt, err := d.Store.IntentPlanAttempt(ctx, head.Intent, head.ID); err == nil {
-		return attempt, nil
+		if d.IssueMaker == nil || d.IssueMaker.Attempt == "" || d.IssueMaker.Attempt == attempt.ID {
+			return attempt, nil
+		}
+		run, e := d.Store.FactoryRun(ctx, attempt.Run)
+		if e != nil || !run.Reconciled || attempt.Stage != factory.AssignmentFinished || (attempt.Outcome != factory.Failed && attempt.Outcome != factory.Cancelled) {
+			return empty, errors.New("previous planning attempt must settle before explicit continuation")
+		}
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, err
 	}
@@ -275,6 +281,9 @@ func (d *IntentPostDrafter) postPlanAttempt(ctx context.Context, head factory.In
 	// A launch error can follow a committed funded attempt. Recover that
 	// attempt before interpreting the report so an unknown reply stays pending.
 	attempt, err := d.Store.IntentPlanAttempt(ctx, head.Intent, head.ID)
+	if err == nil && d.IssueMaker != nil && d.IssueMaker.Attempt != "" && attempt.ID != d.IssueMaker.Attempt {
+		err = store.ErrNotFound
+	}
 	if err != nil {
 		if len(report.Errors) != 0 {
 			return empty, errors.New(report.Errors[0].Detail)

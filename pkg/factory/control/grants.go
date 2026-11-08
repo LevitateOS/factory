@@ -83,6 +83,9 @@ func (c *Coordinator) stopRevokedRuns(ctx context.Context, repository int64) {
 	if c.Host == nil || c.Broker == nil {
 		return
 	}
+	if err := c.Store.RevokeExpiredIssueMakerRuns(ctx, repository); err != nil {
+		return
+	}
 	runs, err := c.Store.RevokedFactoryRuns(ctx, repository, MaxDispatchRecovery)
 	if err != nil {
 		return

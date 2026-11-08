@@ -348,6 +348,16 @@ func (t *timeOnlyLaunch) submitPacket() {
 		return
 	}
 	deadline := t.plan.deadline
+	if t.planning != nil && t.planning.IssueMaker != nil {
+		expires := time.Unix(t.planning.IssueMaker.NotAfter, 0)
+		if !expires.After(t.now) {
+			t.report.Waits = append(t.report.Waits, DispatchWait{Repository: t.repository, Reason: WaitAuthority, Detail: "request source authorization expired before planning"})
+			return
+		}
+		if expires.Before(deadline) {
+			deadline = expires
+		}
+	}
 	t.plan.planned = min(t.plan.planned, minutes)
 	if horizon := t.now.Add(time.Duration(minutes) * time.Minute); horizon.Before(deadline) {
 		deadline = horizon
@@ -381,6 +391,9 @@ func (t *timeOnlyLaunch) buildAssignment(nativeRev int64, deadline time.Time) (f
 	var noRun factory.Run
 	promptSum := sha256.Sum256(t.prompt)
 	assignmentID, runID := factory.NewID(), factory.NewID()
+	if t.planning != nil && t.planning.IssueMaker != nil && t.planning.IssueMaker.Attempt != "" {
+		assignmentID = t.planning.IssueMaker.Attempt
+	}
 	if t.retry != nil {
 		if t.subject.Kind != factory.SubjectDelivery || t.retry.Validate() != nil || t.subject.Delivery == nil || t.subject.Delivery.DeliveryID != factory.DeliveryRetryID(*t.subject.Delivery, t.retry.CommandID) {
 			t.report.Errors = append(t.report.Errors, DispatchError{Repository: t.repository, Reason: DispatchErrStore, Detail: "verification Retry does not bind its command"})

@@ -92,6 +92,9 @@ func checkDispatchPacketInputs(expected factory.IssueControl, a factory.Assignme
 	if err := run.Validate(); err != nil {
 		return err
 	}
+	if a.PlanningContext != nil && a.PlanningContext.IssueMaker != nil && run.Deadline.After(time.Unix(a.PlanningContext.IssueMaker.NotAfter, 0)) {
+		return ErrAdmissionChanged
+	}
 	if err := view.Validate(); err != nil {
 		return err
 	}
@@ -359,6 +362,11 @@ func validateAttemptPacketTx(ctx context.Context, tx *sql.Tx, a factory.Assignme
 // operation. This read is unlocked; the duplicate-refusal revalidates
 // the head under its lock before funding.
 func validateDecomposeRootTx(ctx context.Context, tx *sql.Tx, a factory.Assignment) error {
+	if allowed, err := issueMakerConsentTx(ctx, tx, a); err != nil {
+		return err
+	} else if !allowed {
+		return ErrStaleRevision
+	}
 	if a.Phase != project.ExecutionDecompose {
 		return errors.New("intent root needs its decompose phase")
 	}

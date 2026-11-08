@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,11 @@ func (s *Store) StartPostIssueMaker(ctx context.Context, comment FeedPostDetail)
 	id, revision := comment.Record.ID, comment.Record.Revision
 	post := factory.IssueMakerPostID(id, revision)
 	progress := factory.IssueMakerProgress{Scope: factory.IssueMakerScope{SourcePost: id, Revision: revision, Post: post}, State: "queued", Detail: "JEV identified new work. Capturing the original request as an issue before AI refinement.", Checked: time.Now().Unix()}
+	var expiry sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, `SELECT (data->'issue_intake_scope'->>'expires')::bigint FROM factory_post_intakes WHERE post=$1 AND revision=$2`, id, revision).Scan(&expiry); err != nil {
+		return progress, err
+	}
+	progress.Scope.NotAfter = expiry.Int64
 	title := "Making issues: " + strings.Join(strings.Fields(comment.Body), " ")
 	if len([]rune(title)) > 160 {
 		title = string([]rune(title)[:160])
@@ -85,6 +91,9 @@ func (s *Store) SaveIssueMakerProgress(ctx context.Context, progress factory.Iss
 	var current factory.IssueMakerProgress
 	if err = json.Unmarshal(currentRaw, &current); err != nil {
 		return err
+	}
+	if current.Scope.Attempt != progress.Scope.Attempt || current.Scope.NotAfter != progress.Scope.NotAfter {
+		return ErrStaleRevision
 	}
 	progress.Issues = current.Issues
 	progress.Scope.Issue = current.Scope.Issue
@@ -180,17 +189,38 @@ func (s *Store) SaveIssueIntakeGrant(ctx context.Context, id string, revision in
 	if scope.Validate() != nil || scope.Source != id || scope.Revision != revision || len(proof) == 0 || len(proof) > 8192 || !json.Valid(proof) {
 		return errors.New("invalid issue intake grant")
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE factory_post_intakes r SET data=r.data || jsonb_build_object('issue_intake_grant',$3::jsonb)
+	scopeRaw, err := json.Marshal(scope)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Use the same source/role/intake order as admission and continuation.
+	var locked string
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_feed_posts WHERE id=$1 FOR SHARE`, id).Scan(&locked); err != nil {
+		return err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT id FROM factory_feed_posts WHERE id=$1 FOR UPDATE`, factory.IssueMakerPostID(id, revision)).Scan(&locked)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE factory_post_intakes r SET data=r.data || jsonb_build_object('issue_intake_grant',$3::jsonb,'issue_intake_scope',$7::jsonb)
 	 FROM factory_feed_posts c WHERE r.post=$1 AND r.revision=$2 AND c.id=r.post AND c.revision=$2 AND c.author=$4 AND c.repository=$5::bigint
 	 AND NOT COALESCE((c.data->>'deleted')::boolean,false) AND NOT COALESCE((c.data->>'revoked')::boolean,false)
-	 AND encode(sha256(convert_to(c.body,'UTF8')),'hex')=$6`, id, revision, string(proof), strconv.FormatInt(int64(scope.Actor), 10), int64(scope.Repository), scope.Digest)
+	 AND encode(sha256(convert_to(c.body,'UTF8')),'hex')=$6`, id, revision, string(proof), strconv.FormatInt(int64(scope.Actor), 10), int64(scope.Repository), scope.Digest, string(scopeRaw))
 	if err != nil {
 		return err
 	}
 	if n, _ := result.RowsAffected(); n != 1 {
 		return ErrStaleRevision
 	}
-	return nil
+	if _, err = tx.ExecContext(ctx, `UPDATE factory_feed_posts SET data=jsonb_set(data,'{issue_maker,scope,not_after}',to_jsonb($2::bigint)) WHERE id=$1 AND data ? 'issue_maker'`, factory.IssueMakerPostID(id, revision), scope.Expires); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) IssueIntakeGrant(ctx context.Context, id string, revision int64) (json.RawMessage, error) {

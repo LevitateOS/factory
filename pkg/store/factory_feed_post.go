@@ -691,7 +691,9 @@ func (s *Store) PendingPostIntakes(ctx context.Context, limit int) ([]factory.Po
 		AND (r.judgment='pending'
 			OR (r.judgment='applied' AND r.route='new_issue' AND c.data#>>'{source,product,intent}' IS NULL
 				AND (r.draft='pending' OR (r.draft='applied' AND r.effect IN ('pending','failed'))
-				 OR (r.data->>'issue_maker_version'='1' AND r.effect='verified' AND COALESCE(r.data->>'issue_maker_state','') NOT IN ('completed','failed'))))
+				 OR (r.data->>'issue_maker_version'='1' AND r.effect='verified' AND NOT EXISTS(
+				 SELECT 1 FROM factory_feed_posts maker WHERE maker.id=r.data->>'issue_maker_post'
+				 AND maker.data->'issue_maker'->>'state' IN ('completed','failed')))))
 			OR (r.judgment='applied' AND r.route='existing_work' AND r.effect IN ('pending','failed') AND (r.data->>'feedback_revision')::bigint=r.revision))
 		ORDER BY COALESCE(r.data->>'last_checked_at',''),c.seq LIMIT $1`, limit, factory.PostAttemptLimit)
 	if err != nil {
@@ -825,13 +827,13 @@ func (s *Store) retryFeedPost(ctx context.Context, id, author string, expected i
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if err := retryFeedPostTx(ctx, tx, id, author, expected, body, at, issueMaker, 0); err != nil {
+	if err := retryFeedPostTx(ctx, tx, id, author, expected, body, at, issueMaker, 0, ""); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expected int64, body string, at int64, issueMaker bool, expectedRepository int64) error {
+func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expected int64, body string, at int64, issueMaker bool, expectedRepository int64, commandID string) error {
 	var savedAuthor, oldBody string
 	var revision, repository int64
 	var closed bool
@@ -841,6 +843,13 @@ func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expecte
 	}
 	if savedAuthor != author || revision != expected || closed || (expectedRepository > 0 && repository != expectedRepository) {
 		return ErrStaleRevision
+	}
+	if issueMaker {
+		var rolePost string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM factory_feed_posts WHERE id=$1 FOR UPDATE`, factory.IssueMakerPostID(id, revision)).Scan(&rolePost)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 	}
 	var draft, effect, route, judgment string
 	var attempts int
@@ -858,11 +867,58 @@ func retryFeedPostTx(ctx context.Context, tx *sql.Tx, id, author string, expecte
 		return err
 	}
 	unstartedWait = unstartedWait && draft == factory.PostDraftPending && effect == factory.PostEffectPending
-	if !refreshContext && !unstartedWait && !(factory.PostIntake{Draft: draft, Effect: effect, Route: route, Judgment: judgment, Attempts: attempts}).RetryAllowed() {
+	continueRefinement := issueMaker && previousMaker && effect == factory.PostEffectVerified
+	if !continueRefinement && !refreshContext && !unstartedWait && !(factory.PostIntake{Draft: draft, Effect: effect, Route: route, Judgment: judgment, Attempts: attempts}).RetryAllowed() {
 		return errors.New("this request is still processing or has already completed")
 	}
 	if effect == factory.PostEffectApplied || effect == factory.PostEffectVerified {
-		return errors.New("this request already created an issue")
+		if !issueMaker || !previousMaker || !factory.ValidID(commandID) || effect != factory.PostEffectVerified || body != "" && body != oldBody {
+			return errors.New("this request already created an issue")
+		}
+		var raw []byte
+		post := factory.IssueMakerPostID(id, revision)
+		if err := tx.QueryRowContext(ctx, `SELECT data->'issue_maker' FROM factory_feed_posts WHERE id=$1 FOR UPDATE`, post).Scan(&raw); err != nil {
+			return err
+		}
+		var maker factory.IssueMakerProgress
+		if json.Unmarshal(raw, &maker) != nil || maker.Validate() != nil || maker.Scope.Issue <= 0 || (maker.State != "waiting" && maker.State != "failed" && maker.State != "unknown") {
+			return errors.New("issue refinement is still processing or completed")
+		}
+		// The latest recorded attempt, rather than a display field that may be
+		// empty while waiting, owns whether another inference can be admitted.
+		attemptErr := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE data->'subject'->'intent'->>'intent_id'=$1 AND data->'subject'->'intent'->>'revision_id'=$2 ORDER BY seq DESC LIMIT 1`, factory.PostDecisionID("intent", id, revision), factory.PostDecisionID("revision", id, revision)).Scan(&raw)
+		if attemptErr == nil {
+			var assignment factory.Assignment
+			if err := json.Unmarshal(raw, &assignment); err != nil {
+				return err
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_runs WHERE id=$1`, assignment.Run).Scan(&raw); err != nil {
+				return err
+			}
+			var run factory.Run
+			if json.Unmarshal(raw, &run) != nil || !run.Reconciled {
+				return errors.New("original refinement run must settle before fresh authorization")
+			}
+			if run.Outcome == factory.Failed || run.Outcome == factory.Cancelled {
+				maker.Scope.Attempt = commandID
+			}
+		} else if errors.Is(attemptErr, sql.ErrNoRows) {
+			maker.Scope.Attempt = commandID
+		} else {
+			return attemptErr
+		}
+		maker.State, maker.Detail = "queued", "Continuing the saved issue refinement under fresh request authorization; original operations and results are retained."
+		raw, err := json.Marshal(maker)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE factory_feed_posts SET data=jsonb_set(data,'{issue_maker}',$2::jsonb) WHERE id=$1`, post, string(raw)); err != nil {
+			return err
+		}
+		// Only this explicit, journaled continuation archives the expired proof.
+		// Existing native command preparations/deadlines remain immutable.
+		_, err = tx.ExecContext(ctx, `UPDATE factory_post_intakes SET data=(data-'issue_intake_grant'-'issue_intake_scope') || CASE WHEN data ? 'issue_intake_grant' THEN jsonb_build_object('issue_intake_grant_history',COALESCE(data->'issue_intake_grant_history','[]'::jsonb)||jsonb_build_array(data->'issue_intake_grant')) ELSE '{}'::jsonb END WHERE post=$1`, id)
+		return err
 	}
 	if body == "" {
 		body = oldBody

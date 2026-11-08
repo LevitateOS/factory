@@ -177,6 +177,14 @@ func (s Posts) project(ctx context.Context, actor collaboration.ActorID, detail 
 	response := feedPostResponse(detail, pipe, progress, author)
 	if maker, err := s.Store.PostIssueMaker(ctx, detail.Record.ID, pipe.Revision); err == nil {
 		response["issue_maker"] = map[string]any{"post": maker.Scope.Post, "state": maker.State, "detail": maker.Detail, "checked": maker.Checked}
+		if detail.Record.Author == author && !detail.Record.Deleted && !detail.Record.Revoked && maker.Scope.Issue > 0 && (maker.State == "waiting" || maker.State == "failed" || maker.State == "unknown") {
+			attempt, err := s.Store.IntentPlanAttempt(ctx, factory.PostDecisionID("intent", detail.Record.ID, pipe.Revision), factory.PostDecisionID("revision", detail.Record.ID, pipe.Revision))
+			response["can_retry"] = errors.Is(err, store.ErrNotFound)
+			if err == nil {
+				run, e := s.Store.FactoryRun(ctx, attempt.Run)
+				response["can_retry"] = e == nil && run.Reconciled
+			}
+		}
 	} else if pipe.Judgment == factory.PostJudgmentApplied && pipe.Route == factory.PostRouteNewIssue && (detail.Source == nil || detail.Source.Product == nil) {
 		if captured, err := s.Store.PostUsesIssueMaker(ctx, detail.Record.ID, pipe.Revision); err == nil && captured {
 			response["issue_maker"] = map[string]any{"post": "", "state": "queued"}

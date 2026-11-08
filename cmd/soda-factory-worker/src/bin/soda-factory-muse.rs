@@ -11,7 +11,7 @@ mod connector {
     use std::fs::{self, File, OpenOptions};
     use std::io::{self, Read, Write};
     use std::os::fd::{AsRawFd, FromRawFd};
-    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
     use std::os::unix::process::CommandExt;
     use std::path::{Component, Path};
     use std::process::{Command, Stdio};
@@ -404,10 +404,18 @@ mod connector {
         if executable.sha256() != request.executable_sha256 {
             return Err(refused("Muse executable differs from captured admission"));
         }
-        for name in ["tmp", "work"] {
-            fs::create_dir(root.join(name))?;
-            private(&root.join(name))?;
-        }
+        fs::create_dir(root.join("work"))?;
+        private(&root.join("work"))?;
+        // MCP tool-output storage must live outside workspace/repository roots.
+        // A profile may itself be inside a selected development workspace.
+        let home = Path::new(&std::env::var_os("HOME")
+            .ok_or_else(|| refused("Muse user home unavailable"))?).to_path_buf();
+        let cache = home.join(".cache/factory-native-muse");
+        fs::DirBuilder::new().recursive(true).mode(0o700).create(&cache)?;
+        private(&cache)?;
+        let tmp = cache.join(&request.service);
+        fs::create_dir(&tmp)?;
+        private(&tmp)?;
         create(&root.join("prompt"), request.prompt.as_bytes())?;
         let now = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -424,7 +432,7 @@ mod connector {
                 executable: &executable,
                 directory: &root.join("work"),
                 arguments: arguments(&root, &request)?,
-                environment: environment(&root.join("tmp"), &request),
+                environment: environment(&tmp, &request),
                 limits: Limits {
                     duration: Duration::from_millis(remaining),
                     output_bytes: request.output_bytes,

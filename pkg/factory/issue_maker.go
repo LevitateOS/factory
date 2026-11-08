@@ -12,10 +12,12 @@ type IssueMakerScope struct {
 	Revision   int64  `json:"revision"`
 	Post       string `json:"post"`
 	Issue      int64  `json:"issue"`
+	Attempt    string `json:"attempt,omitempty"`
+	NotAfter   int64  `json:"not_after,omitempty"`
 }
 
 func (s IssueMakerScope) Validate(head IntentRevision) error {
-	if !ValidID(s.SourcePost) || s.Revision < 0 || s.Post != IssueMakerPostID(s.SourcePost, s.Revision) || s.Issue <= 0 ||
+	if !ValidID(s.SourcePost) || s.NotAfter < 0 || s.Attempt != "" && !ValidID(s.Attempt) || s.Revision < 0 || s.Post != IssueMakerPostID(s.SourcePost, s.Revision) || s.Issue <= 0 ||
 		head.Intent != PostDecisionID("intent", s.SourcePost, s.Revision) ||
 		head.ID != PostDecisionID("revision", s.SourcePost, s.Revision) {
 		return errors.New("issue maker input does not bind its source request")
@@ -35,7 +37,7 @@ type IssueMakerProgress struct {
 }
 
 func (p IssueMakerProgress) Validate() error {
-	if !ValidID(p.Scope.SourcePost) || p.Scope.Revision < 0 || p.Scope.Post != IssueMakerPostID(p.Scope.SourcePost, p.Scope.Revision) || p.Scope.Issue < 0 || p.Run != "" && !ValidID(p.Run) {
+	if !ValidID(p.Scope.SourcePost) || p.Scope.NotAfter < 0 || p.Scope.Attempt != "" && !ValidID(p.Scope.Attempt) || p.Scope.Revision < 0 || p.Scope.Post != IssueMakerPostID(p.Scope.SourcePost, p.Scope.Revision) || p.Scope.Issue < 0 || p.Run != "" && !ValidID(p.Run) {
 		return errors.New("invalid Issue Maker progress identity")
 	}
 	switch p.State {

@@ -22,6 +22,7 @@ func (p NativeExecution) workerDependencies(lifetime context.Context) mcpserver.
 	admission := service.WorkerAdmission{Store: p.Store, Inspect: p.InspectRun}
 	tasks := service.WorkerTasks{Store: p.Store, Inspect: p.InspectRun, Command: p.CommandTask}
 	return mcpserver.Dependencies{Capabilities: p.Store, Assignments: p.Store, Submissions: p.Store, Runs: p.Store,
+		IssueMaker:          NewNativeIssueEffects(NativeInputSource{p}).Tool,
 		SystemOneForWorker:  p.ConsultationsForWorker,
 		ConsultationJournal: p.Store,
 		Prepare:             admission.Prepare,

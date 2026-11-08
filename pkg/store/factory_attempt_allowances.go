@@ -981,7 +981,35 @@ func refuseDuplicateIntentAttemptTx(ctx context.Context, tx *sql.Tx, repository 
 		if prior.allowance.Active {
 			return ErrAssignmentActive
 		}
-		return factory.ErrAttemptClosed
+		// Only the exact newly journaled source continuation may fund a fresh
+		// planning root. Historical failed roots and charges remain immutable.
+		incoming, err := loadAttemptRootAssignmentTx(ctx, tx, root, false)
+		if err != nil {
+			return err
+		}
+		if incoming.PlanningContext == nil || incoming.PlanningContext.IssueMaker == nil {
+			return factory.ErrAttemptClosed
+		}
+		scope := *incoming.PlanningContext.IssueMaker
+		if scope.Attempt != root || !factory.ValidID(scope.Attempt) {
+			return factory.ErrAttemptClosed
+		}
+		if allowed, err := issueMakerConsentTx(ctx, tx, incoming); err != nil {
+			return err
+		} else if !allowed {
+			return factory.ErrAttemptClosed
+		}
+		if priorAssignment.Stage != factory.AssignmentFinished || (priorAssignment.Outcome != factory.Failed && priorAssignment.Outcome != factory.Cancelled) {
+			return factory.ErrAttemptClosed
+		}
+		var raw []byte
+		if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_runs WHERE id=$1`, priorAssignment.Run).Scan(&raw); err != nil {
+			return err
+		}
+		var run factory.Run
+		if json.Unmarshal(raw, &run) != nil || !run.Reconciled {
+			return ErrAttemptRunsPending
+		}
 	}
 	return nil
 }

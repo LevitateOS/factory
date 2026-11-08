@@ -53,7 +53,7 @@ func (s *Store) RetryIssueMakerFeedPostCommand(ctx context.Context, request fact
 		}
 		return receipt, true, nil
 	}
-	if err = retryFeedPostTx(ctx, tx, request.Post, request.Author, request.ExpectedRevision, request.Body, at, true, request.Repository); err != nil {
+	if err = retryFeedPostTx(ctx, tx, request.Post, request.Author, request.ExpectedRevision, request.Body, at, true, request.Repository, request.ID); err != nil {
 		return receipt, false, err
 	}
 	var revision int64

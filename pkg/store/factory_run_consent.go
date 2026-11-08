@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
+	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/project"
@@ -13,6 +15,9 @@ import (
 // The repository gate is held by the caller. Capacity and allowance size govern
 // future admission; source/role withdrawal governs already admitted effects.
 func runConsentTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, run factory.Run) (bool, error) {
+	if allowed, err := issueMakerConsentTx(ctx, tx, a); err != nil || !allowed {
+		return allowed, err
+	}
 	var policy factory.RepositoryPolicy
 	var operator factory.OperatorGrant
 	var environment project.EnvironmentGrant
@@ -57,6 +62,59 @@ func runConsentTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, run fac
 		}
 	} else if source.Native != nil || environment.Native != nil {
 		return false, nil
+	}
+	return true, nil
+}
+
+// The issuer-authenticated scope is recorded beside its opaque provider proof.
+// Admission and every worker call check it under the source's row locks; a
+// historical schema/profile or a later proof never grants an old worker access.
+func issueMakerConsentTx(ctx context.Context, tx *sql.Tx, a factory.Assignment) (bool, error) {
+	if a.PlanningContext == nil || a.PlanningContext.IssueMaker == nil {
+		return true, nil
+	}
+	scope := *a.PlanningContext.IssueMaker
+	var body, author string
+	var revision, repository int64
+	var closed bool
+	var grantRaw, progressRaw []byte
+	// Match source capture/retry and progress: source, role post, then intake.
+	// A join's planner-selected row order cannot provide that lock ordering.
+	err := tx.QueryRowContext(ctx, `SELECT body,author,revision,repository,COALESCE((data->>'deleted')::boolean,false) OR COALESCE((data->>'revoked')::boolean,false) FROM factory_feed_posts WHERE id=$1 FOR SHARE`, scope.SourcePost).Scan(&body, &author, &revision, &repository, &closed)
+	if err == nil {
+		err = tx.QueryRowContext(ctx, `SELECT data->'issue_maker' FROM factory_feed_posts WHERE id=$1 FOR SHARE`, scope.Post).Scan(&progressRaw)
+	}
+	if err == nil {
+		err = tx.QueryRowContext(ctx, `SELECT data->'issue_intake_scope' FROM factory_post_intakes WHERE post=$1 AND revision=$2 AND data ? 'issue_intake_grant' AND data->'issue_intake_grant' != 'null'::jsonb FOR SHARE`, scope.SourcePost, revision).Scan(&grantRaw)
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var grant factory.IssueIntakeScope
+	var progress factory.IssueMakerProgress
+	if scope.NotAfter <= time.Now().Unix() {
+		return false, nil
+	}
+	if closed || revision != scope.Revision || repository != a.Repository || a.Subject.Intent == nil || author != strconv.FormatInt(a.Subject.Intent.OwnerID, 10) || json.Unmarshal(grantRaw, &grant) != nil || grant.Validate() != nil || grant.Source != scope.SourcePost || grant.Revision != revision || int64(grant.Repository) != repository || strconv.FormatInt(int64(grant.Actor), 10) != author || grant.Digest != factory.MCPInputDigest([]byte(body)) || grant.Expires <= time.Now().Unix() || json.Unmarshal(progressRaw, &progress) != nil || progress.Validate() != nil || progress.Scope != scope || progress.State == "failed" || progress.State == "completed" {
+		return false, nil
+	}
+	if grant.Expires != scope.NotAfter {
+		return false, nil
+	}
+	if scope.Attempt != "" {
+		if scope.Attempt != a.ID {
+			return false, nil
+		}
+		var command factory.Command
+		if err := tx.QueryRowContext(ctx, `SELECT id,type,target,principal,payload,digest,finished,outcome FROM factory_commands WHERE id=$1`, scope.Attempt).Scan(&command.ID, &command.Type, &command.Target, &command.Principal, &command.Payload, &command.Digest, &command.Finished, &command.Outcome); err != nil {
+			return false, err
+		}
+		if _, err := factory.ReadFeedPostRetryReceipt(command, scope.SourcePost, repository, author); err != nil {
+			return false, nil
+		}
 	}
 	return true, nil
 }
@@ -117,6 +175,57 @@ WHERE data->>'run_id'=$2 AND data->>'assignment_id'=$3 AND state IN ($4,$5)`, fa
 		}
 	}
 	return nil
+}
+
+// RevokeExpiredIssueMakerRuns uses the existing capability revocation as the
+// durable stop intent. No worker is reauthorized when a source is continued.
+func (s *Store) RevokeExpiredIssueMakerRuns(ctx context.Context, repository int64) error {
+	if repository < 0 {
+		return ErrAdmissionChanged
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT a.data FROM factory_assignments a JOIN factory_runs r ON r.id=a.run WHERE NOT r.settled AND ($1::bigint=0 OR a.repository=$1) AND a.data->'planning_context'->'IssueMaker' IS NOT NULL ORDER BY r.seq LIMIT $2`, repository, MaxHeldReservations+1)
+	if err != nil {
+		return err
+	}
+	var assignments []factory.Assignment
+	for rows.Next() {
+		var raw []byte
+		var a factory.Assignment
+		if err = rows.Scan(&raw); err != nil {
+			rows.Close()
+			return err
+		}
+		if json.Unmarshal(raw, &a) != nil || a.Validate() != nil {
+			rows.Close()
+			return ErrAdmissionChanged
+		}
+		assignments = append(assignments, a)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(assignments) > MaxHeldReservations {
+		return ErrAdmissionChanged
+	}
+	for _, a := range assignments {
+		allowed, err := issueMakerConsentTx(ctx, tx, a)
+		if err != nil {
+			return err
+		}
+		if !allowed {
+			if _, err = tx.ExecContext(ctx, `UPDATE factory_mcp_capabilities SET state=$1 WHERE data->>'run_id'=$2 AND data->>'assignment_id'=$3 AND state IN ($4,$5)`, factory.MCPCapabilityRevoked, a.Run, a.ID, factory.MCPCapabilityStaged, factory.MCPCapabilityActive); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) RevokedFactoryRuns(ctx context.Context, repository int64, limit int) ([]factory.Run, error) {

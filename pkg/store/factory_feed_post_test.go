@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
 )
@@ -165,6 +166,126 @@ func TestIssueMakerOpaqueGrantAndMutationJournal(t *testing.T) {
 	if err != nil || retained.Title != "Captured title" || retained.Body != "Captured body" || retained.ExpectedTitle != "Historical title" || retained.ExpectedBodyDigest != factory.MCPInputDigest([]byte("Historical body")) || retained.Slot != 1 || retained.Step != 0 {
 		t.Fatal("retained SDK request changed", retained, err)
 	}
+	// Admission uses the authenticated issuer's scope and the canonical role
+	// state. These are declared issuer/provider facts over real transactions.
+	intake := saveTestPost(t, s, 7, "42", "Continue only this request", "source-consent")
+	if err = s.RecordIssueMakerIntake(ctx, intake, 0); err != nil {
+		t.Fatal(err)
+	}
+	pipe, err := s.PostIntake(ctx, intake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := pipe
+	next.Judgment = factory.PostJudgmentApplied
+	next.Route = factory.PostRouteNewIssue
+	next.Draft = factory.PostDraftApplied
+	next.Effect = factory.PostEffectVerified
+	next.Issue = 17
+	if err = s.AdvancePostIntake(ctx, pipe, next); err != nil {
+		t.Fatal(err)
+	}
+	issued := factory.IssueIntakeScope{Source: intake, Actor: 42, Repository: 7, Digest: factory.MCPInputDigest([]byte("Continue only this request")), Expires: time.Now().Add(5 * time.Minute).Unix()}
+	if err = s.SaveIssueIntakeGrant(ctx, intake, 0, issued, json.RawMessage(`{"declared":"issuer"}`)); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := s.FeedPost(ctx, intake)
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress, err := s.StartPostIssueMaker(ctx, detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.RecordIssueMakerIssue(ctx, progress.Scope, "request", 0, 17, "Declared initial issue", "Initial body"); err != nil {
+		t.Fatal(err)
+	}
+	progress, err = s.PostIssueMaker(ctx, intake, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress.State = "waiting"
+	if err = s.SaveIssueMakerProgress(ctx, progress); err != nil {
+		t.Fatal(err)
+	}
+	a := factory.Assignment{ID: factory.NewID(), Repository: 7, Subject: factory.ExecutionSubject{Kind: factory.SubjectIntent, Intent: &factory.IntentSubject{OwnerID: 42}}, PlanningContext: &factory.SemanticPlannerInput{IssueMaker: &progress.Scope}}
+	check := func(a factory.Assignment, want bool) {
+		t.Helper()
+		tx, e := s.db.BeginTx(ctx, nil)
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer tx.Rollback()
+		got, e := issueMakerConsentTx(ctx, tx, a)
+		if e != nil || got != want {
+			t.Fatal("source admission", got, want, e)
+		}
+	}
+	check(a, true)
+	old := a
+	oldScope := progress.Scope
+	old.PlanningContext = &factory.SemanticPlannerInput{IssueMaker: &oldScope}
+	command := factory.FeedPostRetryCommand{ID: factory.NewID(), Post: intake, Repository: 7, Author: "42"}
+	if _, replayed, e := s.RetryIssueMakerFeedPostCommand(ctx, command, time.Now().Unix()); e != nil || replayed {
+		t.Fatal("explicit continuation", replayed, e)
+	}
+	issued.Expires++
+	if err = s.SaveIssueIntakeGrant(ctx, intake, 0, issued, json.RawMessage(`{"declared":"fresh issuer"}`)); err != nil {
+		t.Fatal(err)
+	}
+	progress, err = s.PostIssueMaker(ctx, intake, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ID = command.ID
+	a.PlanningContext = &factory.SemanticPlannerInput{IssueMaker: &progress.Scope}
+	check(old, false)
+	check(a, true)
+	if _, replayed, e := s.RetryIssueMakerFeedPostCommand(ctx, command, time.Now().Unix()); e != nil || !replayed {
+		t.Fatal("continuation replay", replayed, e)
+	}
+	check(a, true)
+	for _, mutation := range []string{
+		`UPDATE factory_post_intakes SET data=data-'issue_intake_grant' WHERE post=$1`,
+		`UPDATE factory_post_intakes SET data=data-'issue_intake_scope' WHERE post=$1`,
+		`UPDATE factory_feed_posts SET revision=revision+1 WHERE id=$1`,
+		`UPDATE factory_post_intakes SET data=jsonb_set(data,'{issue_intake_scope,expires}','1'::jsonb) WHERE post=$1`,
+	} {
+		tx, e := s.db.BeginTx(ctx, nil)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if _, e = tx.ExecContext(ctx, mutation, intake); e != nil {
+			tx.Rollback()
+			t.Fatal(e)
+		}
+		allowed, e := issueMakerConsentTx(ctx, tx, a)
+		tx.Rollback()
+		if e != nil || allowed {
+			t.Fatal("unknown, changed or expired source admitted", e)
+		}
+	}
+	// A source edit cannot commit between the admission read and its packet.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed, e := issueMakerConsentTx(ctx, tx, a); e != nil || !allowed {
+		tx.Rollback()
+		t.Fatal(e)
+	}
+	short, stop := context.WithTimeout(ctx, 100*time.Millisecond)
+	_, editErr := s.EditFeedPost(short, intake, "42", "Racing edit", 0, time.Now().Unix())
+	stop()
+	tx.Rollback()
+	if !errors.Is(editErr, context.DeadlineExceeded) {
+		t.Fatal("source edit bypassed the admission lock", editErr)
+	}
+	check(a, true)
+	if err = s.MarkFeedPostRevoked(ctx, intake); err != nil {
+		t.Fatal(err)
+	}
+	check(a, false)
 }
 
 func TestFeedRepliesIncludeOtherAuthorsAndPageWithoutCrossingSources(t *testing.T) {

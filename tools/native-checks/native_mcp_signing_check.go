@@ -1338,6 +1338,8 @@ func main() {
 			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"), expectedSources)
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
 			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
+		} else if os.Args[3] == "check-connected-authoring" {
+			err = connectedAuthoringFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasPrefix(os.Args[3], "native-graph-") {
 			err = nativeGraphFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "check-live-judgment" {
@@ -6450,6 +6452,243 @@ func admittedContributionsFixture(profile, instance, path string) error {
 
 // Connected judgments use the actual native GitHub admission and selected Muse
 // login. Planning content is declared; provider answers and usage are real.
+func connectedAuthoringFixture(profile, instance, path string) error {
+	phase := os.Getenv("SODA_NATIVE_AUTHORING_PHASE")
+	if phase == "setup" {
+		os.Setenv("SODA_NATIVE_JUDGMENT_PHASE", "setup")
+		return connectedJudgmentFixture(profile, instance, path)
+	}
+	var in struct{ Repository, Connection, Post string }
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(raw, &in); err != nil {
+		return err
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	repository, err := strconv.ParseInt(in.Repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	inputs := factoryruntime.NativeInputSource{NativeExecution: port}
+	judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+	app := factoryservice.NewApplication(factoryservice.ApplicationPorts{Store: db, Host: port, Broker: port, Graph: factoryruntime.NativeGraphs{NativeInputSource: inputs}, Creations: inputs, AcceptanceReads: inputs, DispatchReads: inputs, IssueEffects: factoryruntime.NewNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, ContextChooser: judgments})
+	defer app.Close()
+	app.Coordinator.MCPSecret = factoryruntime.NativeMCPSecretDeriver(config, instance)
+	if phase == "preflight" {
+		detail, e := db.FeedPost(ctx, in.Post)
+		if e != nil {
+			return e
+		}
+		effects := factoryruntime.NewNativeIssueEffects(inputs)
+		_, _, e = effects.Grant(ctx, in.Post, detail.Record.Revision)
+		if errors.Is(e, factoryservice.ErrCapturedIssueAuthority) {
+			pipe, e := db.PostIntake(ctx, in.Post)
+			if e != nil {
+				return e
+			}
+			if pipe.Route != factory.PostRouteNewIssue || pipe.Effect != factory.PostEffectVerified {
+				return errors.New("expired continuation does not retain its original issue")
+			}
+			background := app.Background()
+			_, e = factoryservice.DrivePostIntake(ctx, db, &background.Stages, in.Post)
+			if e != nil {
+				return e
+			}
+			fmt.Println("PASS: expired queued continuation recovered without another effect or inference")
+		}
+		return nil
+	}
+	if phase == "recover" {
+		post, e := db.FeedPost(ctx, in.Post)
+		if e != nil {
+			return e
+		}
+		progress, e := db.PostIssueMaker(ctx, in.Post, post.Record.Revision)
+		if e != nil || progress.Run == "" {
+			return errors.New("original authoring run missing")
+		}
+		prior, e := db.FactoryRun(ctx, progress.Run)
+		if e != nil || prior.Native == nil || prior.Native.Provenance.Process == nil {
+			return errors.New("original native process identity unavailable")
+		}
+		observed, e := port.InspectRun(ctx, execution.RunAddress{Run: prior.ID, Workspace: prior.ProjectID})
+		if e != nil || observed.Live || observed.Retirement != execution.Retired {
+			return errors.New("original native terminal receipt not confirmed")
+		}
+		stopped, e := app.Coordinator.Stop(ctx, prior.ID)
+		if e != nil || !stopped.Confirmed || stopped.Uncertain {
+			return fmt.Errorf("original authoring settlement: %+v %v", stopped, e)
+		}
+		run, e := db.FactoryRun(ctx, prior.ID)
+		if e != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || run.Native.Provenance.Process == nil || run.Native.Provenance.Process.InvocationID != prior.Native.Provenance.Process.InvocationID || run.Native.Provenance.Process.StartIdentity != prior.Native.Provenance.Process.StartIdentity || run.Native.Intent != prior.Native.Intent {
+			return errors.New("authoring recovery changed original execution identity")
+		}
+		a, e := db.AssignmentByRun(ctx, prior.ID)
+		if e != nil || a.Stage != factory.AssignmentFinished || (a.Outcome != factory.Failed && a.Outcome != factory.Succeeded) {
+			return errors.New("original authoring result not retained")
+		}
+		usage, e := db.RunUsage(ctx, prior.ID)
+		if e != nil || usage.Connection != a.Connection || !usage.EndedAt.Equal(run.UsageEnd(time.Now())) {
+			return errors.New("original authoring charge differs from retained stop/source")
+		}
+		bytes, _ := json.MarshalIndent(map[string]any{"run": run, "assignment": a, "usage": usage}, "", "  ")
+		if e = os.WriteFile(filepath.Join(profile, "connected-authoring-recovery-"+run.ID+".json"), bytes, 0600); e != nil {
+			return e
+		}
+		fmt.Println("PASS: original authoring run settled from exact native terminal receipt without inference replay", prior.ID, a.Outcome)
+		return nil
+	}
+	if phase == "journey" {
+		post, e := db.FeedPost(ctx, in.Post)
+		if e != nil {
+			return e
+		}
+		connection, e := db.CollaborationConnection(ctx, collaboration.ConnectionID(in.Connection))
+		if e != nil || post.Record.Author != strconv.FormatInt(int64(connection.Actor), 10) || post.Record.Repository != repository {
+			return errors.New("fresh continuation does not name the original account/repository")
+		}
+		policy, e := db.RepositoryPolicy(ctx, repository)
+		if e != nil {
+			return e
+		}
+		if !policy.Enabled || policy.IntentMinutes == 0 {
+			policy.Enabled = true
+			policy.IntentMinutes = 5
+			if e = db.SaveRepositoryPolicy(ctx, policy); e != nil {
+				return e
+			}
+		}
+		source, e := db.Sponsorship(ctx, repository, policy.Judgments.Account)
+		if e != nil {
+			return e
+		}
+		if !slices.Contains(source.Roles, project.RoleCoder) {
+			source.Roles = []string{factory.RoleJudgment, project.RoleCoder, project.RoleReviewer}
+			source.ProjectID, _, e = db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
+			if e != nil {
+				return e
+			}
+			if _, e = db.ApplyFactoryGrant(ctx, "q14-connected-authoring", source); e != nil {
+				return e
+			}
+		}
+		workspace, _, e := db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
+		if e != nil {
+			return e
+		}
+		preparations, e := db.StandingProjectPreparations(ctx, workspace)
+		if e != nil || len(preparations) == 0 {
+			return errors.New("retained approved preparation missing")
+		}
+		for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+			if e = nativeStandingRole(ctx, db, port, preparations[0], role); e != nil {
+				return e
+			}
+		}
+		last := ""
+		if e = app.Start(ctx, filepath.Join(profile, "coordinator.lock")); e != nil {
+			return e
+		}
+		for {
+			detail, e := db.FeedPost(ctx, in.Post)
+			if e != nil {
+				return e
+			}
+			progress, e := db.PostIssueMaker(ctx, in.Post, detail.Record.Revision)
+			if e == nil {
+				if progress.Detail != last {
+					fmt.Println("AUTHORING:", progress.State, progress.Detail)
+					last = progress.Detail
+				}
+				bytes, _ := json.MarshalIndent(progress, "", "  ")
+				if e = os.WriteFile(filepath.Join(profile, "connected-authoring-progress.json"), bytes, 0600); e != nil {
+					return e
+				}
+				if progress.State == "failed" {
+					return fmt.Errorf("connected authoring failed: %s", progress.Detail)
+				}
+				if progress.State == "completed" {
+					run, e := db.FactoryRun(ctx, progress.Run)
+					if e != nil {
+						return e
+					}
+					if run.Reconciled && run.Native != nil && run.Native.Settled() {
+						break
+					}
+				}
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	} else if phase != "retained" && phase != "retained-partial" {
+		return errors.New("unknown authoring phase")
+	}
+	detail, err := db.FeedPost(ctx, in.Post)
+	if err != nil {
+		return err
+	}
+	progress, err := db.PostIssueMaker(ctx, in.Post, detail.Record.Revision)
+	if err != nil {
+		return err
+	}
+	if progress.State != "completed" || progress.Run == "" || len(progress.Issues) < 1 || phase != "retained-partial" && len(progress.Issues) < 2 {
+		return errors.New("connected authoring lacks completed funded refinement and additional created slot")
+	}
+	a, err := db.AssignmentByRun(ctx, progress.Run)
+	if err != nil {
+		return err
+	}
+	run, err := db.FactoryRun(ctx, progress.Run)
+	if err != nil {
+		return err
+	}
+	bytes, _ := json.MarshalIndent(map[string]any{"progress": progress, "assignment": a, "run": run, "phase": phase}, "", "  ")
+	if err = os.WriteFile(filepath.Join(profile, "connected-authoring-"+phase+".json"), bytes, 0600); err != nil {
+		return err
+	}
+	if a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || a.Result == nil || run.Native == nil || !run.Native.Settled() {
+		return fmt.Errorf("authoring settlement: stage=%s outcome=%s result=%t native=%t reconciled=%t", a.Stage, a.Outcome, a.Result != nil, run.Native != nil, run.Reconciled)
+	}
+	if progress.Scope.NotAfter > 0 && run.Deadline.After(time.Unix(progress.Scope.NotAfter, 0)) {
+		return errors.New("authoring runtime outlives its captured source deadline")
+	}
+	usage, err := db.RunUsage(ctx, run.ID)
+	if err != nil || usage.Connection != a.Connection || usage.Repository != repository || !usage.StartedAt.Equal(run.Started) || !usage.EndedAt.Equal(run.UsageEnd(time.Now())) {
+		return errors.New("authoring accounting differs from the original source/admitted interval")
+	}
+	wantMinutes := max(1, int((usage.EndedAt.Sub(usage.StartedAt)+time.Minute-1)/time.Minute))
+	if usage.Minutes != wantMinutes {
+		return errors.New("authoring charge differs from its retained interval")
+	}
+	if err = usage.Validate(); err != nil {
+		return err
+	}
+	if err = retainJudgmentEvidence(ctx, config, repository, "", 0); err != nil {
+		return err
+	}
+	if phase == "retained-partial" {
+		fmt.Println("PARTIAL: real original routing/creation, funded inference and final append-only refinement retained; worker-native additional tools were unavailable; no replay", progress.Run)
+	} else {
+		fmt.Println("PASS: real selected-source request judgment, original captured-account creation, funded prepared Issue Maker, additional slot and append-only refinement; exact original process and usage", progress.Run)
+	}
+	return nil
+}
+
 func connectedJudgmentFixture(profile, instance, path string) error {
 	var input struct{ Repository, Connection, Post string }
 	raw, err := os.ReadFile(path)

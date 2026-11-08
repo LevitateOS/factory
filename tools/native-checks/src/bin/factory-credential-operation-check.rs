@@ -1200,7 +1200,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let profile = Path::new(&args[3]);
             let resume_merge=args.len()==10 && field(9)?=="merge-resume";
             let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
-            if resume_merge || resume_judgments {
+            let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
+            let resume_authoring=authoring && field(9)?!="authoring";
+            if resume_merge || resume_judgments || resume_authoring {
                 ensure(profile.starts_with("/home") && profile.join("profile.id").is_file(),"retained private merge profile required")?;
             } else { prepare(profile)?; }
             let mut secret = Vec::new();
@@ -1237,6 +1239,96 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if authoring {
+                    let root=profile.parent().ok_or("profile parent missing")?;
+                    let background=root.join(if resume_authoring {"authoring-current.json"} else {"authoring.json"});
+                    if resume_authoring {
+                        let mut fixture:serde_json::Value=serde_json::from_slice(&fs::read(root.join("authoring.json"))?)?;
+                        fixture["OriginalConnection"]=fixture["Connection"].clone();
+                        fixture["Connection"]=json!(saved.connection);
+                        fs::write(&background,serde_json::to_vec(&fixture)?)?;
+                    }
+                    let check=|phase:&str,instance:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE",phase);
+                        async move {ensure(command.status().await?.success(),"connected authoring check failed; recover original journals before another effect")}
+                    };
+                    if field(9)?=="authoring-recover" {
+                        check("recover",&ready.instance).await?;
+                        return Ok(());
+                    }
+                    if matches!(field(9)?,"authoring-retained"|"authoring-retained-full") {
+                        check(if field(9)?=="authoring-retained-full" {"retained"} else {"retained-partial"},&ready.instance).await?;
+                        return Ok(());
+                    }
+                    if !resume_authoring {
+                        fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection}))?)?;
+                        check("setup",&ready.instance).await?;
+                        let changes=[
+                            json!({"kind":"capacity","body":{"expected_revision":0,"max_concurrent_runs":2}}),
+                            json!({"kind":"repository_setting","repository":repository,"setting":"placement","body":{"expected_revision":"","state":"active"}}),
+                            json!({"kind":"repository_setting","repository":repository,"setting":"operator-grant","body":{"expected_revision":0,"active":true}}),
+                            json!({"kind":"repository_setting","repository":repository,"setting":"environment-grant","body":{"expected_revision":0,"active":true,"native":true}}),
+                        ];
+                        for change in changes {
+                            let request: soda_desktop_runtime::ProductRequest=serde_json::from_value(change)?;
+                            let (method,path,body)=request.request()?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request(method,&path,&body).await?;
+                            ensure(reply.status==200,&format!("authoring local grant {path}: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                        }
+                        let target=format!("/api/repositories/{repository}/factory/setup");
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("POST",&target,br#"{"paths":["README.md"]}"#).await?;
+                        let preview:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        ensure(reply.status==200 && preview["available"]==true,"connected authoring source preview unavailable")?;
+                        fs::write(root.join("setup-preview.json"),&reply.body)?;
+                        let approval=json!({"command_id":"a14a14a14a14a14a14a14a14a14a14a1","source":preview["source"],"target":preview["target"],"files":{"setup.sh":"printf 'Q14 prepared\\n'\n","check.sh":"test -f README.md\nprintf 'Q14 checked\\n'\n","setup-network.json":"{\"access\":\"none\"}","setup-limits.json":"{\"setup_seconds\":10,\"check_seconds\":10}"},"source_inputs":preview["source_inputs"],"tools":["git","bash"],"requirement":preview["requirement"],"approval":preview["approval"],"environment_revision":preview["environment_revision"]});
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("PUT",&target,&serde_json::to_vec(&approval)?).await?;
+                        fs::write(root.join("setup-approval.json"),&reply.body)?;
+                        ensure(reply.status==200,"connected authoring setup approval failed")?;
+                        let until=Instant::now()+Duration::from_secs(50);
+                        loop {
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request("GET",&target,&[]).await?;
+                            let view:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                            if view["preparations"].as_array().is_some_and(|states|states.len()==2 && states.iter().all(|s|s["current"]==true && s["state"]["ready"]==true)){fs::write(root.join("setup-ready.json"),&reply.body)?;break;}
+                            ensure(Instant::now()<until,&format!("authoring setup not ready: {view}"))?;
+                            tokio::time::sleep(Duration::from_millis(250)).await;
+                        }
+                        // This is an agent-authored disposable request. Its remote
+                        // writing is subsequently changed only conditionally.
+                        let text=std::env::var("SODA_NATIVE_AUTHORING_REQUEST").unwrap_or_else(|_|"Q14 disposable qualification request: create an issue to document that a person can record a short personal note and read it back. Refine the original request into one precise task. Also create one additional issue with key note-help for a short help example using create_issue. Do not change any existing repository issue or file. Finish with one candidate containing exactly one task for the original request.".into());
+                        let body=json!({"repository":repository,"body":text,"idempotency_key":"q14-connected-request"});
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("POST","/api/factory/feed/posts",&serde_json::to_vec(&body)?).await?;
+                        fs::write(root.join("feed-admission.json"),&reply.body)?;
+                        ensure(matches!(reply.status,200|202),"connected authoring Feed admission refused")?;
+                        let post:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Post":post["post_id"]}))?)?;
+                    }
+                    if resume_authoring {
+                        check("preflight",&ready.instance).await?;
+                        let fixture:serde_json::Value=serde_json::from_slice(&fs::read(&background)?)?;
+                        ensure(fixture["Connection"]==json!(saved.connection),"retained authoring account changed")?;
+                        let post=fixture["Post"].as_str().ok_or("retained post missing")?;
+                        let command_id=std::env::var("SODA_NATIVE_AUTHORING_CONTINUATION").unwrap_or_else(|_|"c14c14c14c14c14c14c14c14c14c14c1".into());
+                        ensure(command_id.len()==32 && command_id.bytes().all(|b|b.is_ascii_hexdigit()),"continuation command invalid")?;
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("POST",&format!("/api/factory/feed/posts/{post}/retry"),&serde_json::to_vec(&json!({"command_id":command_id,"repository":repository,"expected_revision":0}))?).await?;
+                        fs::write(root.join(format!("continuation-receipt-{command_id}.json")),&reply.body)?;
+                        ensure(matches!(reply.status,200|202),&format!("explicit authoring continuation failed: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    }
+                    check("journey",&ready.instance).await?;
+                    runtime.take().expect("owned runtime").stop()?;
+                    runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                    let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    ensure(admitted.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?.status==200,"retained authoring account unavailable")?;
+                    check("retained",&runtime.as_ref().expect("owned runtime").health()?.instance).await?;
+                    println!("PASS: connected funded request judgment, captured-account authoring and retained restart; exact scope in authoring evidence");
+                    return Ok(());
+                }
                 if args.len()==10 && matches!(field(9)?,"judgments"|"judgments-resume") {
                     let background=profile.parent().ok_or("profile parent missing")?.join("judgments.json");
                     let mut fixture=json!({"Repository":repository,"Connection":saved.connection});
