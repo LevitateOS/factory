@@ -1014,9 +1014,8 @@ func reviewCycleAssignmentID(cycleID, role string) string {
 }
 
 // reviewCyclePreparationID derives a fresh reviewer preparation identity
-// from the cycle identity. Corrector preparations reuse the owner coder
-// preparation (distinct from every reviewer session); reviewer sessions are
-// fresh per same-head round and distinct from the corrector.
+// from the cycle identity. Reviewer sessions are fresh per same-head round;
+// native corrections derive their own candidate checkout from the assignment.
 func reviewCyclePreparationID(cycleID string) string {
 	sum := sha256.Sum256([]byte("soda-factory-review-preparation-v1\x00" + cycleID))
 	return "f" + hex.EncodeToString(sum[:12])
@@ -1053,6 +1052,9 @@ func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, d
 					return empty, "", "", false, errors.New("recorded cycle lacks its correction assignment")
 				}
 				prepID = owner.Preparation
+				if owner.NativeTool != nil {
+					prepID = factory.NativeCorrectionPreparationID(childID)
+				}
 			}
 			if childID == "" {
 				return empty, "", "", false, errors.New("recorded cycle lacks its child assignment")
@@ -1128,6 +1130,9 @@ func (c *Coordinator) ensureReviewCycle(ctx context.Context, p *factory.Publicat
 			childID = correctionAssignment
 		}
 		prepID = owner.Preparation
+		if owner.NativeTool != nil {
+			prepID = factory.NativeCorrectionPreparationID(childID)
+		}
 	}
 	cycle := factory.ReviewCycle{
 		PublicationID: p.ID, AttemptRoot: owner.AttemptRoot, ID: cycleID, Phase: reviewCyclePhase,
@@ -1175,7 +1180,7 @@ func (c *Coordinator) admitPublicationOwner(ctx context.Context, assignment fact
 		owner.Repository != assignment.Repository || owner.Issue != assignment.Issue ||
 		owner.ProjectID != assignment.ProjectID || owner.Acceptance != assignment.Acceptance ||
 		owner.AttemptRoot != assignment.AttemptRoot ||
-		(assignment.Role == project.RoleCoder && assignment.Preparation != owner.Preparation) {
+		(assignment.Role == project.RoleCoder && !assignment.PublicationCoderPreparation(owner)) {
 		return factory.Assignment{}, errors.New("assignment differs from its publication owner")
 	}
 	return owner, nil

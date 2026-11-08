@@ -3030,6 +3030,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	fixtureTimeout := 30 * time.Second
 	if action == "settled-admitted-native" && input.Tasks && input.ParentRun != "" {
 		fixtureTimeout = 60 * time.Second
+		if os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1" {
+			fixtureTimeout = 150 * time.Second
+		}
 	}
 	if action == "check-admitted-native" && input.Tasks && input.ParentRun != "" {
 		fixtureTimeout = min(130*time.Second, max(fixtureTimeout, time.Until(time.Unix(input.DeadlineUnix, 0).Add(5*time.Second))))
@@ -3551,6 +3554,12 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if input.Tasks {
 		prompt = append(prompt, []byte("\nnative-tasks-investigation-fixture\n")...)
+		if os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1" {
+			if input.Live {
+				return errors.New("correction check uses only the local CLI fixture")
+			}
+			prompt = append(prompt, []byte("\nnative-correction-fixture\n")...)
+		}
 		if input.Live {
 			plan := nativeWorkspacePlan(p.SourceCommit)
 			for i := range plan.Tasks {
@@ -4016,7 +4025,11 @@ func (r nativeReviewChildReads) ReadAcceptanceEvidence(ctx context.Context, repo
 	return control.AcceptanceEvidence{Revision: 1, Comments: []control.AcceptanceComment{}, Dependencies: []control.AcceptanceEdge{}, Issue: control.AcceptanceIssueView{ID: "19", Index: issue, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, PosterID: fmt.Sprint(r.actor), CreatedUnix: time.Now().Add(-time.Minute).Unix(), Visible: true, Verified: true}}, ctx.Err()
 }
 func (r nativeReviewChildReads) ReadDispatchInputs(ctx context.Context, repository, issue string, comments []string, target string) (control.DispatchInputs, error) {
-	return control.DispatchInputs{Revision: 1, Tip: r.source, TipRef: target, Comments: []control.DispatchComment{}, Issue: control.DispatchIssue{Title: "Native admitted execution fixture", Body: "positive-native-mcp-fixture", TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, Visible: true}}, ctx.Err()
+	body := "positive-native-mcp-fixture"
+	if os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1" {
+		body += " native-correction-fixture"
+	}
+	return control.DispatchInputs{Revision: 1, Tip: r.source, TipRef: target, Comments: []control.DispatchComment{}, Issue: control.DispatchIssue{Title: "Native admitted execution fixture", Body: body, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, Visible: true}}, ctx.Err()
 }
 
 func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, source execution.PreparationRecord) error {
@@ -4094,6 +4107,14 @@ func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryru
 }
 
 func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, child factory.Assignment, run factory.Run) error {
+	correction := os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1"
+	if correction {
+		if id, err := os.ReadFile(filepath.Join(port.Config.Directory, "check-native-correction.id")); err == nil {
+			return checkNativeCorrection(ctx, db, port, string(id), child.Result.Candidate)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
 	owner, err := db.Assignment(ctx, child.PublicationAssignment)
 	if err != nil {
 		return err
@@ -4210,6 +4231,9 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 	c.AcceptanceReads, c.DispatchReads = nativeReviewChildReads{owner.ActorID, owner.SourceCommit}, nativeReviewChildReads{owner.ActorID, owner.SourceCommit}
 	c.Publication = factoryruntime.NativePublication{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: port}}
 	c.Reviews = factoryruntime.NativeReviews{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: port}}
+	if correction {
+		c.Reviews = &nativeDeclaredReview{}
+	}
 	report := c.PublishPass(ctx)
 	if len(report.Errors) != 0 || len(report.Fenced) != 0 {
 		return fmt.Errorf("native child producer: %+v", report)
@@ -4280,6 +4304,9 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 		return fmt.Errorf("reviewer assignment absent: %+v: %w", report, err)
 	}
 	for {
+		if err = settleRetiredNativeFixture(ctx, c, port, review.Run, review.ProjectID); err != nil {
+			return err
+		}
 		reviewerRun, err := db.FactoryRun(ctx, review.Run)
 		if err != nil {
 			return err
@@ -4288,6 +4315,9 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 			return errors.New("reviewer native packet does not capture its prepared candidate")
 		}
 		if reviewerRun.Reconciled {
+			if _, err = control.SettleMCPTerminalProposal(ctx, db, review.ID, time.Now()); err != nil {
+				return err
+			}
 			review, err = db.Assignment(ctx, review.ID)
 			if err != nil {
 				return err
@@ -4297,7 +4327,11 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 				return err
 			}
 			if found && terminal.State == factory.MCPWorkAccepted && review.Stage == factory.AssignmentFinished {
-				if review.Outcome != factory.NeedsHuman || !reviewerRun.Native.Settled() {
+				expected := factory.NeedsHuman
+				if correction {
+					expected = factory.Succeeded
+				}
+				if review.Outcome != expected || !reviewerRun.Native.Settled() {
 					return errors.New("incomplete reviewer result or native retirement differs")
 				}
 				break
@@ -4309,8 +4343,121 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+	if correction {
+		fmt.Println("PASS: actual independent reviewer finding and terminal proposal settled with native retirement")
+		if _, err = c.SubmitReviewForRun(ctx, review.Run); err != nil {
+			return fmt.Errorf("declared provider boundary for actual reviewer report: %w", err)
+		}
+		lastWait := ""
+		for {
+			report = c.PublishPass(ctx)
+			if waiting := fmt.Sprint(report.Waits); waiting != lastWait {
+				fmt.Println("Native correction dispatch waits:", waiting)
+				lastWait = waiting
+			}
+			p, err = db.PublicationByAssignment(ctx, owner.ID)
+			if err != nil {
+				return err
+			}
+			last := p.ReviewCycles[len(p.ReviewCycles)-1]
+			if last.CorrectionAssignment != "" {
+				corrector, found := db.Assignment(ctx, last.CorrectionAssignment)
+				if found == nil {
+					if err = os.WriteFile(filepath.Join(port.Config.Directory, "check-native-correction.id"), []byte(corrector.Run), 0600); err != nil {
+						return err
+					}
+					return checkNativeCorrection(ctx, db, port, corrector.Run, child.Result.Candidate)
+				}
+			}
+			if len(report.Errors) != 0 || len(report.Fenced) != 0 || ctx.Err() != nil {
+				return fmt.Errorf("actual native correction dispatch: %+v: %v", report, ctx.Err())
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 	fmt.Println("PASS: actual coordinator reviewer dispatch captures candidate workspace/bundle, launches the independent CLI worker, and settles its explicit incomplete result with native retirement; CI/provider facts declared, no model or GitHub effect")
 	return nil
+}
+
+// Only the provider facts are declared. The review body is produced by the
+// admitted reviewer, and the coordinator retains its real work and receipt.
+type nativeDeclaredReview struct{ work factory.ReviewWork }
+
+func (*nativeDeclaredReview) ObserveReview(ctx context.Context, w factory.ReviewWork) (factory.ReviewObservation, error) {
+	return factory.ReviewObservation{NativeRev: 1, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID}, ctx.Err()
+}
+func (r *nativeDeclaredReview) SubmitReview(ctx context.Context, w factory.ReviewWork) (factory.OperationOutcome, error) {
+	if w.Validate() != nil || ctx.Err() != nil {
+		return factory.OperationOutcome{}, errors.New("declared review work invalid")
+	}
+	r.work = w
+	return r.LookupOp(ctx, w.OperationID)
+}
+func (r *nativeDeclaredReview) LookupOp(ctx context.Context, id string) (factory.OperationOutcome, error) {
+	if id != r.work.OperationID {
+		return factory.OperationOutcome{OperationID: id, NotObserved: true}, ctx.Err()
+	}
+	w := r.work
+	return factory.OperationOutcome{OperationID: id, InstallationID: "declared-local-provider", Kind: factory.OpReviewSubmit, ActorID: w.ActorID, RepositoryID: w.Repository, Receipt: []byte("declared provider fixture; no remote review"), Effect: factory.OpEffectCommitted, Completion: factory.OpCompletionComplete}, ctx.Err()
+}
+func (r *nativeDeclaredReview) CancelOp(ctx context.Context, id string) (factory.OperationOutcome, error) {
+	return r.LookupOp(ctx, id)
+}
+func (r *nativeDeclaredReview) AdoptReview(ctx context.Context, w factory.ReviewWork, o factory.OperationOutcome) (factory.ReviewOutcome, error) {
+	if !reflect.DeepEqual(w, r.work) || o.Effect != factory.OpEffectCommitted || o.OperationID != w.OperationID {
+		return factory.ReviewOutcome{}, errors.New("declared review receipt differs")
+	}
+	return factory.ReviewOutcome{Operation: o, ReviewID: 101, ReviewerID: w.ActorID, PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, HeadOID: w.HeadOID, BaseOID: w.BaseOID, CommitID: w.HeadOID, MergeBaseOID: w.BaseOID, Event: w.Event}, ctx.Err()
+}
+
+func checkNativeCorrection(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, id, source string) error {
+	c := control.NewCoordinator(db, port, port)
+	defer c.Close()
+	for {
+		run, err := db.FactoryRun(ctx, id)
+		if err != nil {
+			return err
+		}
+		a, err := db.AssignmentByRun(ctx, id)
+		if err != nil {
+			return err
+		}
+		if a.Phase != project.ExecutionCorrect || a.SourceCommit != source || a.Preparation != factory.NativeCorrectionPreparationID(a.ID) || run.Native == nil {
+			return errors.New("correction did not bind its admitted candidate preparation")
+		}
+		if !run.Reconciled {
+			if err = settleRetiredNativeFixture(ctx, c, port, id, a.ProjectID); err != nil {
+				return err
+			}
+		}
+		if run.Reconciled {
+			if _, err = control.SettleMCPTerminalProposal(ctx, db, a.ID, time.Now()); err != nil {
+				return err
+			}
+			if a.Stage != factory.AssignmentFinished || a.Outcome != factory.Succeeded || run.FinalCheckpoint == nil || run.FinalCheckpoint.Status != "committed" || a.Result == nil || a.Result.Candidate != run.FinalCheckpoint.Candidate || a.Result.Candidate == source || !run.Native.Settled() {
+				return fmt.Errorf("actual correction did not complete: outcome=%s reason=%s run=%s summary=%s", a.Outcome, a.Reason, run.Outcome, run.Summary)
+			}
+			if _, err = port.ExportCandidate(ctx, execution.CandidateRequest{Address: execution.RunAddress{Workspace: a.ProjectID, Run: id}, Preparation: a.Preparation, Role: a.Role, Candidate: a.Result.Candidate}); err != nil {
+				return err
+			}
+			fmt.Println("PASS: actual coordinator correction dispatch, singleton MCP edit/checkpoint, changed retained candidate, native retirement and canonical settlement; provider review facts declared, no model or remote write")
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func settleRetiredNativeFixture(ctx context.Context, c *control.Coordinator, port factoryruntime.NativeExecution, id, workspace string) error {
+	observed, err := port.InspectRun(ctx, execution.RunAddress{Run: id, Workspace: workspace})
+	if err == nil && observed.Retirement == execution.Retired {
+		_, err = c.Reconcile(ctx)
+		return err
+	}
+	return ctx.Err()
 }
 
 // Declared repository visibility; actual native keyring/owner observation,
@@ -6162,6 +6309,11 @@ func workerProfileFixture() error {
 		}
 		if strings.Contains(string(prompt), "native-tasks-investigation-fixture") {
 			plan := nativeWorkspacePlan(strings.Repeat("0", 40))
+			if strings.Contains(string(prompt), "native-correction-fixture") {
+				// Retain a final-tree invariant for the controller's correction
+				// checks; the first task's exact bytes are checked by readback.
+				plan.Checks[0].Argv = []string{"/usr/bin/bash", "-eu", "-c", "test -f native-task-dir/kept.txt; test ! -e native-task-dir/to-remove; test -f native-task.txt"}
+			}
 			planBytes, err := json.Marshal(plan)
 			if err != nil {
 				return err
@@ -6177,6 +6329,29 @@ func workerProfileFixture() error {
 				return err
 			}
 			if _, err := workerMCPCall(client, "factory.finish_issue_plan", map[string]any{"approach": plan.Approach, "tasks": authored, "evidence_refs": []string{"source:README.md"}}); err != nil {
+				return err
+			}
+		} else if strings.Contains(string(prompt), "native-correction-fixture") && serverName == "soda-factory-"+string(factory.MCPProfileInspector) {
+			raw, err := workerMCPCall(client, "factory.context", map[string]any{})
+			if err != nil {
+				return err
+			}
+			var current struct {
+				Run string `json:"run"`
+			}
+			if json.Unmarshal(raw, &current) != nil || !factory.ValidID(current.Run) {
+				return errors.New("reviewer current run missing")
+			}
+			if _, err = workerMCPCall(client, "factory.workspace", map[string]any{"task_id": "correct", "operation": "read", "path": "native-task-dir/kept.txt"}); err == nil {
+				return errors.New("independent reviewer acquired coder workspace access")
+			}
+			finding := factory.Finding{Key: strings.Repeat("f", 32), OriginRun: current.Run, Severity: factory.FindingSeverityMajor, Actionable: true, FixKind: factory.FindingFixCode,
+				Defect: "kept.txt contains the disposable placeholder", Evidence: "native-task-dir/kept.txt contains kept", RequiredOutcome: "Replace kept with corrected in native-task-dir/kept.txt"}
+			if _, err = workerMCPCall(client, "factory.finish_review", map[string]any{"conclusion": "findings", "findings": []factory.Finding{finding}, "evidence_refs": []string{"native-task-dir/kept.txt"}}); err != nil {
+				return err
+			}
+		} else if strings.Contains(string(prompt), "native-correction-fixture") && serverName == "soda-factory-"+string(factory.MCPProfileFixer) {
+			if err := workerNativeCorrection(client); err != nil {
 				return err
 			}
 		} else if serverName == "soda-factory-"+string(factory.MCPProfileBuilder) {
@@ -6225,6 +6400,72 @@ func workerProfileFixture() error {
 	}
 	time.Sleep(4 * time.Second)
 	return nil
+}
+
+func workerNativeCorrection(client *http.Client) error {
+	const path = "native-task-dir/kept.txt"
+	if _, err := workerMCPCallID(client, "factory.workspace", map[string]any{"task_id": "correct", "operation": "edit", "path": path, "expected": "kept\n", "replacement": "corrected\n"}, "native-correction-edit"); err != nil {
+		return err
+	}
+	raw, err := workerMCPCall(client, "factory.workspace", map[string]any{"task_id": "correct", "operation": "read", "path": path})
+	var file struct {
+		Content string `json:"content"`
+	}
+	if err != nil || json.Unmarshal(raw, &file) != nil || file.Content != "corrected\n" {
+		return errors.New("actual correction workspace readback differs")
+	}
+	if _, err := workerMCPCall(client, "factory.release_output", map[string]any{"task_id": "correct"}); err != nil {
+		return err
+	}
+	for _, final := range []bool{false, true} {
+		until := time.Now().Add(35 * time.Second)
+		for {
+			raw, err := workerMCPCall(client, "factory.context", map[string]any{})
+			if err != nil {
+				return err
+			}
+			var current struct {
+				Execution struct {
+					Tasks []struct {
+						ID    string `json:"task_id"`
+						State string `json:"state"`
+					} `json:"tasks"`
+					Integration *struct {
+						Status    string `json:"status"`
+						Candidate string `json:"candidate"`
+					} `json:"integration"`
+				} `json:"execution"`
+			}
+			if json.Unmarshal(raw, &current) != nil {
+				return errors.New("correction context invalid")
+			}
+			if final && current.Execution.Integration != nil && current.Execution.Integration.Status == "committed" {
+				candidate := current.Execution.Integration.Candidate
+				_, err = workerMCPCallID(client, "factory.finish_correction", map[string]any{"candidate": candidate,
+					"dispositions": []factory.CorrectionDisposition{{Key: strings.Repeat("f", 32), Disposition: factory.DispositionFixed}},
+					"fix_evidence": []factory.CorrectionFixEvidence{{Key: strings.Repeat("f", 32), ChangedPaths: []string{path}, Commits: []string{candidate}}}, "evidence_refs": []string{path}}, "native-correction-result")
+				return err
+			}
+			ready := false
+			for _, task := range current.Execution.Tasks {
+				if task.State == store.PlanTaskFailed {
+					return errors.New("actual correction check failed")
+				}
+				ready = ready || task.ID == "correct" && task.State == store.PlanTaskOutputReady
+			}
+			if !final && ready {
+				if _, err = workerMCPCallID(client, "factory.submit_task_output", map[string]any{"task_id": "correct", "evidence_refs": []string{path}}, "native-correction-output"); err != nil {
+					return err
+				}
+				break
+			}
+			if time.Now().After(until) {
+				return errors.New("actual correction checkpoint wait expired")
+			}
+			time.Sleep(time.Second)
+		}
+	}
+	return errors.New("correction result missing")
 }
 
 func workerSequentialTasks(client *http.Client) error {

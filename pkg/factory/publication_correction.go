@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // CorrectionOps is one publication's ordered correction chain: branch
@@ -13,6 +15,22 @@ import (
 // predecessor tip and binds the same PR; the publication head follows
 // the latest committed correction. See Publication.Validate.
 type CorrectionOps []PublicationOperation
+
+// NativeCorrectionPreparationID binds a correction's fresh candidate checkout
+// to its durable assignment. Replays use the same preparation and admission.
+func NativeCorrectionPreparationID(assignment string) string {
+	sum := sha256.Sum256([]byte("factory-native-correction-preparation-v1\x00" + assignment))
+	return "f" + hex.EncodeToString(sum[:12])
+}
+
+// PublicationCoderPreparation preserves historical owner checkouts and permits
+// a native correction's separately admitted candidate checkout. Store admission
+// additionally verifies that checkout's exact publication, child and source.
+func (a Assignment) PublicationCoderPreparation(owner Assignment) bool {
+	return a.Preparation == owner.Preparation ||
+		a.Phase == project.ExecutionCorrect && a.NativeTool != nil && owner.NativeTool != nil &&
+			a.Preparation == NativeCorrectionPreparationID(a.ID)
+}
 
 // Carried-finding assessment states. A report assesses every carried
 // actionable finding and cannot silently omit one.

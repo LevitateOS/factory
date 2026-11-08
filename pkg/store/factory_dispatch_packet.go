@@ -810,7 +810,7 @@ func checkCorrectionCurrency(publication factory.Publication, parent, owner, a f
 	if !ok || current != parent.Run {
 		return fmt.Errorf("%w: correction answers a superseded review", ErrAttemptRootMismatch)
 	}
-	if a.Preparation != owner.Preparation {
+	if !a.PublicationCoderPreparation(owner) {
 		return errors.New("correction must retain the publication coder preparation")
 	}
 	if a.Preparation == parent.Preparation {

@@ -336,7 +336,7 @@ type DispatchDeps struct {
 	Refresh              func(context.Context, factory.IssueControl) (factory.IssueControl, error)
 	PrepareRetry         func(context.Context, *attemptPlan, string) (bool, error)
 	PrepareSource        func(context.Context, *attemptPlan) (bool, error)
-	RetireRetry          func(context.Context, *attemptPlan) error
+	RetireRetry          func(context.Context, execution.PreparationRecord) error
 	Queue                *DispatchQueueCursor
 	Priority             *PriorityJudgments
 	ContextChooser       ProductJudgment
@@ -469,7 +469,7 @@ func (c *Coordinator) dispatchDeps() DispatchDeps {
 	return admitDispatchDependencies(DispatchDeps{
 		Store: c.Store, Host: c.Host, Broker: c.Broker, MCPKey: c.MCPKey, MCPSecret: c.MCPSecret, ContextVerification: c.ApplicationVerificationEvidence, VerificationManifest: c.stageDeliveryVerificationManifest,
 		Reads: c.DispatchReads, Authority: c.EffectiveRoleAuthority,
-		Refresh: c.refreshReadiness, PrepareRetry: c.prepareRetryCoder, PrepareSource: c.prepareSourceCoder, RetireRetry: c.retireRetryCoder,
+		Refresh: c.refreshReadiness, PrepareRetry: c.prepareRetryCoder, PrepareSource: c.prepareSourceCoder, RetireRetry: c.retireCandidatePreparation,
 		Queue:           &c.queue,
 		Priority:        c.Priority,
 		ContextChooser:  c.ContextChooser,

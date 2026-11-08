@@ -79,15 +79,28 @@ func (s WorkerTasks) current(ctx context.Context, cap factory.MCPCapability, act
 	if json.Unmarshal(manifest.Plan, &plan) != nil || plan.Executable() != nil || plan.AttemptRoot != a.AttemptRoot || plan.Preparation != a.Preparation {
 		return empty, errors.New("native task plan differs from assigned attempt")
 	}
+	expected := &plan
+	if phase == project.ExecutionCorrect {
+		owner, err := s.Store.Assignment(ctx, a.PublicationAssignment)
+		if err != nil || a.ReviewContext == nil || a.ReviewContext.Cycle.CorrectionAssignment != a.ID ||
+			owner.AttemptRoot != a.AttemptRoot || owner.Result == nil || owner.Result.PhaseResult == nil ||
+			owner.Result.PhaseResult.Output == nil || owner.Result.PhaseResult.Output.Plan == nil {
+			return empty, ErrWorkerBinding
+		}
+		// Corrections retain their controller-derived singleton without
+		// replacing the investigation head. Its original source plan must
+		// still be current; the singleton itself must match retained bytes.
+		expected = owner.Result.PhaseResult.Output.Plan
+	}
 	head, generation, err := s.Store.PlanHead(ctx, a.AttemptRoot)
 	if err != nil {
 		return empty, err
 	}
-	retained, err := s.Store.InvestigationPlan(ctx, a.AttemptRoot, head)
+	retained, err := s.Store.InvestigationPlan(ctx, a.AttemptRoot, plan.ID)
 	if err != nil {
 		return empty, err
 	}
-	if head != plan.ID || generation != int64(plan.Generation) || retained.Digest != plan.Digest {
+	if head != expected.ID || generation != int64(expected.Generation) || retained.Digest != plan.Digest || retained.Generation != plan.Generation {
 		return empty, errors.New("native task plan is no longer current")
 	}
 	for _, task := range plan.Tasks {

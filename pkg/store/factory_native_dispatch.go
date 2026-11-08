@@ -45,6 +45,11 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 		meta != nil && (meta.Stopped || meta.Retirement == "confirmed") {
 		return refuse()
 	}
+	if a.Phase == project.ExecutionCorrect && (meta == nil || meta.PublicationID == "" ||
+		meta.OwnerAssignment != a.PublicationAssignment || meta.ChildAssignment != a.ID || meta.AttemptRoot != a.AttemptRoot ||
+		meta.SourceRun == nil || meta.SourceRun.Candidate != a.SourceCommit) {
+		return refuse()
+	}
 	// Use store-observed grants for the admission, then capture the exact intent
 	// in the same transaction as the run, assignment and held reservation.
 	n := *run.Native

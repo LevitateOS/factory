@@ -15,7 +15,7 @@ import (
 )
 
 // CandidatePreparationRegistration is the Store admission request for one
-// reviewer checkout or an accepted explicit coder Retry. The owner and deadline are
+// reviewer/correction checkout or an accepted explicit coder Retry. The owner and deadline are
 // recorded beside the ordinary preparation record before the host is called.
 type CandidatePreparationRegistration struct {
 	Repository        int64
@@ -460,7 +460,10 @@ func (s *Store) RecordCandidatePreparationStop(ctx context.Context, id string, s
 	if err = persistPreparationStopTx(ctx, tx, id, stored, currentMeta, revision, state); err != nil {
 		return err
 	}
-	if lockErr == nil {
+	// Releasing a publication checkout is also the normal review/correction
+	// handoff. It does not finish or pause that still-open attempt. Explicit
+	// withdrawal, pause and terminal publication/merge transitions own the clock.
+	if lockErr == nil && (allowance.Closed || currentMeta.PublicationID == "") {
 		if err = transitionLockedAttemptRootTx(ctx, tx, allowance, allowance.Closed, time.Now()); err != nil {
 			return err
 		}
@@ -481,7 +484,9 @@ func validateCandidatePreparationControl(preparation execution.PreparationRecord
 	if r.Control.Validate() != nil || r.Control.Repository != r.Repository || r.Control.Issue != r.Issue ||
 		r.Control.Readiness != factory.ReadinessQueued || r.Authority.RequirementsID != preparation.Preparation.Requirements.ID ||
 		r.Authority.ApprovalID != preparation.Preparation.Approval.ID || r.Authority.SponsorshipConnection != r.Connection ||
-		(r.PublicationID != "" && preparation.Preparation.Role != project.RoleReviewer) ||
+		(r.PublicationID != "" && preparation.Preparation.Role != project.RoleReviewer &&
+			(preparation.Native == nil || preparation.Preparation.Role != project.RoleCoder || r.SourceRun == nil ||
+				preparation.Preparation.ID != factory.NativeCorrectionPreparationID(r.ChildAssignment))) ||
 		(r.PublicationID == "" && (preparation.Preparation.Role != project.RoleCoder ||
 			r.OwnerAssignment != r.ChildAssignment || r.AttemptRoot != r.OwnerAssignment)) {
 		return errors.New("invalid candidate preparation registration")
@@ -551,6 +556,33 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 	if r.PublicationID != "" {
 		assignment.Phase = project.ExecutionReview
 		assignment.ParentAssignment = r.OwnerAssignment
+		if preparation.Preparation.Role == project.RoleCoder {
+			var publicationData, ownerData []byte
+			if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1`, r.OwnerAssignment).Scan(&publicationData); err != nil {
+				return empty, err
+			}
+			var publication factory.Publication
+			if err = json.Unmarshal(publicationData, &publication); err != nil {
+				return empty, err
+			}
+			run, ok := newestCommittedReviewRun(publication, assignment.SourceCommit, publication.PRCreate.BaseOID)
+			if !ok || r.SourceRun == nil || r.SourceRun.ID != publication.Run || r.SourceRun.Candidate != publication.Candidate {
+				return empty, ErrAttemptRootMismatch
+			}
+			if err = tx.QueryRowContext(ctx, `SELECT id FROM factory_assignments WHERE run=$1`, run).Scan(&assignment.ParentAssignment); err != nil {
+				return empty, err
+			}
+			if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, r.OwnerAssignment).Scan(&ownerData); err != nil {
+				return empty, err
+			}
+			var owner factory.Assignment
+			if err = json.Unmarshal(ownerData, &owner); err != nil || owner.NativeTool == nil {
+				return empty, ErrAttemptRootMismatch
+			}
+			// Authorize the correction lineage before its new checkout exists.
+			// Native packet admission later requires this exact candidate record.
+			assignment.Phase, assignment.Preparation = project.ExecutionCorrect, owner.Preparation
+		}
 	}
 	if err = validateAttemptPacketTx(ctx, tx, assignment, false); err != nil {
 		return empty, err

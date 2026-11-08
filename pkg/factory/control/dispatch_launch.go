@@ -72,7 +72,7 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 			// A lost commit reply may still have admitted the packet. Retire
 			// only after the Store confirms that no assignment owns it.
 			if _, readErr := deps.Store.Assignment(ctx, assignmentID); errors.Is(readErr, store.ErrNotFound) {
-				if retireErr := deps.RetireRetry(ctx, plan); retireErr != nil {
+				if retireErr := deps.RetireRetry(ctx, plan.prep); retireErr != nil {
 					report.Errors = append(report.Errors, DispatchError{Repository: repository, Issue: issue, Reason: DispatchErrHost, Detail: "rejected retry preparation retirement is unconfirmed"})
 				}
 			}
@@ -845,8 +845,7 @@ func validReviewLineage(a, owner factory.Assignment) bool {
 // validCorrectLineage verifies one corrector child still binds its
 // publication owner and the reviewer that authored its verdict: the same
 // scope, root, acceptance and candidate, a single typed review verdict on
-// this head, and the owner's coder preparation distinct from the reviewer
-// session.
+// this head, and the owner's coder setup in a session distinct from the reviewer.
 func validCorrectLineage(a, owner, reviewer factory.Assignment) bool {
 	if !validPublicationChildOwner(a, owner) {
 		return false
@@ -882,7 +881,7 @@ func validCorrectVerdict(a, reviewer factory.Assignment) bool {
 
 // correctScopeMatches verifies one corrector child shares its scope,
 // root, acceptance, candidate and subject with its owner and reviewer
-// while holding the owner's coder preparation.
+// while retaining its admitted coder setup.
 func correctScopeMatches(a, owner, reviewer factory.Assignment) bool {
 	return a.Role == project.RoleCoder && a.Phase == project.ExecutionCorrect &&
 		reviewer.Repository == a.Repository && reviewer.Issue == a.Issue &&
@@ -891,7 +890,7 @@ func correctScopeMatches(a, owner, reviewer factory.Assignment) bool {
 		reviewer.PublicationAssignment == a.PublicationAssignment &&
 		reviewer.SourceCommit == a.SourceCommit &&
 		correctSubjectMatches(a) &&
-		a.Preparation == owner.Preparation && a.Preparation != reviewer.Preparation
+		a.PublicationCoderPreparation(owner) && a.Preparation != reviewer.Preparation
 }
 
 // correctSubjectMatches verifies one corrector child targets its own
@@ -1045,9 +1044,16 @@ func stageCorrectionRetryManifest(ctx context.Context, deps DispatchDeps, plan *
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "recorded investigation plan is unavailable", report)
 		return nil, "", false
 	}
+	reviewer, err := deps.Store.Assignment(ctx, a.ParentAssignment)
+	if err != nil || reviewer.Result == nil || reviewer.Result.PhaseResult == nil || reviewer.Result.PhaseResult.Output == nil {
+		report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "recorded correction review is unavailable"})
+		return nil, "", false
+	}
+	verdict := reviewer.Result.PhaseResult.Output
+	keys := correctionFindingKeys(ResolvedReviewVerdict{Review: verdict.Review, Clear: verdict.Clear})
 	derived, err := deriveCorrectionPlan(plan.acceptance, *owner.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, a.SourceCommit, p.PRCreate.BaseOID, owner.Preparation,
-		cycle.ID, cycle.FindingDigest, nil, plan.policy.Checks)
+		owner.AttemptRoot, a.SourceCommit, p.PRCreate.BaseOID, a.Preparation,
+		cycle.ID, cycle.FindingDigest, keys, plan.policy.Checks)
 	if err != nil {
 		if reason, blocked := correctionPlanWaitReason(err); blocked {
 			report.Waits = append(report.Waits, DispatchWait{Repository: a.Repository, Issue: a.Issue, Reason: reason, Detail: "recorded investigation plan is unavailable"})

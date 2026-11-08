@@ -36,8 +36,9 @@ func currentReviewFactsTx(ctx context.Context, tx *sql.Tx, a factory.Assignment,
 			return errors.New("current review source cycle is malformed")
 		}
 		// Correction rounds have a synthetic reviewer marker; they never
-		// grant a nonexistent reviewer assignment or its conversation.
-		if cycle.Phase != "correct" {
+		// grant a nonexistent reviewer assignment or its conversation. Current
+		// cycles share the review phase and identify correction by assignment.
+		if cycle.Phase != "correct" && cycle.CorrectionAssignment == "" {
 			if err := currentReviewAssessmentsTx(ctx, tx, a, p, cycle, carried, current); err != nil {
 				return err
 			}

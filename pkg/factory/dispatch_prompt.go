@@ -38,8 +38,11 @@ type PromptInputs struct {
 	AcceptanceID  string
 	TargetBranch  string
 	SourceCommit  string
-	ApprovedBase  string
-	BaseCommit    string
+	// PreparedSourceCommit distinguishes a native correction's exact candidate
+	// checkout from the historical coder checkout at ApprovedBase.
+	PreparedSourceCommit string
+	ApprovedBase         string
+	BaseCommit           string
 	// PRBase is the historical PR creation base anchoring check
 	// evidence. It stays the PR record even when the tuple moves the
 	// current diff anchor in BaseCommit: checks answer the PR base,
@@ -228,6 +231,13 @@ func admitPromptContext(in PromptInputs) error {
 	expectedDiffBase := in.ApprovedBase
 	if in.Role == project.RoleCoder {
 		expectedSource = in.ApprovedBase
+	}
+	if in.PreparedSourceCommit != "" {
+		if in.Phase != project.ExecutionCorrect ||
+			(in.PreparedSourceCommit != in.SourceCommit && in.PreparedSourceCommit != in.ApprovedBase) {
+			return errors.New("prepared correction source does not match its candidate or approved base")
+		}
+		expectedSource = in.PreparedSourceCommit
 	}
 	if in.PublicationAssignment != "" {
 		expectedDiffBase = in.BaseCommit

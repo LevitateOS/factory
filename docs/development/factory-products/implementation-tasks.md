@@ -97,8 +97,8 @@ recording any newly proved current conclusion separately.
 running SodaOS appliance. Shared Project stop/start qualification moves from
 Q09 to Q24; do not start or rebuild an appliance to finish Q09. Once Q09's
 remaining standalone requirements pass, this deferred appliance check does not
-block Q10. Its evidence and broader gates remain pending in Q24. Implementation
-is currently paused at the owner's request.
+block Q10. Its evidence and broader gates remain pending in Q24. The ordered
+goal remains paused after the bounded correction increment below.
 
 | Prompt | Ordinary completion scope | Existing requirement | Status |
 | --- | --- | --- | --- |
@@ -354,9 +354,9 @@ Active: admitted native pause/stop, resume, queued retry, Muse takeover and
 retained failed/successful/cancelled recovery now pass their scoped checks,
 including active-service/incomplete-receipt refusal. Shared Project lifecycle
 qualification is deferred to Q24 by the owner; the remaining standalone
-source/role withdrawal and lost-write-reply journey now pass. Interrupted-launch
-and actual correction coverage still need their completion review.
-[Evidence and limits](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery).
+source/role withdrawal, lost-write-reply and native correction journeys now pass.
+Interrupted-launch completion review remains pending; the ordered goal is paused.
+[Correction evidence and limits](../untangle-codebase.md#q09-native-correction-and-retained-reopen).
 
 ```text
 Implement Q09 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.

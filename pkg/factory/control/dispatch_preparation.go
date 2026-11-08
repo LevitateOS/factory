@@ -40,7 +40,7 @@ func (c *Coordinator) reconcileRetryPreparations(ctx context.Context) error {
 			}
 			continue
 		}
-		if err := c.retireRetryCoder(ctx, &attemptPlan{projectID: p.Preparation.Project, prep: record.Preparation}); err != nil {
+		if err := c.retireCandidatePreparation(ctx, record.Preparation); err != nil {
 			return err
 		}
 	}
@@ -174,7 +174,7 @@ func (c *Coordinator) admitCoderPreparation(ctx context.Context, plan *attemptPl
 		if prior, readErr := c.Store.CandidatePreparation(ctx, prep.ID); retryPreparationInvalidated(err) && readErr == nil &&
 			prior.Admission.OwnerAssignment == command && prior.Admission.PublicationID == "" && !prior.Stopped {
 			plan.prep = prior.Preparation
-			if stopErr := c.retireRetryCoder(ctx, plan); stopErr != nil {
+			if stopErr := c.retireCandidatePreparation(ctx, plan.prep); stopErr != nil {
 				return empty, false, stopErr
 			}
 		}
@@ -229,7 +229,7 @@ func (c *Coordinator) authorizeCoderPreparation(ctx context.Context, plan *attem
 	if err != nil {
 		if retryPreparationInvalidated(err) {
 			plan.prep = stored
-			if stopErr := c.retireRetryCoder(ctx, plan); stopErr != nil {
+			if stopErr := c.retireCandidatePreparation(ctx, plan.prep); stopErr != nil {
 				return false, stopErr
 			}
 		}
@@ -259,15 +259,15 @@ func (c *Coordinator) authorizeCoderPreparation(ctx context.Context, plan *attem
 	return err == nil, err
 }
 
-func (c *Coordinator) retireRetryCoder(ctx context.Context, plan *attemptPlan) error {
+func (c *Coordinator) retireCandidatePreparation(ctx context.Context, record execution.PreparationRecord) error {
 	if budget := readinessBudgetFrom(ctx); budget != nil && !budget.reserveNativeRPC(1) {
 		return ErrReadinessPassPending
 	}
-	state, err := c.Host.RetireWorkspacePreparation(ctx, plan.prep.Address())
+	state, err := c.Host.RetireWorkspacePreparation(ctx, record.Address())
 	if err != nil {
 		return err
 	}
-	if err := c.Store.RecordCandidatePreparationStop(ctx, plan.prep.Preparation.ID, state); err != nil {
+	if err := c.Store.RecordCandidatePreparationStop(ctx, record.Preparation.ID, state); err != nil {
 		return err
 	}
 	if state.Retirement != "confirmed" {

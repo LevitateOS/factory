@@ -1479,6 +1479,37 @@ is active again; Q09 remains **INCOMPLETE** pending interrupted-launch and actua
 correction completion review. Shared Project stop/start remains deferred to Q24;
 all 13 security gates remain open. Unrelated edits and retained state are preserved.
 
+### Q09 native correction and retained reopen
+
+Native corrections now admit their own candidate checkout from the exact
+published run export, retaining the approved coder setup and original allowance.
+Review/correction handoff retires the exact settled predecessor checkout without
+closing the open attempt clock. Packet, prompt and singleton-plan bindings use
+that checkout; task admission verifies both the retained correction plan and the
+still-current original investigation head. Context reads exclude the correction
+round's synthetic reviewer marker rather than querying a nonexistent assignment.
+Retry manifest derivation retains the original finding keys.
+
+The existing native journey passed with actual PostgreSQL, investigator and
+two-task Builder execution, lost edit reply/receipt recovery, independent local
+reviewer finding, coordinator correction dispatch, real MCP edit/readback,
+task/final checkpoints, changed candidate export, canonical settlement, joined
+retirement and restart readback without replay. Evidence:
+`/home/vince/Projects/q09-correction9.log`, retained root
+`/home/vince/tmp/q09-correction9`; invocation:
+`SODA_NATIVE_CHECK_REVIEW_CHILD=1 SODA_NATIVE_CHECK_CORRECTION=1 bash /home/vince/Projects/q09-tasks-lost-reply.sh /home/vince/tmp/q09-correction9 admitted`.
+Backend and existing Go native-helper builds passed. Reused affected real
+PostgreSQL lineage/fence and preparation/pause/uncertain-retirement checks:
+`q09-correction-store.log`, `q09-correction-preparation-store.log` under
+`/home/vince/Projects`. Earlier failed profiles and outcomes remain retained.
+
+This proves the local native workflow; publication, provider review receipts and
+CI facts are declared, with no live model or remote write. Q09 remains
+**INCOMPLETE** pending interrupted-launch completion review. The ordered goal
+remains paused after this owner-authorized increment; Q10 was not started.
+Shared Project stop/start remains deferred to Q24. Connected delivery,
+installed/reboot qualification and all 13 security gates remain open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

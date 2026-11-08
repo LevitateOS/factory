@@ -10,8 +10,8 @@ import (
 // binds the current requirement/admin decisions before requesting preparation.
 // Neither role Git configuration nor its private home crosses this boundary.
 // A coder copies protected source or addresses one settled coder export for a
-// refreshed source. Its caller supplies no bundle. Corrections retain their
-// original checkout; the native producer verifies unchanged approved setup.
+// refreshed source. Its caller supplies no bundle. Native corrections address
+// the published run's export and retain the protected approved setup.
 type FactoryCandidate struct {
 	Preparation       Preparation          `json:"preparation"`
 	SourcePreparation string               `json:"source_preparation"`

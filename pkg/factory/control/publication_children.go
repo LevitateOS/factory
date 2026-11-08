@@ -371,7 +371,13 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 	plan.inputs.Tip = p.Candidate
 	preparationID := plan.prep.Preparation.ID
 	contextPreparation := plan.prep
-	if role == project.RoleReviewer {
+	if role == project.RoleReviewer || role == project.RoleCoder && plan.prep.Native != nil {
+		if plan.prep.Native != nil {
+			if err := c.retirePublicationPredecessor(ctx, p, owner, role); err != nil {
+				report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "candidate_preparation_retirement_pending", Detail: err.Error()})
+				return nil, "", execution.PreparationRecord{}, true
+			}
+		}
 		prep, ready, prepErr := c.prepareReviewCandidate(ctx, p, owner, plan, report, expectedPrepID, childID)
 		if prepErr != nil {
 			report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "review_preparation_unavailable", Detail: prepErr.Error()})
@@ -394,6 +400,45 @@ func (c *Coordinator) planPublicationChildDispatch(ctx context.Context, deps Dis
 		plan.prep = contextPreparation
 	}
 	return plan, preparationID, contextPreparation, false
+}
+
+// A finished native review/correction still owns its candidate preparation.
+// Release that exact custody before admitting the next session, independently
+// of the retained run, report and exported candidate evidence.
+func (c *Coordinator) retirePublicationPredecessor(ctx context.Context, p factory.Publication, owner factory.Assignment, role string) error {
+	var prior factory.Assignment
+	if role == project.RoleCoder {
+		var ok bool
+		prior, ok = c.currentReviewerForCorrection(ctx, p, owner)
+		if !ok {
+			return errors.New("current correction reviewer unavailable")
+		}
+	} else {
+		var err error
+		prior, err = c.Store.AssignmentByRun(ctx, p.Run)
+		if err != nil {
+			return err
+		}
+	}
+	if prior.NativeTool == nil || prior.Phase != project.ExecutionReview && prior.Phase != project.ExecutionCorrect {
+		return nil
+	}
+	run, err := c.Store.FactoryRun(ctx, prior.Run)
+	if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || prior.Stage != factory.AssignmentFinished || prior.Outcome != factory.Succeeded {
+		return errors.New("publication predecessor retirement unconfirmed")
+	}
+	prepared, err := c.Store.CandidatePreparation(ctx, prior.Preparation)
+	if err != nil {
+		return err
+	}
+	meta := prepared.Admission
+	if prepared.Preparation.Native == nil || meta.PublicationID != p.ID || meta.OwnerAssignment != owner.ID || meta.ChildAssignment != prior.ID || meta.AttemptRoot != owner.AttemptRoot {
+		return errors.New("publication predecessor preparation differs")
+	}
+	if prepared.Stopped && prepared.Retirement == "confirmed" {
+		return nil
+	}
+	return c.retireCandidatePreparation(ctx, prepared.Preparation)
 }
 
 func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptPlan, p factory.Publication, owner factory.Assignment, preparationID string, contextPreparation execution.PreparationRecord, role string, in childReviewInput, cycle factory.ReviewCycle, phasedChild bool, report *PublishReport) (*factory.InvestigationPlan, bool) {
@@ -426,7 +471,7 @@ func (c *Coordinator) promptPublicationChild(ctx context.Context, plan *attemptP
 	}
 	prompt, err := buildPublicationChildPrompt(plan, p, owner, preparationID, role, typedReview, typedClear, checksPrompt, repositoryContext)
 	if err != nil {
-		publicationWait(report, p.ID, "child_prompt_invalid")
+		report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "child_prompt_invalid", Detail: err.Error()})
 		return nil, true
 	}
 	plan.prompt, plan.promptSHA = prompt, project.FactoryPromptDigest(prompt)
@@ -558,7 +603,7 @@ func (c *Coordinator) correctionPlanFor(ctx context.Context, plan *attemptPlan, 
 		return nil, &correctionPlanBlocked{reason: "correction_plan_unavailable", detail: "correction answers another round"}
 	}
 	return deriveCorrectionPlan(plan.acceptance, *owner.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, p.Candidate, p.PRCreate.BaseOID, owner.Preparation,
+		owner.AttemptRoot, p.Candidate, p.PRCreate.BaseOID, plan.prep.Preparation.ID,
 		cycle.ID, cycle.FindingDigest, correctionFindingKeys(review), plan.policy.Checks)
 }
 
@@ -785,7 +830,7 @@ func (c *Coordinator) currentChildCheckAssessment(ctx context.Context, p factory
 func buildReviewCandidatePrep(plan *attemptPlan, p factory.Publication, expectedPrepID string) (source, prep project.Preparation, err error) {
 	source = plan.prep.Preparation
 	prep = project.Preparation{
-		ID: expectedPrepID, Project: p.ProjectID, Role: project.RoleReviewer,
+		ID: expectedPrepID, Project: p.ProjectID, Role: source.Role,
 		Requirements: source.Requirements, Approval: source.Approval, SourceCommit: p.Candidate,
 		SetupDigest: source.SetupDigest, Tools: append([]string(nil), source.Tools...), Credential: source.Credential,
 	}
@@ -806,6 +851,14 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 		AttemptRoot: owner.AttemptRoot, PublicationID: p.ID, Connection: plan.sponsorship.Connection,
 		Authority: plan.effective.Authority, GateRevision: plan.gateRev, Control: plan.control,
 		RequestedNotAfter: requested,
+	}
+	if prep.Role == project.RoleCoder {
+		run, err := c.Store.FactoryRun(ctx, p.Run)
+		if err != nil || run.Native == nil {
+			return execution.PreparationRecord{}, false, errors.New("native correction candidate run unavailable")
+		}
+		registration.SourceRun = &project.FactoryExport{Project: p.ProjectID, ID: p.Run, Role: project.RoleCoder,
+			Preparation: run.Native.Provenance.WorktreeID, Candidate: p.Candidate}
 	}
 	record := execution.PreparationRecord{Preparation: prep}
 	if plan.prep.Native != nil {
@@ -853,9 +906,12 @@ func (c *Coordinator) prepareReviewCandidate(ctx context.Context, p factory.Publ
 	if out, ready, err, proceed := c.reconcileStoredReviewCandidatePrep(ctx, p, prep, stored, created, report); !proceed {
 		return out, ready, err
 	}
-	bundle, err := c.provePublishedCandidateForReview(ctx, p, owner, report)
-	if err != nil {
-		return project.Preparation{}, false, err
+	var bundle []byte
+	if prep.Role == project.RoleReviewer {
+		bundle, err = c.provePublishedCandidateForReview(ctx, p, owner, report)
+		if err != nil {
+			return project.Preparation{}, false, err
+		}
 	}
 	return c.launchReviewCandidatePrep(ctx, p, prep, source, bundle, stored, report)
 }
@@ -929,6 +985,16 @@ func (c *Coordinator) launchReviewCandidatePrep(ctx context.Context, p factory.P
 		return project.Preparation{}, false, errors.New("review preparation deadline elapsed")
 	}
 	input := project.FactoryCandidate{Preparation: prep, SourcePreparation: source.ID, Bundle: bundle, Deadline: deadline}
+	if prep.Role == project.RoleCoder {
+		admitted, err := c.Store.CandidatePreparation(ctx, prep.ID)
+		if err != nil {
+			return project.Preparation{}, false, err
+		}
+		input.SourceRun = admitted.Admission.SourceRun
+		if input.SourceRun == nil {
+			return project.Preparation{}, false, errors.New("native correction candidate source missing")
+		}
+	}
 	if err := input.Validate(); err != nil {
 		return project.Preparation{}, false, err
 	}
@@ -936,7 +1002,7 @@ func (c *Coordinator) launchReviewCandidatePrep(ctx context.Context, p factory.P
 	if err != nil {
 		return project.Preparation{}, false, err
 	}
-	if state.ID != prep.ID || state.Project != p.ProjectID || state.Role != project.RoleReviewer ||
+	if state.ID != prep.ID || state.Project != p.ProjectID || state.Role != prep.Role ||
 		state.SourceCommit != p.Candidate || state.SetupDigest != prep.SetupDigest {
 		c.fenceChildPublication(ctx, p, report)
 		return project.Preparation{}, false, errors.New("native review preparation receipt differs")
@@ -1027,13 +1093,14 @@ func (c *Coordinator) executePublicationChild(ctx context.Context, deps Dispatch
 	}
 	run := factory.Run{
 		ID: runID, ProjectID: owner.ProjectID, Role: role, InputSHA: p.Candidate,
+		ContextPending: deps.mcpConfigured(), ExecutionManifest: manifest,
 		Started: now, Deadline: plan.deadline,
 		Image: plan.tool.Image, Harness: assignment.Harness, Model: assignment.Model,
 	}
 	view := factory.RunView{RunID: runID, Repository: p.Repository, Issue: p.Issue, Attempt: assignmentID}
 	if err := plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view); err != nil {
 		if errors.Is(err, store.ErrAssignmentActive) || errors.Is(err, store.ErrAdmissionChanged) || errors.Is(err, store.ErrDispatchControlStale) {
-			publicationWait(report, p.ID, "child_admission_changed")
+			report.Waits = append(report.Waits, PublishWait{ID: p.ID, Reason: "child_admission_changed", Detail: err.Error()})
 			return
 		}
 		if wait := admissionWait(err); wait != nil {
@@ -1124,6 +1191,9 @@ func buildPublicationChildPrompt(plan *attemptPlan, p factory.Publication, owner
 		Prerequisites: plan.acceptance.Prerequisites, Control: plan.control,
 		TypedReview: typedReview, TypedClear: typedClear, CheckAssessment: checks,
 		RepositoryContext: repositoryContext,
+	}
+	if role == project.RoleCoder && plan.prep.Native != nil {
+		inputs.PreparedSourceCommit = plan.prep.Preparation.SourceCommit
 	}
 	prompt, err := factory.BuildDispatchPrompt(inputs)
 	if err == nil {
