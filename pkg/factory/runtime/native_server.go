@@ -147,6 +147,7 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 	// lock and admission gate; optional provider ports still hold unavailable work.
 	var startOnce sync.Once
 	var startErr error
+	startDone := make(chan struct{})
 	mux.HandleFunc("/api/native/execution/start", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.RawQuery != "" || r.URL.ForceQuery || r.ContentLength != 0 ||
 			len(r.Header.Values("X-Soda-Native-Instance")) != 1 || r.Header.Get("X-Soda-Native-Instance") != instance {
@@ -154,8 +155,20 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 			return
 		}
 		startOnce.Do(func() {
-			startErr = application.application.Start(lifetime, filepath.Join(config.Directory, "coordinator.lock"))
+			go func() {
+				// Retained assessments were recovered before this listener opened.
+				// Start holds the coordinator admission gate through reconciliation,
+				// so Close joins it before the store can retire.
+				startErr = application.application.Coordinator.Start(lifetime, filepath.Join(config.Directory, "coordinator.lock"))
+				close(startDone)
+			}()
 		})
+		select {
+		case <-startDone:
+		default:
+			nativeResponse(w, 202, map[string]string{"status": "starting", "instance": instance})
+			return
+		}
 		if startErr != nil || !application.application.Coordinator.Admitting() {
 			nativeResponse(w, 503, map[string]string{"error": "native_coordinator_unavailable"})
 			return

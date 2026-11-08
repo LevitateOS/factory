@@ -291,18 +291,36 @@ impl NativeSupervisor {
     pub fn start_execution_coordinator(&self) -> impl std::future::Future<Output = Result<()>> {
         let products = self.products.clone();
         let execution_error = self.execution_error.clone();
+        let alive = self.alive.clone();
         async move {
             let result: Result<()> = async {
-                let response = products
-                    .ok_or("native runtime is unavailable")?
-                    .start_coordinator()
-                    .await?;
-                let body: serde_json::Value = serde_json::from_slice(&response.body)
-                    .map_err(|_| "native coordinator startup response invalid")?;
-                if response.status != 200 || body["status"] != "started" {
-                    return Err("native coordinator startup requires reconciliation".into());
+                let products = products.ok_or("native runtime is unavailable")?;
+                let deadline = Instant::now() + Duration::from_secs(120);
+                loop {
+                    if !alive.load(Ordering::SeqCst) {
+                        return Err("native coordinator startup owner retired".into());
+                    }
+                    // Go retains one startup under its original native instance.
+                    // A pending/lost reply is polled, never another startup owner.
+                    match products.start_coordinator().await {
+                        Ok(response) => {
+                            let body: serde_json::Value = serde_json::from_slice(&response.body)
+                                .map_err(|_| "native coordinator startup response invalid")?;
+                            if response.status == 200 && body["status"] == "started" {
+                                return Ok(());
+                            }
+                            if response.status != 202 || body["status"] != "starting" {
+                                return Err("native coordinator startup requires reconciliation".into());
+                            }
+                        }
+                        Err(error) if Instant::now() >= deadline => return Err(error),
+                        Err(_) => (),
+                    }
+                    if Instant::now() >= deadline {
+                        return Err("native coordinator startup is still unresolved".into());
+                    }
+                    tokio::time::sleep(Duration::from_millis(100)).await;
                 }
-                Ok(())
             }
             .await;
             if let Err(error) = &result {

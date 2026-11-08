@@ -2209,6 +2209,34 @@ journey; keep execution held until whole-graph verification. All 13 broad
 security gates, installed qualification and Q15–Q30 remain open. Ordinary checks
 needed no Daybreak session; Q24's shared-appliance deferral is unchanged.
 
+### Q15 progress: native coordinator startup and diagnosis (2026-11-09)
+
+Q30 reached Q15 after Q14's connected completion. The real fresh native profile
+`58dbb6051262e8a338cb861e359a0ac5` retained issue #18, command
+`15151515151515151515151515151502`, acceptance `d151515151515151515151515`
+and selected source `4c823041ad0ba064c4f974399b0e3a2a`. Its synchronous startup
+outlasted the native response boundary without admitting a run. Startup now
+retains one instance-owned attempt, returns pending promptly and polls that same
+attempt; retirement ends polling. The already recovered application starts its
+coordinator under the existing lifetime/admission gate. Native status now exposes
+the coordinator's existing bounded, repository-scoped dispatch diagnosis.
+
+Production Go and locked Cargo driver builds passed. Actual native
+`/home/vince/Projects/q15-connected/resume2.log` reached started, then detected
+automatic acceptance of older Q14 fixtures before dispatch. Original local
+acceptances #13–#16 were explicitly withdrawn through the authenticated API
+(`withdrawal-{13,14,15,16}.json`); remote issues and other profiles are intact.
+`resume3.log` and `resume4.log` reached production startup, and the latter's
+`delivery-status.json` reported the actual `inputs_stale` wait with ready
+preparation. Both were cooperatively stopped and joined. Native observations
+showed zero assignments, runs, judgments and usage; no paid inference was replayed.
+
+This qualifies startup/status composition, not Q15 delivery. The observed priority
+comparison of a per-issue revision with the absent global-observer zero is the
+next correction to qualify through the same acceptance. CI variable
+`Q15_EXPECT_PASS=false` was originally absent and still needs restoration before
+terminal stop. Full delivery/review/correction/CI/merge and later gates remain open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

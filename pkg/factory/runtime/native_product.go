@@ -10,6 +10,7 @@ import (
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/control"
 	factoryhttp "github.com/levitateos/factory/pkg/factory/httpapi"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/store"
@@ -82,7 +83,13 @@ func BindNativeProduct(ctx context.Context, application factoryservice.Applicati
 				Viewer: bound.repositoryViewer, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
 				Connections: bound.spendingConnections},
 			Status: factoryservice.RepositoryStatus{Store: application.Store, Visibility: bound.visible,
-				Bindings: bound.policyBindings, PolicyOptions: bound.policyOptions, SpendingSources: bound.spendingSources, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority},
+				Bindings: bound.policyBindings, PolicyOptions: bound.policyOptions, SpendingSources: bound.spendingSources, Preparation: bound.preparationStatus, Authority: bound.recordedAuthority,
+				Diagnostic: func(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID) (*control.DispatchObservation, error) {
+					if err := bound.visible(ctx, actor, repository); err != nil {
+						return nil, err
+					}
+					return application.Coordinator.LatestDispatchObservation(int64(repository)), nil
+				}},
 			VisibilityError: nativeProductResourceError, AuthorityError: nativeProductResourceError},
 		Records: factoryhttp.Records{Library: factoryservice.Library{Source: application.Store, Visibility: bound.visible}},
 	}
