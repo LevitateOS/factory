@@ -1351,6 +1351,50 @@ retried or bypassed and no new model call started. Encoder correction, accepted
 plan/Builder/task/final identities, candidate/accounting/restart and the listed
 live regression cases remain pending. Q09–Q30 and all 13 security gates stay open.
 
+### Q08 current native journey and remaining historical attribution (2026-11-08)
+
+The owner approved the live test described above. Implementation
+`5bd4c825a2bb076984d56d850684608b110d6b00` separates user-manager control from
+the credential bus for launch/stop/recovery, clarifies noninteractive Builder
+completion and shares a bounded 32-model-step ceiling. The successful Builder
+used 23 steps; earlier 16-step runs stopped with work pending. Existing time,
+cancellation, output/source allowances and `max_children: 0` remain enforced.
+The existing check requires both dependent tasks and matches receipt task/plan/
+output/check identities; outer/inner fixture approach fields also match.
+
+The existing live journey passed at `/home/vince/tmp/q08-native-plan8/result.log`
+using `/home/vince/Projects/q08-native-sequential.sh`: strict typed planning,
+public Builder advancement, both task checkpoints, final receipt, candidate
+export, original-source stop-based accounting and reopen without inference
+replay. Candidate: `225606838c722d5812172a5ba97d9c39430f6615`; source bundle/
+commit compare exactly with the original fixture. Retained CLI bytes summarized
+in `/home/vince/Projects/q08-live-qualification-summary.json` prove missing-file
+read and reused-ID refusal; `q08-native-plan5/` additionally proves live
+output-ready and early-finish refusal/recovery. That earlier one-task pass does
+not qualify sequential completion.
+
+Production Go/helper builds passed (`q08-server-build.log`,
+`q08-sequential-helper-build.log`); regular/native-check desktop and native
+helper builds passed (`q08-step-{regular,check,native}-build.log`). The existing
+non-model finish/cancel check passed with an isolated credential-bus address
+(`q08-manager-final.log`), confirming process/tree/service retirement. Fixture
+storage moved outside the preserved `Projects/.git` marker after its temp-path
+refusal. Failed `q08-native-plan6/7` runs remain retained for Q09 recovery
+observations, without invented finishes or replay. All six original edit sets
+still match the saved baseline.
+
+**INCOMPLETE pending clarification:** original run
+`518ab9643f2a381dd81b4814df003979` proves a string reached strict RPC validation,
+but retains no raw model/client argument bytes identifying the producer's
+internal conversion. Factory's JSON value/RawMessage forwarding does not
+stringify it; current live typed planning passes without schema weakening or
+coercion. The historical cause is not claimed fixed. The owner has been asked
+whether current complete journey evidence may close Q08 while retaining that
+historical cause as unknown. Until answered, Q08 remains Active and Q09–Q30
+pending. D1–D8/Q01–Q07 and canonical Fountain references reuse their preceding
+verified evidence. Installed qualifications and all 13 security gates remain
+open; Factory is unfinished.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

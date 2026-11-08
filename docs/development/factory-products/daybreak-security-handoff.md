@@ -299,6 +299,15 @@ No model call or security-gate closure
 is claimed. Preserve the historical scope/status text above; current references
 and limitations are in the [Q07 decision evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
+Q08 current native evidence: `5bd4c825a2bb076984d56d850684608b110d6b00`
+passes the owner-approved live Architect/two-task Builder journey in
+`/home/vince/tmp/q08-native-plan8/result.log`, including exact receipts,
+candidate export, original-source usage and restart without inference replay.
+Combined live regression evidence and limits are in the decision log below.
+Historical string encoding remains unattributed; Q08 closure clarification and
+Q09–Q30 remain pending. All 13 security gates stay open. See the
+[current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
+
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
 `/home/vince/tmp/factory-branch-rule-admitted-1106.XTR8go/`: disabled UI, POST 403,
 exact new-command GET 404, unchanged normal open-PR/head readback and owned local
