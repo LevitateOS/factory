@@ -1,0 +1,241 @@
+From 1a29a5e86e06e370486afeee689eaaf54ea04b7b Mon Sep 17 00:00:00 2001
+From: vince <vinch+gitcred@mailbox.org>
+Date: Sun, 8 Nov 2026 00:52:49 +0100
+Subject: [PATCH 2/2] feat(native): bind desktop enrollment to profile proof
+
+
+diff --git a/docs/native-desktop-gateway.md b/docs/native-desktop-gateway.md
+index b001b9ba1e..29b98b56b4 100644
+--- a/docs/native-desktop-gateway.md
++++ b/docs/native-desktop-gateway.md
+@@ -26,8 +26,28 @@ same current OAuth grant, repository and account. An unchanged command replay
+ cannot reactivate a withdrawn enrollment. The runtime ID identifies the selected
+ desktop; it is not a cross-machine lease or verified placement generation.
+ 
++OAuth authorization may be shared by multiple devices. Native clients enroll
++with `proof_sha256` (64 lowercase hexadecimal characters), the SHA256 of a
++profile-held 64-character hexadecimal proof, and send that proof only in the
++`X-Factory-Desktop-Proof` HTTPS header on enrollment and subsequent requests.
++The server retains only its hash and returns `runtime_bound: true`. Replaying
++metadata or a shared account token cannot replace the proof. This binding is
++immutable, including after withdrawal. Legacy enrollments with an empty hash
++remain read-only and return `runtime_bound: false`; they cannot qualify future
++control-changing operations. The proof is not browser, Go-sidecar or SDK metadata.
++
++Factory's Rust client derives this proof from its existing private profile root
++under the separate `factory-fountain-desktop-enrollment/v1` HMAC domain, scoped
++to origin/account/profile/application/repository/command. Native custody checks
++the same credential revision for each bounded HTTPS call. No root or OAuth
++credential is exported to Go or the UI.
++
+ `TestNativeDesktopEnrollment` exercises the actual S256 exchange, read-scoped
+ enrollment/replay, repository read, withdrawal, subsequent read refusal and
+-inactive readback using fixture accounts and PostgreSQL. This is component
+-evidence. Real desktop login/custody, central placement, operation journals,
++inactive readback using fixture accounts and PostgreSQL. Optional
++`FACTORY_FOUNTAIN_NATIVE_CHECK`/`FACTORY_FOUNTAIN_NATIVE_ROOT` join the existing
++native credential check through a private CA/server-leaf TLS fixture and isolated
++OS keyring. That check covers enrollment/read, profile-key reopen, exact replay,
++withdrawal and refusal; the host check also refuses missing-proof requests.
++This is component evidence. User-facing desktop login, central placement, operation journals,
+ candidate transfer, withdrawal races and installed qualification remain open.
+diff --git a/models/desktopgrant/grant.go b/models/desktopgrant/grant.go
+index b7d70f50b6..6616b91207 100644
+--- a/models/desktopgrant/grant.go
++++ b/models/desktopgrant/grant.go
+@@ -24,6 +24,7 @@ type Grant struct {
+ 	OAuthGrantID int64              `xorm:"'oauth_grant_id' NOT NULL INDEX"`
+ 	RepositoryID int64              `xorm:"NOT NULL INDEX"`
+ 	RuntimeID    string             `xorm:"VARCHAR(32) NOT NULL"`
++	ProofSHA256  string             `xorm:"VARCHAR(64) NOT NULL DEFAULT ''"`
+ 	Revoked      bool               `xorm:"NOT NULL DEFAULT FALSE"`
+ 	CreatedUnix  timeutil.TimeStamp `xorm:"created"`
+ }
+@@ -45,7 +46,7 @@ func Get(ctx context.Context, id string) (*Grant, error) {
+ }
+ 
+ func sameScope(left, right *Grant) bool {
+-	return left.ActorID == right.ActorID && left.OAuthGrantID == right.OAuthGrantID && left.RepositoryID == right.RepositoryID && left.RuntimeID == right.RuntimeID
++	return left.ActorID == right.ActorID && left.OAuthGrantID == right.OAuthGrantID && left.RepositoryID == right.RepositoryID && left.RuntimeID == right.RuntimeID && left.ProofSHA256 == right.ProofSHA256
+ }
+ 
+ // Enroll retains the original command identity, including after withdrawal.
+diff --git a/models/forgejo_migrations/v17e_bind-native-desktop-proof.go b/models/forgejo_migrations/v17e_bind-native-desktop-proof.go
+new file mode 100644
+index 0000000000..aaa4b29bc5
+--- /dev/null
++++ b/models/forgejo_migrations/v17e_bind-native-desktop-proof.go
+@@ -0,0 +1,13 @@
++// Copyright 2026 The Forgejo Authors. All rights reserved.
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++package forgejo_migrations
++
++import (
++	"code.forgejo.org/xorm/xorm"
++	"forgejo.org/models/desktopgrant"
++)
++
++func init() {
++	registerMigration(&Migration{Description: "bind native desktop enrollment to profile proof", Upgrade: func(engine *xorm.Engine) error { return engine.Sync(new(desktopgrant.Grant)) }})
++}
+diff --git a/routers/api/v1/repo/desktop_grants.go b/routers/api/v1/repo/desktop_grants.go
+index da163f5d0d..320e78a4dc 100644
+--- a/routers/api/v1/repo/desktop_grants.go
++++ b/routers/api/v1/repo/desktop_grants.go
+@@ -4,6 +4,9 @@
+ package repo
+ 
+ import (
++	"crypto/sha256"
++	"crypto/subtle"
++	"encoding/hex"
+ 	"encoding/json"
+ 	"errors"
+ 	"io"
+@@ -19,6 +22,22 @@ import (
+ )
+ 
+ var desktopID = regexp.MustCompile(`^[a-f0-9]{32}$`)
++var desktopProof = regexp.MustCompile(`^[a-f0-9]{64}$`)
++
++// OAuth grants can be shared by several devices. Only this profile knows the
++// preimage; metadata and a shared account token cannot adopt its enrollment.
++func desktopProofAdmitted(ctx *context.APIContext, expected string) bool {
++	if expected == "" {
++		return true // Retained legacy enrollments authorize repository reads only.
++	}
++	proof := ctx.Req.Header.Get("X-Factory-Desktop-Proof")
++	digest := sha256.Sum256([]byte(proof))
++	if len(ctx.Req.Header.Values("X-Factory-Desktop-Proof")) != 1 || !desktopProof.MatchString(proof) || subtle.ConstantTimeCompare([]byte(hex.EncodeToString(digest[:])), []byte(expected)) != 1 {
++		ctx.Error(http.StatusForbidden, "desktop enrollment", errors.New("native profile proof required"))
++		return false
++	}
++	return true
++}
+ 
+ // The authentication method validated this identity. Do not parse the token a
+ // second time or accept account/application selectors from a desktop payload.
+@@ -47,7 +66,7 @@ func desktopProjection(ctx *context.APIContext, grant *desktopgrant.Grant, app *
+ 	return extension.DesktopGrant{ID: grant.ID, RuntimeID: grant.RuntimeID, ApplicationID: app.ClientID,
+ 		Actor:      extension.Actor{ID: strconv.FormatInt(ctx.Doer().ID, 10), Username: ctx.Doer().Name, SiteAdmin: ctx.Doer().IsAdmin},
+ 		Repository: extension.Repository{ID: strconv.FormatInt(repository.ID, 10), Owner: ctx.Repo().Owner.Name, Name: repository.Name, DefaultBranch: repository.DefaultBranch, Permission: "read"},
+-		Active:     !grant.Revoked, Operations: []string{extension.DesktopRepositoryRead}}
++		Active:     !grant.Revoked, Operations: []string{extension.DesktopRepositoryRead}, RuntimeBound: grant.ProofSHA256 != ""}
+ }
+ 
+ func EnrollDesktopGrant(ctx *context.APIContext) {
+@@ -59,11 +78,14 @@ func EnrollDesktopGrant(ctx *context.APIContext) {
+ 	decoder := json.NewDecoder(http.MaxBytesReader(ctx.Resp, ctx.Req.Body, 4096))
+ 	decoder.DisallowUnknownFields()
+ 	var trailing any
+-	if decoder.Decode(&request) != nil || decoder.Decode(&trailing) != io.EOF || !desktopID.MatchString(request.CommandID) || !desktopID.MatchString(request.RuntimeID) {
++	if decoder.Decode(&request) != nil || decoder.Decode(&trailing) != io.EOF || !desktopID.MatchString(request.CommandID) || !desktopID.MatchString(request.RuntimeID) || (request.ProofSHA256 != "" && !desktopProof.MatchString(request.ProofSHA256)) {
+ 		ctx.Error(http.StatusBadRequest, "desktop enrollment", errors.New("bounded command and runtime identities required"))
+ 		return
+ 	}
+-	grant, created, err := desktopgrant.Enroll(ctx, &desktopgrant.Grant{ID: request.CommandID, ActorID: ctx.Doer().ID, OAuthGrantID: authorization.ID, RepositoryID: ctx.Repo().Repository.ID, RuntimeID: request.RuntimeID})
++	if !desktopProofAdmitted(ctx, request.ProofSHA256) {
++		return
++	}
++	grant, created, err := desktopgrant.Enroll(ctx, &desktopgrant.Grant{ID: request.CommandID, ActorID: ctx.Doer().ID, OAuthGrantID: authorization.ID, RepositoryID: ctx.Repo().Repository.ID, RuntimeID: request.RuntimeID, ProofSHA256: request.ProofSHA256})
+ 	if errors.Is(err, desktopgrant.ErrConflict) {
+ 		ctx.Error(http.StatusConflict, "desktop enrollment", err)
+ 		return
+@@ -98,6 +120,9 @@ func currentDesktopGrant(ctx *context.APIContext) (*desktopgrant.Grant, *auth_mo
+ 		ctx.Error(http.StatusInternalServerError, "desktop enrollment", errors.New("enrollment storage unavailable"))
+ 		return nil, nil, false
+ 	}
++	if !desktopProofAdmitted(ctx, grant.ProofSHA256) {
++		return nil, nil, false
++	}
+ 	return grant, app, true
+ }
+ 
+diff --git a/sdk/desktop_grants.go b/sdk/desktop_grants.go
+index ce1c950063..00d720055e 100644
+--- a/sdk/desktop_grants.go
++++ b/sdk/desktop_grants.go
+@@ -6,8 +6,9 @@ package extensions
+ // DesktopGrantEnrollment selects one repository and native runtime. The host
+ // supplies the account and OAuth application from authenticated request state.
+ type DesktopGrantEnrollment struct {
+-	CommandID string `json:"command_id"`
+-	RuntimeID string `json:"runtime_id"`
++	CommandID   string `json:"command_id"`
++	RuntimeID   string `json:"runtime_id"`
++	ProofSHA256 string `json:"proof_sha256,omitempty"`
+ }
+ 
+ // DesktopGrant is enrollment metadata, never a bearer credential. Every use
+@@ -21,6 +22,7 @@ type DesktopGrant struct {
+ 	Repository    Repository `json:"repository"`
+ 	Active        bool       `json:"active"`
+ 	Operations    []string   `json:"operations"`
++	RuntimeBound  bool       `json:"runtime_bound"`
+ }
+ 
+ const DesktopRepositoryRead = "repository.read"
+diff --git a/tests/integration/oauth_test.go b/tests/integration/oauth_test.go
+index c079bf28fa..e1d7ffc8c2 100644
+--- a/tests/integration/oauth_test.go
++++ b/tests/integration/oauth_test.go
+@@ -6,12 +6,17 @@ package integration
+ import (
+ 	"bytes"
+ 	"crypto/sha256"
++	"crypto/tls"
+ 	"encoding/base64"
++	"encoding/hex"
+ 	"fmt"
+ 	"io"
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"net/url"
++	"os"
++	"os/exec"
++	"path/filepath"
+ 	"strings"
+ 	"testing"
+ 	"time"
+@@ -1994,4 +1999,37 @@ func TestNativeDesktopEnrollment(t *testing.T) {
+ 	var retained extension.DesktopGrant
+ 	DecodeJSON(t, readback, &retained)
+ 	require.False(t, retained.Active)
++
++	// A shared OAuth grant cannot substitute for the native profile proof.
++	proof := strings.Repeat("c", 64)
++	proofDigest := sha256.Sum256([]byte(proof))
++	input.CommandID = strings.Repeat("d", 32)
++	input.ProofSHA256 = hex.EncodeToString(proofDigest[:])
++	MakeRequest(t, NewRequestWithJSON(t, http.MethodPost, base, input).SetHeader("Authorization", "Bearer "+tokens.AccessToken), http.StatusForbidden)
++	bound := MakeRequest(t, NewRequestWithJSON(t, http.MethodPost, base, input).SetHeader("Authorization", "Bearer "+tokens.AccessToken).SetHeader("X-Factory-Desktop-Proof", proof), http.StatusCreated)
++	var binding extension.DesktopGrant
++	DecodeJSON(t, bound, &binding)
++	require.True(t, binding.RuntimeBound)
++	for _, method := range []string{http.MethodGet, http.MethodDelete} {
++		MakeRequest(t, NewRequest(t, method, base+"/"+binding.ID).SetHeader("Authorization", "Bearer "+tokens.AccessToken), http.StatusForbidden)
++	}
++	MakeRequest(t, NewRequest(t, http.MethodGet, base+"/"+binding.ID+"/repository").SetHeader("Authorization", "Bearer "+tokens.AccessToken), http.StatusForbidden)
++	require.NotContains(t, bound.Body.String(), proof)
++
++	if checker := os.Getenv("FACTORY_FOUNTAIN_NATIVE_CHECK"); checker != "" {
++		root := os.Getenv("FACTORY_FOUNTAIN_NATIVE_ROOT")
++		require.True(t, filepath.IsAbs(root) && strings.HasPrefix(root, "/home/"))
++		keyPair, err := tls.LoadX509KeyPair(filepath.Join(root, "server.pem"), filepath.Join(root, "server.key"))
++		require.NoError(t, err)
++		server := httptest.NewUnstartedServer(testWebRoutes)
++		server.TLS = &tls.Config{Certificates: []tls.Certificate{keyPair}, MinVersion: tls.VersionTLS12}
++		server.StartTLS()
++		defer server.Close()
++		command := exec.CommandContext(t.Context(), checker, "--fountain-desktop-declared", filepath.Join(root, "profile"), server.URL, clientID)
++		command.Env = append(os.Environ(), "SSL_CERT_FILE="+filepath.Join(root, "ca.pem"))
++		command.Stdin = strings.NewReader(tokens.AccessToken)
++		output, err := command.CombinedOutput()
++		t.Log(string(output))
++		require.NoError(t, err)
++	}
+ }
+-- 
+2.52.0
+
