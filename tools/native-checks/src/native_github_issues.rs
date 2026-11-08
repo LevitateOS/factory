@@ -423,9 +423,9 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         };
         if refinement {
             refine(&runtime,"refine-native-request")?;
-            ensure(posts(&io)?==2,"request refinement replay duplicated its write")?;
+            ensure(posts(&io)?==1,"unsupported request refinement sent a provider write")?;
         }
-        let expected_writes=if refinement {2}else{1};
+        let expected_writes=1;
         let replay = call(
             &runtime,
             &store,
@@ -453,16 +453,16 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
         )?;
         if refinement {
             refine(&runtime,"refine-native-request")?;
-            ensure(posts(&io)?==2,"retained refinement restart repeated its write")?;
+            ensure(posts(&io)?==1,"retained unsupported refinement sent a write")?;
             let issue_path=format!("{base}/issues/{}",settled["issue"].as_i64().ok_or("created issue number absent")?);
             let before=call(&runtime,&store,&connection,"GET",&issue_path,&[]).await?;
-            ensure(before.0==200 && before.1["title"]=="Refined request π" && before.1["body"]=="A declared refined task.\nKeep exact bytes 🍵.","refined issue lost exact content")?;
+            ensure(before.0==200 && before.1["title"]!="Refined request π","refused refinement changed the original title")?;
             let human="Human-authored change: preserve this exact text 🍵.";
-            let body=serde_json::to_vec(&json!({"command_id":"e".repeat(32),"body":human,"expected":{"external_id":before.1["ref"]["external_id"],"title":before.1["title"],"body_digest":sha(before.1["body"].as_str().ok_or("issue body absent")?)}}))?;
+            let body=serde_json::to_vec(&json!({"command_id":"e".repeat(32),"body":human}))?;
             completed(&call(&runtime,&store,&connection,"POST",&format!("{issue_path}/edits"),&body).await?,"committed")?;
             refine(&runtime,"refine-native-request-blocked")?;
             let after=call(&runtime,&store,&connection,"GET",&issue_path,&[]).await?;
-            ensure(after.0==200 && after.1["body"]==human && posts(&io)?==3,"refinement replaced human writing or sent another mutation")?;
+            ensure(after.0==200 && after.1["body"]==human && posts(&io)?==2,"refinement replaced human writing or sent another mutation")?;
         }
         store.withdraw(&connection).await?;
         ensure(
@@ -476,14 +476,14 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             )
             .await
             .is_err()
-                && posts(&io)? == if refinement {3}else{1},
+                && posts(&io)? == if refinement {2}else{1},
             "withdrawn request account admitted another effect",
         )?;
         runtime.stop()?;
         fs::write(
             root.join("request-capture-result.json"),
             serde_json::to_vec_pretty(
-                &json!({"native_post":post,"issue":settled["issue"],"created_once":true,"replay":true,"restart":true,"withdrawal":true,"refinement":if refinement {"conditional_edit_replay_human_change_refusal"}else{"prerequisite_wait"},"provider_facts":"declared","routing":"declared"}),
+                &json!({"native_post":post,"issue":settled["issue"],"created_once":true,"replay":true,"restart":true,"withdrawal":true,"refinement":if refinement {"unsupported_conditional_edit_held_human_content_preserved"}else{"prerequisite_wait"},"provider_facts":"declared","routing":"declared"}),
             )?,
         )?;
         println!("PASS: native request captures its admitted account/source and creates exactly one issue through the real journal/connector; replay, restart and withdrawal preserve it; conditional refinement checks are explicit in the result. Provider facts and authoring are declared; no model, connected or installed gate closed.");

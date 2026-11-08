@@ -21,6 +21,7 @@ type nativeEditWrite struct {
 	Body               *string `json:"body"`
 	OriginalTitle      string  `json:"original_title"`
 	OriginalBodySHA256 string  `json:"original_body_sha256"`
+	RequireUnchanged   bool    `json:"require_unchanged,omitempty"`
 }
 type nativeEditPreparation struct {
 	Version  int             `json:"version"`
@@ -180,6 +181,10 @@ func (s nativeHumanEdits) SubmitHumanEdit(ctx context.Context, c factory.HumanEd
 	if err != nil {
 		return empty, err
 	}
+	// This requirement derives from the immutable command, including historical
+	// captures which predate the native flag. Lookup still adopts only original
+	// receipts; an unknown dispatch never reaches this new-send boundary.
+	p.Edit.RequireUnchanged = c.Request.Expected != nil
 	outcome, err := s.callHumanEffect(ctx, nativeEditEffect{Kind: "edit_discussion", CommandID: c.OperationID, Digest: cmd.Digest, NotAfter: p.NotAfter, Edit: p.Edit}, cmd, p.Edit.Repository, factoryservice.ErrHumanEditConflict)
 	if err != nil {
 		return empty, err

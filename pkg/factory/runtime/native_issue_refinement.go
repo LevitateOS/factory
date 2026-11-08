@@ -78,7 +78,13 @@ func (s *nativeIssueEffects) AuthorizeIssueMaker(ctx context.Context, scope fact
 	}
 	// Provider reads must not extend the captured source's lifetime or reinstate a
 	// withdrawn request before the role is admitted to paid execution.
-	return s.currentSource(ctx, proof, raw)
+	if err := s.currentSource(ctx, proof, raw); err != nil {
+		return err
+	}
+	// The native GitHub connector cannot condition updateIssue on this observed
+	// body. Hold before paid refinement, rather than promise preservation across
+	// the gap between its read and unconditional mutation.
+	return factoryservice.ErrCapturedIssueUnavailable
 }
 
 func (s *nativeIssueEffects) refineIssue(ctx context.Context, proof nativeIssueIntakeProof, raw json.RawMessage, account *nativeProductAccount, mutation factory.IssueMakerMutation) (factory.IssueMakerReceipt, error) {

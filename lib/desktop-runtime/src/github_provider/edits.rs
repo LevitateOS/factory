@@ -25,6 +25,8 @@ pub struct DiscussionEdit {
     pub body: Option<String>,
     pub original_title: String,
     pub original_body_sha256: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub require_unchanged: bool,
 }
 impl DiscussionEdit {
     pub fn validate(&self) -> Result<(), Failure> {
@@ -74,6 +76,12 @@ impl Client {
     ) -> WriteOutcome {
         self.run_mutation(deadline, |mutation| async move {
             edit.validate()?;
+            // GitHub updateIssue/updatePullRequest have no expected revision
+            // input. A read before their unconditional update cannot protect a
+            // human edit during I/O. Never send a promised conditional update.
+            if edit.require_unchanged {
+                return Err(Failure::new(422, "github_conditional_edit_unavailable"));
+            }
             if !remote_id(expected) {
                 return Err(Failure::new(400, "invalid_native_write"));
             }

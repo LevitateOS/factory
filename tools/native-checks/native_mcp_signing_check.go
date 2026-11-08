@@ -8568,13 +8568,12 @@ func nativeRequestRefinementFixture(profile, instance, post, phase string) error
 		fmt.Println("PASS: request refinement refuses human-edited base before paid admission and conditional submission; unowned issue key refused; no replacement or model")
 		return nil
 	}
-	if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
-		return fmt.Errorf("native request refinement admission: %w", err)
+	if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); !errors.Is(err, factoryservice.ErrCapturedIssueUnavailable) {
+		return fmt.Errorf("unsupported conditional refinement did not hold before paid admission: %v", err)
 	}
 	for range 2 {
-		number, err := effects.Mutate(ctx, progress.Scope, "refine", "request", title, body, "declared-refinement")
-		if err != nil || number != progress.Scope.Issue {
-			return fmt.Errorf("native conditional refinement/replay: %w", err)
+		if _, err := effects.Mutate(ctx, progress.Scope, "refine", "request", title, body, "declared-refinement"); !errors.Is(err, factoryservice.ErrPostEffectUnknown) {
+			return fmt.Errorf("unsupported conditional mutation/replay did not retain refusal: %v", err)
 		}
 	}
 	current, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
@@ -8583,14 +8582,14 @@ func nativeRequestRefinementFixture(profile, instance, post, phase string) error
 	}
 	found := false
 	for _, issue := range current.Issues {
-		if issue.Key == "request" && issue.Index == progress.Scope.Issue && issue.Title == title && issue.BodyDigest == factory.MCPInputDigest([]byte(body)) {
+		if issue.Key == "request" && issue.Index == progress.Scope.Issue && issue.Title != title {
 			found = true
 		}
 	}
 	if !found {
-		return errors.New("native refinement lost exact scope or resulting body digest")
+		return errors.New("refused native refinement replaced its original creation")
 	}
-	fmt.Println("PASS: actual native request-scoped conditional refinement and same-step replay retain the original creation identity and update the existing Issue Maker journal; authoring/provider facts declared, no model")
+	fmt.Println("PASS: native request holds unsupported conditional refinement before paid admission; direct original-step refusal/replay preserves the creation journal and writing; provider facts declared, no model")
 	return nil
 }
 

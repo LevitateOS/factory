@@ -45,9 +45,16 @@ pub(super) async fn producer(profile: &Path) -> Result<()> {
         body: Some("Original human writing 🍵\n[link](relative.md)".repeat(256)),
         original_title: "Owned fixture subject".into(),
         original_body_sha256: sha("Original description π\n"),
+        require_unchanged: false,
     };
     let mut owner = tokio::task::spawn_blocking(Owner::start).await??;
     let client = owner.client();
+    let mut conditional = edit();
+    conditional.require_unchanged = true;
+    let before = posts(&io)?;
+    let refused = client.edit_discussion(token()?, "321", &conditional).await;
+    ensure(matches!(refused,WriteOutcome::NotSent(ref failure) if failure.status==422 && failure.code=="github_conditional_edit_unavailable") && posts(&io)?==before,"conditional edit sent an unconditional provider write")?;
+    println!("PASS: required unchanged-content edit is unavailable before provider I/O; no conditional GitHub CAS is invented");
     let mut cases = Vec::new();
     for name in [
         "issue-full",
