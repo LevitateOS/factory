@@ -1,5 +1,11 @@
 # Standalone Factory assumptions audit
 
+Current remaining tasks, dependencies and qualification obligations are
+consolidated in the [central task list](implementation-tasks.md). This audit
+retains findings, owner decisions and scoped evidence. Its earlier correction
+order and recommendations do not supersede that current task list or later
+owner decisions.
+
 2026-11-06. Source baseline: `aa6b6d9`; the working tree was clean when this
 audit started. Scope: requirements, authority, supported workflows, runtime,
 UI and delivery assumptions across standalone Factory and its shared consumers.

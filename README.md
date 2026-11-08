@@ -7,8 +7,9 @@ This repository imports the implementation in progress from SodaOS. It is not a
 completed or released desktop product. Connected GitHub sign-in, account/repository
 binding and human issue/PR reads and writes have recorded qualification. Real
 Muse task checks have scoped evidence; full automated intake/delivery and
-installed distribution remain unqualified. The dependency-ordered backlog is in
-[the implementation plan](docs/development/factory-products/implementation-tasks.md).
+installed distribution remain unqualified. All remaining integration, security,
+qualification and release work is consolidated in
+[the central task list](docs/development/factory-products/implementation-tasks.md).
 
 The Go engine lives in public `pkg/` packages under
 `github.com/levitateos/factory`. The native backend does not depend on the SodaOS

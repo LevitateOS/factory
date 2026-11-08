@@ -9,6 +9,12 @@ Routine security implementation/checks belong to normal coding agents. Use a
 user-started Daybreak session only when work or a check looks like hacking.
 A build, fixture, source review or component probe cannot qualify another scope.
 
+All remaining implementation, connected/installed qualification and security
+closure tasks are consolidated in the
+[central task list](implementation-tasks.md#unfinished-integration-and-qualification),
+including a [mapping of all 13 gates](implementation-tasks.md#security-closure-coverage).
+Keep this handoff as the evidence register; update task status/order there.
+
 The complete prior handoff, including all original requirements, attempts,
 uncertain outcomes and evidence paths, is retained in exact Factory Git object
 `fe40c5ef51d1f6be0b541efa1a9d8f723d7092da:docs/development/factory-products/daybreak-security-handoff.md`.
