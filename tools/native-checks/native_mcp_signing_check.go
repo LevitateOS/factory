@@ -1296,6 +1296,8 @@ func main() {
 				expectedSources = 64
 			} else if os.Args[3] == "check-refused-onboarded-setup" {
 				expectedSources = 0
+			} else if os.Args[3] == "check-legacy-onboarded-setup" {
+				expectedSources = -1
 			}
 			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"), expectedSources)
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
@@ -1419,6 +1421,30 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 	preparations, err := db.StandingProjectPreparations(ctx, grant.Project)
 	if err != nil {
 		return err
+	}
+	if expectedSources == -1 {
+		requirement, err := db.RequirementDecision(ctx, approval.Requirement)
+		if err != nil {
+			return err
+		}
+		requirements, err := db.RequirementDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		approvals, err := db.ApprovalDepth(ctx, grant.Project)
+		if err != nil {
+			return err
+		}
+		if requirements != 1 || approvals != 1 || requirement.Validate() != nil || approval.Validate() != nil || requirement.Recipe == nil || requirement.Recipe.CommandDigest != "" || len(preparations) == 0 || len(preparations) > 2 {
+			return errors.New("original legacy consent records changed or acquired command provenance")
+		}
+		for _, prep := range preparations {
+			if prep.Native == nil || prep.Native.InstanceID == instance || prep.Preparation.Requirements.ID != requirement.ID || prep.Preparation.Approval.ID != approval.ID {
+				return errors.New("legacy retry admitted a new native preparation")
+			}
+		}
+		fmt.Println("PASS: original legacy requirement/approval remain valid without command provenance; only historical preparations, no new native admission")
+		return nil
 	}
 	if expectedSources == 2 || expectedSources == 64 {
 		current := preparations[:0]

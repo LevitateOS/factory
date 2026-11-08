@@ -268,9 +268,12 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         body: JSON.stringify({command_id: command.command_id, ...command.payload}),
       });
       if (!response.ok) {
-        if (response.status === 422) {
+        if (response.status === 422 || response.status === 409) {
           const refused = object(await readSodaJSON(response));
-          if (object(refused.error).code === 'invalid_setup_input') {
+          const code = object(refused.error).code;
+          if (response.status === 409 && code === 'setup_recovery_unavailable')
+            throw new Error('This saved approval predates exact command receipts. Automatic recovery is unavailable. Its records are preserved and setup was not replayed.');
+          if (response.status === 422 && code === 'invalid_setup_input') {
             record.settle(command);
             const saved = record.read();
             if (this.live(context, signal)) { this.command = saved.pending; this.recoveryBlocked = saved.blocked; }

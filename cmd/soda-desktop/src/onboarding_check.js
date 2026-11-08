@@ -81,6 +81,27 @@
     const setup = document.querySelector('soda-factory-workspace-setup');
     await click(setup, 'Refresh workspace setup');
     await until(() => !setup.busy && setup.view?.available, 'setup available');
+    if (fixture.legacy_pending) {
+      stage = 'legacy approval recovery refusal';
+      assert(setup.command && setup.view.requirement && setup.view.approval &&
+        setup.view.preparations.every(row => !row.current), 'legacy pending approval or historical observations missing');
+      const saved = JSON.stringify(setup.command), before = JSON.stringify(setup.view.preparations);
+      const requirement = setup.view.requirement, approval = setup.view.approval;
+      const retry = button(setup, 'Retry saved approval');
+      retry.closest('form').querySelector('input[type=checkbox]').click();
+      await click(setup, 'Retry saved approval');
+      await until(() => !setup.busy, 'legacy refusal settled');
+      assert(approvalReply.startsWith('409 ') && approvalReply.includes('setup_recovery_unavailable') &&
+        setup.message.includes('Automatic recovery is unavailable') && JSON.stringify(setup.command) === saved,
+        'legacy approval replayed or lost its recovery record: ' + approvalReply + ' ' + setup.message);
+      await click(setup, 'Refresh workspace setup');
+      await until(() => !setup.busy, 'legacy observations settled');
+      assert(setup.view.requirement === requirement && setup.view.approval === approval &&
+        JSON.stringify(setup.view.preparations) === before && JSON.stringify(setup.command) === saved,
+        'legacy refusal changed consent, preparations or pending command');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.reopen) {
       stage = 'retained approval recovery';
       if (fixture.resume_review) {

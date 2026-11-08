@@ -12,6 +12,7 @@ import (
 )
 
 var ErrWorkspaceSetupInput = errors.New("invalid reviewed workspace setup input")
+var ErrWorkspaceSetupRecovery = errors.New("saved workspace setup lacks exact command provenance")
 
 // WorkspaceSetup is the exact source and editable recipe presented for owner
 // review. Observations report actual native work separately from that consent.

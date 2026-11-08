@@ -66,6 +66,10 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
+		if errors.Is(err, factoryservice.ErrWorkspaceSetupRecovery) {
+			writeError(w, http.StatusConflict, "setup_recovery_unavailable", "This saved approval predates exact command receipts. Its outcome cannot be recovered automatically; its records are preserved and setup was not replayed.")
+			return
+		}
 		if errors.Is(err, factoryservice.ErrWorkspaceSetupInput) {
 			writeError(w, http.StatusUnprocessableEntity, "invalid_setup_input", "Review the scripts, tools, source selection and limits. No setup approval was recorded.")
 			return

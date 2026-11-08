@@ -158,7 +158,9 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 let instance = state.runtime.lock().unwrap().as_ref()
                     .and_then(|owner| owner.health().ok()).ok_or("onboarding native instance missing")?.instance;
                 let result = tokio::process::Command::new(root.join("onboarding-check"))
-                    .arg(&state.paths.profile).arg(instance).arg(if fixture["source_paths"].as_array().is_some_and(|paths| paths.len() == 64) {
+                    .arg(&state.paths.profile).arg(instance).arg(if fixture["legacy_pending"] == true {
+                        "check-legacy-onboarded-setup"
+                    } else if fixture["source_paths"].as_array().is_some_and(|paths| paths.len() == 64) {
                         "check-ui64-onboarded-setup"
                     } else { "check-ui-onboarded-setup" })
                     .arg(repository).output().await.map_err(|_| "onboarding inspection unavailable")?;
@@ -171,6 +173,19 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
             }
             if fixture["mode"] == "onboarding" {
+                if fixture["legacy_pending"] == true {
+                    write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                        "real_github": true,
+                        "production_ui_ipc_go_pg_native": true,
+                        "legacy_pending_recovery_unavailable": true,
+                        "original_command_and_observations_preserved": true,
+                        "setup_replayed": false,
+                        "owned_account_removed": !retained,
+                        "installed_qualified": false,
+                        "q07_complete": false,
+                    }))?;
+                    return Ok::<(), String>(());
+                }
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
                     "real_github": true,
                     "production_ui_ipc_go_pg_native": true,

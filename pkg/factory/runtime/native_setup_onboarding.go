@@ -261,15 +261,15 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 			}
 			return b.ReadSetup(ctx, actor, repository, setupPaths(in.SourceInputs))
 		}
-		// Preserve exact admission for older recipes whose original full
-		// command was never captured; do not invent a receipt for them.
-		commandDigest = ""
+		// Older decisions cannot identify the full original command. Keep
+		// their observations, but never turn an uncertain retry into setup I/O.
+		return empty, factoryservice.ErrWorkspaceSetupRecovery
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, err
 	} else {
 		requirement, readErr := b.store.RequirementDecision(ctx, identity("d", "requirements"))
-		if readErr == nil && requirement.Recipe != nil && requirement.Recipe.CommandDigest == "" {
-			commandDigest = ""
+		if readErr == nil && (requirement.Recipe == nil || requirement.Recipe.CommandDigest == "") {
+			return empty, factoryservice.ErrWorkspaceSetupRecovery
 		} else if readErr != nil && !errors.Is(readErr, store.ErrNotFound) {
 			return empty, readErr
 		}
