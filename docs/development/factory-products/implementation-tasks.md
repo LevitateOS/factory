@@ -25,7 +25,7 @@ Q01 is Complete within its source/native scope. Q02 is Complete within its
 source/component scope; Q03 is Complete within its configuration/admission scope.
 Q04 is Complete within local placement scope; Q05 is Complete within ordinary
 boundary admission scope; Q06 is Complete within ordinary preparation scope;
-Q07 is Active.
+Q07 is Blocked on fixture-comment permission.
 Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
@@ -100,7 +100,7 @@ recording any newly proved current conclusion separately.
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Complete (local placement scope) |
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Complete (ordinary boundary admission scope) |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Complete (ordinary preparation scope) |
-| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Active |
+| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Blocked (fixture-comment permission) |
 | [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Pending |
 | [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Pending |
 | [Q10](#q10) | Connected GitHub permissions and remote revocation | T06-GITHUB; A14; custody and pending reviewer work | Pending |
@@ -292,9 +292,14 @@ body limit, bounded source reads, pre-consent planning-size refusal and real
 64-file preparation/material readback. `a312951` explicitly refuses automatic
 recovery of legacy commands lacking exact provenance; the actual retained-profile
 UI check preserves their pending command and historical decisions without replay.
-Q07 remains Active: nonempty comment/dependency acceptance and hidden/stale
-acceptance inputs remain open. Fixture-comment permission is
-pending; no message was posted.
+Q07 is Blocked: nonempty comment/dependency acceptance and hidden/stale
+acceptance inputs remain open. The exact pending permission is for one comment
+on [disposable issue 3](https://github.com/LevitateOS/factory-team-public-check-20261106/issues/3).
+Read-only revalidation found ordinary fixture issues 3 and 5 still have zero
+comments; the fallback search found only unrelated Soda OS issues. Posting the
+comment requires explicit permission under the developer messaging instructions.
+An existing commented fixture designated by the user is an alternative. No
+message was posted; Q08–Q30 remain pending.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
 ```text

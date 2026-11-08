@@ -1284,6 +1284,19 @@ passed (`q07-legacy-*.log`); all six original dirty edit sets remain exact.
 acceptance-input journey still await the pending exact fixture-comment permission.
 No comment or model call ran. Q08–Q30 and all 13 security gates remain open.
 
+### Q07 blocked on the real comment fixture
+
+Read-only GitHub revalidation on 2026-11-08 confirms the owned fixture's ordinary
+issues 3 and 5 both have zero comments. The fallback search found only unrelated
+Soda OS issues. The same exact fixture-comment permission remains unanswered
+across successive goal turns; developer instructions prohibit posting a message
+without explicit authorization. Q07 is **BLOCKED** on that permission or a
+user-designated existing commented fixture. Nonempty comment/dependency acceptance
+and hidden/stale acceptance-input qualification remain unfinished. No provider
+message was posted, no model ran, Q08–Q30 remain pending and all 13 security gates
+remain open. Verified implementation and the six original dirty edit sets are
+unchanged by this status update.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
