@@ -298,6 +298,12 @@ async fn credential_withdraw(
 }
 fn open(app: &tauri::AppHandle, label: &str) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(label) {
+        // GTK can leave a mapped iconified window hidden after deiconify.
+        // Clear its iconified state before remapping through the normal opener.
+        if window.is_minimized().unwrap_or(false) {
+            window.hide().map_err(|_| "window unavailable")?;
+            window.unminimize().map_err(|_| "window unavailable")?;
+        }
         window.show().map_err(|_| "window unavailable")?;
         let _ = window.unminimize();
         let _ = window.set_focus();

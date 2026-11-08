@@ -1655,6 +1655,8 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         assert((await request(selected.session,root+'/issues?state=all&limit=1')).status===200,'bound issue reads unavailable');
         assert((await request(selected.session,root+'/pulls/165146')).status===200,'bound PR reads unavailable');
         const statuses=await request(selected.session,root+'/pulls/165146/checks?limit=1');
+        const changedProtection=__SESSION_LIFECYCLE__&&statuses.status===409&&statuses.body.error?.code==='check_changed';
+        if(!changedProtection){
         assert(statuses.status===200,'canonical protection unavailable: '+statuses.status);
         const policy=statuses.body.protection;
         assert(statuses.body.kind==='status'&&statuses.body.status_gate==='unknown'&&policy&&policy.repository===selected.repository.id&&policy.branch&&policy.observation.state==='available','canonical protection scope differs');
@@ -1662,8 +1664,9 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         if(!policy.classic_visible||!policy.rules_visible)assert(policy.requirements_complete===false&&policy.required_contexts===null&&policy.required_approvals===null,'unavailable protection invented complete requirements');
         for(const required of policy.required_checks??[])assert(required.context&&['any','app','unknown'].includes(required.source)&&(required.source==='app'?/^[1-9][0-9]*$/.test(required.app):!required.app),'required check lost app binding');
         for(const status of statuses.body.checks.items)assert(status.required===null,'status read invented requiredness');
+        }
         assert((await request(selected.session,root+'/pulls/165146/checks?limit=1&head='+'1'.repeat(40))).status===409,'changed canonical protection head admitted');
-        await invoke('report',{stage:'signin-evidence-observed',error:null});
+        await invoke('report',{stage:changedProtection?'signin-evidence-changed':'signin-evidence-observed',error:null});
         const jobs=await request(selected.session,root+'/pulls/165146/checks/jobs?limit=1');
         assert(jobs.status===200&&jobs.body.kind==='job'&&jobs.body.status_gate==='unknown','job read invented a CI gate');
         let completions=0;const channel=new window.__TAURI__.core.Channel();channel.onmessage=()=>completions++;
@@ -1709,6 +1712,38 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         assert(document.querySelector('soda-factory-issue-create input').value!==title,'repository draft leaked');
         await openRepository('rust-lang/rust');nav('New issue');
         await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'original repository draft restored');
+        if(__SESSION_LIFECYCLE__){
+          const repositorySelect=document.querySelector('#factory-repository');
+          const selectedRepository=repositorySelect.value;
+          const visibility=[];
+          const observeVisibility=()=>visibility.push(document.hidden);
+          document.addEventListener('visibilitychange',observeVisibility);
+          await invoke('report',{stage:'signin-session-minimize',error:null});
+          await until(async()=>{try{await invoke('report',{stage:'signin-session-minimize-restored',error:null});return true;}catch{return false;}},'native minimize/restore');
+          visibility.length=0;
+          await invoke('report',{stage:'signin-session-hide',error:null});
+          await until(()=>!document.hidden&&visibility.includes(true)&&visibility.at(-1)===false,'native hide/restore');
+          document.removeEventListener('visibilitychange',observeVisibility);
+          await until(()=>document.querySelector('#connection-status').textContent==='Connected to rust-lang/rust.','restored native selection');
+          assert(accountSelect.value===__CONNECTION__&&repositorySelect.value===selectedRepository,'hide/restore lost selection');
+          nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'hide/restore draft');
+          for(const cycle of [1,2]){
+            await invoke('report',{stage:'signin-session-unavailable-'+cycle,error:null});
+            await until(()=>accountSelect.disabled&&document.querySelector('#connection-reconnect').disabled&&document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'unavailable account retires product');
+            assert(accountSelect.value===__CONNECTION__&&repositorySelect.value===selectedRepository,'unknown status erased selection');
+            assert(document.querySelector('#github-accounts button').disabled,'unknown status left stale account action enabled');
+            if(cycle===2)document.querySelector('#connection-disconnect').click();
+            await invoke('report',{stage:'signin-session-retired-'+cycle,error:null});
+            await until(()=>!accountSelect.disabled,'current account status restored');
+            if(cycle===1){
+              await until(()=>document.querySelector('#connection-status').textContent==='Connected to rust-lang/rust.','status recovery reconnect');
+              nav('New issue');await until(()=>document.querySelector('soda-factory-issue-create input')?.value===title,'status recovery draft');
+            }else{
+              assert(accountSelect.value===''&&document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'explicit disconnect reconnected on recovery');
+            }
+          }
+          await invoke('report',{stage:'signin-session-complete',error:null});
+        }
         document.querySelector('#connection-disconnect').click();
         await until(()=>document.querySelector('soda-factory-app').textContent.includes('Choose an account to open Factory.'),'disconnected app');
         accountSelect.value=__CONNECTION__;accountSelect.dispatchEvent(new Event('change',{bubbles:true}));
@@ -1718,7 +1753,14 @@ async fn product_bridge_check(app: &tauri::AppHandle, connection: &str) -> Resul
         document.querySelector('#connection-disconnect').click();
         await invoke('report',{stage:'signin-product-complete',error:null});
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
-    })()"#.replace("__CONNECTION__", &serde_json::to_string(connection).map_err(|_| "connection encoding failed")?);
+    })()"#
+    .replace(
+        "__SESSION_LIFECYCLE__",
+        if app.state::<Desktop>().paths.profile.parent().is_some_and(|root| {
+            root.join("session-lifecycle-check").is_file()
+        }) { "true" } else { "false" },
+    )
+    .replace("__CONNECTION__", &serde_json::to_string(connection).map_err(|_| "connection encoding failed")?);
     app.get_webview_window("main")
         .ok_or("main window missing")?
         .eval(&script)
@@ -1754,6 +1796,90 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         }
         return std::fs::write(io.join("mode"), mode).map_err(|_| "fixture mode failed".into());
     }
+    if stage.starts_with("signin-session-") {
+        ensure(
+            root.join("session-lifecycle-check").is_file(),
+            "session lifecycle driver unavailable",
+        )?;
+        match stage {
+            "signin-session-minimize" | "signin-session-hide" => {
+                let window = app
+                    .get_webview_window("main")
+                    .ok_or("main window missing")?;
+                let minimize = stage == "signin-session-minimize";
+                if minimize {
+                    window.minimize().map_err(|_| "session minimize failed")?;
+                } else {
+                    window.hide().map_err(|_| "session hide failed")?;
+                }
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if minimize {
+                        let mut observed = false;
+                        for _ in 0..80 {
+                            if window.is_minimized().unwrap_or(false) {
+                                observed = true;
+                                break;
+                            }
+                            tokio::time::sleep(Duration::from_millis(25)).await;
+                        }
+                        if !observed {
+                            eprintln!("Native minimization was not observed");
+                            app.exit(1);
+                            return;
+                        }
+                    }
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    if !app.state::<Desktop>().quitting.load(Ordering::SeqCst) {
+                        if open(&app, "main").is_err() {
+                            app.exit(1);
+                            return;
+                        }
+                        if minimize {
+                            for _ in 0..80 {
+                                if window.is_minimized().ok() == Some(false) {
+                                    if write_consent_evidence(&app, "signin-session-minimize-restored", &serde_json::json!({"native_window_minimization_observed":true})).is_err() {
+                                        app.exit(1);
+                                    }
+                                    return;
+                                }
+                                tokio::time::sleep(Duration::from_millis(25)).await;
+                            }
+                            eprintln!("Native restoration was not observed");
+                            app.exit(1);
+                        }
+                    }
+                });
+                return Ok(());
+            }
+            "signin-session-minimize-restored" => {
+                return ensure(root.join(stage).is_file(), "native minimize/restore still pending");
+            }
+            "signin-session-unavailable-1"
+            | "signin-session-retired-1"
+            | "signin-session-unavailable-2"
+            | "signin-session-retired-2" => {
+                return write_consent_evidence(app, stage, &serde_json::json!({"ready":true}));
+            }
+            "signin-session-complete" => {
+                return write_consent_evidence(
+                    app,
+                    "session-lifecycle-result.json",
+                    &serde_json::json!({
+                        "actual_native_webkit_hide_restore":true,
+                        "actual_native_window_minimize_restore":true,
+                        "actual_keyring_service_outage_recovery":true,
+                        "unknown_status_holds_product_and_preserves_selection":true,
+                        "same_repository_draft_restored":true,
+                        "explicit_disconnect_prevents_reconnect":true,
+                        "historical_crash_cause_known":false,
+                        "installed_gate_qualified":false
+                    }),
+                )
+            }
+            _ => return Err("unknown native session control".into()),
+        }
+    }
     match stage {
         "signin-issue-read-complete" => {
             ensure(
@@ -1785,13 +1911,15 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
             .open(state.paths.profile.join("provider-revocation-ui-refused"))
             .map(|_| ())
             .map_err(|_| "revocation UI evidence unavailable".into()),
-        "signin-evidence-observed" => write_consent_evidence(
+        "signin-evidence-observed" | "signin-evidence-changed" => write_consent_evidence(
             app,
             "canonical-workflow-evidence.json",
             &serde_json::json!({
                 "actual_canonical_job_read":true,"actual_canonical_job_continuation":true,
                 "changed_job_head_refused":true,"invalid_job_cursor_refused":true,
-                "actual_canonical_protection_read":true,"unavailable_sources_stay_unknown":true,
+                "actual_canonical_protection_read":stage == "signin-evidence-observed",
+                "changed_protection_unavailable":stage == "signin-evidence-changed",
+                "unavailable_sources_stay_unknown":true,
                 "changed_protection_head_refused":true,"merge_gate_qualified":false
             }),
         ),

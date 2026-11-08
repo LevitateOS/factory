@@ -172,6 +172,14 @@ for an external driver to kill and relaunch against the retained profile. These
 hooks are absent from the normal `native-ui` executable. They do not qualify an
 installed package, OS sleep/wake, connected providers or executor retirement.
 
+With an isolated `execution-retry-check` marker beside its profile,
+`--check-startup-error` instead observes a real coordinator lock failure. The
+owned external driver holds `coordinator.lock` before launch, waits for
+`execution-retry-release`, releases its lock and creates `execution-retry-released`.
+The observer clicks production Retry execution, requires a new ready instance and
+successful coordinator start, and keeps any absent worker isolation explicitly
+unavailable before production Quit. This does not qualify worker isolation.
+
 `--check-resume` adds an observer for an external, isolated OS sleep/wake
 driver. With a fresh profile it writes `wake-ready` after native UI/IPC checks,
 then waits for `wake-complete`. The driver must commit/check real store data,
@@ -208,6 +216,20 @@ The consent check additionally exercises actual WebKit IPC for native connection
 repository paging/selection, canonical Go identity, feed/issue/PR reads, explicit
 request cancellation, disconnect and reconnect, then drives the actual shared
 feed/issues/detail and scoped draft views through the account/repository controls.
+For the current session-lifecycle check, the isolated external driver creates
+`session-lifecycle-check` next to the fresh profile before launch. The existing
+consent observer then minimizes/restores and hides/restores the actual native window and emits
+`signin-session-unavailable-1/2` markers. The driver stops only its own private
+Secret Service, waits for `signin-session-retired-1/2`, and restarts that same
+isolated encrypted keyring. Its private bus must not auto-activate a replacement
+Secret Service. The observer requires product retirement with preserved choices,
+fresh-status reconnect/draft recovery, and explicit Disconnect preventing later
+reconnection. Only after those assertions does it write
+`session-lifecycle-result.json`. This exercises source/native behavior, not
+installed qualification or a diagnosis of the unavailable historical crash.
+In this session-only opt-in, an actual `check_changed` refusal is retained as
+unavailable protection in `canonical-workflow-evidence.json`; it never counts as
+a successful canonical protection read or CI/merge qualification.
 It now also reads actual canonical workflow jobs and refuses changed heads or
 malformed continuations; unproved CI gates and local execution stay unavailable.
 Failed

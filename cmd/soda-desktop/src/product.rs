@@ -227,6 +227,14 @@ pub(super) async fn factory_connect(
             || !canonical(&reply.body["actor"])
             || !reply.body["host"].as_str().is_some_and(registry)
         {
+            #[cfg(feature = "native-check")]
+            eprintln!(
+                "Native check account connection refused: HTTP {}, code={:?}, canonical_actor={}, canonical_host={}",
+                reply.status,
+                reply.body["error"]["code"].as_str(),
+                canonical(&reply.body["actor"]),
+                reply.body["host"].as_str().is_some_and(registry)
+            );
             return Err("Factory account could not be connected".into());
         }
         let repository = if let Some(remote) = &selection.repository {

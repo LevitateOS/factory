@@ -428,6 +428,31 @@ pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
     }
     println!("Native desktop page loaded");
     if window.state::<Desktop>().check.scenario.startup_error {
+        if window
+            .state::<Desktop>()
+            .paths
+            .profile
+            .parent()
+            .is_some_and(|root| root.join("execution-retry-check").is_file())
+        {
+            let _ = window.eval(r#"(async()=>{
+                  const invoke=window.__TAURI__.core.invoke;
+                  const until=async check=>{for(let i=0;i<800;i++){const value=await check();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw Error('execution retry deadline');};
+                  try {
+                    const first=await until(async()=>{const s=await invoke('runtime_status');return s.phase==='ready'&&s.execution_error&&!document.querySelector('#retry').hidden&&s;});
+                    if(!document.querySelector('#runtime-status').textContent.includes('Agent execution is unavailable'))throw Error('execution failure was not visible');
+                    if(!document.querySelector('soda-factory-app').textContent.includes('Choose an account'))throw Error('execution failure removed browsing UI');
+                    await invoke('report',{stage:'execution-retry-release',error:null});
+                    await until(async()=>{try{await invoke('report',{stage:'execution-retry-released',error:null});return true;}catch{return false;}});
+                    document.querySelector('#retry').click();
+                    const current=await until(async()=>{const s=await invoke('runtime_status');return s.generation>first.generation&&s.phase==='ready'&&s.instance!==first.instance&&s.execution_error!==first.execution_error&&s;});
+                    await until(()=>document.querySelector('#retry').hidden===!current.execution_error);
+                    if(current.execution_error&&!document.querySelector('#runtime-status').textContent.includes('Agent execution is unavailable'))throw Error('remaining missing adapter was hidden');
+                    await invoke('report',{stage:'execution-retry-complete',error:null});
+                  }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
+                })()"#);
+            return;
+        }
         let _ = window.eval(r#"(async()=>{
           const invoke=window.__TAURI__.core.invoke;
           try {
@@ -492,6 +517,45 @@ pub fn report(
         eprintln!("Native desktop check failed: {error}");
         app.exit(1);
         return Ok(());
+    }
+    if state.check.scenario.startup_error && stage.starts_with("execution-retry-") {
+        let root = state
+            .paths
+            .profile
+            .parent()
+            .ok_or("fixture parent missing")?;
+        if !root.join("execution-retry-check").is_file() {
+            return Err("execution retry driver unavailable".into());
+        }
+        match stage.as_str() {
+            "execution-retry-release" => {
+                return std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(root.join("execution-retry-release"))
+                    .map(|_| ())
+                    .map_err(|_| "execution retry release marker failed".into());
+            }
+            "execution-retry-released" => {
+                return if root.join("execution-retry-released").is_file() {
+                    Ok(())
+                } else {
+                    Err("execution lock is still held".into())
+                };
+            }
+            "execution-retry-complete" => {
+                {
+                    let runtime = state.runtime.lock().unwrap();
+                    let owner = runtime.as_ref().ok_or("retried runtime missing")?;
+                    tauri::async_runtime::block_on(owner.start_execution_coordinator())?;
+                }
+                state.check.stage.store(2, Ordering::SeqCst);
+                println!("PASS: actual native execution-unavailable UI, production retry generation, successful coordinator start and Quit; missing worker isolation remains unavailable");
+                quit(app);
+                return Ok(());
+            }
+            _ => return Err("unknown execution retry stage".into()),
+        }
     }
     if state.check.scenario.github_writes
         && stage == "github-writes-complete"

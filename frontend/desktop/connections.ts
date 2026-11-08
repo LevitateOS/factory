@@ -44,6 +44,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     nextPage = 0;
   // Account/repository are user choices; selected is only the current binding.
   let resumeRequested = false;
+  let accountsCurrent = false;
   let known: readonly Account[] = [],
     discovered: Repository[] = [];
   let message = 'Choose a saved account to connect.';
@@ -68,7 +69,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       );
     }
     accounts.value = known.some((a) => a.connection === connection) ? connection : '';
-    accounts.disabled = !ready;
+    accounts.disabled = !ready || !accountsCurrent;
     const projects = JSON.stringify(discovered.map((repo) => [repo.external_id, repo.name, repo.private]));
     if (projects !== repositoryOptions) {
       repositoryOptions = projects;
@@ -83,7 +84,12 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     repositories.disabled = !selected || busy;
     more.hidden = !nextPage;
     more.disabled = busy || !selected;
-    reconnect.disabled = !ready || !connection || busy || !known.some((account) => account.connection === connection && account.state === 'stored');
+    reconnect.disabled =
+      !ready ||
+      !accountsCurrent ||
+      !connection ||
+      busy ||
+      !known.some((account) => account.connection === connection && account.state === 'stored');
     disconnect.disabled = !connection && !pending;
     name.disabled = !selected || busy;
     find.querySelector<HTMLButtonElement>('button')!.disabled = !selected || busy;
@@ -168,7 +174,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     busy = true;
     message = account ? 'Connecting…' : 'Choose a saved account to connect.';
     render();
-    if (!account || !ready || document.hidden) {
+    if (!account || !ready || !accountsCurrent || document.hidden) {
       resumeRequested = !!account;
       busy = false;
       render();
@@ -195,7 +201,7 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       selected = value;
       const metadata = discovered.find((repo) => repo.external_id === remote);
       product = new DesktopProduct(core, value, profile, navigate, metadata?.default_branch);
-      placement(product.transport,value.repository?.id);
+      placement(product.transport, value.repository?.id);
       const route = readRoute();
       navigate(
         route &&
@@ -212,8 +218,10 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
     } catch (error) {
       if (live(captured)) {
         clear();
-        message = typeof error === 'string' ? `Could not connect. ${error}` :
-          'Could not connect. Refresh Factory status and try reconnecting.';
+        message =
+          typeof error === 'string'
+            ? `Could not connect. ${error}`
+            : 'Could not connect. Refresh Factory status and try reconnecting.';
       }
     } finally {
       if (serial === captured) {
@@ -332,7 +340,18 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
       if (!ready) message = 'Connection is unavailable until Factory is ready.';
       render();
     },
-    accounts(values: readonly Account[]) {
+    accounts(values: readonly Account[] | undefined) {
+      accountsCurrent = values !== undefined;
+      if (values === undefined) {
+        ++serial;
+        clear();
+        busy = false;
+        resumeRequested = !!connection;
+        message =
+          'Saved account status is unavailable. Waiting for current status before reconnecting. Saved drafts are kept.';
+        render();
+        return;
+      }
       known = values;
       const account = known.find((account) => account.connection === connection);
       if (connection && account?.state !== 'stored') {
@@ -346,13 +365,14 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
           discovered = [];
           nextPage = 0;
         }
-        message = account?.state === 'locked'
-          ? 'Your saved account is locked. Unlock the desktop keyring before reconnecting. Saved drafts are kept.'
-          : account?.state === 'expired'
-            ? 'Your saved account has expired. Refresh it or sign in again before reconnecting. Saved drafts are kept.'
-            : account?.state === 'refresh_pending'
-              ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
-              : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
+        message =
+          account?.state === 'locked'
+            ? 'Your saved account is locked. Unlock the desktop keyring before reconnecting. Saved drafts are kept.'
+            : account?.state === 'expired'
+              ? 'Your saved account has expired. Refresh it or sign in again before reconnecting. Saved drafts are kept.'
+              : account?.state === 'refresh_pending'
+                ? 'Your account refresh is unconfirmed. Check saved account status before reconnecting. Saved drafts are kept.'
+                : 'This account is no longer available in Factory. Choose a saved account. Saved drafts are kept.';
       }
       if (resumeRequested && ready && !document.hidden && !busy && account?.state === 'stored') {
         void choose(connection, wanted);

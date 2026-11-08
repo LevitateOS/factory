@@ -16,7 +16,8 @@ interface Core {
   invoke<T>(command: string, args?: unknown): Promise<T>;
 }
 
-export function mountAccounts(core: Core, changed: (accounts: readonly Account[]) => void = () => {}) {
+/** Undefined means unobserved status; an empty list means observed account removal. */
+export function mountAccounts(core: Core, changed: (accounts: readonly Account[] | undefined) => void = () => {}) {
   const status = document.querySelector<HTMLElement>('#github-status')!;
   const begin = document.querySelector<HTMLButtonElement>('#github-sign-in')!;
   const cancel = document.querySelector<HTMLButtonElement>('#github-cancel')!;
@@ -32,6 +33,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
     busy = false;
   let view: SignIn = {attempt: 0, phase: 'idle', prompt: null, error: null};
   let accounts: Account[] = [];
+  let accountsCurrent = false;
   let localError: string | null = null;
   let readError: string | null = null;
   let interaction = 0;
@@ -98,7 +100,7 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
         withdrawn: 'Removed',
       }[account.state];
       value.name.textContent = `${account.label ?? account.account} · ${state}`;
-      value.remove.disabled = busy || !ready;
+      value.remove.disabled = busy || !ready || !accountsCurrent;
     }
   }
   async function read() {
@@ -116,12 +118,17 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       readError = null;
       view = next;
       accounts = saved.filter((account) => account.provider === 'github');
+      accountsCurrent = true;
       changed(accounts);
       render();
     } catch (error) {
       if (captured === generation && capturedInteraction === interaction) {
-        readError = typeof error === 'string' ? error :
-          'Could not read saved account status. Refresh Factory status and try again.';
+        readError =
+          typeof error === 'string'
+            ? error
+            : 'Could not read saved account status. Refresh Factory status and try again.';
+        accountsCurrent = false;
+        changed(undefined);
         render();
       }
     } finally {
@@ -169,6 +176,14 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
         await core.invoke('github_sign_in_open', {attempt: view.attempt});
       })
   );
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      interaction++;
+      accountsCurrent = false;
+      changed(undefined);
+      render();
+    }
+  });
   return async (available: boolean, epoch: number) => {
     ready = available;
     if (generation !== epoch) {
@@ -177,6 +192,12 @@ export function mountAccounts(core: Core, changed: (accounts: readonly Account[]
       localError = null;
       readError = null;
       view = {attempt: 0, phase: 'idle', prompt: null, error: null};
+      accountsCurrent = false;
+      changed(undefined);
+    }
+    if (!ready) {
+      accountsCurrent = false;
+      changed(undefined);
     }
     render();
     await read();
