@@ -39,6 +39,8 @@ type nativeMergeFacts struct {
 	State            string          `json:"state"`
 	Draft            *bool           `json:"draft"`
 	Merged           *bool           `json:"merged"`
+	Mergeable        *bool           `json:"mergeable"`
+	MergeableState   *string         `json:"mergeable_state"`
 	Archived         *bool           `json:"archived"`
 	Disabled         *bool           `json:"disabled"`
 	Push             *bool           `json:"push"`
@@ -105,8 +107,11 @@ func (s nativeHumanMerges) PrepareHumanMerge(ctx context.Context, q factory.Huma
 	if f.Repository != s.repository.ExternalID || !nativeRemoteID(f.PullID) || !nativeReviewNode(f.RepositoryNodeID, 1024) || !nativeReviewNode(f.PullNodeID, 1024) || f.Number != uint32(q.Number) || !collaboration.ValidCommitID(collaboration.CommitID(f.Head)) || !collaboration.ValidCommitID(collaboration.CommitID(f.Base)) || f.HeadCondition != "expected_head_oid" || f.BaseCondition != "bounded_preflight" {
 		return empty, errNativeRead
 	}
-	if f.State != "open" || f.Draft == nil || *f.Draft || f.Merged == nil || *f.Merged || f.Archived == nil || *f.Archived || f.Disabled == nil || *f.Disabled || f.Push == nil || !*f.Push || !f.Methods[q.Method] {
+	if f.State != "open" || f.Draft == nil || *f.Draft || f.Merged == nil || *f.Merged || f.Archived == nil || *f.Archived || f.Disabled == nil || *f.Disabled {
 		return empty, factoryservice.ErrHumanMergeUnavailable
+	}
+	if f.Mergeable == nil || !*f.Mergeable || f.MergeableState == nil || (*f.MergeableState != "clean" && *f.MergeableState != "unstable") || f.Push == nil || !*f.Push || !f.Methods[q.Method] {
+		return empty, factoryservice.ErrHumanMergeForbidden
 	}
 	if q.ExpectedHead != "" && string(q.ExpectedHead) != f.Head {
 		return empty, factoryservice.ErrHumanMergeConflict

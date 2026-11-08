@@ -5582,6 +5582,9 @@ records show `github_review_request_readback_changed`, no causal receipt and
 `finished:false`. Keep them fenced; current absence/presence is not evidence of
 their original effects. Settlement would need causal evidence tied to the exact
 original command; otherwise retain the explicit uncertain outcome.
+Direct read-only inspection of both original stopped PostgreSQL journals on
+2026-11-06 confirmed `dispatch_state=reserved`, `effect=indeterminate`,
+`completion=needs_intervention`, empty `finished` and null receipt for each.
 
 `github_provider/review_requests.rs` now observes GitHub's explicit plan features.
 `review_request_effect.rs` checks them before dispatch; Go's defining reviewer
@@ -5609,3 +5612,50 @@ additional permission variants require authorized fixtures and matching actual
 actor/grant observations. Source checks and this two-account journey do not close
 them. Primary terminal gh configuration and all historical uncertain commands
 were preserved.
+
+Protected-branch write check (2026-11-06): the authorized public disposable
+`LevitateOS/factory-team-public-check-20261106` fixture has PR #2 from its
+four-line head into `check-base-branch-rule-1106`; that base branch requires one
+approval and enforces the rule for admins. A coherent source-built WebKit,
+native, Go and PostgreSQL run in
+`/home/vince/tmp/factory-branch-rule-coherent-1106.3M3UEV/` exited 0, but its
+observer accepted an unfinished command as a refusal. The shared merge UI
+disabled its action and the PR stayed open, but the original stopped PostgreSQL
+journal shows command `3023a7d539af47ac9a7253d51165c186` was reserved with
+`effect=indeterminate`, `completion=needs_intervention`,
+`reason=invalid_github_response` and no causal receipt. Preserve that profile
+and command; current PR state cannot settle it. The owned local test account was
+withdrawn. The producer now checks mergeable state before Go capture and native
+dispatch; the acceptance check requires POST 403 and exact-command GET 404.
+The first corrected run under
+`/home/vince/tmp/factory-branch-rule-fixed-1106.NoMAlQ/` found zero merge
+commands in its original stopped journal, but its 503 response exposed a wrong
+product error class. Go now returns HTTP 403 for current provider merge-rule
+denial. A fresh coherent source-built WebKit/native/Go/PostgreSQL run under
+`/home/vince/tmp/factory-branch-rule-admitted-1106.XTR8go/` exited 0: the
+shared UI disabled merge; direct POST returned 403; GET for the exact new command
+returned 404; normal product read kept the same open PR/head; the owned account
+was removed. This closes only this public protected-branch pre-capture case.
+It does not close the full branch-rule or permission matrix. Installed
+write admission and credential isolation still require T14-PACKAGE and a real
+installed-host journey. D1 automation still requires T09-EXECUTION, admitted
+T12 placement dispatch and D3 execution. The two private Free-plan team commands
+listed above still lack original causal evidence and remain indeterminate.
+
+Read-only role check pending (2026-11-06): staged changes in
+`pkg/factory/runtime/native_product_review_requests.go`,
+`lib/desktop-runtime/src/github_provider/review_request_effect.rs`,
+`frontend/factory/{api/capability-response.ts,pulls/reviewers.ts}` and
+`cmd/soda-desktop/src/{github_writes_check.js,check_credentials.rs}` make
+reviewer requests require current repository write permission before capture,
+native dispatch and UI presentation. TypeScript, Go, desktop and native builds
+passed. The existing no-forwarding native reviewer check passed 61 declared
+cases under `/home/vince/tmp/factory-reviewer-role-declared-v2-1106.MvieLj/`,
+but it does not prove a real read-only role denial. A matching private desktop
+fixture is staged at `/home/vince/tmp/factory-readonly-role-1106.fuKsMs/`; no
+device challenge has started and the authorized public test team's permission
+is still write. Close this scoped case only after fresh sodaos Factory consent,
+temporarily changing that team's permission to read, proving the effective
+read-only role, real WebKit merge/reviewer UI and POST 403 plus exact-command
+GET 404 with normal PR readback and local account withdrawal, then restoring
+the original write permission. Keep the staged code unverified until that run.

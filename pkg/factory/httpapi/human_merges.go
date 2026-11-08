@@ -172,6 +172,8 @@ func humanMergeHTTPError(w http.ResponseWriter, err error) {
 		writeError(w, 404, "merge_command_not_found", "Merge command is not visible.")
 	case errors.Is(err, factoryservice.ErrHumanMergeAdmission):
 		writeError(w, 403, "merge_admission_required", "Current human merge admission is required.")
+	case errors.Is(err, factoryservice.ErrHumanMergeForbidden):
+		writeError(w, 403, "merge_forbidden", "Current GitHub rules do not allow this merge.")
 	case errors.Is(err, store.ErrCommandConflict), errors.Is(err, factoryservice.ErrHumanMergeConflict), errors.Is(err, factory.ErrHumanMergeObservation):
 		writeError(w, 409, "merge_command_conflict", "Merge command conflicts with its original intent.")
 	case errors.Is(err, factoryservice.ErrHumanMergeNamespace):

@@ -12,6 +12,7 @@ import (
 var (
 	ErrHumanMergeQuery       = errors.New("invalid human merge request")
 	ErrHumanMergeAdmission   = errors.New("current human merge admission required")
+	ErrHumanMergeForbidden   = errors.New("current provider merge rules deny this merge")
 	ErrHumanMergeConflict    = errors.New("human merge intent conflicts")
 	ErrHumanMergeUnavailable = errors.New("human merge provider unavailable")
 	ErrHumanMergeNamespace   = errors.New("captured merge installation differs from current provider")

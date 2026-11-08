@@ -355,6 +355,29 @@
       assert(response.ok, 'normal read refused: ' + suffix);
       return response.json();
     };
+    if (fixture.mode === 'branch_rule') {
+      stage = 'protected-branch-merge';
+      await navigate('reviews');
+      const pull = await read('');
+      assert(pull.ref.external_id === fixture.pull_id && pull.head.commit === fixture.head && pull.state === 'open', 'protected fixture changed');
+      const merge = () => document.querySelector('soda-factory-pull-merge');
+      await until(() => merge()?.querySelector('button') && merge()?.querySelector('section[aria-label="Merge pull request"]')?.getAttribute('aria-busy') === 'false', 'merge admission unavailable');
+      const caps = await read('/capabilities');
+      assert(['merge', 'squash', 'rebase'].every(method => caps.merge_methods?.[method]?.state !== 'allowed') &&
+        button(merge(), 'Merge pull request')?.disabled, 'protected branch offered a merge');
+      const command = crypto.randomUUID().replaceAll('-', '');
+      const path = 'factory/collaboration/repositories/' + repo + '/pulls/' + fixture.number + '/merges';
+      const response = await merge().context.transport.request(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command_id: command, method: 'merge', message: 'Protected branch refusal fixture', expected_head: fixture.head})});
+      assert(response.status === 403, 'protected merge was captured or returned an unexpected status');
+      const lookup = await merge().context.transport.request(path + '/commands/' + command, {method: 'GET'});
+      assert(lookup.status === 404, 'protected merge captured a command');
+      const after = await read('');
+      assert(after.ref.external_id === fixture.pull_id && after.state === 'open' && after.head.commit === fixture.head,
+        'protected pull changed after denied merge');
+      await invoke('report', {stage: 'github-writes-complete', error: null});
+      return;
+    }
     if (fixture.mode === 'merge_only') {
       stage = 'merge-' + fixture.merge_method;
       assert(['squash', 'rebase'].includes(fixture.merge_method), 'unsupported merge fixture');
