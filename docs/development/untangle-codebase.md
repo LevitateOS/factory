@@ -407,9 +407,11 @@ security D1/D2/D3/D5, remain open. Original uncertain commands remain fenced.
 This completes the redesign cuts only; it neither resumes the old queue nor
 claims Factory, installed isolation/custody/IPC or provider parity finished.
 
-### Q01 follow-up: first native account binding (2026-11-08)
+### Q01 completion: current native session (2026-11-08)
 
-The newly authorized Q01–Q30 goal is active; Q01 remains incomplete. Current
+The newly authorized Q01–Q30 goal is active; Q01's source/native scope is complete,
+and Q02 is next. D1–D8 code/commits/retained checks, including canonical Fountain
+D6/gateway references above, were verified and reused. Current
 pre-consent Tauri/WebKit/Go/PostgreSQL startup and production Quit passed in
 `/home/vince/Projects/q01-preconsent-verified/run.log`. The owner accepts current
 diagnostics and the complete connected lifecycle while retaining the lost
@@ -425,9 +427,39 @@ checks passed, including reopen and canonical scope:
 -run '^TestCollaborationRegistry(IdentityAndConnections|RetainedDataWaitsForAdoption)$'
 -count=1 -v` with the private PostgreSQL fixture). The old fixture's later native
 foreign keys and missing run record were repaired in that existing check.
-Connected session/status, minimize/restore and execution retry proof remains
-pending; the encrypted approved grant and failed attempts are preserved under
-`/home/vince/Projects/q01-connected-verified/`. No installed/security gate closes.
+The repair is Factory `d5b4506`; `67b6b16` retires unobserved account bindings and
+pending reads while preserving choices/drafts, disables stale account actions,
+and restores an iconified GTK window through the shared production opener.
+Actual Tauri/WebKit/Go/PostgreSQL, approved GitHub identity/private reads, real
+refresh, account/repository controls, cancellation, reconnect, native minimize/
+restore, hide/restore, two owned Secret Service outages/recoveries, retained
+drafts, explicit Disconnect and production Quit passed:
+`/home/vince/Projects/q01-connected-verified/{run.log,session-lifecycle-result.json}`.
+The owned local grant was removed after success; profile/keyring and all failed
+attempts remain retained. Reproduce with the isolated external driver
+`/home/vince/Projects/q01-native-session.sh ROOT consent`; a new grant needs human
+consent. No provider writes, inference or remote revocation were claimed.
+
+Execution-unavailable UI and production Retry execution passed with a held then
+released coordinator lock, fresh runtime generation, successful coordinator start
+and Quit: `/home/vince/Projects/q01-execution-retry-confirmed/run.log`.
+Missing worker isolation remained explicitly unavailable. Existing
+`--check-startup-error` owns this opt-in fixture; its driver contract is in the
+desktop README. Typecheck/UI build and regular/native-check builds passed
+(`q01-{typecheck,ui-build,regular-build,native-build}.log` under
+`/home/vince/Projects`). Retained GTK/WebKit/PG inputs qualify these source checks,
+not a fresh release baseline; Q02 owns current-input work.
+
+The current canonical protection snapshot correctly refused with `check_changed`;
+`canonical-workflow-evidence.json` records `actual_canonical_protection_read=false`.
+The original aggregate `consent-result.json` incorrectly hardcoded that flag true;
+it is preserved and does not qualify that read. Factory `5544082` now derives the
+aggregate from the actual canonical evidence; native-check build passed
+(`/home/vince/Projects/q01-evidence-build.log`). No extra live run was needed for
+that reporting-only correction. Historical crash cause remains unknown under
+the owner's clarification; the human status row/note and six pre-existing edits
+remain verbatim. Installed startup/restart/sleep-wake, remote revocation and all
+13 security gates stay open. Q01 does not complete Factory.
 
 ### Implementation order and completion boundary
 

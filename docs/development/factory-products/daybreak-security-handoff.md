@@ -26,9 +26,16 @@ Fountain connector are absent are historical, superseded by the current source
 and evidence below. Original outcome records are not rewritten by this summary.
 The pre-existing T06-CONNECT Active row/note remain verbatim as historical
 conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
-Q01 is Active. The owner accepted current native diagnostics plus the complete
+Q01 is Complete within its source/native scope; Q02 is Active. The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
+Q01 implementation/evidence: Factory `d5b4506`, `67b6b16`, `5544082` and the
+[decision log](../untangle-codebase.md#q01-completion-current-native-session-2026-11-08).
+Actual current pre-consent, approved connected session, native minimize/restore,
+keyring outages/recovery, scoped drafts, explicit Disconnect, refresh, execution
+retry and production Quit passed. These source/native checks close no installed
+or security gate. The observed canonical protection snapshot was unavailable;
+the original aggregate consent flag was incorrect and does not qualify it.
 
 ## Current gates, owners and closure evidence
 

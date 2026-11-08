@@ -21,15 +21,13 @@ required only for work or checks that look like hacking.
 
 ## Where to continue
 
-Q01 is Active. Continue to each following prompt only after its earlier ordinary
+Q01 is Complete within its source/native scope. Q02 is Active. Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
-Q30 is the full finalization pass. When implementation resumes, first
-reconcile the retained CONNECT evidence and status conflict below; capture current
-pre-consent diagnostics before another browser challenge. Retain the unavailable
-historical crash cause as unknown under the owner clarification at Q01. Independently trace
-the retained Muse typed-result failure without changing the strict result schema.
-Then close the prerequisite journeys below and take dependency-ready milestone
-work, one usable journey at a time. A historical Complete row does not remove
+Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
+updates; the retained Muse typed-result failure remains pending in its dependent
+prompt. The historical CONNECT row/note stay verbatim, with the unavailable crash
+cause unknown under the owner's Q01 clarification. Take the ordered prerequisite
+journeys one at a time. A historical Complete row does not remove
 an open qualification requirement. Do not replay successful checks without a
 specific unresolved risk.
 
@@ -91,8 +89,8 @@ recording any newly proved current conclusion separately.
 
 | Prompt | Ordinary completion scope | Existing requirement | Status |
 | --- | --- | --- | --- |
-| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Active |
-| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Pending |
+| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
+| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Active |
 | [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Pending |
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Pending |
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Pending |
@@ -133,6 +131,17 @@ This supersedes a requirement to reconstruct that unavailable crash; it does
 not waive any current lifecycle check. The human historical row/note below stays
 verbatim. D1–D8 sources and recorded checks are unchanged since their verified
 completion; their scoped evidence is reused, not treated as installed proof.
+
+Completion (2026-11-08): Factory `d5b4506`, `67b6b16`, `5544082` fix first native
+binding, unknown-status retirement/stale reads, stale account actions and GTK
+restore. Real pre-consent, approved connected UI/keyring/draft/minimize/Disconnect/
+refresh/Quit and unavailable-execution/retry checks passed; both native builds
+and existing PostgreSQL identity/adoption cases passed. Exact commands/artifacts
+and the aggregate protection-evidence correction are in the
+[Q01 decision log](../untangle-codebase.md#q01-completion-current-native-session-2026-11-08).
+Historical crash cause remains unknown. Installed/revocation/sleep-wake and all
+security gates remain open in their later prompts; current CI protection refusal
+does not qualify a successful canonical protection read.
 
 ```text
 Implement Q01 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
@@ -559,7 +568,7 @@ already passed and must not be rebuilt or requalified without a concrete reason.
 
 | Existing work | Remaining outcome and completion evidence | Dependency / existing evidence |
 | --- | --- | --- |
-| T06-CONNECT; A12–A15 — current desktop session | Reconcile Complete versus the preserved human Active row without overwriting either. Diagnose retained pre-consent failure; qualify actual minimize/restore, reconnect, explicit Disconnect, account/profile changes, unknown/failed status and execution-unavailable/retry UX. Stale observations must grant no authority. Then qualify real installed sign-in/startup/Quit, restart and sleep/wake. | **Status unresolved.** Stable source lifecycle passed; [desktop/IPC gate](daybreak-security-handoff.md#current-gates-owners-and-closure-evidence), [human note](#preserved-human-status-conflict). Installed scope joins T13-GITHUB/T13-FOUNTAIN. |
+| T06-CONNECT; A12–A15 — current desktop session | Q01 source/native session scope is complete with current diagnostics; historical crash cause remains unknown under the owner's clarification. Qualify real installed sign-in/startup/Quit, restart and sleep/wake in Q26/Q27. | Historical status conflict remains verbatim; current Q01 completion is separate. [Q01 evidence](../untangle-codebase.md#q01-completion-current-native-session-2026-11-08), [desktop/IPC gate](daybreak-security-handoff.md#current-gates-owners-and-closure-evidence), [human note](#preserved-human-status-conflict). |
 | A01/A19; T09-EXECUTION — Muse typed planning and task results | Trace the string-versus-object finish failure from original native/MCP/CLI bytes; fix its actual owner and prove accepted typed planning, public Builder advancement, implementation/final checks, candidate, exact-source accounting and retained restart without inference replay. Qualify real correction, admitted cancellation and incomplete/active-service receipt recovery. Retain all original failed runs; final text never substitutes for an accepted result. | **Blocking full pipeline.** Latest run `518ab9643f2a381dd81b4814df003979` at `/home/vince/tmp/fmuse-ready-admission8.z4gCPL/`; [current blocker](daybreak-security-handoff.md#current-product-blockers-and-scoped-evidence), [A19 findings](standalone-assumptions-audit.md#a19--cli-integration-includes-a-second-provider-wire-policy-implementation). Reuse existing login; no source switch or weaker schema. |
 | A21/A05 — real onboarding and accepted inputs | Prove the actual connected setup/source-selection/approval/role-preparation path; current account, placement and approval withdrawal during I/O; changed-source consent; native preparation restart/reactivation; nonempty comments/dependencies and hidden/stale acceptance inputs. Qualify maximum source/resource bounds, selected-file aggregation, merged-source refresh and browser/native/installed pending-approval recovery without replay. Approval alone remains unverified until real check receipts exist. | Required before dependent planning/delivery. [Setup scope/evidence](daybreak-security-handoff.md#current-product-blockers-and-scoped-evidence), [A21 remaining work](standalone-assumptions-audit.md#a21--check-fixtures-can-satisfy-prerequisites-that-a-user-cannot-reach). |
 | A11/A01 — role funding and source lifecycle | Qualify connected enablement, actual coder/reviewer use of independently selected sources, current grant/allowance/role checks, withdrawal during admission/execution, exact original-source charges and refusal without fallback. Prove reviewer/tool confinement and retained active-service/incomplete-receipt recovery. Keep unsupported token-task execution unavailable; its missing task owner/early-stop receipt is not CLI-lane parity. | Before paid/admitted consumers; [verified corrections](standalone-assumptions-audit.md#verified-corrections), security D3 rows below. Only Muse is currently offered; additional providers need explicit scope, not an inferred requirement. |
@@ -644,7 +653,7 @@ their original IDs, dependencies, outcomes and statuses verbatim.
 The committed snapshot records T06-CONNECT Complete. The pre-existing human
 Active edit and appended note are preserved below; neither is overwritten by
 this history cut. These historical statuses remain conflicting. The owner's
-2026-11-08 goal now selects Q01 as the operative current task; its acceptance
+2026-11-08 goal selects the ordered Q queue as operative; its Q01 acceptance
 clarification and eventual result are recorded separately from that human history.
 
 <a id="sequential-implementation-order"></a>
