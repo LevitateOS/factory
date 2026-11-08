@@ -1346,6 +1346,8 @@ func main() {
 			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "check-connected-authoring" {
 			err = connectedAuthoringFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-connected-delivery" {
+			err = connectedDeliveryFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasPrefix(os.Args[3], "native-graph-") {
 			err = nativeGraphFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "check-live-judgment" {
@@ -6458,6 +6460,185 @@ func admittedContributionsFixture(profile, instance, path string) error {
 
 // Connected judgments use the actual native GitHub admission and selected Muse
 // login. Planning content is declared; provider answers and usage are real.
+func connectedDeliveryFixture(profile, instance, path string) error {
+	var in struct{ Repository, Connection, Issue, Source string }
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(raw, &in); err != nil {
+		return err
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	connection, err := db.CollaborationConnection(ctx, collaboration.ConnectionID(in.Connection))
+	if err != nil {
+		return err
+	}
+	repository, err := strconv.ParseInt(in.Repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	issue, err := strconv.ParseInt(in.Issue, 10, 64)
+	if err != nil {
+		return err
+	}
+	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
+	if phase == "prepare" {
+		workspace, _, e := db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
+		if e != nil {
+			return e
+		}
+		preps, e := db.StandingProjectPreparations(ctx, workspace)
+		if e != nil || len(preps) == 0 {
+			return errors.New("original delivery approval missing")
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+			if e = nativeStandingRole(ctx, db, port, preps[0], role); e != nil {
+				return e
+			}
+		}
+		fmt.Println("PASS: original approved delivery source prepared after native restart without inference")
+		return nil
+	}
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	last := ""
+	for ctx.Err() == nil {
+		if _, e := os.Stat(filepath.Join(filepath.Dir(profile), "stop-delivery-watch")); e == nil {
+			return errors.New("delivery watch stop requested; native driver will withdraw and join its runtime")
+		}
+		controls, complete, err := db.AllIssueControls(ctx, 1000)
+		if err != nil || !complete {
+			return errors.New("delivery control scan incomplete")
+		}
+		for _, control := range controls {
+			if control.Repository != repository || control.Issue != issue {
+				// The real discovery owner also sees the older Q14 fixtures.
+				// They must be explicitly withdrawn, never dispatched again.
+				if repository != 1 || issue != 18 || control.Repository != repository || control.Issue < 13 || control.Issue > 17 {
+					return errors.New("delivery profile has unexpected controlled work")
+				}
+				withdrawn, _, e := db.AcceptanceWithdrawn(ctx, repository, control.Issue, control.Acceptance)
+				if e != nil || (!withdrawn && phase != "scope") {
+					return errors.New("older fixture acceptance must be withdrawn before delivery resumes")
+				}
+			}
+		}
+		data := map[string]any{"controls": controls, "phase": phase, "profile": config.Profile, "actor": connection.Actor}
+		queries := map[string]string{
+			"judgments":    `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_priority_judgments WHERE data IS NOT NULL`,
+			"commands":     `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'type',type,'payload',payload,'outcome',outcome,'finished',finished,'dispatch',dispatch_state)),'[]'::jsonb) FROM factory_commands`,
+			"assignments":  `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_assignments`,
+			"publications": `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_publications`,
+			"merges":       `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_merges`,
+			"checks":       `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_check_assessments`,
+			"runs":         `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_runs`,
+			"usage":        `SELECT COALESCE(jsonb_agg(data),'[]'::jsonb) FROM factory_usage`,
+		}
+		for key, query := range queries {
+			var raw json.RawMessage
+			if err = rawDB.QueryRowContext(ctx, query).Scan(&raw); err != nil {
+				return err
+			}
+			data[key] = raw
+		}
+		raw, _ := json.MarshalIndent(data, "", "  ")
+		if err = os.WriteFile(filepath.Join(profile, "connected-delivery-"+phase+".json"), raw, 0600); err != nil {
+			return err
+		}
+		var assignments []factory.Assignment
+		var publications []factory.Publication
+		var merges []factory.Merge
+		var runs []factory.Run
+		if json.Unmarshal(data["assignments"].(json.RawMessage), &assignments) != nil || json.Unmarshal(data["publications"].(json.RawMessage), &publications) != nil || json.Unmarshal(data["merges"].(json.RawMessage), &merges) != nil || json.Unmarshal(data["runs"].(json.RawMessage), &runs) != nil {
+			return errors.New("delivery snapshot malformed")
+		}
+		if phase == "retry-preflight" {
+			if len(assignments) != 2 || len(runs) != 2 || len(publications) != 0 || len(merges) != 0 {
+				return errors.New("fresh Retry requires the exact two original settled runs and no publication")
+			}
+			for _, run := range runs {
+				if !run.Reconciled || run.Native == nil || !run.Native.Settled() ||
+					!((run.ID == "d49c27ebece977b817a7d34b43d61c78" && run.Outcome == factory.Succeeded) || (run.ID == "abd8dd765833bd1b79caf59d42fa6098" && run.Outcome == factory.Cancelled)) {
+					return errors.New("original delivery outcome/retirement differs; do not retry")
+				}
+			}
+			var usage []struct {
+				Connection string
+				Minutes    int
+			}
+			if json.Unmarshal(data["usage"].(json.RawMessage), &usage) != nil {
+				return errors.New("original usage malformed")
+			}
+			minutes := 0
+			for _, u := range usage {
+				if u.Connection != in.Source {
+					return errors.New("original source changed")
+				}
+				minutes += u.Minutes
+			}
+			var pending int
+			if err = rawDB.QueryRowContext(ctx, `SELECT count(*) FROM factory_commands WHERE finished=''`).Scan(&pending); err != nil || pending != 0 || minutes != 7 {
+				return errors.New("original command/charge recovery incomplete; do not retry")
+			}
+			fmt.Println("PASS: exact original investigation/failed Builder retired, all commands finished, seven source minutes retained; fresh Retry not yet sent")
+			return nil
+		}
+		if phase == "preflight" || phase == "scope" {
+			if len(assignments) != 0 || len(publications) != 0 || len(merges) != 0 || len(controls) < 1 {
+				return errors.New("delivery preflight cannot start over existing execution")
+			}
+			fmt.Println("PASS: real fresh-profile delivery acceptance and no original execution/publication to replay", issue)
+			return nil
+		}
+		status := fmt.Sprintf("assignments=%d publications=%d merges=%d", len(assignments), len(publications), len(merges))
+		for _, a := range assignments {
+			status += " " + a.Phase + ":" + a.Stage + ":" + string(a.Outcome)
+		}
+		for _, p := range publications {
+			status += fmt.Sprintf(" PR%d:%s", p.PRNumber, p.Stage)
+		}
+		for _, m := range merges {
+			status += " merge:" + m.Stage + ":" + m.Reason
+		}
+		if status != last {
+			fmt.Println("DELIVERY:", status)
+			last = status
+		}
+		if len(merges) > 0 && merges[len(merges)-1].Stage == factory.MergeMerged {
+			settled := true
+			for _, r := range runs {
+				if !r.Reconciled || r.Native == nil || !r.Native.Settled() {
+					settled = false
+				}
+			}
+			if settled {
+				fmt.Println("PASS: actual production coordinator reached native merge and original run settlement; full required scope still needs receipt review", merges[len(merges)-1].MergedCommit)
+				return nil
+			}
+		}
+		if phase == "retained" {
+			return errors.New("retained delivery has no confirmed completed merge")
+		}
+		time.Sleep(time.Second)
+	}
+	return ctx.Err()
+}
+
 func connectedAuthoringFixture(profile, instance, path string) error {
 	phase := os.Getenv("SODA_NATIVE_AUTHORING_PHASE")
 	if phase == "setup" {

@@ -1200,10 +1200,14 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let profile = Path::new(&args[3]);
             let resume_merge=args.len()==10 && field(9)?=="merge-resume";
             let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
+            let full_delivery=args.len()==10 && field(9)?=="delivery-full";
+            let resume_delivery=args.len()==10 && field(9)?=="delivery-resume";
+            let retry_delivery=args.len()==10 && field(9)?=="delivery-retry";
+            let retained_delivery=args.len()==10 && field(9)?=="delivery-retained";
             let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review"|"authoring-graph-generate"|"authoring-graph-adopt"|"authoring-graph-retained");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
-            if resume_merge || resume_judgments || resume_authoring || connected_graph {
+            if resume_merge || resume_judgments || resume_authoring || connected_graph || retained_delivery || resume_delivery || retry_delivery {
                 ensure(profile.starts_with("/home") && profile.join("profile.id").is_file(),"retained private merge profile required")?;
             } else { prepare(profile)?; }
             let mut secret = Vec::new();
@@ -1240,6 +1244,148 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if full_delivery || retained_delivery || resume_delivery || retry_delivery {
+                    let root=profile.parent().ok_or("profile parent missing")?;
+                    let background=root.join(if retained_delivery || resume_delivery || retry_delivery {"delivery-current.json"}else{"delivery.json"});
+                    let check=|phase:&str,instance:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(instance).arg("check-connected-delivery").arg(&background).env("SODA_NATIVE_DELIVERY_PHASE",phase).kill_on_drop(true);
+                        async move {ensure(command.status().await?.success(),"connected delivery check failed; recover original work/receipts before another effect or model")}
+                    };
+                    if retained_delivery || resume_delivery || retry_delivery {
+                        let mut fixture:serde_json::Value=serde_json::from_slice(&fs::read(root.join("delivery.json"))?)?;
+                        fixture["OriginalConnection"]=fixture["Connection"].clone();
+                        fixture["Connection"]=json!(saved.connection);
+                        fs::write(&background,serde_json::to_vec(&fixture)?)?;
+                        if retained_delivery {check("retained",&ready.instance).await?;return Ok(());}
+                        // This mode is only for the exact preflight failure: no
+                        // execution exists. Live/past attempts need their own recovery.
+                        if retry_delivery {check("retry-preflight",&ready.instance).await?;} else {
+                        check("scope",&ready.instance).await?;
+                        let scope:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-delivery-scope.json"))?)?;
+                        for control in scope["controls"].as_array().ok_or("delivery controls missing")? {
+                            if control["issue"]==fixture["Issue"] {continue;}
+                            let issue=control["issue"].as_str().ok_or("withdrawal issue missing")?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request("POST",&format!("/api/repositories/{repository}/factory/issues/{issue}/withdrawal"),&serde_json::to_vec(&json!({"decision_id":control["acceptance"]}))?).await?;
+                            fs::write(root.join(format!("withdrawal-{issue}.json")),&reply.body)?;
+                            ensure(reply.status==200,"older fixture acceptance withdrawal failed")?;
+                        }
+                        check("preflight",&ready.instance).await?;
+                        }
+                        let status_path=format!("/api/repositories/{repository}/factory");
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("GET",&status_path,&[]).await?;
+                        ensure(reply.status==200,"retained delivery policy unavailable")?;
+                        let status:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        let p=&status["policy"];
+                        let binding=status["native_bindings"].as_array().ok_or("bindings missing")?.iter().find(|b|b["kind"]=="pull_request.create").ok_or("native writer missing")?;
+                        let actor=json!({"native_profile":binding["native_profile"],"native_connection":saved.connection,"actor_id":binding["actor_id"],"token_id":"0"});
+                        let policy=json!({"expected_revision":p["revision"],"attempt_limits":p["attempt_limits"],"roles":p["roles"],"judgments":p["judgments"],"publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor,"target_branch":p["target_branch"],"merge_method":p["merge_method"],"required_checks":p["required_checks"],"reassessment_minutes":p["reassessment_minutes"],"intent_minutes":p["intent_minutes"],"enabled":p["enabled"],"paused":p["paused"]});
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
+                        fs::write(root.join("policy-resume.json"),&reply.body)?;
+                        ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
+                        check("prepare",&ready.instance).await?;
+                        if retry_delivery {
+                            // Invoke only after explicit owner authorization for
+                            // this new paid attempt; old outcomes remain immutable.
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request("POST","/api/factory/runs/abd8dd765833bd1b79caf59d42fa6098/actions",&serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151503","action":"retry"}))?).await?;
+                            fs::write(root.join("delivery-retry-command.json"),&reply.body)?;
+                            ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
+                        }
+                        runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
+                        let watching=check("watch",&ready.instance);
+                        tokio::pin!(watching);
+                        loop {
+                            tokio::select! {
+                                result=&mut watching => {result?;break;}
+                                _=tokio::time::sleep(std::time::Duration::from_secs(15)) => {
+                                    let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                                    let reply=admitted.request("GET",&status_path,&[]).await?;
+                                    fs::write(root.join("delivery-status.json"),&reply.body)?;
+                                    ensure(reply.status==200,"delivery status unavailable; recover original receipts")?;
+                                }
+                            }
+                        }
+                        return Ok(());
+                    }
+                    let send=async |method:&str,path:&str,value:serde_json::Value| -> Result<soda_unix_http::Response> {
+                        let body=if value.is_null(){Vec::new()}else{serde_json::to_vec(&value)?};
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request(method,path,&body).await?;
+                        ensure((200..300).contains(&reply.status),&format!("delivery {method} {path}: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                        Ok(reply)
+                    };
+                    for change in [
+                        json!({"kind":"capacity","body":{"expected_revision":0,"max_concurrent_runs":1}}),
+                        json!({"kind":"repository_setting","repository":repository,"setting":"placement","body":{"expected_revision":"","state":"active"}}),
+                        json!({"kind":"repository_setting","repository":repository,"setting":"operator-grant","body":{"expected_revision":0,"active":true}}),
+                        json!({"kind":"repository_setting","repository":repository,"setting":"environment-grant","body":{"expected_revision":0,"active":true,"native":true}}),
+                    ] {
+                        let descriptor:soda_desktop_runtime::ProductRequest=serde_json::from_value(change)?;
+                        let (method,path,body)=descriptor.request()?;
+                        let value:serde_json::Value=serde_json::from_slice(&body)?;
+                        let reply=send(method,&path,value).await?;
+                        fs::write(root.join(format!("grant-{}.json",path.rsplit('/').next().ok_or("grant path")?)),&reply.body)?;
+                    }
+                    let status_path=format!("/api/repositories/{repository}/factory");
+                    let until=Instant::now()+Duration::from_secs(60);
+                    let status=loop {
+                        let reply=send("GET",&status_path,serde_json::Value::Null).await?;
+                        let value:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        fs::write(root.join("source-status.json"),&reply.body)?;
+                        if value["spending_sources"].as_array().is_some_and(|s|s.iter().any(|s|s["execution_available"]==true && s["judgment_available"]==true)){break value;}
+                        ensure(Instant::now()<until,"current explicit Muse source unavailable")?;
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    };
+                    let source=status["spending_sources"].as_array().ok_or("source menu missing")?.iter().find(|s|s["execution_available"]==true && s["judgment_available"]==true).ok_or("source missing")?;
+                    ensure(source["label"]=="This Muse login" && source["judgment_models"].as_array().is_some_and(|m|m.iter().any(|m|m=="muse-spark-1.3-contributor")),"selected explicit model unavailable")?;
+                    let source_id=source["connection"].as_str().ok_or("source identity missing")?;
+                    let binding=status["native_bindings"].as_array().ok_or("bindings missing")?.iter().find(|b|b["kind"]=="pull_request.create").ok_or("native writer missing")?;
+                    let actor=json!({"native_profile":binding["native_profile"],"native_connection":saved.connection,"actor_id":binding["actor_id"],"token_id":"0"});
+                    let selection=json!({"account":source_id,"harness":"muse","model":"muse-spark-1.3-contributor","profile":{"effort":"low","contributor":true}});
+                    let policy=json!({"expected_revision":status["policy"]["revision"].as_i64().unwrap_or(0),"attempt_limits":{"active_minutes":120,"correction_cycles":3,"review_rounds":6,"max_children":3},"roles":{"soda-coder":selection,"soda-reviewer":selection},"judgments":selection,"publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor,"target_branch":"refs/heads/main","merge_method":"merge","required_checks":["q15-note-example"],"reassessment_minutes":15,"intent_minutes":15,"enabled":true,"paused":false});
+                    let reply=send("PUT",&format!("{status_path}/policy"),policy).await?;
+                    fs::write(root.join("policy.json"),&reply.body)?;
+                    let reply=send("PUT",&format!("{status_path}/sponsorships/{source_id}"),json!({"expected_revision":0,"roles":["factory-judgment","soda-coder","soda-reviewer"],"allowance_minutes":30,"active":true})).await?;
+                    fs::write(root.join("funding.json"),&reply.body)?;
+                    let setup_path=format!("{status_path}/setup");
+                    let reply=send("POST",&setup_path,json!({"paths":["README.md",".github/workflows/q15.yml"]})).await?;
+                    let preview:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                    fs::write(root.join("setup-preview.json"),&reply.body)?;
+                    ensure(preview["available"]==true,"delivery setup source unavailable")?;
+                    let approval=json!({"command_id":"15151515151515151515151515151501","source":preview["source"],"target":preview["target"],"files":{"setup.sh":"printf 'Q15 prepared\\n'\n","check.sh":"test -f README.md\nprintf 'Q15 checked\\n'\n","setup-network.json":"{\"access\":\"none\"}","setup-limits.json":"{\"setup_seconds\":10,\"check_seconds\":10}"},"source_inputs":preview["source_inputs"],"tools":["git","bash"],"requirement":preview["requirement"],"approval":preview["approval"],"environment_revision":preview["environment_revision"]});
+                    let reply=send("PUT",&setup_path,approval).await?;
+                    fs::write(root.join("setup-approval.json"),&reply.body)?;
+                    let until=Instant::now()+Duration::from_secs(75);
+                    loop {
+                        let reply=send("GET",&setup_path,serde_json::Value::Null).await?;
+                        let view:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        if view["preparations"].as_array().is_some_and(|s|s.len()==2 && s.iter().all(|p|p["current"]==true && p["state"]["ready"]==true)){fs::write(root.join("setup-ready.json"),&reply.body)?;break;}
+                        ensure(Instant::now()<until,&format!("delivery role preparation pending: {view}"))?;
+                        tokio::time::sleep(Duration::from_millis(250)).await;
+                    }
+                    let body="Q15 disposable connected delivery: implement a tiny Bash note command in a new note.sh file. With exactly one argument it records that string for this invocation and prints the same note verbatim, including an empty string; no file persistence is required. With no argument or more than one argument it must fail with usage guidance. Add note-example.md with a clearly labelled illustrative record/readback example for the working command. Preserve the existing README and every unrelated file verbatim. Use Bash only, no Python or new dependencies. Read the selected real CI workflow and satisfy its actual checks. Plan and implement the change through the ordinary Factory tools; do not claim a test or review that did not run.";
+                    let reply=send("POST",&format!("/api/factory/collaboration/repositories/{repository}/issues"),json!({"command_id":"15151515151515151515151515151502","title":"Q15: implement and deliver an exact Bash note roundtrip","body":body})).await?;
+                    fs::write(root.join("issue-create.json"),&reply.body)?;
+                    let created:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                    let issue=created["issue"]["number"].as_str().ok_or("original issue send has no confirmed receipt; inspect its command before retry")?;
+                    let base=format!("{status_path}/issues/{issue}");
+                    let reply=send("GET",&format!("{base}/acceptance-preview"),serde_json::Value::Null).await?;
+                    fs::write(root.join("acceptance-preview.json"),&reply.body)?;
+                    let view:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                    let accepted=json!({"decision_id":"d151515151515151515151515","title_digest":view["title_digest"],"title_occurrence":view["title_occurrence"],"content_digest":view["body_digest"],"content_version":view["content_version"],"native_revision":view["native_revision"],"sources":[],"prerequisites":[]});
+                    let reply=send("POST",&format!("{base}/acceptances"),accepted).await?;
+                    fs::write(root.join("acceptance.json"),&reply.body)?;
+                    fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":issue,"Connection":saved.connection,"Source":source_id}))?)?;
+                    check("preflight",&ready.instance).await?;
+                    runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
+                    check("watch",&ready.instance).await?;
+                    println!("PASS: real production native coordinator delivery reached merge; remaining Q15 cases require exact receipt review");
+                    return Ok(());
+                }
                 if connected_graph {
                     let root=profile.parent().ok_or("profile parent missing")?;
                     let adopt_committed=field(9)?=="authoring-graph-adopt";

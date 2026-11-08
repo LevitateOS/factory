@@ -2242,10 +2242,26 @@ The coordinator advanced it to implementation child
 `b80eecd44521ddaf9fd40b063ed192f6` / run
 `abd8dd765833bd1b79caf59d42fa6098` without repeating investigation. The first
 context judgment `8adf38d4e111ec9c48b03196fd370583` and investigation each retain
-one minute on the original selected source. Implementation is still running;
-the zero-execution resume mode is now forbidden. CI variable
-`Q15_EXPECT_PASS=false` was originally absent and still needs restoration before
-terminal stop. Full delivery/review/correction/CI/merge and later gates remain open.
+one minute on the original selected source. The Builder later failed its first
+task check because the model had required the later documentation task's output.
+`journal-after-builder-cancellation.json` preserves that failed task and cancelled
+dependent, original plan/output digest and both retired/sealed/reconciled runs.
+All six usage rows total seven original-source minutes; all commands finished.
+No publication/review/check/merge occurred. The zero-execution resume mode is
+forbidden after these real runs.
+
+Planner prompt v8 now explains immediate task checks versus integration checks;
+production Go and locked Cargo builds passed. The existing native check has a
+prepared explicit Retry mode, command `15151515151515151515151515151503`, guarded
+by exact original retirement/outcome/source/charge checks. Its read-only gate
+passed against actual retained PostgreSQL (`retry-preflight.log`); no Retry or
+new paid model has been invoked. That path/full journey still needs qualification
+and owner authorization under Q30's no-repeat-inference constraint. All owned
+processes are joined, local GitHub grant withdrawn and temporary units removed.
+`Q15_EXPECT_PASS` was removed and original absence verified HTTP 404 in
+`ci-variable-restored.*`. Both stashes and original profiles remain intact. The
+current task section records the pending command and exact next action; Q15 and
+later ordinary/security/installed gates remain open.
 
 ## Verification and completion
 

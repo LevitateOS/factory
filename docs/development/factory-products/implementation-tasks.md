@@ -9,7 +9,7 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-08, Factory `b8a4ee1`):** 16 queue entries remain:
+**Current snapshot (2026-11-09, Factory `84b04c4`):** 16 queue entries remain:
 Q09–Q14 are complete within their recorded ordinary scopes. Q30 has reached Q15;
 Q16–Q29 remain pending and Q30 remains the finalization pass.
 All 13 broad security gates remain open. The historical ordered-goal pause is
@@ -777,60 +777,58 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
-**INCOMPLETE, requested ceiling Q30; actual task Q15.** Q14 is now verified above.
-Next: inspect the retained publication/review/CI/merge operations and actual
-coordinator wiring, then complete Q15's real full journey. Production composition
-has the required native ports and explicit coordinator start. Fixture-only CI was
-created in `LevitateOS/factory-team-public-check-20261106` at
-`df452dd82157e0c9689786d9247712f17abe92bd`, then strengthened at
-`918165b27124bcaccfec8f2a94f62a5b48e3d262` to check actual Bash note roundtrip,
-empty input and missing-argument usage. `4522d2f4e33424b4965b71deda0b8953b6a70498`
-adds the temporary actual-CI gate `Q15_EXPECT_PASS=false`; its original state is
-absent (`q15-connected/ci-variable-before.*`) and must be restored after the case.
-The native driver/read-only observer now has uncommitted Q15 work in the two
-existing `tools/native-checks/` driver paths; builds pass, no journey pass yet.
-Existing README and Q11 files are intact. Fresh native profile
-`58dbb6051262e8a338cb861e359a0ac5` approved actual README/workflow sources, funded
-source `4c823041ad0ba064c4f974399b0e3a2a` for 30 minutes, created real issue #18
-with command `15151515151515151515151515151502` and accepted it as
-`d151515151515151515151515`. `q15-connected/result.log` stopped before coordinator
-startup because the observer misread the inventory's complete flag; no inference
-ran. The corrected resume path first requires zero assignments/publications,
-then binds a fresh connection and re-prepares the same original approved bytes.
-Next: run `q15-connected/resume.sh delivery-resume` with the temporary Q05 units,
-observe original receipts through the real full coordinator, then finish all Q15
-cases. The observer can be stopped cooperatively with
-`q15-connected/stop-delivery-watch`; the driver then withdraws and joins its
-runtime. First resume proved zero prior execution and re-prepared both roles,
-then lost the synchronous coordinator-start reply. Read-only
-`journal-after-start-reply-loss.json` confirms zero assignments/usage and only the
-original committed issue-create command. No model or publication was dispatched.
-The concrete startup correction in `pkg/factory/runtime/native_server.go` and
-`lib/desktop-runtime/src/supervisor.rs` retains one async startup and polls its
-pending status; owner retirement ends polling. These are additional owned edits,
-currently built but not yet qualified. CI gate restoration remains required.
-Scratch `/home/vince/Projects/q15-connected/`; both prior checks are joined.
-Startup then passed in `resume2.log`, but discovery admitted older fixture
-issues #13–#16 before any dispatch; the observer stopped and all runtimes joined.
-`journal-after-start2-controls.json` proves zero assignments/charges. The actual
-product withdrawals in `withdrawal-{13,14,15,16}.json` now hold those original
-acceptances; #18 remains the sole eligible objective. `resume3.log` reached the
-real coordinator and stopped cooperatively with zero execution because dispatch
-diagnostics were missing from the native status composition. Additional owned
-edit `pkg/factory/runtime/native_product.go` binds that existing read-only
-diagnostic. Current attempt `resume4.log` (session 68270) observes status alongside
-the original receipt inventory. Before another attempt inspect its process,
-status and journal; the resume mode refuses any prior assignment. Restore the
-original absent CI variable before any final stop. Q15 has no journey pass yet.
-Startup/status correction committed as `9137c91`. Current attempt is
-`resume5.log` (session 60306): the per-issue/global-revision comparison fix
-admitted real investigation `a2ee5daec512df78287ededdbcf0daeb` /
-`d49c27ebece977b817a7d34b43d61c78`, which succeeded and fully reconciled. The
-coordinator advanced to implementation child `b80eecd44521ddaf9fd40b063ed192f6`
-/ `abd8dd765833bd1b79caf59d42fa6098`. Original source context/investigation
-charges are one minute each. **Do not use `delivery-resume` again:** it is a
-zero-execution preflight only. Continue this running owner; if interrupted inspect
-its original journals and recover the existing runs/commands, never replay them.
+**INCOMPLETE, requested ceiling Q30; actual task Q15.** Q14 is verified above.
+Q15 is held pending explicit owner authorization for fresh paid Retry command
+`15151515151515151515151515151503`; Q30 forbids repeating paid inference.
+No Retry has been sent. Continue here before Q16 or finalization.
+
+Verified production corrections: `9137c916d79412de60bfa360bc9e864ddb49f076`
+retains/polls one native coordinator startup and exposes existing dispatch waits;
+`84b04c439229f79e9a503ecdc30cc0f43016aa47` preserves exact per-issue priority
+revision checks when no global observer exists. Production Go and locked Cargo
+builds pass. Planner prompt v8 now distinguishes immediate task checks from
+integration checks; its new model journey remains unqualified.
+
+Actual connected profile `58dbb6051262e8a338cb861e359a0ac5`, issue #18,
+create command `15151515151515151515151515151502`, acceptance
+`d151515151515151515151515`, source `4c823041ad0ba064c4f974399b0e3a2a`.
+`/home/vince/Projects/q15-connected/resume5.log` proves real coordinator
+investigation `a2ee5daec512df78287ededdbcf0daeb` /
+`d49c27ebece977b817a7d34b43d61c78` succeeded. It advanced to Builder child
+`b80eecd44521ddaf9fd40b063ed192f6` / `abd8dd765833bd1b79caf59d42fa6098`.
+That Builder was cancelled after task `implement-note` failed its check;
+`add-example-doc` was cancelled as its dependent. The model's task check required
+that later task's documentation. Original plan, task output digest and cancelled
+result are preserved in `journal-after-builder-cancellation.json`. Both runs are
+reconciled, retired and sealed; all commands finished; six original usage rows
+retain exactly seven minutes on the selected source. No candidate publication,
+independent review, CI or merge was reached. Actual paid context/worker judgments
+are not delivery-material judgment completion.
+
+Original README/Q11 remote files, profiles and both stashes remain intact. Older
+fixture #13–#16 acceptances were explicitly withdrawn only in this Q15 profile
+before dispatch (`withdrawal-{13,14,15,16}.json`). Remote CI workflow commits
+`df452dd82157e0c9689786d9247712f17abe92bd`,
+`918165b27124bcaccfec8f2a94f62a5b48e3d262` and
+`4522d2f4e33424b4965b71deda0b8953b6a70498` are additive fixture inputs.
+Temporary `Q15_EXPECT_PASS=false` is removed and its original absence verified
+HTTP 404 in `ci-variable-restored.*`. All checks are joined, local GitHub grant
+withdrawn and temporary native units removed; no owned worker remains running.
+
+**Exact next action:** obtain the pending fresh Retry authorization; first inspect
+any newer receipts/processes. `retry-preflight.log` passed on the stopped actual
+profile without inference, confirming the exact retired outcomes, all finished
+commands and seven retained source minutes. Do not use `delivery-resume` (it
+requires zero prior execution), recreate #18, edit the original plan or replay old
+commands. After authorization, run the existing temporary Q05 fixture units and
+`/home/vince/Projects/q15-connected/resume.sh delivery-retry` with helper
+`q15-delivery5-callback`; it rechecks original receipts, binds current authority,
+prepares the same approved bytes and invokes the new explicit native Retry.
+Its command/paid/full-journey path has not run. Restore any new temporary CI gate
+before terminal stop. Finish the entire Q15 scope including paid delivery
+judgment, publication/review/correction, real checks/merge, human/pending/inline
+blockers, changed target/head/base, next-Builder preparation and send recovery.
+Q24's retired-appliance boundary and all broader gates remain open.
 
 **Historical hold:** The Q15 prerequisite check re-read
 `a977bba`/`99a03cb`, the current refusal code and original Q14 receipts. The safe
