@@ -2,7 +2,7 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1–D5 implemented and verified locally; D6–D8 remain pending design only.
+Status: D1–D6 implemented and verified locally; D7–D8 remain pending design only.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -252,6 +252,28 @@ custody, crash barriers, global fencing and operation-specific recovery.
 **Proof:** existing ordinary/conditional ownership and recovery checks must cover
 nested calls, cancelled callers, failed release and unchanged retained formats.
 Fountain changes remain separately owned and do not close D2 or another gate.
+
+Completion (2026-11-08): Factory D1–D5 code and recorded native/browser/PG
+checks were verified; no prerequisite gap remained. Canonical Fountain
+`/home/vince/Projects/forgejo-ext` commit
+`e88b50dadb91b5ea4bb39dcf80307939d3270fed` implements D6 atop retained gateway
+head `1b523c6e3d7370b4abfd3894f7c6cf9bf1853c03`. Its working tree was clean
+before and after the change. One `services/nativeownership` leaf now owns the
+three callers' claim/capability/release protocol. Callers retain their exact
+scope encodings; shared collaboration/ref/owner codecs live in dependency-neutral
+`modules/nativeoperation`. Permission/effect/recovery policy, crash barriers,
+reservation transactions and bounded waits retain their existing owners.
+Pinned Go 1.26.10, existing SQLite ownership/recovery checks passed ordinary and
+conditional nesting, pre/mid-call cancellation, failed release with capability
+cleanup and replacement fence intact, exact retained formats, admission refusals
+and known/unknown recovery. Command: `go test -mod=readonly -tags 'sqlite
+sqlite_unlock_notify' -count=1 -run 'Test(OrdinaryOwnership|CollabOwnership|RefWrite|MergeRetry|NestedRef|ParseCollabResource|ClassifyOrdinaryOwner|PreparedAdmission|Recover|SplitOrdinaryResource|RepositoryResourceFormats)'
+./services/nativeoperation ./services/issue ./services/pull`; output:
+`/home/vince/Projects/d6-verified.log`. Full Fountain build passed with the same
+toolchain/tags (`/home/vince/Projects/d6-fountain`); direct import check:
+`/home/vince/Projects/d6-imports.log`. Factory's seven pre-existing modified
+files and all retained evidence are preserved. No global-lock redesign or new
+security/installed qualification. D7–D8 remain pending; old product queue stays cleared.
 
 ### D7. Put native-check configuration in its existing feature-gated owner
 
