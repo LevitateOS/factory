@@ -1157,6 +1157,37 @@ comment was posted. No model ran. Q08–Q30, installed variants and all 13 secur
 gates remain open. Original six dirty edit sets, profiles/keyrings and failed
 attempts are preserved.
 
+### Q07 exact consent recovery increment
+
+`c55b33619b141e2598c5c9f84c4079467cab6b8d` captures the complete normalized
+setup request digest in its existing immutable recipe. Known receipt recovery
+checks exact payload, actor and native owner before returning observations;
+it acquires no source bundle and starts no preparation. Older recipes keep their
+prior admission path; missing provenance is not inferred. Setup readiness is
+shown as current only for the displayed source/selection and native session.
+
+`/home/vince/Projects/q07-recover2/run.log` passed real setup with its completed
+reply dropped and retained across production Quit. `reopen.log.phase2` passed
+recovery after source change, changed-payload conflict and stale-session refusal
+before its next source review failed: the owned fixture B accidentally omitted
+README. The corrected, fast-forward-only source fixture is
+`fe292f53ed53ed1bf3887d3338b9c3a73bc0c09e`; `reopen.log` passed fresh consent,
+both actual ready preparations and source-context readback for it. The final
+result deliberately does not relabel the reused recovery phase as a fresh pass.
+`q07-recovery-journals.log` confirms all six original journal files byte-identical,
+exactly two new preparations, and confirmed retirement of all four identities.
+Existing native PostgreSQL requirement/approval-chain checks passed in
+`q07-recipe-pg.log`; TypeScript/Lit/UI, native-check, backend/helper and regular
+native-ui builds passed in the `q07-recovery-*` logs. All original dirty hunks
+were compared and preserved. No model ran.
+
+**Q07 remains INCOMPLETE:** acceptance with nonempty native comments/dependencies,
+hidden/stale acceptance inputs and withdrawal during I/O still need their owning
+checks. Automatic cross-session recovery of legacy pending entries lacking full
+command provenance is unqualified; their prior behavior/data remains intact.
+The exact fixture-comment permission remains pending, and no comment was posted.
+Q08–Q30 and all 13 security gates remain open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

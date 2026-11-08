@@ -280,7 +280,13 @@ file-selection bounds passed separately in the same connected journey before
 the display fixture's broker visibility was corrected. Q07 remains Active:
 acceptance with nonempty comments/dependencies, withdrawal during I/O,
 changed-source consent and native pending-approval restart/reactivation remain
-pending. [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
+pending. `c55b33619b141e2598c5c9f84c4079467cab6b8d` additionally captures exact
+command provenance in existing consent records and recovers a lost approval
+reply after native restart/source change without replay. Fresh consent produced
+both ready preparations for the corrected source; original journals stayed
+byte-identical. Acceptance, withdrawal during I/O and qualification of legacy
+pending records without captured command provenance remain open.
+[Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
 ```text
 Implement Q07 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
