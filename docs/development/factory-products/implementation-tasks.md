@@ -14,7 +14,7 @@ Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
 Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q17 request stopped at Q14's conditional-refinement blocker and does not
+bounded Q18 request stopped at Q14's conditional-refinement blocker and does not
 resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
@@ -659,7 +659,7 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**BLOCKED (2026-11-08), latest requested ceiling Q17; actual task Q14.** D1–D8/Q01–Q13 remain
+**BLOCKED (2026-11-08), latest requested ceiling Q18; actual task Q14.** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
 `a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
 unchanged base and holds Issue Maker before paid refinement. GitHub's documented
@@ -795,6 +795,16 @@ Final reply: requested Q17, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q18"></a>
 
 ### Q18 — Fountain configured-host login and grant lifecycle
+
+**Not started: blocked by [Q14](#q14); Q15–Q17 remain unverified.** Current
+refusal code and original Q14 receipts were rechecked; the safe refinement
+contract remains unresolved. Canonical Fountain is clean and retains D6
+`e88b50dadb91b5ea4bb39dcf80307939d3270fed`, gateway merge
+`2e57559c0e4844baba861a86632d083192537ff3` and both gateway ancestors
+`778e08aa98329848ddca1c07295120cf5fd082a8` /
+`1a29a5e86e06e370486afeee689eaaf54ea04b7b`. No Fountain source, grant,
+reservation, credentials or retained state changed; no login/refresh or inference
+was repeated. Resolve Q14's recorded blocker before dependent work.
 
 ```text
 Execute through Q18 — Fountain configured-host login and grant lifecycle. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q18 despite the document's historical paused snapshot; it does not authorize work beyond Q18 or resuming the old product queue.
