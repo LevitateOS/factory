@@ -14,7 +14,7 @@ Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
 Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q14 request stopped at its conditional-refinement blocker and does not
+bounded Q15 request stopped at Q14's conditional-refinement blocker and does not
 resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
@@ -659,7 +659,7 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**BLOCKED (2026-11-08), requested/actual task Q14.** D1–D8/Q01–Q13 remain
+**BLOCKED (2026-11-08), latest requested ceiling Q15; actual task Q14.** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
 `a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
 unchanged base and holds Issue Maker before paid refinement. GitHub's documented
@@ -715,6 +715,12 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q15"></a>
 
 ### Q15 — Complete connected GitHub delivery and correction
+
+**Not started: blocked by [Q14](#q14).** The Q15 prerequisite check re-read
+`a977bba`/`99a03cb`, the current refusal code and original Q14 receipts. The safe
+refinement contract is still unresolved. No owned Q14 process remains active;
+no inference, provider write or successful check was repeated. Resolve Q14's
+recorded blocker before starting Q15.
 
 ```text
 Execute through Q15 — Complete connected GitHub delivery and correction. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q15 despite the document's historical paused snapshot; it does not authorize work beyond Q15 or resuming the old product queue.
