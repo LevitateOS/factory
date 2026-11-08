@@ -23,7 +23,8 @@ required only for work or checks that look like hacking.
 
 Q01 is Complete within its source/native scope. Q02 is Complete within its
 source/component scope; Q03 is Complete within its configuration/admission scope.
-Q04 is Complete within local placement scope; Q05 is Active.
+Q04 is Complete within local placement scope; Q05 is Complete within ordinary
+boundary admission scope; Q06 is Active.
 Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
@@ -96,8 +97,8 @@ recording any newly proved current conclusion separately.
 | [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Complete (source/component scope) |
 | [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Complete (configuration/admission scope) |
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Complete (local placement scope) |
-| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Active |
-| [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Pending |
+| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Complete (ordinary boundary admission scope) |
+| [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Active |
 | [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Pending |
 | [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Pending |
 | [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Pending |
@@ -226,6 +227,14 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q05"></a>
 
 ### Q05 — Native execution, MCP and custody admission
+
+Completion (2026-11-08): existing canonical worker/native/MCP owners verified at
+Factory `6c4dc40`, including current binaries and real isolated reviewer
+finite/cancel/Quit plus public-Go-admitted coder MCP/result/restart journeys.
+[Evidence and limits](../untangle-codebase.md#q05-completion-ordinary-native-boundary-admission-2026-11-08).
+No new execution owner or admission bypass was needed. Real provider tasks,
+startup/crash outcome recovery and installed/security qualification remain pending;
+the earlier timed-out fixture run is retained for Q09, without a terminal claim.
 
 ```text
 Implement Q05 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.

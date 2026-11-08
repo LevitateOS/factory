@@ -28,7 +28,8 @@ The pre-existing T06-CONNECT Active row/note remain verbatim as historical
 conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
 Q01 is Complete within its source/native scope; Q02 is Complete within its
 source/component scope; Q03 is Complete within configuration/admission scope;
-Q04 is Complete within local placement scope and Q05 is Active.
+Q04 is Complete within local placement scope; Q05 is Complete within ordinary
+boundary admission scope and Q06 is Active.
 The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
@@ -56,6 +57,13 @@ retirement. Existing PostgreSQL controller-race and disabled/unfunded admission
 checks passed. [Evidence and limits](../untangle-codebase.md#q04-completion-canonical-local-placement-2026-11-08).
 Only the owned read-only fixture was enrolled; no model call or real repository
 intake ran. Remote placement is Q19; all security gates remain open.
+
+Q05 ordinary boundary admission: current canonical source at `6c4dc40` passed
+actual isolated reviewer finite/cancel/Quit and admitted coder MCP/artifact/result/
+restart checks. [Evidence, exact failed-run reference and limits](../untangle-codebase.md#q05-completion-ordinary-native-boundary-admission-2026-11-08).
+This adds ordinary admission evidence to gates 7–12; no whole security gate closes.
+The timed-out startup fixture remains unresolved for Q09; real provider-task and
+installed recovery evidence is still required.
 
 ## Current gates, owners and closure evidence
 

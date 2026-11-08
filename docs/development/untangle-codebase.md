@@ -625,6 +625,46 @@ build configurations passed (`/home/vince/Projects/q04-*.log`). All six original
 edit sets remain intact. Q05 is next; remote placement/T12 completion remains Q19,
 and all 13 security gates and later integrated/installed work remain open.
 
+### Q05 completion: ordinary native boundary admission (2026-11-08)
+
+D1–D8/Q01–Q04 and canonical Fountain references remain verified within their
+recorded scopes. Current canonical source at `6c4dc40` already contains the
+required worker/native/MCP owners; no alternate executor or new product code was
+needed. Current worker/broker/check binaries and Go callback built successfully
+(`/home/vince/Projects/q05-{native,callback}-build.log`).
+
+The existing actual supervisor check passed isolated reviewer finite execution,
+64 KiB prompt/replay, cancellation and production-owner Quit with exact terminal
+process/custody receipts and joined dependency shutdown
+(`/home/vince/Projects/q05-native-boundary-finite/result.log`). The existing
+public-Go-admitted coder check passed actual isolated worker MCP activation,
+artifact upload, explicit incomplete result and canonical settlement after a new
+supervisor instance without relaunch
+(`/home/vince/Projects/q05-admit/result.log`). Reproduce with
+`bash /home/vince/Projects/q05-native-execution.sh ROOT [admitted]`, supplying the
+retained source bundle/commit as in those roots. Both use temporary existing
+service templates, private profiles/keyrings and local fixed executables, without
+model calls or personal credentials. Service/owned-root retirement passed.
+Actual receipt headers record desktop UID 1000 versus worker UID 64596 for all
+four runs (`/home/vince/Projects/q05-boundary-receipts.log`). Runtime admission
+enforces exact source/role/worktree mounts, bounded private storage/cgroups and
+private network/IPC before execution; the real admitted call uses the scoped
+relay. Existing D5 current-work/all-eight-role-catalog, backend/instance,
+expiry/revocation, signer-custody and restart checks remain applicable and were
+reused from `/home/vince/Projects/d5-mcp-verified/run.log` rather than repeated.
+Go/UI continue to receive scoped authority, never the native root key.
+
+The first admitted attempt combined the separate slow-start budget fixture with
+the normal 30-second admission check and timed out. Preserve run
+`75f0c7ea6d2cb7a200a0ce930bf50fa7` under
+`/home/vince/Projects/q05-native-boundary-admitted/` as unresolved; no terminal
+outcome or reconciliation is inferred. Its startup/outcome recovery remains Q09.
+Other failed fixture roots are also retained. Q06 is next. This completes only
+Q05's ordinary boundary scope, not a successful provider task, complete crash/
+outcome recovery, installed activation or any of the 13 open security gates.
+All six original edit sets, existing services/evidence and canonical repositories
+remain preserved.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.
