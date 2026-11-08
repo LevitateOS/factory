@@ -309,8 +309,8 @@ passes the owner-approved live Architect/two-task Builder journey in
 candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
 The owner accepted current checks while retaining the historical encoding cause
-as unknown. Q08–Q11 are Complete within their recorded ordinary scopes;
-Q12–Q30 remain pending. All 13 security gates stay open. See the
+as unknown. Q08–Q12 are Complete within their recorded ordinary scopes;
+Q13–Q30 remain pending. All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
@@ -376,3 +376,14 @@ Preserve their fences: normal merged/indirect PR state and later successful
 operations do not settle an earlier missing causal receipt. Unsupported rules,
 installed/security gates and Q15 full composition remain open. No broad gate is
 closed; Q12 was not started.
+
+Q12 completion (2026-11-08): `51a80d4`/`39712e2` qualify the ordinary selected-source
+judgment owner and its Feed/planning/context/worker consumers, live long-input
+Begin, strict typed refusal, exact original-source/model/process accounting,
+active source/worker withdrawal, planning eligibility and retained crash/restart
+without inference replay. The
+[Q12 decision](../untangle-codebase.md#q12-completion-selected-source-judgment-owner-and-consumers-2026-11-08)
+records exact receipts, declared work/content limits and the first failed-start
+command still held without an outcome. Preserve that fence and all earlier
+unknown commands. Q13/Q14/Q15 composition, installed qualification and all 13
+broad gates remain open; Q13 was not started.

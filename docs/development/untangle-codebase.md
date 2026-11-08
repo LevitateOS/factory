@@ -1806,6 +1806,91 @@ profiles or artifacts were committed. All 13 broad security gates, installed
 qualification, later queue tasks and full Q15 composition remain open. Q12 is
 next only on authorization; stop after Q11.
 
+### Q12 completion: selected-source judgment owner and consumers (2026-11-08)
+
+Requested/actual ceiling: Q12. **COMPLETE within ordinary judgment owner/consumer
+scope**, in `51a80d4772af4b945484d56886b2525def50fbad` and
+`39712e231a93b939fa72673dfc81de6433286709`. Q13 was not started.
+D1–D8/Q01–Q11 were rechecked against actual owners, the 37 Factory and two
+canonical Fountain references in `/home/vince/Projects/q11-prerequisites.log`,
+plus Q11 `a9ecf59`/`41e600d`/`d588efb`. Ancestor checks passed. Actual retained
+native/browser/PG outputs, Q08's live sequential Builder, Q09's launch/reopen and
+correction, Q10 permissions/revocation and Q11 causal merge/source receipts were
+inspected and reused within their recorded scopes. No earlier ordinary prerequisite
+remained unfinished. Historical unknown effects stay held.
+
+Go captures policy/funding revisions with the chosen source/model before Begin,
+then checks current source and caller admission before adoption. Cached purpose
+advice checks work eligibility and the original native capture; fresh advice
+rechecks eligibility after inference. Context binding allows rechecking the same
+completed fingerprint while retaining staged/current-work/expiry checks and
+refusing replacement. Worker polling exits on capability loss instead of spinning
+on an unavailable command until deadline. Historical capture encodings stay
+readable; missing historical revisions are not invented.
+
+Rust imports only one exact helper binding/result/output, verifies process/output
+identity and observes the original service stopped before publishing recovery.
+Inspection never starts inference. Muse emits two JSON echoes of its prompt;
+judgments now bound the transcript by twice the encoded prompt plus 64 KiB,
+separately from final-answer/journal limits. The 30-second/one-model-step call and
+existing execution complete-output requirement remain. Confirmed output-limit
+termination settles actual usage without adopting an answer. Consultation prompts
+state existing typed shapes explicitly; validation was not weakened. No alternate
+provider or TypeSafe/JEV fallback was added. Go retains product transactions,
+Rust effects/custody and Lit its unchanged configuration/presentation contracts.
+
+Live calls used the existing CLI-managed Muse login and official stable
+`1.4.14-R7309.1`, SHA-256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`,
+with selected model `muse-spark-1.3-contributor`. No credential was copied or
+exposed. Every completed command below has exactly one usage row for its original
+captured connection and actual native process interval, rounded up to one minute.
+Retained JSON includes source/model/revisions, prompt/tool digests, process
+start/stop/retirement, output and usage. Offline reconciliation time, invented token
+counts, monetary charges and provider billing identities are not claimed.
+
+| Required behavior | Actual retained evidence and exact commands |
+| --- | --- |
+| Authenticated Feed admission/context and typed discussion | `/home/vince/Projects/q12-connected3/{result.log,feed-admission.json,profile/connected-judgment-evidence.json}`; command `2ec7bec0e3c6c9e237fd64120e67986f`, post `06eb51b86b94dc90a1d47b0c9b756a62`, source `c345fd944006fa5dfae34ebecda83670`. Actual canonical GitHub reads/grant on fixture `1448277000`; no provider mutation. |
+| Planning/advice/context and restart | `/home/vince/Projects/q12-connected4/{result.log,profile/connected-judgment-journey.json,profile/connected-judgment-evidence.json}`; planning `d75f7c8d11496b94c212c993f91e3ddf`, context `e156ad7373458ee7181c182106302de0`, source `b70adcde85bb50bd50e59413d76c93d3`. Live consolidation selected `single_person`; live context applied `current`, with no unavailable history offered. Cached readback survived restart after native account re-admission. |
+| Active source withdrawal / planning eligibility race | Same connected4 artifacts; `3392588e1fc3a52d7a3e436b1fb1b208` was withdrawn after helper start, cancelled/charged without adoption. Reactivation could not authorize the old capture. `be677636acf3cbebf0b6ef1aae9eadbb` completed after its planning revision was superseded; stale adoption refused. Neither original inference was replayed. |
+| Authenticated worker probability/choice/score | `/home/vince/Projects/q12-worker2/{result.log,execution-profile/connected-judgment-evidence.json}` and private native transcripts. Commands `ba042dcd2bb701596cca0d972a8feb00`, `bc9983246546e8a72f37792973521182`, `77458610ae98d868351cbc2e3a78143b`; capability `cb0f65b2f562d633f5b6bb8b895f6a9e`, source `dae060c748e7967431fef12cd76b939f`. Each two-question batch made one call through the authenticated relay, strict Go tool/answer validation and selected-source owner. Actual admission, artifact/result, coordinator settlement, retirement and reopen passed without inference replay. |
+| Worker eligibility lost during inference | `/home/vince/Projects/q12-worker-race/{result.log,execution-profile/connected-judgment-evidence.json}`; `f0395d24ff1e9f360fc204bde4fc8ff9`, source `c43b958d874086316cc6306512fac595`. Actual capability revoked after native consultation began; tool refused adoption, consultation was not returned, original call cancelled/accounted once and worker reconciled needs-human with joined resources. |
+| Long-input production Begin | `/home/vince/Projects/q12-long2/{result.log,judgment-profile/live-judgment-evidence.json}`; `10445fc1c4bc36bc83b4d1bcda214ea7`, source `d25875e423f9f396c4506805f0514146`. Actual Begin accepted a 271,060-byte prompt, minimum JSON wire 541,475 bytes, returned a valid discussion answer and retained its exact result/charge across restart. |
+| Abrupt owner loss and original recovery | `/home/vince/Projects/q12-crash/{result.log,judgment-profile/live-judgment-evidence.json}`; `9f52bb5bda9095ab4febcdc497de7ad7`, source `cd447e572aed33a5a6f344b90d1cada8`. Abrupt driver exit after actual process start, before Go settlement. Reopen imported the original helper cancellation/tree-retirement receipt, adopted no answer and charged its original interval once. A first reopen raced PostgreSQL shutdown; only reopen was retried after observed shutdown, never Begin. |
+| Invalid typed output | `/home/vince/Projects/q12-worker/{result.log,retained-journal.json}`; `25cb05ec1f8fd61ff2a8020c6f65da1d`, source `05a680ff736d3789d2ff3667fd45fc4d`. Actual probability answer omitted mandatory `type`: rejected, original 17:30:32.800–17:30:36.515 UTC interval charged once. Original worker reconciled failed without relaunch. The explicit output prompt subsequently passed in worker2. |
+| Original truncation settlement | `/home/vince/Projects/q12-long/{result.log,judgment-profile/live-judgment-evidence.json}`; `b8226c0a83ca19c869a4fc75d2c3fd50`, source `5f77684334aca5a0a1eda1539b436688`. Original 64 KiB transcript limit caused output_limit/incomplete output. Recovery settled the original receipt and usage without an answer or resend. Distinct long2 qualifies the repair, without replacing this outcome. |
+
+**Retained fence:** `/home/vince/Projects/q12-connected/` keeps command
+`b5922f32fec1b1415c679bdedd8b2418`, reserved with no outcome/finish. Its fixture
+pointed XDG_RUNTIME_DIR at the isolated keyring directory; systemd reported failed
+service start and no process receipt exists. Preserve its native request/binding,
+connector error and read-only `retained-journal.json`; do not infer settlement
+from later success or resend it. Later cases use the real user-manager runtime
+and separate command identities. Cold tool preflight failures captured no
+inference; direct official inspection and sequential checks passed. Connected2/3
+retain their completed Feed/planning/context receipts; their fixture assertion/
+readiness failures are not full passes. Feed success was reused in connected4.
+
+**Limits and remaining gates:** provider answers and authenticated Feed/worker
+transports are real. Planning alternatives, context assignment/snapshot inputs,
+worker fixture source/work/permission facts and the worker CLI invoking the tools
+are declared. This qualifies selected-source judgment adoption and authenticated
+tools, not an autonomous model worker's complete delivery or installed context/UI
+journey. Q08's actual planning/Builder evidence is reused. Q13 owns contribution/
+queue consumers, Q14 creation/graph and Q15 full coordinator/model/review/CI/merge/
+next-Builder composition. Mixed-repository funding remains undecided/unavailable.
+All 13 broad security gates and installed qualification remain open. No
+Daybreak-only check is claimed; Q24 appliance lifecycle is untouched.
+
+Production Go backend/existing driver builds, locked Rust runtime/native checker
+builds, `bun run check:boundaries` and `git diff --check` passed. Existing integration
+owners alone were extended; no unit tests, roots or provider framework were added.
+All listed sessions exited; fixture units/services, temporary PostgreSQL, keyring
+and bus processes were joined, local GitHub grants withdrawn and profiles/receipts
+retained. Both original stashes, including the unrelated README, remain intact.
+No remote human text was edited.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

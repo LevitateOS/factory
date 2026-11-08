@@ -9,11 +9,11 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-08, Factory `41e600d`):** 19 queue entries remain:
-Q09–Q11 are complete within their recorded ordinary scopes, Q12–Q29 are pending,
+**Current snapshot (2026-11-08, Factory `39712e2`):** 18 queue entries remain:
+Q09–Q12 are complete within their recorded ordinary scopes, Q13–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q11 request is complete and does not resume later implementation.
+bounded Q12 request is complete and does not resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -45,7 +45,12 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**When authorized, start with Q12.** Q11's connected CI and merge producer
+**When authorized, start with Q13.** Q12's live selected-source Feed, planning,
+context and authenticated worker consultations, long-input Begin, exact accounting,
+withdrawal/eligibility races and crash recovery are in its
+[completion evidence](../untangle-codebase.md#q12-completion-selected-source-judgment-owner-and-consumers-2026-11-08).
+Its first failed-start capture remains fenced; later success does not settle it.
+Q11's connected CI and merge producer
 contracts, exact receipts, reused source-preparation checks and three retained
 ambiguous capture fences are in its [completion evidence](../untangle-codebase.md#q11-completion-connected-ci-and-merge-contracts-2026-11-08).
 Q10's connected reader/writer, OAuth/gh-grant
@@ -178,7 +183,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q09 — execution recovery](#q09) | Ordinary standalone controls, withdrawal, correction, interrupted launch/write, lost replies and retained recovery verified. Shared appliance lifecycle remains Q24; installed recovery remains later. | Complete within ordinary standalone scope |
 | [Q10 — GitHub permissions](#q10) | Supported connected permission cases, read-role COMMENT, UI/API pre-capture refusals, remote revocation and observer migration verified; fixture team permission/request restored. | Complete within ordinary connected scope |
 | [Q11 — CI and merge rules](#q11) | Real app-bound CI/test-merge evaluation, current rule/ref/status/policy/permission fences, human veto restrictions and causal merge verified; unchanged merge/squash/rebase and source-preparation evidence reused. Ambiguous captures stay fenced; full composition remains Q15. | Complete within ordinary producer/operation scope |
-| [Q12 — judgments](#q12) | Connect actual selected-source inference to Feed admission, planning/advice/context and worker probability/choice/score tools; prove long input, withdrawal, exact charges and crash recovery. | Pending |
+| [Q12 — judgments](#q12) | Live selected-source Feed/planning/context adoption and authenticated worker probability/choice/score, long-input Begin, typed refusal, exact charges, withdrawal/eligibility races and crash recovery verified. Seeded work/content and broader composition limits remain explicit. | Complete within ordinary judgment owner/consumer scope |
 | [Q13 — contributions and priority](#q13) | Complete contribution claim → inference → invitation/reply and same-repository queue tournaments/dispatch, including eligibility changes and exact retained charges. Keep mixed-repository funding unresolved/unavailable. | Pending |
 | [Q14 — Feed and graph authoring](#q14) | Prove real funded request → judgment → issue creation/refinement and dependency graph delivery, preserving human edits, partial completed writes and safe restart. | Pending |
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
@@ -544,6 +549,26 @@ Final reply: requested Q11, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q12"></a>
 
 ### Q12 — Judgment owner and planning/worker consumers
+
+**COMPLETE (2026-11-08), ordinary judgment owner/consumer scope.** Commits
+`51a80d4772af4b945484d56886b2525def50fbad` and
+`39712e231a93b939fa72673dfc81de6433286709`. D1–D8/Q01–Q11 were checked against
+actual owners, exact ancestor commits and retained checks. Live selected Muse
+inference passed authenticated Feed admission, planning consolidation/advice,
+eligible context choice and authenticated native worker probability/choice/score.
+Production Begin passed a 271,060-byte prompt with JSON wire above 512 KiB.
+Typed rejection, original-source/model/process accounting, active source and worker
+withdrawal, superseded planning, retained restart and abrupt owner-loss recovery
+passed without inference replay or alternate-provider fallback. Checks and joined
+cleanup: `/home/vince/Projects/q12-{connected3,connected4,worker2,worker-race,long2,crash}/`.
+The failed typed answer and original output-limit call are settled from their
+original receipts; failed-start command `b5922f32fec1b1415c679bdedd8b2418` remains
+reserved without an outcome and must not be resent. Planning content/context
+scope and native work inputs are declared; the consulted answers and provider
+calls are real. [Exact receipts, scopes and limitations](../untangle-codebase.md#q12-completion-selected-source-judgment-owner-and-consumers-2026-11-08).
+Q13 contributions/queue, Q14 authoring/graph, Q15 complete delivery, installed
+qualification and all 13 broad security gates remain open. Requested/actual
+ceiling Q12; Q13 was not started.
 
 ```text
 Execute through Q12 — Judgment owner and planning/worker consumers. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q12 despite the document's historical paused snapshot; it does not authorize work beyond Q12 or resuming the old product queue.
