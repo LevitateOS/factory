@@ -39,7 +39,7 @@
     await until(() => app.querySelector('soda-factory-role-settings')?.querySelector('[aria-label="Coding model"]'), 'role settings');
     const roles = app.querySelector('soda-factory-role-settings'), context = roles.current;
     const base = `repositories/${context.repository}/factory`;
-    let approvalReply = '', selectionReply = '', loseReply = fixture.drop_approval_reply === true;
+    let approvalReply = '', selectionReply = '', acceptanceReply, previewStatus, loseReply = fixture.drop_approval_reply === true;
     const request = context.transport.request.bind(context.transport);
     context.transport.request = async (path, options) => {
       const response = await request(path, options);
@@ -49,6 +49,9 @@
         approvalReply = response.status + ' ' + (await response.clone().text()).slice(0, 1000);
         if (response.ok && loseReply) { loseReply = false; throw Error('Native check dropped the completed approval reply'); }
       }
+      if (path.includes('/acceptance-preview')) previewStatus = response.status;
+      if (path.endsWith('/acceptances') && options?.method === 'POST')
+        acceptanceReply = {status: response.status, body: await response.clone().json()};
       return response;
     };
     await invoke('report', {stage: 'onboarding-repository:' + context.repository, error: null});
@@ -195,6 +198,57 @@
       assert(acceptance.preview?.repository === context.repository && acceptance.preview.issue === String(fixture.issue_number),
         'connected issue preview unavailable: ' + acceptance.message);
       assert(!acceptance.reviewed && button(acceptance, 'Accept requirements')?.disabled, 'preview invented owner acceptance');
+      if (fixture.accept_inputs) {
+        const commentInput = [...acceptance.querySelectorAll('input')].find(node => node.closest('label')?.textContent.includes('Requirement comment IDs'));
+        input(commentInput, fixture.comment_id);
+        await acceptance.updateComplete;
+        assert(!acceptance.preview && !acceptance.reviewed, 'comment selection retained an old preview or consent');
+        await click(acceptance, 'Review current requirements');
+        await until(() => !acceptance.busy, 'hidden comment refusal settled');
+        assert(previewStatus >= 400 && !acceptance.preview && !acceptance.pending, 'hidden selected comment was accepted');
+        await invoke('report', {stage: 'onboarding-hidden-refused', error: null});
+        await until(async () => {
+          await click(acceptance, 'Review current requirements');
+          await until(() => !acceptance.busy, 'visible comment preview settled');
+          return !!acceptance.preview;
+        }, 'fixture comment restored');
+        const choose = async outcome => {
+          assert(acceptance.preview.comments.length === 1 && acceptance.preview.comments[0].id === fixture.comment_id &&
+            acceptance.choices.length === 1, 'native comment or prerequisite missing');
+          const fields = acceptance.querySelector('[data-prerequisite]');
+          input(fields.querySelectorAll('input')[0], context.repository);
+          input(fields.querySelectorAll('input')[1], String(fixture.prerequisite_issue));
+          input(fields.querySelector('select'), outcome);
+          await acceptance.updateComplete;
+          const consent = acceptance.querySelector('[data-requirements-preview] input[type=checkbox]');
+          assert(consent && !consent.checked, 'prerequisite choice retained consent');
+          consent.click();
+          await acceptance.updateComplete;
+        };
+        await choose('code');
+        await click(acceptance, 'Accept requirements');
+        await until(() => !acceptance.busy, 'unaccepted code prerequisite settled');
+        assert(!acceptanceReply && !acceptance.pending && acceptance.message.includes('Accept the current requirements of prerequisite'),
+          'code prerequisite invented an acceptance');
+        await choose('result');
+        const stale = acceptance.preview;
+        await invoke('report', {stage: 'onboarding-stale-preview', error: null});
+        await until(async () => {
+          const current = await api(`${base}/issues/${fixture.issue_number}/acceptance-preview?comment_id=${fixture.comment_id}`);
+          return current.native_revision !== stale.native_revision && current.dependencies[0]?.occurrence !== stale.dependencies[0].occurrence;
+        }, 'native prerequisite occurrence changed');
+        await click(acceptance, 'Accept requirements');
+        await until(() => !acceptance.busy, 'stale acceptance refusal settled');
+        assert(acceptanceReply?.status === 409 && ['stale_evidence', 'edge_changed'].includes(acceptanceReply.body.error) &&
+          !acceptance.pending && !acceptance.preview && !acceptance.reviewed, 'stale inputs recorded acceptance or retained consent: ' + JSON.stringify(acceptanceReply));
+        await click(acceptance, 'Review current requirements');
+        await until(() => !acceptance.busy && acceptance.preview, 'fresh complete acceptance preview');
+        await choose('result');
+        await click(acceptance, 'Accept requirements');
+        await until(() => !acceptance.busy, 'current acceptance settled');
+        assert(acceptanceReply.status === 201 && !acceptance.pending && !acceptance.reviewed && !acceptance.preview,
+          'current acceptance did not settle: ' + JSON.stringify(acceptanceReply) + ' ' + acceptance.message);
+      }
     }
     assert((await api()).policy.enabled === false, 'setup started automation');
     await invoke('report', {stage: 'github-writes-complete', error: null});

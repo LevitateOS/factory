@@ -198,6 +198,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "recovered_after_native_restart": fixture["reopen"] == true && fixture["resume_review"] != true,
                     "reviewed_planning_source_files": fixture["source_paths"].as_array().map_or(2, Vec::len),
                     "connected_acceptance_preview": fixture["preview_issue"] == true,
+                    "connected_accepted_comment_and_prerequisite": fixture["accept_inputs"] == true,
+                    "native_hidden_and_stale_inputs_refused": fixture["accept_inputs"] == true,
                     "oauth_source": "user_authorized_gh_grant",
                     "factory_device_scope_qualified": false,
                     "installed_qualified": false,

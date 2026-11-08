@@ -1516,6 +1516,69 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 		if !input.PreparationReady {
 			return errors.New("reviewed native setup cannot reach canonical readiness")
 		}
+		if expectedSources == 2 {
+			var fixture struct {
+				AcceptInputs bool   `json:"accept_inputs"`
+				Issue        int64  `json:"issue_number"`
+				Comment      string `json:"comment_id"`
+				CommentBody  string `json:"comment_body"`
+				Prerequisite int64  `json:"prerequisite_issue"`
+			}
+			raw, err := os.ReadFile(filepath.Join(filepath.Dir(profile), "github-write-fixture.json"))
+			if err != nil {
+				return err
+			}
+			if err = json.Unmarshal(raw, &fixture); err != nil {
+				return err
+			}
+			if fixture.AcceptInputs {
+				head, err := db.AcceptanceHead(ctx, repo, fixture.Issue)
+				if err != nil {
+					return err
+				}
+				accepted, err := db.AcceptanceDecision(ctx, head)
+				if err != nil {
+					return err
+				}
+				depth, err := db.AcceptanceDepth(ctx, repo, fixture.Issue)
+				if err != nil {
+					return err
+				}
+				if depth != 1 || accepted.Initial || accepted.Validate() != nil || len(accepted.Sources) != 1 || len(accepted.Prerequisites) != 1 || accepted.Sources[0].ID != fixture.Comment || accepted.Sources[0].Digest != factory.MCPInputDigest([]byte(fixture.CommentBody)) {
+					return errors.New("native UI acceptance lost its exact comment or recorded a refused decision")
+				}
+				edge := accepted.Prerequisites[0]
+				if edge.Outcome != factory.PrereqResult || edge.EndpointRepo != repo || edge.EndpointIssue != fixture.Prerequisite || edge.PrereqAcceptance != "" {
+					return errors.New("native UI acceptance changed its reviewed prerequisite outcome")
+				}
+				source := factoryruntime.NativeInputSource{NativeExecution: port}
+				policy, err := db.RepositoryPolicy(ctx, repo)
+				if err != nil {
+					return err
+				}
+				dispatch, err := source.ReadDispatchInputs(ctx, repository, strconv.FormatInt(fixture.Issue, 10), []string{fixture.Comment}, policy.TargetBranch)
+				if err != nil {
+					return err
+				}
+				if dispatch.Revision != accepted.NativeRev || dispatch.Issue.TitleDigest != accepted.TitleDigest || dispatch.Issue.ContentDigest != accepted.ContentDigest || len(dispatch.Comments) != 1 || dispatch.Comments[0].Content != fixture.CommentBody || dispatch.Comments[0].Digest != accepted.Sources[0].Digest {
+					return errors.New("accepted planning inputs differ from actual native issue/comment revisions")
+				}
+				// Exercise the production source assembler with a fixture draft
+				// derived from these actual accepted inputs; no draft or run is seeded.
+				draft := factory.IntentRevision{ID: "d" + factory.NewID()[:24], Intent: "d" + factory.NewID()[:24], Owner: accepted.Approver, Repository: repo, State: "draft", MaxIssues: 1, CreatedUnix: time.Now().Unix(), Objective: dispatch.Issue.Title + "\n" + dispatch.Issue.Body + "\n" + dispatch.Comments[0].Content, Ideas: []factory.ProductIdea{}, Tasks: []factory.IntentTask{}}
+				reader := control.NewCoordinator(db, port, port)
+				planning, preparation, wait, err := reader.AssembleIntentPlanningInput(ctx, draft, factory.IntentPlanningPropose)
+				if err != nil || wait != nil || len(planning.Inspected) != expectedSources || preparation.SourceCommit != dispatch.Tip {
+					return fmt.Errorf("accepted native planning source assembly: wait=%+v err=%v", wait, err)
+				}
+				for _, file := range planning.Inspected {
+					if file.Commit != dispatch.Tip || factory.MCPInputDigest([]byte(file.Evidence)) != preparation.Requirements.SourceInputs[file.Path] {
+						return errors.New("planning source assembly differs from approved preparation")
+					}
+				}
+				fmt.Println("PASS: actual UI accepted exactly one current native comment/prerequisite decision; refused inputs left no acceptance; exact native planning inputs and production approved-source assembly; fixture draft only, no model/run")
+			}
+		}
 		fmt.Printf("PASS: production application-verification reader captured all %d approved source files from both native workspaces; individual native context bound remains 12 files\n", expectedSources)
 	}
 	fmt.Println("PASS: owner-reviewed initial setup retains Verified=false and no invented readiness digest; both roles have actual native setup/check/source observations", map[bool]string{true: "and confirmed retirement", false: "and canonical readiness"}[retire])

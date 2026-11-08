@@ -598,6 +598,14 @@ pub fn report(
         return Ok(());
     }
     if state.check.scenario.github_writes
+        && matches!(stage.as_str(), "onboarding-hidden-refused" | "onboarding-stale-preview")
+    {
+        std::fs::OpenOptions::new().write(true).create_new(true)
+            .open(control_root(&app)?.join(stage))
+            .map_err(|_| "onboarding input barrier unavailable".to_string())?;
+        return Ok(());
+    }
+    if state.check.scenario.github_writes
         && stage == "github-writes-complete"
     {
         crate::check_credentials::finish_github_writes(app);
