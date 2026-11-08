@@ -1838,6 +1838,25 @@ async fn managed_muse_execution(
     let live = std::env::var("SODA_NATIVE_CHECK_MUSE_LIVE").as_deref() == Ok("1");
     let withdraw = std::env::var("SODA_NATIVE_CHECK_MUSE_WITHDRAW").as_deref() == Ok("1");
     let tasks = std::env::var("SODA_NATIVE_CHECK_TASKS").as_deref() == Ok("1");
+    let queue = std::env::var("SODA_NATIVE_CHECK_PRIORITY").as_deref() == Ok("1");
+    let queue_resume = queue && std::env::var("SODA_NATIVE_CHECK_PRIORITY_RESUME").as_deref()==Ok("1");
+    let _queue_credentials = if queue {
+        use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
+        use std::io::Read;
+        let credentials = std::sync::Arc::new(Credentials::open(&profile, &ready.profile)?);
+        credentials.storage_ready().await?;
+        let mut secret = Vec::new();
+        std::io::stdin().take(65537).read_to_end(&mut secret)?;
+        if secret.last()==Some(&b'\n') {secret.pop();}
+        let saved = credentials.store(Account::new(Provider::Github,"https://github.com","16469623")?,Token::new(secret)?).await?;
+        let request=supervisor.admit_product(credentials.clone(),credentials.capability(&saved.connection).await?,Some("1448277000".into()))?;
+        let reply=request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
+        if reply.status!=200{return Err("Q13 actual repository admission unavailable".into());}
+        let catalogue:serde_json::Value=serde_json::from_slice(&reply.body)?;
+        let repository=catalogue["items"][0]["id"].as_str().ok_or("canonical queue repository absent")?;
+        fs::write(profile.join("connected-queue.json"),serde_json::to_vec(&serde_json::json!({"Repository":repository,"Connection":saved.connection}))?)?;
+        Some(credentials)
+    } else {None};
     if tasks && withdraw {
         return Err("task integration and selected-source withdrawal are separate checks".into());
     }
@@ -1864,20 +1883,21 @@ async fn managed_muse_execution(
         )?;
         fs::write(profile.join("check-withdrawal-source.id"), other.connection)?;
     }
-    if live || std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENTS").as_deref()==Ok("1") {
+    if live || queue || std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENTS").as_deref()==Ok("1") || std::env::var("SODA_NATIVE_CHECK_CONTRIBUTIONS").as_deref()==Ok("1") {
         command("check-owned-tool", "discovery")?;
     }
-    command("check-native-preparation", "ready")?;
-    let preparations: Vec<_> =
-        fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
-    if preparations.len() != 1 {
-        return Err("expected one actual native preparation".into());
-    }
-    let preparation: serde_json::Value =
-        serde_json::from_slice(&fs::read(preparations[0].path().join("request.json"))?)?;
+    let preparation: serde_json::Value = if queue_resume {
+        let original:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("admitted-native-fixture.json"))?)?;
+        serde_json::json!({"input":{"preparation":{"id":original["Preparation"]}}})
+    } else {
+        command("check-native-preparation", "ready")?;
+        let preparations: Vec<_> =fs::read_dir(profile.join("native-preparations"))?.collect::<Result<_, _>>()?;
+        if preparations.len()!=1{return Err("expected one actual native preparation".into());}
+        serde_json::from_slice(&fs::read(preparations[0].path().join("request.json"))?)?
+    };
     let mut random = [0u8; 16];
     getrandom::fill(&mut random)?;
-    let run: String = random.iter().map(|b| format!("{b:02x}")).collect();
+    let mut run: String = random.iter().map(|b| format!("{b:02x}")).collect();
     fs::write(root.join("execution-runs.ids"), &run)?;
     let fixture = profile.join("admitted-native-fixture.json");
     fs::write(
@@ -1888,9 +1908,17 @@ async fn managed_muse_execution(
         )?,
     )?;
     command(
-        "launch-admitted-native",
+        if queue_resume {"resume-priority"}else{"launch-admitted-native"},
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
+    if queue {
+        let actual:serde_json::Value=serde_json::from_slice(&fs::read(&fixture)?)?;
+        run=actual["Run"].as_str().ok_or("actual queue run absent")?.into();
+        fs::write(root.join("execution-runs.ids"),&run)?;
+    }
+    if std::env::var("SODA_NATIVE_CHECK_CONTRIBUTIONS").as_deref()==Ok("1") {
+        command("check-contributions", fixture.to_str().ok_or("invalid fixture path")?)?;
+    }
     if std::env::var("SODA_NATIVE_CHECK_LAUNCH_LOSS").as_deref() == Ok("1") {
         // The Go launch received no native acceptance or process observation.
         // Observe only the actual helper's filesystem before losing its owner.

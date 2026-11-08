@@ -1295,6 +1295,33 @@ func main() {
 		var err error
 		if os.Args[3] == "check-review-policy" {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "resume-priority" {
+			config, e := factoryruntime.LoadNative(filepath.Join(os.Args[1], "backend.json"))
+			err = e
+			if err == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+				defer cancel()
+				db, e := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+				err = e
+				if err == nil {
+					defer db.Close()
+					var input struct{ Preparation, Executable string }
+					raw, e := os.ReadFile(os.Args[4])
+					err = e
+					if err == nil {
+						err = json.Unmarshal(raw, &input)
+					}
+					if err == nil {
+						prep, e := db.Preparation(ctx, input.Preparation)
+						err = e
+						if e == nil {
+							err = admittedPriorityFixture(ctx, db, factoryruntime.NativeExecution{Config: config, Instance: os.Args[2], Store: db}, prep, input.Executable, os.Args[4])
+						}
+					}
+				}
+			}
+		} else if os.Args[3] == "check-contributions" {
+			err = admittedContributionsFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-connected-judgments" {
 			err = connectedJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasSuffix(os.Args[3], "onboarded-setup") {
@@ -3170,6 +3197,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	fixtureTimeout := 30 * time.Second
+	if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" && action == "launch-admitted-native" {
+		fixtureTimeout = 240 * time.Second
+	}
 	if action == "settled-admitted-native" && input.Tasks && input.ParentRun != "" {
 		fixtureTimeout = 60 * time.Second
 		if os.Getenv("SODA_NATIVE_CHECK_CORRECTION") == "1" {
@@ -3261,6 +3291,97 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return port.AcknowledgeSettledRuns(ctx)
 	}
 	if action == "reconcile-retained-native" {
+		if os.Getenv("SODA_NATIVE_CHECK_RECOVER_PRIORITY") == "1" {
+			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+			for {
+				judgments.ReconcilePostJudgments(ctx)
+				pending, e := db.PendingNativeJudgments(ctx)
+				if e != nil {
+					return e
+				}
+				if len(pending) == 0 {
+					break
+				}
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			var journey struct {
+				Eligibility factory.PriorityReceipt `json:"eligibility_race"`
+				Dispatched  factory.PriorityReceipt `json:"dispatched"`
+				Launch      control.DispatchLaunch  `json:"launch"`
+			}
+			raw, e := os.ReadFile(filepath.Join(profile, "priority-journey.json"))
+			if e != nil || json.Unmarshal(raw, &journey) != nil {
+				return errors.New("exact dispatched priority journey absent")
+			}
+			for _, receipt := range []factory.PriorityReceipt{journey.Eligibility, journey.Dispatched} {
+				saved, e := db.PriorityJudgment(ctx, receipt.Snapshot)
+				if e != nil || !reflect.DeepEqual(saved, receipt) {
+					return errors.New("original queue receipt changed across restart")
+				}
+				for _, call := range receipt.Calls {
+					if call.Answer.Validate(call.Request) != nil {
+						return errors.New("retained queue distribution invalid")
+					}
+				}
+			}
+			a, e := db.AssignmentByRun(ctx, input.Run)
+			if e != nil {
+				return e
+			}
+			if journey.Launch.RunID != input.Run || journey.Launch.AssignmentID != a.ID || journey.Dispatched.Selected != fmt.Sprintf("%d/%d", a.Repository, a.Issue) || len(journey.Eligibility.Calls) != 2 || len(journey.Dispatched.Calls) != 2 {
+				return errors.New("original selected queue candidate and actual dispatch differ")
+			}
+			if e = retainJudgmentEvidence(ctx, config, a.Repository, "", 5); e != nil {
+				return e
+			}
+			fmt.Println("PASS: exact original grouped choices, current selected candidate/native dispatch, four paid choices and interrupted startup context survive reopen; original five native charges settled without replay")
+		}
+		if os.Getenv("SODA_NATIVE_CHECK_RECOVER_CONTRIBUTIONS") == "1" {
+			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+			for {
+				judgments.ReconcilePostJudgments(ctx)
+				pending, e := db.PendingNativeJudgments(ctx)
+				if e != nil {
+					return e
+				}
+				if len(pending) == 0 {
+					break
+				}
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+			cap, e := db.GetMCPCapability(ctx, input.Run)
+			if e != nil {
+				return e
+			}
+			if _, e = db.RecoverContributionReviews(ctx, 0); e != nil {
+				return e
+			}
+			count := 2
+			if os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTION_REPLY_ONLY") == "1" {
+				count = 1
+				var journey struct {
+					Responded factory.ContributionReview `json:"responded"`
+				}
+				raw, e := os.ReadFile(filepath.Join(profile, "contribution-journey.json"))
+				if e != nil || json.Unmarshal(raw, &journey) != nil {
+					return errors.New("retained contribution journey absent")
+				}
+				post, e := db.FeedPost(ctx, factory.ContributionReviewInvitationID(journey.Responded))
+				if e != nil || post.Contribution == nil || !reflect.DeepEqual(*post.Contribution, journey.Responded) {
+					return errors.New("retained contribution answer/invitation/reply changed")
+				}
+				fmt.Println("PASS: exact contribution questions, actual answer, invitation and consumed reply survive retained reopen")
+			}
+			if e = retainJudgmentEvidence(ctx, config, cap.Repository, cap.ID, count); e != nil {
+				return e
+			}
+		}
 		prior, err := db.FactoryRun(ctx, input.Run)
 		if err != nil {
 			return err
@@ -3681,6 +3802,17 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Native source fixture"},
 		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()), Account: "native-source-owner", Login: "native-source-owner"})
+	if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
+		var connected struct{ Repository, Connection string }
+		raw, e := os.ReadFile(filepath.Join(profile, "connected-queue.json"))
+		if e != nil || json.Unmarshal(raw, &connected) != nil {
+			return errors.New("connected queue binding missing")
+		}
+		binding.Connection, err = db.CollaborationConnection(ctx, collaboration.ConnectionID(connected.Connection))
+		if err == nil {
+			binding.Actor, err = db.CollaborationActor(ctx, binding.Connection.Actor)
+		}
+	}
 	if err != nil || int64(binding.Actor.ID) != actor {
 		return errors.New("declared native actor mapping changed")
 	}
@@ -3700,12 +3832,12 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	sponsoredRoles := []string{project.RoleCoder}
 	allowance, planned := 5, 1
-	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" || os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
 		selection := roles[project.RoleCoder]
 		selection.Profile = factory.ExecutionProfile{Effort: "low", Contributor: true}
 		policy.Judgments = &selection
 		sponsoredRoles = append(sponsoredRoles, factory.RoleJudgment)
-		allowance, planned = 15, 3
+		allowance, planned = 30, 3
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_REVIEW_CHILD") == "1" {
 		sponsoredRoles = append(sponsoredRoles, project.RoleReviewer)
@@ -3719,13 +3851,16 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return err
 		}
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
+		return admittedPriorityFixture(ctx, db, port, prep, input.Executable, path)
+	}
 	acceptance := factory.Acceptance{ID: "d" + factory.NewID()[:24], Repository: repository, IssueIndex: "3", Approver: actor, NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
 	if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
 		return err
 	}
 	var queued factory.IssueControl
 	if input.Tasks || os.Getenv("SODA_NATIVE_CHECK_CONTROL") != "" {
-		if err = nativeStandingReviewer(ctx, db, port, prep); err != nil {
+		if err = nativeStandingRole(ctx, db, port, prep, project.RoleReviewer); err != nil {
 			return err
 		}
 	}
@@ -3760,6 +3895,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE") == "1" {
 		prompt = append(prompt, []byte("\nworker-judgment-race\n")...)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" {
+		prompt = append(prompt, []byte("\ncontribution-inbox-fixture\n")...)
 	}
 	if !input.Live && os.Getenv("SODA_NATIVE_CHECK_READ_SOURCE") == "1" {
 		prompt = append(prompt, []byte("\nread-source-fixture\n")...)
@@ -3802,6 +3940,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 	}
 	var acceptedContext *factory.AcceptedContext
+	if os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" {
+		acceptedContext = factory.CaptureAcceptedContext(factory.PromptInputs{Repository: repository, Issue: 3, NativeRev: 1, AcceptanceID: acceptance.ID, SourceCommit: p.SourceCommit, Preparation: p.ID, Title: "Assess crash recovery of a payment intent", Body: "Identify the missing durable idempotency and reconciliation checks before retrying an uncertain external payment. Explain an actionable risk and evidence; do not send payments."})
+	}
 	if input.Tasks {
 		material, err := port.ReadWorkspaceContext(ctx, execution.PreparationContextRequest{Native: prep.Native, Role: p.Role,
 			Input: project.FactoryPreparationContextRequest{Project: p.Project, ID: p.ID, SourceCommit: p.SourceCommit, ApprovedBase: p.SourceCommit, DiffBase: p.SourceCommit, Candidate: p.SourceCommit, Paths: []string{"README.md"}, NotAfter: time.Now().Add(15 * time.Second)}})
@@ -3839,7 +3980,7 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: a.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(time.Minute), Harness: a.Harness, Model: a.Model,
 		Native: &execution.NativeRecord{Tool: tool, BundleSHA256: native.BundleSHA256, PromptSHA256: a.PromptSHA, Retirement: execution.NotStarted,
 			Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
-	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" || os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTIONS") == "1" {
 		run.Deadline = now.Add(3 * time.Minute)
 	}
 	if err = db.RecordNativeDispatchPacket(ctx, queued, a, factory.Reservation{AssignmentID: aid, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: planned}, run,
@@ -4322,9 +4463,9 @@ func (r nativeReviewChildReads) ReadDispatchInputs(ctx context.Context, reposito
 	return control.DispatchInputs{Revision: 1, Tip: r.source, TipRef: target, Comments: []control.DispatchComment{}, Issue: control.DispatchIssue{Title: "Native admitted execution fixture", Body: body, TitleDigest: strings.Repeat("a", 64), ContentDigest: strings.Repeat("b", 64), ContentVer: 1, TitleOccurrence: factory.OriginalOccurrence, LifecycleOccurrence: factory.OriginalOccurrence, Visible: true}}, ctx.Err()
 }
 
-func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, source execution.PreparationRecord) error {
-	if source.Native == nil || source.Native.InstanceID != port.Instance {
-		return errors.New("standing reviewer requires the current native source owner")
+func nativeStandingRole(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, source execution.PreparationRecord, role string) error {
+	if source.Native == nil || source.Native.Profile != port.Config.Profile || !project.ValidFactoryRole(role) {
+		return errors.New("standing preparation requires the same native source owner")
 	}
 	records, err := db.StandingProjectPreparations(ctx, source.Preparation.Project)
 	if err != nil {
@@ -4332,7 +4473,7 @@ func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryru
 	}
 	for _, record := range records {
 		p := record.Preparation
-		if p.Role != project.RoleReviewer || p.SourceCommit != source.Preparation.SourceCommit || p.SetupDigest != source.Preparation.SetupDigest || !p.Requirements.Equal(source.Preparation.Requirements) || p.Approval != source.Preparation.Approval || record.Native == nil || record.Native.Profile != source.Native.Profile || record.Native.InstanceID != port.Instance {
+		if p.Role != role || p.SourceCommit != source.Preparation.SourceCommit || p.SetupDigest != source.Preparation.SetupDigest || !p.Requirements.Equal(source.Preparation.Requirements) || p.Approval != source.Preparation.Approval || record.Native == nil || record.Native.Profile != source.Native.Profile || record.Native.InstanceID != port.Instance {
 			continue
 		}
 		state, err := port.InspectWorkspacePreparation(ctx, record.Address())
@@ -4367,7 +4508,7 @@ func nativeStandingReviewer(ctx context.Context, db *store.Store, port factoryru
 		return errors.New("exact retained source preparation request missing or ambiguous")
 	}
 	reviewer := source
-	reviewer.Preparation.ID, reviewer.Preparation.Revision, reviewer.Preparation.Role = "f"+factory.NewID()[:24], 0, project.RoleReviewer
+	reviewer.Preparation.ID, reviewer.Preparation.Revision, reviewer.Preparation.Role = "f"+factory.NewID()[:24], 0, role
 	reviewer.State = execution.PreparationState{}
 	ref := *source.Native
 	ref.InstanceID = port.Instance
@@ -4441,7 +4582,7 @@ func nativeReviewChildFixture(ctx context.Context, db *store.Store, port factory
 		fmt.Println("PASS: retained reviewer admission keeps its original candidate, native owner and recorded setup/retirement facts; no preparation replay or live-resource recovery proof")
 		return nil
 	}
-	if err = nativeStandingReviewer(ctx, db, port, source); err != nil {
+	if err = nativeStandingRole(ctx, db, port, source, project.RoleReviewer); err != nil {
 		return err
 	}
 	var state execution.PreparationState
@@ -5066,6 +5207,32 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			return errors.New("completion fixture lacks captured account")
 		}
 		completionConnection = grant.Connection
+	} else if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
+		var connected struct{ Repository, Connection string }
+		raw, e := os.ReadFile(filepath.Join(profile, "connected-queue.json"))
+		if e != nil || json.Unmarshal(raw, &connected) != nil {
+			return errors.New("connected preparation binding absent")
+		}
+		connection, e := db.CollaborationConnection(ctx, collaboration.ConnectionID(connected.Connection))
+		if e != nil {
+			return e
+		}
+		actor, e = db.CollaborationActor(ctx, connection.Actor)
+		if e != nil {
+			return e
+		}
+		id, e := strconv.ParseInt(connected.Repository, 10, 64)
+		if e != nil {
+			return e
+		}
+		repo, e = db.CollaborationRepository(ctx, collaboration.RepositoryID(id))
+		if e != nil {
+			return e
+		}
+		host, e = db.CollaborationHost(ctx, repo.Host)
+		if e != nil {
+			return e
+		}
 	} else {
 		host, err = db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
 		if err != nil {
@@ -5772,6 +5939,514 @@ func nativeFixtureCall(ctx context.Context, config factoryruntime.NativeConfig, 
 }
 
 type declaredPostRouting struct{}
+
+// The queue uses declared accepted issue contents and actual native preparation,
+// dispatch, authenticated GitHub admission and selected-source inference.
+func admittedPriorityFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeExecution, prep execution.PreparationRecord, executable, path string) error {
+	var connected struct{ Repository, Connection string }
+	profile := filepath.Dir(path)
+	raw, err := os.ReadFile(filepath.Join(profile, "connected-queue.json"))
+	if err != nil || json.Unmarshal(raw, &connected) != nil {
+		return errors.New("connected queue missing")
+	}
+	repository, err := strconv.ParseInt(connected.Repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	connection, err := db.CollaborationConnection(ctx, collaboration.ConnectionID(connected.Connection))
+	if err != nil {
+		return err
+	}
+	policy, err := db.RepositoryPolicy(ctx, repository)
+	if err != nil {
+		return err
+	}
+	judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+	toolBytes, err := os.ReadFile(executable)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(toolBytes)
+	tool := execution.NativeTool{Harness: project.FactoryHarnessMuse, Version: "fixture", SHA256: hex.EncodeToString(sum[:]), Executable: executable}
+	host := nativeReviewPreparationHost{NativeExecution: port, tool: execution.ToolObservation{Kind: collaboration.Native, Native: &tool}}
+	reads := nativeReviewChildReads{int64(connection.Actor), prep.Preparation.SourceCommit}
+	retained := os.Getenv("SODA_NATIVE_CHECK_PRIORITY_RESUME") == "1"
+	if !retained {
+		if err = nativeStandingRole(ctx, db, port, prep, project.RoleReviewer); err != nil {
+			return err
+		}
+		coordinator := control.NewCoordinator(db, host, port)
+		defer coordinator.Close()
+		coordinator.AcceptanceReads = reads
+		for issue := int64(1); issue <= 256; issue++ {
+			acceptance := factory.Acceptance{ID: "d" + factory.NewID()[:24], Repository: repository, IssueIndex: strconv.FormatInt(issue, 10), Approver: int64(connection.Actor), NativeRev: 1, TitleDigest: strings.Repeat("a", 64), TitleOccurrence: factory.OriginalOccurrence, ContentDigest: strings.Repeat("b", 64), ContentVersion: 1}
+			if err = db.AdmitAcceptanceDecision(ctx, acceptance); err != nil {
+				return err
+			}
+			observed, _, e := coordinator.ObserveIssueEvent(ctx, control.IntakeHint{Delivery: factory.NewID(), Repository: repository, Issue: issue})
+			if e != nil || observed.Readiness != factory.ReadinessQueued {
+				authority, authorityErr := coordinator.EffectiveAuthority(ctx, repository)
+				return fmt.Errorf("queue readiness %d: %s/%s %v authority=%v/%v", issue, observed.Readiness, observed.Reason, e, authority.Missing, authorityErr)
+			}
+		}
+		fmt.Println("PASS: 256 accepted fixture objectives assessed through current coordinator readiness before queue selection")
+	}
+	deps := control.DispatchDeps{Store: db, Host: host, Broker: port, Reads: reads, MCPSecret: factoryruntime.NativeMCPSecretDeriver(port.Config, port.Instance), Priority: &control.PriorityJudgments{Journal: db, Chooser: judgments}, Authority: func(ctx context.Context, repo int64, role string) (factory.EffectiveAuthority, error) {
+		in, e := db.FactoryRoleAuthorityInput(ctx, repo, role)
+		return factory.EvaluateAuthority(in), e
+	}}
+	rawDB, err := sql.Open("pgx", port.Config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	var first factory.PriorityReceipt
+	afterWithdrawal := os.Getenv("SODA_NATIVE_CHECK_PRIORITY_AFTER_WITHDRAWAL") == "1"
+	if afterWithdrawal {
+		var raw []byte
+		if err = rawDB.QueryRowContext(ctx, `SELECT data FROM factory_priority_judgments WHERE data->>'purpose'=$1 LIMIT 1`, factory.JudgmentNextWork).Scan(&raw); err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &first); err != nil {
+			return err
+		}
+		if len(first.Calls) != 2 || len(first.Candidates) != 256 {
+			return errors.New("retained pre-withdrawal comparison incomplete")
+		}
+		for _, candidate := range first.Candidates {
+			if candidate.ID == first.Selected {
+				current, e := db.IssueControl(ctx, repository, candidate.Control.Issue)
+				if e != nil || current.Readiness != factory.ReadinessNotAuthorized || len(current.Blockers) == 0 {
+					return errors.New("original eligibility-loss record missing")
+				}
+			}
+		}
+		for _, call := range first.Calls {
+			if call.Answer.Validate(call.Request) != nil || judgments.CheckPriority(ctx, call.Request) == nil {
+				return errors.New("original withdrawal fence missing")
+			}
+		}
+		fmt.Println("PASS: resumed exact original eligibility-loss/comparison and source-withdrawal receipts; no original inference or grant mutation replay")
+	} else {
+		// Lose current eligibility after the completed comparison, before dispatch.
+		changed := false
+		observations := 0
+		var mutationError error
+		deps.ObserveRevision = func(ctx context.Context) (int64, bool, error) {
+			observations++
+			if retained && observations < 3 {
+				return 1, true, nil
+			}
+			if !changed {
+				var data []byte
+				e := rawDB.QueryRowContext(ctx, `SELECT data FROM factory_priority_judgments WHERE data->>'purpose'=$1 LIMIT 1`, factory.JudgmentNextWork).Scan(&data)
+				if e == nil {
+					if e = json.Unmarshal(data, &first); e != nil {
+						return 0, false, e
+					}
+					var selected factory.PriorityCandidate
+					for _, candidate := range first.Candidates {
+						if candidate.ID == first.Selected {
+							selected = candidate
+						}
+					}
+					current, e := db.IssueControl(ctx, repository, selected.Control.Issue)
+					if e != nil {
+						return 0, false, e
+					}
+					current.Readiness = factory.ReadinessNotAuthorized
+					current.Reason = factory.BlockerAuthorityMissing
+					current.Blockers = []factory.Blocker{{Code: factory.BlockerAuthorityMissing, Resolution: factory.BlockerResolution(factory.BlockerAuthorityMissing)}}
+					current.Fingerprint = factory.MCPInputDigest([]byte(current.Fingerprint + ":eligibility-lost"))
+					_, _, e = db.RecordIssueAssessment(ctx, current, time.Now())
+					mutationError = e
+					changed = e == nil
+					return 1, true, e
+				}
+				if !errors.Is(e, store.ErrNotFound) {
+					return 0, false, e
+				}
+			}
+			return 1, true, nil
+		}
+		for !changed {
+			report := control.DispatchPass(ctx, deps)
+			if mutationError != nil {
+				return mutationError
+			}
+			if len(report.Launched) != 0 {
+				return errors.New("queue launched before eligibility race check")
+			}
+			if changed && !slices.ContainsFunc(report.Errors, func(e control.DispatchError) bool { return e.Reason == control.PrioritySnapshotChanging }) {
+				return fmt.Errorf("eligibility change did not invalidate the exact comparison: %+v", report)
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		if len(first.Candidates) != 256 || len(first.Calls) != 2 || len(first.Calls[0].Request.Candidates) != 255 || len(first.Calls[1].Request.Candidates) != 2 {
+			return fmt.Errorf("grouped tournament incomplete: candidates=%d calls=%d", len(first.Candidates), len(first.Calls))
+		}
+		for _, call := range first.Calls {
+			if err = call.Answer.Validate(call.Request); err != nil {
+				return err
+			}
+			if err = judgments.CheckPriority(ctx, call.Request); err != nil {
+				return err
+			}
+		}
+		// Source withdrawal invalidates every original paid answer, including a
+		// cached comparison. Reactivation cannot renew their captured revision.
+		source, err := db.Sponsorship(ctx, repository, policy.Judgments.Account)
+		if err != nil {
+			return err
+		}
+		source.Roles = slices.DeleteFunc(source.Roles, func(role string) bool { return role == factory.RoleJudgment })
+		if _, err = db.ApplyFactoryGrant(ctx, "q13-queue", source); err != nil {
+			return err
+		}
+		for _, call := range first.Calls {
+			if err = judgments.CheckPriority(ctx, call.Request); err == nil {
+				return errors.New("withdrawn cached queue source stayed admitted")
+			}
+		}
+		source, err = db.Sponsorship(ctx, repository, policy.Judgments.Account)
+		if err != nil {
+			return err
+		}
+		source.Roles = append(source.Roles, factory.RoleJudgment)
+		if _, err = db.ApplyFactoryGrant(ctx, "q13-queue", source); err != nil {
+			return err
+		}
+		for _, call := range first.Calls {
+			if err = judgments.CheckPriority(ctx, call.Request); err == nil {
+				return errors.New("source reactivation renewed old queue authority")
+			}
+		}
+		fmt.Println("PASS: real 256-candidate tournament, 255-member group and two-winner final; eligibility lost after selection prevents dispatch; original paid choices refuse withdrawal and reactivation")
+	}
+	retainedFirst, _ := json.MarshalIndent(first, "", "  ")
+	if err = os.WriteFile(filepath.Join(profile, "priority-eligibility-evidence.json"), retainedFirst, 0600); err != nil {
+		return err
+	}
+	if retained {
+		// Reopen never launches a workspace owned by the old native instance.
+		// Prepare current instances from the retained declared source, only after
+		// exercising the original comparison and its withdrawal fence.
+		if err = nativeStandingRole(ctx, db, port, prep, project.RoleCoder); err != nil {
+			return err
+		}
+		records, e := db.StandingProjectPreparations(ctx, prep.Preparation.Project)
+		if e != nil {
+			return e
+		}
+		found := false
+		for _, record := range records {
+			if record.Native != nil && record.Native.InstanceID == port.Instance && record.Preparation.Role == project.RoleCoder && record.State.Ready {
+				prep = record
+				found = true
+				break
+			}
+		}
+		if !found {
+			return errors.New("current reopened queue preparation unavailable")
+		}
+		if err = nativeStandingRole(ctx, db, port, prep, project.RoleReviewer); err != nil {
+			return err
+		}
+	}
+	// Refresh the exact candidate authority after the explicit source change;
+	// this is a distinct current tournament, never a resend of the old calls.
+	for _, candidate := range first.Candidates {
+		current, e := db.IssueControl(ctx, repository, candidate.Control.Issue)
+		if e != nil {
+			return e
+		}
+		current.Readiness = factory.ReadinessQueued
+		current.Reason = factory.ReasonEligible
+		current.Blockers = nil
+		current.Fingerprint = factory.MCPInputDigest([]byte(current.Fingerprint + ":current-queue"))
+		if _, _, e = db.RecordIssueAssessment(ctx, current, time.Now()); e != nil {
+			return e
+		}
+	}
+	if err = db.DeletePriorityScan(ctx); err != nil {
+		return err
+	}
+	deps.ObserveRevision = func(context.Context) (int64, bool, error) { return 1, true, nil }
+	var launched control.DispatchLaunch
+	for launched.RunID == "" {
+		report := control.DispatchPass(ctx, deps)
+		if len(report.Launched) > 1 {
+			return errors.New("queue launched more than its one selected item")
+		}
+		if len(report.Launched) == 1 {
+			launched = report.Launched[0]
+			break
+		}
+		if ctx.Err() != nil {
+			return fmt.Errorf("queue dispatch deadline: %+v %w", report, ctx.Err())
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	a, err := db.Assignment(ctx, launched.AssignmentID)
+	if err != nil {
+		return err
+	}
+	var data []byte
+	if err = rawDB.QueryRowContext(ctx, `SELECT data FROM factory_priority_judgments WHERE data->>'selected'=$1 ORDER BY data->>'created_unix' DESC LIMIT 1`, fmt.Sprintf("%d/%d", repository, launched.Issue)).Scan(&data); err != nil {
+		return err
+	}
+	var final factory.PriorityReceipt
+	if err = json.Unmarshal(data, &final); err != nil {
+		return err
+	}
+	if final.Snapshot == first.Snapshot || final.Selected != fmt.Sprintf("%d/%d", repository, a.Issue) || len(final.Calls) != 2 {
+		return errors.New("dispatch did not use the new exact current tournament")
+	}
+	mixed := final.Calls[0].Request
+	mixed.Repository = 0
+	if _, e := judgments.Choose(ctx, mixed); !errors.Is(e, control.ErrPriorityUnavailable) {
+		return errors.New("mixed tournament invented a payer")
+	}
+	run, err := db.FactoryRun(ctx, launched.RunID)
+	if err != nil {
+		return err
+	}
+	encoded, _ := json.Marshal(map[string]any{"Run": run.ID, "Connection": a.Connection, "Preparation": a.Preparation, "Executable": executable, "MuseLogin": true, "DeadlineUnix": run.Deadline.Unix()})
+	if err = os.WriteFile(path, encoded, 0600); err != nil {
+		return err
+	}
+	evidence, _ := json.MarshalIndent(map[string]any{"eligibility_race": first, "dispatched": final, "launch": launched}, "", "  ")
+	if err = os.WriteFile(filepath.Join(profile, "priority-journey.json"), evidence, 0600); err != nil {
+		return err
+	}
+	fmt.Println("PASS: fresh current same-repository tournament selected exactly one actual Go/native dispatch; mixed funding remains unavailable", run.ID)
+	// Worker startup can legitimately capture its separate context consultation.
+	// Account it after native retirement, rather than closing its owner at launch.
+	return nil
+}
+
+// Uses the admitted, running CLI role; only its assignment objective is declared.
+// Every assessment below goes through the production selected Muse source.
+func admittedContributionsFixture(profile, instance, path string) error {
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 145*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var input struct{ Run, Connection string }
+	raw, err := os.ReadFile(path)
+	if err != nil || json.Unmarshal(raw, &input) != nil {
+		return errors.New("contribution run missing")
+	}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+	var cap factory.MCPCapability
+	for {
+		cap, err = db.GetMCPCapability(ctx, input.Run)
+		if err == nil && cap.State == factory.MCPCapabilityActive {
+			break
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	a, err := db.Assignment(ctx, cap.AssignmentID)
+	if err != nil {
+		return err
+	}
+	author := strconv.FormatInt(a.ActorID, 10)
+	newSource := func(key string) (string, error) {
+		id, _, err := db.SaveFeedPost(ctx, factory.PostRequest{Repository: cap.Repository, Body: "Our payment-intent retry design currently retries immediately whenever the provider times out. We have not recorded a durable idempotency key or reconciled the original provider receipt. Architect working on crash recovery: what concrete missing check prevents duplicate payments? This is an unanswered request for your current expertise; no other role has answered. Discussion only, do not send a payment.", IdempotencyKey: key}, author, "Disposable fixture owner", time.Now().Unix())
+		return id, err
+	}
+	withdrawn, err := newSource("q13-withdrawn-contribution")
+	if err != nil {
+		return err
+	}
+	review, err := db.ContributionContext(ctx, withdrawn)
+	if err != nil || len(review.Roles) != 1 || review.Roles[0].Capability != cap.ID {
+		return fmt.Errorf("actual admitted contribution role missing: %+v %v", review.Roles, err)
+	}
+	source, err := db.Sponsorship(ctx, cap.Repository, input.Connection)
+	if err != nil {
+		return err
+	}
+	setActive := func(active bool) error {
+		current, e := db.Sponsorship(ctx, cap.Repository, input.Connection)
+		if e != nil {
+			return e
+		}
+		current.Roles = slices.DeleteFunc(current.Roles, func(role string) bool { return role == factory.RoleJudgment })
+		if active {
+			current.Roles = append(current.Roles, factory.RoleJudgment)
+		}
+		_, e = db.ApplyFactoryGrant(ctx, "q13-native-check", current)
+		return e
+	}
+	if err = setActive(false); err != nil {
+		return err
+	}
+	driver := factoryservice.Contributions{Store: db, Chooser: judgments}
+	if claimed, e := driver.Drive(ctx); claimed || e != nil {
+		return fmt.Errorf("unfunded preflight claimed: %t %v", claimed, e)
+	}
+	if _, e := db.FeedPost(ctx, factory.ContributionReviewInvitationID(review)); !errors.Is(e, store.ErrNotFound) {
+		return errors.New("unfunded preflight retained a claim")
+	}
+	if err = setActive(true); err != nil {
+		return err
+	}
+	// A foreign capability fails actual admission before any claim or inference.
+	invalid := review
+	invalid.Roles = append([]factory.ContributionRole(nil), review.Roles...)
+	invalid.Roles[0].Capability = factory.NewID()
+	if ready, e := judgments.ContributionsReady(ctx, invalid); ready || e == nil {
+		return errors.New("missing worker passed contribution preflight")
+	}
+	fmt.Println("PASS: actual running role/context and selected-source preflight; missing capability and withdrawn funding create no claim or inference")
+	var failed store.FeedPostDetail
+	skipWithdrawal := os.Getenv("SODA_NATIVE_CHECK_CONTRIBUTION_REPLY_ONLY") == "1"
+	if skipWithdrawal {
+		if err = db.MarkFeedPostRevoked(ctx, withdrawn); err != nil {
+			return err
+		}
+	} else {
+		type driven struct {
+			claimed bool
+			err     error
+		}
+		done := make(chan driven, 1)
+		go func() { claimed, e := driver.Drive(ctx); done <- driven{claimed, e} }()
+		// Observe the real native process, then withdraw its original paying source.
+		for {
+			pending, e := db.PendingNativeJudgments(ctx)
+			if e != nil {
+				return e
+			}
+			started := false
+			for _, cmd := range pending {
+				var capture factory.NativeJudgmentCapture
+				if json.Unmarshal([]byte(cmd.Payload), &capture) != nil || capture.WorkerCapability != cap.ID {
+					continue
+				}
+				paths, _ := filepath.Glob(filepath.Join(profile, "native-muse-runs", "*", "prompt"))
+				for _, p := range paths {
+					b, _ := os.ReadFile(filepath.Join(filepath.Dir(p), "binding.json"))
+					var binding map[string]any
+					if json.Unmarshal(b, &binding) == nil && binding["run"] == cmd.ID {
+						started = true
+					}
+				}
+			}
+			if started {
+				break
+			}
+			select {
+			case result := <-done:
+				return fmt.Errorf("contribution never reached active inference: %+v", result)
+			default:
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		if err = setActive(false); err != nil {
+			return err
+		}
+		result := <-done
+		if !result.claimed || result.err == nil {
+			return errors.New("withdrawal adopted a contribution answer")
+		}
+		for {
+			judgments.ReconcilePostJudgments(ctx)
+			pending, e := db.PendingNativeJudgments(ctx)
+			if e != nil {
+				return e
+			}
+			if len(pending) == 0 {
+				break
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		failed, err = db.FeedPost(ctx, factory.ContributionReviewInvitationID(review))
+		if err != nil || failed.Contribution == nil || failed.Contribution.State != "unavailable" {
+			return errors.New("withdrawn contribution claim did not settle unavailable")
+		}
+		if err = setActive(true); err != nil {
+			return err
+		}
+	}
+	positive, err := newSource("q13-positive-contribution")
+	if err != nil {
+		return err
+	}
+	if claimed, e := driver.Drive(ctx); !claimed || e != nil {
+		return fmt.Errorf("actual contribution assessment: claimed=%t %v", claimed, e)
+	}
+	current, err := db.ContributionContext(ctx, positive)
+	if err != nil {
+		return err
+	}
+	id := factory.ContributionReviewInvitationID(current)
+	for {
+		post, e := db.FeedPost(ctx, id)
+		if e != nil {
+			return e
+		}
+		if post.Contribution == nil {
+			return errors.New("assessment not retained")
+		}
+		assessment := post.Contribution
+		if assessment.State == "responded" {
+			if assessment.Assignment != cap.AssignmentID || assessment.Reply == "" || len(assessment.Calls) != len(factory.ContributionQuestions) {
+				return errors.New("invitation lost actual reply or original formulations")
+			}
+			for i, call := range assessment.Calls {
+				if call.Question != factory.ContributionQuestions[i] || call.Answer.Model != "muse-spark-1.3-contributor" {
+					return errors.New("original per-role questions/model changed")
+				}
+			}
+			raw, _ := json.MarshalIndent(map[string]any{"withdrawn": failed.Contribution, "responded": assessment, "original_source": source.Connection}, "", "  ")
+			if err = os.WriteFile(filepath.Join(profile, "contribution-journey.json"), raw, 0600); err != nil {
+				return err
+			}
+			break
+		}
+		if assessment.State != "invited" {
+			return fmt.Errorf("real usefulness judgments did not invite: %+v", assessment)
+		}
+		if observed, e := port.InspectRun(ctx, execution.RunAddress{Run: cap.RunID, Workspace: cap.Project}); e != nil || !observed.Live {
+			return fmt.Errorf("invited worker exited before reply: %v", e)
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if claimed, e := driver.Drive(ctx); claimed || e != nil {
+		return fmt.Errorf("settled contribution replay: %t %v", claimed, e)
+	}
+	fmt.Println("PASS: actual claim, three original per-role questions, usefulness gate, invitation, authenticated inbox/discussion/reply and single consumption; settled claims never replay")
+	count := 2
+	if skipWithdrawal {
+		count = 1
+	}
+	return retainJudgmentEvidence(ctx, config, cap.Repository, cap.ID, count)
+}
 
 // Connected judgments use the actual native GitHub admission and selected Muse
 // login. Planning content is declared; provider answers and usage are real.
@@ -6598,7 +7273,11 @@ func judgmentResultFixture(profile, post string, prepare bool) error {
 		if err != nil {
 			return err
 		}
-		prompt, err = factory.NativeJudgmentPrompt(state, question, options)
+		preference := map[string]any{}
+		for _, candidate := range request.Candidates {
+			preference[candidate.ID] = candidate.PreferenceFacts()
+		}
+		prompt, err = factory.NativeJudgmentPrompt(map[string]any{"snapshot": request.Snapshot, "repository": repository}, question, preference)
 		if err != nil {
 			return err
 		}
@@ -6841,6 +7520,42 @@ func workerProfileFixture() error {
 		}
 		serverName = initialized.Result.ServerInfo.Name
 		response.Body.Close()
+		if strings.Contains(string(prompt), "contribution-inbox-fixture") {
+			until := time.Now().Add(150 * time.Second)
+			for {
+				raw, err := workerMCPCall(client, "factory.inbox", map[string]any{})
+				if err != nil {
+					return err
+				}
+				var inbox factory.MCPFeedPage
+				if json.Unmarshal(raw, &inbox) != nil {
+					return errors.New("invalid actual contribution inbox")
+				}
+				invitation := ""
+				for _, item := range inbox.Items {
+					if strings.Contains(item.Summary, "Awaiting its actual reply") {
+						invitation = item.ID
+					}
+				}
+				if invitation != "" {
+					if _, err := workerMCPCall(client, "factory.discussion", map[string]any{"post_id": invitation}); err != nil {
+						return err
+					}
+					if _, err := workerMCPCall(client, "factory.reply", map[string]any{"parent_id": invitation, "title": "Reconcile the original intent", "summary": "The missing check is reconciliation against the original durable payment intent and provider receipt before any retry; a timeout alone does not prove that no payment occurred."}); err != nil {
+						return err
+					}
+					if _, err := workerMCPCall(client, "factory.reply", map[string]any{"parent_id": invitation, "title": "Duplicate reply", "summary": "Duplicate invitation consumption must refuse."}); err == nil {
+						return errors.New("invitation permitted a second reply")
+					}
+					fmt.Println("actual-authenticated-contribution-invitation-and-reply", invitation)
+					break
+				}
+				if time.Now().After(until) {
+					return errors.New("no actual contribution invitation before deadline")
+				}
+				time.Sleep(1500 * time.Millisecond)
+			}
+		}
 		if strings.Contains(string(prompt), "worker-judgments-fixture") {
 			consultClient := &http.Client{Timeout: 35 * time.Second, Transport: client.Transport}
 			for _, kind := range []string{"noul", "choice", "score"} {
