@@ -256,10 +256,11 @@ func (s nativeCollaborationReads) ReadChecks(ctx context.Context, actor collabor
 	obs := s.observation(struct {
 		Page             nativeCheckPage
 		Policy           collaboration.Revision
+		EvaluationCommit collaboration.CommitID
 		StatusGate       string
 		Missing, Invalid []string
-	}{raw, gate.Protection.Observation.Revision, gate.StatusGate, gate.MissingRequired, gate.InvalidRequired})
-	result = collaboration.PullChecks{Kind: "status", Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Commit: raw.Head, Observation: obs,
+	}{raw, gate.Protection.Observation.Revision, gate.EvaluationCommit, gate.StatusGate, gate.MissingRequired, gate.InvalidRequired})
+	result = collaboration.PullChecks{EvaluationCommit: gate.EvaluationCommit, Kind: "status", Pull: collaboration.PullRef{Kind: collaboration.SubjectPull, Repository: repo, ExternalID: raw.Pull.ExternalID, Number: number}, Commit: raw.Head, Observation: obs,
 		Checks: nativePage(obs, items, cursorEncode(c, next)), Protection: gate.Protection, MissingRequired: gate.MissingRequired, InvalidRequired: gate.InvalidRequired, StatusGate: gate.StatusGate}
 	// Required-check readiness is separate from workflow jobs, the selected
 	// Factory checks and all other review/merge prerequisites.

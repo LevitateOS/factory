@@ -13,6 +13,7 @@ import (
 // canonical repository and pull; it does not reinterpret provider parameters.
 type nativeRequiredChecks struct {
 	Protection                       *collaboration.BranchProtection
+	EvaluationCommit                 collaboration.CommitID
 	StatusGate                       string
 	MissingRequired, InvalidRequired []string
 }
@@ -33,9 +34,10 @@ func (s nativeCollaborationReads) readRequiredChecks(ctx context.Context, repo c
 			Rules        json.RawMessage                `json:"rules"`
 			Summary      collaboration.BranchProtection `json:"summary"`
 		} `json:"protection"`
-		StatusGate      string   `json:"status_gate"`
-		MissingRequired []string `json:"missing_required"`
-		InvalidRequired []string `json:"invalid_required"`
+		EvaluationCommit collaboration.CommitID `json:"evaluation_commit"`
+		StatusGate       string                 `json:"status_gate"`
+		MissingRequired  []string               `json:"missing_required"`
+		InvalidRequired  []string               `json:"invalid_required"`
 	}
 	pin, basePin := string(head), string(base)
 	if err := s.read(ctx, nativeRead{Kind: "pull_required_checks", Repository: s.identity.SelectedRepository, Number: uint32(pull.Number), Head: &pin, Base: &basePin}, &envelope); err != nil {
@@ -62,8 +64,11 @@ func (s nativeCollaborationReads) readRequiredChecks(ctx context.Context, repo c
 		return empty, err
 	}
 	b.Repository, b.Branch, b.Observation = repo, raw.Branch, s.observation(raw)
+	if !collaboration.ValidCommitID(envelope.EvaluationCommit) {
+		return empty, errNativeRead
+	}
 	if envelope.MissingRequired == nil || envelope.InvalidRequired == nil {
 		return empty, errNativeRead
 	}
-	return nativeRequiredChecks{Protection: &b, StatusGate: envelope.StatusGate, MissingRequired: envelope.MissingRequired, InvalidRequired: envelope.InvalidRequired}, nil
+	return nativeRequiredChecks{EvaluationCommit: envelope.EvaluationCommit, Protection: &b, StatusGate: envelope.StatusGate, MissingRequired: envelope.MissingRequired, InvalidRequired: envelope.InvalidRequired}, nil
 }

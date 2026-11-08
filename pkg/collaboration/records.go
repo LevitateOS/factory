@@ -388,13 +388,14 @@ type BranchProtection struct {
 	UnprotectedFiles        string             `json:"unprotected_files"`
 }
 type PullChecks struct {
-	Kind            string            `json:"kind"` // status, job
-	Pull            PullRef           `json:"pull"`
-	Commit          CommitID          `json:"commit"`
-	Observation     Observation       `json:"observation"`
-	Checks          Page[Check]       `json:"checks"`
-	Protection      *BranchProtection `json:"protection"`
-	MissingRequired []string          `json:"missing_required"`
-	InvalidRequired []string          `json:"invalid_required"`
-	StatusGate      string            `json:"status_gate"` // not_required, pending, success, failure, error, warning, unknown
+	EvaluationCommit CommitID          `json:"evaluation_commit,omitempty"`
+	Kind             string            `json:"kind"` // status, job
+	Pull             PullRef           `json:"pull"`
+	Commit           CommitID          `json:"commit"`
+	Observation      Observation       `json:"observation"`
+	Checks           Page[Check]       `json:"checks"`
+	Protection       *BranchProtection `json:"protection"`
+	MissingRequired  []string          `json:"missing_required"`
+	InvalidRequired  []string          `json:"invalid_required"`
+	StatusGate       string            `json:"status_gate"` // not_required, pending, success, failure, error, warning, unknown
 }

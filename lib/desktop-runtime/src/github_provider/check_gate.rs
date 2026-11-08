@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 
 fn state(source: &Value) -> Result<&str> {
+    if source["eligible"] == false { return Ok("unknown"); }
     if source["kind"] == "check" {
         if source["provider_status"] != "completed" {
             return Ok("pending");
@@ -36,30 +37,28 @@ impl Reader<'_> {
         let number = q["number"].as_u64().ok_or_else(Failure::invalid)?;
         let head = r::text(q, "head")?;
         let base = r::text(q, "base")?;
-        let (before, sources) =
-            tokio::join!(self.check_head(number), self.latest_check_sources(head));
-        let before = before?;
+        let before = self.check_evaluation(number).await?;
         if before["head"] != head || before["base"] != base {
             return Err(Failure::new(409, "github_checks_changed"));
         }
         let request = json!({"number":number,"head":head});
-        let sources = match sources {
-            Ok(sources) => Some(sources),
-            Err(failure) if failure.code == "github_automation_checks_incomplete" => None,
+        let (evaluation, sources) = match self.evaluation_sources(&before).await {
+            Ok((evaluation, sources)) => (evaluation, Some(sources)),
+            Err(failure) if failure.code == "github_automation_checks_incomplete" => (head.into(), None),
             Err(failure) => return Err(failure),
         };
         // Policy already pairs its sources and PR/branch binding. Bracket that
         // observation with CI reads instead of repeating the complete policy read.
         let protection = self.protection(&request).await?;
-        let (after, latest) = tokio::join!(self.check_head(number), async {
+        let (after, latest) = tokio::join!(self.check_evaluation(number), async {
             if sources.is_some() {
-                self.latest_check_sources(head).await
+                self.evaluation_sources(&before).await
             } else {
-                Ok(Vec::new())
+                Ok((evaluation.clone(), Vec::new()))
             }
         });
         if let Some(sources) = &sources {
-            if latest? != *sources {
+            if latest? != (evaluation.clone(), sources.clone()) {
                 return Err(Failure::new(409, "github_checks_changed"));
             }
         }
@@ -131,7 +130,7 @@ impl Reader<'_> {
         }
         self.recheck().await?;
         Ok(
-            json!({"protection":protection,"status_gate":gate,"missing_required":missing,"invalid_required":invalid}),
+            json!({"protection":protection,"evaluation_commit":evaluation,"status_gate":gate,"missing_required":missing,"invalid_required":invalid}),
         )
     }
 }

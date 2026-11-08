@@ -22,6 +22,7 @@ type CheckAssessment struct {
 	ObservedContexts int           `json:"observed_contexts"`
 	HeadRef          string        `json:"head_ref"`
 	BaseRef          string        `json:"base_ref"`
+	EvaluationCommit string        `json:"evaluation_commit,omitempty"`
 	HeadOID          string        `json:"head_oid"`
 	BaseOID          string        `json:"base_oid"`
 	ChecksDigest     string        `json:"checks_digest"`
@@ -52,6 +53,9 @@ func (a CheckAssessment) validateCheckScope() error {
 	}
 	if !ValidTargetBranch(a.HeadRef) || !ValidTargetBranch(a.BaseRef) || a.HeadRef == a.BaseRef {
 		return errors.New("invalid check assessment refs")
+	}
+	if a.EvaluationCommit != "" && !ValidCommit(a.EvaluationCommit) {
+		return errors.New("invalid check evaluation commit")
 	}
 	if !ValidCommit(a.HeadOID) || !ValidCommit(a.BaseOID) {
 		return errors.New("invalid check assessment commits")
@@ -171,7 +175,7 @@ func VerifyChecks(target CheckTarget, adopted AdoptedChecks, current RepositoryP
 		AssessedUnix: nowUnix, ObservedContexts: observed.ObservedContexts,
 		HeadRef: target.HeadRef, BaseRef: target.BaseRef,
 		HeadOID: target.HeadOID, BaseOID: target.BaseOID,
-		ChecksDigest: adopted.Digest,
+		ChecksDigest: adopted.Digest, EvaluationCommit: observed.EvaluationCommit,
 	}
 	for _, check := range adopted.Checks {
 		assessment.Results = append(assessment.Results, CheckResult{Context: check})

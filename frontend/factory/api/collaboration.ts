@@ -277,6 +277,7 @@ export interface BranchProtection {
   unprotected_files: string;
 }
 export interface PullChecks {
+  evaluation_commit?: CommitID;
   kind: 'status' | 'job';
   pull: PullRef;
   commit: CommitID;

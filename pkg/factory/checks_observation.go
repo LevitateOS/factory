@@ -37,6 +37,7 @@ type ObservedChecks struct {
 	Checks           []ObservedCheck `json:"checks,omitempty"`
 	NativeRev        int64           `json:"native_revision"`
 	ObservedContexts int             `json:"observed_contexts"`
+	EvaluationCommit string          `json:"evaluation_commit,omitempty"`
 	HeadTip          string          `json:"head_tip,omitempty"`
 	BaseTip          string          `json:"base_tip,omitempty"`
 	Complete         bool            `json:"complete"`
@@ -48,6 +49,9 @@ type ObservedChecks struct {
 func (o ObservedChecks) Validate() error {
 	if o.NativeRev < 1 || o.ObservedContexts < 0 || len(o.Checks) > SnapshotPageBound {
 		return errors.New("invalid observed check evidence")
+	}
+	if o.EvaluationCommit != "" && !ValidCommit(o.EvaluationCommit) {
+		return errors.New("invalid evaluated check commit")
 	}
 	if o.HeadTip != "" && !ValidCommit(o.HeadTip) {
 		return errors.New("invalid observed head tip")

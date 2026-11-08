@@ -27,24 +27,25 @@ func (p NativeInputSource) ObserveChecks(ctx context.Context, target factory.Che
 		return empty, &factory.PublicationRefusal{Reason: "authority_lost"}
 	}
 	var raw struct {
-		Repository string                  `json:"repository"`
-		Number     int64                   `json:"number"`
-		PullID     string                  `json:"pull_id"`
-		IssueID    string                  `json:"issue_id"`
-		HeadRef    string                  `json:"head_ref"`
-		BaseRef    string                  `json:"base_ref"`
-		HeadTip    string                  `json:"head_tip"`
-		BaseTip    string                  `json:"base_tip"`
-		Checks     []factory.ObservedCheck `json:"checks"`
-		Sources    []json.RawMessage       `json:"sources"`
+		Repository       string                  `json:"repository"`
+		Number           int64                   `json:"number"`
+		PullID           string                  `json:"pull_id"`
+		IssueID          string                  `json:"issue_id"`
+		HeadRef          string                  `json:"head_ref"`
+		BaseRef          string                  `json:"base_ref"`
+		EvaluationCommit string                  `json:"evaluation_commit"`
+		HeadTip          string                  `json:"head_tip"`
+		BaseTip          string                  `json:"base_tip"`
+		Checks           []factory.ObservedCheck `json:"checks"`
+		Sources          []json.RawMessage       `json:"sources"`
 	}
 	if err = account.read(ctx, nativeRead{Kind: "automation_checks", Repository: account.repository.ExternalID, Number: uint32(target.PRNumber)}, &raw); err != nil {
 		return empty, err
 	}
-	if raw.Repository != account.repository.ExternalID || raw.Number != target.PRNumber || raw.PullID != strconv.FormatInt(target.PRID, 10) || raw.IssueID != strconv.FormatInt(target.IssueID, 10) || raw.HeadRef != target.HeadRef || raw.BaseRef != target.BaseRef || raw.Checks == nil || raw.Sources == nil || len(raw.Sources) > 200 {
+	if raw.Repository != account.repository.ExternalID || raw.Number != target.PRNumber || raw.PullID != strconv.FormatInt(target.PRID, 10) || raw.IssueID != strconv.FormatInt(target.IssueID, 10) || raw.HeadRef != target.HeadRef || raw.BaseRef != target.BaseRef || !factory.ValidCommit(raw.EvaluationCommit) || raw.Checks == nil || raw.Sources == nil || len(raw.Sources) > 200 {
 		return empty, &factory.PublicationRefusal{Reason: "pr_mismatch"}
 	}
-	observed := factory.ObservedChecks{NativeRev: 1, Checks: raw.Checks, ObservedContexts: len(raw.Checks), HeadTip: raw.HeadTip, BaseTip: raw.BaseTip, Complete: true}
+	observed := factory.ObservedChecks{NativeRev: 1, EvaluationCommit: raw.EvaluationCommit, Checks: raw.Checks, ObservedContexts: len(raw.Checks), HeadTip: raw.HeadTip, BaseTip: raw.BaseTip, Complete: true}
 	if observed.Validate() != nil {
 		return empty, errNativeRead
 	}

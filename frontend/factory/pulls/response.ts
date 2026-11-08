@@ -140,7 +140,9 @@ export function pullChecks(value: unknown, repository: string, number: string, h
       required: row.required as boolean | null, description: text(row.description, 4096),
       workflow: job ? text(job.workflow, 1024) : null};
   }, cursor);
-  return {gate: gate as string, ...page};
+  const evaluationCommit = result.evaluation_commit === undefined ? head : commit(result.evaluation_commit);
+  check(evaluationCommit !== null);
+  return {gate: gate as string, evaluationCommit, ...page};
 }
 
 export function pullReviews(value: unknown, repository: string, number: string, cursor = '') {

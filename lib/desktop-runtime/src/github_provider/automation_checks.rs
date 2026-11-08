@@ -142,8 +142,8 @@ impl Reader<'_> {
             return Err(incomplete());
         }
         let mut sources = Vec::new();
-        let mut check_names = BTreeSet::new();
         let mut ids = BTreeSet::new();
+        let mut runs = BTreeMap::new();
         for item in check_items {
             let id = r::id(&item["id"])?;
             let context = r::nonempty(item, "name")?;
@@ -154,10 +154,32 @@ impl Reader<'_> {
             {
                 return Err(Failure::protocol());
             }
-            if !check_names.insert((context.to_owned(), app.clone())) {
-                return Err(incomplete());
-            }
-            sources.push(json!({"kind":"check","id":id,"context":context,"app":app,"state":check_state(item),"provider_status":r::string(item,"status")?,"provider_conclusion":r::string(item,"conclusion")?}));
+            // Actions workflow_dispatch/schedule jobs cannot satisfy GitHub's
+            // required-check contract. Verify the actual runner event rather
+            // than infer eligibility from a green check or its display name.
+            let eligible = if item["app"]["slug"] == "github-actions" {
+                let prefix = format!("https://github.com/{}/actions/runs/", self.name);
+                let run = item["details_url"].as_str().and_then(|url| url.strip_prefix(&prefix))
+                    .and_then(|tail| tail.split('/').next())
+                    .filter(|id| !id.is_empty() && id.bytes().all(|c| c.is_ascii_digit()));
+                if let Some(run) = run {
+                    if !runs.contains_key(run) {
+                        let facts = self.get(&format!("/actions/runs/{run}"), &[]).await?.value;
+                        let valid = r::id(&facts["id"])? == run
+                            && r::id(&facts["repository"]["id"])? == self.repository
+                            && matches!(facts["event"].as_str(), Some("push" | "pull_request" | "pull_request_review" | "pull_request_target" | "deployment" | "deployment_status"));
+                        runs.insert(run.to_owned(), valid);
+                    }
+                    runs[run]
+                } else {
+                    // An app-authored check report is distinct from an Actions
+                    // workflow job. GitHub assigns its own check URL.
+                    item["details_url"] == format!("https://github.com/{}/runs/{id}", self.name)
+                }
+            } else { true };
+            // filter=latest can return separate push/PR suites for one app and
+            // name. Retain every returned source; a green suite cannot hide red.
+            sources.push(json!({"kind":"check","id":id,"context":context,"app":app,"state":if eligible {check_state(item)} else {"unknown"},"eligible":eligible,"provider_status":r::string(item,"status")?,"provider_conclusion":r::string(item,"conclusion")?}));
         }
         let mut latest = BTreeMap::new();
         ids.clear();
@@ -194,10 +216,50 @@ impl Reader<'_> {
         });
         Ok(sources)
     }
+    pub(super) async fn check_evaluation(&self, number: u64) -> Result<Value> {
+        let raw = self.raw_subject(true, number).await?;
+        let mut binding = self.protection_binding(&raw)?;
+        let query = "query FactoryCheckEvaluation($pull:ID!){node(id:$pull){__typename ... on PullRequest{id number repository{id} headRefOid baseRefOid potentialMergeCommit{oid parents(first:2){nodes{oid}}}}}}";
+        let token = zeroize::Zeroizing::new(self.token.to_vec());
+        let variables = json!({"pull":r::text(&raw,"node_id")?});
+        let graph = self.client.provider_request(move |http| {
+            Ok((super::transport::graphql(http, &token, query, variables)?, 65536))
+        }, true).await?.value;
+        let pull = &graph["data"]["node"];
+        if pull["__typename"] != "PullRequest" || pull["id"] != raw["node_id"]
+            || pull["repository"]["id"] != raw["base"]["repo"]["node_id"]
+            || pull["number"].as_u64() != Some(number)
+            || pull["headRefOid"] != binding["head"] || pull["baseRefOid"] != binding["base"] {
+            return Err(Failure::new(409,"github_checks_changed"));
+        }
+        let merge = &pull["potentialMergeCommit"];
+        if !merge.is_null() {
+            let parents = merge["parents"]["nodes"].as_array().ok_or_else(Failure::protocol)?;
+            if !r::text(merge,"oid").is_ok_and(commit) || parents.len() != 2
+                || parents[0]["oid"] != binding["base"] || parents[1]["oid"] != binding["head"] {
+                return Err(Failure::new(409,"github_checks_changed"));
+            }
+        }
+        binding["test_merge"] = merge["oid"].clone();
+        Ok(binding)
+    }
+
+    pub(super) async fn evaluation_sources(&self, binding: &Value) -> Result<(String, Vec<Value>)> {
+        if let Some(merge) = binding["test_merge"].as_str() {
+            let sources = self.latest_check_sources(merge).await?;
+            if !sources.is_empty() { return Ok((merge.into(), sources)); }
+        }
+        let head = r::text(binding,"head")?;
+        Ok((head.into(), self.latest_check_sources(head).await?))
+    }
+
     pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
         let mut snapshot = self.automation_review_snapshot(number).await?;
-        let head = r::text(&snapshot, "head_tip")?;
-        let sources = self.latest_check_sources(head).await?;
+        let binding = self.check_evaluation(number).await?;
+        if snapshot["head_tip"] != binding["head"] || snapshot["base_tip"] != binding["base"] {
+            return Err(Failure::new(409,"github_checks_changed"));
+        }
+        let (evaluation, sources) = self.evaluation_sources(&binding).await?;
         let mut contexts = BTreeMap::<String, String>::new();
         for source in &sources {
             let context = r::nonempty(source, "context")?;
@@ -221,6 +283,7 @@ impl Reader<'_> {
             .collect();
         snapshot["checks"] = json!(checks);
         snapshot["sources"] = json!(sources);
+        snapshot["evaluation_commit"] = json!(evaluation);
         snapshot
             .as_object_mut()
             .ok_or_else(Failure::protocol)?

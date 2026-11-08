@@ -38,7 +38,7 @@ const empty = () => ({
   commits: [] as ReturnType<typeof pullCommits>['items'],
   comments: [] as ReturnType<typeof pullComments>['items'],
   reviews: [] as ReturnType<typeof pullReviews>['items'],
-  checks: [] as ReturnType<typeof pullChecks>['items'], gate: '',
+  checks: [] as ReturnType<typeof pullChecks>['items'], gate: '', evaluationCommit: '',
   next: '', threadNext: '', threadMessage: '', threadBusy: false,
   diff: undefined as {base: string; head: string} | undefined,
   head: null as string | null,
@@ -172,7 +172,7 @@ export class SodaFactoryPull extends LitElement {
         const suffix = kind === 'job' ? '/checks/jobs?' : '/checks?';
         const page = pullChecks(await getJSON(context.transport, path + suffix + query, signal), context.repository, context.pull, head, kind, cursor);
         if (!this.live(context, serial)) return;
-        this.view = {...baseView, checks: page.items, gate: page.gate, next: page.next};
+        this.view = {...baseView, checks: page.items, gate: page.gate, evaluationCommit: page.evaluationCommit, next: page.next};
       } else if (tab === 'conversation') {
         const raw = await getJSON(context.transport, path + '/comments?' + query, signal);
         if (!this.live(context, serial)) return;
@@ -308,6 +308,7 @@ export class SodaFactoryPull extends LitElement {
           ${this.view.threadNext ? html`<button type="button" ?disabled=${this.view.threadBusy} @click=${() => void this.loadMoreThreads(this.view.threadNext)}>Load more inline discussions</button>` : ''}
         </section>` : this.tab === 'checks' ? html`<section aria-label="Checks">
           <p>Status gate: ${this.view.gate || 'unavailable'}</p>
+          ${this.view.evaluationCommit ? html`<p>Required checks evaluated on <code>${this.view.evaluationCommit}</code>.</p>` : ''}
           <nav aria-label="Check types"><button type="button" aria-current=${this.checkKind === 'status' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('status')}>Statuses</button><button type="button" aria-current=${this.checkKind === 'job' ? 'page' : 'false'} ?disabled=${this.view.busy} @click=${() => this.selectChecks('job')}>Jobs</button></nav>
           <ul>${this.view.checks.map(row => html`<li><strong>${row.name}</strong> · ${row.state} · ${row.conclusion}${row.required ? ' · Required' : ''}<p>${row.workflow ? row.workflow + ' · ' : ''}${row.description}</p></li>`)}</ul>
           ${!this.view.checks.length ? html`<p>No checks on this page.</p>` : ''}
