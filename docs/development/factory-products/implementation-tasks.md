@@ -10,12 +10,12 @@ Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
 **Current snapshot (2026-11-08, Factory `a977bba`):** 17 queue entries remain:
-Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
+Q09–Q13 are complete within their recorded ordinary scopes, Q14 is in progress,
 Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q29 request stopped at Q14's conditional-refinement blocker and does not
-resume later implementation.
+bounded Q30 request is resuming Q14 after the owner's explicit append-only
+refinement decision; dependent tasks wait for verified prerequisites.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
 
@@ -47,7 +47,10 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Resume Q14 only after its blocker is resolved.** GitHub's issue update has no
+**Resume Q14 under the approved append-only contract.** During Q30 the owner
+explicitly approved new journaled refinement comments preserving existing issue
+text. Implement and verify that continuation from the retained receipts before
+proceeding. GitHub's issue update has no
 documented atomic unchanged-content condition; read-then-update can overwrite a
 concurrent human edit. Required conditional updates now refuse and Issue Maker
 holds before paid refinement. The original connected judgment/issue receipt and
@@ -659,7 +662,27 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**BLOCKED (2026-11-08), latest requested ceiling Q29; actual task Q14.** D1–D8/Q01–Q13 remain
+**INCOMPLETE (2026-11-08), requested ceiling Q30; actual task Q14.** The owner
+explicitly approved append-only refinement comments during Q30. Implementation
+and verification are in progress; the prior contract blocker is resolved.
+Existing conditional-edit refusal remains in place for historical commands.
+Append-only refinement passed the existing native/Rust/Go/PostgreSQL check at
+`/home/vince/Projects/q14-append-refinement3/result.log`: one comment per retained
+step, replay/restart, preservation of subsequent human title/body and unowned-key
+refusal. Provider facts/content there are declared; this closes no connected gate.
+The original connected worker `5b2adca2669040a1e9e94f094e4c6fcc` exited before
+inference because Muse rejected its MCP temporary-output path; its exact failed
+result and source charge were settled without replay at
+`q14-authoring/profile/connected-authoring-startup-recovery.json`. Explicit
+continuations ending `c2` and `c3` launched no worker. Their original receipts
+remain retained. The waiting `c3` callback was joined; its parent withdrew the
+local credential and stopped the runtime, and temporary fixture units were removed.
+Owned uncommitted continuation work remains in the post retry/queue/planning and
+native Muse launch owners plus the existing connected driver. Next: verify the
+fresh-attempt binding and normal background continuation of the original post,
+then finish Q14's actual inference/additional slot, graph and retained scope.
+
+**Historical blocker and evidence:** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
 `a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
 unchanged base and holds Issue Maker before paid refinement. GitHub's documented
@@ -686,8 +709,7 @@ boundaries passed. All owned checks/processes were joined, temporary fixture uni
 removed, local connected grant withdrawn and both stashes preserved. Detailed
 [evidence and limitations](../untangle-codebase.md#q14-blocker-conditional-github-refinement-2026-11-08).
 
-**Exact next action:** obtain an owner-approved safe refinement contract (or a
-documented provider conditional-write capability). Then recover the original
+**Exact next action:** finish the approved append-only implementation and recover the original
 profile/receipts without another creation or routing call. Establish the approved
 continuation's fresh explicit authority and funding without renewing the expired
 capture, prepare current native instances from its retained approved source, and

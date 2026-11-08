@@ -56,62 +56,74 @@ func (s *nativeIssueEffects) AuthorizeIssueMaker(ctx context.Context, scope fact
 	if err != nil {
 		return err
 	}
-	if capabilities.Issue == nil || *capabilities.Issue != issue || capabilities.Actions[collaboration.EditIssue].State != collaboration.Allowed {
+	if capabilities.Issue == nil || *capabilities.Issue != issue || capabilities.Actions[collaboration.CommentIssue].State != collaboration.Allowed {
 		return factoryservice.ErrCapturedIssueUnavailable
-	}
-	progress, err := s.Store.PostIssueMaker(ctx, scope.SourcePost, scope.Revision)
-	if err != nil {
-		return err
-	}
-	page, err := (nativeCollaborationReads{account}).ReadIssues(ctx, proof.Scope.Actor, proof.Scope.Repository, factoryservice.CollaborationIssueQuery{Number: issue.Number, Limit: 1})
-	if err != nil {
-		return err
-	}
-	expected := false
-	for _, item := range progress.Issues {
-		if item.Slot == 0 && item.Index == issue.Number && len(page.Items) == 1 && page.Items[0].Ref == issue && page.Items[0].Title == item.Title && factory.MCPInputDigest([]byte(page.Items[0].Body)) == item.BodyDigest {
-			expected = true
-		}
-	}
-	if !expected {
-		return factoryservice.ErrHumanEditBaseChanged
 	}
 	// Provider reads must not extend the captured source's lifetime or reinstate a
 	// withdrawn request before the role is admitted to paid execution.
-	if err := s.currentSource(ctx, proof, raw); err != nil {
-		return err
-	}
-	// The native GitHub connector cannot condition updateIssue on this observed
-	// body. Hold before paid refinement, rather than promise preservation across
-	// the gap between its read and unconditional mutation.
-	return factoryservice.ErrCapturedIssueUnavailable
+	return s.currentSource(ctx, proof, raw)
 }
 
 func (s *nativeIssueEffects) refineIssue(ctx context.Context, proof nativeIssueIntakeProof, raw json.RawMessage, account *nativeProductAccount, mutation factory.IssueMakerMutation) (factory.IssueMakerReceipt, error) {
 	var empty factory.IssueMakerReceipt
+	key := sha256.Sum256([]byte("factory.native.issue-refine\x00" + string(proof.Profile) + "\x00" + proof.Scope.Source + "\x00" + strconv.Itoa(mutation.Slot) + "\x00" + strconv.Itoa(mutation.Step)))
+	id := hex.EncodeToString(key[:16])
+	prior, err := s.Store.FactoryCommand(ctx, id)
+	if err == nil && prior.Type != factory.CommandHumanComment {
+		// Never reinterpret a historical edit or its unknown send as a comment.
+		return s.refineLegacyIssue(ctx, proof, raw, account, mutation, id)
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return empty, err
+	}
 	issue, err := s.createdIssue(ctx, proof, account, mutation.Slot)
 	if err != nil {
 		return empty, err
 	}
-	key := sha256.Sum256([]byte("factory.native.issue-refine\x00" + string(proof.Profile) + "\x00" + proof.Scope.Source + "\x00" + strconv.Itoa(mutation.Slot) + "\x00" + strconv.Itoa(mutation.Step)))
-	request := factory.HumanEditCommand{ID: hex.EncodeToString(key[:16]), Host: account.binding.Host.ID, Repository: proof.Scope.Repository, Actor: proof.Scope.Actor, Subject: "issue", Number: issue.Number, Title: &mutation.Title, Body: &mutation.Body, Expected: &factory.HumanEditBase{ExternalID: issue.ExternalID, Title: mutation.ExpectedTitle, BodyDigest: mutation.ExpectedBodyDigest}}
-	writer := nativeHumanEdits{account}
-	_, err = s.Store.HumanEditCapture(ctx, request)
+	request := factory.HumanCommentCommand{ID: id, Host: account.binding.Host.ID, Repository: proof.Scope.Repository, Actor: proof.Scope.Actor, Subject: "issue", Number: issue.Number,
+		Body: "## Refinement: " + mutation.Title + "\n\n" + mutation.Body + "\n\n---\nRequest: " + proof.Scope.Source + " r" + strconv.FormatInt(proof.Scope.Revision, 10) + "; slot " + strconv.Itoa(mutation.Slot) + "; step " + strconv.Itoa(mutation.Step) + ". Existing issue text is preserved."}
+	writer := nativeHumanComments{account}
+	_, err = s.Store.HumanCommentCapture(ctx, request)
 	if errors.Is(err, store.ErrNotFound) {
-		capture, e := writer.PrepareHumanEdit(ctx, request)
+		capture, e := writer.PrepareHumanComment(ctx, request)
 		if e != nil {
 			return empty, e
 		}
-		var preparation nativeEditPreparation
-		if nativeDecode(capture.ProviderIntent, &preparation) != nil {
+		var preparation nativeCommentPreparation
+		if nativeDecode(capture.ProviderIntent, &preparation) != nil || preparation.Comment.SubjectID != issue.ExternalID {
 			return empty, factoryservice.ErrCapturedIssueAuthority
 		}
 		preparation.NotAfter = min(preparation.NotAfter, proof.Scope.Expires)
 		capture.ProviderIntent, err = json.Marshal(preparation)
 		if err == nil {
-			_, _, err = s.Store.CaptureHumanEdit(ctx, capture)
+			_, _, err = s.Store.CaptureHumanComment(ctx, capture)
 		}
 	}
+	if err != nil {
+		return empty, err
+	}
+	if err = s.currentSource(ctx, proof, raw); err != nil {
+		return empty, err
+	}
+	outcome, err := (factoryservice.HumanComments{Store: s.Store, Writer: writer}).Submit(ctx, request)
+	if err != nil {
+		return empty, err
+	}
+	if outcome.Record == nil || outcome.Record.Effect != collaboration.EffectCommitted || outcome.Record.Completion != collaboration.CompletionComplete {
+		return empty, factoryservice.ErrPostEffectUnknown
+	}
+	return factory.IssueMakerReceipt{Issue: issue, Slot: mutation.Slot, Title: mutation.Title, BodyDigest: factory.MCPInputDigest([]byte(mutation.Body))}, nil
+}
+
+func (s *nativeIssueEffects) refineLegacyIssue(ctx context.Context, proof nativeIssueIntakeProof, raw json.RawMessage, account *nativeProductAccount, mutation factory.IssueMakerMutation, id string) (factory.IssueMakerReceipt, error) {
+	var empty factory.IssueMakerReceipt
+	issue, err := s.createdIssue(ctx, proof, account, mutation.Slot)
+	if err != nil {
+		return empty, err
+	}
+	request := factory.HumanEditCommand{ID: id, Host: account.binding.Host.ID, Repository: proof.Scope.Repository, Actor: proof.Scope.Actor, Subject: "issue", Number: issue.Number, Title: &mutation.Title, Body: &mutation.Body, Expected: &factory.HumanEditBase{ExternalID: issue.ExternalID, Title: mutation.ExpectedTitle, BodyDigest: mutation.ExpectedBodyDigest}}
+	writer := nativeHumanEdits{account}
+	_, err = s.Store.HumanEditCapture(ctx, request)
 	if err != nil {
 		return empty, err
 	}

@@ -8520,7 +8520,7 @@ func nativeReviewPolicyFixture(profile, instance, repository string) error {
 	return nil
 }
 
-// Uses the same captured-source and conditional-edit owner as actual Issue Maker
+// Uses the same captured-source and append-only owner as actual Issue Maker
 // work. Only authored content is declared; this starts no model or worker run.
 func nativeRequestRefinementFixture(profile, instance, post, phase string) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
@@ -8545,35 +8545,26 @@ func nativeRequestRefinementFixture(profile, instance, post, phase string) error
 	effects := factoryruntime.NewNativeIssueEffects(factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}})
 	title, body := "Refined request π", "A declared refined task.\nKeep exact bytes 🍵."
 	if phase == "refine-native-request-blocked" {
-		if !errors.Is(effects.AuthorizeIssueMaker(ctx, progress.Scope), factoryservice.ErrHumanEditBaseChanged) {
-			return errors.New("human edit did not stop paid refinement admission")
+		if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+			return fmt.Errorf("human writing prevented safe append-only admission: %w", err)
 		}
-		if _, err = effects.Mutate(ctx, progress.Scope, "refine", "request", "Unwanted replacement", "Must not replace human writing.", "declared-after-human-edit"); err == nil {
-			return errors.New("refinement replaced changed human content")
+		for range 2 {
+			if _, err = effects.Mutate(ctx, progress.Scope, "refine", "request", "Additional refinement", "Must preserve human writing.", "declared-after-human-edit"); err != nil {
+				return err
+			}
 		}
 		if _, err = effects.Mutate(ctx, progress.Scope, "refine", "unowned", "Unowned issue", "Must not edit an unowned issue.", "declared-unowned-edit"); err == nil {
 			return errors.New("refinement admitted an issue without request ownership")
 		}
-		pipe, err := db.PostIntake(ctx, post)
-		if err != nil {
-			return err
-		}
-		if _, err = (&factoryservice.IssueMaker{Store: db, Effects: effects}).Drive(ctx, pipe, detail); err != nil {
-			return err
-		}
-		held, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
-		if err != nil || held.State != "waiting" || !strings.Contains(held.Detail, "preserve the current content") {
-			return errors.New("changed issue did not retain its truthful content-preservation wait")
-		}
-		fmt.Println("PASS: request refinement refuses human-edited base before paid admission and conditional submission; unowned issue key refused; no replacement or model")
+		fmt.Println("PASS: human-edited issue accepts one journaled append-only refinement/replay; unowned issue key refused; no replacement or model")
 		return nil
 	}
-	if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); !errors.Is(err, factoryservice.ErrCapturedIssueUnavailable) {
-		return fmt.Errorf("unsupported conditional refinement did not hold before paid admission: %v", err)
+	if err = effects.AuthorizeIssueMaker(ctx, progress.Scope); err != nil {
+		return err
 	}
 	for range 2 {
-		if _, err := effects.Mutate(ctx, progress.Scope, "refine", "request", title, body, "declared-refinement"); !errors.Is(err, factoryservice.ErrPostEffectUnknown) {
-			return fmt.Errorf("unsupported conditional mutation/replay did not retain refusal: %v", err)
+		if _, err := effects.Mutate(ctx, progress.Scope, "refine", "request", title, body, "declared-refinement"); err != nil {
+			return err
 		}
 	}
 	current, err := db.PostIssueMaker(ctx, post, detail.Record.Revision)
@@ -8582,14 +8573,14 @@ func nativeRequestRefinementFixture(profile, instance, post, phase string) error
 	}
 	found := false
 	for _, issue := range current.Issues {
-		if issue.Key == "request" && issue.Index == progress.Scope.Issue && issue.Title != title {
+		if issue.Key == "request" && issue.Index == progress.Scope.Issue && issue.Title == title {
 			found = true
 		}
 	}
 	if !found {
-		return errors.New("refused native refinement replaced its original creation")
+		return errors.New("append-only refinement lost its original issue identity or semantic receipt")
 	}
-	fmt.Println("PASS: native request holds unsupported conditional refinement before paid admission; direct original-step refusal/replay preserves the creation journal and writing; provider facts declared, no model")
+	fmt.Println("PASS: native request appends one journaled refinement; exact-step replay preserves issue identity and original creation; provider facts declared, no model")
 	return nil
 }
 

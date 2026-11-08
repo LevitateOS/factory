@@ -514,6 +514,12 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    CreateComment {
+        command_id: String,
+        digest: String,
+        not_after: u64,
+        comment: Comment,
+    },
     SetIssueDependency {
         command_id: String,
         digest: String,
@@ -568,6 +574,15 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::CreateComment {
+            command_id,
+            digest,
+            not_after,
+            comment,
+        } if comment.subject == "issue" => Operation::Mutation(Command {
+            descriptor: Descriptor { command_id, digest, not_after },
+            operation: WriteOperation::CreateComment(comment),
+        }),
         BackgroundEffect::SetIssueDependency {
             command_id,
             digest,
@@ -697,6 +712,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         &effect,
         Operation::Mutation(Command {
             operation: WriteOperation::CreateReview(..)
+                | WriteOperation::CreateComment(..)
                 | WriteOperation::CreateIssue(..)
                 | WriteOperation::PublishBranch(..)
                 | WriteOperation::CreatePull(..)

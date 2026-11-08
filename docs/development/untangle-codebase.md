@@ -1990,6 +1990,22 @@ or product journal was added. Next task is Q14 only when authorized.
 
 ### Q14 blocker: conditional GitHub refinement (2026-11-08)
 
+**Q30 resume, owner decision:** the owner explicitly chose “Allow append-only
+refinement comments.” The historical preservation blocker below is resolved by
+that contract, not by a new GitHub CAS guarantee. Resume Q14 first using the
+original post/judgment/issue receipts. New refinement comments use the existing
+command journal; old edits/unknown sends retain their original identities and
+refusal. Append-only native qualification passed at
+`/home/vince/Projects/q14-append-refinement3/result.log` (declared provider/authored
+facts, real connector/journal/PostgreSQL): one comment per exact step across
+replay/restart and unchanged human title/body. This is not connected completion.
+Original worker `5b2adca2669040a1e9e94f094e4c6fcc` has a definite pre-inference
+exit/retirement and was settled from that receipt with its original source charge
+at `q14-authoring/profile/connected-authoring-startup-recovery.json`. Subsequent
+`c2`/`c3` continuation receipts have no new worker; current work fixes the failed
+attempt/wait selection and stale background queue status without renewing old
+commands or erasing results. Full Q14 and downstream qualification remain incomplete.
+
 Requested/actual task: **Q14, BLOCKED**. Safety implementation:
 `a977bba566b97cc4137596d5b2715458ae6a68dc`. No Q15 work started. Current relevant
 Go admission/dispatch/judgment/graph owners and Rust connector were inspected;
