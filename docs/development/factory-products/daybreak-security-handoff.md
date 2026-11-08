@@ -82,8 +82,9 @@ The earlier failed workload runs remain fenced, including candidate capture run
    Connected/private reads, current head/protection, continuation, refresh and
    shared UI passed; declared native/Go consistency/refusal cases passed under
    `/home/vince/tmp/factory-github-declared-1105/attempt9/` (62 cases).
-   Remaining: real provider-side revocation/refusal, historical observer-consumer
-   migration, installed admission and the complete rule/permission matrix.
+   Q10 reverified actual provider-side revocation/refusal and historical
+   observer-consumer migration, and completed the supported connected permission
+   cases. Remaining: Q11 rules, full delivery and installed admission.
    Positive classic policy mutations were declared; a live public classic read
    was unavailable. No atomic complete provider history is claimed.
 
@@ -107,9 +108,9 @@ The earlier failed workload runs remain fenced, including candidate capture run
    Go/UI consume bounded observations. Actual consent, keyring, private pages,
    refresh, local account withdrawal, shared UI and Quit have source evidence
    under `/home/vince/tmp/factory-consent-keyring-1105/`.
-   Local withdrawal is not remote provider revocation. Closure still needs real
-   provider-side revocation and refusal, installed custody/admission and pending
-   permission cases. The read-only reviewer case below remains unverified.
+   Local withdrawal is not remote provider revocation. Q10 reverified the actual
+   remote revocation evidence and completed the read-only reviewer case below.
+   Installed custody/admission and later product journeys remain required.
 
 4. **Security D1: standing GitHub automation (T11-INTAKE/T12-GITHUB-PRS).**
    Local-owner policy, saved connection, accepted-input/source and background
@@ -308,8 +309,8 @@ passes the owner-approved live Architect/two-task Builder journey in
 candidate export, original-source usage and restart without inference replay.
 Combined live regression evidence and limits are in the decision log below.
 The owner accepted current checks while retaining the historical encoding cause
-as unknown. Q08 is Complete within ordinary native scope; Q09 is Active and
-Q10–Q30 remain pending. All 13 security gates stay open. See the
+as unknown. Q08–Q10 are Complete within their recorded ordinary scopes;
+Q11–Q30 remain pending. All 13 security gates stay open. See the
 [current evidence and limits](../untangle-codebase.md#q08-current-native-journey-and-remaining-historical-attribution-2026-11-08).
 
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
@@ -335,7 +336,7 @@ methods/result provenance. Do not infer a full merge gate from fixture SQL.
 
 ## Preserved pending reviewer-permission work
 
-Read-only role check pending (2026-11-06): staged changes in
+Historical pending record (2026-11-06; superseded by Q10 completion below): staged changes in
 `pkg/factory/runtime/native_product_review_requests.go`,
 `lib/desktop-runtime/src/github_provider/review_request_effect.rs`,
 `frontend/factory/{api/capability-response.ts,pulls/reviewers.ts}` and
@@ -352,3 +353,15 @@ temporarily changing that team's permission to read, proving the effective
 read-only role, real WebKit merge/reviewer UI and POST 403 plus exact-command
 GET 404 with normal PR readback and local account withdrawal, then restoring
 the original write permission. Keep the staged code unverified until that run.
+
+Q10 completion (2026-11-08): `8f8ed8a` verifies those six restored paths through
+fresh `sodaos` Factory OAuth, actual effective Read role, real WebKit COMMENT
+writing/readback and disabled merge/reviewer controls, POST 403 and exact-command
+GET 404, normal PR readback and local withdrawal. Team write permission and the
+original team review request were restored. The changed native owner also passed
+63 declared reviewer cases including denied/unobserved push permission.
+Exact supported action/token/role coverage, retained revocation/observer commits
+and matching artifacts are in the
+[Q10 completion decision](../untangle-codebase.md#q10-completion-connected-permissions-and-retained-provider-evidence-2026-11-08).
+All broad security gates remain open; no installed, Q11 rule matrix or historical
+unknown-send completion is inferred. The stash and unrelated README work remain.

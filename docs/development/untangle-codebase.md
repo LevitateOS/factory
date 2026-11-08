@@ -1576,6 +1576,93 @@ ordinary standalone Q09 piece; connected delivery, installed crash/reboot/Quit,
 shared Project stop/start (Q24) and all 13 broad security gates remain open.
 Unsupported token-task execution stays unavailable. Q10 is next on authorization.
 
+### Q10 completion: connected permissions and retained provider evidence (2026-11-08)
+
+Requested/actual ceiling: Q10. **COMPLETE within ordinary connected scope** in
+Factory `8f8ed8af297921cf65855c141f57c6ec114581a3`. The six permission paths from
+stash `56669001735070eec7e9b381e6ac9e08ad3e3d4c` were selectively applied against
+the current tree. The unrelated README edit, both stashes and human writing
+remain unchanged. Go requires current write capability before capturing a reviewer
+change; Rust independently requires observed push permission before its effect;
+Lit withholds reviewer changes while retaining reader comment/review actions.
+
+The authorized public fixture remains
+`LevitateOS/factory-team-public-check-20261106`, PR #1,
+head `fe97d1e5a8f5410e1f31ea7efd6f9976a898d4d7`. The owner approved a fresh
+Factory device grant as `sodaos` (353332758), with actual scope
+`read:org,read:user,repo`. The team was temporarily changed from write to read;
+independent effective-role readback returned `read`. Real WebKit/IPC/Rust/Go/PG
+passed disabled merge/reviewer actions, merge and reviewer POST 403 followed by
+GET 404 for each exact command, normal unchanged open-PR/head reads, enabled
+reader comment/review controls, and a committed COMMENT review through that same
+reader grant. Native cleanup withdrew the local account and joined shutdown.
+Independent provider readback found exactly one matching review, ID `5818432295`,
+on the original head. No human text was edited or deleted.
+
+The existing team request was already present. The check now accepts its disabled
+Remove control as well as a disabled Request control. GitHub fulfilled that team
+request when its member submitted the COMMENT; the original request was restored
+afterward. Every check exit restored the team's original write permission.
+Safe artifacts under `/home/vince/Projects/q10-readonly/`:
+`run.log`, `github-ui-write-result.json`, `effective-readonly-role.json`,
+`original-team-permission.json`, `restored-team-permission.json`,
+`final-team-permission.json`, `comment-review-readback.json` and
+`restored-reviewer-request.json`. Invocation:
+`TMPDIR=/home/vince/Projects bash /home/vince/Projects/q10-readonly-check.sh`.
+The first two failed checks (`attempt1.log`, `attempt2.log`) sent no content write:
+one expected only a Request button; the other used an unsupported page size.
+The final run resumed the same approved grant with `resume_pending:true`, without
+another challenge or replaying an uncertain send.
+
+Supported connected action/token/role evidence combines this new reader journey
+with the exact retained passing journeys, rather than repeating their effects:
+
+| Case | Actual evidence retained |
+| --- | --- |
+| Read-role Factory OAuth: comments/reviews allowed; merge and reviewer changes refuse before capture | New `q10-readonly/` artifacts above, including the actual COMMENT receipt/readback |
+| Author's Factory OAuth `read:user,repo`: draft/inline/summary/publication and merge; native gh-grant general writes and own-author verdict refusal | `/home/vince/tmp/factory-webkit-device-writes-1106.zZ8gy0/{continuation.log,github-ui-write-result.json}` and `/home/vince/tmp/fgw-1106.cqnVjg/general1/{direct-review.log,selected-head-final.log}` |
+| Other actor's Factory OAuth: private draft then approval/request-changes; organization team lookup/request/remove/request with `read:org,read:user,repo` | `/home/vince/tmp/factory-second-account-1106.lTnyTf/{journal-summary.jsonl,verdicts.log}` and `/home/vince/tmp/factory-team-oauth-1106.iWTrMb/{public-team-result.json,github-verdict-result.json}` |
+| Actual remote app-grant revocation, separate from local withdrawal | `/home/vince/tmp/factory-github-revocation-v2-1105/{result.log,provider-revocation-access-result.json,provider-revocation-refresh-result.json,provider-revocation-result.json}` |
+
+The last row's four hashes match the exact frozen handoff at `fe40c5e`, lines
+3124–3144. Actual identity returned 401, canonical reads and WebKit reconnect
+refused, and refresh returned `client_credentials_rejected`; it did **not** prove
+`bad_refresh_token`. Its pending fence and non-replay/withdrawal remain explicit.
+Reused owning commits `4b2873a`, `46b7b34`, `63e9769`, `0cfcddb` are ancestors.
+Migrated Rust refresh/device/grant/verifier/transport results under
+`/home/vince/tmp/factory-github-oauth-declared-1105/{attempt3,grant-attempt1,device-attempt2,verify-attempt1,transport-attempt1}/`
+match all five recorded hashes. The declared WebKit `result.log`,
+`canonical-binding.json` and `canonical-issues.json` under
+`/home/vince/tmp/factory-gh-ui-1105/a2/` also match their three recorded hashes.
+Current OAuth success-status admission, bounded native ownership and migrated
+consumers were inspected; no competing Go connector or obsolete observer was
+reintroduced. These checks are reused within their original connected/declared
+scopes; no original failed outcome is changed.
+
+The changed native reviewer owner additionally passed 63 declared cases, eight
+invalid descriptors, serialization and retirement, with explicit false/missing
+push permission producing no effect: `/home/vince/Projects/q10-declared3/`.
+Command: `FACTORY_DECLARED_COMMENT_SCENARIO=reviewer-write TMPDIR=/home/vince/Projects/q10-declared3/tmp XDG_DATA_HOME=/home/vince/Projects/q10-declared3/data XDG_RUNTIME_DIR=/home/vince/Projects/q10-declared3/xdg GNOME_KEYRING_CONTROL=/home/vince/Projects/q10-declared3/control bash /home/vince/Projects/q10-declared-session.sh /home/vince/Projects/q10-declared3`.
+This reuses the existing no-forwarding HTTPS fixture, with current `planFeatures`
+and push fields. Its scenario-selection/keyring-preflight failures remain in
+`q10-declared/` and `q10-declared2/`; they used no real grants or external effects.
+TypeScript/Lit, shared UI, Go backend, regular desktop and native-check builds
+passed (`q10-{typecheck,lit,ui-build,server-build,regular-build,native-build4}.log`
+under `/home/vince/Projects`). Cargo used the retained GTK/WebKit sysroot through
+`PKG_CONFIG_SYSROOT_DIR=/home/vince/.cache/soda-desktop/sysroot` and its
+`usr/{lib64,share}/pkgconfig` paths; all scratch/TMPDIR remained under `/home`.
+
+D1–D8/Q01–Q09 prerequisites were reverified from actual owners, exact ancestor
+commits and retained checks, including canonical Fountain `e88b50d`/`2e57559`,
+Q08's live sequential Builder and Q09 `0b289f6`/`184954d` with matching retained
+launch journals and successful initial-reply/abrupt-owner-loss/reopen logs.
+No earlier ordinary prerequisite remained. Final host inspection found no owned
+desktop/backend, dummy peer or active Factory helper service. Historical protected
+branch/private Free-plan uncertain commands remain fenced. This advances ordinary
+T06-GITHUB/T11/A14 evidence; Q11 provider-rule qualification, installed custody/
+admission, later full delivery and all 13 broad security gates remain open.
+Q11 is next only on authorization; it was not started.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
