@@ -531,6 +531,45 @@ retirement passed in `/home/vince/Projects/q02-muse-connector-final-verified.log
 Q02 remains incomplete for automatic dependency freshness/current-input work;
 Q03–Q30 and all installed/security gates remain pending.
 
+### Q02 completion: current inputs and owning update paths (2026-11-08)
+
+Q02 is complete within its source/component scope. Implementation commits:
+`cf44374` (release/status races), `699106a` (required interface and joined probes),
+`031b03d` (initial native sign-in/reopen) and `5fa71ea` (current inputs/update paths).
+D1–D8 and Q01 retain their previously verified scoped prerequisites, including
+the canonical Fountain references. Q03 is next; no product/security gate closes.
+
+Official npm/crates/module/toolchain metadata selected the refreshed manifests
+and locks, Bun 1.4.4, Go 1.27.3 and Rust 1.99.1. The existing analyzer now uses
+classic TS6.0.3 while product compilation stays TS7.0.2. The changed diff-parser
+API retains strict refusal; all 15 existing native diff checks passed with trusted
+keyboard input (`/home/vince/Projects/q02-fresh-native-diff-verified/native.log`).
+TypeScript, Lit fixtures/product analysis, UI/Storybook, Rust workspace, both native
+configurations, actual desktop staging and pre-consent startup/Quit passed in
+`/home/vince/Projects/q02-fresh-*.log` and `q02-fresh-native-startup/run.log`.
+
+Current PostgreSQL fixture acquisition captures its immutable image ID; native
+packaging checks official stable 18.6 and refuses stale supplied payloads before
+staging (`q02-pg-{freshness-verified,payload-refusal}/` and
+`q02-fresh-stage/factory-runtime/postgresql-selection.json`, same scratch parent).
+The broad existing PostgreSQL run exposed stale fixtures. Corrected migration
+shape/reader locks, seed expectations, account binding, paused-gate refusal,
+pre-existing feed counts and committed-versus-completed graph assertions. Every
+failed case subsequently passed in the targeted `q02-current-pg-{rechecks,final}`,
+`q02-native-admission-verified` and `q02-pause-verified` logs; the broad suite was
+not repeated. Ordinary Go/MCP cases passed in `q02-final-go-source-check.log`.
+Updated-library tool races and helper finish/cancel passed in
+`q02-fresh-tool-races/result.log` and `q02-fresh-helper/result.log`; the completed
+unshortened five-minute proof is reused. Original six edit sets remain unchanged.
+
+Hourly dependency/toolchain discovery and existing-check validation are configured
+without cooldown or major exclusions. Remote scheduled jobs remain unperformed
+until default-branch publication; Q30 must verify their actual activation/results.
+Q25/Q28 still own fresh distribution and installed update activation. No fresh
+installed baseline, model result, billing identity or security qualification is
+claimed. Q03–Q30 remain unfinished; personal login/launcher and all private
+profiles/keyrings, failed attempts and historical evidence are preserved.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

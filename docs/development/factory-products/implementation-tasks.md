@@ -21,7 +21,8 @@ required only for work or checks that look like hacking.
 
 ## Where to continue
 
-Q01 is Complete within its source/native scope. Q02 is Active. Continue to each following prompt only after its earlier ordinary
+Q01 is Complete within its source/native scope. Q02 is Complete within its
+source/component scope; Q03 is Active. Continue to each following prompt only after its earlier ordinary
 prerequisites are verified complete, under the owner's standing goal authorization.
 Q30 is the full finalization pass. Q02 owns current inputs and provider-tool
 updates; the retained Muse typed-result failure remains pending in its dependent
@@ -90,8 +91,8 @@ recording any newly proved current conclusion separately.
 | Prompt | Ordinary completion scope | Existing requirement | Status |
 | --- | --- | --- | --- |
 | [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Complete (source/native scope) |
-| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Active |
-| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Pending |
+| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Complete (source/component scope) |
+| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Active |
 | [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Pending |
 | [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Pending |
 | [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Pending |
@@ -156,6 +157,16 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 <a id="q02"></a>
 
 ### Q02 — Fresh inputs and provider-tool update owner
+
+Completion (2026-11-08): Factory `cf44374`, `699106a`, `031b03d`, `5fa71ea`.
+Actual native initial acquisition/sign-in/reopen, five-minute/pre-work refresh,
+interrupted/change/status/captured-byte races and joined helper retirement passed.
+Current source inputs and owning discovery/validation paths are implemented;
+affected native UI/runtime/database/operation checks passed. See the
+[decision log](../untangle-codebase.md#q02-completion-current-inputs-and-owning-update-paths-2026-11-08)
+for retained evidence and precise rerun scope. Remote scheduled-job activation
+awaits default-branch publication and remains a Q30 finalization check; installed
+delivery/activation stays Q25/Q28. No release/security gate is qualified here.
 
 ```text
 Implement Q02 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.

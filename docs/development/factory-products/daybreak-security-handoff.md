@@ -26,7 +26,8 @@ Fountain connector are absent are historical, superseded by the current source
 and evidence below. Original outcome records are not rewritten by this summary.
 The pre-existing T06-CONNECT Active row/note remain verbatim as historical
 conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goal;
-Q01 is Complete within its source/native scope; Q02 is Active. The owner accepted current native diagnostics plus the complete
+Q01 is Complete within its source/native scope; Q02 is Complete within its
+source/component scope and Q03 is Active. The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
 Q01 implementation/evidence: Factory `d5b4506`, `67b6b16`, `5544082` and the
@@ -36,6 +37,11 @@ keyring outages/recovery, scoped drafts, explicit Disconnect, refresh, execution
 retry and production Quit passed. These source/native checks close no installed
 or security gate. The observed canonical protection snapshot was unavailable;
 the original aggregate consent flag was incorrect and does not qualify it.
+Q02 implementation: `cf44374`, `699106a`, `031b03d`, `5fa71ea`; native login/reopen,
+real refresh cadence, tool races and current source checks are recorded in its
+[completion evidence](../untangle-codebase.md#q02-completion-current-inputs-and-owning-update-paths-2026-11-08).
+Remote dependency-job activation is still pending publication/finalization;
+installed updater activation remains Q28. All 13 security gates remain open.
 
 ## Current gates, owners and closure evidence
 
