@@ -419,6 +419,14 @@ func (p NativeMerges) observeProviderMerge(ctx context.Context, w factory.MergeW
 	if caps.Pull == nil || caps.Pull.ExternalID != facts.PullID || caps.Head == nil || string(*caps.Head) != w.HeadOID || caps.Base == nil || string(*caps.Base) != w.BaseOID || checks.HeadTip != w.HeadOID || checks.BaseTip != w.BaseOID {
 		return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 	}
+	opinions, err := reads.readReviewOpinions(ctx, nativeSubjectRef{Kind: "pull", ExternalID: facts.PullID, Number: w.PRNumber}, w.HeadOID, w.BaseOID)
+	if err != nil {
+		return empty, err
+	}
+	veto := false
+	for _, opinion := range opinions.Items {
+		veto = veto || opinion.State == "changes_requested"
+	}
 	available := facts.Methods[w.Method] && facts.State == "open" && facts.Draft != nil && !*facts.Draft && facts.Merged != nil && !*facts.Merged && facts.Push != nil && *facts.Push && facts.Archived != nil && !*facts.Archived && facts.Disabled != nil && !*facts.Disabled
-	return factory.MergeObservation{Method: w.Method, MethodAvailable: available, Checks: checks, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: complete, ProviderEligible: complete && caps.Actions[collaboration.MergePull].State == collaboration.Allowed && (gate.StatusGate == "success" || gate.StatusGate == "not_required")}, nil
+	return factory.MergeObservation{Method: w.Method, MethodAvailable: available, Checks: checks, ObservedUnix: time.Now().Unix(), PRID: w.PRID, PRNumber: w.PRNumber, IssueID: w.IssueID, PRAuthorID: w.PRAuthorID, HeadRef: w.HeadRef, BaseRef: w.BaseRef, HeadOID: w.HeadOID, BaseOID: w.BaseOID, ReviewerID: w.ReviewerID, ReviewID: w.ReviewID, ReviewEvent: w.ReviewEvent, ProviderComplete: complete, ProviderEligible: complete && !veto && caps.Actions[collaboration.MergePull].State == collaboration.Allowed && (gate.StatusGate == "success" || gate.StatusGate == "not_required")}, nil
 }

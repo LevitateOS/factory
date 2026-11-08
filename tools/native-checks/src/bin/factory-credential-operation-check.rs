@@ -1207,7 +1207,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             if secret.last() == Some(&b'\n') {
                 secret.pop();
             }
-            let token = Token::new(secret)?;
+            let device = secret == b"device";
+            let token = if device { None } else { Some(Token::new(secret)?) };
             let production = Path::new(&args[1]);
             let payload = Path::new(&args[2]);
             let mut runtime = Some(NativeSupervisor::start(payload, production, profile)?);
@@ -1217,18 +1218,60 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 store.status().await?.is_empty(),
                 "acceptance fixture keyring profile is not empty",
             )?;
-            let saved = store
-                .store(
+            let saved = if device {
+                let authorization = runtime.as_ref().expect("owned runtime").github_device_start().await?;
+                println!("DEVICE: {} {}", authorization.prompt().verification_uri, authorization.prompt().user_code);
+                let grant = authorization.wait().await?;
+                let (account, grant) = runtime.as_ref().expect("owned runtime").github_verify_grant(grant).await?;
+                store.store_grant(account, grant).await?
+            } else { store.store(
                     Account::new(Provider::Github, "https://github.com", field(4)?)?,
-                    token,
+                    token.expect("supplied token"),
                 )
-                .await?;
+                .await? };
             let outcome: Result<()>=async {
+                ensure(saved.account == field(4)?, "connected account differs from authorized fixture")?;
                 let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                 let reply=request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if args.len()==10 && field(9)?=="merge-permission" {
+                    use soda_desktop_runtime::github_provider::{Owner, Read, PullMerge, WriteOutcome};
+                    let root=profile.parent().ok_or("profile parent missing")?;
+                    let case:serde_json::Value=serde_json::from_slice(&fs::read(&args[8])?)?;
+                    let number=case["number"].as_u64().ok_or("permission PR missing")? as u32;
+                    let mut owner=tokio::task::spawn_blocking(Owner::start).await??;
+                    let client=owner.client();
+                    let capability=store.capability(&saved.connection).await?;
+                    let observed=store.with_token_operation(&capability,async |bytes| {
+                        client.observe(Token::new(bytes.to_vec()).expect("owned token"),field(4).expect("actor"),&Read::MergePreparation{repository:field(5).expect("repository").into(),number}).await
+                    }).await??;
+                    let facts=&observed["preparation"];
+                    ensure(facts["push"]==true && facts["state"]=="open" && facts["methods"]["merge"]==true,"writer preparation unavailable")?;
+                    let merge=PullMerge{repository:field(5)?.into(),repository_node_id:facts["repository_node_id"].as_str().ok_or("repository node missing")?.into(),pull_id:facts["pull_id"].as_str().ok_or("pull missing")?.into(),pull_node_id:facts["pull_node_id"].as_str().ok_or("pull node missing")?.into(),number,head:facts["head"].as_str().ok_or("head missing")?.into(),base:facts["base"].as_str().ok_or("base missing")?.into(),method:"merge".into(),message:"Q11 permission-race fixture".into()};
+                    fs::write(root.join("writer-preparation.json"),serde_json::to_vec(&observed)?)?;
+                    fs::write(root.join("permission.ready"),b"downgrade fixture team before continue")?;
+                    tokio::time::timeout(Duration::from_secs(300),async {while !root.join("permission.continue").exists(){tokio::time::sleep(Duration::from_millis(100)).await;}}).await?;
+                    let capability=store.capability(&saved.connection).await?;
+                    let current=store.with_token_operation(&capability,async |bytes| {
+                        client.observe(Token::new(bytes.to_vec()).expect("owned token"),field(4).expect("actor"),&Read::MergePreparation{repository:field(5).expect("repository").into(),number}).await
+                    }).await??;
+                    ensure(current["preparation"]["push"]==false,"fixture permission did not change; no merge attempted")?;
+                    fs::write(root.join("reader-preparation.json"),serde_json::to_vec(&current)?)?;
+                    let denied=store.with_token_operation(&capability,async |bytes| {
+                        client.merge_pull(Token::new(bytes.to_vec()).expect("owned token"),field(4).expect("actor"),&merge).await
+                    }).await?;
+                    ensure(matches!(denied,WriteOutcome::NotSent(ref failure) if failure.status==403 && failure.code=="github_merge_unavailable"),"permission loss did not prevent native dispatch")?;
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let reply=request.request("GET",&format!("/api/factory/collaboration/repositories/{repository}/pulls/{number}/capabilities"),&[]).await?;
+                    let body:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                    ensure(reply.status==200 && body["actions"]["pull.merge"]["state"].as_str().is_some_and(|state| state!="allowed"),"canonical permission loss was hidden")?;
+                    fs::write(root.join("reader-capabilities.json"),&reply.body)?;
+                    owner.stop()?;
+                    println!("PASS: actual writer preparation followed by provider role loss refuses native merge before dispatch; canonical capabilities deny merge; original intent retained");
+                    return Ok(());
+                }
                 if args.len()==10 && field(9)?=="creation-discovery" {
                     let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
                     fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection}))?)?;
@@ -1260,6 +1303,16 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fs::write(profile.parent().ok_or("profile parent missing")?.join(format!("checks-{number}.json")),&reply.body)?;
                         ensure(reply.status==200 && body["status_gate"]==case["gate"] && body["protection"]["requirements_complete"]==case["complete"],"connected canonical required-check gate differs")?;
                         ensure(body["missing_required"]==case["missing"] && body["invalid_required"]==case["invalid"],"connected canonical check requirements differ")?;
+                        if !case["evaluation_commit"].is_null() {
+                            ensure(body["evaluation_commit"]==case["evaluation_commit"],"required-check evaluation commit differs")?;
+                        }
+                        if !case["target"].is_null() {
+                            let background=profile.parent().ok_or("profile parent missing")?.join("background.json");
+                            fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Issue":field(6)?,"Connection":saved.connection,"Checks":case["target"],"ExpectedChecks":case["expected_checks"],"EvaluationCommit":case["evaluation_commit"]}))?)?;
+                            for action in ["check-background-inputs","check-background-ci"] {
+                                ensure(tokio::process::Command::new(&args[7]).arg(profile).arg(&ready.instance).arg(action).arg(&background).status().await?.success(),"connected native CI assessment failed")?;
+                            }
+                        }
                     }
                     println!("PASS: actual GitHub required-check gates through canonical Go/native product reads; CI readiness grants no merge eligibility");
                     return Ok(());

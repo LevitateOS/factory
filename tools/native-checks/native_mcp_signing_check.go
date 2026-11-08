@@ -1597,6 +1597,8 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 func backgroundInputsFixture(profile, instance, action, path string) error {
 	var input struct {
 		Repository, Issue, Connection, Decision string
+		ExpectedChecks                          map[string]string
+		EvaluationCommit                        string
 		Checks                                  factory.CheckTarget
 		Correction                              struct {
 			Target                        factory.CheckTarget
@@ -1628,6 +1630,9 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 	}
 	if strings.HasPrefix(action, "check-background-publication") || strings.HasPrefix(action, "check-background-correction") || strings.HasPrefix(action, "check-background-merge") {
 		fixtureTimeout = 120 * time.Second
+	}
+	if strings.HasPrefix(action, "check-background-merge") {
+		fixtureTimeout = 15 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
 	defer cancel()
@@ -1769,7 +1774,7 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		if err != nil {
 			return err
 		}
-		if !observed.Complete || observed.NativeRev <= 0 || observed.HeadTip != target.HeadOID || observed.BaseTip != target.BaseOID || len(observed.Checks) != 2 {
+		if !observed.Complete || observed.NativeRev <= 0 || observed.HeadTip != target.HeadOID || observed.BaseTip != target.BaseOID || (input.ExpectedChecks == nil && len(observed.Checks) != 2) || (input.EvaluationCommit != "" && observed.EvaluationCommit != input.EvaluationCommit) {
 			return errors.New("native CI observation binding differs")
 		}
 		policy, err := db.RepositoryPolicy(ctx, repository)
@@ -1777,20 +1782,31 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 			return err
 		}
 		policy.TargetBranch = target.BaseRef
-		for name, expected := range map[string]string{"factory-native-observer/pass": factory.CheckPass, "factory-native-observer/fail": factory.CheckFailed, "factory-native-observer/missing": factory.CheckPending} {
+		expectations := input.ExpectedChecks
+		if expectations == nil {
+			expectations = map[string]string{"factory-native-observer/pass": factory.CheckPass, "factory-native-observer/fail": factory.CheckFailed, "factory-native-observer/missing": factory.CheckPending}
+		}
+		for name, expected := range expectations {
 			policy.Checks = []string{name}
 			adopted := factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}
 			assessment, err := factory.VerifyChecks(target, adopted, policy, observed, time.Now().Unix())
 			if err != nil || assessment.Verdict != expected {
 				return fmt.Errorf("native CI %s verdict %s: %w", name, assessment.Verdict, err)
 			}
-			if _, err = db.RecordCheckAssessment(ctx, assessment); err != nil {
+			recorded, err := db.RecordCheckAssessment(ctx, assessment)
+			if err != nil {
 				return err
+			}
+			if recorded.EvaluationCommit != observed.EvaluationCommit {
+				return errors.New("durable check evaluation differs")
 			}
 		}
 		changed := target
 		changed.HeadOID = strings.Repeat("c", 40)
-		policy.Checks = []string{"factory-native-observer/pass"}
+		for name := range expectations {
+			policy.Checks = []string{name}
+			break
+		}
 		assessment, err := factory.VerifyChecks(changed, factory.AdoptedChecks{Checks: policy.Checks, PolicyRevision: policy.Revision, Digest: factory.ChecksDigest(policy.Checks)}, policy, observed, time.Now().Unix())
 		if err != nil || assessment.Verdict != factory.CheckRefused || assessment.Reason != factory.CheckReasonStaleHead {
 			return errors.New("native CI evidence admitted a different candidate")
@@ -1798,7 +1814,14 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		if _, err = source.ObserveChecks(ctx, target, int64(connection.Actor)+1); err == nil {
 			return errors.New("native CI accepted another assessor actor")
 		}
-		fmt.Println("PASS: exact native GitHub PR/branch/status evidence, latest status selection, Go/PostgreSQL pass/failure/missing verdicts, stale-candidate and foreign-actor refusal; no workflow or merge proof")
+		encoded, err := json.Marshal(observed)
+		if err != nil {
+			return err
+		}
+		if err = os.WriteFile(filepath.Join(filepath.Dir(path), "observed-checks.json"), encoded, 0600); err != nil {
+			return err
+		}
+		fmt.Println("PASS: exact native GitHub PR/branch/status evidence, latest status selection, Go/PostgreSQL expected context verdicts, stale-candidate and foreign-actor refusal; CI producer check only")
 		return nil
 	}
 	if action == "check-background-inputs" {
@@ -1821,6 +1844,10 @@ func backgroundInputsFixture(profile, instance, action, path string) error {
 		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
 			return err
 		}
+	}
+	if action == "check-background-inputs" && input.ExpectedChecks != nil {
+		fmt.Println("PASS: declared disabled local policy for actual connected CI observer")
+		return nil
 	}
 	if action == "check-background-readiness" {
 		for {
@@ -2598,11 +2625,38 @@ func nativeMergeRetained(ctx context.Context, db *store.Store, port factoryrunti
 }
 
 func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntime.NativeMerges, p factory.Publication, review factory.ReviewOutcome, path string) error {
+	var options struct {
+		Checks struct {
+			MergeChecks []string `json:"merge_checks"`
+			Method      string   `json:"method"`
+			Phases      []struct {
+				Name                                                string
+				WantError                                           bool
+				MethodAvailable, ProviderComplete, ProviderEligible bool
+			} `json:"phases"`
+		}
+	}
+	encodedOptions, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(encodedOptions, &options); err != nil {
+		return err
+	}
+	if len(options.Checks.Phases) > 16 {
+		return errors.New("too many connected merge phases")
+	}
 	policy, err := db.RepositoryPolicy(ctx, p.Repository)
 	if err != nil {
 		return err
 	}
-	policy.Checks = []string{"factory-native/merge"}
+	policy.Checks = options.Checks.MergeChecks
+	if len(policy.Checks) == 0 {
+		policy.Checks = []string{"factory-native/merge"}
+	}
+	if options.Checks.Method != "" {
+		policy.MergeMethod = options.Checks.Method
+	}
 	policy.Enabled = true
 	for role, selection := range policy.Roles {
 		selection.Account = "fixture-unavailable"
@@ -2615,7 +2669,45 @@ func nativeMergeFixture(ctx context.Context, db *store.Store, port factoryruntim
 	if err != nil {
 		return err
 	}
-	w := factory.MergeWork{Method: "merge", MergeID: factory.NewID(), PublicationID: p.ID, OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared-native-merge-fixture", Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: review.ReviewerID, ReviewerID: review.ReviewerID, ActorID: review.ReviewerID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, ReviewID: review.ReviewID, ReviewEvent: "COMMENT", NotAfter: time.Now().Add(5 * time.Minute).Unix()}
+	w := factory.MergeWork{Method: policy.MergeMethod, MergeID: factory.NewID(), PublicationID: p.ID, OperationID: factory.MergeOperationIDForGeneration(p.ID, 1), AuthRevision: "declared-native-merge-fixture", Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: review.ReviewerID, ReviewerID: review.ReviewerID, ActorID: review.ReviewerID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID, ReviewID: review.ReviewID, ReviewEvent: "COMMENT", NotAfter: time.Now().Add(5 * time.Minute).Unix()}
+	for n, phase := range options.Checks.Phases {
+		ready := filepath.Join(filepath.Dir(path), fmt.Sprintf("merge-phase-%02d", n))
+		if err = os.WriteFile(ready+".ready", []byte(phase.Name), 0600); err != nil {
+			return err
+		}
+		for {
+			if _, err = os.Stat(ready + ".continue"); err == nil {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+		observed, observeErr := port.ObserveMerge(ctx, w)
+		receipt := struct {
+			Name        string
+			Observation factory.MergeObservation
+			Error       string
+		}{Name: phase.Name, Observation: observed}
+		if observeErr != nil {
+			receipt.Error = observeErr.Error()
+		}
+		encoded, e := json.Marshal(receipt)
+		if e != nil {
+			return e
+		}
+		if e = os.WriteFile(ready+".json", encoded, 0600); e != nil {
+			return e
+		}
+		if (observeErr != nil) != phase.WantError || observeErr == nil && (observed.MethodAvailable != phase.MethodAvailable || observed.ProviderComplete != phase.ProviderComplete || observed.ProviderEligible != phase.ProviderEligible) {
+			return fmt.Errorf("connected merge phase %s differs: %+v %v", phase.Name, observed, observeErr)
+		}
+		fmt.Println("PASS: connected merge phase", phase.Name)
+	}
+	// Phase observations precede admission; freeze a new bounded lease only now.
+	w.NotAfter = time.Now().Add(5 * time.Minute).Unix()
 	observed, err := port.ObserveMerge(ctx, w)
 	if err != nil {
 		return err
@@ -2709,6 +2801,53 @@ func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factory
 	if err = writeDeclaredNativeMerge(ctx, port, cancelled); err != nil {
 		return err
 	}
+	// Reuse the existing unclaimed cancellation fixture to qualify the durable
+	// policy fence. The completed merge above must never be sent again.
+	policy, err := db.RepositoryPolicy(ctx, w.Repository)
+	if err != nil {
+		return err
+	}
+	policy.Paused = true
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	_, refusal := port.SubmitMerge(ctx, state.Cancelled)
+	var wait *factory.PublicationWait
+	if !errors.As(refusal, &wait) || (wait.Reason != "merge_not_admitted" && wait.Reason != "dispatch_closed") {
+		return fmt.Errorf("policy loss did not fence unclaimed merge: %v", refusal)
+	}
+	if prior, e := port.LookupOp(ctx, state.Cancelled.OperationID); e != nil || !prior.NotObserved {
+		return fmt.Errorf("policy loss captured a provider command: %v", e)
+	}
+	policy, err = db.RepositoryPolicy(ctx, w.Repository)
+	if err != nil {
+		return err
+	}
+	policy.Paused = false
+	if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		return err
+	}
+	policy, err = db.RepositoryPolicy(ctx, w.Repository)
+	if err != nil {
+		return err
+	}
+	assessment, err := db.CheckAssessment(ctx, w.Repository, w.PRNumber)
+	if err != nil {
+		return err
+	}
+	if factory.VerifyMergeCheckEvidence(state.Cancelled, assessment, policy) == nil {
+		return errors.New("restored policy renewed old check authority")
+	}
+	policyReceipt, err := json.Marshal(struct {
+		Operation, Reason             string
+		AssessedPolicy, CurrentPolicy int64
+	}{state.Cancelled.OperationID, wait.Reason, assessment.PolicyRevision, policy.Revision})
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(filepath.Join(filepath.Dir(path), "native-policy-fence.json"), policyReceipt, 0600); err != nil {
+		return err
+	}
 	if _, err = port.CancelOp(ctx, state.Cancelled.OperationID); err != nil {
 		return err
 	}
@@ -2723,6 +2862,7 @@ func finishNativeMergeFixture(ctx context.Context, db *store.Store, port factory
 		return err
 	}
 	fmt.Println("PASS: actual native exact-head merge, distinct result adoption, issue/base completion, replay and cancellation; local workflow authorization declared, no model/full coordinator")
+	fmt.Println("PASS: durable policy pause refuses unclaimed merge before capture; policy restoration keeps old assessment stale and cancellation terminal")
 	return nil
 }
 

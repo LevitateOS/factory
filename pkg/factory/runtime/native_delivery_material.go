@@ -18,6 +18,44 @@ import (
 
 var errNativeDeliveryMaterial = &factory.PublicationWait{Reason: "native_delivery_material_unavailable"}
 
+type nativeReviewOpinions struct {
+	Repository string  `json:"repository"`
+	PullID     string  `json:"pull_id"`
+	Number     int64   `json:"number"`
+	Head       string  `json:"head"`
+	Base       string  `json:"base"`
+	Decision   *string `json:"decision"`
+	Items      []struct {
+		ID    string `json:"id"`
+		State string `json:"state"`
+	} `json:"items"`
+}
+
+// Both delivery material and automatic merge admission consume the same native
+// current-writer projection. Keep these reads outside the bounded mutation RPC.
+func (s nativeCollaborationReads) readReviewOpinions(ctx context.Context, pull nativeSubjectRef, head, base string) (nativeReviewOpinions, error) {
+	var opinions nativeReviewOpinions
+	if err := s.read(ctx, nativeRead{Kind: "delivery_opinions", Repository: s.repository.ExternalID, Number: uint32(pull.Number)}, &opinions); err != nil {
+		return opinions, err
+	}
+	if opinions.Repository != s.repository.ExternalID || opinions.PullID != pull.ExternalID || opinions.Number != pull.Number || opinions.Head != head || opinions.Base != base || opinions.Items == nil || len(opinions.Items) > 256 {
+		return opinions, errNativeRead
+	}
+	seen := map[string]bool{}
+	for _, opinion := range opinions.Items {
+		if !nativeRemoteID(opinion.ID) || seen[opinion.ID] {
+			return opinions, errNativeRead
+		}
+		seen[opinion.ID] = true
+		switch opinion.State {
+		case "approved", "changes_requested", "commented", "dismissed":
+		default:
+			return opinions, errNativeRead
+		}
+	}
+	return opinions, nil
+}
+
 // ReadDeliveryMaterial reuses the authenticated connector's complete pages.
 // Matching traversals are bounded observations, not an atomic GitHub snapshot.
 // Acceptance and provider merge admission are checked on both sides; merge still
@@ -189,31 +227,12 @@ func nativeDeliveryDiscussion(ctx context.Context, reads nativeCollaborationRead
 		}
 		material.Reviews = append(material.Reviews, factory.DeliveryNativeReview{ID: r.ExternalID, ActorID: nativeDeliveryActor(r.Author), Type: r.State, Commit: string(r.Commit), Content: r.Body, Digest: inputDigest([]byte(r.Body)), Official: r.Official, Stale: r.Stale, Dismissed: r.State == "dismissed"})
 	}
-	var opinions struct {
-		Repository string  `json:"repository"`
-		PullID     string  `json:"pull_id"`
-		Number     int64   `json:"number"`
-		Head       string  `json:"head"`
-		Base       string  `json:"base"`
-		Decision   *string `json:"decision"`
-		Items      []struct {
-			ID    string `json:"id"`
-			State string `json:"state"`
-		} `json:"items"`
-	}
-	if err := reads.read(ctx, nativeRead{Kind: "delivery_opinions", Repository: reads.repository.ExternalID, Number: uint32(w.PRNumber)}, &opinions); err != nil {
+	opinions, err := reads.readReviewOpinions(ctx, nativeSubjectRef{Kind: "pull", ExternalID: pull.Ref.ExternalID, Number: w.PRNumber}, w.HeadOID, w.BaseOID)
+	if err != nil {
 		return material, nativeDeliveryReadFailure(ctx, "current review opinions", err)
 	}
-	if opinions.Repository != reads.repository.ExternalID || opinions.PullID != pull.Ref.ExternalID || opinions.Number != w.PRNumber || opinions.Head != w.HeadOID || opinions.Base != w.BaseOID || opinions.Items == nil {
-		return material, errNativeDeliveryMaterial
-	}
 	material.ReviewDecision = opinions.Decision
-	seenOpinions := map[string]bool{}
 	for _, opinion := range opinions.Items {
-		if seenOpinions[opinion.ID] {
-			return material, errNativeDeliveryMaterial
-		}
-		seenOpinions[opinion.ID] = true
 		matched := false
 		for _, review := range material.Reviews {
 			if review.ID == opinion.ID && review.Type == opinion.State {
