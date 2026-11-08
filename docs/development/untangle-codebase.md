@@ -1510,6 +1510,72 @@ remains paused after this owner-authorized increment; Q10 was not started.
 Shared Project stop/start remains deferred to Q24. Connected delivery,
 installed/reboot qualification and all 13 security gates remain open.
 
+### Q09 completion: standalone launch recovery (2026-11-08)
+
+Requested and actual ceiling: Q09. **COMPLETE within ordinary standalone
+execution recovery scope**, with no Q10 work. Factory
+`0b289f61785031822e9a477f876b16ac9ed5e799` extends the existing native integration
+check; the production journals and recovery owners needed no further change.
+The connector now separately loses its initial reply without reading any frame
+and loses an observation reply. Its check waits for actual service retirement
+after the terminal journal appears. Both pass with exact process/output identity,
+output digest, terminal stop, tree retirement and MainPID zero:
+`/home/vince/Projects/q09-initial-connector2.log`. Invocation from Factory:
+`TMPDIR=/home/vince/Projects DBUS_SESSION_BUS_ADDRESS=unix:path=/home/vince/Projects/q09-isolated-bus target/debug/factory-native-mcp-signing-check /home/vince/Projects/q09-initial-connector2 target/debug/soda-factory-muse muse-connector`.
+
+The public Go launch passes unchanged admission/signing through a private local
+transport that drops only the real native acceptance response. The canonical
+run retains its exact intent without any process/connector observation or
+invented settlement. After the actual worker publishes its MCP artifact, its
+native owner exits abruptly without Drop. A new supervisor recovers that same
+process as cancelled, consumes the original reservation, and records original-source
+usage ending at the immutable native stop rather than at offline recovery time.
+The existing check also proves that PostgreSQL refuses changing that stop.
+Exact source/retained root: `/home/vince/Projects/q09-initial-launch3/`;
+launch evidence: `q09-initial-launch3.log`, recovery: `q09-initial-reopen3.log`,
+both under `/home/vince/Projects`. Commands:
+`SODA_NATIVE_CHECK_LAUNCH_LOSS=1 SODA_NATIVE_CHECK_CONTROL=owner-exit TMPDIR=/home/vince/Projects bash /home/vince/Projects/q09-initial-launch.sh /home/vince/Projects/q09-initial-launch3 admitted`, then
+`TMPDIR=/home/vince/Projects bash /home/vince/Projects/q09-initial-reopen.sh /home/vince/Projects/q09-initial-launch3 admitted`.
+`q09-initial-journals-{before,after}.sha256` in that scratch parent match exactly:
+one original service and its launch intent/output/terminal journals, no relaunch.
+Root/preparation retirement and inactive service/MainPID zero passed; final host
+inspection found no active Factory worker/helper services or owned checks.
+No model call, provider write, personal credential or installed check ran.
+
+The actual-worker barrier initially expected a different fixture's PID file,
+then attempted to read the sealed terminal log while the process was still live.
+The local waiting fixture now exposes a readiness file only after its real MCP
+artifact succeeds. Those failed check profiles and the initial shutdown-observation
+race remain retained; their runs were cancelled by their owning supervisor.
+Rust check build and Go callback build passed (`q09-initial-check-build3.log`,
+`q09-initial-go-build3.log` under `/home/vince/Projects`; commands:
+`TMPDIR=/home/vince/Projects cargo build --locked -p factory-native-checks --bin factory-native-mcp-signing-check` and
+`TMPDIR=/home/vince/Projects go build -o /home/vince/Projects/q09-initial-native-callback tools/native-checks/native_mcp_signing_check.go`).
+
+Prerequisites were reverified from their actual owners, exact commit ancestry
+and retained checks, rather than completion replies. All Factory references in
+the D8 table and Q01–Q08 completion entries resolve as ancestors. Canonical
+Fountain retains D6 `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and gateway merge
+`2e57559c0e4844baba861a86632d083192537ff3`, with unchanged ownership/codecs.
+Reused native work/Chromium generation, PostgreSQL migration/progress, operation/MCP,
+Fountain ownership/gateway and native lifecycle evidence named in D1–D8; current
+session, tool cadence/login, owner configuration/placement, isolated admission,
+preparation interruption, connected acceptance and live sequential Builder
+artifacts named in Q01–Q08 were inspected, including
+`/home/vince/tmp/q08-native-plan8/result.log` and its retained live qualification
+summary. No earlier ordinary prerequisite was unfinished.
+
+Reused `d7ec0c1`, `feb3b94`, `e91534b37279db428393bf17ec41f807f1ea913d` and
+`feaa292a821b77539f9ba30111f13f179a70e199` and their exact logs above for
+controls, withdrawal with another usable source, lost edit reply, actual local
+correction, candidate/takeover, failed/successful/cancelled reopen and
+active-service/incomplete-receipt refusal. Historical Q05/Q06 and other unknown
+sends remain fenced without invented intent, outcome or replay. No unrelated
+edits/stashes, human text or retained state changed. This completes T05/T09's
+ordinary standalone Q09 piece; connected delivery, installed crash/reboot/Quit,
+shared Project stop/start (Q24) and all 13 broad security gates remain open.
+Unsupported token-task execution stays unavailable. Q10 is next on authorization.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

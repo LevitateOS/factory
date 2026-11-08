@@ -157,8 +157,11 @@ The earlier failed workload runs remain fenced, including candidate capture run
    handoff, “Current post-ledger resource recovery evidence”).
    Native admitted source/worker/artifact/restart checks at
    `/home/vince/tmp/fwrk6.DHbN7l/run.log` cover declared authority only.
-   Closure needs interrupted launch/write/lost-reply reconciliation, atomic
-   candidate/outcome settlement, actual provider handling and worker/owner
+   Q09 ordinary standalone launch/write/lost-reply and local correction recovery
+   now pass in `0b289f6`, reusing `e91534b`/`feaa292`; exact commands, retained
+   journals, stop-based accounting and scope are in the
+   [completion decision](../untangle-codebase.md#q09-completion-standalone-launch-recovery-2026-11-08).
+   Closure still needs connected candidate/outcome settlement, actual provider handling and worker/owner
    crash/reboot/installed Quit retirement. Never synthesize historical intents
    or infer authority from a receipt/custody record alone.
 
