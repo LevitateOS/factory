@@ -286,9 +286,11 @@ byte-identical. `e91315300058cb4c42acdc0a5e8a3a6f668cf064` verifies the real sha
 work-detail acceptance preview without fabricating consent.
 `e095d91a9bf7185a4f7645787ab9fa5ec7c01d08` verifies account/controller/approval
 withdrawal during controlled source I/O through the existing native check;
-provider responses in those negative cases are declared. Q07 remains Active:
-nonempty comment/dependency acceptance, hidden/stale acceptance inputs, the
-positive 64-file maximum and automatic qualification of legacy pending records
+provider responses in those negative cases are declared.
+`4bed2b1967b6e63a5b10cdc249dbe473c8a204da` completes the setup-specific native
+body limit, bounded source reads, pre-consent planning-size refusal and real
+64-file preparation/material readback. Q07 remains Active:
+nonempty comment/dependency acceptance, hidden/stale acceptance inputs and qualification of legacy pending records
 without captured command provenance remain open. Fixture-comment permission is
 pending; no message was posted.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).

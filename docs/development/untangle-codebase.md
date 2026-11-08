@@ -1171,7 +1171,7 @@ reply dropped and retained across production Quit. `reopen.log.phase2` passed
 recovery after source change, changed-payload conflict and stale-session refusal
 before its next source review failed: the owned fixture B accidentally omitted
 README. The corrected, fast-forward-only source fixture is
-`fe292f53ed53ed1bf3887d3338b9c3a73bc0c09e`; `reopen.log` passed fresh consent,
+`fe292f53ed53ed1bf3887d3338b9c3a73bc0c09e`; `reopen.log.phase4` passed fresh consent,
 both actual ready preparations and source-context readback for it. The final
 result deliberately does not relabel the reused recovery phase as a fresh pass.
 `q07-recovery-journals.log` confirms all six original journal files byte-identical,
@@ -1192,8 +1192,8 @@ Q08–Q30 and all 13 security gates remain open.
 
 `e91315300058cb4c42acdc0a5e8a3a6f668cf064` passed the real native setup ->
 shared work-detail observation -> acceptance-preview path with consent unchecked
-and acceptance disabled. Evidence: `q07-recover2/reopen.log`, its
-`github-ui-write-result.json` (`connected_acceptance_preview=true`,
+and acceptance disabled. Evidence: `q07-recover2/reopen.log.phase5`, its
+`github-ui-write-result.json.phase5` (`connected_acceptance_preview=true`,
 `q07_complete=false`), and `q07-acceptance-journals.log`; original journals stayed
 byte-identical and all six retained preparation identities retired.
 
@@ -1217,6 +1217,46 @@ qualification remain open. The pending exact fixture-comment permission has not
 been granted; no comment or other provider message was posted. Q08–Q30 and all
 13 security gates remain open. The verified increments above do not finish Q07
 or Factory.
+
+### Q07 maximum selection and complete native setup envelope
+
+`4bed2b1967b6e63a5b10cdc249dbe473c8a204da` fixes the private native Go server's
+missing setup-specific 1 MiB envelope while retaining other route limits. Source
+reads use bounded groups under the existing deadline; source identity/tip checks,
+decoding and byte bounds remain. Approval refuses selected files plus scripts
+over the existing 128 KiB planning bound before recording consent. Its response
+reuses checked bytes only when repository, latest tip, target and selection match;
+it still rereads authority, decision heads and actual preparations.
+
+`/home/vince/Projects/q07-recover2/reopen.log` passed real GitHub/WebKit/Go/PG/native
+recovery of the exact retained 64-file approval after restart, fresh consent,
+both ready preparations and all 64 files read back from both actual workspaces.
+The selected files total 130560 bytes, leaving script space inside the unchanged
+planning bound; the owned source fixture is
+`f617de773e9e178d290ad1e4ebc4bc9d491c1799`. Earlier 128 KiB aggregate preview and
+oversize refusals remain in their retained scope. `reopen.log.phase6` retains the
+serial-reader failure; `phase7` retains its lost large-selection reply. The latter
+was recovered without replay. Its old result's combined restart/source-change
+flag is not evidence of a new head change during this same-source recovery; the
+future check label now distinguishes restart alone.
+
+`q07-planning-bound3/result.log` passed the established 422 no-consent refusal
+with zero decision/preparation rows. `q07-large-scripts/result.log` passed valid
+requests above 64 KiB with two 32 KiB scripts through actual preparation and
+14-file material readback. `q07-parallel-{account,placement,approval}/result.log`
+passed the affected controlled source-I/O races after parallelization. TypeScript,
+Lit, UI, Go API/runtime compilation, and native-check/regular desktop builds passed
+in `q07-maximum-*`; the Go packages report no test files, not extra test coverage.
+`q07-maximum-journals.log` confirms original source-A bytes unchanged, eight local
+retirement markers and two interrupted roots independently broker-confirmed absent
+in `q07-interrupted-retirement-confirmed.log`. Their missing historical local
+markers remain untouched; `removed:false` is the broker's documented already-absent
+success. Temporary units were removed and all original dirty hunks preserved.
+
+**Q07 remains INCOMPLETE:** nonempty comment/dependency acceptance and hidden/stale
+acceptance-input checks await the exact fixture-comment permission. Legacy pending
+entries without complete captured command provenance remain unqualified. No
+comment or model call ran. Q08–Q30 and all 13 security gates remain open.
 
 ## Verification and completion
 

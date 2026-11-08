@@ -282,6 +282,17 @@ maximum bounds and dependency-download isolation remain pending. A05/A19 source
 reads and A11 role/source spending controls have their recorded scoped evidence
 in the audit; they do not qualify successful model review or the full pipeline.
 
+Q07 scoped update (2026-11-08): real connected native source review, both role
+preparations, exact pending-consent recovery and the shared acceptance preview
+now have current evidence, including a 64-file material readback. Controlled
+native account/controller/approval withdrawal during source I/O also passed.
+`4bed2b1967b6e63a5b10cdc249dbe473c8a204da` completes the setup envelope and bounded
+read/planning-limit fixes. Full nonempty comment/dependency acceptance and
+hidden/stale inputs remain pending the exact fixture-comment permission; legacy
+pending provenance remains unqualified. No model call or security-gate closure
+is claimed. Preserve the historical scope/status text above; current references
+and limitations are in the [Q07 decision evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
+
 The public protected-branch pre-capture case passed real native/WebKit/Go/PG at
 `/home/vince/tmp/factory-branch-rule-admitted-1106.XTR8go/`: disabled UI, POST 403,
 exact new-command GET 404, unchanged normal open-PR/head readback and owned local
