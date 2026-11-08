@@ -211,27 +211,14 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 
 func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, in factoryservice.WorkspaceSetupApproval) (factoryservice.WorkspaceSetup, error) {
 	var empty factoryservice.WorkspaceSetup
-	if !factory.ValidID(in.ID) || !project.ValidCommit(in.Source) || !factory.ValidTargetBranch(in.Target) || len(in.Tools) > project.MaxPrepareTools || len(in.SourceInputs) == 0 || project.ValidateSourceInputs(in.SourceInputs) != nil {
-		return empty, execution.ErrPreparation
+	if err := in.Validate(); err != nil {
+		return empty, err
 	}
 	files := make(map[string][]byte, len(in.Files))
 	names := make([]string, 0, len(in.Files))
 	for name, contents := range in.Files {
-		if !utf8.ValidString(contents) {
-			return empty, execution.ErrPreparation
-		}
 		files[name] = []byte(contents)
 		names = append(names, name)
-	}
-	// Only file validation is needed before fetching source; no substitute bundle
-	// is recorded or sent to the native owner.
-	if err := (project.ApprovedSetup{Files: files}).ValidateFiles(); err != nil {
-		return empty, errors.Join(execution.ErrPreparation, err)
-	}
-	for _, tool := range in.Tools {
-		if !project.ValidToolName(tool) {
-			return empty, execution.ErrPreparation
-		}
 	}
 	grant, target, err := b.setupGrant(ctx, actor, repository)
 	if err != nil {

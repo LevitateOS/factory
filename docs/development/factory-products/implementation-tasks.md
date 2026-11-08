@@ -38,8 +38,12 @@ selection with native readback and exact digests, supplying the existing plannin
 input contract. The actual native product check passed source fetch, both
 isolated setup/checks, immutable replay, canonical readiness, withdrawal and
 retirement; A21 records its declared-provider scope and retained evidence.
-The shared editor preserves an unconfirmed approval's identity and predecessors
-on an unchanged same-session retry, including after refreshed heads advance.
+The shared editor now saves an unconfirmed approval's exact identity/payload
+before dispatch and offers explicit retry after browser reload, scoped to the
+canonical account/profile/repository. Storage failure holds dispatch. One shared
+Go validator distinguishes rejection before effects, allowing input correction;
+other failures retain the original command. The existing browser/native checks
+passed those cases; A21 records the evidence and installed-restart limitations.
 Application verification now batches selected files through the existing native
 reader; a selection larger than one reply no longer fails the per-read path cap.
 Connected/installed onboarding, withdrawal races and retained reactivation remain

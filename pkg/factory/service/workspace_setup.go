@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"unicode/utf8"
+
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 	"github.com/levitateos/factory/pkg/factory/execution"
+	"github.com/levitateos/factory/pkg/project"
 )
 
 // WorkspaceSetup is the exact source and editable recipe presented for owner
@@ -42,6 +46,30 @@ type WorkspaceSetupApproval struct {
 	Requirement         string            `json:"requirement"`
 	Approval            string            `json:"approval"`
 	EnvironmentRevision int64             `json:"environment_revision"`
+}
+
+// Validate rejects malformed input before recording consent or starting native
+// effects. Current ownership/source checks remain with the host implementation.
+func (in WorkspaceSetupApproval) Validate() error {
+	if !factory.ValidID(in.ID) || !project.ValidCommit(in.Source) || !factory.ValidTargetBranch(in.Target) || len(in.Tools) > project.MaxPrepareTools || len(in.SourceInputs) == 0 || project.ValidateSourceInputs(in.SourceInputs) != nil {
+		return execution.ErrPreparation
+	}
+	files := make(map[string][]byte, len(in.Files))
+	for name, contents := range in.Files {
+		if !utf8.ValidString(contents) {
+			return execution.ErrPreparation
+		}
+		files[name] = []byte(contents)
+	}
+	if (project.ApprovedSetup{Files: files}).ValidateFiles() != nil {
+		return execution.ErrPreparation
+	}
+	for _, tool := range in.Tools {
+		if !project.ValidToolName(tool) {
+			return execution.ErrPreparation
+		}
+	}
+	return nil
 }
 
 // Hosts supply source acquisition and current local execution authority. The

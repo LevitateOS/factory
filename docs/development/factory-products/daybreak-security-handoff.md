@@ -56,6 +56,22 @@ predecessors across readback of advanced heads. The declared lost-response brows
 check `/home/vince/tmp/fsetup-retry20.I5ERy8/result-corrected.log` passed exact retry,
 new identity for edited review and cleared consent after success. It proves no
 native cancellation/restart race; those recovery dependencies remain open.
+Setup pending approval is now durably retained before dispatch using the existing
+`PendingRecord` and canonical account/profile/repository scope. Actual browser
+reload, exact-body explicit retry, account separation and storage-failure hold
+passed in `/home/vince/tmp/fsetup-retained24.OndeuO/result.log` with declared
+transport. `WorkspaceSetupApproval.Validate` is the single input-rule owner;
+HTTP `422 invalid_setup_input` is emitted before the host setup call, so only
+that refusal releases the local pending command for correction. Other uncertain
+results remain retained. Actual native product HTTP rejected invalid tools with
+unchanged decision heads and no preparations in
+`/home/vince/tmp/fsetup-validation24.uMf49B/result.log`. Its owned credential was
+withdrawn and runtime stopped; no privileged fixture deployment ran. Relevant
+files: `frontend/factory/{app/factory-app,work/workspace-setup}.ts`,
+`pkg/factory/{service/workspace_setup,httpapi/repository_setup,runtime/native_setup_onboarding}.go`.
+Installed app/native preparation restart, competing-account/authority changes
+during I/O and old-profile recovery still require the actual installed channels
+and native retirement/readback evidence above. No broad gate closes here.
 Application verification now batches the approved source selection through
 `control/app_verification.go` using the existing chunk sizing and exact native
 reader. Individual replies retain the 12-file cap; combined selected evidence

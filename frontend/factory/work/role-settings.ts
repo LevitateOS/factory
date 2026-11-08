@@ -8,6 +8,7 @@ interface RoleContext {
   readonly repository: string;
   readonly actor?: string;
   readonly accountLabel?: string;
+  readonly scope?: string;
 }
 const roleNames = {'soda-coder': 'Coding', 'soda-reviewer': 'Review', 'factory-judgment': 'Judgments'} as const;
 const judgmentRole = 'factory-judgment';
@@ -242,6 +243,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       context?.transport === this.current?.transport &&
       context?.repository === this.current?.repository &&
       context?.actor === this.current?.actor &&
+      context?.scope === this.current?.scope &&
       context?.transport.generation === this.generation
     )
       return;

@@ -2,11 +2,42 @@ import {LitElement, html} from 'lit';
 import {keyed} from 'lit/directives/keyed.js';
 import {check, object, readSodaJSON} from '../api/models.js';
 import type {FactoryTransport} from '../api/transport.js';
+import {PendingRecord} from '../shared/retained-record.js';
 
 interface Context {
   transport: FactoryTransport;
   repository: string;
   actor?: string;
+  scope?: string;
+}
+interface SetupCommand {
+  command_id: string;
+  payload: Record<string, unknown>;
+}
+
+function pendingRecord(context: Context): PendingRecord<SetupCommand> {
+  check(typeof context.scope === 'string' && context.scope.length > 0 && context.scope.length <= 1024 &&
+    !/[\u0000-\u001f\u007f]/.test(context.scope) && /^[1-9][0-9]*$/.test(context.repository));
+  return new PendingRecord(
+    `soda-work-setup:v1:${encodeURIComponent(context.scope)}:${context.repository}`,
+    1024 * 1024,
+    (raw) => {
+      const row = object(JSON.parse(raw)), command = object(row.command), payload = object(command.payload);
+      check(Object.keys(row).length === 3 && row.scope === context.scope && row.repository === context.repository &&
+        Object.keys(command).length === 2 && typeof command.command_id === 'string' && /^[a-f0-9]{32}$/.test(command.command_id) &&
+        Object.keys(payload).length === 8 && ['source', 'target', 'files', 'source_inputs', 'tools', 'requirement', 'approval', 'environment_revision'].every(key => Object.hasOwn(payload, key)));
+      check(typeof payload.source === 'string' && /^[a-f0-9]{40}$/.test(payload.source) &&
+        typeof payload.target === 'string' && payload.target.startsWith('refs/heads/') &&
+        typeof payload.requirement === 'string' && typeof payload.approval === 'string' &&
+        Number.isSafeInteger(payload.environment_revision) && Number(payload.environment_revision) > 0 &&
+        Array.isArray(payload.tools) && payload.tools.every(tool => typeof tool === 'string') &&
+        Object.values(object(payload.files)).every(file => typeof file === 'string') &&
+        Object.values(object(payload.source_inputs)).every(digest => typeof digest === 'string' && /^[a-f0-9]{64}$/.test(digest)));
+      return {command_id: command.command_id, payload};
+    },
+    (command) => JSON.stringify({scope: context.scope, repository: context.repository, command}),
+    (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  );
 }
 interface Setup {
   available: boolean;
@@ -88,7 +119,9 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   declare private message: string;
   private current: Context | undefined;
   private lifetime = new AbortController();
-  private command: {command_id: string; payload: Record<string, unknown>} | undefined;
+  private command: SetupCommand | undefined;
+  private record: PendingRecord<SetupCommand> | undefined;
+  private recoveryBlocked = false;
   constructor() {
     super();
     this.busy = false;
@@ -101,7 +134,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     if (
       value?.transport === this.current?.transport &&
       value?.repository === this.current?.repository &&
-      value?.actor === this.current?.actor
+      value?.actor === this.current?.actor && value?.scope === this.current?.scope
     )
       return;
     this.lifetime.abort();
@@ -109,6 +142,16 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     this.current = value;
     this.view = undefined;
     this.command = undefined;
+    this.record = undefined;
+    this.recoveryBlocked = false;
+    if (value) {
+      try {
+        this.record = pendingRecord(value);
+        const saved = this.record.read();
+        this.command = saved.pending;
+        this.recoveryBlocked = saved.blocked;
+      } catch { this.recoveryBlocked = true; }
+    }
     this.message = '';
     this.busy = false;
     this.requestUpdate();
@@ -164,7 +207,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     const context = this.current,
       view = this.view,
       signal = this.lifetime.signal;
-    if (!context || !view?.available || this.busy) return;
+    if (!context || !view?.available || this.busy || this.command || this.recoveryBlocked || !this.record) return;
     const form = event.currentTarget as HTMLFormElement;
     if (!form.reportValidity()) return;
     const values = new FormData(form);
@@ -188,14 +231,28 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       approval: view.approval,
       environment_revision: view.environment_revision,
     };
-    const previous = this.command;
-    // A lost reply can leave the server heads advanced. An unchanged review
-    // retries its original predecessors and identity rather than approving twice.
-    const reviewed = (body: Record<string, unknown>) =>
-      JSON.stringify({...body, requirement: undefined, approval: undefined});
-    if (!previous || reviewed(previous.payload) !== reviewed(payload))
-      this.command = {command_id: crypto.randomUUID().replaceAll('-', ''), payload};
-    const command = this.command!;
+    const command = {command_id: crypto.randomUUID().replaceAll('-', ''), payload};
+    this.command = command;
+    await this.submit(context, signal, command, form);
+  }
+  private async retry(event: SubmitEvent) {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement, context = this.current, command = this.command;
+    if (!form.reportValidity() || !context || !command || this.busy || this.recoveryBlocked) return;
+    await this.submit(context, this.lifetime.signal, command, form);
+  }
+  private async submit(context: Context, signal: AbortSignal, command: SetupCommand, form: HTMLFormElement) {
+    const record = this.record;
+    const retained = record?.retain(command);
+    if (!record || retained !== 'saved') {
+      const saved = record?.read();
+      if (saved?.pending) this.command = saved.pending;
+      this.recoveryBlocked = saved?.blocked ?? true;
+      this.message = retained === 'conflict' ? 'A different or unreadable setup approval is saved. Nothing was submitted. Resolve that approval before continuing.' :
+        'The approval could not be saved for recovery. Nothing was submitted. Restore local storage and retry the saved approval.';
+      this.requestUpdate();
+      return;
+    }
     this.busy = true;
     this.message = 'Preparing the approved source. Refresh to observe setup and check results.';
     try {
@@ -205,6 +262,15 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         body: JSON.stringify({command_id: command.command_id, ...command.payload}),
       });
       if (!response.ok) {
+        if (response.status === 422) {
+          const refused = object(await readSodaJSON(response));
+          if (object(refused.error).code === 'invalid_setup_input') {
+            record.settle(command);
+            const saved = record.read();
+            if (this.live(context, signal)) { this.command = saved.pending; this.recoveryBlocked = saved.blocked; }
+            throw new Error('Review the scripts, tools, source selection and limits. No setup approval was recorded.');
+          }
+        }
         if (response.status === 409 || response.status === 412)
           throw new Error('Source, permission or approval changed. Refresh and review the current setup.');
         throw new Error('Setup was not confirmed. Refresh its recorded state before submitting another approval.');
@@ -214,8 +280,12 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         const consent = form.querySelector<HTMLInputElement>('input[type="checkbox"]');
         if (consent) consent.checked = false;
         this.view = next;
-        this.command = undefined;
-        this.message = 'Approval recorded. Readiness requires passing setup and checks for both roles.';
+        const settled = record.settle(command);
+        const remaining = record.read();
+        this.command = remaining.pending;
+        this.recoveryBlocked = remaining.blocked;
+        this.message = settled ? 'Approval recorded. Readiness requires passing setup and checks for both roles.' :
+          'Approval recorded. A different saved approval remains; refresh before continuing.';
       }
     } catch (error) {
       if (this.live(context, signal))
@@ -234,6 +304,18 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
         not start an AI run.
       </p>
       <p role="status">${this.message || view?.reason || ''}</p>
+      ${this.recoveryBlocked ? html`<p role="status">The saved setup approval cannot be read safely. Restore its local record before approving another setup.</p>` : ''}
+      ${this.command ? html`<form @submit=${(event: SubmitEvent) => this.retry(event)}>
+        <p>A saved setup approval is still unconfirmed. Retry it before creating another approval.</p>
+        <details><summary>Saved source, scripts, tools, network access and limits</summary>
+          <p>Source: <code>${String(this.command.payload.target)}</code> at <code>${String(this.command.payload.source)}</code></p>
+          <p>Tools: ${(this.command.payload.tools as string[]).join(' ')}</p>
+          ${Object.entries(object(this.command.payload.files)).map(([name, contents]) => html`<h4>${name}</h4><pre>${String(contents)}</pre>`)}
+          <p>Source files: ${Object.keys(object(this.command.payload.source_inputs)).join(', ')}</p>
+        </details>
+        <label><input type="checkbox" required /> I reviewed this saved approval and want to retry it unchanged.</label>
+        <button type="submit" ?disabled=${this.busy || this.recoveryBlocked}>Retry saved approval</button>
+      </form>` : ''}
       <button type="button" ?disabled=${this.busy} @click=${() => this.refresh()}>Refresh workspace setup</button>
       ${view?.preparations.map((entry) => {
         const state = object(entry.state);
@@ -346,7 +428,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                   >
                   <button
                     type="submit"
-                    ?disabled=${this.busy || view.missing_paths.length > 0 || Object.keys(view.source_inputs).length === 0}
+                    ?disabled=${this.busy || this.recoveryBlocked || !!this.command || view.missing_paths.length > 0 || Object.keys(view.source_inputs).length === 0}
                   >
                     Approve and prepare both roles
                   </button>

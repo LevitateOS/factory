@@ -43,6 +43,10 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 		if !s.current(w, r) {
 			return
 		}
+		if in.Validate() != nil {
+			writeError(w, http.StatusUnprocessableEntity, "invalid_setup_input", "Review the scripts, tools, source selection and limits. No setup approval was recorded.")
+			return
+		}
 		view, err = s.Setup.ApproveSetup(r.Context(), s.Actor, repository, in)
 	}
 	if err != nil {

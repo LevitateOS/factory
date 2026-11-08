@@ -1673,8 +1673,25 @@ preparations; individual native reply validation still refused the combined
 Rust builds and language-boundary checks passed. This is source-context evidence,
 not a funded Test Pilot, completed delivery, maximum-bound or installed proof.
 
+Setup approval recovery now uses the existing `PendingRecord`, scoped by the
+canonical profile/provider/account and repository. Exact command/predecessor
+bytes are saved before dispatch; document reload offers an explicit, reviewed
+retry, and an unconfirmed command cannot be silently replaced. Storage failure
+holds dispatch. The defining `WorkspaceSetupApproval.Validate` rules are shared
+by HTTP and native admission; `422 invalid_setup_input` is returned before the
+host setup call, allowing a rejected recipe to be edited without discarding an
+uncertain effect. Other failures retain the original command.
+`/home/vince/tmp/fsetup-retained24.OndeuO/result.log` passed the actual browser
+reload/retry, exact original body, account separation, failed-storage hold and
+rejected-input editing with declared transport. The existing native product
+check passed actual HTTP rejection, unchanged heads and no preparations in
+`/home/vince/tmp/fsetup-validation24.uMf49B/result.log`; its credential was
+withdrawn and runtime stopped, without privileged fixture deployment. Go/Rust
+builds, UI typecheck and production build passed. This proves browser document
+recovery, not an installed/native preparation restart or in-flight cancellation.
+
 **Remaining:** connected/installed onboarding and current-account/placement/
-approval withdrawal during I/O, changed-source consent, retained restart and
+approval withdrawal during I/O, changed-source consent, native preparation restart and
 reactivation, maximum source/resource bounds and ordinary dependency-download
 journeys. Reviewed source-input refresh after merge and complete automated
 progression still require qualification. The Muse

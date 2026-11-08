@@ -32,6 +32,7 @@ import type {RevisionHistory, IssuePlan, RequestOverview} from '../api/progress-
 export interface WorkOverviewContext {
   readonly actor?: string;
   readonly accountLabel?: string;
+  readonly scope?: string;
   readonly transport: FactoryTransport;
   repository: string;
   readonly links?: FactoryWorkLinks;

@@ -570,6 +570,19 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             files["setup-network.json"] = json!("{\"access\":\"none\"}");
             files["setup-limits.json"] = json!("{\"setup_seconds\":10,\"check_seconds\":10}");
             let approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"source_inputs":preview.1["source_inputs"],"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            let mut malformed = approval.clone();
+            malformed["tools"] = json!(["git", "bash", "a", "b", "c", "d", "e", "f", "g"]);
+            let rejected = call(&runtime, &store, &connection, "PUT", &target, &serde_json::to_vec(&malformed)?).await?;
+            ensure(rejected.0 == 422 && rejected.1["error"]["code"] == "invalid_setup_input", "invalid setup did not report rejection before effects")?;
+            let unchanged = call(&runtime, &store, &connection, "POST", &target, &serde_json::to_vec(&json!({"paths":paths}))?).await?;
+            ensure(unchanged.0 == 200 && unchanged.1["requirement"] == preview.1["requirement"] && unchanged.1["approval"] == preview.1["approval"] && unchanged.1["preparations"] == json!([]), "invalid setup recorded decisions or preparation effects")?;
+            if std::env::var("SODA_NATIVE_CHECK_SETUP_VALIDATION_ONLY").as_deref() == Ok("1") {
+                store.withdraw(&connection).await?;
+                store.retire();
+                runtime.stop()?;
+                println!("PASS: actual product HTTP rejects invalid setup input before recording consent or starting preparation; original heads unchanged; owned fixture credential withdrawn and runtime stopped; no privileged fixture deployment");
+                return Ok(());
+            }
             let mut mismatched=approval.clone();mismatched["source_inputs"]["README.md"]=json!("0".repeat(64));
             ensure(call(&runtime,&store,&connection,"PUT",&target,&serde_json::to_vec(&mismatched)?).await?.0==412,"source approval accepted a substituted file digest")?;
             let approved = call(
