@@ -14,7 +14,7 @@ Q09–Q13 are complete within their recorded ordinary scopes, Q14 is blocked,
 Q15–Q29 are pending,
 and Q30 is the finalization pass.
 All 13 broad security gates remain open. The ordered goal is **paused**; this
-bounded Q23 request stopped at Q14's conditional-refinement blocker and does not
+bounded Q24 request stopped at Q14's conditional-refinement blocker and does not
 resume later implementation.
 Unrelated work is preserved in the
 stash identified under [Q10](#q10).
@@ -659,7 +659,7 @@ Final reply: requested Q13, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q14 — Feed authoring, conditional refinement and graph delivery
 
-**BLOCKED (2026-11-08), latest requested ceiling Q23; actual task Q14.** D1–D8/Q01–Q13 remain
+**BLOCKED (2026-11-08), latest requested ceiling Q24; actual task Q14.** D1–D8/Q01–Q13 remain
 verified within their recorded ordinary scopes. Safety change
 `a977bba566b97cc4137596d5b2715458ae6a68dc` refuses native edits requiring an
 unchanged base and holds Issue Maker before paid refinement. GitHub's documented
@@ -961,6 +961,12 @@ Includes the owner-deferred shared Project stop/start qualification from Q09:
 actual admitted workers, current authority, dispatch withdrawal, maintenance
 hold, host service stop, retirement/accounting and verified restart. Keep this
 pending until a current appliance is available; the old `soda` target is retired.
+
+**Not started: blocked by [Q14](#q14); Q15–Q23 remain unverified.** Current
+refusal code, exact commits and original receipts confirm the unchanged safe
+refinement blocker. No appliance was contacted, installed or restarted; current
+appliance availability was not qualified. The retired target remains untouched.
+Resume Q14's recorded next action; Q25 stays pending.
 
 ```text
 Execute through Q24 — Installed Fountain appliance/Forge journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q24 despite the document's historical paused snapshot; it does not authorize work beyond Q24 or resuming the old product queue.
