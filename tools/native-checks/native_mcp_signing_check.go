@@ -3044,13 +3044,25 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 	if action == "check-retained-native-fenced" {
 		prior, err := db.FactoryRun(ctx, input.Run)
-		if err != nil || prior.Reconciled || prior.Native == nil || prior.Native.Intent == "" || prior.Native.Settled() {
+		if err != nil || prior.Reconciled || prior.Native == nil || prior.Native.Settled() {
 			return errors.New("incomplete original run is not fenced")
+		}
+		assignment, err := db.AssignmentByRun(ctx, input.Run)
+		if err != nil {
+			return err
+		}
+		reservation, err := db.Reservation(ctx, assignment.ID)
+		if err != nil {
+			return err
+		}
+		usage, usageErr := db.RunUsage(ctx, input.Run)
+		if usageErr != nil && !errors.Is(usageErr, store.ErrNotFound) {
+			return usageErr
 		}
 		c := control.NewCoordinator(db, port, port)
 		defer c.Close()
 		report, err := c.Reconcile(ctx)
-		if err != nil || len(report.Settled) != 0 || !slices.ContainsFunc(report.Fenced, func(v control.FencedRun) bool { return v.ID == prior.ID }) {
+		if err != nil || slices.Contains(report.Settled, prior.ID) || !slices.ContainsFunc(report.Fenced, func(v control.FencedRun) bool { return v.ID == prior.ID }) {
 			return fmt.Errorf("incomplete original run was not refused: %+v %v", report, err)
 		}
 		current, err := db.FactoryRun(ctx, input.Run)
@@ -3058,17 +3070,18 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("incomplete recovery changed original run facts")
 		}
 		a, err := db.AssignmentByRun(ctx, input.Run)
-		if err != nil || a.Stage != factory.AssignmentAssigned {
+		if err != nil || !reflect.DeepEqual(assignment, a) {
 			return errors.New("incomplete recovery invented an assignment result")
 		}
-		reservation, err := db.Reservation(ctx, a.ID)
-		if err != nil || reservation.State != factory.ReservationHeld {
-			return errors.New("incomplete recovery released reserved capacity")
+		afterReservation, err := db.Reservation(ctx, a.ID)
+		if err != nil || !reflect.DeepEqual(reservation, afterReservation) {
+			return errors.New("incomplete recovery changed reserved capacity")
 		}
-		if _, err = db.RunUsage(ctx, input.Run); !errors.Is(err, store.ErrNotFound) {
+		afterUsage, afterUsageErr := db.RunUsage(ctx, input.Run)
+		if !reflect.DeepEqual(usage, afterUsage) || (usageErr == nil) != (afterUsageErr == nil) || afterUsageErr != nil && !errors.Is(afterUsageErr, store.ErrNotFound) {
 			return errors.New("incomplete recovery invented usage")
 		}
-		fmt.Println("PASS: active service/incomplete receipt stays fenced; original run unchanged, no result or charge and reservation retained")
+		fmt.Println("PASS: unconfirmed native evidence stays fenced; original run, recorded result, usage and reservation unchanged")
 		return nil
 	}
 	if action == "acknowledge-native" {
@@ -3812,7 +3825,8 @@ func controlAdmittedNative(ctx context.Context, db *store.Store, port factoryrun
 }
 
 // Uses the existing admitted local CLI fixture: no provider request or login
-// mutation. The alternate source is declared metadata, never a fallback login.
+// mutation. The alternate local credential is actually enrolled, never a
+// fallback login or evidence of provider authentication.
 func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB, port factoryruntime.NativeExecution, runID string, repository int64, connection string) error {
 	var active factory.MCPCapability
 	until := time.Now().Add(12 * time.Second)
@@ -3869,8 +3883,16 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	}
 	coordinator := control.Coordinator{Store: db, Host: port, Broker: port}
 	other := selected
-	other.Connection, other.Revision = factory.NewID(), 0
-	other.Native = &factory.NativeSponsorship{Profile: selected.Native.Profile, CredentialSHA256: strings.Repeat("a", 64)}
+	id, err := os.ReadFile(filepath.Join(port.Config.Directory, "check-withdrawal-source.id"))
+	if err != nil || !factory.ValidID(string(id)) || string(id) == connection {
+		return errors.New("alternate enrolled source identity missing")
+	}
+	other.Connection, other.Revision = string(id), 0
+	account, err := port.ExecutionAccount(ctx, other.Connection)
+	if err != nil {
+		return fmt.Errorf("alternate source is not actually available: %w", err)
+	}
+	other.Native = &account
 	other.Roles = []string{project.RoleReviewer}
 	if _, err = coordinator.ApplySponsorship(ctx, "native-source-fixture", other); err != nil {
 		return err
@@ -3888,7 +3910,12 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	if cap, err := db.GetMCPCapability(ctx, runID); err != nil || cap.State != factory.MCPCapabilityActive {
 		return errors.New("unrelated reviewer selection revoked the coder")
 	}
-	selected.Active = false
+	selectedRoles := append([]string(nil), selected.Roles...)
+	if os.Getenv("SODA_NATIVE_CHECK_WITHDRAW_ROLE") == "1" {
+		selected.Roles = []string{project.RoleReviewer}
+	} else {
+		selected.Active = false
+	}
 	result, err := coordinator.ApplySponsorship(ctx, "native-source-fixture", selected)
 	if err != nil {
 		return err
@@ -3939,11 +3966,16 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	if used, err = db.UsageTotal(ctx, repository, other.Connection); err != nil || used != 0 {
 		return errors.New("withdrawal switched spending sources")
 	}
+	available, err := port.ExecutionAccount(ctx, other.Connection)
+	if err != nil || !reflect.DeepEqual(account, available) {
+		return errors.New("withdrawal made the alternate enrolled source unavailable")
+	}
 	selected, err = db.Sponsorship(ctx, repository, connection)
 	if err != nil {
 		return err
 	}
 	selected.Active = true
+	selected.Roles = selectedRoles
 	if _, err = coordinator.ApplySponsorship(ctx, "native-source-fixture", selected); err != nil {
 		return err
 	}
@@ -3954,7 +3986,11 @@ func withdrawAdmittedNative(ctx context.Context, db *store.Store, rawDB *sql.DB,
 	if err != nil || source.Connection != connection {
 		return errors.New("Factory withdrawal changed the Muse login source")
 	}
-	fmt.Println("PASS: selected-source withdrawal with another source active: immediate MCP refusal, actual process/root cancellation, original-source usage, no fallback or old-capability revival; local CLI fixture, no provider request/login mutation")
+	withdrawn := "selected-source"
+	if os.Getenv("SODA_NATIVE_CHECK_WITHDRAW_ROLE") == "1" {
+		withdrawn = "selected-role"
+	}
+	fmt.Println("PASS:", withdrawn, "withdrawal with another source active: immediate MCP refusal, actual process/root cancellation, original-source usage, no fallback or old-capability revival; local CLI fixture, no provider request/login mutation")
 	return port.AcknowledgeSettledRuns(ctx)
 }
 
@@ -6280,6 +6316,11 @@ func workerSequentialTasks(client *http.Client) error {
 		}
 		payload := map[string]any{"task_id": id, "operation": "edit", "path": "native-task.txt", "expected": expected, "replacement": id + "\n"}
 		key := "native-task-" + id + "-edit"
+		if i == 0 {
+			if err := workerLoseEditReply(client, payload, key); err != nil {
+				return err
+			}
+		}
 		first, err := workerMCPCallID(client, "factory.workspace", payload, key)
 		if err != nil {
 			return err
@@ -6327,7 +6368,56 @@ func workerSequentialTasks(client *http.Client) error {
 func workerMCPCall(client *http.Client, tool string, payload any) (json.RawMessage, error) {
 	return workerMCPCallID(client, tool, payload, "")
 }
-func workerMCPCallID(client *http.Client, tool string, payload any, operationID string) (json.RawMessage, error) {
+
+// Send the actual admitted edit and deliberately read no response. Independent
+// workspace readback proves the effect before closing this transport; replay
+// must recover its receipt because the edit's old-content precondition is gone.
+func workerLoseEditReply(client *http.Client, payload map[string]any, operationID string) error {
+	request, err := workerMCPRequest("factory.workspace", payload, operationID)
+	if err != nil {
+		return err
+	}
+	connection, err := net.DialTimeout("tcp", request.URL.Host, 2*time.Second)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+	if err = connection.SetDeadline(time.Now().Add(8 * time.Second)); err != nil {
+		return err
+	}
+	if err = request.Write(connection); err != nil {
+		return err
+	}
+	until := time.Now().Add(6 * time.Second)
+	for {
+		raw, err := workerMCPCall(client, "factory.workspace", map[string]any{"task_id": payload["task_id"], "operation": "read", "path": payload["path"]})
+		if err != nil {
+			// The native workspace may still hold its bounded command gate for
+			// the outstanding edit. Retry only this observation, never the edit.
+			if strings.Contains(err.Error(), execution.ErrTaskUnavailable.Error()) && time.Now().Before(until) {
+				time.Sleep(20 * time.Millisecond)
+				continue
+			}
+			return err
+		}
+		var file struct {
+			Content string `json:"content"`
+		}
+		if json.Unmarshal(raw, &file) != nil {
+			return errors.New("lost-reply workspace readback invalid")
+		}
+		if file.Content == payload["replacement"] {
+			fmt.Println("actual-admitted-workspace-write-before-lost-transport-reply")
+			return connection.Close()
+		}
+		if time.Now().After(until) {
+			return errors.New("lost-reply edit never took effect; no retry was submitted")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func workerMCPRequest(tool string, payload any, operationID string) (*http.Request, error) {
 	arguments := map[string]any{"payload": payload}
 	if operationID != "" {
 		sum := sha256.Sum256([]byte("native-integration:" + operationID))
@@ -6343,6 +6433,14 @@ func workerMCPCallID(client *http.Client, tool string, payload any, operationID 
 	}
 	request.Header.Set("Authorization", os.Getenv("SODA_FACTORY_RUN_AUTH"))
 	request.Header.Set("Content-Type", "application/json")
+	return request, nil
+}
+
+func workerMCPCallID(client *http.Client, tool string, payload any, operationID string) (json.RawMessage, error) {
+	request, err := workerMCPRequest(tool, payload, operationID)
+	if err != nil {
+		return nil, err
+	}
 	reply, err := client.Do(request)
 	if err != nil {
 		return nil, err

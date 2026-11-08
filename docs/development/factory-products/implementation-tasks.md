@@ -354,7 +354,8 @@ Active: admitted native pause/stop, resume, queued retry, Muse takeover and
 retained failed/successful/cancelled recovery now pass their scoped checks,
 including active-service/incomplete-receipt refusal. Shared Project lifecycle
 qualification is deferred to Q24 by the owner; the remaining standalone
-interrupted-effect/source-withdrawal journey still needs its completion review.
+source/role withdrawal and lost-write-reply journey now pass. Interrupted-launch
+and actual correction coverage still need their completion review.
 [Evidence and limits](../untangle-codebase.md#q09-active-admitted-controls-and-retained-muse-recovery).
 
 ```text

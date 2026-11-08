@@ -1454,6 +1454,31 @@ review; retain the uncommitted check changes and their evidence. Installed/reboo
 variants, historical unknown sends and all 13 security gates retain their prior
 open scope. No Factory or security completion is claimed.
 
+### Q09 active: withdrawal, lost write reply and historical fencing
+
+Existing local admitted checks now enroll the alternate credential through its
+real native owner and verify source and role withdrawal separately: immediate
+MCP refusal, actual cancellation/retirement, original-source usage, no fallback,
+unchanged alternate credential access and no revival of the old capability.
+Evidence: `/home/vince/Projects/q09-{source,role}-withdraw2.log`.
+The original Q05 interrupted admission and Q06 unknown capture remain fenced
+after coordinator startup/reconciliation, with their exact original run,
+assignment, reservation and usage unchanged (`q09-q05-unknown-fenced.log`,
+`q09-q06-unknown-fenced.log`). No missing intent or outcome was invented.
+
+The existing two-task journey sends its first edit on a transport that reads no
+reply, observes the actual write independently, then closes that transport and
+recovers the exact receipt. Repeating the effect would fail its old-content
+precondition. Both tasks, final candidate, settlement and restart readback passed
+without replay (`q09-tasks-lost-reply2.log`, retained root
+`/home/vince/tmp/q09-tasks-lost-reply2`). The initial attempt exposed concurrent
+workspace read refusal; only that bounded observation is retried, never the edit.
+Current helper builds passed. These local fixtures make no model/provider call
+and do not qualify provider authentication or installed behavior. Implementation
+is active again; Q09 remains **INCOMPLETE** pending interrupted-launch and actual
+correction completion review. Shared Project stop/start remains deferred to Q24;
+all 13 security gates remain open. Unrelated edits and retained state are preserved.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

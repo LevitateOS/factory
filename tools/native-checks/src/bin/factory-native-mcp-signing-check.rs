@@ -254,9 +254,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ready = supervisor.health()?;
         let fixture = profile.join("admitted-native-fixture.json");
         let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
-        if std::env::var("SODA_NATIVE_CHECK_EXPECT_RECOVERY_FENCED").as_deref() == Ok("1") {
-            if supervisor.execution_error().is_none() {
-                return Err("incomplete active service did not disable execution".into());
+        let fence = std::env::var("SODA_NATIVE_CHECK_EXPECT_RECOVERY_FENCED").unwrap_or_default();
+        if matches!(fence.as_str(), "1" | "ledger") {
+            let _ = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(supervisor.start_execution_coordinator());
+            if fence == "1" && supervisor.execution_error().is_none() {
+                return Err("unconfirmed original run did not disable execution".into());
             }
             if !Command::new(&args[3])
                 .arg(&profile)
@@ -269,7 +274,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Err("incomplete active service was not safely fenced".into());
             }
             supervisor.stop()?;
-            println!("PASS: native product/database health remains available while incomplete active-service recovery disables execution");
+            println!("PASS: native product/database health remains available with the original unconfirmed run fenced");
             return Ok(());
         }
         if args[4] == "recover-muse"
@@ -1824,6 +1829,26 @@ async fn managed_muse_execution(
     }
     if withdraw && live {
         return Err("withdrawal check uses only the local CLI fixture".into());
+    }
+    if withdraw && std::env::var_os("SODA_NATIVE_CHECK_CONTROL").is_none() {
+        use soda_desktop_runtime::credentials::{Account, Credentials, Provider, Token};
+        let credentials = std::sync::Arc::new(Credentials::open(&profile, &ready.profile)?);
+        credentials.storage_ready().await?;
+        let other = credentials
+            .store(
+                Account::new(
+                    Provider::Muse,
+                    "https://api.meta.ai",
+                    "alternate-local-source",
+                )?,
+                Token::new(b"alternate-local-fixture-only".to_vec())?,
+            )
+            .await?;
+        supervisor.enroll_execution_account(
+            credentials.clone(),
+            credentials.capability(&other.connection).await?,
+        )?;
+        fs::write(profile.join("check-withdrawal-source.id"), other.connection)?;
     }
     if live {
         command("check-owned-tool", "discovery")?;
