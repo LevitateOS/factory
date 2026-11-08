@@ -1188,6 +1188,36 @@ command provenance is unqualified; their prior behavior/data remains intact.
 The exact fixture-comment permission remains pending, and no comment was posted.
 Q08–Q30 and all 13 security gates remain open.
 
+### Q07 preview and source-I/O withdrawal checks
+
+`e91315300058cb4c42acdc0a5e8a3a6f668cf064` passed the real native setup ->
+shared work-detail observation -> acceptance-preview path with consent unchecked
+and acceptance disabled. Evidence: `q07-recover2/reopen.log`, its
+`github-ui-write-result.json` (`connected_acceptance_preview=true`,
+`q07_complete=false`), and `q07-acceptance-journals.log`; original journals stayed
+byte-identical and all six retained preparation identities retired.
+
+`e095d91a9bf7185a4f7645787ab9fa5ec7c01d08` extends the existing native setup
+check with a source-response barrier. The final account/controller/approval
+cases passed in `/home/vince/Projects/q07-withdraw-{account2,placement2,approval2}/result.log`:
+actual credential/controller withdrawal leaves zero consent/preparation rows;
+a separate explicit replacement approval leaves exactly one requirement/approval
+and only its two ready preparations, with all 14 selected files read back through
+the production material reader. Original single-context bounds remain enforced.
+The no-forwarding peer uses declared identity/source responses and the retained
+14-file input from `fsetup-validation24.uMf49B`; its narrowly extended source is
+`/home/vince/Projects/q07-source-provider.go`, driven by
+`q07-native-withdrawal.sh`. Current native/helper builds passed. Temporary units
+were removed; profiles/keyrings and all evidence remain. These controlled
+negative cases do not claim live-provider or installed qualification.
+
+**INCOMPLETE:** native acceptance with nonempty comments/dependencies, hidden/stale
+acceptance inputs, the positive 64-file maximum and legacy pending provenance
+qualification remain open. The pending exact fixture-comment permission has not
+been granted; no comment or other provider message was posted. Q08–Q30 and all
+13 security gates remain open. The verified increments above do not finish Q07
+or Factory.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

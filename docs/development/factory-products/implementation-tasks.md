@@ -276,14 +276,21 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 Verified increment: `41a1a17c9bab8615071fd92c5c8c90024286b991` prevents
 approval of edited or unsuccessfully loaded source selections. The real native
 UI journey reached both ready role preparations with consent still unverified;
-file-selection bounds passed separately in the same connected journey before
+path-count refusal and the 128 KiB aggregate boundary passed before
 the display fixture's broker visibility was corrected.
 `c55b33619b141e2598c5c9f84c4079467cab6b8d` additionally captures exact
 command provenance in existing consent records and recovers a lost approval
 reply after native restart/source change without replay. Fresh consent produced
 both ready preparations for the corrected source; original journals stayed
-byte-identical. Q07 remains Active: acceptance, withdrawal during I/O and qualification of legacy
-pending records without captured command provenance remain open.
+byte-identical. `e91315300058cb4c42acdc0a5e8a3a6f668cf064` verifies the real shared
+work-detail acceptance preview without fabricating consent.
+`e095d91a9bf7185a4f7645787ab9fa5ec7c01d08` verifies account/controller/approval
+withdrawal during controlled source I/O through the existing native check;
+provider responses in those negative cases are declared. Q07 remains Active:
+nonempty comment/dependency acceptance, hidden/stale acceptance inputs, the
+positive 64-file maximum and automatic qualification of legacy pending records
+without captured command provenance remain open. Fixture-comment permission is
+pending; no message was posted.
 [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
 
 ```text
