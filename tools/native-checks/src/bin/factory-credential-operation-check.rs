@@ -1199,7 +1199,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             };
             let profile = Path::new(&args[3]);
             let resume_merge=args.len()==10 && field(9)?=="merge-resume";
-            if resume_merge {
+            let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
+            if resume_merge || resume_judgments {
                 ensure(profile.starts_with("/home") && profile.join("profile.id").is_file(),"retained private merge profile required")?;
             } else { prepare(profile)?; }
             let mut secret = Vec::new();
@@ -1236,6 +1237,36 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if args.len()==10 && matches!(field(9)?,"judgments"|"judgments-resume") {
+                    let background=profile.parent().ok_or("profile parent missing")?.join("judgments.json");
+                    let mut fixture=json!({"Repository":repository,"Connection":saved.connection});
+                    fs::write(&background,serde_json::to_vec(&fixture)?)?;
+                    let check=|phase:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(&ready.instance).arg("check-connected-judgments").arg(&background).env("SODA_NATIVE_JUDGMENT_PHASE",phase);
+                        async move {ensure(command.status().await?.success(),"connected judgment check failed; inspect original journals before retry")}
+                    };
+                    check("setup").await?;
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let admission=profile.parent().ok_or("profile parent missing")?.join("feed-admission.json");
+                    let bytes=if std::env::var("SODA_NATIVE_CHECK_JUDGMENT_SKIP_FEED").as_deref()==Ok("1") {br#"{"post_id":""}"#.to_vec()} else if resume_judgments && admission.is_file() {fs::read(&admission)?} else {
+                        let reply=request.request("POST","/api/factory/feed/posts",&serde_json::to_vec(&json!({"repository":repository,"body":"Thanks for maintaining this disposable qualification repository. This is an acknowledgement only, with no requested change.","idempotency_key":"q12-connected-discussion"}))?).await?;
+                        ensure(matches!(reply.status,200|202),"authenticated Feed admission refused")?;
+                        fs::write(&admission,&reply.body)?;reply.body
+                    };
+                    let body:serde_json::Value=serde_json::from_slice(&bytes)?;
+                    fixture["Post"]=body["post_id"].clone();
+                    fs::write(&background,serde_json::to_vec(&fixture)?)?;
+                    check("journey").await?;
+                    runtime.take().expect("owned runtime").stop()?;
+                    runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    ensure(request.request("GET","/api/factory/collaboration/repositories?limit=1",&[]).await?.status==200,"retained native account admission unavailable")?;
+                    let mut command=tokio::process::Command::new(&args[7]);
+                    ensure(command.arg(profile).arg(runtime.as_ref().expect("owned runtime").health()?.instance).arg("check-connected-judgments").arg(&background).env("SODA_NATIVE_JUDGMENT_PHASE","retained").status().await?.success(),"retained judgment readback failed")?;
+                    println!("PASS: authenticated connected Feed and selected-source planning/advice, exact accounting, current eligibility/source fences and retained restart; no provider mutation");
+                    return Ok(());
+                }
                 if args.len()==10 && field(9)?=="merge-permission" {
                     use soda_desktop_runtime::github_provider::{Owner, Read, PullMerge, WriteOutcome};
                     let root=profile.parent().ok_or("profile parent missing")?;

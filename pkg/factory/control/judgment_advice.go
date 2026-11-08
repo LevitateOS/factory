@@ -53,6 +53,9 @@ func (c *Coordinator) consultPurposeChoice(ctx context.Context, advice PurposeAd
 	if callErr != nil {
 		return factory.PriorityAnswer{}, ErrConsultationFailed
 	}
+	if admitted, err := advice.Admit(ctx, fingerprint); err != nil || !admitted {
+		return factory.PriorityAnswer{}, errors.Join(ErrPriorityUnavailable, err)
+	}
 	call := factory.PriorityCall{Request: request, Answer: answer}
 	candidates := request.Candidates
 	if len(advice.Candidates) > 0 {
@@ -73,21 +76,27 @@ func (c *Coordinator) AdvisePurpose(ctx context.Context, advice PurposeAdvice) (
 	if err != nil {
 		return factory.PriorityAnswer{}, false, err
 	}
+	admitted, err := advice.Admit(ctx, fingerprint)
+	if err != nil || !admitted {
+		return factory.PriorityAnswer{}, false, errors.Join(ErrPriorityUnavailable, err)
+	}
 	prior, err := c.Store.PriorityJudgment(ctx, fingerprint)
 	if err == nil {
+		if c.Planning != nil {
+			if retained, ok := c.Planning.Chooser.(interface {
+				CheckJudgment(context.Context, int64, string) error
+			}); ok {
+				if err := retained.CheckJudgment(ctx, advice.Repository, "purpose:"+fingerprint); err != nil {
+					return factory.PriorityAnswer{}, false, err
+				}
+			}
+		}
 		return prior.Calls[0].Answer, true, nil
 	}
 	if !errors.Is(err, store.ErrNotFound) {
 		return factory.PriorityAnswer{}, false, err
 	}
 	if c.Planning == nil || c.Planning.Chooser == nil {
-		return factory.PriorityAnswer{}, false, ErrPriorityUnavailable
-	}
-	admitted, err := advice.Admit(ctx, fingerprint)
-	if err != nil {
-		return factory.PriorityAnswer{}, false, err
-	}
-	if !admitted {
 		return factory.PriorityAnswer{}, false, ErrPriorityUnavailable
 	}
 	answer, err := c.consultPurposeChoice(ctx, advice, fingerprint, request)

@@ -1295,6 +1295,8 @@ func main() {
 		var err error
 		if os.Args[3] == "check-review-policy" {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
+		} else if os.Args[3] == "check-connected-judgments" {
+			err = connectedJudgmentFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasSuffix(os.Args[3], "onboarded-setup") {
 			expectedSources := 14
 			if os.Args[3] == "check-ui-onboarded-setup" {
@@ -1335,7 +1337,7 @@ func main() {
 			err = ownedExecutionFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if os.Args[3] == "check-native-sponsorship" || os.Args[3] == "withdraw-native-sponsorship" {
 			err = nativeSponsorshipFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3] == "check-native-sponsorship")
-		} else if os.Args[3] == "launch-admitted-native" || os.Args[3] == "launch-admitted-tasks" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" || os.Args[3] == "check-retained-native-fenced" {
+		} else if os.Args[3] == "revoke-judgment-worker" || os.Args[3] == "launch-admitted-native" || os.Args[3] == "launch-admitted-tasks" || os.Args[3] == "check-admitted-native" || os.Args[3] == "settled-admitted-native" || os.Args[3] == "observe-admitted-native" || os.Args[3] == "acknowledge-native" || os.Args[3] == "reconcile-retained-native" || os.Args[3] == "withdraw-admitted-native" || os.Args[3] == "check-retained-native-fenced" {
 			err = admittedNativeFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if os.Args[3] == "hold-native-row" || os.Args[3] == "check-startup-retirement" {
 			err = startupRetirementFixture(os.Args[1], os.Args[2], os.Args[3], os.Args[4])
@@ -3185,6 +3187,34 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	defer db.Close()
 	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	if action == "revoke-judgment-worker" {
+		for ctx.Err() == nil {
+			pending, e := db.PendingNativeJudgments(ctx)
+			if e != nil {
+				return e
+			}
+			for _, cmd := range pending {
+				var c factory.NativeJudgmentCapture
+				if json.Unmarshal([]byte(cmd.Payload), &c) != nil || c.WorkerCapability != input.Run {
+					continue
+				}
+				paths, _ := filepath.Glob(filepath.Join(profile, "native-muse-runs", "*", "prompt"))
+				for _, path := range paths {
+					raw, _ := os.ReadFile(filepath.Join(filepath.Dir(path), "binding.json"))
+					var b map[string]any
+					if json.Unmarshal(raw, &b) == nil && b["run"] == cmd.ID {
+						if err := db.RevokeMCPCapability(ctx, input.Run); err != nil {
+							return err
+						}
+						fmt.Println("PASS: revoked actual worker capability after its native consultation began", cmd.ID)
+						return nil
+					}
+				}
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return ctx.Err()
+	}
 	if action == "check-retained-native-fenced" {
 		prior, err := db.FactoryRun(ctx, input.Run)
 		if err != nil || prior.Reconciled || prior.Native == nil || prior.Native.Settled() {
@@ -3332,6 +3362,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			stopTime := prior.Native.Provenance.Process.StoppedAt
 			_, found, terminalErr := db.TerminalMCPProposal(ctx, a.ID)
 			expectedProduct := factory.NeedsHuman
+			if expectedOutcome == factory.Failed {
+				expectedProduct = factory.Failed
+			}
 			if !found && expectedOutcome == factory.Cancelled {
 				expectedProduct = factory.Cancelled
 			}
@@ -3583,6 +3616,28 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		}
 		cap, err := db.GetMCPCapability(ctx, input.Run)
 		if err != nil || cap.State != factory.MCPCapabilityActive {
+			if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE") == "1" && err == nil && cap.State == factory.MCPCapabilityRevoked {
+				for {
+					(factoryruntime.NativeJudgments{NativeExecution: port}).ReconcilePostJudgments(ctx)
+					pending, e := db.PendingNativeJudgments(ctx)
+					if e != nil {
+						return e
+					}
+					if len(pending) == 0 {
+						break
+					}
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+				var returned int
+				if err := rawDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM factory_feed_posts WHERE data->'consultation'->>'status'='returned'`).Scan(&returned); err != nil || returned != 0 {
+					return errors.New("revoked worker adopted an answer")
+				}
+				fmt.Println("PASS: authenticated worker consultation refuses capability loss during inference; original call retired/accounted, no answer adopted")
+				return retainJudgmentEvidence(ctx, config, repository, cap.ID, 1)
+			}
 			return errors.New("actual worker never activated its MCP capability")
 		}
 		// Public Builder prompts have no fixture-only artifact requirement. Their
@@ -3599,6 +3654,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			return errors.New("actual worker artifact bytes were not retained")
 		}
 		fmt.Println("PASS: public Go-admitted native launch; live MCP activation, actual worker artifact bytes and terminal process/custody/root receipt")
+		if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+			return retainJudgmentEvidence(ctx, config, repository, cap.ID, 3)
+		}
 		return nil
 	}
 	if action == "observe-admitted-native" {
@@ -3641,13 +3699,21 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		return err
 	}
 	sponsoredRoles := []string{project.RoleCoder}
+	allowance, planned := 5, 1
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+		selection := roles[project.RoleCoder]
+		selection.Profile = factory.ExecutionProfile{Effort: "low", Contributor: true}
+		policy.Judgments = &selection
+		sponsoredRoles = append(sponsoredRoles, factory.RoleJudgment)
+		allowance, planned = 15, 3
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_REVIEW_CHILD") == "1" {
 		sponsoredRoles = append(sponsoredRoles, project.RoleReviewer)
 	}
 	for _, err := range []error{
 		db.SaveRepositoryPolicy(ctx, policy), db.SaveCapacity(ctx, factory.Capacity{UpdatedBy: actor, MaxConcurrentRuns: 1}),
 		db.SaveOperatorGrant(ctx, factory.OperatorGrant{Repository: repository, GrantedBy: actor, Active: true}),
-		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: sponsoredRoles, AllowanceMinutes: 5, Active: true}),
+		db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: actor, ActorID: actor, ProjectID: p.Project, Connection: input.Connection, Native: &account, Roles: sponsoredRoles, AllowanceMinutes: allowance, Active: true}),
 	} {
 		if err != nil {
 			return err
@@ -3688,6 +3754,12 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	if input.Withdraw {
 		prompt = append(prompt, []byte("\nwithdraw-source-fixture\n")...)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+		prompt = append(prompt, []byte("\nworker-judgments-fixture\n")...)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE") == "1" {
+		prompt = append(prompt, []byte("\nworker-judgment-race\n")...)
 	}
 	if !input.Live && os.Getenv("SODA_NATIVE_CHECK_READ_SOURCE") == "1" {
 		prompt = append(prompt, []byte("\nread-source-fixture\n")...)
@@ -3767,7 +3839,10 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	run := factory.Run{ID: input.Run, ProjectID: p.Project, Role: a.Role, InputSHA: p.SourceCommit, Started: now, Deadline: now.Add(time.Minute), Harness: a.Harness, Model: a.Model,
 		Native: &execution.NativeRecord{Tool: tool, BundleSHA256: native.BundleSHA256, PromptSHA256: a.PromptSHA, Retirement: execution.NotStarted,
 			Provenance: execution.NativeProvenance{TrustMode: native.TrustMode, Profile: config.Profile, InstanceID: instance, WorktreeID: p.ID, BrokerRun: input.Run, Custody: execution.NativeCustody{State: execution.NotAcquired}}}}
-	if err = db.RecordNativeDispatchPacket(ctx, queued, a, factory.Reservation{AssignmentID: aid, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: 1}, run,
+	if os.Getenv("SODA_NATIVE_CHECK_WORKER_JUDGMENTS") == "1" {
+		run.Deadline = now.Add(3 * time.Minute)
+	}
+	if err = db.RecordNativeDispatchPacket(ctx, queued, a, factory.Reservation{AssignmentID: aid, Repository: repository, Connection: input.Connection, State: factory.ReservationHeld, PlannedMinutes: planned}, run,
 		factory.RunView{RunID: run.ID, Repository: repository, Issue: 3, Attempt: aid}, native); err != nil {
 		return err
 	}
@@ -5698,6 +5773,362 @@ func nativeFixtureCall(ctx context.Context, config factoryruntime.NativeConfig, 
 
 type declaredPostRouting struct{}
 
+// Connected judgments use the actual native GitHub admission and selected Muse
+// login. Planning content is declared; provider answers and usage are real.
+func connectedJudgmentFixture(profile, instance, path string) error {
+	var input struct{ Repository, Connection, Post string }
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err = json.Unmarshal(raw, &input); err != nil {
+		return err
+	}
+	repository, err := strconv.ParseInt(input.Repository, 10, 64)
+	if err != nil {
+		return err
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 210*time.Second)
+	defer cancel()
+	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+	connection, err := db.CollaborationConnection(ctx, collaboration.ConnectionID(input.Connection))
+	if err != nil {
+		return err
+	}
+	phase := os.Getenv("SODA_NATIVE_JUDGMENT_PHASE")
+	if phase == "setup" {
+		if err := ownedToolFixture(profile, instance, "discovery"); err != nil {
+			return err
+		}
+		source, err := port.MuseLoginSource(ctx)
+		if err != nil || !source.JudgmentAvailable {
+			return fmt.Errorf("selected Muse source unavailable: %v", err)
+		}
+		selection := factory.RoleSelection{Account: source.Connection, Harness: project.FactoryHarnessMuse, Model: "muse-spark-1.3-contributor", Profile: factory.ExecutionProfile{Effort: "low", Contributor: true}}
+		ref := func(kind string) factory.ActorBindingRef {
+			return factory.ActorBindingRef{Kind: kind, ActorID: int64(connection.Actor), NativeProfile: config.Profile, NativeConnection: connection.ID}
+		}
+		policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: int64(connection.Actor), TargetBranch: "refs/heads/main", MergeMethod: "merge", Checks: []string{"q11-build"}, AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes, Judgments: &selection, Roles: map[string]factory.RoleSelection{project.RoleCoder: selection, project.RoleReviewer: selection}, Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge)}
+		if prior, e := db.RepositoryPolicy(ctx, repository); e == nil {
+			policy.Revision = prior.Revision
+		}
+		if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			return err
+		}
+		if _, e := db.Sponsorship(ctx, repository, source.Connection); errors.Is(e, store.ErrNotFound) {
+			if err := db.SaveSponsorship(ctx, factory.Sponsorship{Repository: repository, GrantedBy: int64(connection.Actor), ActorID: int64(connection.Actor), Connection: source.Connection, ProjectID: "p0123456789abcdef01234567", Roles: []string{factory.RoleJudgment}, AllowanceMinutes: 30, Active: true, Native: &factory.NativeSponsorship{Profile: config.Profile, Authentication: factory.NativeMuseLogin}}); err != nil {
+				return err
+			}
+		} else if e != nil {
+			return e
+		}
+		fmt.Println("PASS: explicit selected judgment model/login and allowance on the actual canonical GitHub connection; automation disabled")
+		return nil
+	}
+	coord := &control.Coordinator{Store: db, Planning: &control.PlanningJudgments{Chooser: judgments}}
+	var saved struct {
+		Revision       factory.IntentRevision
+		Content        factory.ProposalContent
+		Proposal       factory.ConsolidatedProposal
+		Context        factory.MCPCapability
+		Assignment     factory.Assignment
+		Bundle, Reason string
+	}
+	statePath := filepath.Join(profile, "connected-judgment-journey.json")
+	poll := func(call func() error) error {
+		until := time.Now().Add(40 * time.Second)
+		for {
+			err := call()
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, control.ErrPriorityUnavailable) && !errors.Is(err, factoryservice.ErrPostJudgmentPending) {
+				return err
+			}
+			if time.Now().After(until) {
+				return err
+			}
+			time.Sleep(150 * time.Millisecond)
+		}
+	}
+	if phase == "journey" {
+		if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_SKIP_FEED") != "1" {
+			if input.Post == "" {
+				return errors.New("authenticated Feed post missing")
+			}
+			captured := factoryservice.PostContext{Posts: factoryservice.Posts{Store: db}}
+			if err := poll(func() error {
+				response, err := factoryservice.DrivePostIntake(ctx, db, &factoryservice.PostCollaborators{Judge: judgments, Prepare: captured.Prepare}, input.Post)
+				if err != nil {
+					return err
+				}
+				if response.Judgment != factory.PostJudgmentApplied {
+					return factoryservice.ErrPostJudgmentPending
+				}
+				if response.Route != factory.PostRouteDiscussion {
+					return fmt.Errorf("live Feed selected %s; no issue effect was supplied", response.Route)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			fmt.Println("PASS: actual authenticated Feed post/context/grant, production Begin and typed discussion adoption; no GitHub write")
+		}
+		saved.Revision = factory.IntentRevision{ID: "d" + factory.NewID()[:24], Intent: "d" + factory.NewID()[:24], Owner: int64(connection.Actor), Repository: repository, Objective: "One person records their own personal request and sees its recorded result directly, without a reviewer.", State: "draft", MaxIssues: 3, CreatedUnix: time.Now().Unix()}
+		if err := db.SaveIntentRevision(ctx, saved.Revision); err != nil {
+			return err
+		}
+		saved.Content, err = factory.ComposeProposalContent(saved.Revision)
+		if err != nil {
+			return err
+		}
+		raw, _ = json.Marshal(saved)
+		if err = os.WriteFile(statePath, raw, 0600); err != nil {
+			return err
+		}
+		if err := poll(func() error {
+			saved.Proposal, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content)
+			return err
+		}); err != nil {
+			return err
+		}
+		if saved.Proposal.Advice == "" {
+			return errors.New("planning proposal lost judgment provenance")
+		}
+		if _, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content); err != nil {
+			return fmt.Errorf("planning retained advice: %w", err)
+		}
+		fmt.Println("PASS: actual selected-source planning consolidation, durable advice provenance and retained answer reuse")
+		// The context producer consumes a declared assignment scope here. The
+		// separate native worker journey qualifies actual capability transport.
+		saved.Context = factory.MCPCapability{ID: factory.NewID(), AssignmentID: factory.NewID(), Profile: project.RoleCoder, SourceDigest: strings.Repeat("a", 40), AcceptedRevision: "1"}
+		saved.Assignment = factory.Assignment{Repository: repository, SourceCommit: strings.Repeat("a", 40), PromptSHA: strings.Repeat("b", 64)}
+		admit := func(ctx context.Context, _ string) (bool, error) {
+			return true, db.CheckIntentJudgment(ctx, saved.Revision)
+		}
+		if err := poll(func() error {
+			saved.Bundle, saved.Reason, err = coord.SelectContextBundle(ctx, saved.Context, saved.Assignment, false, false, admit)
+			return err
+		}); err != nil {
+			return err
+		}
+		if saved.Bundle != factory.ContextBundleCurrent && saved.Bundle != factory.ContextBundleSnapshotHold {
+			return errors.New("context selected ineligible history")
+		}
+		if raw, err = json.Marshal(saved); err != nil {
+			return err
+		}
+		if err = os.WriteFile(statePath, raw, 0600); err != nil {
+			return err
+		}
+		fmt.Println("PASS: production context selection applies only eligible declared bundles; exact source/model retained")
+	} else if phase == "retained" {
+		if err := ownedToolFixture(profile, instance, "discovery"); err != nil {
+			return err
+		}
+		raw, err = os.ReadFile(statePath)
+		if err != nil {
+			return err
+		}
+		if err = json.Unmarshal(raw, &saved); err != nil {
+			return err
+		}
+		if _, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content); err != nil {
+			return err
+		}
+		// A real in-flight selected-source call is withdrawn after native Begin.
+		raceSubject := "q12-active-withdrawal"
+		_, raceErr := judgments.SelectScoped(ctx, repository, raceSubject, map[string]any{"readme": "Acknowledgement only"}, "Select discussion for an acknowledgement without a request.", map[string]any{"discussion": "Acknowledgement", "new_issue": "Explicit change"})
+		if !errors.Is(raceErr, factoryservice.ErrPostJudgmentPending) {
+			return fmt.Errorf("withdrawal did not capture a pending native call: %v", raceErr)
+		}
+		raceID := factory.NativeJudgmentID(config.Profile, repository, raceSubject)
+		until := time.Now().Add(8 * time.Second)
+		for {
+			matches, _ := filepath.Glob(filepath.Join(profile, "native-muse-runs", "*", "prompt"))
+			started := false
+			for _, path := range matches {
+				binding, _ := os.ReadFile(filepath.Join(filepath.Dir(path), "binding.json"))
+				var value map[string]any
+				if json.Unmarshal(binding, &value) == nil && value["run"] == raceID {
+					started = true
+				}
+			}
+			if started {
+				break
+			}
+			if time.Now().After(until) {
+				return errors.New("withdrawal call never reached its original native helper")
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		policy, err := db.RepositoryPolicy(ctx, repository)
+		if err != nil {
+			return err
+		}
+		source, err := db.Sponsorship(ctx, repository, policy.Judgments.Account)
+		if err != nil {
+			return err
+		}
+		source.Active = false
+		if err = db.SaveSponsorship(ctx, source); err != nil {
+			return err
+		}
+		until = time.Now().Add(40 * time.Second)
+		for {
+			judgments.ReconcilePostJudgments(ctx)
+			cmd, e := db.FactoryCommand(ctx, raceID)
+			if e != nil {
+				return e
+			}
+			if cmd.Finished != "" {
+				if _, e = db.RunUsage(ctx, raceID); e != nil {
+					return e
+				}
+				break
+			}
+			if time.Now().After(until) {
+				return errors.New("withdrawn original judgment lacks process settlement; no replay")
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if _, e := judgments.SelectScoped(ctx, repository, raceSubject, map[string]any{"readme": "Acknowledgement only"}, "Select discussion for an acknowledgement without a request.", map[string]any{"discussion": "Acknowledgement", "new_issue": "Explicit change"}); e == nil {
+			return errors.New("withdrawn in-flight judgment was adopted")
+		}
+		fmt.Println("PASS: actual active native judgment withdrawal retires and charges its original source without answer adoption or inference replay")
+		if _, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content); err == nil {
+			return errors.New("withdrawn source bypassed cached advice")
+		}
+		source, err = db.Sponsorship(ctx, repository, source.Connection)
+		if err != nil {
+			return err
+		}
+		source.Active = true
+		if err = db.SaveSponsorship(ctx, source); err != nil {
+			return err
+		}
+		if _, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content); err == nil {
+			return errors.New("replacement funding adopted the original capture")
+		}
+		next := saved.Revision
+		next.ID = "d" + factory.NewID()[:24]
+		next.Predecessor = saved.Revision.ID
+		next.Objective += " The person can read the recorded request afterward."
+		if err = db.SaveIntentRevision(ctx, next); err != nil {
+			return err
+		}
+		if _, err = coord.JudgeConsolidation(ctx, saved.Revision, saved.Content); !errors.Is(err, store.ErrStaleRevision) {
+			return fmt.Errorf("stale planning eligibility not refused: %v", err)
+		}
+		content, e := factory.ComposeProposalContent(next)
+		if e != nil {
+			return e
+		}
+		if _, e = coord.JudgeConsolidation(ctx, next, content); !errors.Is(e, control.ErrPriorityUnavailable) {
+			return fmt.Errorf("eligibility race did not begin: %v", e)
+		}
+		pending, e := db.PendingNativeJudgments(ctx)
+		if e != nil || len(pending) != 1 {
+			return fmt.Errorf("eligibility race original capture missing: %v", e)
+		}
+		changed := next
+		changed.Predecessor = next.ID
+		changed.ID = "d" + factory.NewID()[:24]
+		if e = db.SaveIntentRevision(ctx, changed); e != nil {
+			return e
+		}
+		until = time.Now().Add(40 * time.Second)
+		for {
+			judgments.ReconcilePostJudgments(ctx)
+			cmd, e := db.FactoryCommand(ctx, pending[0].ID)
+			if e != nil {
+				return e
+			}
+			if cmd.Finished != "" {
+				break
+			}
+			if time.Now().After(until) {
+				return errors.New("superseded purpose call did not retain its original result")
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if _, e = coord.JudgeConsolidation(ctx, next, content); !errors.Is(e, store.ErrStaleRevision) {
+			return fmt.Errorf("in-flight planning eligibility change adopted: %v", e)
+		}
+		fmt.Println("PASS: actual planning revision superseded during native inference retains original result/charge and refuses stale adoption without replay")
+		fmt.Println("PASS: supervisor restart reuses original planning answer; cached adoption refuses withdrawn/replaced source and superseded revision")
+	} else {
+		return errors.New("unknown connected judgment phase")
+	}
+	return retainJudgmentEvidence(ctx, config, repository, "", 0)
+}
+
+func retainJudgmentEvidence(ctx context.Context, config factoryruntime.NativeConfig, repository int64, worker string, count int) error {
+	rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+	if err != nil {
+		return err
+	}
+	defer rawDB.Close()
+	rows, err := rawDB.QueryContext(ctx, `SELECT c.id,c.digest,c.payload,c.outcome,COALESCE(u.data::text,'') FROM factory_commands c LEFT JOIN factory_usage u ON u.run=c.id WHERE c.type=$1 ORDER BY c.created,c.id`, factory.CommandNativeJudgment)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var evidence []map[string]any
+	for rows.Next() {
+		var id, digest, payload, outcome, usage string
+		if err = rows.Scan(&id, &digest, &payload, &outcome, &usage); err != nil {
+			return err
+		}
+		if outcome == "" || usage == "" {
+			return errors.New("connected inference lacks original outcome/accounting")
+		}
+		var capture factory.NativeJudgmentCapture
+		var charged factory.Usage
+		if json.Unmarshal([]byte(payload), &capture) != nil || json.Unmarshal([]byte(usage), &charged) != nil || capture.PolicyRevision == nil || capture.FundingRevision == nil || charged.RunID != id || charged.Connection != capture.Selection.Account || charged.Repository != repository {
+			return errors.New("captured inference accounting differs")
+		}
+		if worker != "" && (capture.WorkerCapability != worker || capture.WorkerScope == "" || capture.OutputKind != "consultation") {
+			return errors.New("judgment was not bound to its actual authenticated worker")
+		}
+		var terminal struct {
+			Process struct {
+				Started int64 `json:"started_unix_ms"`
+				Stopped int64 `json:"stopped_unix_ms"`
+			} `json:"process"`
+		}
+		if json.Unmarshal([]byte(outcome), &terminal) != nil || !charged.StartedAt.Equal(time.UnixMilli(terminal.Process.Started)) || !charged.EndedAt.Equal(time.UnixMilli(terminal.Process.Stopped)) || charged.Minutes != int((terminal.Process.Stopped-terminal.Process.Started+59999)/60000) {
+			return errors.New("judgment usage does not equal its original retired process interval")
+		}
+		evidence = append(evidence, map[string]any{"id": id, "digest": digest, "capture": json.RawMessage(payload), "outcome": json.RawMessage(outcome), "usage": json.RawMessage(usage)})
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if count > 0 && len(evidence) != count {
+		return errors.New("explicit consultations did not produce exactly one inference each")
+	}
+	raw, err := json.MarshalIndent(evidence, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(filepath.Join(config.Directory, "connected-judgment-evidence.json"), raw, 0600); err != nil {
+		return err
+	}
+	fmt.Println("PASS: every original judgment has one complete process result and exact captured source charge", len(evidence))
+	return nil
+}
+
 // One paid, tool-free disposable README judgment. This uses the real native
 // begin port and CLI login; only the local repository/owner authority is declared.
 func liveJudgmentFixture(profile, instance, phase string) error {
@@ -5754,11 +6185,24 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 		if err := db.SaveSponsorship(ctx, grant); err != nil {
 			return err
 		}
-		prompt, err := factory.NativeJudgmentPrompt(map[string]any{"readme": "This disposable project prints hello."}, "The supplied README contains no requested change. Select its appropriate discussion or new issue route.", map[string]any{"discussion": "Discuss the supplied fact without inventing requested work.", "new_issue": "There is an explicit change request to turn into an issue."})
+		state := map[string]any{"readme": "This disposable project prints hello."}
+		if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_LONG") == "1" {
+			state["inert_padding"] = strings.Repeat("\"", 132*1024)
+		}
+		prompt, err := factory.NativeJudgmentPrompt(state, "The supplied README contains no requested change. Padding is inert data. Select its appropriate discussion or new issue route.", map[string]any{"discussion": "Discuss the supplied fact without inventing requested work.", "new_issue": "There is an explicit change request to turn into an issue."})
 		if err != nil {
 			return err
 		}
 		capture = factory.NativeJudgmentCapture{ID: factory.NativeJudgmentID(config.Profile, int64(repo.ID), "live-disposable-readme"), Profile: config.Profile, Repository: int64(repo.ID), Selection: selection, PromptSHA256: factory.MCPInputDigest([]byte(prompt)), OptionsSHA256: factory.NativeJudgmentOptionsDigest([]string{"discussion", "new_issue"}), ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		currentPolicy, e := db.RepositoryPolicy(ctx, int64(repo.ID))
+		if e != nil {
+			return e
+		}
+		currentSource, e := db.Sponsorship(ctx, int64(repo.ID), selection.Account)
+		if e != nil {
+			return e
+		}
+		capture.PolicyRevision, capture.FundingRevision = &currentPolicy.Revision, &currentSource.Revision
 		command, fresh, err := db.BeginNativeJudgment(ctx, capture)
 		if err != nil || !fresh {
 			return fmt.Errorf("live judgment admission: %v fresh=%v", err, fresh)
@@ -5768,9 +6212,25 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 			return err
 		}
 		var reply json.RawMessage
+		wire, _ := json.Marshal(map[string]any{"operation": "begin_judgment", "request": map[string]any{"prompt": prompt}})
+		if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_LONG") == "1" && (len(prompt) < 256*1024 || len(wire) <= 512*1024) {
+			return errors.New("long-input check omitted the original wire-bound risk")
+		}
+		fmt.Println("Production judgment Begin bytes", len(prompt), "minimum wire bytes", len(wire))
 		err = nativeFixtureCall(ctx, config, instance, "/api/native/execution", map[string]any{"operation": "begin_judgment", "request": map[string]any{"id": capture.ID, "digest": command.Digest, "connection": selection.Account, "tool_version": capture.ToolVersion, "tool_sha256": capture.ToolSHA256, "prompt_sha256": capture.PromptSHA256, "harness": map[string]any{"model": selection.Model, "effort": "low", "contributor": true}, "deadline_unix_ms": capture.DeadlineUnixMS, "prompt": prompt}}, &reply)
 		if err != nil {
 			fmt.Println("Live start reply unavailable; reconciling only the original command, never resending")
+		}
+		if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_CRASH") == "start" {
+			until := time.Now().Add(8 * time.Second)
+			for time.Now().Before(until) {
+				matches, _ := filepath.Glob(filepath.Join(profile, "native-muse-runs", "*", "*", "terminal.log"))
+				if len(matches) == 1 {
+					return nil
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			return errors.New("judgment never reached a native process before crash; original command held")
 		}
 	} else if phase == "restart" {
 		raw, err := os.ReadFile(path)
@@ -5791,17 +6251,26 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 		}
 		if command.Finished != "" {
 			var outcome struct {
-				Answer *factory.PriorityAnswer `json:"answer"`
+				Answer  *factory.PriorityAnswer `json:"answer"`
+				Process struct {
+					Run, Reason string
+					TreeRetired bool  `json:"tree_retired"`
+					Started     int64 `json:"started_unix_ms"`
+					Stopped     int64 `json:"stopped_unix_ms"`
+				} `json:"process"`
 			}
-			if json.Unmarshal([]byte(command.Outcome), &outcome) != nil || outcome.Answer == nil {
+			crash := os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_CRASH") == "restart"
+			if json.Unmarshal([]byte(command.Outcome), &outcome) != nil || outcome.Answer == nil && !crash {
 				return errors.New("live judgment retired without an accepted typed answer; original result and usage retained")
 			}
 			request := factory.PriorityRequest{Candidates: []factory.PriorityCandidate{{ID: "discussion"}, {ID: "new_issue"}}}
-			if err := outcome.Answer.Validate(request); err != nil {
-				return err
+			if outcome.Answer != nil {
+				if err := outcome.Answer.Validate(request); err != nil {
+					return err
+				}
 			}
 			usage, err := db.RunUsage(ctx, capture.ID)
-			if err != nil || usage.Validate() != nil || usage.Connection != capture.Selection.Account || outcome.Answer.Model != capture.Selection.Model {
+			if err != nil || usage.Validate() != nil || usage.Connection != capture.Selection.Account || outcome.Answer != nil && outcome.Answer.Model != capture.Selection.Model || outcome.Process.Run != capture.ID || !outcome.Process.TreeRetired || !usage.StartedAt.Equal(time.UnixMilli(outcome.Process.Started)) || !usage.EndedAt.Equal(time.UnixMilli(outcome.Process.Stopped)) {
 				return errors.New("live judgment lost its original model/source accounting")
 			}
 			var retained struct {
@@ -5817,7 +6286,11 @@ func liveJudgmentFixture(profile, instance, phase string) error {
 			if retained.State != "complete" || retained.Result.ID != capture.ID || retained.Result.Digest != command.Digest {
 				return errors.New("live native judgment lost retained original evidence")
 			}
-			fmt.Println("PASS: live official-tool judgment", phase, "typed answer", outcome.Answer.Selected, "and exact-source charge retained; no new login, GitHub action or worker qualification")
+			evidence, _ := json.Marshal(map[string]any{"capture": capture, "command": command, "usage": usage})
+			if err := os.WriteFile(filepath.Join(profile, "live-judgment-evidence.json"), evidence, 0600); err != nil {
+				return err
+			}
+			fmt.Println("PASS: live official-tool judgment", phase, "typed answer", outcome.Answer, "reason", outcome.Process.Reason, "and exact-source charge retained; no new login, GitHub action or worker qualification")
 			return nil
 		}
 		select {
@@ -6368,6 +6841,48 @@ func workerProfileFixture() error {
 		}
 		serverName = initialized.Result.ServerInfo.Name
 		response.Body.Close()
+		if strings.Contains(string(prompt), "worker-judgments-fixture") {
+			consultClient := &http.Client{Timeout: 35 * time.Second, Transport: client.Transport}
+			for _, kind := range []string{"noul", "choice", "score"} {
+				var criteria any
+				switch kind {
+				case "choice":
+					criteria = map[string]any{"yes": "The supplied fact says ready.", "no": "The supplied fact says unavailable."}
+				case "score":
+					criteria = []any{"Not ready", "Ready"}
+				}
+				payload := map[string]any{"state": map[string]any{"status": "ready"}, "questions": map[string]any{"first": map[string]any{"instructions": "Assess whether the supplied state says ready, using only the stated fact.", "criteria": criteria}, "second": map[string]any{"instructions": "Independently assess readiness from the supplied fact.", "criteria": criteria}}}
+				raw, err := workerMCPCall(consultClient, "systemone."+kind, payload)
+				if strings.Contains(string(prompt), "worker-judgment-race") {
+					if err == nil || !strings.Contains(err.Error(), "worker no longer matches") {
+						return fmt.Errorf("in-flight worker revocation did not refuse adoption: %v", err)
+					}
+					fmt.Println("actual-authenticated-worker-revocation-refused")
+					fmt.Println(`{"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":"Declared local CLI fixture; no model request"}}`)
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				var result struct {
+					Answers map[string]map[string]any `json:"answers"`
+					Model   string                    `json:"model"`
+					Usage   map[string]any            `json:"usage"`
+				}
+				if json.Unmarshal(raw, &result) != nil || len(result.Answers) != 2 || result.Model != "muse-spark-1.3-contributor" || result.Usage["elapsed_milliseconds"] == nil {
+					return errors.New("authenticated consultation lost typed answers/model/actual usage")
+				}
+				for _, answer := range result.Answers {
+					if answer["type"] != kind {
+						return errors.New("consultation changed type")
+					}
+					if err := control.ValidateSystemOneAnswer(kind, answer, criteria); err != nil {
+						return err
+					}
+				}
+				fmt.Println("actual-authenticated-worker-selected-source", kind, string(raw))
+			}
+		}
 		if strings.Contains(string(prompt), "read-source-fixture") {
 			head, err := exec.Command("/usr/bin/git", "-C", selected["--workspace"], "rev-parse", "HEAD").Output()
 			if err != nil {
@@ -6878,6 +7393,9 @@ func workerLoseEditReply(client *http.Client, payload map[string]any, operationI
 
 func workerMCPRequest(tool string, payload any, operationID string) (*http.Request, error) {
 	arguments := map[string]any{"payload": payload}
+	if strings.HasPrefix(tool, "systemone.") {
+		arguments = payload.(map[string]any)
+	}
 	if operationID != "" {
 		sum := sha256.Sum256([]byte("native-integration:" + operationID))
 		arguments["submission_id"] = hex.EncodeToString(sum[:16])
@@ -6967,7 +7485,8 @@ func ownedToolFixture(profile, instance, mode string) error {
 		return nil
 	}
 	if err != nil {
-		return err
+		source, sourceErr := port.MuseLoginSource(context.WithoutCancel(ctx))
+		return fmt.Errorf("native tool %s: %w; source status %+v (%v)", mode, err, source.ToolStatus, sourceErr)
 	}
 	if mode == "update" && filepath.Dir(observed.Native.Executable) != filepath.Join(profile, "native-tools", "muse") {
 		return errors.New("missing installed version was not acquired into the private Factory cache")

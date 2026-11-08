@@ -39,7 +39,7 @@ func (s *Store) BindContextBundleSelection(ctx context.Context, capability facto
 	}
 	if prior != "" {
 		var decided bool
-		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_priority_judgments WHERE snapshot=$1 AND data IS NOT NULL)`, prior).Scan(&decided); err != nil || decided {
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_priority_judgments WHERE snapshot=$1 AND data IS NOT NULL)`, prior).Scan(&decided); err != nil || decided && prior != fingerprint {
 			return false, err
 		}
 	}

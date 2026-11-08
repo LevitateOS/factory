@@ -90,11 +90,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args.len() == 5 && args[4] == "judgment-live" {
         let profile=root.join("judgment-profile");
-        for phase in ["start","restart"] {
+        let crash=std::env::var("SODA_NATIVE_CHECK_JUDGMENT_CRASH").unwrap_or_default();
+        let phases=if crash=="restart" {vec!["restart"]}else if crash=="start"{vec!["start"]}else{vec!["start","restart"]};
+        for phase in phases {
             let supervisor=NativeSupervisor::start(Path::new(&args[1]),Path::new(&args[2]),&profile)?;
             let ready=supervisor.health()?;
             if phase=="start" && !Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-owned-tool").arg("discovery").status()?.success() { return Err("official judgment tool unavailable".into()); }
             let checked=Command::new(&args[3]).arg(&profile).arg(&ready.instance).arg("check-live-judgment").arg(phase).status()?;
+            if checked.success() && crash=="start" {println!("PASS: abrupt judgment owner loss after actual native process start, before Go result settlement");std::process::exit(0);}
             supervisor.stop()?;
             if !checked.success() { return Err("live judgment check failed; original command retained, no inference replay".into()); }
         }
@@ -1861,7 +1864,7 @@ async fn managed_muse_execution(
         )?;
         fs::write(profile.join("check-withdrawal-source.id"), other.connection)?;
     }
-    if live {
+    if live || std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENTS").as_deref()==Ok("1") {
         command("check-owned-tool", "discovery")?;
     }
     command("check-native-preparation", "ready")?;
@@ -1934,6 +1937,9 @@ async fn managed_muse_execution(
             .join(format!("{run}.json")),
     )?)?;
     let captured: serde_json::Value = serde_json::from_slice(&fs::read(&fixture)?)?;
+    if std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE").as_deref()==Ok("1") {
+        command("revoke-judgment-worker",fixture.to_str().ok_or("invalid fixture path")?)?;
+    }
     let until = std::time::UNIX_EPOCH
         + Duration::from_secs(
             captured["DeadlineUnix"]
@@ -1968,6 +1974,12 @@ async fn managed_muse_execution(
         "check-admitted-native",
         fixture.to_str().ok_or("invalid fixture path")?,
     )?;
+    if std::env::var("SODA_NATIVE_CHECK_WORKER_JUDGMENT_RACE").as_deref()==Ok("1") {
+        command("reconcile-retained-native",fixture.to_str().ok_or("invalid fixture path")?)?;
+        supervisor.stop()?;
+        println!("PASS: worker capability withdrawn during actual native inference; failed advice, exact original accounting and joined retirement without replay");
+        return Ok(());
+    }
     command(
         "acknowledge-native",
         fixture.to_str().ok_or("invalid fixture path")?,
