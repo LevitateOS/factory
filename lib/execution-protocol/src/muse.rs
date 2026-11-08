@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const MAX_MUSE_INPUT: usize = 6 * MAX_PROMPT + 32 * 1024;
+pub const MAX_MUSE_MODEL_STEPS: u8 = 32;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -52,7 +53,7 @@ impl MuseInvocation {
             && !self.prompt.contains('\0')
             && self.harness.valid()
             && (1..=14_400_000).contains(&self.duration_ms)
-            && (1..=16).contains(&self.max_model_steps)
+            && (1..=MAX_MUSE_MODEL_STEPS).contains(&self.max_model_steps)
             && (1..=MAX_OUTPUT).contains(&self.output_bytes)
             && self.mcp.as_ref().is_none_or(|mcp| {
                 let mut unique = BTreeSet::new();

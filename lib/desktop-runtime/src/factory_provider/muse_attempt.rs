@@ -4,7 +4,9 @@ use super::{
     AgentCancellation, AttemptObservation, AttemptPhase, LaunchIntent, MuseConnector, WorkerMcp,
 };
 use soda_execution_protocol::workspace::{Command as TaskCommand, Parent, Reply as TaskReply};
-use soda_execution_protocol::{MuseInvocation, MuseObservation, PreparedSourceRef, MAX_OUTPUT};
+use soda_execution_protocol::{
+    MuseInvocation, MuseObservation, PreparedSourceRef, MAX_MUSE_MODEL_STEPS, MAX_OUTPUT,
+};
 use std::io;
 use std::path::PathBuf;
 use std::sync::{mpsc, Arc, Mutex};
@@ -235,7 +237,7 @@ impl MuseAttempt {
                             harness,
                             duration_ms: remaining.as_millis() as u64,
                             deadline_unix_ms: 0,
-                            max_model_steps: 16,
+                            max_model_steps: MAX_MUSE_MODEL_STEPS,
                             output_bytes: MAX_OUTPUT,
                             mcp: Some(mcp.configuration.clone()),
                         },

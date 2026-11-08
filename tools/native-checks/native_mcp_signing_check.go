@@ -3359,6 +3359,9 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			if err = json.Unmarshal(manifest.Plan, &plan); err != nil {
 				return err
 			}
+			if input.Live && (len(plan.Tasks) != 2 || !slices.Equal(plan.Tasks[1].DependsOn, []string{plan.Tasks[0].ID})) {
+				return errors.New("live Builder check requires both dependent tasks, not a single-task plan")
+			}
 			receipts, err := db.PlanTaskReceipts(ctx, plan.AttemptRoot, plan.ID)
 			if err != nil {
 				return err
@@ -3366,8 +3369,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			if len(receipts) != len(plan.Tasks) {
 				return errors.New("admitted task receipts missing")
 			}
-			for _, receipt := range receipts {
-				if receipt.State != store.PlanTaskCompleted || !receipt.Parent || receipt.Commit == "" || len(receipt.Checks) != 1 {
+			for _, task := range plan.Tasks {
+				var matched *store.PlanTaskReceipt
+				for i := range receipts {
+					if receipts[i].TaskID == task.ID {
+						matched = &receipts[i]
+					}
+				}
+				if matched == nil || matched.AttemptRoot != plan.AttemptRoot || matched.PlanID != plan.ID || matched.State != store.PlanTaskCompleted || !matched.Parent || !factory.ValidCommit(matched.Commit) || !factory.ValidDigest(matched.OutputDigest) || !slices.Equal(matched.Checks, task.CheckIDs) {
 					return errors.New("admitted sequential task receipt incomplete")
 				}
 			}
@@ -3486,12 +3495,14 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 		prompt = append(prompt, []byte("\nnative-tasks-investigation-fixture\n")...)
 		if input.Live {
 			plan := nativeWorkspacePlan(p.SourceCommit)
-			plan.Tasks = plan.Tasks[:1]
-			plan.Tasks[0].OwnedPaths = []string{"native-task.txt"}
-			plan.Lanes[0].TaskIDs = []string{"first"}
+			for i := range plan.Tasks {
+				plan.Tasks[i].OwnedPaths = []string{"native-task.txt"}
+			}
+			plan.Approach += ". Builder: use factory.context payload.after_execution with its preceding execution_revision to wait for ready_outputs, committed task receipts and the final integration checkpoint. Submit first task output with submission_id native-task-first-output. After both tasks and final integration commit, deliberately try finish_implementation with that same submission_id; it must refuse different work. Then omit submission_id for the actual finish."
 			plan.Checks = []factory.CheckSpec{
 				{ID: "first", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
-				{ID: "integration", Argv: []string{"/usr/bin/grep", "-qx", "first", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true},
+				{ID: "second", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeTask, Required: true},
+				{ID: "integration", Argv: []string{"/usr/bin/grep", "-qx", "second", "native-task.txt"}, Cwd: ".", TimeoutSeconds: 5, Scope: factory.CheckScopeIntegration, Required: true},
 			}
 			encoded, err := json.Marshal(plan)
 			if err != nil {
@@ -3504,11 +3515,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 			for _, field := range []string{"attempt_root", "source_commit", "integration_commit", "scope_digest", "input_digest", "preparation", "digest"} {
 				delete(authored, field)
 			}
-			encoded, err = json.Marshal(map[string]any{"payload": map[string]any{"approach": "Sequential native task fixture", "evidence_refs": []string{"source:README.md"}, "tasks": authored}})
+			encoded, err = json.Marshal(map[string]any{"payload": map[string]any{"approach": plan.Approach, "evidence_refs": []string{"source:README.md"}, "tasks": authored}})
 			if err != nil {
 				return err
 			}
-			prompt = []byte("Disposable Factory Architect integration task. Read README.md with factory.read_source, inspect factory.context, and read factory.inbox. " + nativeFixtureArtifactPrompt + " Then call factory.finish_issue_plan with these JSON arguments: " + string(encoded) + ". payload and tasks must be JSON objects, never JSON-encoded strings. Omit submission_id for this new call. This is a declared one-file test objective and check; do not implement it in the investigation phase. Finish with OK after the terminal tool succeeds.")
+			prompt = []byte("Disposable Factory Architect integration task. Read README.md with factory.read_source, inspect factory.context, and read factory.inbox. " + nativeFixtureArtifactPrompt + " Then call factory.finish_issue_plan with these JSON arguments: " + string(encoded) + ". payload and tasks must be JSON objects, never JSON-encoded strings. Omit submission_id for this new call. This is a declared one-file, two-task test objective and checks; do not implement it in the investigation phase. Finish with OK after the terminal tool succeeds.")
 		}
 	}
 	var acceptedContext *factory.AcceptedContext

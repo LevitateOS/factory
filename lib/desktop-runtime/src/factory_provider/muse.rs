@@ -144,7 +144,10 @@ impl MuseConnector {
         file.sync_all()?;
         File::open(&directory)?.sync_all()?;
         let mut command = Command::new("/usr/bin/systemd-run");
+        // The provider may use an isolated Secret Service session. Reach the
+        // user manager independently, then pass that session to the provider.
         command
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .args([
                 "--user",
                 "--pipe",
@@ -486,6 +489,7 @@ impl Drop for MuseConnector {
         // The fresh native service name was retained before launch. Stop only
         // that service, including descendants if a protocol reply was lost.
         let stop = Command::new("/usr/bin/systemctl")
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
             .args(["--user", "stop", "--", &self.unit])
             .stdin(Stdio::null())
             .stdout(Stdio::null())

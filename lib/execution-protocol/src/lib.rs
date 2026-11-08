@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 mod muse;
 pub mod workspace;
-pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT};
+pub use muse::{MuseInvocation, MuseMcp, MuseObservation, MAX_MUSE_INPUT, MAX_MUSE_MODEL_STEPS};
 
 pub const MAX_STAGE_BUNDLE: usize = 64 * 1024 * 1024;
 pub const MAX_PREPARATION_REQUEST: usize = MAX_STAGE_BUNDLE.div_ceil(3) * 4 + 1024 * 1024;

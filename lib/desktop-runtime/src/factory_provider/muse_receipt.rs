@@ -287,6 +287,7 @@ pub(super) fn service_stopped(profile: &Path, process: &MuseObservation) -> io::
         process.run, process.service
     );
     let mut child = Command::new("/usr/bin/systemctl")
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
         .args([
             "--user",
             "show",
