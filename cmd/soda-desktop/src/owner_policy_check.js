@@ -42,6 +42,7 @@
     const source = before.spending_sources.find(s => s.label === 'This Muse login');
     assert(source && source.native.authentication === 'muse_login' && !source.native.credential_sha256 && source.judgment_models.length === 1, 'CLI-owned source');
     const sourceID = source.connection, model = source.judgment_models[0];
+    assert(button(roles, 'Enroll automation policy') === undefined, 'initial policy enrolled automatically');
     input(roles, 'Coding model', model); input(roles, 'Review model', model);
     assert(roles.querySelector('[aria-label="Judgments model"]').value === '' && roles.querySelector('[aria-label="Judgments spending source"]').value === '', 'judgment was selected automatically');
     input(roles, 'Automation target branch', before.policy_options.target_branch);
@@ -53,6 +54,7 @@
     await click('Save disabled automation policy');
     const initial = await status();
     assert(initial.policy.enabled === false && !initial.policy.judgments && !initial.policy.roles['soda-coder'].account && !initial.policy.roles['soda-reviewer'].account, 'disabled bootstrap invented spending choices');
+    assert(button(roles, 'Enroll automation policy').disabled, 'unfunded enrollment available');
     // Local resource settings remain separate from collaboration write/admin.
     const runLimit = button(document, 'Save run limit');
     await until(() => runLimit && !runLimit.disabled, 'local capacity control');
@@ -72,6 +74,28 @@
     button(document, 'Allow isolated workspaces').click();
     await until(async () => (await status()).environment_grant?.active === true, 'workspace permission readback');
     await click('Refresh roles');
+    // Reuse the real placement command/CAS, not browser-chosen runtime IDs.
+    const firstPlacement = (await api('GET', `${path}/placement`)).body.placement;
+    assert((await api('PUT', `${path}/placement`, {state: 'active', expected_revision: firstPlacement.revision, runtime: 'f'.repeat(32)})).status === 400, 'browser chose another controller');
+    assert((await api('PUT', `${path}/placement`, {state: 'retiring', expected_revision: firstPlacement.revision})).status === 200, 'competing placement transition');
+    await until(() => button(document, 'Retire controller') && !button(document, 'Retire controller').disabled, 'stale controller action');
+    button(document, 'Retire controller').click();
+    await until(() => document.querySelector('#runtime-placement').textContent.includes('could not be confirmed'), 'stale placement refused');
+    button(document, 'Refresh controller').click();
+    await until(() => button(document, 'Finish retirement') && !button(document, 'Finish retirement').disabled, 'current retirement observation');
+    button(document, 'Finish retirement').click();
+    await until(() => button(document, 'Use this computer') && !button(document, 'Use this computer').disabled, 'inactive controller');
+    button(document, 'Use this computer').click();
+    await until(async () => {
+      const next = (await api('GET', `${path}/placement`)).body.placement;
+      return next.state === 'active' && BigInt(next.generation) === BigInt(firstPlacement.generation) + 1n;
+    }, 'new placement generation');
+    await until(() => button(document, 'Allow isolated workspaces') && !button(document, 'Allow isolated workspaces').disabled, 'stale workspace permission unavailable');
+    await click('Refresh roles');
+    assert(button(roles, 'Save source allowance').disabled, 'stale workspace generation allowed funding');
+    button(document, 'Allow isolated workspaces').click();
+    await until(async () => (await status()).environment_grant.native.generation !== firstPlacement.generation, 'explicit workspace reenrollment');
+    await click('Refresh roles');
     await click('Save source allowance');
     const funded = await status();
     assert(funded.sponsorships[0].active && funded.sponsorships[0].allowance_minutes === 30 && funded.policy.enabled === false, 'explicit allowance enabled automation');
@@ -90,6 +114,9 @@
     await click('Save role selections');
     const selected = await status();
     assert(selected.policy.enabled === false && selected.policy.judgments.account === sourceID && selected.policy.judgments.model === model && ['soda-coder', 'soda-reviewer'].every(role => selected.policy.roles[role].account === sourceID && selected.policy.roles[role].model === model), 'explicit independent choices lost');
+    await click('Enroll automation policy');
+    assert((await status()).policy.enabled === true, 'explicit policy enrollment failed');
+    assert((await status()).spending_sources.find(source => source.connection === sourceID).execution_available === false && document.querySelector('#runtime-status').textContent.includes('execution is unavailable'), 'missing execution port became available');
     const saved = selected.sponsorships[0];
     const competing = await api('PUT', `${path}/sponsorships/${sourceID}`, {expected_revision: saved.revision, roles: saved.roles, allowance_minutes: 20, active: true});
     assert(competing.status === 200, 'competing source revision');
@@ -100,7 +127,7 @@
     await click('Refresh roles');
     const current = await status(), p = current.policy;
     const actor = value => { const {kind, ...ref} = value; return ref; };
-    const change = {expected_revision: p.revision, enabled: false, paused: p.paused, target_branch: p.target_branch, merge_method: p.merge_method,
+    const change = {expected_revision: p.revision, enabled: p.enabled, paused: p.paused, target_branch: p.target_branch, merge_method: p.merge_method,
       required_checks: ['fixture/check', 'fixture/concurrent'], roles: p.roles, judgments: p.judgments, attempt_limits: p.attempt_limits,
       reassessment_minutes: p.reassessment_minutes, intent_minutes: p.intent_minutes,
       publish_actor: actor(p.publish_actor), create_actor: actor(p.create_actor), review_actor: actor(p.review_actor), merge_actor: actor(p.merge_actor)};
@@ -123,14 +150,35 @@
     await until(() => button(roles, 'Save source allowance').disabled && !button(roles, 'Withdraw source allowance').disabled, 'withdrawal independent of workspace grant');
     await click('Withdraw source allowance');
     const withdrawn = await status();
-    assert(withdrawn.sponsorships[0].active === false && withdrawn.policy.enabled === false && withdrawn.policy.judgments.account === sourceID && ['soda-coder', 'soda-reviewer'].every(role => withdrawn.policy.roles[role].account === sourceID), 'withdrawal selected a fallback or enabled automation');
+    assert(withdrawn.sponsorships[0].active === false && withdrawn.policy.enabled === true && withdrawn.policy.judgments.account === sourceID && ['soda-coder', 'soda-reviewer'].every(role => withdrawn.policy.roles[role].account === sourceID), 'withdrawal selected a fallback or rewrote enrollment');
     assert(roles.textContent.includes('Judgment execution through this source is currently unavailable.'), 'withdrawn allowance still labeled available');
-    const revision = withdrawn.policy.revision;
-    document.querySelector('#connection-disconnect').click();
-    await until(() => app.textContent.includes('Choose an account to open Factory.'), 'view retirement');
+    await click('Disable automation policy');
+    const disabled = await status();
+    assert(disabled.policy.enabled === false && disabled.policy.judgments.account === sourceID, 'disable after funding withdrawal lost policy choices');
+    const revision = disabled.policy.revision;
+    assert(button(roles, 'Enroll automation policy').disabled, 'withdrawn funding permitted reenrollment');
+    // Actual repository and account replacement retire the preceding transport.
+    await until(() => [...repository.options].some(option => option.value === '124'), 'second observed repository');
+    repository.value = '124'; repository.dispatchEvent(new Event('change', {bubbles: true}));
+    await until(() => document.querySelector('#connection-status').textContent === 'Connected to owned/other.', 'repository replacement');
     let refused = false;
     try { await context.transport.request(`${path}/policy`, {method: 'PUT', body: JSON.stringify({...change, expected_revision: revision})}); } catch { refused = true; }
-    assert(refused, 'retired owner context retained mutation authority');
+    assert(refused, 'previous repository retained mutation authority');
+    account.value = __OTHER_CONNECTION__; account.dispatchEvent(new Event('change', {bubbles: true}));
+    await until(() => !repository.disabled && [...repository.options].some(option => option.value === '123'), 'second account catalogue');
+    repository.value = '123'; repository.dispatchEvent(new Event('change', {bubbles: true}));
+    await until(() => document.querySelector('#connection-status').textContent === 'Connected to owned/repo.', 'account replacement');
+    button(app.querySelector('nav[aria-label="Factory"]'), 'Work').click();
+    await until(() => {
+      const next = app.querySelector('soda-factory-role-settings')?.current;
+      return next && next.actor !== context.actor;
+    }, 'replacement role context');
+    const replacement = app.querySelector('soda-factory-role-settings').current;
+    const afterReplacement = await replacement.transport.request(`repositories/${replacement.repository}/factory`, {method: 'GET'});
+    const retained = await afterReplacement.json();
+    assert(retained.policy.revision === revision && retained.policy.enabled === false && retained.sponsorships[0].active === false, 'account/repository replacement mutated enrollment or revived funding');
+    document.querySelector('#connection-disconnect').click();
+    await until(() => app.textContent.includes('Choose an account to open Factory.'), 'view retirement');
     await invoke('report', {stage: 'owner-policy-complete', error: null});
   } catch (error) {
     await invoke('report', {stage: 'failed', error: String(error)});

@@ -85,7 +85,8 @@ export function mountPlacement(root: HTMLElement) {
         if (grant.native) {
           const owner = object(grant.native);
           check(/^[a-f0-9]{32}$/.test(String(owner.runtime)) && id(owner.generation) && typeof grant.active === 'boolean');
-          active = owner.runtime === data.runtime && grant.active;
+          active = next?.state === 'active' && owner.runtime === data.runtime &&
+            owner.runtime === next.runtime && owner.generation === next.generation && grant.active;
         }
       }
       const settings = object(await settingsResponse.json());

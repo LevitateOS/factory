@@ -428,12 +428,15 @@ export class SodaFactoryRoleSettings extends LitElement {
     const context = this.current,
       signal = this.lifetime.signal,
       view = this.view,
-      roles = this.roles;
+      disabling = event.submitter?.getAttribute('value') === 'disable',
+      enrolling = event.submitter?.getAttribute('value') === 'enroll',
+      roles = disabling ? view?.roles : this.roles;
     if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal)) return;
     const initial = view.policy === null,
       actors = initial ? this.initialActors() : undefined;
+    if (initial && (disabling || enrolling)) return;
     if (
-      !(Object.keys(roleNames) as Role[]).every(
+      !disabling && !(Object.keys(roleNames) as Role[]).every(
         (role) => this.validSelection(role, initial)
       )
     )
@@ -452,8 +455,12 @@ export class SodaFactoryRoleSettings extends LitElement {
           required_checks: this.checks(),
           ...actors,
         };
+    if (enrolling || disabling) payload.enabled = enrolling;
     const reviewIdentity = view.policy?.review_actor ?? actors?.review_actor;
-    Object.assign(payload, {automation_reviewer: this.automationReviewer && reviewIdentity ? policyActor(reviewIdentity) : null});
+    const automationReviewer = disabling ? !!view.policy?.automation_reviewer : this.automationReviewer;
+    Object.assign(payload, {automation_reviewer: disabling
+      ? view.policy?.automation_reviewer == null ? null : policyActor(view.policy.automation_reviewer)
+      : automationReviewer && reviewIdentity ? policyActor(reviewIdentity) : null});
     this.busy = true;
     this.message = '';
     try {
@@ -478,7 +485,7 @@ export class SodaFactoryRoleSettings extends LitElement {
       check(
         confirmed.policy && Number(confirmed.policy.revision) > Number(payload.expected_revision) && confirmed.roles
       );
-      check(this.automationReviewer
+      check(automationReviewer
         ? samePolicyActor(confirmed.policy.automation_reviewer, reviewIdentity)
         : confirmed.policy.automation_reviewer == null);
       check(
@@ -486,6 +493,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           ['account', 'harness', 'model'].every((key) => confirmed.roles![role][key] === roles[role][key])
         )
       );
+      check(confirmed.policy.enabled === payload.enabled);
       if (initial)
         check(
           confirmed.policy.enabled === false &&
@@ -496,7 +504,9 @@ export class SodaFactoryRoleSettings extends LitElement {
       if (this.live(context, signal)) {
         this.view = confirmed;
         this.roles = confirmed.roles;
-        this.message = initial ? 'Repository policy saved with automation disabled.' : 'Role selections saved.';
+        this.message = initial ? 'Repository policy saved with automation disabled.'
+          : enrolling ? 'Automation policy enrolled. Existing pauses and execution prerequisites still apply.'
+            : disabling ? 'Automation policy disabled. Existing work may still need retirement.' : 'Role selections saved.';
       }
     } catch (error) {
       if (this.live(context, signal)) {
@@ -716,9 +726,15 @@ export class SodaFactoryRoleSettings extends LitElement {
                 Only Muse is currently supported.
                 ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Each role keeps its current execution limits. Saving these choices retains the current automation policy.'}
               </p>
-              <button type="submit" ?disabled=${this.busy || !canSave}>
+              <button type="submit" value="save" ?disabled=${this.busy || !canSave}>
                 ${initial ? 'Save disabled automation policy' : 'Save role selections'}
               </button>
+              ${!initial ? html`
+                <p>Policy enrollment permits the full automated delivery workflow. Placement, funding, reviewed setup and available execution are checked before dispatch.</p>
+                ${view.policy?.enabled
+                  ? html`<button type="submit" value="disable" formnovalidate ?disabled=${this.busy || !view.editable}>Disable automation policy</button>`
+                  : html`<button type="submit" value="enroll" ?disabled=${this.busy || !canSave}>Enroll automation policy</button>`}
+              ` : ''}
               ${!view.editable ? html`<p>You cannot change this repository's role settings with the current connection.</p>` : ''}
             </form>`
           : this.busy

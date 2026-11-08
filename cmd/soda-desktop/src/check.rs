@@ -117,7 +117,9 @@ impl Scenario {
             600
         } else if self.signin == Some(SignInMode::Consent) || self.muse_login {
             1000
-        } else if self.issue_read || self.owner_policy {
+        } else if self.owner_policy {
+            240
+        } else if self.issue_read {
             180
         } else if self.signin.is_some() || self.control {
             90

@@ -2521,7 +2521,12 @@ pub fn start_owner_policy(app: tauri::AppHandle) {
                 .and_then(|account| account.with_label("declared-owner-policy")).map_err(|e| e.to_string())?;
             let token = Token::new(b"factory-declared-edit".to_vec()).map_err(|e| e.to_string())?;
             let saved = store.store(account, token).await.map_err(|e| e.to_string())?;
-            let script = include_str!("owner_policy_check.js").replace("__CONNECTION__", &serde_json::to_string(&saved.connection).map_err(|_| "connection encoding failed")?);
+            let other = Account::new(Provider::Github, "https://github.com", "322")
+                .and_then(|account| account.with_label("declared-owner-other")).map_err(|e| e.to_string())?;
+            let other = store.store(other, Token::new(b"factory-declared-other".to_vec()).map_err(|e| e.to_string())?).await.map_err(|e| e.to_string())?;
+            let script = include_str!("owner_policy_check.js")
+                .replace("__CONNECTION__", &serde_json::to_string(&saved.connection).map_err(|_| "connection encoding failed")?)
+                .replace("__OTHER_CONNECTION__", &serde_json::to_string(&other.connection).map_err(|_| "connection encoding failed")?);
             app.get_webview_window("main").ok_or("main window missing")?.eval(&script).map_err(|_| "owner policy observer unavailable")?;
             Ok::<(), String>(())
         }.await;
@@ -2535,14 +2540,17 @@ pub fn finish_owner_policy(app: tauri::AppHandle) {
             let state = app.state::<Desktop>();
             let store = state.credentials()?;
             let accounts = store.status().await.map_err(|e| e.to_string())?;
-            ensure(accounts.len() == 1 && accounts[0].account == "321" && accounts[0].label.as_deref() == Some("declared-owner-policy"), "owned policy account changed")?;
-            store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
+            ensure(accounts.len() == 2 && accounts.iter().all(|account| matches!(account.account.as_str(), "321" | "322") && matches!(account.label.as_deref(), Some("declared-owner-policy" | "declared-owner-other"))), "owned policy accounts changed")?;
+            for account in accounts { store.withdraw(&account.connection).await.map_err(|e| e.to_string())?; }
             ensure(store.status().await.map_err(|e| e.to_string())?.is_empty(), "owned policy account retained")?;
             write_consent_evidence(&app, "owner-policy-result.json", &serde_json::json!({
                 "native_webkit_go_pg":true,"declared_read_only_github":true,
                 "disabled_policy_bootstrap":true,"explicit_coder_reviewer_and_judgment_choices":true,
                 "current_ownership_grants_and_cas":true,"withdrawal_without_fallback":true,
                 "selected_model_availability":true,"owned_factory_account_removed":true,
+                "explicit_policy_enrollment_and_disable":true,"canonical_placement_generation":true,
+                "stale_placement_refused":true,"stale_workspace_permission_unavailable":true,
+                "repository_and_account_change_retirement":true,
                 "model_call":false,"billing_identity_qualified":false,"installed_qualified":false
             }))?;
             check::owner_policy_done(&app);
