@@ -2,6 +2,7 @@
 use super::*;
 use soda_desktop_runtime::credentials::{Account, CredentialState, Error, Provider, Token};
 use std::io::Read;
+use std::time::Duration;
 
 pub fn start_github_writes(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -48,7 +49,7 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
     let factory_oauth = fixture["oauth_source"] == "factory_device";
     if factory_oauth {
         ensure(
-            std::env::args_os().any(|arg| arg == "--check-signin-consent"),
+            app.state::<Desktop>().check.scenario.consent_requested,
             "Factory OAuth check requires the consent observer",
         )?;
         let view = serde_json::to_value(state.signin.view()).map_err(|_| "sign-in status unavailable")?;
@@ -538,7 +539,7 @@ async fn binding_checks(app: &tauri::AppHandle, retained: bool) -> Result<(), St
             "runtime restart changed canonical account/repository",
         )?;
         issue_checks(app, connection, &binding, &page["items"][0], true).await?;
-        if std::env::args_os().any(|arg| arg == "--check-issue-read") {
+        if app.state::<Desktop>().check.scenario.issue_read {
             issue_read_journey(app, connection).await?;
         }
         return write_consent_evidence(
@@ -1041,7 +1042,7 @@ async fn issue_checks(
     )
 }
 async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
-    if std::env::args_os().any(|arg| arg == "--check-provider-revocation-cleanup") {
+    if app.state::<Desktop>().check.scenario.revocation_cleanup {
         return revocation_cleanup(app).await;
     }
     use soda_desktop_runtime::github::Read as GitHubRead;
@@ -1162,7 +1163,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "post-refresh identity mismatch",
         )?;
     }
-    let revocation = std::env::args_os().any(|arg| arg == "--check-provider-revocation");
+    let revocation = app.state::<Desktop>().check.scenario.revocation;
     if revocation {
         provider_revocation_check(app, &account.connection, refresh_available).await?;
     }
@@ -1170,7 +1171,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
         .capability(&account.connection)
         .await
         .map_err(|e| e.to_string())?;
-    let retain = std::env::args_os().any(|arg| arg == "--check-retain-account");
+    let retain = app.state::<Desktop>().check.scenario.retain_account;
     if !retain {
         store
             .withdraw(&account.connection)
@@ -1734,7 +1735,7 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
         .ok_or("fixture parent missing")?;
     let io = root.join("io");
     if let Some(mode) = stage.strip_prefix("signin-mode-") {
-        let issue_mode = std::env::args_os().any(|arg| arg == "--check-issue-read")
+        let issue_mode = app.state::<Desktop>().check.scenario.issue_read
             && matches!(mode, "issues-ui" | "issues-ui-denied" | "issues-ui-pause");
         if !issue_mode
             && !matches!(
@@ -1756,7 +1757,7 @@ pub fn signin_control(app: &tauri::AppHandle, stage: &str) -> Result<(), String>
     match stage {
         "signin-issue-read-complete" => {
             ensure(
-                std::env::args_os().any(|arg| arg == "--check-issue-read"),
+                app.state::<Desktop>().check.scenario.issue_read,
                 "issue observer disabled",
             )?;
             write_consent_evidence(
@@ -1959,9 +1960,9 @@ pub fn start_signin(app: tauri::AppHandle, mode: check::SignInMode) {
         await report('signin-done');
       }catch(error){await invoke('report',{stage:'failed',error:String(error)});}
     })()"#.replace("__LIVE__",if mode != check::SignInMode::Declared {"true"} else {"false"})
-    .replace("__WRITE_JOURNEY__",if std::env::args_os().any(|arg| arg == "--check-github-writes") {"true"} else {"false"})
+    .replace("__WRITE_JOURNEY__",if app.state::<Desktop>().check.scenario.github_writes {"true"} else {"false"})
     .replace("__CONSENT__",if mode == check::SignInMode::Consent {"true"} else {"false"})
-    .replace("__ISSUE_READ__",if std::env::args_os().any(|arg| arg == "--check-issue-read") {"true"} else {"false"});
+    .replace("__ISSUE_READ__",if app.state::<Desktop>().check.scenario.issue_read {"true"} else {"false"});
     if mode == check::SignInMode::Consent {
         tauri::async_runtime::spawn(async move {
             let ready = match app.state::<Desktop>().credentials() {

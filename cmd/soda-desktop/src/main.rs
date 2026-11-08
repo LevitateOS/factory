@@ -23,8 +23,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "native-check")]
-use std::time::Duration;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 #[derive(Clone)]
@@ -406,110 +404,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         backend: parent.join("factory-runtime/soda-factory-server"),
     };
     #[cfg(feature = "native-check")]
-    let mut checking = false;
-    #[cfg(feature = "native-check")]
-    let mut startup_error = false;
-    #[cfg(feature = "native-check")]
-    let mut crash_check = false;
-    #[cfg(feature = "native-check")]
-    let mut preconsent_check = false;
-    #[cfg(feature = "native-check")]
-    let mut resume_check = false;
-    #[cfg(feature = "native-check")]
-    let mut credential_check = false;
-    #[cfg(feature = "native-check")]
-    let mut signin_check = None;
-    #[cfg(feature = "native-check")]
-    let mut retain_check_account = false;
-    #[cfg(feature = "native-check")]
-    let mut revocation_check = false;
-    #[cfg(feature = "native-check")]
-    let mut revocation_cleanup = false;
-    #[cfg(feature = "native-check")]
-    let mut issue_read_check = false;
-    #[cfg(feature = "native-check")]
-    let mut control_check = false;
+    let mut checks = check::Options::default();
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
         #[cfg(feature = "native-check")]
-        if arg == "--check-github-writes" {
-            checking = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-issue-read" {
-            issue_read_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-provider-revocation-cleanup" {
-            revocation_cleanup = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-provider-revocation" {
-            revocation_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-retain-account" {
-            retain_check_account = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-control" {
-            checking = true;
-            control_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-signin"
-            || arg == "--check-signin-live"
-            || arg == "--check-signin-consent"
-        {
-            checking = true;
-            signin_check = Some(if arg == "--check-signin-consent" {
-                check::SignInMode::Consent
-            } else if arg == "--check-signin-live" {
-                check::SignInMode::Live
-            } else {
-                check::SignInMode::Declared
-            });
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check" {
-            checking = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-startup-error" {
-            checking = true;
-            startup_error = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-crash" {
-            checking = true;
-            crash_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-preconsent" {
-            checking = true;
-            preconsent_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-resume" {
-            checking = true;
-            resume_check = true;
-            continue;
-        }
-        #[cfg(feature = "native-check")]
-        if arg == "--check-credentials" {
-            checking = true;
-            credential_check = true;
+        if checks.consume(&arg) {
             continue;
         }
         let value = PathBuf::from(args.next().ok_or("native path option requires a value")?);
@@ -524,27 +423,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     #[cfg(feature = "native-check")]
-    if retain_check_account && signin_check != Some(check::SignInMode::Consent) {
-        return Err("retained check account requires the consent check".into());
-    }
-    #[cfg(feature = "native-check")]
-    if issue_read_check && signin_check != Some(check::SignInMode::Declared) {
-        return Err("issue read check requires the declared native sign-in journey".into());
-    }
-    #[cfg(feature = "native-check")]
-    if revocation_check
-        && (signin_check != Some(check::SignInMode::Consent) || retain_check_account)
-    {
-        return Err("provider revocation requires a consent check with local withdrawal".into());
-    }
-    #[cfg(feature = "native-check")]
-    if revocation_cleanup
-        && (signin_check != Some(check::SignInMode::Consent)
-            || retain_check_account
-            || revocation_check)
-    {
-        return Err("revocation cleanup requires a separate consent-check invocation".into());
-    }
+    let check = checks.finish()?;
     prepare_profile(&paths.profile)?;
     let bus = format!(
         "dev.soda.Factory.p{}",
@@ -576,16 +455,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         signin: signin::SignIn::new(),
         product: product::Connections::new(),
         #[cfg(feature = "native-check")]
-        check: check::Check::new(
-            checking,
-            startup_error,
-            crash_check,
-            preconsent_check,
-            resume_check,
-            credential_check,
-            signin_check,
-            control_check,
-        ),
+        check,
     };
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

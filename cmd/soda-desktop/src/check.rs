@@ -1,70 +1,140 @@
 //! Opt-in native acceptance hook; absent from the normal application build.
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 #[derive(Clone, Copy, PartialEq)]
 pub enum SignInMode {
     Declared,
     Live,
     Consent,
 }
-pub struct Check {
-    pub enabled: bool,
-    startup_error: bool,
-    crash: bool,
-    preconsent: bool,
-    resume: bool,
-    credentials: bool,
-    control: bool,
-    signin: Option<SignInMode>,
-    stage: AtomicUsize,
-    instance: Mutex<Option<String>>,
+/// Parsed once by the check boundary. Flags remain independent because the
+/// existing journeys compose observers (for example writes with consent).
+#[derive(Default)]
+pub struct Options {
+    scenario: Scenario,
 }
-impl Check {
-    pub fn new(
-        enabled: bool,
-        startup_error: bool,
-        crash: bool,
-        preconsent: bool,
-        resume: bool,
-        credentials: bool,
-        signin: Option<SignInMode>,
-        control: bool,
-    ) -> Self {
-        Self {
-            enabled,
-            startup_error,
-            crash,
-            preconsent,
-            resume,
-            credentials,
-            signin,
-            control,
+#[derive(Clone, Copy, Default)]
+pub(super) struct Scenario {
+    pub enabled: bool,
+    pub startup_error: bool,
+    pub crash: bool,
+    pub preconsent: bool,
+    pub resume: bool,
+    pub credentials: bool,
+    pub control: bool,
+    pub signin: Option<SignInMode>,
+    pub github_writes: bool,
+    pub issue_read: bool,
+    pub retain_account: bool,
+    pub revocation: bool,
+    pub revocation_cleanup: bool,
+    // The existing OAuth observer requires this explicit flag even if another
+    // sign-in mode appears later. Mode selection itself retains last-flag wins.
+    pub consent_requested: bool,
+}
+impl Options {
+    /// Consume only a scenario flag; main still owns production path options
+    /// and takes their values directly from its original argument iterator.
+    pub fn consume(&mut self, arg: &std::ffi::OsStr) -> bool {
+        let scenario = &mut self.scenario;
+        match arg.to_str() {
+            Some("--check-github-writes") => scenario.github_writes = true,
+            Some("--check-issue-read") => {
+                scenario.issue_read = true;
+                return true;
+            }
+            Some("--check-provider-revocation-cleanup") => {
+                scenario.revocation_cleanup = true;
+                return true;
+            }
+            Some("--check-provider-revocation") => {
+                scenario.revocation = true;
+                return true;
+            }
+            Some("--check-retain-account") => {
+                scenario.retain_account = true;
+                return true;
+            }
+            Some("--check-control") => scenario.control = true,
+            Some("--check-signin") => scenario.signin = Some(SignInMode::Declared),
+            Some("--check-signin-live") => scenario.signin = Some(SignInMode::Live),
+            Some("--check-signin-consent") => {
+                scenario.signin = Some(SignInMode::Consent);
+                scenario.consent_requested = true;
+            }
+            Some("--check") => {}
+            Some("--check-startup-error") => scenario.startup_error = true,
+            Some("--check-crash") => scenario.crash = true,
+            Some("--check-preconsent") => scenario.preconsent = true,
+            Some("--check-resume") => scenario.resume = true,
+            Some("--check-credentials") => scenario.credentials = true,
+            _ => return false,
+        }
+        scenario.enabled = true;
+        true
+    }
+    pub fn finish(self) -> Result<Check, &'static str> {
+        let scenario = self.scenario;
+        if scenario.retain_account && scenario.signin != Some(SignInMode::Consent) {
+            return Err("retained check account requires the consent check");
+        }
+        if scenario.issue_read && scenario.signin != Some(SignInMode::Declared) {
+            return Err("issue read check requires the declared native sign-in journey");
+        }
+        if scenario.revocation
+            && (scenario.signin != Some(SignInMode::Consent) || scenario.retain_account)
+        {
+            return Err("provider revocation requires a consent check with local withdrawal");
+        }
+        if scenario.revocation_cleanup
+            && (scenario.signin != Some(SignInMode::Consent)
+                || scenario.retain_account
+                || scenario.revocation)
+        {
+            return Err("revocation cleanup requires a separate consent-check invocation");
+        }
+        Ok(Check {
+            scenario,
             stage: AtomicUsize::new(0),
             instance: Mutex::new(None),
+        })
+    }
+}
+impl Scenario {
+    fn timeout(self) -> Duration {
+        Duration::from_secs(if self.github_writes {
+            600
+        } else if self.signin == Some(SignInMode::Consent) {
+            1000
+        } else if self.issue_read {
+            180
+        } else if self.signin.is_some() || self.control {
+            90
+        } else {
+            45
+        })
+    }
+    fn consent_result(self) -> &'static str {
+        if self.revocation_cleanup {
+            "PASS: owned pending account cleanup; provider refresh outcome remains unverified"
+        } else {
+            "PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability"
         }
     }
 }
+pub struct Check {
+    pub(super) scenario: Scenario,
+    stage: AtomicUsize,
+    instance: Mutex<Option<String>>,
+}
 pub fn timeout(app: &tauri::AppHandle) {
-    if !app.state::<Desktop>().check.enabled {
+    if !app.state::<Desktop>().check.scenario.enabled {
         return;
     }
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(
-            if std::env::args_os().any(|arg| arg == "--check-github-writes") {
-                600
-            } else if app.state::<Desktop>().check.signin == Some(SignInMode::Consent) {
-                1000
-            } else if std::env::args_os().any(|arg| arg == "--check-issue-read") {
-                180
-            } else if app.state::<Desktop>().check.signin.is_some()
-                || app.state::<Desktop>().check.control
-            {
-                90
-            } else {
-                45
-            },
-        ));
+        std::thread::sleep(app.state::<Desktop>().check.scenario.timeout());
         if app.state::<Desktop>().check.stage.load(Ordering::SeqCst) != 2 {
             eprintln!("Native desktop acceptance timed out");
             app.exit(1);
@@ -76,13 +146,7 @@ pub fn consent_done(app: &tauri::AppHandle) {
         .check
         .stage
         .store(2, Ordering::SeqCst);
-    if std::env::args_os().any(|arg| arg == "--check-provider-revocation-cleanup") {
-        println!(
-            "PASS: owned pending account cleanup; provider refresh outcome remains unverified"
-        );
-    } else {
-        println!("PASS: approved native sign-in, encrypted grant reload and authenticated provider reads; see safe consent-result.json for private/refresh availability");
-    }
+    println!("{}", app.state::<Desktop>().check.scenario.consent_result());
     quit(app.clone());
 }
 pub fn github_writes_done(app: tauri::AppHandle) {
@@ -359,11 +423,11 @@ fn start_control(app: tauri::AppHandle) {
     })()"#);
 }
 pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
-    if window.label() != "main" || !window.state::<Desktop>().check.enabled {
+    if window.label() != "main" || !window.state::<Desktop>().check.scenario.enabled {
         return;
     }
     println!("Native desktop page loaded");
-    if window.state::<Desktop>().check.startup_error {
+    if window.state::<Desktop>().check.scenario.startup_error {
         let _ = window.eval(r#"(async()=>{
           const invoke=window.__TAURI__.core.invoke;
           try {
@@ -388,7 +452,7 @@ pub fn loaded(window: &tauri::Webview<tauri::Wry>) {
       try {
         const s=await wait();await document.fonts.ready;
         const app=document.querySelector('soda-factory-app');if(!app||!app.innerText.includes('Choose an account'))throw Error('shared disconnected application missing');
-        if(Object.keys(s).sort().join(',')!=='generation,instance,phase,profile')throw Error('native status leaked extra fields');
+        if(Object.keys(s).sort().join(',')!=='execution_error,generation,instance,phase,profile')throw Error('native status leaked extra fields');
         app.scheme='light';await app.updateComplete;const light=getComputedStyle(app.querySelector('.soda-factory-root')).backgroundColor;
         app.scheme='dark';await app.updateComplete;const dark=getComputedStyle(app.querySelector('.soda-factory-root')).backgroundColor;
         if(light!=='rgb(255, 255, 255)'||dark!=='rgb(16, 16, 16)')throw Error('native themes failed');
@@ -421,7 +485,7 @@ pub fn report(
 ) -> Result<(), String> {
     caller(&window)?;
     let state = app.state::<Desktop>();
-    if !state.check.enabled || window.label() != "main" {
+    if !state.check.scenario.enabled || window.label() != "main" {
         return Err("native acceptance is disabled".into());
     }
     if let Some(error) = error {
@@ -429,22 +493,22 @@ pub fn report(
         app.exit(1);
         return Ok(());
     }
-    if std::env::args_os().any(|arg| arg == "--check-github-writes")
+    if state.check.scenario.github_writes
         && stage == "github-writes-complete"
     {
         crate::check_credentials::finish_github_writes(app);
         return Ok(());
     }
-    if state.check.control && stage.starts_with("control-") {
+    if state.check.scenario.control && stage.starts_with("control-") {
         return control(&app, &stage);
     }
-    if state.check.signin.is_some() && stage == "signin-done" {
+    if state.check.scenario.signin.is_some() && stage == "signin-done" {
         state.check.stage.store(2, Ordering::SeqCst);
         println!("PASS: actual Linux Tauri/WebKit desktop sign-in, native prompt/metadata custody and cancellation; declared positive authorization is separate from real human consent");
         quit(app);
         return Ok(());
     }
-    if state.check.preconsent && stage == "preconsent-stable" {
+    if state.check.scenario.preconsent && stage == "preconsent-stable" {
         if state.check.stage.swap(2, Ordering::SeqCst) != 1
             || app.webview_windows().len() < 2
             || state
@@ -462,18 +526,18 @@ pub fn report(
         quit(app);
         return Ok(());
     }
-    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-prompt" {
+    if state.check.scenario.signin == Some(SignInMode::Consent) && stage == "signin-consent-prompt" {
         return crate::check_credentials::publish_consent_prompt(&app);
     }
-    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-consent-complete" {
-        if std::env::args_os().any(|arg| arg == "--check-github-writes") {
+    if state.check.scenario.signin == Some(SignInMode::Consent) && stage == "signin-consent-complete" {
+        if state.check.scenario.github_writes {
             crate::check_credentials::start_github_writes(app);
             return Ok(());
         }
         crate::check_credentials::start_consent_checks(app);
         return Ok(());
     }
-    if state.check.signin == Some(SignInMode::Consent) && stage == "signin-product-complete" {
+    if state.check.scenario.signin == Some(SignInMode::Consent) && stage == "signin-product-complete" {
         std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -481,13 +545,13 @@ pub fn report(
             .map_err(|_| "product IPC acknowledgement failed")?;
         return Ok(());
     }
-    if state.check.signin.is_some() && stage.starts_with("signin-") {
-        if state.check.signin != Some(SignInMode::Declared) && stage.starts_with("signin-mode-") {
+    if state.check.scenario.signin.is_some() && stage.starts_with("signin-") {
+        if state.check.scenario.signin != Some(SignInMode::Declared) && stage.starts_with("signin-mode-") {
             return Err("declared modes unavailable in live sign-in check".into());
         }
         return crate::check_credentials::signin_control(&app, &stage);
     }
-    if state.check.credentials && stage == "credential-withdrawn" {
+    if state.check.scenario.credentials && stage == "credential-withdrawn" {
         std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -495,7 +559,7 @@ pub fn report(
             .map_err(|_| "credential UI acknowledgement failed")?;
         return Ok(());
     }
-    if stage == "startup-error" && state.check.startup_error {
+    if stage == "startup-error" && state.check.scenario.startup_error {
         if state.runtime.lock().unwrap().is_some() {
             return Err("failed startup retained a runtime".into());
         }
@@ -504,7 +568,7 @@ pub fn report(
         quit(app);
         return Ok(());
     }
-    if stage == "resumed" && state.check.resume && state.check.stage.load(Ordering::SeqCst) == 1 {
+    if stage == "resumed" && state.check.scenario.resume && state.check.stage.load(Ordering::SeqCst) == 1 {
         state.check.stage.store(2, Ordering::SeqCst);
         println!(
             "PASS: native shared UI, private bridge and original PG/Go instance after OS wake"
@@ -524,30 +588,30 @@ pub fn report(
     println!(
         "Native desktop mounted: shared UI, private bridge refusals, stream and multiple windows"
     );
-    if std::env::args_os().any(|arg| arg == "--check-github-writes") {
+    if state.check.scenario.github_writes {
         crate::check_credentials::start_github_writes(app);
         return Ok(());
     }
-    if state.check.credentials {
+    if state.check.scenario.credentials {
         crate::check_credentials::start(app);
         return Ok(());
     }
-    if state.check.control {
+    if state.check.scenario.control {
         start_control(app);
         return Ok(());
     }
-    if let Some(mode) = state.check.signin {
+    if let Some(mode) = state.check.scenario.signin {
         crate::check_credentials::start_signin(app, mode);
         return Ok(());
     }
-    if state.check.resume {
+    if state.check.scenario.resume {
         return observe_resume(app);
     }
-    if state.check.crash {
+    if state.check.scenario.crash {
         println!("Native crash ready: {}", std::process::id());
         return Ok(());
     }
-    if state.check.preconsent {
+    if state.check.scenario.preconsent {
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_secs(20));
             if let Some(window) = app.get_webview_window("main") {
@@ -683,7 +747,7 @@ fn observe_resume(app: tauri::AppHandle) -> Result<(), String> {
 }
 pub fn activated(app: &tauri::AppHandle) {
     let state = app.state::<Desktop>();
-    if !state.check.enabled || state.check.stage.load(Ordering::SeqCst) != 1 {
+    if !state.check.scenario.enabled || state.check.stage.load(Ordering::SeqCst) != 1 {
         return;
     }
     let same = state

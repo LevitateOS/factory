@@ -2,7 +2,7 @@
 
 ## Current redesign — 2026-11-08
 
-Status: D1–D6 implemented and verified locally; D7–D8 remain pending design only.
+Status: D1–D7 implemented and verified locally; D8 remains pending design only.
 The decisions below came from step 3 of
 `untangle-codebase`, based on the [structural audit](factory-products/untangle-audit-2026-11-08.md)
 at Factory `502147c`, consolidated in canonical main through `42f2684`.
@@ -292,6 +292,29 @@ merely for their size; shared setup is consolidated only where duplication is
 proved. There is no replacement test framework or new acceptance hierarchy.
 **Proof:** build ordinary/native-check configurations and run the existing
 lifecycle scenario affected by the extraction. Required live cases remain open.
+
+Completion (2026-11-08): D1–D6 code/evidence verified, including canonical
+Fountain `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and its preserved gateway
+parent. `check.rs` now owns one typed scenario, flag parsing/validation,
+timeout precedence and scenario result selection. Callbacks use that resolved
+configuration; only main's production option iterator reads process arguments.
+Production startup/sign-in/Quit functions remain shared and unchanged.
+Both `cargo build --locked -p soda-desktop --features native-ui` and
+`--features native-check` passed with the retained GTK/WebKit sysroot:
+`/home/vince/Projects/d7-{regular,native-check}-build.log`.
+Existing `--check` passed real Tauri/WebKit, native PostgreSQL/Go readiness,
+shared UI/themes, bridge refusals, stream/window closure, second-launch
+activation and production Quit. Its stale status-key assertion was updated for
+the already-present `execution_error` field. Reproduction: `bash
+/home/vince/Projects/d7-native-session.sh FRESH_PREPARED_SCRATCH_ROOT`; evidence:
+`/home/vince/Projects/d7-lifecycle-verified/run.log`. Built-binary CLI probes
+passed all 15 supported flags, modifier refusals, last sign-in mode precedence,
+path-value consumption and regular-build refusal (`d7-cli-check.sh` and
+`d7-cli-check.log` under `/home/vince/Projects`). Seven original edits,
+including the overlapping credential-check block, are preserved outside this
+commit. Other scenario journeys, including live consent/provider writes,
+revocation and OS sleep/wake, remain unperformed/pending; no installed or new
+security qualification. D8 remains pending; old product queue stays cleared.
 
 ### D8. Keep current decisions short and historical evidence immutable
 
