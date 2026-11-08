@@ -19,6 +19,12 @@ use tokio::sync::watch;
 use tokio::task::JoinSet;
 
 const BYTES: u64 = 512 * 1024 * 1024;
+fn charge(bytes: &AtomicU64, count: usize) -> io::Result<()> {
+    if bytes.fetch_add(count as u64, Ordering::SeqCst).saturating_add(count as u64) > BYTES {
+        return Err(io::Error::new(io::ErrorKind::QuotaExceeded, "setup HTTPS transfer budget exceeded"));
+    }
+    Ok(())
+}
 fn denied() -> io::Error {
     io::Error::new(io::ErrorKind::PermissionDenied, "approved setup public HTTPS unavailable")
 }
@@ -65,7 +71,7 @@ impl SetupNetwork {
             runtime.block_on(async move {
                 let listener = UnixListener::from_std(listener)?;
                 let bytes = Arc::new(AtomicU64::new(0));
-                let mut jobs = JoinSet::new();
+                let mut jobs: JoinSet<io::Result<()>> = JoinSet::new();
                 let deadline = tokio::time::Instant::now() + duration;
                 let mut check = tokio::time::interval(Duration::from_millis(50));
                 let mut count = 0;
@@ -76,7 +82,11 @@ impl SetupNetwork {
                         _ = stopping.changed() => break Ok(()),
                         _ = check.tick() => if cancellation.cancelled() { break Ok(()); },
                         _ = tokio::time::sleep_until(deadline) => break Ok(()),
-                        _ = jobs.join_next(), if !jobs.is_empty() => {},
+                        result = jobs.join_next(), if !jobs.is_empty() => {
+                            if let Some(Ok(Err(error))) = result {
+                                if error.kind() == io::ErrorKind::QuotaExceeded { break Err(error); }
+                            }
+                        },
                         accepted = listener.accept() => {
                             let (stream, _) = match accepted { Ok(value) => value, Err(error) => break Err(error) };
                             if !stream.peer_cred().is_ok_and(|peer| peer.uid() == uid) { continue; }
@@ -85,7 +95,8 @@ impl SetupNetwork {
                             if jobs.len() >= 8 { continue; }
                             let bytes = bytes.clone();
                             jobs.spawn(async move {
-                                let _ = tokio::time::timeout(Duration::from_secs(120), connection(stream, bytes)).await;
+                                tokio::time::timeout(Duration::from_secs(120), connection(stream, bytes)).await
+                                    .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "setup connection timed out"))?
                             });
                         }
                     }
@@ -191,13 +202,7 @@ async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
         if count == 0 {
             return writer.shutdown().await;
         }
-        if bytes
-            .fetch_add(count as u64, Ordering::SeqCst)
-            .saturating_add(count as u64)
-            > BYTES
-        {
-            return Err(denied());
-        }
+        charge(&bytes, count)?;
         tokio::time::timeout(Duration::from_secs(30), writer.write_all(&buffer[..count]))
             .await
             .map_err(|_| denied())??;
@@ -266,7 +271,7 @@ async fn connection(mut stream: UnixStream, bytes: Arc<AtomicU64>) -> io::Result
         .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         .await?;
     if end < header.len() {
-        bytes.fetch_add((header.len() - end) as u64, Ordering::SeqCst);
+        charge(&bytes, header.len() - end)?;
         remote.write_all(&header[end..]).await?;
     }
     let (client_read, client_write) = stream.into_split();

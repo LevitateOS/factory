@@ -595,15 +595,18 @@ impl Broker {
                 ),
             )?;
         }
-        Self::preparing(cancellation.clone()).prepare_reviewer(run, profile, &sha256, candidate)?;
-        let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
-        if receipt.setup_sha256 != approved.digest() {
-            return Err(refused("native setup receipt differs"));
-        }
+        let result = (|| {
+            Self::preparing(cancellation.clone()).prepare_reviewer(run, profile, &sha256, candidate)?;
+            let receipt = Self::read_source_setup(run, profile, &sha256, candidate, cancellation)?;
+            if receipt.setup_sha256 != approved.digest() {
+                return Err(refused("native setup receipt differs"));
+            }
+            Ok(receipt)
+        })();
         if let Some(network) = network.as_mut() {
             network.stop()?;
         }
-        Ok(receipt)
+        result
     }
     pub(crate) fn read_source_context(
         run: &str,

@@ -4175,6 +4175,9 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
 		duration = 180 * time.Second
 	}
+	if mode == "network-limit" {
+		duration = 150 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 	db, err := store.OpenStandaloneContext(ctx, config.DatabaseDSN())
@@ -4338,6 +4341,12 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			files["setup-limits.json"] = []byte(`{"setup_seconds":120,"check_seconds":30}`)
 		}
 		files["setup.sh"] = append(files["setup.sh"], []byte(install)...)
+		if mode == "network-limit" {
+			tools = []string{"git", "bash", "curl"}
+			files["setup-limits.json"] = []byte(`{"setup_seconds":120,"check_seconds":1}`)
+			files["setup.sh"] = []byte(fmt.Sprintf("for attempt in $(seq 1 32); do\n curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 5 --max-time 30 --retry 2 --retry-delay 1 --retry-max-time 30 'https://github.com/oven-sh/bun/releases/download/%s/bun-linux-x64.zip' -o \"$TMPDIR/bun.zip\"\n printf '%%s  %%s\\n' '%s' \"$TMPDIR/bun.zip\" | sha256sum --check --status\n printf 'verified artifact %%s\\n' \"$attempt\"\ndone\nexit 1\n", release.Version, release.SHA256))
+			files["check.sh"] = []byte("exit 1\n")
+		}
 		if os.Getenv("SODA_NATIVE_CHECK_FACTORY_BUILD") == "1" {
 			files["check.sh"] = append(files["check.sh"], []byte("test -s .artifacts/factory-ui/factory-app.js\ntest -s .artifacts/factory-ui/factory.css\nbun scripts/build-factory-ui.ts --out .artifacts/factory-ui-offline\ncmp .artifacts/factory-ui/factory-app.js .artifacts/factory-ui-offline/factory-app.js\nprintf 'checked-by-native actual shared UI lifecycle build and offline snapshot rebuild\\n'\n")...)
 		} else {
@@ -4414,7 +4423,10 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	}
 	for !state.Ready {
 		if state.Phase != project.PrepareRunning {
-			if (mode == "output-limit" || mode == "time-limit" || mode == "network-off") && state.Phase == project.PrepareFailed {
+			if (mode == "output-limit" || mode == "time-limit" || mode == "network-off") && state.Phase == project.PrepareFailed || mode == "network-limit" && state.Phase == project.PrepareInterrupted {
+				if mode == "network-limit" && !strings.Contains(state.Output, "setup HTTPS transfer budget exceeded") {
+					return fmt.Errorf("network setup failed without exact native budget evidence: %s", state.Output)
+				}
 				if mode == "network-off" && (state.SetupExit == nil || *state.SetupExit == 0 || state.CheckExit != nil || !(strings.Contains(state.Output, "ENOTFOUND") || strings.Contains(state.Output, "EAI_AGAIN") || strings.Contains(state.Output, "ENETUNREACH"))) {
 					return fmt.Errorf("offline dependency install did not retain network refusal: %s", state.Output)
 				}
@@ -4458,7 +4470,7 @@ func nativePreparationFixture(profile, instance, mode string) error {
 			return err
 		}
 	}
-	if mode == "output-limit" || mode == "time-limit" || mode == "network-off" {
+	if mode == "output-limit" || mode == "time-limit" || mode == "network-off" || mode == "network-limit" {
 		return errors.New("limited setup falsely became ready")
 	}
 	if state.SetupExit == nil || *state.SetupExit != 0 || state.CheckExit == nil || *state.CheckExit != 0 || state.SourceBundleSHA256 == "" || !strings.Contains(state.Output, "checked-by-native") {

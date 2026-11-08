@@ -774,16 +774,18 @@ fn managed_preparations(
 ) -> Result<(), Box<dyn std::error::Error>> {
     use soda_desktop_runtime::factory_provider::Broker;
     let mut roots = Vec::new();
-    let modes = if std::env::var("SODA_NATIVE_CHECK_PUBLIC_SETUP").as_deref() == Ok("1") {
-        ["ready", "network-off"]
+    let modes: &[&str] = if std::env::var("SODA_NATIVE_CHECK_NETWORK_LIMIT").as_deref() == Ok("1") {
+        &["network-limit"]
+    } else if std::env::var("SODA_NATIVE_CHECK_PUBLIC_SETUP").as_deref() == Ok("1") {
+        &["ready", "network-off"]
     } else if std::env::var("SODA_NATIVE_CHECK_SETUP_BUDGET").as_deref() == Ok("1") {
-        ["ready", "time-limit"]
+        &["ready", "time-limit"]
     } else if std::env::var("SODA_NATIVE_CHECK_NODE_SETUP").as_deref() == Ok("1") {
-        ["ready", "output-limit"]
+        &["ready", "output-limit"]
     } else {
-        ["ready", "pending"]
+        &["ready", "pending"]
     };
-    for mode in modes {
+    for &mode in modes {
         let profile = root.join(format!("preparation-{mode}"));
         let supervisor = NativeSupervisor::start(payload, backend, &profile)?;
         let ready = supervisor.health()?;
@@ -854,7 +856,9 @@ fn managed_preparations(
             return Err("native preparation retirement acknowledgement missing".into());
         }
     }
-    if modes.contains(&"network-off") {
+    if modes.contains(&"network-limit") {
+        println!("PASS: aggregate encrypted setup transfer budget refused readiness and retired the exact preparation");
+    } else if modes.contains(&"network-off") {
         println!("PASS: approved public HTTPS setup installs a cold declared npm dependency; proxy refuses loopback/plain HTTP, absent approval keeps setup offline; exact preparation/root retirement confirmed");
     } else if modes.contains(&"pending") {
         println!("PASS: supervisor Quit cancels and joins an actually running setup before child shutdown, retaining inputs and scoped retirement evidence");
