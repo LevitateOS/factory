@@ -585,6 +585,19 @@ pub fn report(
         return Ok(());
     }
     if state.check.scenario.github_writes
+        && stage.starts_with("onboarding-repository:")
+    {
+        let repository = stage.trim_start_matches("onboarding-repository:");
+        if repository.is_empty() || repository.len() > 20 || !repository.bytes().all(|b| b.is_ascii_digit())
+            || repository.parse::<u64>().ok().filter(|n| *n > 0).is_none()
+        {
+            return Err("invalid onboarding repository".into());
+        }
+        std::fs::write(control_root(&app)?.join("onboarding-repository"), repository)
+            .map_err(|_| "onboarding repository marker unavailable".to_string())?;
+        return Ok(());
+    }
+    if state.check.scenario.github_writes
         && stage == "github-writes-complete"
     {
         crate::check_credentials::finish_github_writes(app);

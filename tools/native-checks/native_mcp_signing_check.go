@@ -1289,7 +1289,11 @@ func main() {
 		if os.Args[3] == "check-review-policy" {
 			err = nativeReviewPolicyFixture(os.Args[1], os.Args[2], os.Args[4])
 		} else if strings.HasSuffix(os.Args[3], "onboarded-setup") {
-			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"))
+			expectedSources := 14
+			if os.Args[3] == "check-ui-onboarded-setup" {
+				expectedSources = 2
+			}
+			err = onboardedSetupFixture(os.Args[1], os.Args[2], os.Args[4], strings.HasPrefix(os.Args[3], "retire-"), expectedSources)
 		} else if strings.HasPrefix(os.Args[3], "refine-native-request") {
 			err = nativeRequestRefinementFixture(os.Args[1], os.Args[2], os.Args[4], os.Args[3])
 		} else if strings.HasPrefix(os.Args[3], "native-graph-") {
@@ -1345,7 +1349,7 @@ func main() {
 	}
 }
 
-func onboardedSetupFixture(profile, instance, repository string, retire bool) error {
+func onboardedSetupFixture(profile, instance, repository string, retire bool, expectedSources int) error {
 	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
 	if err != nil {
 		return err
@@ -1403,7 +1407,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 		}
 		if !retire {
 			p := prep.Preparation
-			if len(p.Requirements.SourceInputs) != 14 {
+			if len(p.Requirements.SourceInputs) != expectedSources {
 				return errors.New("onboarding lost reviewed planning source selection")
 			}
 			reader := control.NewCoordinator(db, port, port)
@@ -1411,7 +1415,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 			if readErr != nil {
 				return readErr
 			}
-			if material.ValidateContent(p.Role) == nil || material.ValidateSelectedContent(p.Role) != nil {
+			if expectedSources > 12 && material.ValidateContent(p.Role) == nil || material.ValidateSelectedContent(p.Role) != nil {
 				return errors.New("combined source context weakened the native reply bound")
 			}
 			seen := map[string]bool{}
@@ -1424,7 +1428,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 					seen[file.Path] = true
 				}
 			}
-			if len(seen) != 14 {
+			if len(seen) != expectedSources {
 				return errors.New("prepared planning context omitted reviewed source")
 			}
 		}
@@ -1441,7 +1445,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool) er
 		if !input.PreparationReady {
 			return errors.New("reviewed native setup cannot reach canonical readiness")
 		}
-		fmt.Println("PASS: production application-verification reader captured all 14 approved source files from both native workspaces; individual native context bound remains 12 files")
+		fmt.Printf("PASS: production application-verification reader captured all %d approved source files from both native workspaces; individual native context bound remains 12 files\n", expectedSources)
 	}
 	fmt.Println("PASS: owner-reviewed initial setup retains Verified=false and no invented readiness digest; both roles have actual native setup/check/source observations", map[bool]string{true: "and confirmed retirement", false: "and canonical readiness"}[retire])
 	return nil

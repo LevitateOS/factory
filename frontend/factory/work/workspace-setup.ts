@@ -113,10 +113,11 @@ function executionSettings(files: Record<string, string>) {
 }
 
 export class SodaFactoryWorkspaceSetup extends LitElement {
-  static properties = {view: {state: true}, busy: {state: true}, message: {state: true}};
+  static properties = {view: {state: true}, busy: {state: true}, message: {state: true}, selectionCurrent: {state: true}};
   declare private view: Setup | undefined;
   declare private busy: boolean;
   declare private message: string;
+  declare private selectionCurrent: boolean;
   private current: Context | undefined;
   private lifetime = new AbortController();
   private command: SetupCommand | undefined;
@@ -126,6 +127,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     super();
     this.busy = false;
     this.message = '';
+    this.selectionCurrent = false;
   }
   protected createRenderRoot() {
     return this;
@@ -141,6 +143,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     this.lifetime = new AbortController();
     this.current = value;
     this.view = undefined;
+    this.selectionCurrent = false;
     this.command = undefined;
     this.record = undefined;
     this.recoveryBlocked = false;
@@ -168,6 +171,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     const context = this.current,
       signal = this.lifetime.signal;
     if (!context || this.busy) return;
+    this.selectionCurrent = false;
     this.busy = true;
     try {
       const response = await context.transport.request(
@@ -179,6 +183,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
       const view = setupResponse(await readSodaJSON(response));
       if (this.live(context, signal)) {
         this.view = view;
+        this.selectionCurrent = true;
         this.message = '';
       }
     } catch (error) {
@@ -190,6 +195,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
   }
   private async preview(event: SubmitEvent) {
     event.preventDefault();
+    this.selectionCurrent = false;
     const form = event.currentTarget as HTMLFormElement;
     if (!form.reportValidity()) return;
     const paths = String(new FormData(form).get('paths') ?? '')
@@ -207,7 +213,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
     const context = this.current,
       view = this.view,
       signal = this.lifetime.signal;
-    if (!context || !view?.available || this.busy || this.command || this.recoveryBlocked || !this.record) return;
+    if (!context || !view?.available || !this.selectionCurrent || this.busy || this.command || this.recoveryBlocked || !this.record) return;
     const form = event.currentTarget as HTMLFormElement;
     if (!form.reportValidity()) return;
     const values = new FormData(form);
@@ -346,6 +352,8 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                     rows="4"
                     maxlength="16384"
                     required
+                    ?disabled=${this.busy}
+                    @input=${() => { this.selectionCurrent = false; }}
                     .value=${view.selected_paths.join('\n')}
                   ></textarea>
                 </label>
@@ -367,7 +375,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                 ${view.saved_recipe ? 'These scripts and tools are from your saved approval. Review them for the selected source.' : 'Scripts are read from the selected source when present. Supply the setup and checks this project needs.'}
               </p>
               ${keyed(
-                `${view.source}:${view.requirement}:${view.approval}:${JSON.stringify(view.source_inputs)}`,
+                `${view.source}:${view.requirement}:${view.approval}:${JSON.stringify(view.source_inputs)}:${this.selectionCurrent}`,
                 html`<form @submit=${(event: SubmitEvent) => this.approve(event)}>
                   ${[
                     ...new Set([
@@ -428,7 +436,7 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                   >
                   <button
                     type="submit"
-                    ?disabled=${this.busy || this.recoveryBlocked || !!this.command || view.missing_paths.length > 0 || Object.keys(view.source_inputs).length === 0}
+                    ?disabled=${this.busy || !this.selectionCurrent || this.recoveryBlocked || !!this.command || view.missing_paths.length > 0 || Object.keys(view.source_inputs).length === 0}
                   >
                     Approve and prepare both roles
                   </button>

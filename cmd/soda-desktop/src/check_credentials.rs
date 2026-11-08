@@ -121,7 +121,11 @@ async fn github_writes(app: &tauri::AppHandle) -> Result<(), String> {
     if fixture["mode"] == "inspect" {
         return Ok(());
     }
-    let script = include_str!("github_writes_check.js")
+    let script = if fixture["mode"] == "onboarding" {
+        include_str!("onboarding_check.js")
+    } else {
+        include_str!("github_writes_check.js")
+    }
         .replace(
             "__CONNECTION__",
             &serde_json::to_string(&connection).unwrap(),
@@ -147,8 +151,37 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
             let retained = fixture["mode"] == "other_actor" && fixture["review_stage"] == "draft"
                 || (fixture["mode"] == "reviewer_requests" || fixture["issue_navigation"] == true)
                     && fixture["retain_account"] == true;
+            if fixture["mode"] == "onboarding" {
+                let repository = std::fs::read_to_string(root.join("onboarding-repository"))
+                    .map_err(|_| "onboarding repository not observed")?;
+                let instance = state.runtime.lock().unwrap().as_ref()
+                    .and_then(|owner| owner.health().ok()).ok_or("onboarding native instance missing")?.instance;
+                let result = tokio::process::Command::new(root.join("onboarding-check"))
+                    .arg(&state.paths.profile).arg(instance).arg("check-ui-onboarded-setup")
+                    .arg(repository).output().await.map_err(|_| "onboarding inspection unavailable")?;
+                println!("{}", String::from_utf8_lossy(&result.stdout));
+                if !result.status.success() {
+                    return Err(format!("onboarding inspection: {}", String::from_utf8_lossy(&result.stderr)));
+                }
+            }
             if !retained {
                 store.withdraw(&accounts[0].connection).await.map_err(|e| e.to_string())?;
+            }
+            if fixture["mode"] == "onboarding" {
+                write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
+                    "real_github": true,
+                    "production_ui_ipc_go_pg_native": true,
+                    "source_selection_bounds": fixture["skip_bounds"] != true,
+                    "source_selection_stale_consent": true,
+                    "both_native_role_preparations_ready": true,
+                    "approval_verified": false,
+                    "owned_account_removed": true,
+                    "oauth_source": "user_authorized_gh_grant",
+                    "factory_device_scope_qualified": false,
+                    "installed_qualified": false,
+                    "q07_complete": false,
+                }))?;
+                return Ok::<(), String>(());
             }
             if fixture["mode"] == "placement" {
                 write_consent_evidence(&app, "github-ui-write-result.json", &serde_json::json!({
