@@ -2319,7 +2319,7 @@ export class SodaIntent extends LitElement {
         }
         if (planned.walkthroughs && !planned.review) {
           const review = parseExploration(
-            await this.call('/api/factory/intents/' + current.intent + '/plan/review', {revision: current.id}, signal)
+            await this.call('/api/factory/intents/' + current.intent + '/plan/review', {revision: current.id, command_id: crypto.randomUUID().replaceAll('-', '')}, signal)
           );
           signal.throwIfAborted();
           check(

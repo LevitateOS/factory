@@ -51,6 +51,8 @@ type NativeJudgmentCapture struct {
 	Repository       int64                   `json:"repository,string"`
 	SourcePost       string                  `json:"source_post,omitempty"`
 	SourceRevision   int64                   `json:"source_revision,omitempty"`
+	RetryOf          string                  `json:"retry_of,omitempty"`
+	RetryCommand     string                  `json:"retry_command,omitempty"`
 	Selection        RoleSelection           `json:"selection"`
 	PolicyRevision   *int64                  `json:"policy_revision,omitempty"`
 	FundingRevision  *int64                  `json:"funding_revision,omitempty"`
@@ -72,6 +74,9 @@ func (c NativeJudgmentCapture) Command() (Command, error) {
 	}
 	if c.SourcePost != "" && (!ValidID(c.SourcePost) || c.SourceRevision < 0) {
 		return Command{}, errors.New("invalid judgment source revision")
+	}
+	if (c.RetryOf != "" || c.RetryCommand != "") && (!ValidID(c.RetryOf) || !ValidID(c.RetryCommand) || c.SourcePost != "" || c.WorkerCapability != "") {
+		return Command{}, errors.New("invalid explicit judgment retry")
 	}
 	if (c.PolicyRevision == nil) != (c.FundingRevision == nil) || c.PolicyRevision != nil && (*c.PolicyRevision < 0 || *c.FundingRevision < 0) {
 		return Command{}, errors.New("invalid judgment authority revisions")

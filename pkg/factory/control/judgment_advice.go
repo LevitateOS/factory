@@ -51,7 +51,7 @@ func (c *Coordinator) consultPurposeChoice(ctx context.Context, advice PurposeAd
 	answer, callErr := SelectProductJudgment(bounded, c.Planning.Chooser, advice.Repository, "purpose:"+fingerprint, advice.State, advice.Question, advice.Options)
 	cancel()
 	if callErr != nil {
-		return factory.PriorityAnswer{}, ErrConsultationFailed
+		return factory.PriorityAnswer{}, errors.Join(ErrConsultationFailed, callErr)
 	}
 	if admitted, err := advice.Admit(ctx, fingerprint); err != nil || !admitted {
 		return factory.PriorityAnswer{}, errors.Join(ErrPriorityUnavailable, err)
@@ -84,9 +84,9 @@ func (c *Coordinator) AdvisePurpose(ctx context.Context, advice PurposeAdvice) (
 	if err == nil {
 		if c.Planning != nil {
 			if retained, ok := c.Planning.Chooser.(interface {
-				CheckJudgment(context.Context, int64, string) error
+				CheckJudgment(context.Context, int64, string, factory.PriorityAnswer) error
 			}); ok {
-				if err := retained.CheckJudgment(ctx, advice.Repository, "purpose:"+fingerprint); err != nil {
+				if err := retained.CheckJudgment(ctx, advice.Repository, "purpose:"+fingerprint, prior.Calls[0].Answer); err != nil {
 					return factory.PriorityAnswer{}, false, err
 				}
 			}

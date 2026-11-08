@@ -151,6 +151,8 @@ func (s Requests) planningReadError(w http.ResponseWriter, err error, review boo
 		s.authorityError(w, err)
 	case errors.Is(err, store.ErrStaleRevision):
 		writeError(w, 412, "stale_revision", "The direction changed while its walkthrough was checked.")
+	case errors.Is(err, factoryservice.ErrRequestInputInvalid):
+		writeError(w, 400, "invalid_request", "A review command identity must be 32 hexadecimal characters.")
 	case errors.Is(err, factoryservice.ErrPlanningWalkthroughUnavailable):
 		writeError(w, 409, "walkthrough_unavailable", "This plan has no completed authored walkthrough. Plan again to produce one.")
 	case errors.Is(err, factoryservice.ErrPlanningWalkthroughInvalid) && !review:
@@ -188,6 +190,7 @@ func (s Requests) reviewPlan(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Revision string `json:"revision"`
+		Command  string `json:"command_id,omitempty"`
 	}
 	if !decodeObject(w, r, &in) {
 		return
@@ -195,7 +198,9 @@ func (s Requests) reviewPlan(w http.ResponseWriter, r *http.Request) {
 	if !s.current(w, r) {
 		return
 	}
-	result, err := s.Exploration.ReviewWalkthrough(r.Context(), actor, r.PathValue("intentID"), in.Revision)
+	exploration := s.Exploration
+	exploration.RetryCommand = in.Command
+	result, err := exploration.ReviewWalkthrough(r.Context(), actor, r.PathValue("intentID"), in.Revision)
 	if err != nil {
 		s.planningReadError(w, err, true)
 		return
@@ -258,6 +263,10 @@ func (s Requests) savedPlanning(w http.ResponseWriter, r *http.Request) {
 }
 
 func reportJudgmentCallError(w http.ResponseWriter, err error, unavailable string) {
+	if errors.Is(err, factoryservice.ErrPostJudgmentPending) {
+		writeError(w, 503, "judgment_pending", "The original judgment is still settling. Retry to recover its saved result.")
+		return
+	}
 	if errors.Is(err, control.ErrPriorityUnavailable) {
 		writeError(w, 503, "planning_unavailable", unavailable)
 		return

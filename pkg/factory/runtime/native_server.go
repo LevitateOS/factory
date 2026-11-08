@@ -69,7 +69,7 @@ func runNative(ctx context.Context, path string, connector NativeConnector, bind
 	instance := collaboration.NewID()
 	native := NativeExecution{Config: config, Instance: instance, Store: db}
 	inputs := NativeInputSource{native}
-	judgments := NativeJudgments{native}
+	judgments := NativeJudgments{NativeExecution: native}
 	application := NewNativeApplication(factoryservice.ApplicationPorts{Store: db, Host: native, Broker: native, Graph: NativeGraphs{inputs}, Creations: inputs, CompletionIssues: inputs.ReadCompletionIssues, CompletionLocalCapture: inputs.CaptureCompletionLocal, AcceptanceReads: inputs, DispatchReads: inputs, Checks: inputs, Reviews: NativeReviews{inputs}, Publication: NativePublication{inputs}, Merges: NativeMerges{inputs}, IssueEffects: NewNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, Priority: judgments, ContextChooser: judgments, CurrentChooser: func() control.ProductJudgment { return judgments }}, binding)
 	defer func() { runErr = errors.Join(runErr, application.Close()) }()
 	if err := application.Recover(startup); err != nil {

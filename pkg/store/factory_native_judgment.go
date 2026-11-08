@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -13,6 +14,17 @@ import (
 )
 
 var ErrNativeJudgmentSource = errors.New("selected judgment source is unavailable or exhausted")
+
+// NativeJudgmentRetry discovers the last explicit retry before considering a
+// new command. A lost client identity never permits repeating pending inference.
+func (s *Store) NativeJudgmentRetry(ctx context.Context, parent string) (factory.Command, error) {
+	var cmd factory.Command
+	err := s.db.QueryRowContext(ctx, `SELECT id,type,target,principal,digest,payload,created,finished,outcome FROM factory_commands WHERE type=$1 AND payload::jsonb->>'retry_of'=$2 ORDER BY created DESC,id DESC LIMIT 1`, factory.CommandNativeJudgment, parent).Scan(&cmd.ID, &cmd.Type, &cmd.Target, &cmd.Principal, &cmd.Digest, &cmd.Payload, &cmd.Created, &cmd.Finished, &cmd.Outcome)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ErrNotFound
+	}
+	return cmd, err
+}
 
 func (s *Store) PendingNativeJudgments(ctx context.Context) ([]factory.Command, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id,target,principal,digest,payload,created FROM factory_commands WHERE type=$1 AND finished='' ORDER BY created,id LIMIT 32`, factory.CommandNativeJudgment)
@@ -99,6 +111,37 @@ func (s *Store) BeginNativeJudgment(ctx context.Context, c factory.NativeJudgmen
 	}
 	if err = nativeJudgmentRoom(ctx, tx, c, 1); err != nil {
 		return factory.Command{}, false, err
+	}
+	if c.RetryOf != "" {
+		var payload, outcome, finished string
+		if err = tx.QueryRowContext(ctx, `SELECT payload,outcome,finished FROM factory_commands WHERE id=$1 AND type=$2 FOR UPDATE`, c.RetryOf, factory.CommandNativeJudgment).Scan(&payload, &outcome, &finished); err != nil {
+			return factory.Command{}, false, ErrNativeJudgmentSource
+		}
+		var parent factory.NativeJudgmentCapture
+		var result struct {
+			Answer  json.RawMessage `json:"answer"`
+			Output  json.RawMessage `json:"output"`
+			Process struct {
+				Run      string `json:"run"`
+				Finished bool   `json:"finished"`
+				Live     *bool  `json:"live"`
+				Retired  bool   `json:"tree_retired"`
+			} `json:"process"`
+		}
+		if finished == "" || json.Unmarshal([]byte(payload), &parent) != nil || json.Unmarshal([]byte(outcome), &result) != nil ||
+			parent.ID != c.RetryOf || parent.Profile != c.Profile || parent.Repository != c.Repository || !reflect.DeepEqual(parent.Selection, c.Selection) ||
+			parent.PromptSHA256 != c.PromptSHA256 || parent.OptionsSHA256 != c.OptionsSHA256 || parent.OutputKind != c.OutputKind ||
+			len(result.Answer) != 0 && string(result.Answer) != "null" || len(result.Output) != 0 && string(result.Output) != "null" ||
+			result.Process.Run != parent.ID || !result.Process.Finished || !result.Process.Retired || result.Process.Live == nil || *result.Process.Live {
+			return factory.Command{}, false, ErrNativeJudgmentSource
+		}
+		var pending bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_commands WHERE type=$1 AND target=$2 AND id<>$3 AND payload::jsonb->>'retry_of'=$4 AND (finished='' OR COALESCE(NULLIF(outcome,''),'{}')::jsonb->>'answer' IS NOT NULL OR COALESCE(NULLIF(outcome,''),'{}')::jsonb->>'output' IS NOT NULL))`, factory.CommandNativeJudgment, cmd.Target, c.ID, c.RetryOf).Scan(&pending); err != nil {
+			return factory.Command{}, false, err
+		}
+		if pending {
+			return factory.Command{}, false, ErrNativeJudgmentSource
+		}
 	}
 	if c.DeadlineUnixMS <= time.Now().UnixMilli() || c.DeadlineUnixMS > time.Now().Add(30*time.Second).UnixMilli() {
 		return factory.Command{}, false, ErrNativeJudgmentSource

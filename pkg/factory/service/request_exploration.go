@@ -17,8 +17,9 @@ import (
 // RequestExploration owns private exploration and recorded walkthrough advice.
 // Commands use the existing durable judgment producer; reads never wire a chooser.
 type RequestExploration struct {
-	Requests Requests
-	Chooser  control.ProductJudgment
+	Requests     Requests
+	Chooser      control.ProductJudgment
+	RetryCommand string
 }
 
 var (

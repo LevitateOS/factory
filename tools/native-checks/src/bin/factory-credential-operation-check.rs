@@ -1200,9 +1200,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let profile = Path::new(&args[3]);
             let resume_merge=args.len()==10 && field(9)?=="merge-resume";
             let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
+            let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
-            if resume_merge || resume_judgments || resume_authoring {
+            if resume_merge || resume_judgments || resume_authoring || connected_graph {
                 ensure(profile.starts_with("/home") && profile.join("profile.id").is_file(),"retained private merge profile required")?;
             } else { prepare(profile)?; }
             let mut secret = Vec::new();
@@ -1239,6 +1240,140 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 ensure(reply.status==200,"native repository catalogue unavailable")?;
                 let catalog:serde_json::Value=serde_json::from_slice(&reply.body)?;
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
+                if connected_graph {
+                    let root=profile.parent().ok_or("profile parent missing")?;
+                    let resume_review=field(9)?=="authoring-graph-review";
+                    let background=root.join(if resume_review {"graph-current.json"}else{"graph.json"});
+                    let intent="d141414141414141414141414";
+                    let draft="d242424242424242424242424";
+                    let accepted="d444444444444444444444444";
+                    let base=format!("/api/factory/intents/{intent}");
+                    if field(9)?=="authoring-graph-recover" {
+                        let recovery=root.join("graph-recovery-current.json");
+                        let mut fixture:serde_json::Value=serde_json::from_slice(&fs::read(&background)?)?;
+                        fixture["Connection"]=json!(saved.connection);
+                        fs::write(&recovery,serde_json::to_vec(&fixture)?)?;
+                        let status=tokio::process::Command::new(&args[7]).arg(profile).arg(&ready.instance).arg("check-connected-authoring").arg(&recovery).env("SODA_NATIVE_AUTHORING_PHASE","graph-recover").status().await?;
+                        ensure(status.success(),"original graph settlement failed; retain original receipts")?;
+                        return Ok(());
+                    }
+                    // Fixed original identities: never replace a prior generation,
+                    // renew its authority or start a second planning attempt.
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let old=request.request("GET",&base,&[]).await?;
+                    if old.status==200 {
+                        let head:serde_json::Value=serde_json::from_slice(&old.body)?;
+                        ensure(head["id"]==draft && head["state"]=="draft","original graph head advanced; inspect its grant and receipts before resuming")?;
+                        let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let prior=request.request("GET",&format!("{base}/plan"),&[]).await?;
+                        let prior:serde_json::Value=serde_json::from_slice(&prior.body)?;
+                        ensure(prior["state"]==if resume_review {"completed"}else{"none"},"graph planner state differs; recover its original process and source before continuing")?;
+                        if resume_review {
+                            let original:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-graph-plan.json"))?)?;
+                            ensure(prior["run_id"]==original["run"]["id"] && original["run"]["reconciled"]==true,"original completed planner receipt changed")?;
+                        }
+                    } else {ensure(old.status==404,"original graph head unreadable")?;}
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let view=request.request("GET",&format!("/api/repositories/{repository}/factory"),&[]).await?;
+                    ensure(view.status==200,"graph repository policy unavailable")?;
+                    let view:serde_json::Value=serde_json::from_slice(&view.body)?;
+                    fs::write(root.join(format!("graph-policy-before-{}.json",saved.connection)),serde_json::to_vec_pretty(&view)?)?;
+                    let binding=view["native_bindings"].as_array().ok_or("native bindings missing")?.iter().find(|b|b["kind"]=="pull_request.create").ok_or("graph create actor missing")?;
+                    ensure(binding["native_connection"]==json!(saved.connection),"graph would borrow another account connection")?;
+                    let actor=binding["actor_id"].clone();
+                    let writer=json!({"native_profile":binding["native_profile"],"native_connection":saved.connection,"actor_id":actor,"token_id":"0"});
+                    let p=&view["policy"];
+                    let policy=json!({"attempt_limits":p["attempt_limits"],"roles":p["roles"],"judgments":p["judgments"],"publish_actor":writer,"create_actor":writer,"review_actor":writer,"merge_actor":writer,"target_branch":p["target_branch"],"merge_method":p["merge_method"],"required_checks":p["required_checks"],"expected_revision":p["revision"],"reassessment_minutes":p["reassessment_minutes"],"intent_minutes":p["intent_minutes"],"enabled":true,"paused":false});
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let reply=request.request("PUT",&format!("/api/repositories/{repository}/factory/policy"),&serde_json::to_vec(&policy)?).await?;
+                    fs::write(root.join("graph-policy-receipt.json"),&reply.body)?;
+                    ensure(reply.status==200,&format!("graph policy refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    let idea1="d343434343434343434343434";
+                    let idea2="d454545454545454545454545";
+                    let direction=json!({"id":draft,"intent":intent,"repository":repository,"objective":"Q14 disposable graph qualification: plan exactly two documentation tasks and one dependency. First author an illustrative plain-text or pseudocode example that records a short personal note and reads it back, explicitly saying this is illustrative and not an implemented app. Second independently verify that the displayed note equals the entered note and that the example is labelled illustrative; this task depends on the first. Produce one candidate with exactly these two tasks and the single dependency. Do not modify repository files or existing issues during planning.","ideas":[{"id":idea1,"description":"An illustrative note record and readback documentation example, clearly labelled as illustration rather than a working app.","consequence":"A reader can follow the concrete example without assuming a shipped application exists.","assumption":false,"decision":"accept","source":"requested","provenance":"human","actor":actor},{"id":idea2,"description":"Independent documentation verification, after the example exists, checks matching input/output and its illustrative label.","consequence":"The reader sees a checked, accurately labelled example.","assumption":false,"decision":"accept","source":"requested","provenance":"human","actor":actor}],"tasks":[],"effective_outcomes":[idea1,idea2],"state":"draft","max_issues":2,"planning_calls":0});
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let reply=request.request("POST","/api/factory/intents",&serde_json::to_vec(&direction)?).await?;
+                    fs::write(root.join("graph-draft.json"),&reply.body)?;
+                    ensure(reply.status==201,&format!("graph draft refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    fs::write(&background,serde_json::to_vec(&json!({"Repository":repository,"Connection":saved.connection,"Intent":intent,"Revision":draft,"Accepted":accepted}))?)?;
+                    let check=|phase:&str,instance:&str| {
+                        let mut command=tokio::process::Command::new(&args[7]);
+                        command.arg(profile).arg(instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE",phase).kill_on_drop(true);
+                        async move {ensure(command.status().await?.success(),"connected graph check failed; recover original journals before another effect")}
+                    };
+                    if resume_review {check("graph-prepare",&ready.instance).await?;} else {
+                    let mut driver=tokio::process::Command::new(&args[7]);
+                    let mut driver=driver.arg(profile).arg(&ready.instance).arg("check-connected-authoring").arg(&background).env("SODA_NATIVE_AUTHORING_PHASE","graph-plan").kill_on_drop(true).spawn()?;
+                    let until=Instant::now()+Duration::from_secs(60);
+                    while !profile.join(format!("connected-graph-ready-{}",ready.instance)).exists() {
+                        ensure(driver.try_wait()?.is_none(),"graph planner coordinator exited before readiness")?;
+                        ensure(Instant::now()<until,"graph preparation timed out")?;
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    let until=Instant::now()+Duration::from_secs(50);
+                    loop {
+                        let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=request.request("POST",&format!("{base}/plan"),&serde_json::to_vec(&json!({"revision":draft,"operation":"propose_intent"}))?).await?;
+                        fs::write(root.join(format!("graph-plan-admission-{}.json",ready.instance)),&reply.body)?;
+                        ensure(matches!(reply.status,201|202),&format!("graph planning refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                        let launch:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                        if launch["run_id"].as_str().is_some(){break;}
+                        ensure(launch["waits"][0]["reason"]=="harness_unavailable" && Instant::now()<until,&format!("planning not admitted: {launch}"))?;
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                    }
+                    ensure(driver.wait().await?.success(),"original graph planner failed; never replay it")?;
+                    }
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let status=request.request("GET",&format!("{base}/plan"),&[]).await?;
+                    fs::write(root.join("graph-plan-status.json"),&status.body)?;
+                    let until=Instant::now()+Duration::from_secs(65);
+                    loop {
+                        let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let review=request.request("POST",&format!("{base}/plan/review"),&serde_json::to_vec(&json!({"revision":draft,"command_id":"14141414141414141414141414141414"}))?).await?;
+                        fs::write(root.join("graph-walkthrough-review.json"),&review.body)?;
+                        let result:serde_json::Value=serde_json::from_slice(&review.body)?;
+                        if review.status==200 {
+                            ensure(result["consistency"]["mismatches"].as_array().is_some_and(|m|m.is_empty()),"actual walkthrough review requires attention")?;
+                            break;
+                        }
+                        ensure(review.status==503 && result["error"]["code"]=="judgment_pending" && Instant::now()<until,&format!("walkthrough review refused: {} {result}",review.status))?;
+                        tokio::time::sleep(Duration::from_millis(500)).await;
+                    }
+                    // Copy the actual planner's task objects into the explicit
+                    // acceptance; no fixture-authored decomposition is substituted.
+                    let actual:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-graph-plan.json"))?)?;
+                    let mut acceptance=direction;
+                    acceptance["id"]=json!(accepted);acceptance["predecessor"]=json!(draft);acceptance["state"]=json!("accepted");
+                    acceptance["tasks"]=actual["assignment"]["result"]["phase_result"]["output"]["decomposition"]["candidates"][0]["tasks"].clone();
+                    ensure(acceptance["tasks"].as_array().is_some_and(|t|t.len()==2),"actual planned tasks unreadable")?;
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let reply=request.request("POST","/api/factory/intents",&serde_json::to_vec(&acceptance)?).await?;
+                    fs::write(root.join("graph-accepted.json"),&reply.body)?;
+                    ensure(reply.status==201,&format!("graph acceptance refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    let command=serde_json::to_vec(&json!({"revision":accepted}))?;
+                    let request=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                    let reply=request.request("POST",&format!("{base}/generate"),&command).await?;
+                    fs::write(root.join("graph-first-write.json"),&reply.body)?;
+                    ensure(reply.status==202,&format!("graph first step unexpected: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                    check("graph-prefix",&ready.instance).await?;
+                    runtime.take().expect("owned runtime").stop()?;
+                    runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                    let instance=runtime.as_ref().expect("owned runtime").health()?.instance;
+                    check("graph-prepare",&instance).await?;
+                    for step in 1..=4 {
+                        let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                        let reply=admitted.request("POST",&format!("{base}/generate"),&command).await?;
+                        fs::write(root.join(format!("graph-resume-{step}.json")),&reply.body)?;
+                        ensure(matches!(reply.status,200|202),&format!("graph recovery refused: {} {}",reply.status,String::from_utf8_lossy(&reply.body)))?;
+                        if reply.status==200 {break;}
+                    }
+                    check("graph-completed",&instance).await?;
+                    runtime.take().expect("owned runtime").stop()?;
+                    runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+                    check("graph-completed",&runtime.as_ref().expect("owned runtime").health()?.instance).await?;
+                    println!("PASS: actual funded plan, walkthrough review, accepted dependency graph, retained known-prefix restart and full verification; original authority and source preserved");
+                    return Ok(());
+                }
                 if authoring {
                     let root=profile.parent().ok_or("profile parent missing")?;
                     let background=root.join(if resume_authoring {"authoring-current.json"} else {"authoring.json"});

@@ -40,6 +40,12 @@ import (
 
 type syntheticCapability struct{ current factory.MCPCapability }
 
+type pendingProductJudgment struct{}
+
+func (pendingProductJudgment) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
+	return factory.PriorityAnswer{}, factoryservice.ErrPostJudgmentPending
+}
+
 type syntheticCatalogRun struct{ run factory.Run }
 
 func (s syntheticCatalogRun) FactoryRun(_ context.Context, id string) (factory.Run, error) {
@@ -6458,7 +6464,7 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 		os.Setenv("SODA_NATIVE_JUDGMENT_PHASE", "setup")
 		return connectedJudgmentFixture(profile, instance, path)
 	}
-	var in struct{ Repository, Connection, Post string }
+	var in struct{ Repository, Connection, Post, Intent, Revision, Accepted string }
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -6487,6 +6493,184 @@ func connectedAuthoringFixture(profile, instance, path string) error {
 	app := factoryservice.NewApplication(factoryservice.ApplicationPorts{Store: db, Host: port, Broker: port, Graph: factoryruntime.NativeGraphs{NativeInputSource: inputs}, Creations: inputs, AcceptanceReads: inputs, DispatchReads: inputs, IssueEffects: factoryruntime.NewNativeIssueEffects(inputs), PostJudge: judgments, Planning: judgments, ContextChooser: judgments})
 	defer app.Close()
 	app.Coordinator.MCPSecret = factoryruntime.NativeMCPSecretDeriver(config, instance)
+	if strings.HasPrefix(phase, "graph-") {
+		connection, e := db.CollaborationConnection(ctx, collaboration.ConnectionID(in.Connection))
+		if e != nil {
+			return e
+		}
+		head, e := db.IntentRevision(ctx, in.Intent, int64(connection.Actor))
+		if e != nil || head.Repository != repository {
+			return errors.New("graph does not bind the current native account/repository")
+		}
+		if phase == "graph-recover" {
+			judgments.ReconcilePostJudgments(ctx)
+			a, e := db.IntentPlanAttempt(ctx, head.Intent, in.Revision)
+			if e != nil || a.Outcome != factory.Succeeded {
+				return errors.New("original graph plan unavailable")
+			}
+			// Declared pending provider; real retained walkthrough, service,
+			// PostgreSQL and HTTP adapter. No inference or new receipt is sent.
+			requests := factoryservice.Requests{Store: db, WriteAccess: func(context.Context, collaboration.ActorID, int64) error { return nil }}
+			api := factoryhttpapi.Requests{Service: requests, Actor: connection.Actor, Host: connection.Host,
+				Exploration: factoryservice.RequestExploration{Requests: requests, Chooser: pendingProductJudgment{}},
+				Current:     func(http.ResponseWriter, *http.Request) bool { return true }}
+			response := httptest.NewRecorder()
+			api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/factory/intents/"+head.Intent+"/plan/review", strings.NewReader(`{"revision":"`+in.Revision+`"}`)).WithContext(ctx))
+			if response.Code != 503 || !strings.Contains(response.Body.String(), `"code":"judgment_pending"`) {
+				return fmt.Errorf("pending walkthrough lost its recoverable cause: %d %s", response.Code, response.Body.String())
+			}
+			response = httptest.NewRecorder()
+			api.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/factory/intents/"+head.Intent+"/plan/review", strings.NewReader(`{"revision":"`+in.Revision+`","command_id":"invalid"}`)).WithContext(ctx))
+			if response.Code != 400 {
+				return errors.New("invalid review retry identity was admitted")
+			}
+			run, e := db.FactoryRun(ctx, a.Run)
+			if e != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() {
+				return errors.New("original graph plan is not settled")
+			}
+			command, e := db.FactoryCommand(ctx, "dd9b101f61f9cbbb6d48f060d1a4b8bb")
+			if e != nil || command.Finished == "" {
+				return errors.New("original cancelled review is not settled")
+			}
+			usage, e := db.RunUsage(ctx, command.ID)
+			if e != nil || usage.Minutes != 1 || usage.Connection != a.Connection {
+				return errors.New("original failed review charge missing")
+			}
+			if e = retainJudgmentEvidence(ctx, config, repository, "", 0); e != nil {
+				return e
+			}
+			raw, _ := json.MarshalIndent(map[string]any{"original_plan": a, "run": run, "failed_review": command, "usage": usage}, "", "  ")
+			if e = os.WriteFile(filepath.Join(profile, "connected-graph-recovery.json"), raw, 0600); e != nil {
+				return e
+			}
+			fmt.Println("PASS: original completed graph planner and cancelled walkthrough judgment settled without replay", run.ID, command.ID)
+			return nil
+		}
+		if phase == "graph-plan" || phase == "graph-prepare" {
+			workspace, _, e := db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
+			if e != nil {
+				return e
+			}
+			preps, e := db.StandingProjectPreparations(ctx, workspace)
+			if e != nil || len(preps) == 0 {
+				return errors.New("graph lacks original approved source")
+			}
+			for _, role := range []string{project.RoleCoder, project.RoleReviewer} {
+				if e = nativeStandingRole(ctx, db, port, preps[0], role); e != nil {
+					return e
+				}
+			}
+			if phase == "graph-prepare" {
+				fmt.Println("PASS: current native roles prepared from retained approved source without inference")
+				return nil
+			}
+			if head.ID != in.Revision || head.State != "draft" {
+				return errors.New("graph planner would retarget its original draft")
+			}
+			if e = app.Start(ctx, filepath.Join(profile, "coordinator.lock")); e != nil {
+				return e
+			}
+			if e = os.WriteFile(filepath.Join(profile, "connected-graph-ready-"+instance), []byte(head.ID), 0600); e != nil {
+				return e
+			}
+			for ctx.Err() == nil {
+				a, e := db.IntentPlanAttempt(ctx, head.Intent, head.ID)
+				if e != nil && !errors.Is(e, store.ErrNotFound) {
+					return e
+				}
+				if e == nil && a.Stage == factory.AssignmentFinished {
+					run, e := db.FactoryRun(ctx, a.Run)
+					if e != nil {
+						return e
+					}
+					if a.Outcome != factory.Succeeded || a.Result == nil || a.Result.PhaseResult == nil || a.Result.PhaseResult.Output == nil || a.Result.PhaseResult.Output.Decomposition == nil {
+						return errors.New("graph planner has no successful typed result; original run must not replay")
+					}
+					out := a.Result.PhaseResult.Output.Decomposition
+					if len(out.Candidates) != 1 || len(out.Candidates[0].Tasks) != 2 || out.Walkthroughs == nil {
+						return errors.New("actual graph plan lacks two authored tasks and its walkthrough")
+					}
+					edges := 0
+					for _, task := range out.Candidates[0].Tasks {
+						edges += len(task.DependsOn)
+					}
+					if edges != 1 {
+						return errors.New("actual graph plan does not author exactly one dependency")
+					}
+					if run.Reconciled && run.Native != nil && run.Native.Settled() {
+						usage, e := db.RunUsage(ctx, run.ID)
+						if e != nil || usage.Connection != a.Connection {
+							return errors.New("graph plan source accounting missing")
+						}
+						raw, _ := json.MarshalIndent(map[string]any{"assignment": a, "run": run, "usage": usage}, "", "  ")
+						if e = os.WriteFile(filepath.Join(profile, "connected-graph-plan.json"), raw, 0600); e != nil {
+							return e
+						}
+						fmt.Println("PASS: actual prepared/funded product plan, authored two-task dependency and walkthrough, exact settled native run", run.ID)
+						return nil
+					}
+				}
+				time.Sleep(500 * time.Millisecond)
+			}
+			return ctx.Err()
+		}
+		if head.ID != in.Accepted || head.State != "accepted" {
+			return errors.New("graph acceptance changed")
+		}
+		g, e := db.IntentGeneration(ctx, head.ID)
+		if e != nil {
+			return e
+		}
+		graph := factoryruntime.NativeGraphs{NativeInputSource: inputs}
+		prefix, e := graph.ReadGraphPrefix(ctx, g, repository)
+		if e != nil {
+			return e
+		}
+		bindings, e := db.IntentTaskBindings(ctx, head.ID)
+		if e != nil {
+			return e
+		}
+		lookup, e := graph.LookupGraph(ctx, g, repository)
+		if e != nil {
+			return e
+		}
+		if phase == "graph-prefix" {
+			if len(prefix.Effects) != 1 || !prefix.Effects[0].Created || len(bindings) != 0 || g.State == "completed" || !lookup.Resumable {
+				return errors.New("graph prefix was lost, replayed or released execution")
+			}
+			rawDB, e := sql.Open("pgx", config.DatabaseDSN())
+			if e != nil {
+				return e
+			}
+			defer rawDB.Close()
+			var assignments int
+			if e = rawDB.QueryRowContext(ctx, `SELECT count(*) FROM factory_assignments WHERE data::jsonb->'subject'->'intent'->>'revision_id'=$1`, head.ID).Scan(&assignments); e != nil {
+				return e
+			}
+			if assignments != 0 {
+				return errors.New("partial graph acquired an execution assignment")
+			}
+		} else if phase == "graph-completed" {
+			if g.State != "completed" || len(prefix.Effects) != 3 || len(bindings) != 2 || lookup.Record == nil || lookup.Record.Effect != collaboration.EffectCommitted {
+				return errors.New("graph lacks complete native verification and adoption")
+			}
+			current, generated, e := db.GeneratedIntentCurrent(ctx, head.ID)
+			if e != nil || !current || !generated {
+				return errors.New("complete graph lacks canonical current bindings")
+			}
+			if e = retainJudgmentEvidence(ctx, config, repository, "", 0); e != nil {
+				return e
+			}
+		} else {
+			return errors.New("unknown connected graph phase")
+		}
+		raw, _ := json.MarshalIndent(map[string]any{"generation": g, "prefix": prefix, "bindings": bindings, "lookup": lookup}, "", "  ")
+		if e = os.WriteFile(filepath.Join(profile, "connected-"+phase+".json"), raw, 0600); e != nil {
+			return e
+		}
+		fmt.Println("PASS: connected", phase, "original receipts, exact account/source, graph verification and execution boundary", g.OperationID)
+		return nil
+	}
 	if phase == "preflight" {
 		detail, e := db.FeedPost(ctx, in.Post)
 		if e != nil {
@@ -7587,6 +7771,19 @@ func judgmentJournalFixture(profile, repository string) error {
 	if err != nil {
 		return err
 	}
+	if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_RETRY_COPY") == "1" {
+		if !strings.Contains(profile, "-disposable-copy/") {
+			return errors.New("retry journal check requires a disposable profile copy")
+		}
+		source.Active = false
+		if _, err = db.ApplyFactoryGrant(ctx, "declared-disposable-copy-owner", source); err != nil {
+			return err
+		}
+		source, err = db.Sponsorship(ctx, repo, source.Connection)
+		if err != nil {
+			return err
+		}
+	}
 	capture := factory.NativeJudgmentCapture{ID: strings.Repeat("e", 32), Profile: config.Profile, Repository: repo, Selection: *policy.Judgments, PromptSHA256: strings.Repeat("a", 64), ToolVersion: "declared", ToolSHA256: strings.Repeat("b", 64), DeadlineUnixMS: time.Now().Add(25 * time.Second).UnixMilli()}
 	if _, _, err = db.BeginNativeJudgment(ctx, capture); !errors.Is(err, store.ErrNativeJudgmentSource) {
 		return errors.New("withdrawn source funded a judgment")
@@ -7643,6 +7840,54 @@ func judgmentJournalFixture(profile, repository string) error {
 	}
 	if err = db.NativeJudgmentReady(ctx, other, 1); err != nil {
 		return fmt.Errorf("retired call kept readiness reserved: %w", err)
+	}
+	if os.Getenv("SODA_NATIVE_CHECK_JUDGMENT_RETRY_COPY") == "1" {
+		parent := capture
+		parent.ID = strings.Repeat("9", 32)
+		if _, fresh, e := db.BeginNativeJudgment(ctx, parent); e != nil || !fresh {
+			return fmt.Errorf("declared retry parent: %v", e)
+		}
+		retry := parent
+		retry.ID, retry.RetryOf, retry.RetryCommand = strings.Repeat("8", 32), parent.ID, strings.Repeat("7", 32)
+		if _, _, e := db.BeginNativeJudgment(ctx, retry); !errors.Is(e, store.ErrNativeJudgmentSource) {
+			return errors.New("pending parent authorized new inference")
+		}
+		failed := json.RawMessage(`{"process":{"run":"` + parent.ID + `","finished":true,"live":false,"tree_retired":true}}`)
+		u := usage
+		u.RunID = parent.ID
+		if e := db.CompleteNativeJudgment(ctx, parent, failed, u); e != nil {
+			return e
+		}
+		changed := retry
+		changed.PromptSHA256 = strings.Repeat("c", 64)
+		if _, _, e := db.BeginNativeJudgment(ctx, changed); !errors.Is(e, store.ErrNativeJudgmentSource) {
+			return errors.New("retry changed the original judgment question")
+		}
+		if _, fresh, e := db.BeginNativeJudgment(ctx, retry); e != nil || !fresh {
+			return fmt.Errorf("explicit failed-parent retry: %v", e)
+		}
+		competing := retry
+		competing.ID, competing.RetryCommand = strings.Repeat("6", 32), strings.Repeat("5", 32)
+		if _, _, e := db.BeginNativeJudgment(ctx, competing); !errors.Is(e, store.ErrNativeJudgmentSource) {
+			return errors.New("competing command duplicated pending inference")
+		}
+		if _, fresh, e := db.BeginNativeJudgment(ctx, retry); e != nil || fresh {
+			return errors.New("retry command replay reserved another inference")
+		}
+		if saved, e := db.NativeJudgmentRetry(ctx, parent.ID); e != nil || saved.ID != retry.ID || saved.Finished != "" {
+			return errors.New("lost retry identity could not discover original pending command")
+		}
+		u.RunID = retry.ID
+		if e := db.CompleteNativeJudgment(ctx, retry, json.RawMessage(`{"answer":{"provider_facts":"declared"}}`), u); e != nil {
+			return e
+		}
+		if _, _, e := db.BeginNativeJudgment(ctx, competing); !errors.Is(e, store.ErrNativeJudgmentSource) {
+			return errors.New("completed answer authorized duplicate inference")
+		}
+		if saved, e := db.NativeJudgmentRetry(ctx, parent.ID); e != nil || saved.ID != retry.ID || saved.Finished == "" {
+			return errors.New("completed retry receipt was lost")
+		}
+		fmt.Println("PASS: explicit retired-failure retry, unchanged question/source, pending parent/competitor refusal, lost identity discovery and successful-answer no-repeat; process/provider facts declared")
 	}
 	retained, err := db.FactoryCommand(ctx, capture.ID)
 	if err != nil || retained.Finished == "" || retained.Outcome != string(result) {

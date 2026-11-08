@@ -18,7 +18,15 @@ import (
 
 // NativeJudgments binds product judgments to explicit repository funding. It
 // never borrows Coding/Review funding or a server key.
-type NativeJudgments struct{ NativeExecution }
+type NativeJudgments struct {
+	NativeExecution
+	retryCommand string
+}
+
+func (s NativeJudgments) RetryFailedJudgment(command string) control.ProductJudgment {
+	s.retryCommand = command
+	return s
+}
 
 var _ control.PriorityChooser = NativeJudgments{}
 
@@ -64,7 +72,7 @@ func (s NativeJudgments) CheckPriority(ctx context.Context, request factory.Prio
 	if err != nil {
 		return err
 	}
-	return s.CheckJudgment(ctx, request.Repository, subject)
+	return s.CheckJudgment(ctx, request.Repository, subject, factory.PriorityAnswer{})
 }
 
 func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
@@ -73,11 +81,33 @@ func (s NativeJudgments) Select(context.Context, any, string, map[string]any) (f
 
 // A product receipt may reuse an answer, but cannot bypass its original source
 // and current repository admission after withdrawal or policy replacement.
-func (s NativeJudgments) CheckJudgment(ctx context.Context, repository int64, subject string) error {
-	cmd, err := s.Store.FactoryCommand(ctx, factory.NativeJudgmentID(s.Config.Profile, repository, subject))
+func (s NativeJudgments) CheckJudgment(ctx context.Context, repository int64, subject string, answer factory.PriorityAnswer) error {
+	id := factory.NativeJudgmentID(s.Config.Profile, repository, subject)
+	if answer.NativeJudgment != "" {
+		id = answer.NativeJudgment
+	}
+	cmd, err := s.Store.FactoryCommand(ctx, id)
 	var capture factory.NativeJudgmentCapture
 	if err != nil || nativeDecode([]byte(cmd.Payload), &capture) != nil || capture.Profile != s.Config.Profile || capture.Repository != repository || cmd.Finished == "" {
 		return control.ErrPriorityUnavailable
+	}
+	base := factory.NativeJudgmentID(s.Config.Profile, repository, subject)
+	if id != base && (capture.RetryOf != base || !factory.ValidID(capture.RetryCommand) || id != factory.NativeJudgmentID(s.Config.Profile, repository, subject+":"+capture.RetryCommand)) {
+		return control.ErrPriorityUnavailable
+	}
+	canonical, err := capture.Command()
+	if err != nil || capture.ID != id || canonical.Digest != cmd.Digest {
+		return control.ErrPriorityUnavailable
+	}
+	if answer.NativeJudgment != "" {
+		var saved nativeJudgmentOutcome
+		if nativeDecode([]byte(cmd.Outcome), &saved) != nil || saved.Answer == nil {
+			return control.ErrPriorityUnavailable
+		}
+		answer.NativeJudgment = ""
+		if !reflect.DeepEqual(answer, *saved.Answer) {
+			return control.ErrPriorityUnavailable
+		}
 	}
 	if err := s.Store.CheckNativeJudgmentSource(ctx, capture); err != nil {
 		return err
@@ -93,7 +123,7 @@ func (s NativeJudgments) SelectScoped(ctx context.Context, repository int64, sub
 	if repository <= 0 || subject == "" || len(subject) > 256 {
 		return factory.PriorityAnswer{}, control.ErrPriorityUnavailable
 	}
-	chooser := nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: repository, subject: subject}
+	chooser := nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: repository, subject: subject, retryCommand: s.retryCommand}
 	chooser.admit = func(ctx context.Context) error {
 		account, err := (NativeInputSource{s.NativeExecution}).account(ctx, strconv.FormatInt(repository, 10), factory.OpRefPublish)
 		if err != nil {
@@ -170,6 +200,7 @@ type nativeRepositoryJudgment struct {
 	sourceRevision int64
 	admit          func(context.Context) error
 	worker         *factory.MCPCapability
+	retryCommand   string
 }
 
 type nativeJudgmentProcess struct {
@@ -241,6 +272,7 @@ func (s nativeRepositoryJudgment) selectPrompt(ctx context.Context, prompt strin
 	if outcome.Answer == nil || outcome.Answer.Validate(request) != nil {
 		return empty, control.ErrPriorityUnavailable
 	}
+	outcome.Answer.NativeJudgment = outcome.Process.Run
 	return *outcome.Answer, nil
 }
 
@@ -249,6 +281,52 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 	sha := factory.MCPInputDigest([]byte(prompt))
 	id := factory.NativeJudgmentID(s.Config.Profile, s.repository, s.subject)
 	cmd, err := s.Store.FactoryCommand(ctx, id)
+	retryOf := ""
+	if s.retryCommand != "" {
+		if !factory.ValidID(s.retryCommand) {
+			return empty, control.ErrPriorityUnavailable
+		}
+		if err == nil && cmd.Finished != "" {
+			var parent factory.NativeJudgmentCapture
+			var result nativeJudgmentOutcome
+			if nativeDecode([]byte(cmd.Payload), &parent) != nil || nativeDecode([]byte(cmd.Outcome), &result) != nil {
+				return empty, control.ErrPriorityUnavailable
+			}
+			canonical, e := parent.Command()
+			if e != nil || canonical.Digest != cmd.Digest || parent.ID != id || parent.Profile != s.Config.Profile || parent.Repository != s.repository || parent.PromptSHA256 != sha || parent.OptionsSHA256 != optionsDigest || parent.OutputKind != outputKind {
+				return empty, control.ErrPriorityUnavailable
+			}
+			if result.Answer == nil && len(result.Output) == 0 {
+				if !result.Process.Finished || !result.Process.TreeRetired || result.Process.Live == nil || *result.Process.Live || result.Process.Run != id || result.Process.StoppedUnixMS == nil {
+					return empty, control.ErrPriorityUnavailable
+				}
+				retryOf = id
+				id = factory.NativeJudgmentID(s.Config.Profile, s.repository, s.subject+":"+s.retryCommand)
+				cmd, err = s.Store.FactoryCommand(ctx, id)
+				if errors.Is(err, store.ErrNotFound) {
+					latest, e := s.Store.NativeJudgmentRetry(ctx, retryOf)
+					if e == nil {
+						var capture factory.NativeJudgmentCapture
+						var result nativeJudgmentOutcome
+						if nativeDecode([]byte(latest.Payload), &capture) != nil || capture.RetryOf != retryOf || !factory.ValidID(capture.RetryCommand) || latest.ID != factory.NativeJudgmentID(s.Config.Profile, s.repository, s.subject+":"+capture.RetryCommand) || (latest.Finished != "" && nativeDecode([]byte(latest.Outcome), &result) != nil) {
+							return empty, control.ErrPriorityUnavailable
+						}
+						if latest.Finished == "" || result.Answer != nil || len(result.Output) != 0 {
+							id, cmd, err = latest.ID, latest, nil
+						}
+					} else if !errors.Is(e, store.ErrNotFound) {
+						return empty, e
+					}
+				}
+				if errors.Is(err, store.ErrNotFound) {
+					selection, _, e := s.selection(ctx)
+					if e != nil || !reflect.DeepEqual(selection, parent.Selection) {
+						return empty, factoryservice.ErrPostJudgmentPending
+					}
+				}
+			}
+		}
+	}
 	var capture factory.NativeJudgmentCapture
 	fresh := false
 	if errors.Is(err, store.ErrNotFound) {
@@ -260,6 +338,9 @@ func (s nativeRepositoryJudgment) infer(ctx context.Context, prompt, optionsDige
 			return empty, e
 		}
 		capture = factory.NativeJudgmentCapture{ID: id, Profile: s.Config.Profile, Repository: s.repository, SourcePost: s.sourcePost, SourceRevision: s.sourceRevision, Selection: selection, PromptSHA256: sha, OptionsSHA256: optionsDigest, OutputKind: outputKind, ToolVersion: tool.Native.Version, ToolSHA256: tool.Native.SHA256, DeadlineUnixMS: time.Now().Add(30 * time.Second).UnixMilli()}
+		if retryOf != "" {
+			capture.RetryOf, capture.RetryCommand = retryOf, s.retryCommand
+		}
 		policy, e := s.Store.RepositoryPolicy(ctx, s.repository)
 		if e != nil {
 			return empty, e

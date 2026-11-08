@@ -172,7 +172,17 @@ func (s RequestExploration) ReviewWalkthrough(ctx context.Context, actor collabo
 	if err := factory.ValidatePlanningWalkthroughs(head, *view.Walkthroughs); err != nil {
 		return nil, errors.Join(ErrPlanningWalkthroughInvalid, err)
 	}
-	coord := &control.Coordinator{Store: s.Requests.Store, Planning: &control.PlanningJudgments{Chooser: s.Chooser}}
+	chooser := s.Chooser
+	if s.RetryCommand != "" {
+		retry, ok := chooser.(interface {
+			RetryFailedJudgment(string) control.ProductJudgment
+		})
+		if !factory.ValidID(s.RetryCommand) || !ok {
+			return nil, ErrRequestInputInvalid
+		}
+		chooser = retry.RetryFailedJudgment(s.RetryCommand)
+	}
+	coord := &control.Coordinator{Store: s.Requests.Store, Planning: &control.PlanningJudgments{Chooser: chooser}}
 	review, err := walkthroughAdvice(ctx, coord, head, *view.Walkthroughs)
 	if err != nil {
 		return nil, err
