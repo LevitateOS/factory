@@ -88,7 +88,13 @@ func (s Contributions) Drive(ctx context.Context) (claimed bool, err error) {
 }
 
 func (s Contributions) assess(ctx context.Context, owner *store.ContributionOwner, review *factory.ContributionReview) error {
-	callctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	timeout := 15 * time.Second
+	if _, native := s.Chooser.(ContributionJudgments); native {
+		// The selected-source owner assesses roles sequentially, with one
+		// bounded thirty-second batch per role.
+		timeout = time.Duration(len(review.Roles)) * 30 * time.Second
+	}
+	callctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	calls, err := judgeContributions(callctx, s.Chooser, *review)
 	review.Calls = calls

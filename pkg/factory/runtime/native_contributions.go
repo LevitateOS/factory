@@ -15,6 +15,22 @@ import (
 var _ service.ContributionJudgments = NativeJudgments{}
 
 func (s NativeJudgments) ContributionsReady(ctx context.Context, review factory.ContributionReview) (bool, error) {
+	for _, role := range review.Roles {
+		cap, err := s.Store.GetMCPCapability(ctx, role.Capability)
+		if err != nil {
+			return false, err
+		}
+		if cap.Repository != review.Repository || cap.AssignmentID != role.Assignment || cap.Profile != role.Profile || cap.Subject != role.Subject {
+			return false, service.ErrWorkerBinding
+		}
+		if _, err := (service.WorkerAdmission{Store: s.Store, Inspect: s.InspectRun}).Prepare(ctx, cap); err != nil {
+			return false, err
+		}
+	}
+	current, err := s.Store.ContributionContext(ctx, review.Source)
+	if err != nil || !reflect.DeepEqual(current, review) {
+		return false, errors.Join(err, store.ErrStaleRevision)
+	}
 	selection, _, err := (nativeRepositoryJudgment{NativeExecution: s.NativeExecution, repository: review.Repository}).selection(ctx)
 	if errors.Is(err, service.ErrPostJudgmentPending) {
 		return false, nil
