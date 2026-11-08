@@ -702,7 +702,15 @@ reserve, 3 GiB worker tmpfs/4 GiB service memory and approved 1–1800-second en
 deadlines. The shared UI used reviewed 120/30-second setup/check limits and normal
 ignored build outputs; private registries remain unavailable.
 
-Q06 is incomplete: interrupted network/aggregate-limit handling, overlap across
+Additional verified increment `cb841bd` counts pipelined CONNECT data against the
+same 512 MiB aggregate encrypted transfer ceiling and retains its exact native
+failure instead of discarding connection-job errors. The existing actual
+preparation check crossed the ceiling using bounded, hash-verified public artifact
+reads, refused readiness with `setup HTTPS transfer budget exceeded` and confirmed
+exact retirement (`/home/vince/Projects/q06-budget/{result.log,preparation-network-limit/native-preparations/}`).
+Current Rust and Go callback builds passed; no model or personal credentials ran.
+
+Q06 is incomplete: interrupted network handling, overlap across
 restart and snapshot-copy cancellation still need their defining checks. Preserve
 all earlier attempts; notably `b8affa6b0bdfe1dc88bf55af010a4c7d` under
 `/home/vince/Projects/q06-ui4/` has an unconfirmed candidate capture, not a terminal

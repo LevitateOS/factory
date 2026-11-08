@@ -255,7 +255,8 @@ snapshot SELinux label inheritance and distinguishes setup DNS/connect failures
 from policy denial. Actual shared UI lifecycle build/offline worker snapshot,
 public/offline setup, cancelled same-run waiter/replacement, saturation and
 controlled low-space refusal passed. [Evidence and remaining work](../untangle-codebase.md#q06-increment-larger-workload-and-preparation-admission-2026-11-08).
-Interrupted network/aggregate limits, overlap across restart and snapshot-copy
+Aggregate HTTPS-budget enforcement/refusal also passed in `cb841bd`.
+Interrupted network, overlap across restart and snapshot-copy
 cancellation remain unperformed. Q07–Q30 stay pending.
 
 ```text
