@@ -273,6 +273,15 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ### Q07 — Connected onboarding, source review and accepted inputs
 
+Verified increment: `41a1a17c9bab8615071fd92c5c8c90024286b991` prevents
+approval of edited or unsuccessfully loaded source selections. The real native
+UI journey reached both ready role preparations with consent still unverified;
+file-selection bounds passed separately in the same connected journey before
+the display fixture's broker visibility was corrected. Q07 remains Active:
+acceptance with nonempty comments/dependencies, withdrawal during I/O,
+changed-source consent and native pending-approval restart/reactivation remain
+pending. [Evidence](../untangle-codebase.md#q07-connected-setup-increment-2026-11-08).
+
 ```text
 Implement Q07 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 

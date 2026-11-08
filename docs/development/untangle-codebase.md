@@ -1122,6 +1122,41 @@ root-overlap refusal passed. The first plain-host stage lacked WebKit developmen
 libraries; the retained sysroot resolved it. Build log: `.artifacts/untangle-desktop-build.log`.
 This is a cached development build, not fresh or installed qualification.
 
+## Q07 connected setup increment (2026-11-08)
+
+`41a1a17c9bab8615071fd92c5c8c90024286b991` invalidates setup consent after
+source-path edits or a failed selection read. Existing gated native checks now
+exercise the production WebKit/IPC/Go/PostgreSQL/native setup path without seeded
+approval rows. `/home/vince/Projects/q07-ui7/run.log` and
+`github-ui-write-result.json` passed: real owned GitHub repository/target,
+disabled policy, explicit placement/workspace consent, two reviewed planning
+files, actual successful setup/check exits for both roles, source-context readback,
+`Reviewed=true`, `Verified=false`, no invented readiness digest and production
+Quit. Both native request/completion/retirement journals are retained there.
+The new disposable source branch is `factory-checks/q07-onboarding-20261108` in
+`LevitateOS/factory-team-public-check-20261106`, commit
+`9527f96dae9c71ebf27942c918624042df1e011f`; existing branches/text were preserved.
+
+The same connected selection assertions passed in `q07-ui3/run.log` before its
+preparation step failed: >64 paths, unsafe/missing paths, >32 KiB per file,
+>128 KiB aggregate refused; exactly four 32 KiB files accepted; editing a loaded
+selection disabled approval and reset consent. The failed preparation was traced
+in `q07-ui5/run.log` to the display fixture's user namespace hiding root ownership
+of the broker directory. The successful fixture preserves host ownership and
+drops to UID/GID 1000 with all capability sets removed before app startup; broker
+ownership checks remain intact. Bounds were reused, not rerun, in `q07-ui7`.
+TypeScript, Lit, desktop UI, native-check and regular native-ui builds passed
+(`q07-{typecheck,lit,ui-build,native-build,regular-build}.log`); the existing Go
+inspection helper built and passed against the actual preparations.
+
+**INCOMPLETE:** Q07 still needs accepted planning inputs with nonempty native
+comments/dependencies, hidden/stale-input refusal, changed-source consent,
+withdrawal during I/O, and native pending-approval restart/reactivation without
+replay. Permission to post one exact disposable fixture comment is pending; no
+comment was posted. No model ran. Q08–Q30, installed variants and all 13 security
+gates remain open. Original six dirty edit sets, profiles/keyrings and failed
+attempts are preserved.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
