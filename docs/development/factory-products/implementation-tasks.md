@@ -316,6 +316,16 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ### Q08 — Muse typed plan and sequential Builder completion
 
+Active: the original run's retained prompt has object-valued `payload` and
+`tasks`, but its CLI transcript records two RPC validation failures because the
+submitted `payload` was a string. Current strict catalog transport passes;
+the responsible encoding step is not yet attributed or fixed. The existing live
+journey is prepared at `/home/vince/Projects/q08-native-plan.sh` with the original
+source and an isolated login copy. Automatic approval review rejected that live
+model command; explicit approval of its test inputs/provider execution is pending.
+No new model call has started. Full Q08 execution/recovery qualification remains
+unfinished; Q09–Q30 remain pending.
+
 ```text
 Implement Q08 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 

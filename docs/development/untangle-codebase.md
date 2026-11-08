@@ -1328,6 +1328,29 @@ source. Relevant current owners and retained checks were reused. Q08 is Active;
 Q09–Q30, installed variants and all 13 security gates remain open. Factory is
 unfinished; historical status conflicts and failed profiles remain preserved.
 
+### Q08 active: retained typed-finish trace
+
+Run `518ab9643f2a381dd81b4814df003979` under
+`/home/vince/tmp/fmuse-ready-admission8.z4gCPL/` retains the actual CLI transcript
+at `execution-profile/native-muse-runs/29067804fda7a7e439da7af2e5a4ccde/bb84c3a320682e22786aaba2104018e6/terminal.log`.
+Both failed plan tasks report `payload` as a string where the RPC schema requires
+an object. Parsing the retained prompt confirms `payload` and `tasks` were
+objects, with an explicit instruction against JSON-encoded strings. The retained
+result remains `needs-human` / `harness_no_report`; CLI final text is no product
+completion evidence. Current native forwarding uses JSON values/RawMessage;
+the responsible conversion is not yet attributed. The existing strict
+`TestFactoryCatalogTransportPerHarness` passed (`q08-catalog-transport.log`).
+
+**INCOMPLETE:** a current live reproduction is prepared in
+`/home/vince/Projects/q08-native-plan.sh` with the original source bundle and
+private copies of the verified tool/login. Automatic approval review rejected
+the command before execution: explicit authorization of this live Meta model
+execution and payload was required because it sends test inputs externally and
+may consume quota or incur cost. That approval is pending; the command was not
+retried or bypassed and no new model call started. Encoder correction, accepted
+plan/Builder/task/final identities, candidate/accounting/restart and the listed
+live regression cases remain pending. Q09–Q30 and all 13 security gates stay open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
