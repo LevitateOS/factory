@@ -1292,6 +1292,8 @@ func main() {
 			expectedSources := 14
 			if os.Args[3] == "check-ui-onboarded-setup" {
 				expectedSources = 2
+			} else if os.Args[3] == "check-ui64-onboarded-setup" {
+				expectedSources = 64
 			} else if os.Args[3] == "check-refused-onboarded-setup" {
 				expectedSources = 0
 			}
@@ -1418,7 +1420,7 @@ func onboardedSetupFixture(profile, instance, repository string, retire bool, ex
 	if err != nil {
 		return err
 	}
-	if expectedSources == 2 {
+	if expectedSources == 2 || expectedSources == 64 {
 		current := preparations[:0]
 		for _, prep := range preparations {
 			if prep.Preparation.Approval.ID == approval.ID {

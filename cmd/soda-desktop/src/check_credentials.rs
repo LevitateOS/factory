@@ -158,7 +158,9 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                 let instance = state.runtime.lock().unwrap().as_ref()
                     .and_then(|owner| owner.health().ok()).ok_or("onboarding native instance missing")?.instance;
                 let result = tokio::process::Command::new(root.join("onboarding-check"))
-                    .arg(&state.paths.profile).arg(instance).arg("check-ui-onboarded-setup")
+                    .arg(&state.paths.profile).arg(instance).arg(if fixture["source_paths"].as_array().is_some_and(|paths| paths.len() == 64) {
+                        "check-ui64-onboarded-setup"
+                    } else { "check-ui-onboarded-setup" })
                     .arg(repository).output().await.map_err(|_| "onboarding inspection unavailable")?;
                 println!("{}", String::from_utf8_lossy(&result.stdout));
                 if !result.status.success() {
@@ -178,7 +180,8 @@ pub fn finish_github_writes(app: tauri::AppHandle) {
                     "approval_verified": false,
                     "owned_account_removed": !retained,
                     "completed_reply_dropped_and_retained": fixture["drop_approval_reply"] == true,
-                    "recovered_after_native_restart_and_source_change": fixture["reopen"] == true && fixture["resume_review"] != true,
+                    "recovered_after_native_restart": fixture["reopen"] == true && fixture["resume_review"] != true,
+                    "reviewed_planning_source_files": fixture["source_paths"].as_array().map_or(2, Vec::len),
                     "connected_acceptance_preview": fixture["preview_issue"] == true,
                     "oauth_source": "user_authorized_gh_grant",
                     "factory_device_scope_qualified": false,

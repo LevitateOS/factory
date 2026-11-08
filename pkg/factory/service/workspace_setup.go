@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"unicode/utf8"
 
 	"github.com/levitateos/factory/pkg/collaboration"
@@ -9,6 +10,8 @@ import (
 	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
+
+var ErrWorkspaceSetupInput = errors.New("invalid reviewed workspace setup input")
 
 // WorkspaceSetup is the exact source and editable recipe presented for owner
 // review. Observations report actual native work separately from that consent.

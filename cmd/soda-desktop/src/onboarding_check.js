@@ -1,6 +1,7 @@
 // Existing opt-in native check: production UI and a marked, owned GitHub fixture.
 (async () => {
   const invoke = window.__TAURI__.core.invoke, fixture = __FIXTURE__;
+  const planningPaths = fixture.source_paths ?? ['README.md', 'q07/input.md'];
   const assert = (value, message) => { if (!value) throw Error(message); };
   let stage = 'connect';
   const until = async (check, label) => {
@@ -130,15 +131,15 @@
       Object.values(setup.view.source_files).reduce((bytes, value) => bytes + new TextEncoder().encode(value).length, 0) === 128 * 1024,
       'exact aggregate selection bound refused');
     }
-    await select(['README.md', 'q07/input.md']);
-    assert(setup.selectionCurrent && Object.keys(setup.view.source_inputs).length === 2,
+    await select(planningPaths);
+    assert(setup.selectionCurrent && Object.keys(setup.view.source_inputs).length === planningPaths.length,
       'reviewed planning inputs: ' + selectionReply + ' ' + setup.message + '; missing: ' + setup.view.missing_paths.join(', '));
     let consent = setup.querySelector('form input[type=checkbox]');
     consent.click();
     input(paths(), 'README.md');
     await setup.updateComplete;
     assert(approve().disabled && !setup.querySelector('form input[type=checkbox]').checked, 'changed selection kept consent');
-    await select(['README.md', 'q07/input.md']);
+    await select(planningPaths);
     stage = 'actual native preparation';
     input(setup.querySelector('[name="file:setup.sh"]'), '#!/bin/bash\nset -eu\nmkdir -p .factory-build\nprintf "reviewed Q07 setup\\n" > .factory-build/ready\n');
     input(setup.querySelector('[name="file:check.sh"]'), '#!/bin/bash\nset -eu\ntest -s .factory-build/ready\ntest -s q07/input.md\n');

@@ -569,7 +569,28 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
             let mut files = preview.1["files"].clone();
             files["setup-network.json"] = json!("{\"access\":\"none\"}");
             files["setup-limits.json"] = json!("{\"setup_seconds\":10,\"check_seconds\":10}");
-            let approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"source_inputs":preview.1["source_inputs"],"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            let setup_race = std::env::var("SODA_NATIVE_CHECK_SETUP_RACE").ok();
+            let mut approval = json!({"command_id":"a17a17a17a17a17a17a17a17a17a17a1","source":preview.1["source"],"target":preview.1["target"],"files":files,"source_inputs":preview.1["source_inputs"],"tools":["git","bash"],"requirement":preview.1["requirement"],"approval":preview.1["approval"],"environment_revision":preview.1["environment_revision"]});
+            if setup_race.as_deref() == Some("approval") {
+                for name in ["setup.sh", "check.sh"] {
+                    let script = approval["files"][name].as_str().ok_or("setup script missing")?;
+                    approval["files"][name] = json!(format!("{script}\n#{}\n", "p".repeat(32768-script.len()-3)));
+                }
+            }
+            if std::env::var("SODA_NATIVE_CHECK_SETUP_PLANNING_BOUND_ONLY").as_deref() == Ok("1") {
+                let mut oversized = approval.clone();
+                oversized["files"]["setup.sh"] = json!("x".repeat(32768));
+                oversized["files"]["check.sh"] = json!("x".repeat(32768));
+                let refused = call(&runtime, &store, &connection, "PUT", &target, &serde_json::to_vec(&oversized)?).await?;
+                ensure(refused.0 == 422 && refused.1["error"]["code"] == "invalid_setup_input", &format!("planning bound did not refuse before consent: {} {}", refused.0, refused.1))?;
+                let helper = std::env::var("SODA_NATIVE_CHECK_HELPER")?;
+                ensure(std::process::Command::new(helper).arg(profile).arg(runtime.health()?.instance).arg("check-refused-onboarded-setup").arg(&repository).status()?.success(), "planning-bound refusal recorded effects")?;
+                store.withdraw(&connection).await?;
+                store.retire();
+                runtime.stop()?;
+                println!("PASS: selected source plus valid-sized scripts exceeding the existing planning text bound returns the established no-consent input refusal; zero decision/preparation records; controlled source responses, no model/live/installed qualification");
+                return Ok(());
+            }
             let mut malformed = approval.clone();
             malformed["tools"] = json!(["git", "bash", "a", "b", "c", "d", "e", "f", "g"]);
             let rejected = call(&runtime, &store, &connection, "PUT", &target, &serde_json::to_vec(&malformed)?).await?;
@@ -583,7 +604,7 @@ pub(super) async fn product(production: &Path, payload: &Path, profile: &Path) -
                 println!("PASS: actual product HTTP rejects invalid setup input before recording consent or starting preparation; original heads unchanged; owned fixture credential withdrawn and runtime stopped; no privileged fixture deployment");
                 return Ok(());
             }
-            if let Ok(race) = std::env::var("SODA_NATIVE_CHECK_SETUP_RACE") {
+            if let Some(race) = setup_race {
                 ensure(matches!(race.as_str(), "account" | "placement" | "approval"), "unknown setup race")?;
                 set_mode(&io, "pause-setup-source")?;
                 let body = serde_json::to_vec(&approval)?;

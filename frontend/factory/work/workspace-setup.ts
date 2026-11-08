@@ -358,8 +358,8 @@ export class SodaFactoryWorkspaceSetup extends LitElement {
                   ></textarea>
                 </label>
                 <p>
-                  Load and review this selection before editing setup. Each file is limited to 32 KiB; the complete
-                  selection to 128 KiB.
+                  Load and review this selection before editing setup. Each file is limited to 32 KiB. Selected files
+                  and the setup/check scripts together must fit the 128 KiB planning limit.
                 </p>
                 <button type="submit" ?disabled=${this.busy}>Load selected files</button>
               </form>

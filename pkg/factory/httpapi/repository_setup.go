@@ -6,7 +6,23 @@ import (
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/strictjson"
 	"net/http"
+	"strings"
 )
+
+const WorkspaceSetupRequestLimit = 1024 * 1024
+
+func IsWorkspaceSetupSubmission(r *http.Request) bool {
+	if r.Method != http.MethodPut || r.URL.RawPath != "" || r.URL.RawQuery != "" || r.URL.ForceQuery {
+		return false
+	}
+	rest, ok := strings.CutPrefix(r.URL.Path, "/api/repositories/")
+	if !ok {
+		return false
+	}
+	repository, ok := strings.CutSuffix(rest, "/factory/setup")
+	_, positive := positiveID(repository)
+	return ok && positive
+}
 
 func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 	repository, ok := s.scope(w, r)
@@ -36,7 +52,7 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 		view, err = s.Setup.ReadSetup(r.Context(), s.Actor, repository, in.Paths)
 	} else {
 		var in factoryservice.WorkspaceSetupApproval
-		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 1024*1024), &in) != nil {
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, WorkspaceSetupRequestLimit), &in) != nil {
 			writeError(w, 400, "invalid_setup", "Setup must contain bounded reviewed files and exact source references.")
 			return
 		}
@@ -44,12 +60,16 @@ func (s Repositories) workspaceSetup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if in.Validate() != nil {
+			err = factoryservice.ErrWorkspaceSetupInput
+		} else {
+			view, err = s.Setup.ApproveSetup(r.Context(), s.Actor, repository, in)
+		}
+	}
+	if err != nil {
+		if errors.Is(err, factoryservice.ErrWorkspaceSetupInput) {
 			writeError(w, http.StatusUnprocessableEntity, "invalid_setup_input", "Review the scripts, tools, source selection and limits. No setup approval was recorded.")
 			return
 		}
-		view, err = s.Setup.ApproveSetup(r.Context(), s.Actor, repository, in)
-	}
-	if err != nil {
 		if errors.Is(err, execution.ErrPreparation) {
 			writeError(w, 400, "invalid_setup", "Setup requires a valid command, source, recipe and current workspace owner.")
 			return

@@ -229,6 +229,8 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 		limit := int64(65536)
 		if r.URL.Path == "/api/native/collaboration/observe" {
 			limit = 2 << 20
+		} else if factoryhttp.IsWorkspaceSetupSubmission(r) {
+			limit = factoryhttp.WorkspaceSetupRequestLimit
 		} else if factoryhttp.IsHumanCommentSubmission(r) {
 			limit = factoryhttp.HumanCommentRequestLimit
 		} else if factoryhttp.IsHumanIssueCreateSubmission(r) {

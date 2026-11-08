@@ -26,44 +26,60 @@ impl Reader<'_> {
         ].into_iter().collect();
         names.extend(paths.iter().copied());
         let mut total=0usize;
-        for name in names {
-            let mut path=url::Url::parse("https://api.github.com/contents/").map_err(|_|Failure::invalid())?;
-            path.path_segments_mut().map_err(|_|Failure::invalid())?.pop_if_empty().extend(name.split('/'));
-            let response = match self
-                .get(path.path(), &[("ref", commit.into())])
-                .await
-            {
-                Ok(response) => response,
-                Err(failure) if failure.status == 404 => continue,
-                Err(failure) => return Err(failure),
+        let names: Vec<_> = names.into_iter().collect();
+        for batch in names.chunks(8) {
+            let read = |index| async move {
+                match batch.get(index) {
+                    Some(&name) => self.setup_file(commit, name).await.map(|bytes| Some((name, bytes))),
+                    None => Ok(None),
+                }
             };
-            let raw = response.value;
-            if raw["type"] != "file" || raw["path"] != name || raw["encoding"] != "base64" {
-                return Err(Failure::protocol());
+            let (a,b,c,d,e,f,g,h) = tokio::join!(read(0),read(1),read(2),read(3),read(4),read(5),read(6),read(7));
+            for result in [a,b,c,d,e,f,g,h] {
+                let Some((name, bytes)) = result? else { continue; };
+                let Some(bytes) = bytes else { continue; };
+                let encoded=json!(base64::engine::general_purpose::STANDARD.encode(&bytes));
+                if paths.contains(&name) {
+                    total+=bytes.len();
+                    if total>128*1024 {return Err(Failure::new(413,"github_setup_source_too_large"));}
+                    source_files.insert(name.into(),encoded.clone());
+                }
+                if ["setup.sh","check.sh","setup-network.json","setup-limits.json"].contains(&name) { files.insert(name.into(),encoded); }
             }
-            let encoded: String = r::text(&raw, "content")?
-                .chars()
-                .filter(|c| !c.is_ascii_whitespace())
-                .collect();
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(encoded)
-                .map_err(|_| Failure::protocol())?;
-            if bytes.len() > 32768
-                || raw["size"].as_u64() != Some(bytes.len() as u64)
-                || std::str::from_utf8(&bytes).is_err()
-            {
-                return Err(Failure::new(413, "github_setup_file_unavailable"));
-            }
-            let encoded=json!(base64::engine::general_purpose::STANDARD.encode(&bytes));
-            if paths.contains(&name) {
-                total+=bytes.len();
-                if total>128*1024 {return Err(Failure::new(413,"github_setup_source_too_large"));}
-                source_files.insert(name.into(),encoded.clone());
-            }
-            if ["setup.sh","check.sh","setup-network.json","setup-limits.json"].contains(&name) { files.insert(name.into(),encoded); }
         }
         self.source_tip(target, commit).await?;
         Ok(json!({"repository":self.repository,"commit":commit,"target_ref":target,"files":files,"source_files":source_files}))
+    }
+
+    async fn setup_file(&self, commit: &str, name: &str) -> Result<Option<Vec<u8>>> {
+        let mut path=url::Url::parse("https://api.github.com/contents/").map_err(|_|Failure::invalid())?;
+        path.path_segments_mut().map_err(|_|Failure::invalid())?.pop_if_empty().extend(name.split('/'));
+        let response = match self
+            .get(path.path(), &[("ref", commit.into())])
+            .await
+        {
+            Ok(response) => response,
+            Err(failure) if failure.status == 404 => return Ok(None),
+            Err(failure) => return Err(failure),
+        };
+        let raw = response.value;
+        if raw["type"] != "file" || raw["path"] != name || raw["encoding"] != "base64" {
+            return Err(Failure::protocol());
+        }
+        let encoded: String = r::text(&raw, "content")?
+            .chars()
+            .filter(|c| !c.is_ascii_whitespace())
+            .collect();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|_| Failure::protocol())?;
+        if bytes.len() > 32768
+            || raw["size"].as_u64() != Some(bytes.len() as u64)
+            || std::str::from_utf8(&bytes).is_err()
+        {
+            return Err(Failure::new(413, "github_setup_file_unavailable"));
+        }
+        Ok(Some(bytes))
     }
 
     async fn source_tip(&self, target: &str, commit: &str) -> Result<()> {

@@ -111,6 +111,10 @@ func (b nativeWorkspaceSetup) setupSource(ctx context.Context, commit, target st
 }
 
 func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, paths []string) (factoryservice.WorkspaceSetup, error) {
+	return b.readSetup(ctx, actor, repository, paths, nil)
+}
+
+func (b nativeWorkspaceSetup) readSetup(ctx context.Context, actor collaboration.ActorID, repository collaboration.RepositoryID, paths []string, captured *nativeSetupSource) (factoryservice.WorkspaceSetup, error) {
 	view := factoryservice.WorkspaceSetup{Files: map[string]string{}, SourceFiles: map[string]string{}, SourceInputs: map[string]string{}, SelectedPaths: []string{}, MissingPaths: []string{}, Tools: []string{"git", "bash"}, Preparations: []factoryservice.WorkspaceSetupPreparation{}}
 	if err := b.localResourceAccess(ctx, actor, repository); err != nil {
 		return view, err
@@ -150,9 +154,23 @@ func (b nativeWorkspaceSetup) ReadSetup(ctx context.Context, actor collaboration
 	if err != nil {
 		return view, err
 	}
-	source, err := b.setupSource(ctx, tip.Tip, target, paths)
-	if err != nil {
-		return view, err
+	var source nativeSetupSource
+	// Approval already checked these bytes. Reuse them only for the current
+	// tip/target/selection; authority and decision heads are read above.
+	if captured != nil && captured.Repository == b.repository.ExternalID && captured.Commit == tip.Tip && captured.Target == target && len(captured.SourceFiles) == len(paths) {
+		source = *captured
+		for _, name := range paths {
+			if _, exists := source.SourceFiles[name]; !exists {
+				source = nativeSetupSource{}
+				break
+			}
+		}
+	}
+	if source.Commit == "" {
+		source, err = b.setupSource(ctx, tip.Tip, target, paths)
+		if err != nil {
+			return view, err
+		}
 	}
 	view.SelectedPaths = append([]string{}, paths...)
 	for _, name := range paths {
@@ -275,12 +293,17 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 		return empty, err
 	}
 	observedInputs := make(map[string]string, len(preview.SourceFiles))
+	planningBytes := len(files["setup.sh"]) + len(files["check.sh"])
 	for name, contents := range preview.SourceFiles {
+		planningBytes += len(contents)
 		sum := sha256.Sum256(contents)
 		observedInputs[name] = hex.EncodeToString(sum[:])
 	}
 	if !maps.Equal(observedInputs, in.SourceInputs) {
 		return empty, store.ErrStaleRevision
+	}
+	if planningBytes > project.MaxFactoryContextBytes {
+		return empty, factoryservice.ErrWorkspaceSetupInput
 	}
 	requirement := project.RequirementDecision{ID: identity("d", "requirements"), Predecessor: in.Requirement, Project: grant.Project, SourceCommit: in.Source, SetupDigest: project.SetupDigestOf(files), InputsDigest: project.PreparationInputsDigestOf(names, in.SourceInputs, in.Tools), SourceInputs: in.SourceInputs, Approver: int64(actor), Native: grant.Native, Recipe: &project.SetupRecipe{Files: files, Tools: in.Tools, CommandDigest: commandDigest}}
 	// Consent binds the complete intended recipe and execution owner. Actual
@@ -359,5 +382,5 @@ func (b nativeWorkspaceSetup) ApproveSetup(ctx context.Context, actor collaborat
 			return empty, err
 		}
 	}
-	return b.ReadSetup(ctx, actor, repository, paths)
+	return b.readSetup(ctx, actor, repository, paths, &preview)
 }
