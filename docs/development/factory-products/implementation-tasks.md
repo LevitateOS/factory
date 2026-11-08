@@ -4,10 +4,10 @@ Current product owner: [LevitateOS/factory](https://github.com/LevitateOS/factor
 This is the single current task list for finishing Factory, consolidated on
 2026-11-08 from the milestone queue, assumptions audit, security handoff and
 freshness requirements after redesign D1–D8. It includes unfinished behavior,
-qualification, release work and unresolved decisions. The current request is to
-consolidate that work; it starts no implementation or live check. The earlier
-product goal remains cleared. Factory is not finished. Source/fixture completion
-never substitutes for connected, installed or security qualification.
+qualification, release work and unresolved decisions. The ordered prompts below
+are prepared for separate user invocation; creating this queue starts no product
+implementation or live check. The earlier cleared product goal is not silently
+resumed. Factory is not finished. Source/fixture completion never substitutes for connected, installed or security qualification.
 
 Read the [owner decisions and findings](standalone-assumptions-audit.md),
 [selected language allocation](language-allocation.md),
@@ -21,7 +21,9 @@ required only for work or checks that look like hacking.
 
 ## Where to continue
 
-No implementation task is newly Active. When implementation resumes, first
+No implementation task is newly Active. Invoke Q01 first, then each following
+prompt only after its earlier ordinary prerequisites are verified complete.
+Q30 is the full finalization pass. When implementation resumes, first
 reconcile the retained CONNECT evidence and status conflict below; diagnose the
 recorded pre-consent crash before another browser challenge. Independently trace
 the retained Muse typed-result failure without changing the strict result schema.
@@ -40,6 +42,502 @@ provider approvals and optional automation identities retain actual host rules.
 The local owner controls execution/spending; never enable automation, choose a
 paying source or switch accounts silently. Preserve the selected sequential
 single-Builder model and existing bounded journals/cancellation/retirement.
+
+## Sequential non-Daybreak execution queue
+
+Use one complete code block per request, starting at Q01. All Q01–Q30 entries
+are **Pending**; this document does not execute them. Every prompt rechecks all
+earlier pieces and repairs the earliest incomplete prerequisite before its own
+scope. Reuse exact retained evidence when source/inputs still support its claim;
+a status label, a commit alone or an isolated component pass is not completion.
+Finish one requested piece, commit it and stop before starting the next prompt.
+
+These Q labels divide the existing A/T outcomes into executable scopes. They do
+not replace or silently close the original milestones. Early scopes such as
+boundary admission, configuration and component freshness can finish while their
+parent integrated/installed milestone stays pending until its later named piece.
+For each completion, record actual implementation commit(s), smallest defining
+check/evidence, limitations, parent milestones/gates affected and any blocker in
+this document; retain detailed security evidence in the handoff. If an earlier
+piece was marked complete outside that scope, correct its record and finish it.
+
+Follow AGENTS.md and the selected language allocation: Go owns durable product
+policy/transactions, Rust owns native effects/custody/authenticated connectors,
+Lit owns shared presentation and Fountain owns its host authority. Preserve human
+text and unrelated edits, retained profiles/keyrings/worktrees and all evidence.
+Use current official inputs, existing journals/owners/checks and authorized
+fixtures/sessions. Do not introduce a framework, weaken admission, fabricate
+receipts or replay unknown sends. Existing owner decisions remain binding.
+
+**Daybreak boundary:** ordinary security engineering and ordinary real admission,
+isolation, custody/recovery checks stay in this queue. No whole security gate is
+automatically Daybreak-only. Only work/checks that actually look like hacking
+require a user-started Daybreak session under AGENTS.md. Record each such exact
+check, why it needs that session, affected gate and evidence still needed. Do not
+run it here, invent an adversarial suite, waive it or infer Daybreak access.
+A piece may be COMPLETE for its stated ordinary scope with separately named
+Daybreak checks still pending; its broader gate remains open. If the missing
+check prevents required ordinary admission or a downstream journey, report the
+blocker and stop the chain rather than executing without that admission.
+
+Mixed-repository funding may remain explicitly unavailable under the current
+owner boundary; it is not silently decided or qualified by single-repository
+checks. The final pass must report any unresolved decision and whether it blocks
+a selected requirement. Likewise, preserve the human CONNECT history while
+recording any newly proved current conclusion separately.
+
+| Prompt | Ordinary completion scope | Existing requirement | Status |
+| --- | --- | --- | --- |
+| [Q01](#q01) | Desktop connection and current session | T06-CONNECT; A12–A15 | Pending |
+| [Q02](#q02) | Fresh inputs and provider-tool update owner | A16; freshness; component part of T14-UPGRADE | Pending |
+| [Q03](#q03) | Local-owner policy, role funding and judgment selection | A02/A03/A09/A11; configuration/admission part of A25 | Pending |
+| [Q04](#q04) | Canonical runtime placement | T12-PLACEMENT | Pending |
+| [Q05](#q05) | Native execution, MCP and custody admission | T09-NATIVE-EXECUTOR; ordinary boundary parts of security gates 6–12 | Pending |
+| [Q06](#q06) | Representative preparation and resource recovery | A17; preparation part of T09-NATIVE-EXECUTOR | Pending |
+| [Q07](#q07) | Connected onboarding, source review and accepted inputs | A21/A05/A06 | Pending |
+| [Q08](#q08) | Muse typed plan and sequential Builder completion | A01/A19; provider-task part of T09-EXECUTION | Pending |
+| [Q09](#q09) | Live work controls, source withdrawal and recovery | A05/A11/A15/A19; ordinary T09-EXECUTION closure | Pending |
+| [Q10](#q10) | Connected GitHub permissions and remote revocation | T06-GITHUB; A14; custody and pending reviewer work | Pending |
+| [Q11](#q11) | Connected CI, provider rules and merge contracts | A04/A07; T06-GITHUB rules/CI qualification | Pending |
+| [Q12](#q12) | Judgment owner and planning/worker consumers | A25; Feed/planning/context/consultation | Pending |
+| [Q13](#q13) | Contribution invitations and queue preference | A25; contribution and priority consumers | Pending |
+| [Q14](#q14) | Feed authoring, conditional refinement and graph delivery | A05/A21/A25 | Pending |
+| [Q15](#q15) | Complete connected GitHub delivery and correction | A04/A05/A07/A21/A25; integrated T09-EXECUTION consumer | Pending |
+| [Q16](#q16) | GitHub automatic own-issue intake | T11-INTAKE; security D1 | Pending |
+| [Q17](#q17) | GitHub external PR adoption | T12-GITHUB-PRS | Pending |
+| [Q18](#q18) | Fountain configured-host login and grant lifecycle | T10-GATEWAY; authentication/grant part of security D2 | Pending |
+| [Q19](#q19) | Fountain placement and authenticated operations | T10-GATEWAY; remote T12-PLACEMENT | Pending |
+| [Q20](#q20) | Fountain issue-only collaborator capability | security D5; issue-only host parity | Pending |
+| [Q21](#q21) | Fountain candidate transfer and conditional publication | T10-PUBLISH | Pending |
+| [Q22](#q22) | Fountain automatic issue intake | T10-INTAKE | Pending |
+| [Q23](#q23) | Fountain external PR adoption | T12-FOUNTAIN-PRS | Pending |
+| [Q24](#q24) | Installed Fountain appliance/Forge journey | T13-FORGE; A24 | Pending |
+| [Q25](#q25) | Fresh Linux distribution and installers | T14-PACKAGE; A18/A22 | Pending |
+| [Q26](#q26) | Installed GitHub desktop product journey | T13-GITHUB; installed A01/A11/A12–A21 | Pending |
+| [Q27](#q27) | Installed Fountain desktop product journey | T13-FOUNTAIN; installed security D2/D5 | Pending |
+| [Q28](#q28) | Retained upgrade, interrupted recovery and updates | T14-UPGRADE; A16/A18/A20 | Pending |
+| [Q29](#q29) | Installed shared-component and host parity | T14-PARITY; A24 | Pending |
+| [Q30](#q30) | Full finalization of non-Daybreak Factory work | all remaining ordinary work; final pass | Pending |
+
+<a id="q01"></a>
+
+### Q01 — Desktop connection and current session
+
+```text
+Implement Q01 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+Verify D1–D8 are complete within their recorded scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Reconcile the retained CONNECT evidence and the human Active versus committed Complete conflict. Preserve the original row/note verbatim; record any new operative conclusion separately. Diagnose the retained pre-consent native crash before a new browser challenge. Fix concrete failures and prove the actual production connect, account/repository switch, minimize/restore, reconnect, unknown/failed status, explicit Disconnect, execution-unavailable/retry and Quit paths. Do not infer physical/native behavior from a browser peer. Installed variants belong to Q26/Q27.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q02"></a>
+
+### Q02 — Fresh inputs and provider-tool update owner
+
+```text
+Implement Q02 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the current-input and Muse tool-owner path under docs/development/freshness.md: official stable discovery, integrity/required-protocol verification, initial acquisition/sign-in when needed, five-minute/pre-work refresh, interrupted download and changed-release/status races. Prove an active run retains captured bytes and a new run selects current verified bytes, without changing the selected model/source or personal launcher/login. Supply missing automatic dependency freshness coverage through existing owning update paths. Qualify source/component behavior here; installed delivery/activation remains Q28. Historical successful builds are not a current release baseline.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q03"></a>
+
+### Q03 — Local-owner policy, role funding and judgment selection
+
+```text
+Implement Q03 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q02 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the reachable local-owner execution/spending and disabled-policy setup journey, with explicit separate coder/reviewer source/model choices and a separate explicit judgment choice. Prove current ownership, allowance/role/grant checks, conflict/readback and withdrawal without fallback or auto-enablement. Reuse the existing Muse session; do not require a separately verified billing identity where the owner exception applies. Do not select or charge a source silently. This prompt covers configuration and pre-execution admission; actual run charges, withdrawals and role execution are Q08/Q09/Q12/Q13.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q04"></a>
+
+### Q04 — Canonical runtime placement
+
+```text
+Implement Q04 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q03 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish canonical runtime placement/generation and explicit policy enrollment for local GitHub work before dispatch. Prove single-controller ownership, repository/account changes, stale generation/placement refusal and disabled/unfunded policy refusal. Preserve appliance admission and make missing execution ports explicitly unavailable. Do not start unattended intake. Remote Fountain placement is Q19; keep that part of the parent milestone pending until Q19 rather than inventing remote authority from local metadata.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q05"></a>
+
+### Q05 — Native execution, MCP and custody admission
+
+```text
+Implement Q05 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q04 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish ordinary native execution-boundary admission using the selected isolated worker and existing trusted CLI/native owner. Prove exact instance/profile/run/role/worktree bindings, distinct worker identity, mounted/resource/network limits, canonical current-work/tool catalog, backend/instance/expiry/revocation checks, native signing-key custody and bounded joined retirement with the existing finite execution/MCP checks. Keep reusable/root/IPC credentials outside worker/Go/UI observations. Use the existing owners, not a new scheduler/lease system. This boundary piece does not certify the complete provider task or crash/outcome journey: those are Q08/Q09, and parent execution/security gates stay open until their required evidence exists.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q06"></a>
+
+### Q06 — Representative preparation and resource recovery
+
+```text
+Implement Q06 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q05 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish representative larger supported setup/check workloads through the real preparer/worker snapshot path. Reuse completed small cold Node/Bun/Go/Rust checks. Resolve the retained public-artifact HTTP failures; prove approved public-HTTPS/offline behavior, supported lifecycle scripts, interruption/DNS/address/limit handling, saturation/low-space refusal, same-run wait/replacement and overlapping/restarted preparation, snapshot cancellation and exact retirement. Keep actual time/tree/memory/storage ceilings explicit. Private registries remain unavailable without separately admitted custody. Installed workload qualification remains Q26/Q27/Q28.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q07"></a>
+
+### Q07 — Connected onboarding, source review and accepted inputs
+
+```text
+Implement Q07 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q06 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the actual connected user journey from selected repository/target and reviewed setup/source files to both ready role preparations, acceptance preview and approved planning inputs. Prove changed-source consent, nonempty comments/dependencies, hidden/stale input refusal, selected-file aggregation/max bounds, current account/placement/approval withdrawal during I/O, native preparation restart/reactivation and retained pending-approval recovery without replay. Consent alone must not fabricate Verified/readiness. Use the current user-facing path rather than seeding prerequisite approval rows. Installed variants and merged-result preparation are verified in their later owning prompts.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q08"></a>
+
+### Q08 — Muse typed plan and sequential Builder completion
+
+```text
+Implement Q08 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q07 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Trace the original string-versus-object finish failure from retained native/MCP/CLI bytes, starting with run 518ab9643f2a381dd81b4814df003979 under /home/vince/tmp/fmuse-ready-admission8.z4gCPL/. Fix the actual encoding owner without weakening strict schemas, changing sources or inferring completion from final text. Prove real accepted planning, public coordinator Builder advancement, sequential implementation, exact task/output/final checkpoint identities, candidate export, original-source accounting and retained restart without inference replay. Include the live requalification of previously fixed missing-read, early-finish, reused-ID and output-ready failures in that journey. Preserve the original failed runs and historical child manifests; new implementation stays max_children: 0.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q09"></a>
+
+### Q09 — Live work controls, source withdrawal and recovery
+
+```text
+Implement Q09 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q08 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish actual pause/resume/stop/retry/takeover/project-stop behavior on admitted workers. Prove exact receipts, current repository/account authority, missing/stale recovery refusal, source/role withdrawal while another source remains usable, cancellation, exact stop-based accounting and process/root/custody retirement. Complete interrupted launch/write/lost-reply, active-service/incomplete-receipt, candidate/outcome and crash/reboot recovery through the existing journals; include actual correction, not a fixture-supplied terminal result. Historical unsealed/unknown sends remain fenced without invented intent or replay. Keep unsupported token-task execution unavailable. Close only those parent execution gates whose full ordinary evidence is now present; installed recovery remains later.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q10"></a>
+
+### Q10 — Connected GitHub permissions and remote revocation
+
+```text
+Implement Q10 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q09 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the real action/token/role permission cases and provider-side revocation/refusal, including retained Go-observer consumer migration. Complete the six pre-existing reviewer-permission edits as one verified journey without overwriting unrelated edits. Use the exact pending-check scope in the handoff: effective read-only permission, actual WebKit controls, POST 403 plus exact-command GET 404, normal PR readback/local withdrawal and restoration of the original team permission. Local saved-account removal is not remote revocation. Preserve all original ambiguous commands and causal evidence; a current target cannot settle them.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q11"></a>
+
+### Q11 — Connected CI, provider rules and merge contracts
+
+```text
+Implement Q11 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q10 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish connected nonempty/app-bound checks, test-merge evaluation, current branch/protection/method facts and policy/head/base/status/permission races. Prove supported merge/squash/rebase receipts, exact reviewed candidate versus resulting commit, provider approval/human-veto restrictions and merged-result source preparation. Personal-account agent inspection remains COMMENT; optional designated automation votes must obey real provider rules. Required CI must come from actual supported runners for its claimed scope. Unsupported complex rules stay explicitly unavailable. This qualifies the producer/operation contracts; Q15 proves their complete coordinator/model composition.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q12"></a>
+
+### Q12 — Judgment owner and planning/worker consumers
+
+```text
+Implement Q12 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q11 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish selected-source judgment adoption through real Feed admission, planning/advice/context selection and authenticated worker probability/choice/score consultation. Prove production Begin including long input, typed result validation, exact captured source/model/accounting, current policy/source/worker admission, withdrawal/eligibility races, abrupt-crash recovery and retained no-replay settlement. Reuse the already completed tool-free judgment and declared formats; no TypeSafe/JEV or alternate-provider fallback is required. Contributions/queue selection are Q13, Feed creation/graph are Q14 and complete paid delivery judgment is Q15.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q13"></a>
+
+### Q13 — Contribution invitations and queue preference
+
+```text
+Implement Q13 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q12 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the actual admitted-role contribution assessment from current eligibility/allowance preflight through claim, real inference, invitation and reply. Finish same-repository queue tournaments, including grouped choices, selection/dispatch, current eligibility/source withdrawal and retained exact charges/results. Preserve sequential per-role questions and the existing usefulness/admission rules. Mixed-repository funding remains an owner decision: resolve it if required for this piece, otherwise retain its existing explicitly unavailable boundary and report the decision as pending; do not invent a paying source. Prove the supported single-repository journey without claiming mixed-repository qualification.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q14"></a>
+
+### Q14 — Feed authoring, conditional refinement and graph delivery
+
+```text
+Implement Q14 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q13 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the connected request -> judgment -> captured-account issue creation -> conditional refinement and native graph journey. Prove additional created slots, concurrent human edits, source revision/expiry, original command/step identity, conditional refusal and unknown-send recovery. For graph generation preserve completed issue/dependency writes, resume only known remaining steps and keep execution held until the whole intended graph is verified; do not restore the superseded all-or-nothing requirement. Include funded/prepared planning and retained restart. Preserve human content and unknown historical origin/result records; model/authoring declarations are not connected proof.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q15"></a>
+
+### Q15 — Complete connected GitHub delivery and correction
+
+```text
+Implement Q15 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q14 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Prove the actual connected accepted-plan/Builder/candidate-publication/independent-review/correction/real-CI/allowed-merge journey through the existing coordinator phase ordering. No fixture-supplied phase advancement, verdict, synthetic CI or fabricated terminal result may stand in for the complete journey. Include real paid delivery-material judgment -> funded receipt/acceptance -> resolution/merge, human blockers, pending reviews/inline findings, changed repository/PR target/head/base and merged-result preparation for the next Builder. Finish interrupted/expired publication/review/merge send adoption and definitive no-send retry/fresh authorization without renewing old authority or replaying a model. Capture exact receipts, original-source charges and retained restart/reconciliation.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q16"></a>
+
+### Q16 — GitHub automatic own-issue intake
+
+```text
+Implement Q16 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q15 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish explicit-policy authenticated GitHub polling, cursors, wake reconciliation and eligible own-issue-to-PR/review/CI/merge automation on the admitted runtime. Prove original/unedited creation and current creator authority, no origin-based recursion, no duplicate dispatch or unauthorized spending, larger/paginated reads and account/source/permission withdrawal during I/O. Keep unresolved Factory-origin operations held; do not filter human work merely because it shares the automation account. Reuse Q15 delivery proof while demonstrating actual automatic entry and retained restart/wake behavior. Do not make Fountain a prerequisite.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q17"></a>
+
+### Q17 — GitHub external PR adoption
+
+```text
+Implement Q17 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q16 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish adoption of eligible external GitHub PR updates/reviews/checks into the real workflow, replacing ignored-PR behavior. Bind exact head/base, canonical repository/actor/issue, current policy and explicit fork-execution authority before any worker launch. Prove stale/update/withdrawal refusal, no recursive or duplicate adoption, actual correction/review/CI progression and retained restart recovery. Do ordinary functional admission checks here; separately record any hacking-like fork/adversarial test for Daybreak without weakening the launch boundary.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q18"></a>
+
+### Q18 — Fountain configured-host login and grant lifecycle
+
+```text
+Implement Q18 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q17 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Work on Fountain host source in canonical /home/vince/Projects/forgejo-ext and its existing Factory connector. First verify retained D6 e88b50dadb91b5ea4bb39dcf80307939d3270fed and gateway merge 2e57559c0e4844baba861a86632d083192537ff3 with both original gateway ancestors. Finish real configured-host desktop OAuth/enrollment/refresh, immutable profile proof, old-install migration, in-flight withdrawal/expiry and concurrent reservation first-read behavior. Reuse the existing TLS/keyring/reopen/enrollment evidence rather than repeating it without a new risk. Preserve existing reservation semantics and caller permissions; no global-lock redesign, new grant framework or patch-copy implementation. Placement/operation authority is Q19.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q19"></a>
+
+### Q19 — Fountain placement and authenticated operations
+
+```text
+Implement Q19 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q18 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish centrally coordinated Fountain runtime placement/generation, exact enrollment/profile/repository binding, revocable privileged operation grants, operation journals/lookups and the real desktop/shared-view integration. Prove current permission, expiry/withdrawal and competing appliance/desktop controller refusal without duplicate dispatch or inferred callback authority. Extend the canonical Fountain host/SDK and actual owning Forge integration; keep host authority outside Factory's standalone engine closure. Complete the local-plus-remote placement requirement and ordinary gateway scope with exact cross-repository commits/evidence. Read enrollment alone never grants execution or publication.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q20"></a>
+
+### Q20 — Fountain issue-only collaborator capability
+
+```text
+Implement Q20 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q19 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the separately authorized Fountain host capability needed for genuine issue-only collaboration without code-unit read. Bind the supported issue-only reads/writes and shared UI to current exact account/repository grants; prove denial outside that scope and unchanged code/execution permissions on the actual host. Preserve existing code-reader behavior. If the required host authorization/capability or real authorized fixture is unavailable, stop with its exact blocker; do not claim parity from code-reader fixtures or silently broaden the grant. Keep implementation in its canonical host/integration owners.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q21"></a>
+
+### Q21 — Fountain candidate transfer and conditional publication
+
+```text
+Implement Q21 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q20 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish digest-bound native candidate transfer/staging and conditional Fountain branch/PR publication through admitted Q19 operations. Prove actual native execution -> candidate -> transfer -> PR, exact source/head/base/actor/grant receipts, retained operation lookup, lost upload/write replies, partial/interrupted transfer and restart/withdrawal recovery. Reuse the existing command journals and native custody; unknown sends remain fenced and lookup absence does not authorize a second send. No Factory-owned duplicate host gateway or provider framework.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q22"></a>
+
+### Q22 — Fountain automatic issue intake
+
+```text
+Implement Q22 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q21 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish eligible Fountain issue-change intake on the selected admitted runtime through actual work, publication, independent review/correction, real checks and allowed merge. Prove explicit policy/source consent, no duplicate appliance/desktop dispatch, no recursion or unauthorized spend, grant/placement withdrawal, exact source accounting and retained automatic recovery. Use current native authority and canonical host operations rather than adopting private session callbacks as desktop authority.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q23"></a>
+
+### Q23 — Fountain external PR adoption
+
+```text
+Implement Q23 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q22 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish eligible external Fountain PR update/review/check adoption with exact head/base and current host/fork execution authority. Replace ignored-PR behavior for this provider and prove actual correction/review/check progression, stale/withdrawn refusal, no duplicate/recursive dispatch and retained restart. Preserve issue-only capability boundaries and existing native ownership/recovery semantics. Scope hacking-like adversarial checks separately without bypassing mandatory ordinary admission.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q24"></a>
+
+### Q24 — Installed Fountain appliance/Forge journey
+
+```text
+Implement Q24 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q23 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Build/install using the actual owning Fountain extension/appliance tooling and run its complete issue-to-PR/review/correction/external-adoption journey with shared UI and retained execution. Verify the canonical host and consumer repository roots before edits; use /home/vince/Projects/forgejo-ext for Fountain source and preserve existing gateway/ownership commits. Prove current policy options, selected-repository navigation, real user inputs, withdrawal and restart on the installed host. Do not impose a Linux desktop package prerequisite. Record exact host/consumer/Factory commits; component fixtures are not appliance qualification.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q25"></a>
+
+### Q25 — Fresh Linux distribution and installers
+
+```text
+Implement Q25 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q24 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish the locally installable Linux bundle for the selected single-user systemd execution model: architecture-matching Go/PostgreSQL/native/provider assets, production UI without Storybook, runtime dependency checks, complete notices/licenses and distribution integrity. Use fresh verified inputs and actual supported-host matrix evidence; installation must need no developer tools/container engine. Prove interrupted install/refusal/permissions and safe service/payload activation using the existing installer owners. Preserve profiles/credentials/retained runs and unrelated host state. Installed GitHub/Fountain product journeys follow in Q26/Q27; neither a staged image nor a missing-library refusal completes this prompt.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q26"></a>
+
+### Q26 — Installed GitHub desktop product journey
+
+```text
+Implement Q26 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q25 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Install the Q25 app and prove real GitHub sign-in/connect, repository selection, reviewed setup/accepted inputs, explicit funding, own-issue automatic work, independent review/correction, real CI/merge and external PR adoption. Include actual keyboard/shared UI, minimize/restore/reconnect, failed-status behavior, Quit/second-launch/restart/sleep-wake, provider revocation, role/source withdrawal, physical execution-unavailable/retry and real installed custody/retirement/reconciliation. Reuse earlier component/connected proof and test only the changed installed boundary plus its complete defining product journey. No seeded approval/phase facts or development executable may stand in for the installed path.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q27"></a>
+
+### Q27 — Installed Fountain desktop product journey
+
+```text
+Implement Q27 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q26 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Install the actual Linux app and prove configured-host Fountain login/enrollment, source/setup/funding, local work, candidate upload/publication, review/correction/check/merge and external adoption. Include placement/competing-controller refusal, revoked/expired grants, issue-only collaborator scope, account/repository navigation, Quit/restart/wake and installed credential/capability retirement/recovery. Use installed app/host assets at recorded exact revisions. Reuse prior host/connector proof without promoting it to installed qualification or requiring a second defining implementation.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q28"></a>
+
+### Q28 — Retained upgrade, interrupted recovery and updates
+
+```text
+Implement Q28 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q27 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Finish actual installed app/backend/store/provider-tool upgrade and safe uninstall behavior with retained accounts/keyrings, old/standalone/schema-93 profiles, pending commands/drafts/approvals/effects and captured active-run executables. Prove concurrent/interrupted migration, old-profile reopen, startup reconciliation, source/candidate/receipt preservation and update activation without corrupting running sessions. Preserve exact known-prior/current/unknown constraint handling and never authorize historical unscoped writing from schema version or current target state. Qualify installed freshness/download/status races and owning dependency activation paths from Q02. Use disposable retained-profile copies for checks; do not delete original profiles, ignored evidence or worktrees.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q29"></a>
+
+### Q29 — Installed shared-component and host parity
+
+```text
+Implement Q29 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q28 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Complete the selected shared-component parity requirement: make one smallest meaningful shared presentation correction if a real issue remains, rebuild/install both consumers and demonstrate the same visible behavior in Fountain and the desktop, with correct selected-repository navigation and current policy options. Preserve one defining UI owner and current provider permissions/capabilities. Reuse qualifying earlier evidence if it already proves the exact requirement at current revisions; do not invent an unrelated visual change solely to generate work. Include retained-data/installed behavior affected by the change and exact source/build/install references.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Report COMPLETE only for this prompt's full ordinary scope; otherwise INCOMPLETE or BLOCKED. Do not start the next prompt.
+```
+
+<a id="q30"></a>
+
+### Q30 — Full finalization of non-Daybreak Factory work
+
+```text
+Implement Q30 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
+
+First verify D1–D8 and Q01–Q29 are complete within their stated scopes using actual code, canonical commit references and retained checks. Finish the earliest incomplete prerequisite first. If genuinely blocked, record exactly what remains and stop; do not skip it.
+
+Perform the full finalization pass. Verify D1–D8 and Q01–Q29 from actual canonical code, exact cross-repository commits, current inputs and retained connected/installed evidence. Finish the earliest incomplete ordinary piece before proceeding; fix concrete integration/regression failures and prove the affected full journey. Audit coverage of every unfinished integration row, all 15 milestone outcomes, all 13 security gates and unresolved decisions against the current source/requirements; no ordinary task may disappear behind a Daybreak label. Reuse completed evidence; run broader end-to-end/build/install checks only where a final requirement or remaining risk needs them. Reconcile task/README/handoff/release facts, source references, notices, installers, updates and original uncertain outcomes. Preserve human text/status history and all unrelated edits/profiles/keyrings/worktrees/evidence. Commit verified fixes and record one concise completion ledger. Report COMPLETE only if no required product or security work remains and the full evidence supports that claim. Report READY FOR DAYBREAK only if every ordinary requirement is complete and the only remaining work is an exact justified list of hacking-like checks requiring a user-started Daybreak session. Otherwise report INCOMPLETE or BLOCKED with exact ordinary blockers. Claim full Factory/security completion only when every required gate, including any actual Daybreak work, has its own evidence.
+
+Preserve all pre-existing edits and human text. Follow the selected language allocation and Daybreak boundary. Reuse completed checks unless a specific change/risk requires another run; fixture proof does not qualify connected/installed behavior. Commit verified changes and update the central queue/handoff with exact references, evidence and remaining gates. Use the final disposition defined above. Do not start Daybreak work or another implementation queue.
+```
 
 ## Unfinished integration and qualification
 
