@@ -1091,6 +1091,13 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
     )?;
     workflow_evidence_check(app, &account.connection).await?;
     product_bridge_check(app, &account.connection).await?;
+    let canonical_evidence: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(state.paths.profile.parent().ok_or("fixture parent missing")?
+            .join("canonical-workflow-evidence.json"))
+            .map_err(|_| "canonical evidence missing")?,
+    ).map_err(|_| "canonical evidence invalid")?;
+    let canonical_protection_read = canonical_evidence["actual_canonical_protection_read"]
+        .as_bool().ok_or("canonical protection evidence missing")?;
     let mut page = 1;
     let mut pages = 0;
     let mut private = None;
@@ -1196,7 +1203,7 @@ async fn consent_checks(app: &tauri::AppHandle) -> Result<(), String> {
             "owned_local_account_removed":!retain, "owned_account_retained_for_followup":retain, "remote_revocation_exercised":revocation,
             "canonical_factory_binding":true, "native_product_bridge":true,
             "connected_shared_ui":true,"canonical_job_read":true,
-            "canonical_job_continuation":true,"canonical_protection_read":true
+            "canonical_job_continuation":true,"canonical_protection_read":canonical_protection_read
         }),
     )
 }
