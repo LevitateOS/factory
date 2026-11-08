@@ -29,7 +29,8 @@ conflicting status. On 2026-11-08 the owner authorized the ordered Q01–Q30 goa
 Q01 is Complete within its source/native scope; Q02 is Complete within its
 source/component scope; Q03 is Complete within configuration/admission scope;
 Q04 is Complete within local placement scope; Q05 is Complete within ordinary
-boundary admission scope and Q06 is Active.
+boundary admission scope; Q06 is Complete within ordinary preparation scope and
+Q07 is Active.
 The owner accepted current native diagnostics plus the complete
 connected lifecycle as its closure evidence, retaining the unavailable historical
 crash cause as unknown. No current lifecycle requirement is waived.
@@ -65,10 +66,10 @@ This adds ordinary admission evidence to gates 7–12; no whole security gate cl
 The timed-out startup fixture remains unresolved for Q09; real provider-task and
 installed recovery evidence is still required.
 
-Q06 remains incomplete. Verified source `82e68b3` fixes a real enforcing-SELinux
-snapshot label collision and setup network failure classification. The actual
-larger UI build/worker/restart, public/offline setup and preparation capacity/
-waiter checks passed; [remaining work and exact evidence](../untangle-codebase.md#q06-increment-larger-workload-and-preparation-admission-2026-11-08).
+Q06 ordinary preparation scope is complete in `82e68b3`, `cb841bd`, `def29b7`.
+Actual larger UI build/worker/restart, public/offline/DNS/aggregate-budget behavior,
+capacity/waiter checks, interrupted overlapping transfers/reopen and snapshot
+cancellation/reuse passed; [exact evidence and limits](../untangle-codebase.md#q06-completion-ordinary-preparation-and-resource-recovery-2026-11-08).
 The earlier failed workload runs remain fenced, including candidate capture run
 `b8affa6b0bdfe1dc88bf55af010a4c7d` for Q09; no result is inferred. All gates stay open.
 

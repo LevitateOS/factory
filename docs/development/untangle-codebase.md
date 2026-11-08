@@ -710,13 +710,45 @@ reads, refused readiness with `setup HTTPS transfer budget exceeded` and confirm
 exact retirement (`/home/vince/Projects/q06-budget/{result.log,preparation-network-limit/native-preparations/}`).
 Current Rust and Go callback builds passed; no model or personal credentials ran.
 
-Q06 is incomplete: interrupted network handling, overlap across
+At that checkpoint Q06 was incomplete: interrupted network handling, overlap across
 restart and snapshot-copy cancellation still need their defining checks. Preserve
 all earlier attempts; notably `b8affa6b0bdfe1dc88bf55af010a4c7d` under
 `/home/vince/Projects/q06-ui4/` has an unconfirmed candidate capture, not a terminal
 receipt. Q09 must retain/reconcile that uncertainty without inference replay.
 No failed historical run is settled by the new pass. All six original edit sets,
 profiles/keyrings and evidence remain. Q07–Q30 and all 13 security gates stay open.
+
+### Q06 completion: ordinary preparation and resource recovery (2026-11-08)
+
+Factory `82e68b3`, `cb841bd` and `def29b7` complete Q06's ordinary preparation
+scope; D1–D8/Q01–Q05 and canonical Fountain references retain their verified
+scopes. The larger workload, bounds, actual failure fixes and earlier defining
+checks are recorded immediately above and are not repeated here.
+
+The remaining existing native checks passed:
+
+- `/home/vince/Projects/q06-interrupt2/result.log`: both real admitted role
+  preparations had partial public-download bytes; production-owner Quit cancelled
+  and joined them. A new supervisor retained identical request/retirement bytes
+  and created no replayed setup roots. The initial failed check wrongly expected
+  live output from a retained-receipt API; the final barrier observes only actual
+  owned file sizes, not a fabricated observation or completed result.
+- `/home/vince/Projects/q06-snap/result.log`: cancellation during the first part
+  of an actual 512 MiB copy joined exact retirement within six seconds, preserved
+  the frozen source receipt, and allowed a later snapshot/check without rerunning
+  the one-time setup. All exact roots retired. This reuses the existing cancellable
+  broker controller, with its fields/wire framing private; no duplicate protocol
+  client or new execution owner was introduced.
+
+Reproduce using the retained `q06-native-preparation.sh` and
+`q06-native-parallel.sh` drivers with their recorded source/observer inputs.
+Current native/check and Go callback builds passed. Earlier successful small
+toolchain and current-input checks were reused. No model call, user login change,
+private registry admission or installed workload qualification ran. Historical
+403 details and failed run outcomes are not retrospectively inferred; their
+retained uncertainty still belongs to Q09. All six original edit sets, private
+profiles/keyrings and evidence remain. Q07 is next; installed workload checks
+remain Q26–Q28 and all 13 security gates stay open.
 
 ### Implementation order and completion boundary
 
