@@ -1383,20 +1383,20 @@ refusal. Failed `q08-native-plan6/7` runs remain retained for Q09 recovery
 observations, without invented finishes or replay. All six original edit sets
 still match the saved baseline.
 
-**BLOCKED pending clarification:** original run
+**Completion under the owner's clarification:** original run
 `518ab9643f2a381dd81b4814df003979` proves a string reached strict RPC validation,
 but retains no raw model/client argument bytes identifying the producer's
 internal conversion. Factory's JSON value/RawMessage forwarding does not
 stringify it; current live typed planning passes without schema weakening or
-coercion. The historical cause is not claimed fixed. The owner has been asked
-whether current complete journey evidence may close Q08 while retaining that
-historical cause as unknown. Reinspection confirmed 126 original transcript
-events with no raw argument fields or separate producer trace. The same
-prerequisite blocker persisted through three goal turns without a reply; Q08
-and the ordered goal are Blocked, with Q09–Q30 pending. D1–D8/Q01–Q07 and
-canonical Fountain references reuse their preceding
-verified evidence. Installed qualifications and all 13 security gates remain
-open; Factory is unfinished.
+coercion. The historical cause is not claimed fixed. Reinspection confirmed 126
+original transcript events without raw argument fields or a separate producer
+trace. After the recorded blocker, the owner answered: "Use current checks;
+retain historical cause as unknown" and resumed the ordered goal. With that
+explicit clarification and the complete current evidence above, Q08 is
+**COMPLETE within ordinary native planning/execution scope**. D1–D8/Q01–Q07
+and canonical Fountain references reuse their preceding verified evidence.
+Q09 is Active; Q10–Q30, installed qualifications and all 13 security gates
+remain open. Factory is unfinished.
 
 ## Verification and completion
 
