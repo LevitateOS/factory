@@ -665,6 +665,51 @@ outcome recovery, installed activation or any of the 13 open security gates.
 All six original edit sets, existing services/evidence and canonical repositories
 remain preserved.
 
+### Q06 increment: larger workload and preparation admission (2026-11-08)
+
+Factory `82e68b3` is verified partial Q06 work; D1–D8/Q01–Q05 retain their scopes.
+The actual larger workload exposed SELinux filename transitions labeling copied
+`system/licenses/` files as systemd units, denying Git mmap. Snapshot transfer now
+inherits its already-owned private destination's label for the synchronous copy,
+restores the thread's creation context and fails closed on restoration failure;
+host policy is unchanged. [Thread-specific creation context contract](https://man7.org/linux/man-pages/man3/getfscreatecon.3.html).
+Bounded Git diagnostics retain the actual failure. Setup CONNECT now reports
+policy denial separately from DNS/connect failure. The existing approved artifact
+read gains bounded transient retries; TLS, exact hash and total setup deadlines
+remain required. Original 403 details are not retrospectively inferred.
+
+The existing real native checks passed:
+
+- `/home/vince/Projects/q06-ui6/result.log`: verified official Bun, cold public
+  dependencies, actual 103-source shared UI/21-asset lifecycle build, identical
+  offline rebuild in the copied worker snapshot, real admitted MCP artifact/result,
+  exact retirement and settlement after restart without relaunch. Input is the
+  retained source snapshot of Factory `72c0f81`; no model call ran.
+- `/home/vince/Projects/q06-net/result.log`: public HTTPS, DNS versus policy refusal,
+  loopback/plain-HTTP denial, absent-approval offline refusal and exact retirement.
+- `/home/vince/Projects/q06-wait/result.log`: overlapping preparers, cancelled
+  same-run waiter without effects, independent work and valid replacement.
+- `/home/vince/Projects/q06-full/` and `q06-space3/`: actual active-reservation
+  saturation and free-space refusal before another preparer starts, with exact
+  retirement and broker diagnostics. Low-space uses only a private 64 MiB `/run`
+  view for the temporary broker, preserving its real state/socket bindings; the
+  host filesystem was not filled or remounted.
+
+Current native/check/Go callback builds passed. Small cold Node/Bun/Go/Rust checks
+were reused. Ceilings remain 64 MiB source, 1 GiB per prepared tree/100,000 entries,
+1 GiB preparer memory/active reservation, 4 GiB retained quota, independent `/run`
+reserve, 3 GiB worker tmpfs/4 GiB service memory and approved 1–1800-second entry
+deadlines. The shared UI used reviewed 120/30-second setup/check limits and normal
+ignored build outputs; private registries remain unavailable.
+
+Q06 is incomplete: interrupted network/aggregate-limit handling, overlap across
+restart and snapshot-copy cancellation still need their defining checks. Preserve
+all earlier attempts; notably `b8affa6b0bdfe1dc88bf55af010a4c7d` under
+`/home/vince/Projects/q06-ui4/` has an unconfirmed candidate capture, not a terminal
+receipt. Q09 must retain/reconcile that uncertainty without inference replay.
+No failed historical run is settled by the new pass. All six original edit sets,
+profiles/keyrings and evidence remain. Q07–Q30 and all 13 security gates stay open.
+
 ### Implementation order and completion boundary
 
 1. D1 + D2: one native work inspection/intervention journey across Go and Lit.

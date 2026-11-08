@@ -65,6 +65,13 @@ This adds ordinary admission evidence to gates 7–12; no whole security gate cl
 The timed-out startup fixture remains unresolved for Q09; real provider-task and
 installed recovery evidence is still required.
 
+Q06 remains incomplete. Verified source `82e68b3` fixes a real enforcing-SELinux
+snapshot label collision and setup network failure classification. The actual
+larger UI build/worker/restart, public/offline setup and preparation capacity/
+waiter checks passed; [remaining work and exact evidence](../untangle-codebase.md#q06-increment-larger-workload-and-preparation-admission-2026-11-08).
+The earlier failed workload runs remain fenced, including candidate capture run
+`b8affa6b0bdfe1dc88bf55af010a4c7d` for Q09; no result is inferred. All gates stay open.
+
 ## Current gates, owners and closure evidence
 
 1. **Workflow jobs / branch protection (T06-GITHUB).** Native authenticated reads

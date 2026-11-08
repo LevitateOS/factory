@@ -250,6 +250,14 @@ Preserve all pre-existing edits and human text. Follow the selected language all
 
 ### Q06 — Representative preparation and resource recovery
 
+Active, incomplete (2026-11-08): verified increment `82e68b3` fixes private
+snapshot SELinux label inheritance and distinguishes setup DNS/connect failures
+from policy denial. Actual shared UI lifecycle build/offline worker snapshot,
+public/offline setup, cancelled same-run waiter/replacement, saturation and
+controlled low-space refusal passed. [Evidence and remaining work](../untangle-codebase.md#q06-increment-larger-workload-and-preparation-admission-2026-11-08).
+Interrupted network/aggregate limits, overlap across restart and snapshot-copy
+cancellation remain unperformed. Q07–Q30 stay pending.
+
 ```text
 Implement Q06 from /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md. Read its execution rules, mapped requirements and current evidence before editing. Work in /home/vince/Projects/factory, plus canonical owning repositories explicitly required by this piece.
 
