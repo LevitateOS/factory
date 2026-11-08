@@ -481,9 +481,31 @@ metadata and the installed current Muse `1.4.14-R7309.1`, SHA-256
 `0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`:
 `/home/vince/Projects/q02-tool-discovery-verified/result.log`.
 No model call, login, personal launcher change or installed qualification ran.
-Remaining Q02: required CLI/protocol verification in the tool owner, reachable
-initial sign-in when needed, actual five-minute cadence, automatic dependency
-freshness coverage and affected current-input checks. Q03–Q30 remain pending.
+Required interface admission now uses the fixed native helper's actual argument
+builder and the existing terminal decoder: offline `--help` validates the Meta
+flags, then the CLI's echo provider proves the shared terminal envelope with no
+model/authentication. Child output/deadlines are bounded; cancellation kills and
+joins its owned process group and removes only its new probe directory. Missing
+helpers or incompatible flags/JSON leave the source unavailable. Public current
+ELF/Go/native proof passed in
+`/home/vince/Projects/q02-tool-protocol-verified/result.log`; normal helper
+finish/cancellation/service retirement passed in
+`/home/vince/Projects/q02-muse-connector-verified/result.log`.
+The existing race check additionally passed incompatible flags/JSON, cancelled
+in-flight helper retirement, late-status refusal and later success:
+`/home/vince/Projects/q02-protocol-cancel-verified/result.log`.
+The real, unshortened five-minute joined refresh detected a declared changed
+release without foreground inspection and passed Go/native readback:
+`/home/vince/Projects/q02-tool-cadence-verified/result.log`. Reproduction driver:
+`/home/vince/Projects/q02-native-release-check.sh ROOT {races|cadence}`.
+
+Remaining Q02: reachable initial sign-in when needed, automatic dependency
+freshness coverage and affected current-input checks. The current CLI login
+handoff was observed then cancelled in a new private child home; no grant was
+obtained and the personal login was untouched. The supported no-model
+`muse usage --json` returned `server_sent_no_usage`; that is not missing login,
+verified billing identity or authority to choose a different source. Q02 stays
+incomplete and Q03–Q30 remain pending; no security/installed gate closes.
 
 ### Implementation order and completion boundary
 

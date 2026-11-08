@@ -15,6 +15,19 @@ use std::time::Duration;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|arg| arg == "exec") {
+        let fixture = fs::read("/proc/self/exe")?;
+        if fixture.ends_with(b"\0factory-tool-pause-probe") {
+            fs::write("probe-entered", std::process::id().to_string())?;
+            std::thread::sleep(Duration::from_secs(120));
+            return Err("declared stalled protocol probe".into());
+        }
+        if fixture.ends_with(b"\0factory-tool-invalid-flags") {
+            return Err("declared incompatible CLI flags".into());
+        }
+        if fixture.ends_with(b"\0factory-tool-invalid-json") && !args.iter().any(|arg| arg == "--help") {
+            println!("{{\"schema_version\":1,\"payload_type\":\"run.terminal.failed\"}}");
+            return Ok(());
+        }
         return muse_fixture(&args);
     }
     if args.first().is_some_and(|arg| arg == "tool-capture") {
@@ -24,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{captured_sha}");
         std::io::stdout().flush()?;
         let mut input = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
-        if unsafe { libc::poll(&mut input, 1, 10000) } != 1 {
+        if unsafe { libc::poll(&mut input, 1, 30000) } != 1 {
             return Err("captured tool release missing".into());
         }
         if fs::read("/proc/self/exe")? != captured {
@@ -107,7 +120,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Path::new(&args[3]),
         );
     }
-    if args.len() == 5 && matches!(args[4].as_str(), "tool" | "tool-discovery" | "tool-update") {
+    if args.len() == 5 && matches!(args[4].as_str(), "tool" | "tool-discovery" | "tool-update" | "tool-cadence") {
+        let started = std::time::Instant::now();
         let supervisor = NativeSupervisor::start(
             Path::new(&args[1]),
             Path::new(&args[2]),
@@ -138,13 +152,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "SODA_NATIVE_CHECK_TOOL_DIRECTORY",
                 )?)))?;
         }
-        check(if args[4] == "tool-update" {
+        check(if args[4] == "tool-update" || args[4] == "tool-cadence" {
             "update"
         } else if args[4] == "tool-discovery" {
             "discovery"
         } else {
             "current"
         })?;
+        if args[4] == "tool-cadence" {
+            fs::write(root.join("mode"), "v2")?;
+            while !root.join("cadence-entered").is_file() {
+                if started.elapsed() > Duration::from_secs(330) {
+                    return Err("native five-minute release refresh did not run".into());
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            if started.elapsed() < Duration::from_secs(290) {
+                return Err("cadence observation was not the five-minute refresh".into());
+            }
+            check("update")?;
+            if !fs::read_dir(root.join("tool-profile/native-tools/muse"))?.filter_map(Result::ok)
+                .any(|entry| entry.file_name().to_string_lossy().starts_with("muse-bin-fixture-v2-"))
+            {
+                return Err("background refresh did not select the changed release".into());
+            }
+            println!("PASS: actual joined native refresh owner detected a declared changed release at its five-minute tick without a foreground inspection triggering the refresh; Go/native readback selects the new verified ELF");
+        }
         supervisor.stop()?;
         if args[4] == "tool-update" {
             let cache = root.join("tool-profile/native-tools/muse");
@@ -391,6 +424,19 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         if !args.iter().any(|arg| arg == flag) {
             return Err(format!("missing fixed CLI flag {flag}").into());
         }
+    }
+    if args.iter().any(|arg| arg == "--help") && option("--model")? == "factory-protocol-probe" {
+        return Ok(());
+    }
+    if option("--provider")? == "echo" {
+        if fs::read_to_string(option("--prompt-file")?)? != "Factory native protocol probe"
+            || std::env::var_os("META_API_KEY").is_some()
+            || std::env::var_os("SODA_FACTORY_RUN_AUTH").is_some()
+        {
+            return Err("declared offline protocol probe differs".into());
+        }
+        println!("{}", serde_json::json!({"schema_version":1,"payload_type":"run.terminal.completed","payload":{"terminal":"completed","text":"echo: Factory native protocol probe"}}));
+        return Ok(());
     }
     if option("--preset")? != "empty"
         || option("--approval-mode")? != "never"
@@ -2447,6 +2493,43 @@ async fn tool_races(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
         {
             return Err("new run did not capture the new verified tool".into());
         }
+        for invalid in ["bad-flags", "bad-json"] {
+            mode(invalid)?;
+            if tools.refresh().await.is_ok() || tools.status()?.state != "unavailable"
+                || tools.status()?.selected_version.as_deref() != Some(second.tool.version.as_str())
+            {
+                return Err("incompatible CLI became a ready selection".into());
+            }
+            mode("v2")?;
+            if tools.inspect().await?.tool.sha256 != second.tool.sha256 {
+                return Err("failed interface probe replaced the prior verified tool".into());
+            }
+        }
+        mode("pause-probe")?;
+        let mut pending = Box::pin(tools.refresh());
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let (probe, pid) = loop {
+            if let Some(found) = fs::read_dir(&cache)?.filter_map(Result::ok).find_map(|entry| {
+                let path = entry.path();
+                fs::read_to_string(path.join("probe-entered")).ok().map(|pid| (path, pid))
+            }) { break found; }
+            tokio::select! {
+                result = &mut pending => return Err(format!("protocol probe completed before cancellation: {:?}", result.err()).into()),
+                _ = tokio::time::sleep(Duration::from_millis(10)) => (),
+            }
+            if std::time::Instant::now() > deadline { return Err("protocol cancellation barrier missing".into()); }
+        };
+        drop(pending);
+        mode("v2")?;
+        if tools.inspect().await?.tool.sha256 != second.tool.sha256 { return Err("cancelled probe replaced the current selection".into()); }
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while probe.exists() {
+            if std::time::Instant::now() > deadline { return Err("cancelled protocol probe was not joined/cleaned".into()); }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        if Path::new("/proc").join(pid).exists() || tools.status()?.state != "ready" {
+            return Err("cancelled protocol child or stale failure survived recovery".into());
+        }
         if fs::read_dir(&cache)?.filter_map(Result::ok).any(|entry| entry.file_name().to_string_lossy().starts_with('.')) {
             return Err("tool selection left a pending artifact".into());
         }
@@ -2456,6 +2539,6 @@ async fn tool_races(root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let retirement = child.wait();
     result?;
     retirement?;
-    println!("PASS: native tool owner cancels an interrupted download without publication/staging bytes, refuses a release changed during acquisition, recovers current status, preserves active captured ELF bytes and selects the new verified ELF for the next run; declared no-forwarding releases, no provider/model/login");
+    println!("PASS: native tool owner cancels an interrupted download without publication/staging bytes, refuses a release changed during acquisition, recovers current status, preserves active captured ELF bytes and selects the new verified ELF for the next run; incompatible flags/terminal protocol stay unavailable and retain the prior selection; declared no-forwarding releases, no provider/model/login");
     Ok(())
 }

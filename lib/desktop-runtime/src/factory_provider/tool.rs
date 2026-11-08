@@ -9,8 +9,10 @@ use std::collections::BTreeMap;
 use std::fs::{self, DirBuilder, OpenOptions};
 use std::io::{self, Read};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::AsyncWriteExt;
 
@@ -270,6 +272,75 @@ impl Tools {
             .await
             .map_err(|_| refused())?
     }
+    async fn protocol(&self, executable: &Path, expected: &str) -> io::Result<()> {
+        let helper = super::muse_helper()?;
+        let cache = self.cache.clone();
+        let executable = executable.to_path_buf();
+        let expected = expected.to_owned();
+        let cancel = ProtocolCancellation(Arc::new(AtomicBool::new(false)));
+        let cancelled = cancel.0.clone();
+        // The owning runtime joins blocking work during shutdown. Each fixed
+        // offline probe owns a bounded process group and waits for retirement.
+        let result = tokio::task::spawn_blocking(move || {
+            private_directory(cache.parent().ok_or_else(refused)?)?;
+            private_directory(&cache)?;
+            let mut nonce = [0u8; 16];
+            getrandom::fill(&mut nonce).map_err(|_| refused())?;
+            let root = cache.join(format!(".probe-{}", nonce.iter().map(|byte| format!("{byte:02x}")).collect::<String>()));
+            DirBuilder::new().mode(0o700).create(&root)?;
+            let directory = ProtocolDirectory(root);
+            for name in ["tmp", "work"] { private_directory(&directory.0.join(name))?; }
+            let mut prompt = OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.0.join("prompt"))?;
+            std::io::Write::write_all(&mut prompt, b"Factory native protocol probe")?;
+            drop(prompt);
+            for mode in ["flags", "json"] {
+                if cancelled.load(Ordering::SeqCst) { return Err(refused()); }
+                let output_path = directory.0.join(mode);
+                let output = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&output_path)?;
+                let mut command = Command::new(&helper);
+                command.arg("--inspect-tool").arg(&executable).arg(&expected).arg(mode)
+                    .current_dir(&directory.0).env_clear().env("PATH", "/usr/bin:/bin")
+                    .stdin(Stdio::null()).stdout(output).stderr(Stdio::null()).process_group(0);
+                crate::child_process::parent_death(&mut command, libc::SIGKILL);
+                unsafe {
+                    command.pre_exec(|| {
+                        let bound = libc::rlimit { rlim_cur: 1024 * 1024, rlim_max: 1024 * 1024 };
+                        if libc::setrlimit(libc::RLIMIT_FSIZE, &bound) != 0 { return Err(io::Error::last_os_error()); }
+                        Ok(())
+                    });
+                }
+                let mut child = command.spawn()?;
+                let mut exited = false;
+                let result = (|| {
+                    let deadline = Instant::now() + Duration::from_secs(8);
+                    loop {
+                        if cancelled.load(Ordering::SeqCst) { return Err(refused()); }
+                        if output_path.metadata()?.len() > 65536 { return Err(refused()); }
+                        if let Some(status) = child.try_wait()? {
+                            exited = true;
+                            if !status.success() { return Err(refused()); }
+                            break;
+                        }
+                        if Instant::now() >= deadline { return Err(refused()); }
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    let output = fs::read(&output_path)?;
+                    if output.len() > 65536 { return Err(refused()); }
+                    if mode == "json" && super::muse_attempt::final_text(&output).as_deref() != Some("echo: Factory native protocol probe") {
+                        return Err(refused());
+                    }
+                    Ok(())
+                })();
+                if !exited { unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); } }
+                let retirement = child.wait();
+                result?;
+                retirement?;
+            }
+            Ok(())
+        }).await.map_err(|_| refused())?;
+        drop(cancel);
+        result
+    }
     pub async fn inspect(&self) -> io::Result<ToolSelection> {
         self.select(false).await
     }
@@ -379,6 +450,7 @@ impl Tools {
                 && same_file(identity, &current))
             .then(|| (path.clone(), current))
         });
+        let protocol_needed = unchanged.is_none();
         let (executable, identity) = match unchanged {
             Some(verified) => verified,
             None => {
@@ -396,6 +468,12 @@ impl Tools {
                 }
             }
         };
+        if protocol_needed {
+            self.protocol(&executable, &artifact.checksum).await?;
+            if !same_file(&identity, &executable.symlink_metadata()?) {
+                return Err(refused());
+            }
+        }
         // A download may outlive the release it began against. Retain those
         // verified bytes for existing captures, but never publish them as the
         // current selection after the channel has changed or been withdrawn.
@@ -434,6 +512,18 @@ struct Pending(PathBuf);
 impl Drop for Pending {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
+    }
+}
+struct ProtocolDirectory(PathBuf);
+impl Drop for ProtocolDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+struct ProtocolCancellation(Arc<AtomicBool>);
+impl Drop for ProtocolCancellation {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
     }
 }
 fn private_directory(path: &Path) -> io::Result<()> {

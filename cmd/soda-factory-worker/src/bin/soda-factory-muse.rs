@@ -10,9 +10,11 @@ mod connector {
     use std::ffi::{OsStr, OsString};
     use std::fs::{self, File, OpenOptions};
     use std::io::{self, Read, Write};
-    use std::os::fd::FromRawFd;
+    use std::os::fd::{AsRawFd, FromRawFd};
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+    use std::os::unix::process::CommandExt;
     use std::path::{Component, Path};
+    use std::process::{Command, Stdio};
     use std::time::{Duration, Instant, UNIX_EPOCH};
 
     fn refused(message: &'static str) -> io::Error {
@@ -191,6 +193,60 @@ mod connector {
         }
         Ok(arguments)
     }
+    // Offline interface admission uses the same defining argv builder. It can
+    // inspect flags or the shared terminal envelope, never borrow a saved login.
+    fn inspect_tool(path: &Path, expected: &str, mode: &str) -> io::Result<()> {
+        let root = std::env::current_dir()?;
+        private(&root)?;
+        let mut file = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
+        if !(4..=soda_execution_protocol::MAX_EXECUTABLE).contains(&file.metadata()?.len()) {
+            return Err(refused("Muse protocol executable exceeds its bound"));
+        }
+        let mut hash = Sha256::new();
+        let mut buffer = [0u8; 65536];
+        loop {
+            let count = file.read(&mut buffer)?;
+            if count == 0 { break; }
+            hash.update(&buffer[..count]);
+        }
+        let observed: String = hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
+        if observed != expected {
+            return Err(refused("Muse protocol executable identity changed"));
+        }
+        let request = MuseInvocation {
+            run: "0".repeat(32), service: "0".repeat(32),
+            executable: path.to_string_lossy().into_owned(), executable_sha256: expected.into(),
+            prompt: "Factory native protocol probe".into(),
+            harness: soda_execution_protocol::HarnessProfile {
+                model: "factory-protocol-probe".into(), effort: "low".into(), contributor: false,
+            },
+            duration_ms: 1, deadline_unix_ms: 0, max_model_steps: 1, output_bytes: 65536, mcp: None,
+        };
+        let mut argv = arguments(&root, &request)?;
+        match mode {
+            "flags" => argv.push("--help".into()),
+            "json" => {
+                // Echo exercises MSP without inference. Meta-only knobs are
+                // checked by the flags pass and remain unchanged for real work.
+                let provider = argv.iter().position(|arg| arg == "--provider").ok_or_else(|| refused("Muse provider flag missing"))?;
+                argv[provider + 1] = "echo".into();
+                let mut index = 0;
+                while index < argv.len() {
+                    if ["--model", "--reasoning-effort", "--contributor-mode"].iter().any(|flag| argv[index] == *flag) {
+                        argv.drain(index..index + 2);
+                    } else if argv[index] == "--no-parallel-tool-calls" {
+                        argv.remove(index);
+                    } else { index += 1; }
+                }
+            }
+            _ => return Err(refused("Muse protocol probe mode invalid")),
+        }
+        let error = Command::new(format!("/proc/self/fd/{}", file.as_raw_fd()))
+            .args(argv).env_clear().env("PATH", "/usr/bin:/bin").env("LANG", "C.UTF-8")
+            .env("HOME", &root).env("TMPDIR", root.join("tmp"))
+            .stdin(Stdio::null()).exec();
+        Err(error)
+    }
     fn observation(
         request: &MuseInvocation,
         state: &Observation,
@@ -275,8 +331,15 @@ mod connector {
         unsafe {
             libc::umask(0o077);
         }
-        if std::env::args_os().len() != 1 || unsafe { libc::geteuid() } == 0 {
+        let args: Vec<_> = std::env::args_os().collect();
+        if unsafe { libc::geteuid() } == 0 {
             return Err(refused("Muse connector requires the desktop user"));
+        }
+        if args.len() == 5 && args[1] == "--inspect-tool" {
+            return inspect_tool(Path::new(&args[2]), args[3].to_str().ok_or_else(|| refused("Muse digest invalid"))?, args[4].to_str().ok_or_else(|| refused("Muse probe mode invalid"))?);
+        }
+        if args.len() != 1 {
+            return Err(refused("Muse connector arguments invalid"));
         }
         let root = std::env::current_dir()?;
         private(&root)?;
