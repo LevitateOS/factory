@@ -2740,6 +2740,19 @@ and credentials/profile are preserved. Q15 funding is approved but not dispatche
 resume its explicit finite continuation without replaying old work. Q24 still has
 no authorized replacement appliance. No Daybreak or final completion is claimed.
 
+## Q15 per-run continuation contract (2026-11-09)
+
+The owner selected per-run time limits with bounded review/correction counts.
+Dispatch already implemented that contract, while native operation/preparation
+admission still subtracted earlier active time and waits. One admission owner now
+gives fresh positive-issue work its captured per-run bound; typed issue-zero
+aggregate grants, closed/inactive refusal and every existing intent deadline are
+preserved. The shared funding prompt says minutes per run. The continuation
+watch uses command `15151515151515151515151515151506`'s stop marker and preserves
+the original stop request. Affected real PG/production DOM/build checks are in
+`q15-retained-publication/per-run-*`; no new inference or provider send occurred.
+Resume the already funded exact command and original admitted reviewer custody.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

@@ -45,7 +45,8 @@ func (s *Store) AttemptAllowance(ctx context.Context, repository, issue int64) (
 }
 
 // CapAttemptDeadline returns the earlier of the requested absolute expiry and
-// the exact assignment root's active-time expiry. Native operations are
+// the exact assignment root's time bound. Issue attempts use a fresh per-run
+// limit; issue-zero time-only grants retain their aggregate expiry. Native operations are
 // admitted against this immutable wall-clock bound; existing intents are
 // always replayed from their recorded NotAfter instead of calling this again.
 func (s *Store) CapAttemptDeadline(ctx context.Context, assignmentID string, requested int64) (int64, error) {
@@ -173,11 +174,16 @@ func attemptDeadlineUnix(allowance factory.AttemptAllowance, now time.Time) (int
 	if !allowance.Active {
 		return 0, factory.ErrAttemptTimeExhausted
 	}
-	remaining := int64(allowance.Limits.ActiveMinutes)*60 - allowance.ActiveSeconds
-	if remaining <= 0 || allowance.CheckpointUnix > math.MaxInt64-remaining {
+	remaining := int64(allowance.Limits.ActiveMinutes) * 60
+	start := now.Unix()
+	if allowance.Issue == 0 {
+		remaining -= allowance.ActiveSeconds
+		start = allowance.CheckpointUnix
+	}
+	if remaining <= 0 || start > math.MaxInt64-remaining {
 		return 0, factory.ErrAttemptTimeExhausted
 	}
-	deadline := allowance.CheckpointUnix + remaining
+	deadline := start + remaining
 	if deadline <= now.Unix() {
 		return 0, factory.ErrAttemptTimeExhausted
 	}

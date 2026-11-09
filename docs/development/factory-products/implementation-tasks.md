@@ -789,7 +789,7 @@ publication `15151515151515151515151515151505` on original source
 `4c823041ad0ba064c4f974399b0e3a2a`. The new explicit
 `fund-retained-candidate` UI/API command preserves original publication authority,
 receipts, plan, runs and fifteen charged minutes. Its captured offer is bounded
-to 15 active minutes, two reviews and one correction (or lower current policy
+to 15 minutes per run, two reviews and one correction (or lower current policy
 limits), pins the source grant/generation and never refills an existing allowance.
 Original candidate/plan provenance is read without pretending the non-executing
 publication owner ran a model. Runtime capacity counts issue sessions separately
@@ -829,11 +829,20 @@ judgments, four original runs and the same fifteen-minute charge. It starts no
 coordinator, model or effect. Actual next action: resume the same command and
 reviewer preparation under the remaining finite allowance; preserve the original
 branch command and both before/retirement snapshots.
+The owner's time decision is per-run minutes with bounded review/correction
+counts. Fresh issue-operation admission now follows dispatch's per-run limit;
+existing operation/preparation deadlines and typed issue-zero aggregate grants
+remain unchanged. `per-run-store1.log` passes publication deadline/receipt
+recovery, merge closure, funding and dispatch/lineage checks; its invalid typed
+intent fixture is corrected and passes `per-run-focused2.log`. Production
+UI/build/typecheck pass `per-run-{ui-check3,ui-build2,types1}.log` with explicit
+minutes-per-run text. The legacy empty stop marker is preserved; command `…1506`
+has its own stop marker. No new model call occurred during this change.
 Do not send another funding command or replace its saved capture. All original
 uncertain outcomes remain fenced. Q24 still has no appliance,
 and independent queued work remains outstanding.
 
-**INCOMPLETE; explicit fresh publication verified; continuation funding is pending.**
+**INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
 reachable “Publish retained candidate” command. Command/publication
 `15151515151515151515151515151505` created

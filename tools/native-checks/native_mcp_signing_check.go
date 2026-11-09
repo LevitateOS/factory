@@ -6816,8 +6816,13 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 	}
 	defer rawDB.Close()
 	last := ""
+	stopName := "stop-delivery-watch"
+	if phase == "fund-retained-watch" {
+		stopName += "-15151515151515151515151515151506"
+	}
+	stopPath := filepath.Join(filepath.Dir(profile), stopName)
 	for ctx.Err() == nil {
-		if _, e := os.Stat(filepath.Join(filepath.Dir(profile), "stop-delivery-watch")); e == nil {
+		if _, e := os.Stat(stopPath); e == nil {
 			return errors.New("delivery watch stop requested; native driver will withdraw and join its runtime")
 		}
 		controls, complete, err := db.AllIssueControls(ctx, 1000)

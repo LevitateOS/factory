@@ -201,7 +201,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
     if (!this.pending && publication?.stage !== 'fenced' && !offer?.available) return html``;
     return html`<section aria-label=${funding ? 'Fund retained candidate review' : 'Publish retained candidate'}>
       <p>
-        ${funding ? `Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} active minutes, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. The earlier charge is preserved. Planning and the initial Builder do not run again.` : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
+        ${funding ? `Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. The earlier charge is preserved. Planning and the initial Builder do not run again.` : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
       </p>
       <button
         class="ui button"

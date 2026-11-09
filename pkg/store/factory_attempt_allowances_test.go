@@ -774,7 +774,7 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	}
 }
 
-func TestCapAttemptDeadlineUsesExactRemainingRootTime(t *testing.T) {
+func TestCapAttemptDeadlineUsesPerRunTimeAndPreservesTimeOnlyGrants(t *testing.T) {
 	ctx := context.Background()
 	db := dispatchStoreFixture(t)
 	now := time.Now().UTC()
@@ -786,7 +786,7 @@ func TestCapAttemptDeadlineUsesExactRemainingRootTime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	allowance.ActiveSeconds = int64(allowance.Limits.ActiveMinutes*60) - 30
+	allowance.ActiveSeconds = int64(allowance.Limits.ActiveMinutes*60) + 30
 	// Admission may cross a second boundary after now was sampled. Keep
 	// its recorded checkpoint instead of rewinding the fixture's clock.
 	allowance.Revision++
@@ -801,11 +801,29 @@ func TestCapAttemptDeadlineUsesExactRemainingRootTime(t *testing.T) {
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	requested := now.Add(10 * time.Minute).Unix()
-	want := allowance.CheckpointUnix + int64(allowance.Limits.ActiveMinutes*60) - allowance.ActiveSeconds
+	requested := time.Now().Add(time.Duration(allowance.Limits.ActiveMinutes*2) * time.Minute).Unix()
+	before := time.Now().Unix()
 	got, err := db.CapAttemptDeadline(ctx, a.ID, requested)
-	if err != nil || got != want || got >= requested {
-		t.Fatalf("capped deadline = %d, want root expiry %d before request %d: %v", got, want, requested, err)
+	seconds := int64(allowance.Limits.ActiveMinutes * 60)
+	if err != nil || got < before+seconds || got > time.Now().Unix()+seconds || got >= requested {
+		t.Fatalf("capped deadline = %d, want full per-run limit %d before request %d: %v", got, seconds, requested, err)
+	}
+	short := time.Now().Add(20 * time.Second).Unix()
+	if capped, err := db.CapAttemptDeadline(ctx, a.ID, short); err != nil || capped != short {
+		t.Fatalf("requested shorter deadline changed: %d %v", capped, err)
+	}
+	timeOnly := allowance
+	timeOnly.Issue = 0
+	timeOnly.Intent = &factory.IntentAttemptScope{IntentID: "d151515151515151515151515", OwnerID: 1}
+	timeOnly.Limits = factory.AttemptLimits{ActiveMinutes: allowance.Limits.ActiveMinutes}
+	timeOnly.ActiveSeconds = seconds - 30
+	timeOnly.CheckpointUnix = time.Now().Unix()
+	if deadline, err := attemptDeadlineUnix(timeOnly, time.Now()); err != nil || deadline != timeOnly.CheckpointUnix+30 {
+		t.Fatalf("time-only aggregate grant changed: %d %v", deadline, err)
+	}
+	timeOnly.ActiveSeconds = seconds
+	if _, err := attemptDeadlineUnix(timeOnly, time.Now()); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+		t.Fatalf("exhausted time-only grant renewed: %v", err)
 	}
 
 	allowance.CheckpointUnix = time.Now().Add(time.Minute).Unix()
@@ -849,9 +867,10 @@ func TestPublicationRegistrationCapsDeadlineAndRecoversRecordedReceipt(t *testin
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	requested := now.Add(10 * time.Minute).Unix()
+	requested := now.Add(time.Duration(allowance.Limits.ActiveMinutes*2) * time.Minute).Unix()
+	before := time.Now().Unix()
 	capped, err := db.CapAttemptDeadline(ctx, p.AssignmentID, requested)
-	if err != nil || capped >= requested || capped != allowance.CheckpointUnix+int64(allowance.Limits.ActiveMinutes*60)-allowance.ActiveSeconds {
+	if err != nil || capped >= requested || capped < before+int64(allowance.Limits.ActiveMinutes*60) || capped > time.Now().Unix()+int64(allowance.Limits.ActiveMinutes*60) {
 		t.Fatalf("publication deadline cap = %d, request=%d allowance=%+v err=%v", capped, requested, allowance, err)
 	}
 	appendPendingCorrection(&p)
@@ -904,13 +923,12 @@ func TestPublicationRegistrationCapsDeadlineAndRecoversRecordedReceipt(t *testin
 	}
 }
 
-func TestPublicationRegistrationRefusesInactiveExhaustedOrMissingRoot(t *testing.T) {
+func TestPublicationRegistrationRefusesInactiveOrMissingRoot(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		mode string
 	}{
 		{name: "inactive", mode: "inactive"},
-		{name: "exhausted", mode: "exhausted"},
 		{name: "missing", mode: "missing"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -924,9 +942,6 @@ func TestPublicationRegistrationRefusesInactiveExhaustedOrMissingRoot(t *testing
 			switch tc.mode {
 			case "inactive":
 				allowance.Active = false
-			case "exhausted":
-				allowance.ActiveSeconds = int64(allowance.Limits.ActiveMinutes * 60)
-				allowance.CheckpointUnix = time.Now().Unix()
 			}
 			if tc.mode == "missing" {
 				if _, err = db.db.ExecContext(ctx, `DELETE FROM factory_attempt_allowances WHERE root_assignment=$1`, allowance.RootAssignment); err != nil {
@@ -968,7 +983,7 @@ func TestPublicationRegistrationRefusesInactiveExhaustedOrMissingRoot(t *testing
 	}
 }
 
-func TestMergeRegistrationRefusesExpiredRoot(t *testing.T) {
+func TestMergeRegistrationRefusesClosedRoot(t *testing.T) {
 	ctx := context.Background()
 	db := publicationStoreFixture(t)
 	m := mergeTestRecord()
@@ -982,6 +997,7 @@ func TestMergeRegistrationRefusesExpiredRoot(t *testing.T) {
 	}
 	allowance.ActiveSeconds = int64(allowance.Limits.ActiveMinutes * 60)
 	allowance.CheckpointUnix = time.Now().Unix()
+	allowance.Closed, allowance.Active = true, false
 	allowance.Revision++
 	tx, err := db.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -997,8 +1013,8 @@ func TestMergeRegistrationRefusesExpiredRoot(t *testing.T) {
 	m.Revision++
 	m.Operation = factory.MergeOperation{Kind: factory.OpMerge, Attempts: 1, OperationID: "soda-x-merge-1", UpdatedUnix: time.Now().Unix(), Work: mergeTestIntent("soda-x-merge-1")}
 	m.Operation.Work.NotAfter = time.Now().Add(10 * time.Minute).Unix()
-	if err = db.UpdateMerge(ctx, m); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
-		t.Fatalf("expired-root merge registration = %v", err)
+	if err = db.UpdateMerge(ctx, m); !errors.Is(err, factory.ErrAttemptClosed) {
+		t.Fatalf("closed-root merge registration = %v", err)
 	}
 	stored, err := db.MergeByPublication(ctx, m.PublicationID)
 	if err != nil || stored.Operation.Work != nil {
