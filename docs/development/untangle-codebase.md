@@ -2605,6 +2605,38 @@ No paid inference or second send replaced missing evidence. The requested
 review/correction continuation funding answer remains pending; independent
 Q19–Q29 work remains ready on its actual dependencies. Q15 is not complete.
 
+## Q28 retained publication format and prior-writer refusal (2026-11-09)
+
+Factory `3f5eb86dae65f30979c759ede67cbba6a3c260d9` marks the new
+non-executing publication owner as store format 97. Older writers refuse the
+format instead of dropping a binding they do not understand. Migration from 96
+changes only `schema_version.version`; existing historical command-payload
+bounds remain frozen/verified, and no payload, outcome, receipt, dispatch state,
+deadline, allowance or target fact acquires new authority.
+
+`q15-retained-publication/store97-check.log` passes the existing real native PG
+schema-68/feed/concurrent-open/lost-race/rollback/current/unknown-bound checks
+and the retained-publication case. Production backend build passes.
+`q28-migrate/retained97/resume.log` qualifies a disposable copy of the actual Q15
+database: 96-to-97 and current reopen preserve SHA256 values for all 75 public
+tables. Full stopped-original database-file inventories match before/after.
+The first probe's wrong database name is retained in `check.log`; it made no
+product changes, joined, and the same owned copy resumed with `postgres`.
+
+The actual prior installed app opened a separate migrated copy, failed backend
+startup, and accepted normal Quit; PG/app/GUI joined. The initial screenshot
+shows Opening and must not be represented as a rendered final-error assertion.
+Exact prior source `c5561bf64fe3bdb680fb6eead70bf6482d72e4c0` independently
+refuses the same 97 store with `database schema differs from this application`.
+`refusal.log` verifies identical rows/marker after both refusals. Profiles,
+credentials, retained commands/publications/candidates/receipts and allowance
+rows stayed intact; no provider/effect/model adapter was supplied to the copied
+store check. The original Q15 database was not migrated or otherwise modified.
+This qualifies the format boundary and prior-installed-owner refusal, not a
+new installed format-97 upgrade or the remaining active-run/service/update scope.
+All owned checks/probes/GUI/keyring/bus sessions joined; Q25 services remain as
+previously authorized. Continue Q19 authority while Q15 funding is pending.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

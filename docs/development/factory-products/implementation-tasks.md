@@ -9,7 +9,7 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-09, Factory `920d8c6` plus active recovery):** 15 queue entries remain:
+**Current snapshot (2026-11-09, Factory `3f5eb86`):** 15 queue entries remain:
 Q09–Q14 and Q18 are complete within their recorded ordinary scopes.
 Q15–Q17 and Q19–Q29 remain outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
 instruction replaces blanket numeric sequencing: implement ready work while
@@ -48,10 +48,11 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q15 retained-publication recovery, then independent Q19 authority.**
+**Current work: Q19 central Fountain authority.**
 Q25's clean recipient and Q28's installed payload/update-status slices have
-scoped evidence below. Q15's separate review/correction funding choice is pending;
-its original send remains fenced. Q14's receipts remain complete and preserved.
+scoped evidence below. Q15's fresh publication and Q28's format-97 boundary are
+verified; Q15's separate review/correction funding choice is pending. Its original
+send remains fenced. Q14's receipts remain complete and preserved.
 No GitHub decision or Q24 appliance is a blanket dependency for independent work.
 
 **Retained Q14 evidence.** Q14 passed the approved append-only
@@ -896,8 +897,9 @@ temporary fixture units.
 **Exact next action:** retain/adopt command `15151515151515151515151515151505`
 and PR #19; never publish again to compensate for `connected4.log`'s post-commit
 check failure. Its original receipts and successful `recovery2.log` settle that
-attempt. Verify store-version refusal for the new non-executing owner, then
-continue ready Fountain authority work while the separate funding answer is
+attempt. Store-version refusal is verified in `3f5eb86` on a disposable real
+profile copy; use the current backend when resuming, preserving all old captures.
+Continue ready Fountain authority work while the separate funding answer is
 pending. Preserve all four settled runs, fifteen-minute source charge and both
 Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
 renew retired preparation or change the original model plan. Finish paid delivery
@@ -1308,6 +1310,25 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Factory `3f5eb86dae65f30979c759ede67cbba6a3c260d9` advances the store format
+to 97 for the new non-executing publication owner. This prevents older writers
+from silently ignoring that binding. The 96-to-97 step changes only the marker;
+it renews no command, operation, deadline or allowance. Existing real native PG
+migration/concurrency/rollback/unknown-bound checks pass in
+`q15-retained-publication/store97-check.log`. On a disposable copy of the actual
+Q15 store, `q28-migrate/retained97/resume.log` proves 96-to-97/reopen with all 75
+public-table SHA256 values unchanged and the original stopped database files
+byte-for-byte unchanged. `refusal.log` proves the exact prior `c5561bf` writer
+refuses 97 without changing rows/marker; the actual prior installed app also
+failed to become ready and Quit/joined on another copied database. Its initial
+window capture is not proof of a rendered final error message. The first probe
+used the wrong database name; `check.log` is retained and the existing copy was
+resumed using the native owner's actual `postgres` database. All owned checks
+joined. The real Q15 original remains untouched at its retained marker; a normal
+current writer can migrate it after this copied-profile qualification. This
+does not qualify an installed format-97 app upgrade, active-worker/global-service
+upgrade or update publication; those broader Q28 requirements remain outstanding.
 
 INCOMPLETE. App installer implementation `d4d4de54753570710ef71dded61dd5d7a4a4aabe`
 adds exact-prior upgrades to separate versioned payload paths, launcher-last
