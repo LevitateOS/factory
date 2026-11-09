@@ -38,7 +38,9 @@ can acquire the current verified executable in Factory's private cache.
 The stage also contains `factory-runtime/execution`: seven native helpers,
 twelve systemd service/socket templates, their install inventory and
 `install.sh`. On the selected Linux/systemd baseline, install for one explicit
-non-root desktop account. The host needs systemd, cgroup v2 and the fixed
+non-root desktop account. The host needs systemd 257 or newer (for the required
+private PID namespace), cgroup v2 with CPU/memory/PID controllers, the selected
+user's private `/run/user/UID` session directory, and the fixed
 runtime executables `/usr/bin/git`, `/usr/bin/bash` and `/usr/bin/timeout`;
 the installer refuses missing runtimes before writing helpers or services.
 These execution runtimes do not require a host Go/Rust/Bun compiler toolchain.

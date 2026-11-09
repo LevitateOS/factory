@@ -2435,6 +2435,27 @@ Q24's unavailable replacement appliance does not block that VM or other desktop
 work. The approved Q15 fresh-publication command remains to implement without
 renewing its closed original attempt or replaying original inference/sends.
 
+## Q25 clean systemd recipient and installer admission (2026-11-09)
+
+`q25-package/stage-current3` binds clean Factory
+`d0d7b6b94b756478abd2e2a806d38af574d0817d`. The verified official Rocky
+10.2 KVM image, independent overlay, signed OS/EPEL runtime packages and no
+developer tools/container engine qualify actual fresh installation, exact repeat,
+production Ready, reboot/reopen with identical profile identity and joined
+app/PostgreSQL Quit. Evidence lives in `q25-package/recipient-vm`:
+`install-current3.log`, `host-capabilities.log`, `restart.log`, `quit-check2.log`
+and `gui-evidence.tar.gz`. Actual systemd namespaces, dynamic UID and resource
+limits passed. Both disposable VM boots are powered off; no existing guest changed.
+
+The execution installer now requires systemd 257 (`PrivatePIDs`), CPU/memory/PID
+controllers and the selected user's private conventional runtime directory before
+installation writes. `platform-install-check.log` passes the changed installer on
+the actual supported recipient. Prior missing-Git refusal remains in
+`missing-runtime.log`. Preserve the original cloud-init dependency failure and UI
+observer race; keyboard activation did not close this VM app, so its joined Quit
+is mouse evidence only. Broader degraded-host/execution/provider journeys remain
+open; this is not a release or broad security-gate completion.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

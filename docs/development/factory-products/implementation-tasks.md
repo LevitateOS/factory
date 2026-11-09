@@ -1143,24 +1143,40 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
-INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; supported-host qualification remains. New clean-source release `stage-current2` binds engine
+INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; broader host/degraded-execution qualification remains. Clean-source `stage-current3`
+binds `d0d7b6b94b756478abd2e2a806d38af574d0817d` and passes actual installation,
+same-bundle recovery, production UI Ready, original-profile reopen after reboot,
+and joined app/PostgreSQL Quit in the clean Rocky 10.2 x86_64 KVM guest.
+No Go/Rust/C/Bun/Node developer tools or container engine are installed there.
+Evidence: `q25-package/recipient-vm/{install-current3.log,host-capabilities.log,restart.log,quit-check2.log,gui-evidence.tar.gz}`.
+Root-owned installed helpers, enabled/active broker socket, systemd 257, CPU/memory/PID
+limits and actual private namespaces passed. The installer now also refuses
+pre-257 systemd, missing controllers and a missing/nonprivate selected-user runtime
+directory before writing installation state; `platform-install-check.log` passes
+on the actual supported guest. Its packages came from Rocky BaseOS/AppStream and
+Fedora EPEL (WebKit), with CRB enabled. Both owned VM boots are powered off; overlays,
+original failed cloud-init package attempt and observer capture race remain retained.
+The keyboard event did not activate Quit in this guest; mouse Quit and joined
+shutdown passed. Do not promote a focus screenshot or input-script message to a
+successful keyboard journey. Earlier installed keyboard evidence retains its scope.
+New clean-source release `stage-current2` binds engine
 `72dadae8fcf4fc218b371b839b63cdf9e8b74ac9`;
 `upstream-current2.json` rechecks official current Go/Bun/Rust metadata and the
 packager rechecks official PostgreSQL stable before selecting the retained
 checksummed inputs. `build-current2.log`, `recipient-install3.log` and the
 [Q27 installed UI check](#q27) pass with developer tools/headers/source hidden.
-A genuine clean systemd VM is being prepared in `q25-package/recipient-vm`;
+A genuine clean systemd VM is retained in `q25-package/recipient-vm`;
 its official Rocky 10.2 image checksum signature is authenticated by published
 fingerprint `FC226859C0860BF0DDB95B085B106C736FEDFC85` using Sequoia (the
 existing GnuPG could not parse its additional v6 key block). Existing guests,
-including the retired stopped soda demo, are untouched. The genuine KVM guest is running at private localhost SSH port 22159, with
-PID in `recipient-vm/qemu.pid` (initial PID 966981), original verified backing
+including the retired stopped soda demo, are untouched. The genuine KVM guest used private localhost SSH port 22159, with
+initial PID 966981, original verified backing
 image and independent overlay/seed. `recipient-vm/missing-runtime.log` proves
 actual root installation refuses absent `/usr/bin/git` before creating any
 installation state or helper; the guest has no compiler or container engine.
 The execution installer now checks its fixed Git/Bash/timeout runtime paths
-before target writes. Full clean-host app/execution qualification remains
-pending after runtime provisioning. Inspect the original VM process and cloud-init
+before target writes. Full installed worker/provider journeys remain Q26/Q27.
+Inspect the original VM process and cloud-init
 journal before starting any new guest or repeating installation.
 
 Historical retained packaging evidence:  `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final2.log`, `boundaries-final.log`). The actual installed app rendered production UI using its bundled backend/PostgreSQL, reopened its original profile, accepted real XTest keyboard Close/Quit, restored the existing window on second launch and joined its database on Quit (`desktop/{loaded,second-launch,keyboard-quit-focus}.png`, `input.log`, `session2.log`, original PostgreSQL shutdown log). The first root-window capture failed on headless Xwayland; window capture corrected the check after verifying clean original shutdown. No native-check/development executable or seeded phase facts were used. This qualifies the changed packaging/recovery and installed lifecycle boundary on Rocky x86_64, not full Q26/Q27 or the supported-host matrix. Next: finish runtime/capability checks without development tools and supported-host evidence; package the subsequent native Retry fixes before installed delivery. Q15/Q24 do not block independent installation work.

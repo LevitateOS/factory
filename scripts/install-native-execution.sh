@@ -26,6 +26,15 @@ read -r platform < "$distribution/platform"
 [[ "$platform" == "$(uname -s)-$(uname -m)" ]] || { echo 'This execution bundle does not match this computer.' >&2; exit 1; }
 if [[ "$install_root" == / ]]; then
   [[ -d /run/systemd/system && -f /sys/fs/cgroup/cgroup.controllers ]] && systemctl --version >/dev/null || { echo 'Execution installation requires systemd and cgroup v2.' >&2; exit 1; }
+  # PrivatePIDs is required by the agent boundary; older managers ignore it.
+  read -r manager manager_version rest < <(systemctl --version)
+  [[ "$manager" == systemd && "$manager_version" =~ ^[0-9]+$ && "$manager_version" -ge 257 ]] || { echo 'Execution installation requires systemd 257 or newer (PrivatePIDs).' >&2; exit 1; }
+  controllers=" $(cat /sys/fs/cgroup/cgroup.controllers) "
+  for controller in cpu memory pids; do
+    [[ "$controllers" == *" $controller "* ]] || { echo "Execution requires the cgroup v2 $controller controller." >&2; exit 1; }
+  done
+  runtime_directory="/run/user/$execution_uid"
+  [[ -d "$runtime_directory" && ! -L "$runtime_directory" && "$(realpath -e -- "$runtime_directory")" == "$runtime_directory" && "$(stat -c %u -- "$runtime_directory")" == "$execution_uid" && "$(stat -c %a -- "$runtime_directory")" == 700 ]] || { echo 'Execution requires the selected user’s private /run/user/UID session directory.' >&2; exit 1; }
   # These are fixed runtime paths in the native preparer/worker, independent
   # of developer toolchains and the installing shell's PATH.
   for runtime in /usr/bin/git /usr/bin/bash /usr/bin/timeout; do
