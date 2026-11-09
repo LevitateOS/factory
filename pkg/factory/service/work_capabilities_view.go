@@ -27,15 +27,17 @@ type WorkCapability struct {
 // pause/resume. Each entry carries its refusal reason when unavailable;
 // the owning lifecycle APIs remain authoritative at act time.
 type WorkCapabilities struct {
-	Watch    WorkCapability `json:"watch"`
-	Stop     WorkCapability `json:"stop"`
-	Retry    WorkCapability `json:"retry"`
-	Takeover WorkCapability `json:"takeover"`
-	Pause    WorkCapability `json:"pause"`
-	Resume   WorkCapability `json:"resume"`
+	PublishRetained WorkCapability `json:"publish_retained"`
+	Watch           WorkCapability `json:"watch"`
+	Stop            WorkCapability `json:"stop"`
+	Retry           WorkCapability `json:"retry"`
+	Takeover        WorkCapability `json:"takeover"`
+	Pause           WorkCapability `json:"pause"`
+	Resume          WorkCapability `json:"resume"`
 }
 
 type workCapabilityInput struct {
+	RetainedCandidate   bool
 	AuthorityReason     string
 	HasRun              bool
 	RunSettled          bool
@@ -132,6 +134,13 @@ func workCapabilitiesDTO(in workCapabilityInput) WorkCapabilities {
 		view.Watch = WorkCapability{Reason: workCapSession}
 	}
 	mutating, attempt := workCapabilityGates(in)
+	view.PublishRetained = WorkCapability{Available: mutating == "" && in.DispatchOpen && in.Member && in.RetainedCandidate}
+	if !view.PublishRetained.Available {
+		view.PublishRetained.Reason = "retained_candidate_unavailable"
+		if mutating != "" {
+			view.PublishRetained.Reason = mutating
+		}
+	}
 	view.Stop = workStopCapability(in, mutating)
 	view.Retry = workRetryCapability(in, attempt)
 	view.Takeover = workTakeoverCapability(in, attempt)

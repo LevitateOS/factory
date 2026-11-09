@@ -279,7 +279,10 @@ func (c *Coordinator) storePublication(ctx context.Context, p *factory.Publicati
 }
 
 func (c *Coordinator) finishPublication(ctx context.Context, p factory.Publication, stage string, outcome factory.Outcome, reason string, report *PublishReport) {
-	p.Stage, p.Outcome, p.Reason, p.FinishedUnix = stage, outcome, reason, time.Now().Unix()
+	if p.Stage != stage || p.FinishedUnix == 0 {
+		p.FinishedUnix = time.Now().Unix()
+	}
+	p.Stage, p.Outcome, p.Reason = stage, outcome, reason
 	if !c.storePublication(ctx, &p, report) {
 		return
 	}

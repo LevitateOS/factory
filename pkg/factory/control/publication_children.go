@@ -57,6 +57,10 @@ func (c *Coordinator) loadPublicationChildOwner(ctx context.Context, p factory.P
 }
 
 func (c *Coordinator) gatePublicationChildAttempt(ctx context.Context, p factory.Publication, owner factory.Assignment, report *PublishReport) (factory.AttemptAllowance, bool) {
+	if owner.RetainedPublication != nil {
+		publicationWait(report, p.ID, "retained candidate published; separately authorized review funding is required")
+		return factory.AttemptAllowance{}, true
+	}
 	latest, err := c.Store.LatestIssueAssignment(ctx, p.Repository, p.Issue)
 	if err != nil {
 		publicationError(report, p.ID, "issue_assignment_unavailable")

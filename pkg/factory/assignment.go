@@ -22,6 +22,9 @@ import (
 const (
 	AssignmentAssigned = "assigned"
 	AssignmentFinished = "finished"
+	// AssignmentRetained owns a newly authorized publication of an existing
+	// candidate. It has no execution, model result or resource reservation.
+	AssignmentRetained = "retained"
 )
 
 // MaxDispatchAttempts bounds launch tries per assignment. A launch that
@@ -233,6 +236,7 @@ func checkDeliveryRepairSubject(s ExecutionSubject) error {
 // parent and no publication assignment. Admission always records Subject,
 // Phase and ParentAssignment.
 type Assignment struct {
+	RetainedPublication   *RetainedPublication      `json:"retained_publication,omitempty"`
 	AcceptedContext       *AcceptedContext          `json:"accepted_context,omitempty"`
 	ReviewContext         *CurrentReviewContext     `json:"review_context,omitempty"`
 	PlanningContext       *SemanticPlannerInput     `json:"planning_context,omitempty"`
@@ -420,6 +424,9 @@ func assignmentPromptBound(a Assignment) int {
 // Validate rejects malformed assignments. Assigned work carries no outcome
 // or result; finished work carries both plus its reason.
 func (a Assignment) Validate() error {
+	if a.RetainedPublication != nil {
+		return a.validateRetainedPublication()
+	}
 	if a.ReviewContext != nil {
 		if err := a.ReviewContext.ValidateFor(a); err != nil {
 			return err

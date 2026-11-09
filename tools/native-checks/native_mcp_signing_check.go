@@ -6493,6 +6493,168 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
+	if phase == "publish-retained-preflight" || phase == "publish-retained-watch" || phase == "publish-retained-inspect" || phase == "publish-retained-recovery-preflight" || phase == "publish-retained-recovery-watch" {
+		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
+			return errors.New("fresh publication requires the exact retained Q15 fixture")
+		}
+		original, e := db.PublicationByID(ctx, "31dbde02be4170d92a37ac3da6154014")
+		if e != nil || phase != "publish-retained-inspect" && original.Stage != factory.PublicationFenced || original.Run != "bf339c1b9a0023a95bf95ad815ca5458" || original.Candidate != "84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c" {
+			return errors.New("original uncertain publication/candidate changed; inspect before new effects")
+		}
+		rawDB, e := sql.Open("pgx", config.DatabaseDSN())
+		if e != nil {
+			return e
+		}
+		defer rawDB.Close()
+		snapshot := func() ([]byte, error) {
+			var result []byte
+			e := rawDB.QueryRowContext(ctx, `SELECT jsonb_build_object(
+			 'publication',(SELECT data FROM factory_publications WHERE data->>'id'='31dbde02be4170d92a37ac3da6154014'),
+			 'runs',(SELECT jsonb_agg(r.data ORDER BY r.id) FROM factory_runs r JOIN factory_run_views v ON v.run=r.id WHERE v.repository=1 AND v.issue=18),
+			 'usage',(SELECT jsonb_agg(u.data ORDER BY u.run) FROM factory_usage u WHERE u.repository=1 AND u.connection=$1),
+			 'allowance',(SELECT data FROM factory_attempt_allowances WHERE root_assignment='15151515151515151515151515151504'))`, in.Source).Scan(&result)
+			return result, e
+		}
+		statePath := filepath.Join(filepath.Dir(profile), "retained-publication-before.json")
+		if phase == "publish-retained-inspect" {
+			after, e := snapshot()
+			if e != nil {
+				return e
+			}
+			if e = os.WriteFile(filepath.Join(filepath.Dir(profile), "retained-publication-after-"+instance+".json"), after, 0600); e != nil {
+				return e
+			}
+			fresh, e := db.PublicationByID(ctx, "15151515151515151515151515151505")
+			if e != nil {
+				return e
+			}
+			encoded, e := json.Marshal(fresh)
+			if e != nil {
+				return e
+			}
+			if e = os.WriteFile(filepath.Join(filepath.Dir(profile), "retained-publication-observed.json"), encoded, 0600); e != nil {
+				return e
+			}
+			fmt.Printf("READ ONLY: original stage=%s; fresh publication stage=%s PR=%d; original/new journals captured for comparison; no dispatch or inference\n", original.Stage, fresh.Stage, fresh.PRNumber)
+			return nil
+		}
+		if phase == "publish-retained-preflight" || phase == "publish-retained-recovery-preflight" {
+			var runs, pending, minutes int
+			e = rawDB.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_run_views WHERE repository=1 AND issue=18),
+			 (SELECT count(*) FROM factory_runs r JOIN factory_run_views v ON v.run=r.id WHERE v.repository=1 AND v.issue=18 AND (r.active OR NOT r.settled OR r.data->>'reconciled' IS DISTINCT FROM 'true')),
+			 (SELECT sum(u.minutes) FROM factory_usage u WHERE u.repository=1 AND u.connection=$1)`, in.Source).Scan(&runs, &pending, &minutes)
+			if e != nil || runs != 4 || pending != 0 || minutes != 15 {
+				return fmt.Errorf("original Q15 preflight: recorded runs=%d pending=%d charged minutes=%d query=%v; preserve and inspect", runs, pending, minutes, e)
+			}
+			before, e := snapshot()
+			if e != nil {
+				return e
+			}
+			if phase == "publish-retained-recovery-preflight" {
+				originalBytes, e := os.ReadFile(statePath)
+				if e != nil {
+					return e
+				}
+				var originalState, currentState map[string]any
+				if e = json.Unmarshal(originalBytes, &originalState); e != nil {
+					return e
+				}
+				if e = json.Unmarshal(before, &currentState); e != nil {
+					return e
+				}
+				priorPublication, ok := originalState["publication"].(map[string]any)
+				if !ok {
+					return errors.New("original publication snapshot missing")
+				}
+				currentPublication, ok := currentState["publication"].(map[string]any)
+				if !ok {
+					return errors.New("current publication snapshot missing")
+				}
+				// Retain the observed pre-fix timestamp/revision churn as history.
+				// Every original intent, effect, deadline, receipt, run, charge and
+				// allowance must still match; the fixed recovery must change none.
+				currentPublication["finished_unix"], currentPublication["revision"] = priorPublication["finished_unix"], priorPublication["revision"]
+				currentPublish, ok := currentPublication["publish"].(map[string]any)
+				if !ok {
+					return errors.New("current branch snapshot missing")
+				}
+				priorPublish, ok := priorPublication["publish"].(map[string]any)
+				if !ok {
+					return errors.New("original branch snapshot missing")
+				}
+				currentPublish["updated_unix"] = priorPublish["updated_unix"]
+				if !reflect.DeepEqual(originalState, currentState) {
+					return errors.New("original publication semantics, source runs, charges or allowance changed; preserve all evidence")
+				}
+				if e = os.WriteFile(filepath.Join(filepath.Dir(profile), "retained-publication-recovery-before-"+instance+".json"), before, 0600); e != nil {
+					return e
+				}
+				fmt.Println("PASS: committed fresh PR recovered; original indeterminate intent/deadline/receipts, runs, source charges and allowance unchanged; pre-fix timestamp churn retained explicitly")
+				return nil
+			}
+			if prior, e := os.ReadFile(statePath); e == nil {
+				if !bytes.Equal(prior, before) {
+					return errors.New("retained publication recovery snapshot changed; do not replace original evidence")
+				}
+			} else if errors.Is(e, os.ErrNotExist) {
+				if e = os.WriteFile(statePath, before, 0600); e != nil {
+					return e
+				}
+			} else {
+				return e
+			}
+			fmt.Println("PASS: original Q15 uncertain publication, sealed candidate, four settled execution runs and 15 source-wide charged minutes recovered (including judgments); no model or provider write")
+			return nil
+		}
+		if phase == "publish-retained-recovery-watch" {
+			statePath = filepath.Join(filepath.Dir(profile), "retained-publication-recovery-before-"+instance+".json")
+		}
+		before, e := os.ReadFile(statePath)
+		if e != nil {
+			return e
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		inputs := factoryruntime.NativeInputSource{NativeExecution: port}
+		coordinator := control.NewCoordinator(db, port, port)
+		defer coordinator.Close()
+		coordinator.AcceptanceReads = inputs
+		coordinator.Publication = factoryruntime.NativePublication{NativeInputSource: inputs}
+		until := time.Now().Add(3 * time.Minute)
+		for time.Now().Before(until) {
+			report := coordinator.PublishPass(ctx)
+			fresh, e := db.PublicationByID(ctx, "15151515151515151515151515151505")
+			if e != nil {
+				return e
+			}
+			if fresh.Stage == factory.PublicationPublished {
+				after, e := snapshot()
+				if e != nil {
+					return e
+				}
+				if !bytes.Equal(before, after) {
+					return errors.New("original Q15 publication, runs, usage or allowance changed; preserve all receipts and inspect")
+				}
+				if fresh.PRNumber <= 0 || fresh.Candidate != original.Candidate || fresh.Run != original.Run || fresh.AssignmentID == original.AssignmentID || fresh.Publish.Receipt == "" || fresh.PRCreate.Receipt == "" {
+					return errors.New("fresh publication lacks exact candidate/branch/PR receipts")
+				}
+				encoded, e := json.Marshal(fresh)
+				if e != nil {
+					return e
+				}
+				if e = os.WriteFile(filepath.Join(filepath.Dir(profile), "retained-publication-result.json"), encoded, 0600); e != nil {
+					return e
+				}
+				fmt.Printf("PASS: retained candidate published as PR #%d with new branch/command and native receipts; original uncertain publication, four runs, 15 minutes and closed allowance unchanged; no inference\n", fresh.PRNumber)
+				return nil
+			}
+			fmt.Printf("RETAINED PUBLICATION: stage=%s waits=%+v errors=%+v\n", fresh.Stage, report.Waits, report.Errors)
+			if fresh.Stage != factory.PublicationOpen {
+				return errors.New("fresh publication terminal; preserve original identity and receipts, do not retry with new authority")
+			}
+			time.Sleep(time.Second)
+		}
+		return errors.New("fresh publication not confirmed; recover exact command/receipts before further effects")
+	}
 	if phase == "advance-retained" {
 		owner, e := db.Assignment(ctx, "15151515151515151515151515151504")
 		if e != nil || owner.Stage != factory.AssignmentFinished || owner.Phase != project.ExecutionInvestigate || owner.Outcome != factory.Succeeded {

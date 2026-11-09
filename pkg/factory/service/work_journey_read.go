@@ -385,6 +385,9 @@ func (s WorkJourneys) journeyPhaseSection(ctx context.Context, view *IssueJourne
 	current := make(map[string]factory.Assignment, len(journeyCanonicalPhases))
 	for _, group := range groups {
 		assignment := group.Assignment
+		if assignment.RetainedPublication != nil && assignment.Validate() == nil {
+			continue // This publication command made no execution phase or run.
+		}
 		if !project.ValidExecutionPhase(assignment.Phase) {
 			view.Reasons = addJourneyReason(view.Reasons, journeyReasonPhasesInvalidRow)
 			continue

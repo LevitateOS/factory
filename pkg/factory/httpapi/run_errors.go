@@ -70,6 +70,8 @@ func lifecycleControlError(w http.ResponseWriter, err error) {
 		writeError(w, 409, "takeover_conflict", "Takeover identity reused for different content.")
 	case errors.Is(err, store.ErrExplicitRetryIneligible):
 		writeError(w, 409, "retry_ineligible", "The prior attempt is not eligible for retry; refresh its settlement and current inputs.")
+	case errors.Is(err, store.ErrRetainedPublicationIneligible):
+		writeError(w, 409, "retained_publication_ineligible", err.Error())
 	case errors.Is(err, store.ErrContextResolutionIneligible):
 		writeError(w, 409, "context_resolution_ineligible", "The held current context changed or cannot be selected; refresh this run.")
 	case errors.Is(err, store.ErrCompletionRetryIneligible):

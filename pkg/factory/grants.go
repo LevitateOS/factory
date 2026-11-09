@@ -76,7 +76,7 @@ const (
 // command. Pause, resume and stop operate directly on their current state.
 func SettingsCommandType(typ string) bool {
 	switch typ {
-	case CommandRetry, CommandRetryImplementation, CommandCompletionRetry, CommandFeedPostRetry,
+	case CommandPublishRetained, CommandRetry, CommandRetryImplementation, CommandCompletionRetry, CommandFeedPostRetry,
 		CommandRepairGrant, CommandIntentExecutionLimit, CommandRepairCharge, CommandVerificationAllowance, CommandDeliveryRepair:
 		return true
 	default:

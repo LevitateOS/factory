@@ -1299,7 +1299,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let replacement_delivery=retry_delivery && field(9)?=="delivery-retry-replacement";
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
-            let retained_delivery=args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire");
+            let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
+            let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
+            let retained_delivery=args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire"|"delivery-publish-retained"|"delivery-publish-retained-recover");
             let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review"|"authoring-graph-generate"|"authoring-graph-adopt"|"authoring-graph-retained");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
@@ -1342,7 +1344,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                 let repository=catalog["items"][0]["id"].as_str().ok_or("canonical repository missing")?;
                 if full_delivery || retained_delivery || resume_delivery || retry_delivery {
                     let root=profile.parent().ok_or("profile parent missing")?;
-                    let background=root.join(if retained_delivery || resume_delivery || retry_delivery {"delivery-current.json"}else{"delivery.json"});
+                    let background=root.join(if publish_retained {"delivery-retained-publication.json"}else if retained_delivery || resume_delivery || retry_delivery {"delivery-current.json"}else{"delivery.json"});
                     let check=|phase:&str,instance:&str| {
                         let mut command=tokio::process::Command::new(&args[7]);
                         command.arg(profile).arg(instance).arg("check-connected-delivery").arg(&background).env("SODA_NATIVE_DELIVERY_PHASE",phase).kill_on_drop(true);
@@ -1353,10 +1355,11 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fixture["OriginalConnection"]=fixture["Connection"].clone();
                         fixture["Connection"]=json!(saved.connection);
                         fs::write(&background,serde_json::to_vec(&fixture)?)?;
-                        if retained_delivery {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
+                        if retained_delivery && !publish_retained {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
+                        if publish_retained {check(if recover_publication {"publish-retained-recovery-preflight"} else {"publish-retained-preflight"},&ready.instance).await?;}
                         // This mode is only for the exact preflight failure: no
                         // execution exists. Live/past attempts need their own recovery.
-                        if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else {
+                        if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else if !publish_retained {
                         check("scope",&ready.instance).await?;
                         let scope:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-delivery-scope.json"))?)?;
                         for control in scope["controls"].as_array().ok_or("delivery controls missing")? {
@@ -1380,8 +1383,27 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         let policy=json!({"expected_revision":p["revision"],"attempt_limits":p["attempt_limits"],"roles":p["roles"],"judgments":p["judgments"],"publish_actor":actor,"create_actor":actor,"review_actor":actor,"merge_actor":actor,"target_branch":p["target_branch"],"merge_method":p["merge_method"],"required_checks":p["required_checks"],"reassessment_minutes":p["reassessment_minutes"],"intent_minutes":p["intent_minutes"],"enabled":p["enabled"],"paused":p["paused"]});
                         let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                         let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
-                        fs::write(root.join("policy-resume.json"),&reply.body)?;
+                        fs::write(root.join(if recover_publication {"policy-retained-publication-recovery.json"}else if publish_retained {"policy-retained-publication.json"}else{"policy-resume.json"}),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
+                        if publish_retained {
+                            // This explicit command must not start models.
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let body=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151505","action":"publish-retained-candidate","publication":"31dbde02be4170d92a37ac3da6154014"}))?;
+                            let reply=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
+                            fs::write(root.join(if recover_publication {"retained-publication-replay.json"}else{"retained-publication-command.json"}),&reply.body)?;
+                            ensure(reply.status==200,"fresh retained publication refused; inspect its original command before another send")?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let replay=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
+                            ensure(replay.status==200 && replay.body==reply.body,"fresh command replay changed its publication")?;
+                            check(if recover_publication {"publish-retained-recovery-watch"}else{"publish-retained-watch"},&ready.instance).await?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
+                            fs::write(root.join("retained-publication-detail.json"),&detail.body)?;
+                            ensure(detail.status==200,"published retained candidate unavailable in the shared issue detail")?;
+                            let view:serde_json::Value=serde_json::from_slice(&detail.body)?;
+                            ensure(view["publication"]["id"]=="15151515151515151515151515151505" && view["publication"]["stage"]=="published" && view["publication"]["run"]=="bf339c1b9a0023a95bf95ad815ca5458","shared detail lost the exact retained publication/run")?;
+                            return Ok(());
+                        }
                         check("prepare",&ready.instance).await?;
                         if retry_delivery && !pending_retry_delivery {
                             // Invoke only after explicit owner authorization for

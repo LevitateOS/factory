@@ -1,6 +1,7 @@
 package control
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -115,6 +116,9 @@ func (c *Coordinator) adoptObservedOperations(ctx context.Context, p *factory.Pu
 			return false
 		}
 		if !outcome.NotObserved {
+			if samePublicationOutcome(*op, outcome) {
+				continue
+			}
 			if !c.adoptObserved(op, outcome, time.Now()) {
 				c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonUnattributed, report)
 				return false
@@ -192,6 +196,10 @@ func (c *Coordinator) routePublicationEffect(ctx context.Context, p *factory.Pub
 		return true
 	}
 	if p.Publish.Effect == factory.OpEffectIndeterminate || p.PRCreate.Effect == factory.OpEffectIndeterminate {
+		if p.Stage == factory.PublicationFenced && p.Outcome == factory.NeedsHuman && p.Reason == factory.PublishReasonFenced {
+			publicationWait(report, p.ID, factory.PublishReasonFenced)
+			return true
+		}
 		c.finishPublication(ctx, *p, factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, report)
 		return true
 	}
@@ -202,6 +210,14 @@ func (c *Coordinator) routePublicationEffect(ctx context.Context, p *factory.Pub
 		}
 	}
 	return false
+}
+
+func samePublicationOutcome(op factory.PublicationOperation, outcome factory.OperationOutcome) bool {
+	return op.Work != nil && outcome.InstallationID != "" && op.Work.ActorID == outcome.ActorID && op.Work.Repository == outcome.RepositoryID &&
+		!outcome.NotObserved && op.OperationID == outcome.OperationID && op.InstallationID == outcome.InstallationID &&
+		op.Kind == outcome.Kind && op.ActorID == outcome.ActorID && op.RepositoryID == outcome.RepositoryID &&
+		op.Effect == outcome.Effect && op.Cancellation == outcome.Cancellation && op.Completion == outcome.Completion &&
+		op.Reason == outcome.Reason && bytes.Equal([]byte(op.Receipt), outcome.Receipt)
 }
 
 // selectPublicationOp resolves the authority bracket and selects the
@@ -270,7 +286,15 @@ func (c *Coordinator) observePublicationWork(ctx context.Context, a factory.Assi
 		return work, true
 	}
 	now := time.Now()
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, p.AssignmentID, now.Add(10*time.Minute).Unix())
+	var notAfter int64
+	if a.RetainedPublication != nil {
+		notAfter = a.RetainedPublication.NotAfter
+		if notAfter <= now.Unix() {
+			err = factory.ErrAttemptTimeExhausted
+		}
+	} else {
+		notAfter, err = c.Store.CapAttemptDeadline(ctx, p.AssignmentID, now.Add(5*time.Minute).Unix())
+	}
 	if err != nil {
 		publicationWait(report, p.ID, "attempt_deadline_unavailable")
 		return work, true
@@ -399,6 +423,7 @@ func terminalPublicationEffect(op factory.PublicationOperation) bool {
 }
 
 func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.Assignment, p *factory.Publication, run factory.Run, report *PublishReport) bool {
+	changed := false
 	for _, op := range []*factory.PublicationOperation{&p.Publish, &p.PRCreate} {
 		if op.Effect != factory.OpEffectCommitted {
 			continue
@@ -415,6 +440,9 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			var result factory.PRCreationOutcome
 			result, err = c.Publication.AdoptPRCreation(ctx, work, operationOutcomeOf(*op))
 			if err == nil {
+				changed = changed || op.PRNumber != result.PRNumber || op.PRID != result.PRID || op.IssueID != result.IssueID ||
+					op.HeadRef != result.HeadRef || op.BaseRef != result.BaseRef || op.HeadOID != result.HeadOID || op.BaseOID != result.BaseOID ||
+					p.PRNumber != result.PRNumber || p.PRID != result.PRID
 				op.PRNumber, op.PRID, op.IssueID = result.PRNumber, result.PRID, result.IssueID
 				op.HeadRef, op.BaseRef, op.HeadOID, op.BaseOID = result.HeadRef, result.BaseRef, result.HeadOID, result.BaseOID
 				p.PRNumber, p.PRID = result.PRNumber, result.PRID
@@ -425,5 +453,5 @@ func (c *Coordinator) adoptPublicationReceipts(ctx context.Context, a factory.As
 			return false
 		}
 	}
-	return c.storePublication(ctx, p, report)
+	return !changed || c.storePublication(ctx, p, report)
 }

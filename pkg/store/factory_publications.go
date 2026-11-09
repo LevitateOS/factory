@@ -245,6 +245,26 @@ func admitPublicationRegistrationTx(ctx context.Context, tx *sql.Tx, p factory.P
 	if !open {
 		return ErrDispatchClosed
 	}
+	var raw []byte
+	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, p.AssignmentID).Scan(&raw); err != nil {
+		return err
+	}
+	var owner factory.Assignment
+	if err := json.Unmarshal(raw, &owner); err != nil {
+		return err
+	}
+	if owner.RetainedPublication != nil {
+		if owner.Validate() != nil || len(p.Corrections) != 0 || len(p.ReviewOperations) != 0 || len(p.ResolutionOperations) != 0 ||
+			p.Run != owner.RetainedPublication.Run || p.Candidate != owner.RetainedPublication.Candidate {
+			return ErrRetainedPublicationIneligible
+		}
+		for _, deadline := range newDeadlines {
+			if deadline <= time.Now().Unix() || deadline > owner.RetainedPublication.NotAfter {
+				return factory.ErrAttemptTimeExhausted
+			}
+		}
+		return nil
+	}
 	return ensureAttemptDeadlineForRegistrationTx(ctx, tx, p.AssignmentID, newDeadlines...)
 }
 
@@ -287,7 +307,7 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 		 AND EXISTS(SELECT 1 FROM factory_operator_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_environment_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM factory_sponsorships s JOIN factory_assignments a
-		   ON a.id=$14 AND s.connection=a.data->>'connection'
+		   ON a.id=$14 AND s.connection=COALESCE(NULLIF(a.data->>'connection',''),a.data#>>'{retained_publication,connection}')
 		   WHERE s.repository=$7 AND COALESCE((s.data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_requirement_heads WHERE project_id=$15 AND decision=$16)
 		 AND EXISTS(SELECT 1 FROM project_approval_heads WHERE project_id=$15 AND decision=$17)

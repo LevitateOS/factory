@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -73,6 +74,107 @@ func publicationTestRecord() factory.Publication {
 }
 
 func TestRecordPublicationRoundTrip(t *testing.T) {
+	t.Run("fresh retained publication preserves uncertain original and paid work", func(t *testing.T) {
+		ctx, db := context.Background(), dispatchStoreFixture(t)
+		now := time.Now()
+		source := recordFinishedAssignment(t, db, now, 3, true, "completed")
+		original := publicationTestRecord()
+		original.AssignmentID, original.Run, original.ProjectID = source.ID, source.Run, source.ProjectID
+		original.BaseSHA, original.Candidate, original.Preparation = source.SourceCommit, source.Result.Candidate, source.Preparation
+		if err := db.RecordPublication(ctx, original); err != nil {
+			t.Fatal(err)
+		}
+		original.Stage, original.Outcome, original.Reason, original.FinishedUnix = factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, now.Unix()
+		original.Revision++
+		if err := db.UpdatePublication(ctx, original); err != nil {
+			t.Fatal(err)
+		}
+		originalBytes, _ := json.Marshal(original)
+		allowance, err := db.AttemptAllowance(ctx, source.Repository, source.Issue)
+		if err != nil || !allowance.Closed || allowance.Active {
+			t.Fatalf("old allowance: %+v %v", allowance, err)
+		}
+		// An unresolved old publication may retain its accounting checkpoint.
+		// Closed still forbids new inference; this explicit publication neither
+		// requires inventing its outcome nor changes that old accounting state.
+		allowance.Active, allowance.CheckpointUnix = true, now.Unix()
+		allowance.Revision++
+		tx, err := db.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = saveAttemptAllowanceTx(ctx, tx, allowance); err != nil {
+			_ = tx.Rollback()
+			t.Fatal(err)
+		}
+		if err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		allowanceBytes, _ := json.Marshal(allowance)
+		command := factory.NewID()
+		r := &factory.RetainedPublication{Publication: original.ID, Assignment: source.ID, Run: source.Run, Candidate: original.Candidate, Connection: source.Connection, NotAfter: now.Add(5 * time.Minute).Unix()}
+		a := factory.Assignment{ID: command, AttemptRoot: command, PublicationAssignment: command, RetainedPublication: r,
+			Subject: source.Subject, Authority: source.Authority, ProjectID: source.ProjectID, Role: source.Role, Acceptance: source.Acceptance,
+			Preparation: source.Preparation, SourceCommit: source.SourceCommit, Stage: factory.AssignmentRetained,
+			Repository: source.Repository, Issue: source.Issue, NativeRev: source.NativeRev, ActorID: source.ActorID, CreatedUnix: now.Unix()}
+		fresh := original
+		fresh.ID, fresh.AssignmentID, fresh.Stage, fresh.Outcome, fresh.Reason, fresh.Revision, fresh.FinishedUnix = command, command, factory.PublicationOpen, "", "", 0, 0
+		payload, _ := json.Marshal(map[string]string{"publication": original.ID})
+		cmd := factory.Command{ID: command, Type: factory.CommandPublishRetained, Target: "publication/" + original.ID, Principal: "owner", Payload: string(payload)}
+		cmd.Digest = factory.SettingsDigest(cmd.Type, cmd.Target, cmd.Payload)
+		if _, err = db.RecordRetainedPublicationCommand(ctx, cmd, a, fresh, now); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.RecordRetainedPublicationCommand(ctx, cmd, a, fresh, now.Add(time.Hour)); err != nil {
+			t.Fatalf("replay renewed/rejected old authority: %v", err)
+		}
+		changed := cmd
+		changed.Payload = `{"publication":"changed"}`
+		changed.Digest = factory.SettingsDigest(changed.Type, changed.Target, changed.Payload)
+		if _, err = db.RecordRetainedPublicationCommand(ctx, changed, a, fresh, now); !errors.Is(err, ErrCommandConflict) {
+			t.Fatalf("changed command: %v", err)
+		}
+		if factory.PublishBranchName(source.ID) == factory.PublishBranchName(a.ID) {
+			t.Fatal("reused uncertain branch")
+		}
+		var runs, reservations, allowances int
+		if err = db.db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM factory_runs),(SELECT count(*) FROM factory_reservations),(SELECT count(*) FROM factory_attempt_allowances)`).Scan(&runs, &reservations, &allowances); err != nil || runs != 1 || reservations != 1 || allowances != 1 {
+			t.Fatalf("paid work replayed: %d %d %d %v", runs, reservations, allowances, err)
+		}
+		if _, err = db.CapAttemptDeadline(ctx, a.ID, now.Add(time.Minute).Unix()); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+			t.Fatalf("publication acquired inference allowance: %v", err)
+		}
+		intent := publicationStoreIntent("retained-publish-op")
+		intent.NotAfter = r.NotAfter + 1
+		fresh.Publish = factory.PublicationOperation{Kind: factory.OpRefPublish, OperationID: intent.OperationID, Attempts: 1, UpdatedUnix: now.Unix(), Work: intent}
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+			t.Fatalf("renewed publication deadline: %v", err)
+		}
+		intent.NotAfter = r.NotAfter
+		if err = db.UpdatePublication(ctx, fresh); err != nil {
+			t.Fatalf("fresh bounded branch intent: %v", err)
+		}
+		stored, err := db.PublicationByID(ctx, original.ID)
+		storedBytes, _ := json.Marshal(stored)
+		if err != nil || string(storedBytes) != string(originalBytes) {
+			t.Fatalf("changed original uncertain publication: %v", err)
+		}
+		storedAllowance, err := db.AttemptAllowance(ctx, source.Repository, source.Issue)
+		storedAllowanceBytes, _ := json.Marshal(storedAllowance)
+		if err != nil || string(storedAllowanceBytes) != string(allowanceBytes) {
+			t.Fatalf("renewed original allowance: %v", err)
+		}
+		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
+			t.Fatal(err)
+		}
+		fresh.PRCreate = factory.PublicationOperation{Kind: factory.OpPRCreate, OperationID: "retained-pr-op", Attempts: 1, UpdatedUnix: now.Unix(), Work: publicationStoreIntent("retained-pr-op")}
+		fresh.PRCreate.Work.NotAfter = r.NotAfter
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); !errors.Is(err, ErrDispatchClosed) {
+			t.Fatalf("withdrawn new authority: %v", err)
+		}
+	})
 	db := publicationStoreFixture(t)
 	ctx := context.Background()
 	p := publicationTestRecord()

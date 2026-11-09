@@ -95,6 +95,13 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 	var requested *WorkRequested
 	var err error
 	if attempt != nil {
+		if attempt.RetainedPublication == nil && attempt.Stage == factory.AssignmentFinished {
+			if p, readErr := s.Store.PublicationByAssignment(ctx, attempt.ID); readErr == nil {
+				in.RetainedCandidate = p.Stage == factory.PublicationFenced && !p.WithdrawRequested && p.PRNumber == 0
+			} else if !errors.Is(readErr, store.ErrNotFound) {
+				return empty, readErr
+			}
+		}
 		if run, err := s.Store.FactoryRun(ctx, attempt.Run); err == nil {
 			in.HasRun, in.RunSettled = true, run.Reconciled
 		} else if !errors.Is(err, store.ErrNotFound) {
@@ -141,6 +148,7 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 	capabilities := workCapabilitiesDTO(in)
 	if s.ExecutionUnavailable {
 		unavailable := WorkCapability{Reason: WorkAuthorityUnavailable}
+		capabilities.PublishRetained = unavailable
 		capabilities.Watch, capabilities.Stop, capabilities.Retry, capabilities.Takeover = unavailable, unavailable, unavailable, unavailable
 	}
 	return WorkControlView{Capabilities: capabilities, Requested: requested}, nil

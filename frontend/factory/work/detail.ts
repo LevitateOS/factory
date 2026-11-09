@@ -5,6 +5,7 @@ import type {PendingRunRetry, RunRetryAddress} from './retry-record.js';
 import './acceptance.js';
 import './context-resolution.js';
 import './completion-retry.js';
+import './retained-publication.js';
 import './journey.js';
 import type {FactoryTransport} from '../api/transport.js';
 import type {FactoryWorkLinks, FactoryAcceptanceLinks} from '../app/navigation.js';
@@ -526,6 +527,9 @@ export class SodaFactoryWorkDetail extends LitElement {
       <p data-work-message aria-live="polite">${this.message}</p>
       <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
       ${this.detail ? renderWorkDetail(describeIssueDetail(this.detail, context.detailLinks ? context.detailLinks(this.detail) : context.links)) : this.busy ? html`<p>Loading work detail…</p>` : ''}
+      <soda-factory-retained-publication
+        .context=${{transport: context.transport, repository: context.repository, issue: context.issue, detail: this.detail, commandScope: context.commandScope}}
+      ></soda-factory-retained-publication>
       <soda-factory-work-journey
         .context=${{observation: this.observation, transport: context.transport, repository: context.repository, links: context.links, issue: context.issue}}
       ></soda-factory-work-journey>

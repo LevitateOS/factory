@@ -132,6 +132,8 @@ export interface WorkCapability {
   reason?: string;
 }
 export interface WorkCapabilities {
+  /** Older hosts keep this action unavailable. */
+  publish_retained?: WorkCapability;
   watch: WorkCapability;
   stop: WorkCapability;
   retry: WorkCapability;
@@ -333,6 +335,7 @@ function workCapability(value: unknown): WorkCapability {
 function workCapabilities(value: unknown): WorkCapabilities {
   const raw = record(value);
   return {
+    ...(present(raw.publish_retained) ? {publish_retained: workCapability(raw.publish_retained)} : {}),
     watch: workCapability(raw.watch),
     stop: workCapability(raw.stop),
     retry: workCapability(raw.retry),
