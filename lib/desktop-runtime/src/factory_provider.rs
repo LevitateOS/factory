@@ -52,7 +52,7 @@ use serde_json::Value;
 pub use start::ExecutionStart;
 use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
-pub use tool::{Tool as MuseTool, ToolSelection, Tools};
+pub use tool::{Tool as MuseTool, ToolSelection, ToolStatus, Tools};
 
 const MAX_RUN: Duration = Duration::from_secs(4 * 60 * 60);
 const MAX_REQUEST_BYTES: usize = 256 * 1024;

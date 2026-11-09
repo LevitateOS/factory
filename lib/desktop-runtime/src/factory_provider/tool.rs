@@ -70,6 +70,20 @@ pub struct Tools {
     client: reqwest::Client,
     selected: tokio::sync::Mutex<Option<(Instant, ToolSelection, std::fs::Metadata)>>,
 }
+struct SelectionCheck<'a> {
+    status: &'a Mutex<ToolStatus>,
+    finished: bool,
+}
+impl Drop for SelectionCheck<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            if let Ok(mut status) = self.status.lock() {
+                status.state = "unavailable";
+                status.error = Some("Muse verification was interrupted. Check again before starting new work.");
+            }
+        }
+    }
+}
 impl Tools {
     pub const REFRESH: Duration = Duration::from_secs(300);
     pub fn discover(profile: &Path) -> io::Result<Self> {
@@ -356,6 +370,7 @@ impl Tools {
     }
     async fn select(&self, refresh: bool) -> io::Result<ToolSelection> {
         let mut selected = self.selected.lock().await;
+        let mut check = SelectionCheck { status: &self.status, finished: false };
         let result = self.select_inner(refresh, &mut selected).await;
         if result.is_err() {
             if let Ok(mut status) = self.status.lock() {
@@ -364,6 +379,7 @@ impl Tools {
                     Some("Muse could not be verified or updated. New runs are unavailable.");
             }
         }
+        check.finished = true;
         result
     }
     async fn select_inner(

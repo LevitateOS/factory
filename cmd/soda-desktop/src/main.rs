@@ -14,7 +14,7 @@ use fountain_signin::{
     fountain_enrollment, fountain_refresh, fountain_sign_in, fountain_sign_in_cancel,
     fountain_sign_in_open, fountain_sign_in_status,
 };
-use muse_signin::{muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status};
+use muse_signin::{muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status, muse_tools_refresh};
 #[cfg(feature = "native-check")]
 mod check;
 #[cfg(feature = "native-check")]
@@ -520,6 +520,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         fountain_enrollment,
         muse_sign_in,
         muse_sign_in_status,
+        muse_tools_refresh,
         muse_sign_in_cancel,
         muse_sign_in_open,
         factory_query,
@@ -557,6 +558,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         fountain_enrollment,
         muse_sign_in,
         muse_sign_in_status,
+        muse_tools_refresh,
         muse_sign_in_cancel,
         muse_sign_in_open,
         factory_connect,

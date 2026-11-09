@@ -96,6 +96,11 @@ original retained command after a lost reply or restart. **Withdraw enrollment**
 keeps it inactive; replay cannot reactivate it. Refreshing or signing in does not
 authorize execution or publication. Older saved accounts require explicit sign-in
 before refresh because their public-client identity was not captured.
+The Muse section shows release-check/download failures, latest and selected
+versions, and the last successful verification. **Check Muse update** retries
+through the native tool owner; sign-in stays unavailable until verification
+succeeds. Closing its window cancels the check, and reopening permits a fresh
+check while preserving captured executables and login data.
 
 Native fixture execution is not proof of real provider inference.
 [The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
