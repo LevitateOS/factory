@@ -1687,17 +1687,11 @@ single-user systemd package scope; it grants no support to other OS/CPU targets,
 no installed provider-journey completion and no release/update-job publication.
 Rocky app/PG/GUI are joined and the clean guest is powered off; disks stay.
 
-**Active continuation:** Q26 uses this actual installed current9 in Debian's
-owned overlay (SSH22209), separate `/home/factory/q25-prefix9` and original
-`q25-current9/profile`. Its private default keyring is verified unlocked;
-real GitHub device consent is pending. A failed gdbus fixture preflight is retained
-and was replaced by the already available busctl, without installing developer
-tools. Do not replay old OAuth challenges or export host credentials. Q21 host
-`b44c7f53310021c91d797b205649da927f6ee50c` and causal receipt remain;
-Rust transfer/native-worker integration is outstanding. Q15's original unknown
-branch stays fenced. All remaining requests stay outstanding; Q24's absent
-replacement appliance blocks only appliance-dependent journeys. No model or
-uncertain original write was replayed.
+**Current continuation:** Q26's exact-prior current10 update and joined installed
+checks are recorded in its section. Q19's native claim connector is verified;
+its actual worker integration remains the next independent product work. The
+original unknown Q15 publication stays fenced and every outstanding request
+keeps its own evidence/dependencies. Q24 still lacks a replacement appliance.
 
 Current continuation (2026-11-09): `stage-current4` from clean
 `3235d3e83a4f07632b6453c0a63c66da84e06eaa` passes actual Debian 13.7 x86_64
@@ -1795,6 +1789,38 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q26"></a>
 
 ### Q26 — Installed GitHub desktop product journey
+
+**Current installed continuation (2026-11-09), INCOMPLETE:** production current9
+from d167b557a49c installed in the Debian overlay passed fresh/reopen and actual
+keyboard lifecycle (Q25). Its real GitHub challenge expired unapproved;
+`current8-debian/current9-challenge-expired.png` preserves that outcome. No
+challenge or inference was replayed. Fresh consent is needed for authenticated
+journey work; the next code must come from the actual installed app after the
+user is available. The existing expired question is not account authorization.
+
+Actual installed use exposed stale "account status unavailable" text after a
+successful empty-account read. Source
+`6cc3106edb21594e7a8d9ad85c4d7b583dd8ae4d` clears it to the current sign-in/
+account choice. TypeScript passes `account-status-types10.log`; clean
+`stage-current10` builds with inventory SHA256
+`cae48b95b9ef6b71f67637a01232c070dd671be6bd847c1d706b1f4e689f1b23`.
+Actual installed `current10-account-status.png` proves the correction, without
+renderer injection. `current10-upgrade.log` verifies exact-prior activation while
+old executable/profile/keyring/root helpers stay unchanged; old normal keyboard
+Quit, updated actual executable, retained format100/zero runs/commands and normal
+new keyboard Quit/externally joined app/backend/PG pass in
+`current10-reopen-final.log`. All are under
+`q25-package/current8-debian`. An overbroad fixture hash assertion included
+`backend.key`, which intentionally rotates per native bootstrap; its failure
+stays in `current10-reopen-inspect.log`. Corrected validation preserves every
+durable profile/credential/signing key and checks the fresh bootstrap boundary.
+The earlier uncompleted Quit attempt focused a required blank form while scrolled;
+no Fountain host request was sent. Verified toolbar focus then normal Quit passed.
+These are installed UI/update/lifecycle facts, not funding or delivery completion.
+The guest at SSH22209 remains idle, updated launcher in `q25-prefix9`, original
+`q25-current9/profile`; app/backend/PG/GUI/keyring/bus are joined. No owned
+uncommitted edit or uncertain new product effect remains. Next independent work
+is Q19 native captured-controller launch/withdrawal/retirement integration.
 
 INCOMPLETE — actual Q25-installed `stage-current5` (engine `ce47b02c6ab16a5c85c6a46cbaf1c4d883bbfe23`
 plus its recorded docs-only patch) now proves real GitHub OAuth, encrypted desktop

@@ -2907,6 +2907,15 @@ facts are declared at this boundary; no worker/model proof is inferred. Full
 native launch/withdrawal/retirement integration remains Q19 and is the concrete
 prerequisite of native Fountain delivery, independently of the absent appliance.
 
+Q26 installed status correction (2026-11-09): 6cc3106edb21 fixes a stale account
+unavailability message seen in the actual installed app. Clean current10's real
+exact-prior update, screenshot, retained format100/zero runs/commands and keyboard
+Quit pass on Debian. Live old executable and durable keyring/profile/signing
+bytes stay; per-start backend bootstrap key correctly rotates. Failed focus and
+overbroad hash assertions are retained, not counted as passes. Q26's device
+challenge expired unapproved; fresh user consent is required for authenticated
+steps, while independent Fountain implementation continues. Full Q26 remains open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
