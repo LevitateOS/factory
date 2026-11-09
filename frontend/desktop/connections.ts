@@ -353,6 +353,8 @@ export function mountConnections(core: Core, app: SodaFactoryApp) {
         return;
       }
       known = values;
+      if (ready && !connection)
+        message = known.length ? 'Choose a saved account to connect.' : 'Sign in to GitHub to connect a repository.';
       const account = known.find((account) => account.connection === connection);
       if (connection && account?.state !== 'stored') {
         ++serial;
