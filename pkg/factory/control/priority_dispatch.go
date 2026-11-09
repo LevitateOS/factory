@@ -372,7 +372,7 @@ func completePrioritySelection(ctx context.Context, deps DispatchDeps, nativeRev
 		// within the existing per-pass cursor and RPC bounds.
 		for _, observation := range scan.Observations {
 			switch observation.Exclusion {
-			case WaitSource, WaitHarness, WaitPreparation, WaitInputsUnavailable, WaitInputsBusy, WaitInputsStale, WaitInputsIncomplete:
+			case WaitSource, WaitHarness, WaitPreparation, WaitInputsUnavailable, WaitInputsBusy, WaitInputsStale, WaitInputsIncomplete, WaitCapacity, WaitRepository:
 				if err := deps.Store.DeletePriorityScan(ctx); err != nil {
 					report.Errors = append(report.Errors, DispatchError{Reason: DispatchErrStore, Detail: "transient priority scan unretired"})
 				}

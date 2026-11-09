@@ -2300,6 +2300,42 @@ the host matrix, installed app/provider journeys, updater or broad security gate
 Next: actual installed app launch/lifecycle and remaining host qualification;
 subsequent native Retry fixes require a fresh package before installed delivery.
 
+## Q15 native Retry and retained advancement correction (2026-11-09)
+
+The explicitly authorized Retry `15151515151515151515151515151503` committed
+but its native dispatch packet omitted the native capture and no model launched.
+The native and appliance Retry entries now retain their respective runtime
+admission; implementation Retry uses the same defining native capture. Restart
+may read an original preparation's exact confirmed retirement from private
+request/completion/retirement records; it cannot open setup, execute, renew its
+deadline or turn old readiness into current authority. Actual adoption passed
+in `q15-connected/retry-retirement.log`; original seven minutes remain intact.
+
+Owner-authorized replacement `15151515151515151515151515151504` started a real
+new Architect (`efc2a62327f2c18f7390fc1ff58a0e20`), which succeeded and sealed.
+Its completed plan then exposed a sticky empty-capacity scan and double-counting
+of the Retry preparation alongside its exact implementation child. Transient
+capacity now reobserves through the existing scan owner; that exact parent's
+implementation can share the preparation slot, retaining all repository/root,
+role, preparation and active reservation/run checks. Actual current coordinator
+advancement used live native/provider/source reads and admitted Builder
+`fec34d4ab861894c29c38cd7edaf4db4` / `bf339c1b9a0023a95bf95ad815ca5458`
+without another plan/Retry. Its run remains active in `replacement1.log` (session
+48651); current usage is not a final total. The first advancement check reported
+failure after the packet committed; that original log remains unchanged and the
+check now inspects the exact admitted packet before further passes. Existing
+real PostgreSQL native/phased/retry checks passed in `retry-pg2.log`; Go and locked
+native builds passed. This verifies the corrected boundaries, not full Q15.
+
+The Q25 installed release also rendered production UI, reopened, accepted actual
+keyboard Close/Quit, restored its owner on second launch, and joined PostgreSQL.
+Evidence is in `q25-package/desktop/`; no native-check binary or seeded product
+facts substituted for the installed app. Broader host/installed/provider journeys
+remain open. Q24 still needs a current authorized appliance; independent work
+continues. Preserve both stashes, all original plans and receipts, the active
+Q15 runtime, and Q25's intentionally installed execution services. Remove the
+owned temporary `Q15_EXPECT_PASS=false` variable when the connected check settles.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

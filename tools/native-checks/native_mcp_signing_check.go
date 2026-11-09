@@ -6493,6 +6493,108 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
+	if phase == "advance-retained" {
+		owner, e := db.Assignment(ctx, "15151515151515151515151515151504")
+		if e != nil || owner.Stage != factory.AssignmentFinished || owner.Phase != project.ExecutionInvestigate || owner.Outcome != factory.Succeeded {
+			return errors.New("exact completed replacement Architect required; do not replay planning")
+		}
+		run, e := db.FactoryRun(ctx, owner.Run)
+		if e != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() || run.Native.Provenance.InstanceID != instance {
+			return errors.New("original Architect/native owner is not settled and current")
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		inputs := factoryruntime.NativeInputSource{NativeExecution: port}
+		judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+		coordinator := control.NewCoordinator(db, port, port)
+		defer coordinator.Close()
+		coordinator.AcceptanceReads, coordinator.DispatchReads = inputs, inputs
+		coordinator.MCPSecret = factoryruntime.NativeMCPSecretDeriver(config, instance)
+		coordinator.ContextChooser = judgments
+		coordinator.Priority = &control.PriorityJudgments{Journal: db, Chooser: judgments}
+		for i := 0; i < 20; i++ {
+			report := coordinator.Dispatch(ctx)
+			assigned, e := db.AssignedAssignments(ctx, control.MaxDispatchRecovery)
+			if e != nil {
+				return e
+			}
+			for _, child := range assigned {
+				if child.ParentAssignment == owner.ID && child.Phase == project.ExecutionImplement && child.AttemptRoot == owner.ID && child.Preparation == owner.Preparation {
+					admitted, e := db.FactoryRun(ctx, child.Run)
+					if e != nil || admitted.Native == nil || len(admitted.ExecutionManifest) == 0 {
+						return errors.New("retained Builder packet lost native/plan capture")
+					}
+					fmt.Println("PASS: current coordinator admitted exact retained plan's native Builder packet without planning replay:", child.ID, child.Run)
+					return nil
+				}
+			}
+			if len(report.Launched) > 0 {
+				if len(report.Launched) != 1 || report.Launched[0].Issue != issue {
+					return errors.New("unexpected retained advancement; recover receipts")
+				}
+				fmt.Println("PASS: current native coordinator advanced exact completed paid Architect to one Builder without replay:", report.Launched[0].AssignmentID, report.Launched[0].RunID)
+				return nil
+			}
+			fmt.Printf("Retained advancement: waits=%+v errors=%+v\n", report.Waits, report.Errors)
+			time.Sleep(time.Second)
+		}
+		return errors.New("retained Builder did not advance; preserve original plan and receipts")
+	}
+	if phase == "capacity-recovery" {
+		scan, e := db.LoadPriorityScan(ctx)
+		if e != nil || scan.Cursor < len(scan.Subjects) || len(scan.Observations) == 0 {
+			return errors.New("complete retained empty scan required")
+		}
+		capacityWait := false
+		for _, observation := range scan.Observations {
+			if len(observation.Candidate) != 0 {
+				return errors.New("retained scan has candidates; do not disturb a judgment")
+			}
+			capacityWait = capacityWait || observation.Exclusion == control.WaitRepository || observation.Exclusion == control.WaitCapacity
+		}
+		assigned, e := db.AssignedAssignments(ctx, 1)
+		if e != nil || len(assigned) != 0 || !capacityWait {
+			return errors.New("capacity recovery requires no active assignment and an original transient wait")
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		authorityCalled := false
+		report := control.DispatchPass(ctx, control.DispatchDeps{Store: db, Host: port, Broker: port, Priority: &control.PriorityJudgments{},
+			Authority: func(context.Context, int64, string) (factory.EffectiveAuthority, error) {
+				authorityCalled = true
+				return factory.EffectiveAuthority{}, errors.New("capacity recovery cannot admit work")
+			}})
+		if len(report.Launched) != 0 || authorityCalled {
+			return errors.New("empty scan recovery attempted fresh work")
+		}
+		if _, e = db.LoadPriorityScan(ctx); !errors.Is(e, store.ErrNotFound) {
+			return fmt.Errorf("current dispatch retained transient capacity wait: %+v %v", report, e)
+		}
+		fmt.Println("PASS: current production dispatch retired original completed empty capacity scan without judgment, launch or authority mutation")
+		return nil
+	}
+	if phase == "retry-retirement" {
+		records, e := db.PendingRetryPreparations(ctx, 256)
+		if e != nil {
+			return e
+		}
+		for _, record := range records {
+			if record.Admission.OwnerAssignment != "15151515151515151515151515151503" {
+				return errors.New("unexpected pending preparation; inspect before retirement")
+			}
+			port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+			state, e := port.RetireWorkspacePreparation(ctx, record.Preparation.Address())
+			if e != nil {
+				return e
+			}
+			if !state.Stopped || state.Retirement != "confirmed" || state.Native == nil || state.Native.InstanceID == instance {
+				return errors.New("original owner retirement not confirmed")
+			}
+			if e = db.RecordCandidatePreparationStop(ctx, record.Preparation.Preparation.ID, state); e != nil {
+				return e
+			}
+		}
+		fmt.Println("PASS: original owner preparation retirement adopted after restart without setup, execution, grant renewal or inference")
+		return nil
+	}
 	if phase == "prepare" {
 		workspace, _, e := db.ExecutionWorkspace(ctx, collaboration.RepositoryID(repository))
 		if e != nil {
@@ -6567,7 +6669,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		if json.Unmarshal(data["assignments"].(json.RawMessage), &assignments) != nil || json.Unmarshal(data["publications"].(json.RawMessage), &publications) != nil || json.Unmarshal(data["merges"].(json.RawMessage), &merges) != nil || json.Unmarshal(data["runs"].(json.RawMessage), &runs) != nil {
 			return errors.New("delivery snapshot malformed")
 		}
-		if phase == "retry-preflight" {
+		if phase == "retry-preflight" || phase == "retry-pending" || phase == "retry-replacement" {
 			if len(assignments) != 2 || len(runs) != 2 || len(publications) != 0 || len(merges) != 0 {
 				return errors.New("fresh Retry requires the exact two original settled runs and no publication")
 			}
@@ -6595,7 +6697,21 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 			if err = rawDB.QueryRowContext(ctx, `SELECT count(*) FROM factory_commands WHERE finished=''`).Scan(&pending); err != nil || pending != 0 || minutes != 7 {
 				return errors.New("original command/charge recovery incomplete; do not retry")
 			}
-			fmt.Println("PASS: exact original investigation/failed Builder retired, all commands finished, seven source minutes retained; fresh Retry not yet sent")
+			if phase == "retry-replacement" {
+				var retired bool
+				if e := rawDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM project_preparations WHERE data#>>'{factory_admission,owner_assignment}'='15151515151515151515151515151503' AND data#>>'{factory_admission,stopped}'='true' AND data#>>'{factory_admission,retirement}'='confirmed') AND NOT EXISTS(SELECT 1 FROM factory_commands WHERE id='15151515151515151515151515151504')`).Scan(&retired); e != nil || !retired {
+					return errors.New("replacement requires the original confirmed retirement and an unused command; inspect before effects")
+				}
+				fmt.Println("PASS: unlaunched old Retry retained with confirmed retirement; fresh replacement not yet sent; original seven minutes unchanged")
+			} else if phase == "retry-pending" {
+				pending, e := db.PendingExplicitRetry(ctx, repository, issue, "d151515151515151515151515")
+				if e != nil || pending.CommandID != "15151515151515151515151515151503" || pending.Prior != "abd8dd765833bd1b79caf59d42fa6098" {
+					return errors.New("exact authorized pending Retry unavailable; do not send another command")
+				}
+				fmt.Println("PASS: exact authorized pending Retry adopted without another command or inference; original seven minutes retained")
+			} else {
+				fmt.Println("PASS: exact original investigation/failed Builder retired, all commands finished, seven source minutes retained; inspect existing Retry before any send")
+			}
 			return nil
 		}
 		if phase == "preflight" || phase == "scope" {

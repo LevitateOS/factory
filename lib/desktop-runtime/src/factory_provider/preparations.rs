@@ -540,6 +540,9 @@ impl Preparations {
         self.prepare(standing)
     }
     pub(crate) fn inspect(&self, address: &Value) -> io::Result<Value> {
+        if address["native"]["instance_id"] != self.instance {
+            return self.retained_retirement(address);
+        }
         let key = self.key(address)?;
         let (input, completion, cancel, retired) = {
             let entries = self.entries.lock().map_err(|_| denied())?;
@@ -671,6 +674,9 @@ impl Preparations {
         }
     }
     pub(crate) fn retire(&self, address: &Value) -> io::Result<Value> {
+        if address["native"]["instance_id"] != self.instance {
+            return self.retained_retirement(address);
+        }
         let key = self.key(address)?;
         let (input, job) = {
             let mut entries = self.entries.lock().map_err(|_| denied())?;
@@ -694,6 +700,37 @@ impl Preparations {
         let entry = entries.get_mut(&key).ok_or_else(denied)?;
         entry.retired = true;
         let completion = entry.completion.lock().map_err(|_| denied())?.clone();
+        Ok(input.state(completion.as_ref(), true))
+    }
+
+    // A new controller may adopt an original owner's confirmed retirement.
+    // This read never opens a workspace, renews a deadline or performs setup.
+    fn retained_retirement(&self, address: &Value) -> io::Result<Value> {
+        let native = &address["native"];
+        let instance = text(native, "instance_id", 32)?;
+        if !self.alive.load(Ordering::SeqCst)
+            || native["profile"] != self.profile
+            || !super::hex(instance, 32)
+            || instance == self.instance
+        {
+            return Err(denied());
+        }
+        let key = digest(&serde_json::to_vec(native).map_err(io::Error::other)?)[..32].to_owned();
+        let directory = self.directory.join(&key);
+        let input = Input::decode(load(&directory.join("request.json"))?, &self.profile, instance)?;
+        let marker: Value = load(&directory.join("retired.json"))?;
+        if input.native != *native || address["id"] != input.id
+            || address["workspace"] != input.workspace || input.key != key
+            || marker["root"] != key
+            || marker["bundle"] != digest(&input.effective_bundle(&directory)?)
+        {
+            return Err(denied());
+        }
+        let completion: Option<Completion> = match load(&directory.join("completion.json")) {
+            Ok(value) => Some(value),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
         Ok(input.state(completion.as_ref(), true))
     }
     pub(crate) fn retire_all(&self) -> io::Result<()> {

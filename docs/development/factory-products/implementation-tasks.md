@@ -789,6 +789,27 @@ The owner then authorized replacement command
 `q15-server8`/`q15-delivery9-callback` and actual Q25-installed services.
 Inspect its command and original journals before any next effect.
 
+Current recovery evidence: replacement Architect run
+`efc2a62327f2c18f7390fc1ff58a0e20` succeeded and is sealed/reconciled. Its
+original paid plan is preserved. Advancing this Retry exposed two further
+integration gaps: empty priority scans retained transient capacity waits, and
+the exact investigation preparation counted a second repository slot beside
+its implementation child. Current code reobserves transient capacity and shares
+only that exact parent/implementation preparation slot. The current production
+coordinator advanced the retained plan through the live native owner into Builder
+`fec34d4ab861894c29c38cd7edaf4db4` / `bf339c1b9a0023a95bf95ad815ca5458`.
+It is running; do not send another Retry or repeat planning. Original usage stays
+on source `4c823041ad0ba064c4f974399b0e3a2a`; current totals are not final.
+`capacity-recovery{,2}.log` proves actual empty-scan retirement without inference;
+`advance-retained.log` preserves the first driver's non-successful final report
+even though the actual packet committed and the Builder launched. Do not replace
+that report with a fabricated PASS. The updated check adopts that committed
+packet before deciding whether another pass is needed. Native admission and
+phased/retry PostgreSQL checks passed (`retry-pg2.log`); production Go/locked
+native builds and original-owner retirement adoption passed. Q15's full journey
+remains open. The running check uses the earlier backend build; current code was
+exercised for retained advancement and must be in the subsequent installed bundle.
+
 Verified production corrections: `9137c916d79412de60bfa360bc9e864ddb49f076`
 retains/polls one native coordinator startup and exposes existing dispatch waits;
 `84b04c439229f79e9a503ecdc30cc0f43016aa47` preserves exact per-issue priority
@@ -1069,7 +1090,7 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
-INCOMPLETE — fresh release packaging and recoverable installation implemented; installed app/host qualification remains. `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final.log`, `boundaries-final.log`). This qualifies packaging and the changed recovery boundary on Rocky x86_64; it does not qualify the full supported-host matrix, actual installed app lifecycle or Q26/Q27. Next: launch the actual installed release, qualify host dependencies/capabilities without development tools and finish required supported-host evidence. Q15/Q24 do not block independent installation work. Q15's later native Retry fix needs a subsequent fresh payload before installed delivery qualification.
+INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; supported-host qualification remains. `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final2.log`, `boundaries-final.log`). The actual installed app rendered production UI using its bundled backend/PostgreSQL, reopened its original profile, accepted real XTest keyboard Close/Quit, restored the existing window on second launch and joined its database on Quit (`desktop/{loaded,second-launch,keyboard-quit-focus}.png`, `input.log`, `session2.log`, original PostgreSQL shutdown log). The first root-window capture failed on headless Xwayland; window capture corrected the check after verifying clean original shutdown. No native-check/development executable or seeded phase facts were used. This qualifies the changed packaging/recovery and installed lifecycle boundary on Rocky x86_64, not full Q26/Q27 or the supported-host matrix. Next: finish runtime/capability checks without development tools and supported-host evidence; package the subsequent native Retry fixes before installed delivery. Q15/Q24 do not block independent installation work.
 
 ```text
 Execute through Q25 — Fresh Linux distribution and installers. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q25 despite the document's historical paused snapshot; it does not authorize work beyond Q25 or resuming the old product queue.

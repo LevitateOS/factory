@@ -1174,7 +1174,9 @@ func checkAdmissionLimitsTx(ctx context.Context, t *sql.Tx, repository int64, co
 			  AND NOT soda_preparation_quiescent(p.data,p.id,p.project_id,p.role)
 			  AND NOT EXISTS (
 				SELECT 1 FROM factory_assignments a JOIN factory_runs r ON r.id=a.run
-				WHERE a.id=p.data#>>'{factory_admission,child_assignment}' AND a.repository=$1
+				WHERE (a.id=p.data#>>'{factory_admission,child_assignment}'
+				  OR (a.data->>'parent_assignment'=p.data#>>'{factory_admission,child_assignment}'
+				    AND a.data->>'phase'='implement')) AND a.repository=$1
 				  AND a.data->>'project_id'=p.project_id AND a.data->>'role'=p.role
 				  AND a.data->>'preparation'=p.id
 				  AND a.data->>'attempt_root'=p.data#>>'{factory_admission,attempt_root}'

@@ -1202,8 +1202,11 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let resume_judgments=args.len()==10 && field(9)?=="judgments-resume";
             let full_delivery=args.len()==10 && field(9)?=="delivery-full";
             let resume_delivery=args.len()==10 && field(9)?=="delivery-resume";
-            let retry_delivery=args.len()==10 && field(9)?=="delivery-retry";
-            let retained_delivery=args.len()==10 && field(9)?=="delivery-retained";
+            let retry_delivery=args.len()==10 && matches!(field(9)?,"delivery-retry"|"delivery-retry-pending"|"delivery-retry-replacement");
+            let replacement_delivery=retry_delivery && field(9)?=="delivery-retry-replacement";
+            let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
+            let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
+            let retained_delivery=args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire");
             let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review"|"authoring-graph-generate"|"authoring-graph-adopt"|"authoring-graph-retained");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
@@ -1257,10 +1260,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fixture["OriginalConnection"]=fixture["Connection"].clone();
                         fixture["Connection"]=json!(saved.connection);
                         fs::write(&background,serde_json::to_vec(&fixture)?)?;
-                        if retained_delivery {check("retained",&ready.instance).await?;return Ok(());}
+                        if retained_delivery {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
                         // This mode is only for the exact preflight failure: no
                         // execution exists. Live/past attempts need their own recovery.
-                        if retry_delivery {check("retry-preflight",&ready.instance).await?;} else {
+                        if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else {
                         check("scope",&ready.instance).await?;
                         let scope:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-delivery-scope.json"))?)?;
                         for control in scope["controls"].as_array().ok_or("delivery controls missing")? {
@@ -1287,12 +1290,12 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fs::write(root.join("policy-resume.json"),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
                         check("prepare",&ready.instance).await?;
-                        if retry_delivery {
+                        if retry_delivery && !pending_retry_delivery {
                             // Invoke only after explicit owner authorization for
                             // this new paid attempt; old outcomes remain immutable.
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
-                            let reply=admitted.request("POST","/api/factory/runs/abd8dd765833bd1b79caf59d42fa6098/actions",&serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151503","action":"retry"}))?).await?;
-                            fs::write(root.join("delivery-retry-command.json"),&reply.body)?;
+                            let reply=admitted.request("POST","/api/factory/runs/abd8dd765833bd1b79caf59d42fa6098/actions",&serde_json::to_vec(&json!({"command_id":if replacement_delivery {"15151515151515151515151515151504"} else {"15151515151515151515151515151503"},"action":"retry"}))?).await?;
+                            fs::write(root.join(if replacement_delivery {"delivery-replacement-command.json"} else {"delivery-retry-command.json"}),&reply.body)?;
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;

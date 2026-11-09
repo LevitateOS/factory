@@ -187,7 +187,7 @@ func (p NativeExecution) RetireWorkspacePreparation(ctx context.Context, address
 }
 func (p NativeExecution) preparationObservation(ctx context.Context, address execution.PreparationAddress, operation string) (execution.PreparationState, error) {
 	var empty execution.PreparationState
-	if p.Store == nil || !p.currentPreparationAddress(address) {
+	if p.Store == nil || address.Validate() != nil || address.Native == nil || address.Native.Profile != p.Config.Profile {
 		return empty, execution.ErrPreparation
 	}
 	record, err := p.Store.Preparation(ctx, address.ID)

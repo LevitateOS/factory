@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -290,6 +291,10 @@ func dispatchObservationReason(repository, issue int64, reason, detail string) D
 		stage = "priority_read"
 	case "readiness refresh is unavailable":
 		stage = "refresh"
+	case "assignments unreadable", "attempt allowance unreadable", "acceptance head unreadable", "implementation retry unreadable", "explicit retry unreadable", "authority unreadable", "project unreadable", "policy unreadable", "acceptance decision unreadable", "dispatch gate unreadable":
+		stage = strings.ReplaceAll(detail, " ", "_")
+	case "sponsorships unreadable", "capacity unreadable", "operator grant unreadable", "repository run state unreadable", "environment grant unreadable", "requirement head unreadable", "approval head unreadable", "preparations unreadable", "confirmed usage unreadable":
+		stage = strings.ReplaceAll(detail, " ", "_")
 	}
 	if repository <= 0 {
 		repository, issue = 0, 0

@@ -64,6 +64,8 @@ func executeFreshAttempt(ctx context.Context, deps DispatchDeps, occupancy *pass
 	var packetErr error
 	if retry == nil {
 		packetErr = plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view)
+	} else if native := plan.captureRuntime(&assignment, &run); native != nil {
+		packetErr = deps.Store.RecordNativeExplicitRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view, *native)
 	} else {
 		packetErr = deps.Store.RecordExplicitRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view)
 	}
@@ -234,6 +236,8 @@ func admitImplementChild(ctx context.Context, deps DispatchDeps, occupancy *pass
 	var packetErr error
 	if retry == nil {
 		packetErr = plan.recordPacket(ctx, deps.Store, assignment, reservation, run, view)
+	} else if native := plan.captureRuntime(&assignment, &run); native != nil {
+		packetErr = deps.Store.RecordNativeImplementationRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view, *native)
 	} else {
 		packetErr = deps.Store.RecordImplementationRetryPacket(ctx, *retry, plan.control, assignment, reservation, run, view)
 	}

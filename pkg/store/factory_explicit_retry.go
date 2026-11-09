@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
+	"github.com/levitateos/factory/pkg/factory/execution"
 	"github.com/levitateos/factory/pkg/project"
 )
 
@@ -200,6 +201,14 @@ func admitRetryCommandTx(ctx context.Context, tx *sql.Tx, decision factory.Retry
 }
 
 func (s *Store) RecordExplicitRetryPacket(ctx context.Context, decision factory.RetryDecision, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView) error {
+	return s.recordExplicitRetryPacket(ctx, decision, expected, a, r, run, view, nil)
+}
+
+func (s *Store) RecordNativeExplicitRetryPacket(ctx context.Context, decision factory.RetryDecision, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, native execution.NativeLaunch) error {
+	return s.recordExplicitRetryPacket(ctx, decision, expected, a, r, run, view, &native)
+}
+
+func (s *Store) recordExplicitRetryPacket(ctx context.Context, decision factory.RetryDecision, expected factory.IssueControl, a factory.Assignment, r factory.Reservation, run factory.Run, view factory.RunView, native *execution.NativeLaunch) error {
 	if a.ID != decision.CommandID || a.Role != project.RoleCoder || a.AttemptRoot != a.ID || a.PublicationAssignment != a.ID {
 		return ErrExplicitRetryIneligible
 	}
@@ -221,7 +230,7 @@ func (s *Store) RecordExplicitRetryPacket(ctx context.Context, decision factory.
 	if err = checkDispatchOpenTx(ctx, tx, a.Repository); err != nil {
 		return err
 	}
-	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, true, nil); err != nil {
+	if err = recordDispatchPacketTx(ctx, tx, expected, a, r, run, view, true, native); err != nil {
 		return err
 	}
 	return tx.Commit()
