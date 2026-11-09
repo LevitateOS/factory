@@ -46,7 +46,7 @@ type Dependencies struct {
 	Catalog              func(context.Context, factory.MCPCapability) (factory.ApprovedCatalog, error)
 	Now                  func() time.Time
 	SystemOne            factoryservice.WorkerSystemOne
-	SystemOneForWorker   func(factory.MCPCapability) factoryservice.WorkerSystemOne
+	SystemOneForWorker   func(factory.MCPCapability, string) factoryservice.WorkerSystemOne
 	VerificationEvidence func(context.Context, factory.MCPCapability) (map[string]any, error)
 	RepairPreview        func(context.Context, factory.MCPCapability, json.RawMessage) (factory.RepairPreview, error)
 	NativeTask           func(context.Context, factory.MCPCapability, string, string) (map[string]any, error)

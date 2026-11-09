@@ -162,6 +162,9 @@ func (s *factoryCatalogServer) admitMutation(ctx context.Context, tool factory.M
 		Payload:      raw,
 	}
 	err = s.workerResults().CheckNewFinish(ctx, capability, submission, args.Payload)
+	if err == nil {
+		submission.Payload, err = mcpwire.CanonicalPayload(args.Payload)
+	}
 	if err == nil && tool != factory.MCPToolFinishIncomplete {
 		err = s.requireCurrentWork(ctx, capability)
 	}

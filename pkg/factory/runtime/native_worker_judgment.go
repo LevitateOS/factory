@@ -12,10 +12,13 @@ import (
 )
 
 // ConsultationsForWorker binds funding and admission to the authenticated worker,
-// never to a repository or account supplied in its question. Each explicit tool
-// invocation gets its own command; polling that command cannot repeat inference.
-func (p NativeExecution) ConsultationsForWorker(cap factory.MCPCapability) service.WorkerSystemOne {
-	chooser := nativeRepositoryJudgment{NativeExecution: p, repository: cap.Repository, subject: "consultation:" + factory.NewID(), worker: &cap}
+// never to a repository or account supplied in its question. Explicit tool calls
+// use fresh commands; plan review retains its content-bound command across polls.
+func (p NativeExecution) ConsultationsForWorker(cap factory.MCPCapability, command string) service.WorkerSystemOne {
+	if !factory.ValidID(command) {
+		return nil
+	}
+	chooser := nativeRepositoryJudgment{NativeExecution: p, repository: cap.Repository, subject: "consultation:" + command, worker: &cap}
 	chooser.admit = func(ctx context.Context) error {
 		_, err := (service.WorkerAdmission{Store: p.Store, Inspect: p.InspectRun}).Prepare(ctx, cap)
 		return err
@@ -77,7 +80,7 @@ func (s nativeWorkerJudgments) EvaluateQuestions(ctx context.Context, kind strin
 			if err != nil || nativeDecode([]byte(cmd.Payload), &capture) != nil {
 				return nil, control.ErrPriorityUnavailable
 			}
-			return map[string]any{"answers": answers, "model": capture.Selection.Model, "usage": map[string]any{"elapsed_milliseconds": *outcome.Process.StoppedUnixMS - outcome.Process.StartedUnixMS}}, nil
+			return map[string]any{"answers": answers, "model": capture.Selection.Model, "native_judgment": capture.ID, "usage": map[string]any{"elapsed_milliseconds": *outcome.Process.StoppedUnixMS - outcome.Process.StartedUnixMS}}, nil
 		}
 		if !errors.Is(err, service.ErrPostJudgmentPending) {
 			return nil, err

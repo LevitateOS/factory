@@ -137,7 +137,10 @@ AND ((data->>'reconciled')::boolean=FALSE OR $11)`, r.Outcome == "", r.Reconcile
 			}
 		}
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return s.retireSettledNativeCapability(ctx, r)
 }
 
 // gateSettleRootTx locks the attempt allowance root and resolves its

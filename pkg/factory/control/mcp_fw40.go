@@ -242,8 +242,12 @@ func settleIssuePlan(assigned factory.Assignment, submission factory.MCPSubmissi
 	if approach, _ := stringField(fields, "approach"); approach != plan.Approach {
 		return refuse("approach must equal tasks.approach")
 	}
+	review, _ := stringField(fields, "plan_review")
+	if review != "" && !factory.ValidDigest(review) {
+		return refuse("plan_review must identify the recorded selected-source opinion")
+	}
 	parsed := phaseResultFor(submission, project.ExecutionInvestigate, "worker proposes issue plan",
-		&factory.PhaseOutput{Plan: &plan})
+		&factory.PhaseOutput{Plan: &plan, PlanReview: review})
 	finished, err := finishFromMCPPhaseResult(assigned, parsed, now)
 	return finished, "issue plan settled", err
 }

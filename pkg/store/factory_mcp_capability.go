@@ -156,6 +156,59 @@ func (s *Store) RetireMCPCapability(ctx context.Context, id string) error {
 	return casMCPCapabilityState(ctx, s.db, id, []string{factory.MCPCapabilityActive}, factory.MCPCapabilityRetired)
 }
 
+// Run settlement is durable before this downgrade. Keeping it outside the run
+// transaction preserves the gate/capability/run lock order used by live calls.
+func (s *Store) retireSettledNativeCapability(ctx context.Context, run factory.Run) error {
+	if run.Native == nil || !run.Native.Settled() || !run.Reconciled || run.Outcome == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE factory_mcp_capabilities
+ SET state=CASE state WHEN 'active' THEN 'retired' ELSE 'revoked' END
+ WHERE id=$1 AND data->>'run_id'=$1 AND data->>'project'=$2 AND state IN ('active','staged')`, run.ID, run.ProjectID)
+	return err
+}
+
+// RecoverNativeCapabilityRetirement consumes existing sealed receipts only.
+// Unknown or unsettled native records never become confirmed retirement here.
+func (s *Store) RecoverNativeCapabilityRetirement(ctx context.Context) error {
+	after := ""
+	for {
+		rows, err := s.db.QueryContext(ctx, `SELECT r.id,r.data FROM factory_runs r JOIN factory_mcp_capabilities c ON c.id=r.id
+ WHERE r.id>$1 AND NOT r.active AND r.settled AND r.data#>>'{native,sealed}'='true'
+ AND c.state IN ('active','staged') ORDER BY r.id LIMIT 128`, after)
+		if err != nil {
+			return err
+		}
+		var runs []factory.Run
+		visited := 0
+		for rows.Next() {
+			visited++
+			var raw []byte
+			if err = rows.Scan(&after, &raw); err != nil {
+				rows.Close()
+				return err
+			}
+			var run factory.Run
+			if json.Unmarshal(raw, &run) == nil && run.Validate() == nil {
+				runs = append(runs, run)
+			}
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for _, run := range runs {
+			if err := s.retireSettledNativeCapability(ctx, run); err != nil {
+				return err
+			}
+		}
+		if visited < 128 {
+			return nil
+		}
+	}
+}
+
 func casMCPCapabilityState(ctx context.Context, db *sql.DB, id string, from []string, to string) error {
 	if !factory.ValidID(id) {
 		return errors.New("invalid capability identity")

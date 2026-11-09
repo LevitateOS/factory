@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -20,12 +21,13 @@ import (
 // facts. Binding fills existing scope; validation/readback never admits new
 // work, writes a proposal, settles it or replaces the controller/store journal.
 type WorkerResults struct {
-	Assignments WorkerAssignmentSource
-	Runs        WorkerRunSource
-	Current     WorkerCurrentContextSource
-	Receipts    WorkerCheckpointSource
-	Catalog     func(context.Context, factory.MCPCapability) (factory.ApprovedCatalog, error)
-	Now         func() time.Time
+	Assignments   WorkerAssignmentSource
+	Runs          WorkerRunSource
+	Current       WorkerCurrentContextSource
+	Receipts      WorkerCheckpointSource
+	Catalog       func(context.Context, factory.MCPCapability) (factory.ApprovedCatalog, error)
+	Consultations func(factory.MCPCapability, string) WorkerConsultations
+	Now           func() time.Time
 }
 
 func (s WorkerResults) now() time.Time {
@@ -52,6 +54,7 @@ func (s WorkerResults) Bind(ctx context.Context, capability factory.MCPCapabilit
 	}
 	switch tool {
 	case factory.MCPToolFinishIssuePlan:
+		delete(payload, "plan_review")
 		s.bindIssuePlan(ctx, capability, payload)
 	case factory.MCPToolFinishReview:
 		source := s.Current
@@ -257,7 +260,47 @@ func (s WorkerResults) CheckNewFinish(ctx context.Context, capability factory.MC
 			}
 		}
 	}
-	return control.CheckMCPTerminalFinish(assigned, submission, s.now())
+	if err := control.CheckMCPTerminalFinish(assigned, submission, s.now()); err != nil {
+		return err
+	}
+	if submission.Tool == factory.MCPToolFinishIssuePlan {
+		return s.reviewIssuePlan(ctx, capability, assigned, payload)
+	}
+	return nil
+}
+
+func (s WorkerResults) reviewIssuePlan(ctx context.Context, cap factory.MCPCapability, owner factory.Assignment, payload map[string]any) error {
+	if s.Consultations == nil {
+		return errors.New("selected-source plan review is unavailable; no finish recorded")
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil || len(encoded)+len(`,"plan_review":""`)+64 > factory.MCPMaxSubmissionPayload {
+		return errors.New("plan finish exceeds its bound with the recorded opinion; no judgment dispatched")
+	}
+	raw, err := json.Marshal(payload["tasks"])
+	var plan factory.InvestigationPlan
+	if err != nil || strictjson.Decode(bytes.NewReader(raw), &plan) != nil || plan.Executable() != nil {
+		return errors.New("plan review requires the complete bound executable plan")
+	}
+	state, instructions, criteria := factory.IssuePlanReviewQuestion(cap, owner, plan)
+	snapshot, err := factory.SystemOneWorkerSnapshot(cap.ID, factory.MCPToolSystemOneChoice, state, instructions, criteria)
+	if err != nil {
+		return err
+	}
+	consultations := s.Consultations(cap, snapshot[:32])
+	result, err := consultations.Evaluate(ctx, cap, factory.MCPToolSystemOneChoice, WorkerConsultationInput{State: state, Instructions: instructions, Criteria: criteria})
+	if err != nil {
+		return fmt.Errorf("original selected-source plan review pending or unavailable; no finish recorded: %w", err)
+	}
+	answer, ok := result["answer"].(map[string]any)
+	if !ok || control.ValidateSystemOneAnswer("choice", answer, criteria) != nil {
+		return errors.New("plan review returned an invalid opinion; no finish recorded")
+	}
+	if !factory.IssuePlanReviewAccepted(result) {
+		return fmt.Errorf("plan needs revision; inspect consultation %s, replace placeholders and cover every accepted outcome, then finish again; no finish recorded", factory.FeedConsultationPostID(snapshot))
+	}
+	payload["plan_review"] = snapshot
+	return nil
 }
 
 // Accepted means the immutable proposal was consumed. The result explicitly

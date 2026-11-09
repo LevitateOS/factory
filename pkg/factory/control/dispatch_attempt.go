@@ -578,6 +578,10 @@ func advanceCompletedPlanning(ctx context.Context, deps DispatchDeps, occupancy 
 	if !ok {
 		return false
 	}
+	if latest.Result.PhaseResult.Output.PlanReview == "" {
+		report.Waits = append(report.Waits, DispatchWait{Repository: repository, Issue: issue, Reason: "plan_review_missing", Detail: "historical plan has no selected-source completeness opinion; explicit fresh planning is required"})
+		return true
+	}
 	if retry != nil {
 		childID = retry.CommandID
 	}

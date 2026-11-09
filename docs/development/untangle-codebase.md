@@ -2986,6 +2986,21 @@ The shared summary also reports actual repository queue counts when no detailed
 outcomes were read. Go build, types and boundaries pass (`policy20-*.log`,
 `queue20-types.log`); installed admission/full delivery are still pending in Q26.
 
+Q26 plan completeness and capability retirement (2026-11-09): a real installed
+Architect submitted a shape-valid placeholder plan and the Builder failed. Preserve
+both sealed runs, four completed judgments, ten-minute charge and no-publication
+outcome. The existing worker consultation owner now grades the exact accepted
+prompt/plan before a terminal proposal is recorded, with a stable command across
+polls. Its receipt and current source are checked again in terminal/Builder
+transactions; historical missing proof never authorizes new coding. Unsupported
+unscoped sources stay unavailable, without another provider. This is not yet
+positive connected qualification: fresh planning needs the user's Q30 exception.
+The actual retained rows also showed active MCP projections after sealed native
+settlement. Connect retirement and startup projection recovery to those verified
+receipts. The disposable-copy native check6 proves idempotence, unchanged original
+run/assignment/command/charge/publication records and refusal to reuse completed
+authority; no provider or model ran. Exact artifacts and the next action are in Q26.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

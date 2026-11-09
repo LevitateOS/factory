@@ -47,6 +47,7 @@ func rolePayloadSchema(tool factory.MCPTool) *jsonschema.Schema {
 		props["walkthroughs"] = mcpCarrier[factory.ProposalContent]()
 		props["walkthroughs"].Description = "Required for newly staged intent plans: author two concrete product walkthroughs using producer soda-planning-agent-v1, the exact admitted Content facts/identity/exclusions, and every resolved-scope ID from Head in each alternative's idea_ids (the explicit nonempty EffectiveOutcomes verbatim, else the accept/edit idea IDs in revision order; pending/declined never resolve). JEV compares and checks this authored prose separately. Follow the staged product walkthrough instructions. " + factory.FinishProductPlanArgsGuidance
 	case factory.MCPToolFinishIssuePlan:
+		set("plan_review", "Server-owned selected-source plan opinion. A finish is a real terminal proposal, never a schema probe; placeholder plans are refused before coding.", text)
 		set("approach", "Approach chosen after source investigation; must match tasks.approach.", text)
 		props["tasks"] = investigationPlanSchema()
 	case factory.MCPToolFinishImplement:

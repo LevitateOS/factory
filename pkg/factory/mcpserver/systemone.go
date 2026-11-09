@@ -17,6 +17,14 @@ type systemOneArgs struct {
 	CapabilityID string `json:"capability_id,omitempty"`
 }
 
+func (s *factoryCatalogServer) workerConsultations(cap factory.MCPCapability, command string) factoryservice.WorkerConsultations {
+	provider := s.deps.SystemOne
+	if s.deps.SystemOneForWorker != nil {
+		provider = s.deps.SystemOneForWorker(cap, command)
+	}
+	return factoryservice.WorkerConsultations{Provider: provider, Journal: s.deps.ConsultationJournal, Now: s.deps.Now}
+}
+
 func (s *factoryCatalogServer) addSystemOneTool(server *mcp.Server, tool factory.MCPTool) {
 	mcp.AddTool(server, mcpwire.Tool(tool, s.deps.boundCapability), func(ctx context.Context, _ *mcp.CallToolRequest, args systemOneArgs) (*mcp.CallToolResult, any, error) {
 		cap, release, err := s.admitCall(ctx, tool, mcpCallArgs{CapabilityID: args.CapabilityID})
@@ -30,11 +38,7 @@ func (s *factoryCatalogServer) addSystemOneTool(server *mcp.Server, tool factory
 		if err != nil || len(raw) > factory.MCPMaxSubmissionPayload {
 			return nil, nil, errors.New("System One question exceeds 64 KiB")
 		}
-		provider := s.deps.SystemOne
-		if s.deps.SystemOneForWorker != nil {
-			provider = s.deps.SystemOneForWorker(cap)
-		}
-		consultations := factoryservice.WorkerConsultations{Provider: provider, Journal: s.deps.ConsultationJournal, Now: s.deps.Now}
+		consultations := s.workerConsultations(cap, factory.NewID())
 		result, err := consultations.Evaluate(ctx, cap, tool, args.WorkerConsultationInput)
 		if err != nil {
 			return nil, nil, err

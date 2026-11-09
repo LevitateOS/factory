@@ -84,7 +84,8 @@ func (a Application) Start(ctx context.Context, lockPath string) error {
 	return a.Coordinator.Start(ctx, lockPath)
 }
 
-// Recover reconciles interrupted store-owned assessments before host readiness.
+// Recover reconciles store-owned assessments and capability projections from
+// existing sealed native receipts before host readiness.
 // It only settles proved released producer ownership; it neither replays model
 // calls nor inspects/retires executions, advances workflows or grants authority.
 // Hosts without admitted runtime ports can run this recovery independently of
@@ -92,6 +93,9 @@ func (a Application) Start(ctx context.Context, lockPath string) error {
 func (a Application) Recover(ctx context.Context) error {
 	if a.Store == nil {
 		return errors.New("factory application store required")
+	}
+	if err := a.Store.RecoverNativeCapabilityRetirement(ctx); err != nil {
+		return err
 	}
 	var after int64
 	for {

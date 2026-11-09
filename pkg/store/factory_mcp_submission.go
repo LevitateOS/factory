@@ -87,6 +87,26 @@ func (s *Store) RecordMCPSubmission(ctx context.Context, submission factory.MCPS
 	if capability.Expired(time.Now()) {
 		return factory.MCPWorkStatus{}, ErrMCPSubmissionCapabilityExpired
 	}
+	if submission.Tool == factory.MCPToolFinishIssuePlan {
+		var payload struct {
+			Plan   factory.InvestigationPlan `json:"tasks"`
+			Review string                    `json:"plan_review"`
+		}
+		if json.Unmarshal(submission.Payload, &payload) != nil {
+			return factory.MCPWorkStatus{}, ErrAdmissionChanged
+		}
+		var assigned []byte
+		if err = tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, submission.AssignmentID).Scan(&assigned); err != nil {
+			return factory.MCPWorkStatus{}, err
+		}
+		var owner factory.Assignment
+		if json.Unmarshal(assigned, &owner) != nil {
+			return factory.MCPWorkStatus{}, ErrAdmissionChanged
+		}
+		if err = checkIssuePlanReviewTx(ctx, tx, capability, owner, payload.Plan, payload.Review); err != nil {
+			return factory.MCPWorkStatus{}, err
+		}
+	}
 	if err := recordMCPVerificationJourneyReferencesTx(ctx, tx, capability, submission); err != nil {
 		return factory.MCPWorkStatus{}, err
 	}

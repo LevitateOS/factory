@@ -1858,11 +1858,53 @@ profiles to explicit existing defaults before validation/persistence. It never
 normalizes retained commands or edits old policy rows. The shared repository-only
 overview also now uses its actual queue counts instead of claiming no recorded
 work when outcome details were not read. Go build, types and boundaries pass in
-`policy20-*.log`/`queue20-types.log`. Next: install the clean correction from exact
-current19, save a fresh policy revision through UI (same roles/limits/source,
-explicit default low effort), approve current-session preparation, then recover
-the original issue's first admission. Never recreate/refund/replay it. Current19
-app/backend/PG/private bus/keyring remain at SSH22209; no model is active. The
+`policy20-*.log`/`queue20-types.log`. Clean current20/94d8203725fe1d6e85b052473a8b85f469b32561
+(inventoryab66657ca1d9dd0a2569ad41a423c396adfd0b33aa9ebfc5e23764be4721653d)
+is installed/reopened. Actual UI save/readback (`q26-current20-policy-original.log`)
+records revision3 with explicit low effort for all three roles, unchanged source,
+15-minute run/two-review/one-correction limits, original unused30-minute allowance
+and open dispatch revision2. Current instancef4ebe3c3bf9c6f94acccffba47b9619b has
+real ready coder fffe7ec8dc9c440a103c2e36f/reviewer ff32c57cc7abf756163bf6a84,
+both setup/check exits0. `q26-current20-first-admission.log` records original
+assignment5756096caaa2b20b71567f65eee89bb2/runf28e6614fd6ecee4a7a6141933691f96,
+phase investigate, and pending context judgment25eeb1ec7c745e0df28c72028404b122.
+The original context judgment completed with `current`/0.95 and a retired real
+Muse process (receipt `q26-current20-context-result-original.log`). Architect
+reported a placeholder plan (`approach=x`, task objective/output=o, coverage=c),
+which shape validation accepted. It advanced to Builder
+e60f4447ddcafb3b4b4121d088fe5474/runc9b9e8346e51861b2be58b4e8d051ff6,
+which finished needs-human/failed. Normal installed Quit retired and sealed both
+runs; all exact app/backend/PG/model/helper processes are gone. A private read-only
+PG copy, without app/coordinator, recovered `q26-current20-quit-original.log`:
+10 charged minutes, no publication, and original completed judgments25eeb…,
+647d344a86473a7d7db078d8de13b599,7cc5a43e58d49ada73961096279ef9a3,
+104a77ba64d9e971ea2588c244c31e2a. The inspection PG is stopped; original profile,
+plan, outcomes and receipts remain. The correction now reviews the exact bound
+plan/accepted prompt through the existing scoped worker judgment owner before
+recording a terminal proposal. Repeated checks retain one content-bound command;
+negative or unavailable opinions leave the Architect able to correct its plan
+within its existing run. Terminal recording and Builder admission validate the
+recorded opinion, exact scope/prompt/model/process receipt and current source in
+the repository transaction. Historical unreviewed plans remain unavailable for
+new coding; generic sources without durable worker-scoped receipts stay
+unavailable, with no alternate-provider fallback.
+
+The retained check also found active capability projections after physically
+sealed/reconciled runs. Current-work checks already refused those rows; settlement
+and startup recovery now downgrade them from the existing verified receipts.
+`plan21-retired-original-check6.log` qualifies idempotent recovery on the disposable
+copy and hashes unchanged runs/assignments/commands/charges/publications; the
+completed original cannot fund another review and no provider/model/proposal is
+created. Earlier harness failures remain in checks1–5; actual retired native runs
+had active capability columns, not retired columns. Build/boundaries pass;
+`plan21-types-check.log` only compiled packages with no test files and is not
+behavior evidence. Fresh positive connected plan review still requires a newly
+authorized Retry; do not replay these models. Next: commit/package this correction,
+install from exact current20, reopen/reconcile retained state without Retry, then
+ask for the Q30 paid-planning exception. Current20 app/coordinator and inspection
+PG are stopped at SSH22209. Owned edits are this record and the plan-review /
+capability-retirement changes under `pkg/factory`, `pkg/store` and the existing
+`tools/native-checks/native_mcp_signing_check.go`. The
 session harness overwrote the original keyring.log on reopen; its crash text was
 read in-session, and original SQL receipts/session.log remain. Preserve subsequent
 session logs before restart. The full remaining queue is still outstanding.

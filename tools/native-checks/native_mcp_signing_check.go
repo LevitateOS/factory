@@ -1246,6 +1246,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "retired-plan-review" {
+		if err := retiredPlanReview(os.Args[2], os.Args[3]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "progress-gate" {
 		if err := progressGateFixture(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1399,6 +1406,100 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// Retained-copy qualification: only confirmed capability projection retirement
+// may change; no coordinator, provider or fixture phase mutation is constructed.
+type retainedPlanAssignments struct{ db *sql.DB }
+
+func (s retainedPlanAssignments) Assignment(ctx context.Context, id string) (factory.Assignment, error) {
+	var raw []byte
+	var owner factory.Assignment
+	err := s.db.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1`, id).Scan(&raw)
+	if err == nil {
+		err = json.Unmarshal(raw, &owner)
+	}
+	return owner, err
+}
+
+func retiredPlanReview(dsnFile, assignment string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	dsn, err := os.ReadFile(dsnFile)
+	if err != nil {
+		return err
+	}
+	db, err := sql.Open("pgx", string(dsn))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	before := map[string]string{}
+	for _, table := range []string{"factory_runs", "factory_assignments", "factory_commands", "factory_usage", "factory_publications"} {
+		var digest string
+		if err = db.QueryRowContext(ctx, `SELECT md5(COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text,'[]')) FROM `+table+` t`).Scan(&digest); err != nil {
+			return err
+		}
+		before[table] = digest
+	}
+	projection, err := store.OpenStandaloneContext(ctx, string(dsn))
+	if err != nil {
+		return err
+	}
+	defer projection.Close()
+	if err = projection.RecoverNativeCapabilityRetirement(ctx); err != nil {
+		return err
+	}
+	if err = projection.RecoverNativeCapabilityRetirement(ctx); err != nil {
+		return err
+	}
+	assignments := retainedPlanAssignments{db}
+	owner, err := assignments.Assignment(ctx, assignment)
+	if err != nil || owner.Result == nil || owner.Result.PhaseResult == nil || owner.Result.PhaseResult.Output == nil || owner.Result.PhaseResult.Output.Plan == nil {
+		return errors.New("original retained investigated plan required")
+	}
+	var cap factory.MCPCapability
+	var capRaw []byte
+	var capState string
+	err = db.QueryRowContext(ctx, `SELECT state,data FROM factory_mcp_capabilities WHERE id=$1`, owner.Run).Scan(&capState, &capRaw)
+	if err != nil || json.Unmarshal(capRaw, &cap) != nil || capState != factory.MCPCapabilityRetired && capState != factory.MCPCapabilityRevoked {
+		return fmt.Errorf("actual revoked/retired original capability required: state=%q error=%v", capState, err)
+	}
+	cap.State = capState
+	raw, err := json.Marshal(owner.Result.PhaseResult.Output.Plan)
+	if err != nil {
+		return err
+	}
+	var plan map[string]any
+	if err = json.Unmarshal(raw, &plan); err != nil {
+		return err
+	}
+	payload := map[string]any{"tasks": plan, "approach": plan["approach"], "evidence_refs": []any{"retained-plan"}}
+	called := 0
+	results := factoryservice.WorkerResults{Assignments: assignments, Consultations: func(factory.MCPCapability, string) factoryservice.WorkerConsultations {
+		called++
+		return factoryservice.WorkerConsultations{}
+	}}
+	results.Bind(ctx, cap, factory.MCPToolFinishIssuePlan, payload)
+	raw, err = json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	submission := factory.MCPSubmission{AssignmentID: owner.ID, CapabilityID: cap.ID, SubmissionID: factory.NewID(), Tool: factory.MCPToolFinishIssuePlan, Payload: raw}
+	if err = owner.Result.PhaseResult.Output.Plan.Executable(); err != nil {
+		return fmt.Errorf("original recorded plan is not shape-valid: %w", err)
+	}
+	if err = results.CheckNewFinish(ctx, cap, submission, payload); err == nil || called != 0 || payload["plan_review"] != nil {
+		return fmt.Errorf("retired plan borrowed review authority: calls=%d error=%v", called, err)
+	}
+	for table, expected := range before {
+		var actual string
+		if err = db.QueryRowContext(ctx, `SELECT md5(COALESCE(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text)::text,'[]')) FROM `+table+` t`).Scan(&actual); err != nil || actual != expected {
+			return fmt.Errorf("original %s changed during capability retirement: %v", table, err)
+		}
+	}
+	fmt.Println("PASS: sealed native receipt retires the original capability idempotently; original runs/assignments/commands/charges/publications unchanged; shape-valid retained plan cannot fund new review; no provider, coordinator, model or proposal write")
+	return nil
 }
 
 func onboardedSetupFixture(profile, instance, repository string, retire bool, expectedSources int) error {

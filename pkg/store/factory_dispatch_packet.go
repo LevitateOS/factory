@@ -258,6 +258,9 @@ func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.Is
 	if err = checkAssignmentAuthorityTx(ctx, tx, a.Authority, a, grants); err != nil {
 		return err
 	}
+	if err = checkImplementationPlanReviewTx(ctx, tx, a); err != nil {
+		return err
+	}
 	if native != nil {
 		run, err = admitNativeDispatchTx(ctx, tx, a, run, grants, *native)
 		if err != nil {

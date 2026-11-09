@@ -137,6 +137,7 @@ var mcpMutationPayloads = map[factory.MCPTool]mcpPayloadSpec{
 	},
 	factory.MCPToolFinishIssuePlan: {
 		required: []string{"evidence_refs", "approach", "tasks"},
+		optional: []string{"plan_review"},
 	},
 	factory.MCPToolFinishImplement: {
 		optional: []string{"candidate"},

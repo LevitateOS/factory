@@ -71,6 +71,7 @@ func (r ImplementationReceipt) validate(status string) error {
 // checkpoint proof or publish authorization.
 type PhaseOutput struct {
 	Plan           *InvestigationPlan     `json:"plan,omitempty"`
+	PlanReview     string                 `json:"plan_review,omitempty"`
 	Implementation *ImplementationReceipt `json:"implementation,omitempty"`
 	Reassessment   *ReassessmentReport    `json:"reassessment,omitempty"`
 	Decomposition  *SemanticPlannerOutput `json:"decomposition,omitempty"`
@@ -138,6 +139,9 @@ func validateClearShape(r *ClearReviewReport) error {
 }
 
 func (o PhaseOutput) validate(phase, status string) error {
+	if o.PlanReview != "" && (phase != project.ExecutionInvestigate || !ValidDigest(o.PlanReview)) {
+		return errors.New("plan review must bind an investigation opinion")
+	}
 	switch phase {
 	case project.ExecutionInvestigate:
 		return o.validateInvestigationOutput(status)
