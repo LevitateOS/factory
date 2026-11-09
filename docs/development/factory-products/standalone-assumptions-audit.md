@@ -1550,7 +1550,7 @@ all normal projects; packed bundles, expanded trees and build output differ.
 systemd and one configured execution user per machine. Other environments keep
 browsing available and execution unavailable. Execution requires private namespaces, cgroup v2 controllers
 and a conventional runtime directory. `/run` must be tmpfs with free space for
-one 1 GiB preparation plus the larger of 256 MiB or one quarter of its capacity;
+two concurrent 1 GiB role preparations plus the larger of 256 MiB or one quarter of its capacity;
 the broker also charges retained preparations at each launch. The execution
 installer refuses insufficient space before changing installation state. Global worker/relay templates embed one
 desktop user/UID. Multiuser installation of the same global units is not supplied.

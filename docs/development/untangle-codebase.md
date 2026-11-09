@@ -2935,6 +2935,17 @@ preparer successes and ready roles. Evidence/identities are in Q26; finite sourc
 funding and the installed delivery journey remain next. No weaker runtime bound,
 source fallback, uncertain send or model replay was introduced.
 
+Q26 concurrent preparation correction (2026-11-09): installed source selection
+exposes both roles reserving 1 GiB simultaneously. One role can pass while the
+other is refused on 2 GiB `/run`; preserve those exact partial results. Installer
+preflight now covers both roles plus the unchanged broker reserve, qualified by
+actual 2 GiB refusal/unchanged installed targets and owned 3 GiB success. Shared
+setup presentation keeps the original interrupted phase rather than claiming a
+different source/session. Explicit per-run/review/correction controls and truthful
+soft source-admission wording are built in clean current12; actual policy-command
+qualification remains next. User-authorized isolated repository avoids old Q14
+intake/inference replay. Exact installed/source/fixture references are in Q26.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
