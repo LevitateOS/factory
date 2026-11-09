@@ -1037,7 +1037,40 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
-Outstanding. Implement/qualify central Fountain placement and privileged operations against current host enrollment/profile/repository grants; no GitHub prerequisite. Read-only enrollment cannot authorize execution or publication.
+**INCOMPLETE — desktop controller slice verified (2026-11-09).** Canonical
+Fountain `60844fe6b48972f9417d08222c5b96945cb5590b` and Factory
+`b043431bbfad322a651fe8c4f538d1b06a5718fc` add central repository placement,
+finite separate OAuth operation grants, existing effect-journal integration and
+native/shared controller commands. Read enrollment grants no control. Separate
+public read/control applications preserve both credentials and connection captures.
+
+Retained checks under `/home/vince/Projects/q19-authority`: `host-check6.log`
+passes actual OAuth/PostgreSQL selection and exact replay/refusal, competing
+desktop refusal, journaled comment/replay, claim/retirement gates, finite expiry,
+operator withdrawal, provider-side revocation, re-login history lookup and
+old-grant dispatch refusal. `host-native4.log` passes actual TLS/native proof,
+save-before-send, lost initial selection reply/reopen/exact adoption, finite
+grant/withdrawal/retirement and separate read/control credential preservation.
+The native check uses host-exchanged fixture tokens; it checks control consent
+discovery/URL, not native control code exchange. Later host revocation/configuration
+changes are qualified by `host-check6.log`. `ui-check2.log` qualifies the production
+shared component's saved command/remount/receipt/unknown-text behavior with DOM;
+`native-controller-build3.log`, `ui-typecheck5.log`, `ui-build5.log` and
+`boundaries3.log` pass. Claims in this probe do not launch workers or infer.
+The failed revocation check's nil-grant panic is fixed; its original receipts and
+stopped database remain in `failed-check4-receipts.json` and `failed-check4-pgdata`.
+All owned PG/native/keyring/bus checks joined; no uncertain new effect remains.
+
+Remaining: admitted appliance SDK/consumer authority and actual competing
+appliance/desktop dispatch; worker launch/retirement bound to the host claim;
+current role/permission and in-flight races; native control code exchange;
+canonical host/shared-view consumer integration and the full ordinary journey.
+The legacy signed Factory intake callback refuses when central authority is
+configured until its Q22 successor is admitted. No installed or full Q19 closure
+is claimed. **Next executable action:** extend the canonical private SDK and
+SodaOS consumer with central controller/grant admission before existing dispatch;
+reuse these journals and preserve unresolved original work. No GitHub or Q24
+appliance dependency prevents that source/integration work.
 
 ```text
 Execute through Q19 — Fountain placement and authenticated operations. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q19 despite the document's historical paused snapshot; it does not authorize work beyond Q19 or resuming the old product queue.

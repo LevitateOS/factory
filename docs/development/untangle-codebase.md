@@ -2637,6 +2637,34 @@ new installed format-97 upgrade or the remaining active-run/service/update scope
 All owned checks/probes/GUI/keyring/bus sessions joined; Q25 services remain as
 previously authorized. Continue Q19 authority while Q15 funding is pending.
 
+## Q19 desktop controller authority slice (2026-11-09)
+
+Canonical Fountain `60844fe6b48972f9417d08222c5b96945cb5590b` and Factory
+`b043431bbfad322a651fe8c4f538d1b06a5718fc` keep placement on the host, separately
+from its short-lived global native mutation reservation. Typed controller grants
+bind OAuth versus PAT provenance explicitly; native effects keep their existing
+journal and conditional owners. SQL primary callbacks and Git admission recheck
+authority within existing transactions. Withdrawn/expired grants and a later
+login cannot renew historical authority; original proof permits history lookup
+and retirement without new dispatch.
+
+The real host exposed two concrete problems now fixed: one account/application
+cannot change OAuth scope, so control uses a distinct configured public client;
+missing OAuth grants return nil without error, so revocation must refuse before
+dereference. Native custody preserves read/control applications as separate
+connections. The reusable Lit controller owns retained UI commands; native Rust
+owns OAuth, proof, bounded HTTPS and immutable private command captures. No host
+authority entered the standalone engine. Three independent, counterbalanced JEV
+consultations selected typed provenance over signed-field encoding or a synthetic
+PAT; actual model `jev-1.14.0`, retained under `q19-authority/consult`, advice only.
+
+Scoped evidence and exact remaining work are in Q19's existing task record:
+`host-check6.log`, `host-native4.log`, `ui-check2.log`, native/UI builds and boundary
+check under `/home/vince/Projects/q19-authority`. This is not worker execution,
+appliance competition, installed parity or complete Q19 evidence. Failed fixture
+history was preserved before another check; no paid inference or uncertain
+publication was retried. Continue the canonical SDK/consumer admission path.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
