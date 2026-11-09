@@ -163,7 +163,7 @@ fn prepare(profile: &Path) -> Result<()> {
     fs::set_permissions(profile, fs::Permissions::from_mode(0o700))?;
     Ok(())
 }
-async fn run(profile: &Path) -> Result<()> {
+async fn run(profile: &Path, restart_keyring: bool) -> Result<()> {
     prepare(profile)?;
     let parent = profile.parent().ok_or("fixture parent missing")?;
     let namespace = "123456789abcdef0123456789abcdef0";
@@ -184,6 +184,28 @@ async fn run(profile: &Path) -> Result<()> {
             && store.with_token(&cap, |_| true).await?,
         "healthy native operation failed",
     )?;
+    if restart_keyring {
+        for _ in 0..256 {
+            let current = store.capability(&saved.connection).await?;
+            ensure(
+                store.status().await?.len() == 1
+                    && store.with_token(&current, |bytes| bytes == first).await?,
+                "repeated current keyring read failed",
+            )?;
+        }
+        fs::write(parent.join("transport-ready"), b"ready\n")?;
+        let until = Instant::now() + Duration::from_secs(20);
+        while !parent.join("transport-restarted").exists() {
+            ensure(Instant::now() < until, "owned keyring restart driver timed out")?;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let current = store.capability(&saved.connection).await?;
+        ensure(
+            store.with_token(&current, |bytes| bytes == first).await?,
+            "retained credential did not recover after service owner changed",
+        )?;
+        println!("PASS: 256 fresh status/capability/secret reads and retained credential recovery after real keyring daemon restart");
+    }
     let other = Credentials::open(profile, namespace)?;
     let called = AtomicBool::new(false);
     ensure(
@@ -2290,6 +2312,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
         (Some("--grant-custody"), 2) => {
             run_grant_custody(Path::new(&args[1])).await
         }
+        (Some("--credential-transport"), 2) => {
+            run(Path::new(&args[1]), true).await
+        }
         (Some("--github-grant-declared"), 4) => {
             native_github_transport::run_grant(
                 Path::new(&args[1]),
@@ -2723,7 +2748,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
         }
         _ => {
             ensure(args.len() == 1, "usage: factory-credential-operation-check NEW_PROFILE | --github-transport|--github-verify PRODUCTION_BACKEND OBSERVED_BACKEND PG_PAYLOAD NEW_PROFILE | --github-issues|--github-discussion|--github-pulls|--github-reviews|--github-diff BACKEND PG_PAYLOAD NEW_PROFILE | --github-diff-pins|--github-files|--github-check-runs|--github-commit-statuses|--github-review-comments BACKEND PG_PAYLOAD NEW_PROFILE SAVED_DISCOVERY_JSON (isolated real keyring driver only)")?;
-            run(Path::new(&args[0])).await
+            run(Path::new(&args[0]), false).await
         }
     }
 }

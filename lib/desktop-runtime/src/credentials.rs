@@ -185,6 +185,58 @@ impl TokenCapability {
             && account.connection == self.account.connection
     }
 }
+#[derive(Default)]
+struct CredentialTransport {
+    connection: Option<zbus::Connection>,
+    service: Option<SecretService<'static>>,
+    owner: Option<String>,
+}
+impl CredentialTransport {
+    async fn owner(connection: &zbus::Connection) -> Result<Option<String>> {
+        let bus = zbus::fdo::DBusProxy::new(connection)
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        let name = "org.freedesktop.secrets"
+            .try_into()
+            .map_err(|_| Error::Unavailable)?;
+        match bus.get_name_owner(name).await {
+            Ok(owner) => Ok(Some(owner.to_string())),
+            Err(zbus::fdo::Error::NameHasNoOwner(_)) => Ok(None),
+            Err(_) => Err(Error::Unavailable),
+        }
+    }
+    async fn service(&mut self) -> Result<&SecretService<'static>> {
+        if self.connection.as_ref().is_some_and(|c| c.is_closed()) {
+            *self = Self::default();
+        }
+        if self.connection.is_none() {
+            self.connection = Some(
+                zbus::Connection::session()
+                    .await
+                    .map_err(|_| Error::Unavailable)?,
+            );
+        }
+        let connection = self.connection.as_ref().ok_or(Error::Unavailable)?;
+        let before = Self::owner(connection).await?;
+        if before != self.owner {
+            self.service = None;
+        }
+        if self.service.is_none() {
+            // Keep the bus peer alive even if a bounded caller cancels while
+            // the keyring is still negotiating this encrypted session.
+            let service =
+                SecretService::connect_with_existing(EncryptionType::Dh, connection.clone())
+                    .await?;
+            let after = Self::owner(connection).await?;
+            if after.is_none() || before.is_some() && before != after {
+                return Err(Error::Unavailable);
+            }
+            self.owner = after;
+            self.service = Some(service);
+        }
+        self.service.as_ref().ok_or(Error::Unavailable)
+    }
+}
 pub struct Credentials {
     profile: String,
     markers: PathBuf,
@@ -194,7 +246,7 @@ pub struct Credentials {
     retired: AtomicBool,
     withdrawn: Mutex<BTreeSet<String>>,
     changes: watch::Sender<()>,
-    gate: tokio::sync::Mutex<()>,
+    gate: tokio::sync::Mutex<CredentialTransport>,
 }
 impl Credentials {
     // Nonsecret identity of this exact profile/connection/key revision. Renew
@@ -236,7 +288,7 @@ impl Credentials {
             retired: AtomicBool::new(false),
             withdrawn: Mutex::new(BTreeSet::new()),
             changes,
-            gate: tokio::sync::Mutex::new(()),
+            gate: tokio::sync::Mutex::new(CredentialTransport::default()),
         })
     }
     pub fn retire(&self) {
@@ -252,9 +304,18 @@ impl Credentials {
     }
     async fn bounded<T>(&self, work: impl Future<Output = Result<T>>) -> Result<T> {
         self.alive()?;
-        let result = tokio::time::timeout(DEADLINE, work)
-            .await
-            .map_err(|_| Error::Unavailable)?;
+        let result = match tokio::time::timeout(DEADLINE, work).await {
+            Ok(result) => result,
+            Err(_) => Err(Error::Unavailable),
+        };
+        if result
+            .as_ref()
+            .is_err_and(|error| *error == Error::Unavailable)
+        {
+            if let Ok(mut transport) = self.gate.try_lock() {
+                transport.service = None;
+            }
+        }
         self.alive()?;
         result
     }
@@ -303,7 +364,7 @@ impl Credentials {
     }
     async fn items<'a>(
         &self,
-        service: &'a SecretService<'a>,
+        service: &'a SecretService<'_>,
         connection: Option<&str>,
     ) -> Result<Vec<(Item<'a>, bool)>> {
         let mut attrs = HashMap::from([("application", APP), ("profile", self.profile.as_str())]);
@@ -369,8 +430,8 @@ impl Credentials {
     }
     pub async fn status(&self) -> Result<Vec<AccountStatus>> {
         self.bounded(async {
-            let _guard = self.gate.lock().await;
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut transport = self.gate.lock().await;
+            let service = transport.service().await?;
             let mut statuses = Vec::new();
             let mut seen = BTreeSet::new();
             for (item, locked) in self.items(&service, None).await? {
@@ -398,7 +459,8 @@ impl Credentials {
     /// consent flow asks the user to approve a grant that must be saved.
     pub async fn storage_ready(&self) -> Result<()> {
         self.bounded(async {
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut transport = self.gate.lock().await;
+            let service = transport.service().await?;
             let collection = service.get_default_collection().await?;
             if collection.is_locked().await? {
                 return Err(Error::Locked);
@@ -421,8 +483,8 @@ impl Credentials {
             secret.validate()?;
             secret.access()?;
             let _mutation = self.mutation().await?;
-            let _guard = self.gate.lock().await;
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut transport = self.gate.lock().await;
+            let service = transport.service().await?;
             let mut existing = None;
             for (item, locked) in self.items(&service, None).await? {
                 let (status, revision) = self.metadata(&item, locked).await?;
@@ -520,11 +582,11 @@ impl Credentials {
     }
     pub async fn capability(&self, connection: &str) -> Result<TokenCapability> {
         self.bounded(async {
-            let _guard = self.gate.lock().await;
+            let mut transport = self.gate.lock().await;
             if self.blocked(connection)? {
                 return Err(Error::Withdrawn);
             }
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let service = transport.service().await?;
             let mut found = self.items(&service, Some(connection)).await?;
             if found.len() > 1 {
                 return Err(Error::Ambiguous);
@@ -569,7 +631,7 @@ impl Credentials {
         consume: impl FnOnce(&[u8]) -> T,
     ) -> Result<T> {
         self.bounded(async {
-            let _guard = self.gate.lock().await;
+            let mut transport = self.gate.lock().await;
             if cap.owner != self.owner || cap.expires <= Instant::now() {
                 return Err(Error::Retired);
             }
@@ -577,7 +639,7 @@ impl Credentials {
                 return Err(Error::Withdrawn);
             }
             self.check_refresh(&cap.connection, reservation)?;
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let service = transport.service().await?;
             let mut found = self.items(&service, Some(&cap.connection)).await?;
             if found.len() > 1 {
                 return Err(Error::Ambiguous);
@@ -797,8 +859,8 @@ impl Credentials {
             // A preceding writer may have cleared the early denial while this
             // withdrawal waited. Reassert it under the shared mutation lease.
             self.block(connection)?;
-            let _guard = self.gate.lock().await;
-            let service = SecretService::connect(EncryptionType::Dh).await?;
+            let mut transport = self.gate.lock().await;
+            let service = transport.service().await?;
             for (item, locked) in self.items(&service, Some(connection)).await? {
                 if locked {
                     return Err(Error::Locked);

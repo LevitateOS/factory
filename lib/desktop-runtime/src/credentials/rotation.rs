@@ -5,7 +5,6 @@ use super::{
     OPERATION,
 };
 use crate::private_fs::private_file;
-use secret_service::{EncryptionType, SecretService};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
@@ -157,8 +156,8 @@ impl Credentials {
                 let _mutation = self.mutation().await?;
                 self.with_secret_in(cap, true, Some(&reservation), |_| ())
                     .await?;
-                let _gate = self.gate.lock().await;
-                let service = SecretService::connect(EncryptionType::Dh).await?;
+                let mut transport = self.gate.lock().await;
+                let service = transport.service().await?;
                 let mut found = self.items(&service, Some(&cap.connection)).await?;
                 if found.len() > 1 {
                     return Err(Error::Ambiguous);

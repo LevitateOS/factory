@@ -1812,13 +1812,31 @@ the current run from its authenticated issue response: desktop supplies no initi
 run IDs. The shared view now loads and targets that observed run while preserving
 explicit host selections and backend gates. Native live terminal has no adapter
 and stays explicitly unavailable. An exact-optional-field type failure was fixed;
-the dirty current16 stage is unqualified and must not be installed. Next: install
-clean current17 by exact current15
-inventory, normal Quit/reopen the same profile, then use the
-actual Work detail Resume command and current setup to resume this retained issue.
-Do not repeat creation, acceptance or funding. Current15 app/backend/PG/private
-bus/keyring remain at SSH22209; no model process is active. Product edits and this
-recovery record belong to the current run-control integration slice.
+the dirty current16 stage is unqualified and must not be installed. Clean current17
+(7feb599cde83b69e9815f3ec923ebe6f18f9331c; inventory469685653ae263d8a3c22d2e93d0d4eb4eac8a665757f21cc4427a66c6baeeee)
+is installed by exact current15 inventory and normally reopened with unchanged
+durable profile/keyring/signer. Actual issue→Work-detail navigation and backend-gated
+Resume pass; `q26-current17-resume-original.log` records open dispatch revision2
+and queued eligible issue control revision2 under the original acceptance. No run
+exists yet. Prior-session ready preparations remain unavailable for new work.
+Before recipe approval, GNOME Keyring48.0-1 aborted at 18:12:25UTC with
+`aes_negotiate`/null-GVariant assertions. No preparation approval or model launch
+occurred; `q26-current17-credential-failure-original.log` retains zero runs and
+original open dispatch. The original encrypted collection was unlocked on the
+same private bus; the installed UI reconnected without a new grant. Native custody
+now retains its D-Bus peer/encrypted session per owner, checks the service owner
+on every use and reconnects after owner change. It caches no credential data and
+never retries a mutation. `credential18b-result.log` and its isolated retained
+artifacts prove 256 status/capability/secret sequences use one OpenSession, real
+daemon restart recovers the same credential, and existing withdrawal, expiry,
+out-of-band replacement, refresh reservation, crash/uncertain-send and concurrent
+writer checks pass; all owned check processes joined. No provider login is claimed
+by those dummy-grant checks. Next: build/install the clean custody correction by
+exact current17 inventory, normally reopen this profile, approve the saved offline
+recipe and recover the first admitted run/claim/receipt. Do not repeat issue
+creation, acceptance or funding. Current17 app/backend/PG/private bus remain at
+SSH22209; recovery keyring90893 owns the unlocked service, autoactivated88847 also
+remains and both need exact owned cleanup at normal Quit. No model is active.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

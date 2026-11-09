@@ -2956,6 +2956,18 @@ runtime produces two real ready preparations with setup/check exits0, preserving
 the original one-role refusal. Q26 holds exact identities and receipts; fresh
 automatic issue delivery/adoption and remaining installed gates are still open.
 
+Q26 credential transport correction (2026-11-09): the installed keyring aborted
+during repeated encrypted-session negotiation before any inference. Custody now
+owns one persistent D-Bus peer/encrypted session, with current service-owner
+checks and invalidation after failure. Status, metadata, secrets and revocation
+remain fresh reads; no token cache or mutation replay is introduced. The existing
+native credential check proves 256 read sequences use one OpenSession and a real
+daemon restart recovers the retained credential. Existing current-revision,
+withdrawal, expiry, reservation, concurrent writer and crash/uncertain-send checks
+also pass (`/home/vince/Projects/q25-package/credential18b-result.log`); all owned
+processes joined. This qualifies custody transport, not the pending installed
+delivery journey. Q26 retains the original issue/acceptance/funding and next step.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

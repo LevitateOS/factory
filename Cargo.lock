@@ -3762,6 +3762,7 @@ dependencies = [
  "time",
  "tokio",
  "url",
+ "zbus",
  "zeroize",
 ]
 
