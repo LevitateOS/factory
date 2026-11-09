@@ -2751,7 +2751,21 @@ preserved. The shared funding prompt says minutes per run. The continuation
 watch uses command `15151515151515151515151515151506`'s stop marker and preserves
 the original stop request. Affected real PG/production DOM/build checks are in
 `q15-retained-publication/per-run-*`; no new inference or provider send occurred.
-Resume the already funded exact command and original admitted reviewer custody.
+Actual resumed recovery found that allowance already closed and reviewer custody
+retired during the prior stopped check (`funding-connected4`, `inspect-live4`).
+The source still has fifteen charged minutes and four original runs. No new
+inference occurred. A fresh explicit command now creates a distinct review-only
+owner only for a definitively unlaunched closed continuation: it copies complete
+PR/branch receipts verbatim, carries no publication-send deadline, keeps the old
+allowance/spent round and binds current source/policy plus an exact authenticated
+PR observation. Existing child-operation registration now uses separate funding,
+not the earlier publication deadline. `fresh-owner-{store4,affected1,registration1,
+ui-check1}.log` and production builds/types/boundaries pass; actual native/shared
+API `fresh-owner-connected-offer1.log` offers the scoped continuation without a
+funding command or model. Format 99 is marker-only: `retained99/check.log` proves
+98→99/reopen/all75-table preservation, prior98 refusal and original-file equality.
+Fresh command `…1507` awaits explicit paid authorization; no capture/send exists.
+Q15's closed allowance, all earlier commands and both stop markers stay retained.
 
 ## Verification and completion
 

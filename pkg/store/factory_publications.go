@@ -227,7 +227,7 @@ func publicationRegistration(previous, p factory.Publication) (bool, []int64, er
 	return registering, newDeadlines, nil
 }
 
-func admitPublicationRegistrationTx(ctx context.Context, tx *sql.Tx, p factory.Publication, registering bool, newDeadlines []int64) error {
+func admitPublicationRegistrationTx(ctx context.Context, tx *sql.Tx, previous, p factory.Publication, registering bool, newDeadlines []int64) error {
 	if !registering {
 		return nil
 	}
@@ -253,8 +253,9 @@ func admitPublicationRegistrationTx(ctx context.Context, tx *sql.Tx, p factory.P
 	if err := json.Unmarshal(raw, &owner); err != nil {
 		return err
 	}
-	if owner.RetainedPublication != nil {
-		if owner.Validate() != nil || len(p.Corrections) != 0 || len(p.ReviewOperations) != 0 || len(p.ResolutionOperations) != 0 ||
+	initialSend := previous.Publish.Work == nil && p.Publish.Work != nil || previous.PRCreate.Work == nil && p.PRCreate.Work != nil
+	if owner.RetainedPublication != nil && initialSend {
+		if owner.Validate() != nil || owner.RetainedPublication.AdoptedFrom != "" || len(p.Corrections) != 0 || len(p.ReviewOperations) != 0 || len(p.ResolutionOperations) != 0 ||
 			p.Run != owner.RetainedPublication.Run || p.Candidate != owner.RetainedPublication.Candidate {
 			return ErrRetainedPublicationIneligible
 		}
@@ -285,7 +286,7 @@ func (s *Store) UpdatePublication(ctx context.Context, p factory.Publication) er
 	if err != nil {
 		return err
 	}
-	if err = admitPublicationRegistrationTx(ctx, tx, p, registering, newDeadlines); err != nil {
+	if err = admitPublicationRegistrationTx(ctx, tx, previous, p, registering, newDeadlines); err != nil {
 		return err
 	}
 	data, err := json.Marshal(p)

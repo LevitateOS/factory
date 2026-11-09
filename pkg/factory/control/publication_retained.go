@@ -42,6 +42,24 @@ func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, princi
 	if err != nil || owner.RetainedPublication == nil {
 		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
 	}
+	if funding.PreviousRoot != "" {
+		if c.Reviews == nil || p.PRCreate.Work == nil {
+			return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+		}
+		policy, err := c.Store.RepositoryPolicy(ctx, p.Repository)
+		if err != nil {
+			return factory.RetainedCandidateFundingReceipt{}, err
+		}
+		// This is a current authenticated read, not a new provider submission.
+		// Head, base, canonical PR identity and author must still match the
+		// retained complete creation receipt before fresh inference is funded.
+		_, err = c.Reviews.ObserveReview(ctx, factory.ReviewWork{Repository: p.Repository, ActorID: policy.Review.ActorID,
+			PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID,
+			HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID})
+		if err != nil {
+			return factory.RetainedCandidateFundingReceipt{}, err
+		}
+	}
 	// Retire the original known custody before the new allowance can admit
 	// work. Lost replies resume these same native tombstones, never a new send.
 	if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, owner.RetainedPublication.Assignment); err != nil {

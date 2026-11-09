@@ -1404,7 +1404,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
             let recover_funding=args.len()==10 && field(9)?=="delivery-fund-retained-recover";
-            let fund_retained=recover_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
+            let funding_offer=args.len()==10 && field(9)?=="delivery-fund-retained-offer";
+            let fresh_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
+            let fund_retained=recover_funding || funding_offer || fresh_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
             let retained_delivery=fund_retained || args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire"|"delivery-publish-retained"|"delivery-publish-retained-recover");
@@ -1493,6 +1495,17 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
                         fs::write(root.join(if recover_publication {"policy-retained-publication-recovery.json"}else if publish_retained {"policy-retained-publication.json"}else{"policy-resume.json"}),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
+                        if funding_offer {
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
+                            fs::write(root.join(format!("retained-fresh-review-offer-{}.json",ready.instance)),&detail.body)?;
+                            ensure(detail.status==200,"fresh review offer unavailable")?;
+                            let view:serde_json::Value=serde_json::from_slice(&detail.body)?;
+                            let offer=&view["capabilities"]["fund_retained"];
+                            ensure(offer["available"]==true && offer["funding"]["previous_root"]=="15151515151515151515151515151505" && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","closed prior owner is not eligible for fresh review-only continuation")?;
+                            println!("PASS: actual authenticated shared API offers a distinct review-only continuation of PR19; no funding command, coordinator, inference or repository write");
+                            return Ok(());
+                        }
                         if publish_retained {
                             // This explicit command must not start models.
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
@@ -1522,7 +1535,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
                         if fund_retained {
-                            let capture_path=root.join("retained-funding-request.json");
+                            let funding_command=if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
+                            let capture_path=root.join(if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
                             let body=if capture_path.exists() {fs::read(&capture_path)?} else {
                                 let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                                 let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1531,13 +1545,14 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                                 let detail:serde_json::Value=serde_json::from_slice(&detail.body)?;
                                 let offer=&detail["capabilities"]["fund_retained"];
                                 ensure(offer["available"]==true && offer["funding"]["publication"]=="15151515151515151515151515151505" && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original selected-source funding unavailable; inspect retained offer")?;
-                                let bytes=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151506","action":"fund-retained-candidate","publication":"15151515151515151515151515151505","funding":offer["funding"]}))?;
+                                ensure(!fresh_funding || offer["funding"]["previous_root"]=="15151515151515151515151515151505","fresh review cannot renew prior funding")?;
+                                let bytes=serde_json::to_vec(&json!({"command_id":funding_command,"action":"fund-retained-candidate","publication":"15151515151515151515151515151505","funding":offer["funding"]}))?;
                                 use std::io::Write;
                                 let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&capture_path)?;
                                 file.write_all(&bytes)?;file.sync_all()?;bytes
                             };
                             let capture:serde_json::Value=serde_json::from_slice(&body)?;
-                            ensure(capture["command_id"]=="15151515151515151515151515151506" && capture["action"]=="fund-retained-candidate" && capture["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original funding command changed")?;
+                            ensure(capture["command_id"]==funding_command && capture["action"]=="fund-retained-candidate" && capture["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original funding command changed")?;
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                             let reply=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
                             fs::write(root.join(format!("retained-funding-result-{}.json",ready.instance)),&reply.body)?;
@@ -1547,7 +1562,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             check("prepare",&ready.instance).await?;
                         }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                        let watching=check(if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
+                        let watching=check(if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);
                         loop {
                             tokio::select! {

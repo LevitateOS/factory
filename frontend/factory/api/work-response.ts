@@ -132,6 +132,7 @@ export interface WorkCapability {
   reason?: string;
 }
 export interface RetainedCandidateFunding {
+	previous_root?: string;
   native?: {profile: string; authentication?: string; credential_sha256?: string};
   publication: string;
   candidate: string;
@@ -174,7 +175,8 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
   const integer = (x: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
     typeof x === 'number' && Number.isSafeInteger(x) && x >= min && x <= max;
   if (
-    Object.keys(r).length !== (n === undefined ? 9 : 10) ||
+    Object.keys(r).length !== (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) ||
+    (r.previous_root !== undefined && r.previous_root !== r.publication) ||
     !source ||
     typeof r.publication !== 'string' ||
     !/^[a-f0-9]{32}$/.test(r.publication) ||

@@ -233,6 +233,59 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		if _, err = db.CapAttemptDeadline(ctx, a.ID, now.Add(time.Minute).Unix()); err != nil {
 			t.Fatal("new continuation lacks finite time", err)
 		}
+		// A shutdown before the first reviewer packet must not reopen an old
+		// grant or replay publication. An explicit fresh command adopts only
+		// complete PR receipts into a distinct review-only owner.
+		unlaunched := factory.NewID()
+		if _, exhausted, err := db.ChargeReviewDispatch(ctx, a.Repository, a.Issue, a.ID, unlaunched, fresh.Candidate, false); err != nil || exhausted {
+			t.Fatal("unlaunched review charge", err)
+		}
+		if closed, err := db.CloseAttempt(ctx, a.ID); err != nil || !closed {
+			t.Fatal("close prior continuation", err)
+		}
+		closedAllowance, err := db.AttemptAllowance(ctx, a.Repository, a.Issue)
+		if err != nil {
+			t.Fatal(err)
+		}
+		closedRaw, _ := json.Marshal(closedAllowance)
+		oldPublication := fresh
+		offer, err := db.RetainedCandidateFundingOffer(ctx, fresh.ID)
+		if err != nil || offer.PreviousRoot != a.ID {
+			t.Fatal("fresh review continuation offer", err)
+		}
+		newCommand := factory.NewID()
+		newReceipt, err := db.FundRetainedCandidate(ctx, newCommand, "owner", offer, now)
+		if err != nil {
+			t.Fatal("fresh review-only owner", err)
+		}
+		if replay, err := db.FundRetainedCandidate(ctx, newCommand, "owner", offer, now.Add(time.Hour)); err != nil || replay != newReceipt {
+			t.Fatal("review-only replay changed", err)
+		}
+		var afterRaw []byte
+		if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, a.ID).Scan(&afterRaw); err != nil {
+			t.Fatal(err)
+		}
+		var afterClosed factory.AttemptAllowance
+		_ = json.Unmarshal(afterRaw, &afterClosed)
+		afterClosedRaw, _ := json.Marshal(afterClosed)
+		if string(afterClosedRaw) != string(closedRaw) {
+			t.Fatal("fresh review renewed old allowance or erased spent review")
+		}
+		a, err = db.Assignment(ctx, newCommand)
+		if err != nil || a.RetainedPublication.AdoptedFrom != oldPublication.ID || a.RetainedPublication.NotAfter != 0 {
+			t.Fatal("fresh review obtained publication authority", err)
+		}
+		fresh, err = db.PublicationByID(ctx, newCommand)
+		oldPR, _ := json.Marshal(oldPublication.PRCreate)
+		adoptedPR, _ := json.Marshal(fresh.PRCreate)
+		oldBranch, _ := json.Marshal(oldPublication.Publish)
+		adoptedBranch, _ := json.Marshal(fresh.Publish)
+		if err != nil || string(oldPR) != string(adoptedPR) || string(oldBranch) != string(adoptedBranch) || fresh.Run != oldPublication.Run {
+			t.Fatal("publication receipt or execution changed", err)
+		}
+		if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", offer, now); err == nil {
+			t.Fatal("stale prior-owner offer funded again")
+		}
 		// The actual retained owner has no run/model. Its separately funded
 		// reviewer still enters the ordinary phase and atomic packet guards.
 		inputOwner := a
@@ -253,6 +306,24 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		origin, err := db.PublicationExecutionOwner(ctx, fresh, a)
 		if err != nil || origin.ID != source.ID || origin.Run != source.Run {
 			t.Fatal("original execution provenance was replaced", err)
+		}
+		// New review/correction operations use the new finite allowance, not
+		// the expired original branch/PR send deadline (zero on this owner).
+		trial := fresh
+		appendPendingCorrection(&trial)
+		trial.Corrections[len(trial.Corrections)-1].Work.NotAfter = time.Now().Add(time.Minute).Unix()
+		registration, deadlines, err := publicationRegistration(fresh, trial)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = admitPublicationRegistrationTx(ctx, tx, fresh, trial, registration, deadlines)
+		_ = tx.Rollback()
+		if err != nil {
+			t.Fatal("fresh correction used original publication deadline", err)
 		}
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)

@@ -6493,7 +6493,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
-	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-reconcile" {
+	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-fresh-watch" || phase == "fund-retained-reconcile" {
 		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
 			return errors.New("exact Q15 retained funding fixture required")
 		}
@@ -6820,6 +6820,9 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 	if phase == "fund-retained-watch" {
 		stopName += "-15151515151515151515151515151506"
 	}
+	if phase == "fund-retained-fresh-watch" {
+		stopName += "-15151515151515151515151515151507"
+	}
 	stopPath := filepath.Join(filepath.Dir(profile), stopName)
 	for ctx.Err() == nil {
 		if _, e := os.Stat(stopPath); e == nil {
@@ -6925,7 +6928,8 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		}
 		status := fmt.Sprintf("assignments=%d publications=%d merges=%d", len(assignments), len(publications), len(merges))
 		for _, a := range assignments {
-			if phase == "fund-retained-watch" && a.AttemptRoot == "15151515151515151515151515151505" && a.RetainedPublication == nil && a.Phase != project.ExecutionReview && a.Phase != project.ExecutionCorrect {
+			fundedRoot := a.AttemptRoot == "15151515151515151515151515151505" || a.AttemptRoot == "15151515151515151515151515151507"
+			if strings.HasPrefix(phase, "fund-retained-") && fundedRoot && a.RetainedPublication == nil && a.Phase != project.ExecutionReview && a.Phase != project.ExecutionCorrect {
 				return errors.New("retained funding attempted a new planning/initial Builder phase")
 			}
 			status += " " + a.Phase + ":" + a.Stage + ":" + string(a.Outcome)
@@ -6948,7 +6952,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 				}
 			}
 			if settled {
-				if phase == "fund-retained-watch" {
+				if strings.HasPrefix(phase, "fund-retained-") {
 					if err := retainedFundingRecovery(ctx, config.DatabaseDSN(), profile, in.Source, false); err != nil {
 						return err
 					}

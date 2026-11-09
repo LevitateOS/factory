@@ -158,15 +158,19 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_attempt_allowances WHERE root_assignment=$1)`, a.ID).Scan(&exists); err != nil {
 		return factory.RetainedCandidateFunding{}, err
 	}
+	previous := ""
 	if exists {
-		return factory.RetainedCandidateFunding{}, ErrRetainedPublicationIneligible
+		if err = admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
+			return factory.RetainedCandidateFunding{}, err
+		}
+		previous = a.ID
 	}
 	limits := g.policy.AttemptLimits
 	limits.ActiveMinutes = min(limits.ActiveMinutes, 15)
 	limits.ReviewRounds = min(limits.ReviewRounds, 2)
 	limits.CorrectionCycles = min(limits.CorrectionCycles, 1)
 	limits.MaxChildren = 1
-	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
+	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, PreviousRoot: previous, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
 	return f, f.Validate()
 }
 
@@ -291,8 +295,17 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_attempt_allowances WHERE root_assignment=$1)`, a.ID).Scan(&exists); err != nil {
 		return empty, err
 	}
-	if exists {
+	if exists && f.PreviousRoot == "" || !exists && f.PreviousRoot != "" {
 		return empty, ErrRetainedPublicationIneligible
+	}
+	if f.PreviousRoot != "" {
+		if err = admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
+			return empty, err
+		}
+		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, now)
+		if err != nil {
+			return empty, err
+		}
 	}
 	// The new root is distinct from the original closed/uncertain attempt. An
 	// existing allowance, even closed or exhausted, can never be replenished.
@@ -306,6 +319,69 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 		return empty, err
 	}
 	return receipt, nil
+}
+
+// Only a definitively unlaunched review continuation can use this path. Real
+// reviews/corrections need their own result-driven recovery; their findings and
+// pending sends can never disappear into a fresh owner.
+func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment) error {
+	prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
+	if err != nil {
+		return err
+	}
+	if !prior.Closed || prior.Active || p.Publish.Effect != factory.OpEffectCommitted || p.Publish.Completion != factory.OpCompletionComplete || p.PRCreate.Effect != factory.OpEffectCommitted || p.PRCreate.Completion != factory.OpCompletionComplete || len(p.ReviewOperations)+len(p.Corrections)+len(p.CorrectionJournals)+len(p.DeliveryAcceptances)+len(p.ResolutionOperations) != 0 {
+		return ErrRetainedPublicationIneligible
+	}
+	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.ID)
+	if err != nil || !settled {
+		return ErrAttemptRunsPending
+	}
+	var launched bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1)`, a.ID).Scan(&launched); err != nil {
+		return err
+	}
+	if launched {
+		return ErrRetainedPublicationIneligible
+	}
+	var pending bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND (data#>>'{operation,attempts}')::int>0)`, p.ID).Scan(&pending); err != nil {
+		return err
+	}
+	if pending {
+		return ErrRetainedPublicationIneligible
+	}
+	return nil
+}
+
+func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.Publication, owner factory.Assignment, command string, now time.Time) (factory.Publication, factory.Assignment, error) {
+	a := owner
+	r := *owner.RetainedPublication
+	r.AdoptedFrom, r.NotAfter = prior.ID, 0
+	a.RetainedPublication = &r
+	a.ID, a.AttemptRoot, a.PublicationAssignment, a.CreatedUnix = command, command, command, now.Unix()
+	p := prior
+	p.ID, p.AssignmentID, p.Revision, p.CreatedUnix = command, command, 0, now.Unix()
+	p.ReviewCycles = nil
+	p.Tuple = nil
+	if err := a.Validate(); err != nil {
+		return p, a, err
+	}
+	if err := p.Validate(); err != nil {
+		return p, a, err
+	}
+	araw, err := json.Marshal(a)
+	if err != nil {
+		return p, a, err
+	}
+	praw, err := json.Marshal(p)
+	if err != nil {
+		return p, a, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO factory_assignments(id,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,'',$4,0,$5)`, a.ID, a.Repository, a.Issue, a.Stage, string(araw)); err != nil {
+		return p, a, err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO factory_publications(assignment,repository,issue,run,stage,revision,data) VALUES($1,$2,$3,$4,$5,0,$6)`, p.ID, p.Repository, p.Issue, p.Run, p.Stage, string(praw))
+	return p, a, err
 }
 
 func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assignment, g admissionGrants) error {
@@ -322,14 +398,19 @@ func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	if root.RetainedPublication == nil {
 		return nil
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE type=$1 AND target=$2 AND finished<>''`, factory.CommandFundRetained, "publication/"+root.ID).Scan(&raw); err != nil {
+	expectedPublication := root.ID
+	if root.RetainedPublication.AdoptedFrom != "" {
+		expectedPublication = root.RetainedPublication.AdoptedFrom
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT payload FROM factory_commands WHERE type=$1 AND target=$2 AND finished<>''
+		AND COALESCE(payload::jsonb->>'previous_root','')=$3 AND ($3='' OR id=$4)`, factory.CommandFundRetained, "publication/"+expectedPublication, root.RetainedPublication.AdoptedFrom, root.ID).Scan(&raw); err != nil {
 		return ErrAdmissionChanged
 	}
 	var f factory.RetainedCandidateFunding
 	// Policy is the funding command's admission CAS. Each later child captures
 	// and rechecks its own current policy through the ordinary packet gate;
 	// reconnecting the writer does not refill time or rebind the funded source.
-	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || !f.MatchesSource(g.sponsorship) || f.Acceptance != a.Acceptance {
+	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || f.Publication != expectedPublication || f.PreviousRoot != root.RetainedPublication.AdoptedFrom || !f.MatchesSource(g.sponsorship) || f.Acceptance != a.Acceptance {
 		return ErrAdmissionChanged
 	}
 	return nil

@@ -838,9 +838,29 @@ intent fixture is corrected and passes `per-run-focused2.log`. Production
 UI/build/typecheck pass `per-run-{ui-check3,ui-build2,types1}.log` with explicit
 minutes-per-run text. The legacy empty stop marker is preserved; command `…1506`
 has its own stop marker. No new model call occurred during this change.
-Do not send another funding command or replace its saved capture. All original
-uncertain outcomes remain fenced. Q24 still has no appliance,
-and independent queued work remains outstanding.
+
+Latest recovery supersedes the earlier next action: `6d1479b` commits per-run
+admission. `funding-connected4.log` / `inspect-live4.log` found root `…1505`
+already closed/inactive at 1794221939 and its reviewer preparation retired;
+the one prelaunch charged review remains. No new run/inference occurred; the
+watch stopped through its scoped marker and all owners joined. Do not reopen
+that allowance or renew command `…1506`. Fresh recovery now uses an explicit
+distinct **review-only** owner, preserving prior complete PR/branch receipts,
+closed allowance and spent round. It has no branch/PR send authority and checks
+current source/policy and the exact authenticated PR before funding. Subsequent
+child writes use their own allowance rather than the old publication deadline.
+`fresh-owner-{store4,affected1,registration1,ui-check1}.log` pass real PG/production
+DOM checks; builds/types/boundaries pass. `q28-migrate/retained99/check.log` proves
+98→99/current reopen, all 75 public tables unchanged, exact prior-writer refusal
+and unchanged original database files. `fresh-owner-connected-offer1.log` proves
+the real UI/API offer: same native Muse source, 15 minutes per run, two fresh
+reviews and one correction; no funding command/coordinator/model/repository write.
+**Q15 awaits explicit authorization for fresh command `…1507` under this offer**;
+the previous fifteen-minute charge and closed spent round remain. Its exact next
+action is `delivery-fund-retained-fresh`, capturing the current offer once in
+`q15-connected/retained-fresh-review-request.json` (not yet created). Only that
+paid continuation and full delivery evidence using it depend on this answer.
+Independent queued work remains authorized. Q24 still has no appliance.
 
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
