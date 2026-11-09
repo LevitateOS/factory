@@ -9,6 +9,8 @@ export interface ControllerContext {
   scope:string;
   generation:string;
   destination:string;
+  canSelect?:boolean;
+  canAuthorize?:boolean;
   request(command:Command):Promise<unknown>;
 }
 const operations=['execution.launch','git.ref.publish','issue.comment.publish','issue.graph.mutate','issue.lifecycle.apply','pull_request.create','pull_request.merge','pull_request.review.request','pull_request.review.submit','pull_request.review.thread.resolve'];
@@ -87,7 +89,7 @@ export class SodaFactoryRuntimeController extends LitElement {
   }
   private async issue(action:string){
     const current=this.current,record=this.record;
-    if(!current||!record||this.disabled||this.busy)return;
+    if(!current||!record||this.disabled||this.busy||this.selected?.canSelect===false||action==='authorize'&&this.selected?.canAuthorize===false)return;
     this.recover();if(this.blocked||this.pending)return;
     const command_id=crypto.randomUUID().replaceAll('-',''),now=Math.floor(Date.now()/1000);
     const next:Command=action==='authorize'?{authorization:{command_id,expected_placement:current.revision,generation:current.generation,operations,not_after:now+900}}:
@@ -97,12 +99,13 @@ export class SodaFactoryRuntimeController extends LitElement {
   }
   render(){
     const unavailable=!this.selected||this.disabled||this.busy||this.blocked;
-    const held=unavailable||!!this.pending||!this.current;
+    const held=unavailable||!!this.pending||!this.current||this.selected?.canSelect===false;
     return html`<fieldset><legend>Repository controller</legend>
       <p>Selecting a runtime requires repository administration. A 15 minute operation grant covers execution, publication, issues, reviews and allowed merge. Funding remains separate.</p>
       <button id="fountain-controller-status" type="button" ?disabled=${unavailable} @click=${()=>this.send({})}>Check controller</button>
       <button id="fountain-controller-activate" type="button" ?disabled=${held||this.current?.state!=='inactive'} @click=${()=>this.issue('activate')}>Select ${this.selected?.destination??'runtime'}</button>
-      <button id="fountain-controller-authorize" type="button" ?disabled=${held||this.current?.state!=='active'} @click=${()=>this.issue('authorize')}>Authorize operations for 15 minutes</button>
+      <button id="fountain-controller-authorize" type="button" ?disabled=${held||this.current?.state!=='active'||this.selected?.canAuthorize===false} @click=${()=>this.issue('authorize')}>Authorize operations for 15 minutes</button>
+      ${this.selected?.canAuthorize===false?html`<p>Operation authorization is unavailable for this runtime.</p>`:null}
       <button id="fountain-controller-withdraw" type="button" ?disabled=${held||this.current?.state!=='active'} @click=${()=>this.issue('withdraw')}>Withdraw controller</button>
       <button id="fountain-controller-retire" type="button" ?disabled=${held||this.current?.state!=='retiring'} @click=${()=>this.issue('retire')}>Finish retirement</button>
       <button id="fountain-controller-retry" type="button" ?hidden=${!this.pending} ?disabled=${unavailable} @click=${()=>this.pending&&this.send(this.pending)}>Retry saved command</button>
