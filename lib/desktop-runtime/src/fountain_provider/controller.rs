@@ -2,8 +2,10 @@
 //! and finite grants; they never launch a worker or spend inference allowance.
 use super::{hex, invalid, unavailable, Client, Result};
 use crate::private_fs::{private_dir, publish_bytes, read_bytes};
+use crate::{credentials::Credentials, mcp_signing::Signer};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -53,6 +55,89 @@ pub struct OperationGrant {
     pub operations: Vec<String>,
     pub not_after: i64,
     pub active: bool,
+}
+impl OperationGrant {
+    /// The host's current controller activity uses its common permission gate;
+    /// the immutable operation list separately limits the named capability.
+    pub fn allows_current(&self, kind: &str) -> bool {
+        self.active && self.operations.iter().any(|value| value == kind)
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturedAuthorization {
+    version: u8,
+    profile: String,
+    connection: String,
+    origin: String,
+    account: String,
+    application: String,
+    enrollment: String,
+    owner: String,
+    repository: String,
+    kind: String,
+    request: OperationAuthorization,
+}
+
+/// Resolve only the exact native connection/profile that authorized this
+/// immutable grant. There is no enrollment, source selection or authorization
+/// POST here. A current grant observation still does not authorize dispatch.
+pub async fn captured_operation_grant(
+    credentials: Arc<Credentials>,
+    profile: &Path,
+    runtime: &str,
+    id: &str,
+) -> Result<(Client, OperationGrant)> {
+    if !hex(id, 32) || !credentials.is_profile(runtime) {
+        return Err(invalid());
+    }
+    let bytes = read_bytes(
+        &profile.join("fountain-commands").join(format!("{id}.json")),
+        8192,
+    )
+    .map_err(|_| unavailable())?;
+    let capture: CapturedAuthorization = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    if capture.version != 1
+        || capture.profile != runtime
+        || capture.kind != "runtime.operation.authorize"
+        || capture.request.command_id != id
+        || !hex(&capture.connection, 32)
+        || !hex(&capture.enrollment, 32)
+        || !hex(&capture.request.expected_placement, 32)
+    {
+        return Err(invalid());
+    }
+    let capability = credentials
+        .capability(&capture.connection)
+        .await
+        .map_err(|_| unavailable())?;
+    if capability.account().origin != capture.origin
+        || capability.account().account != capture.account
+    {
+        return Err(invalid());
+    }
+    let signer = Signer::open(profile).map_err(|_| unavailable())?;
+    let client = Client::new(
+        credentials,
+        capability,
+        &signer,
+        runtime,
+        &capture.application,
+        &capture.owner,
+        &capture.repository,
+        &capture.enrollment,
+    )?;
+    let grant = client.operation_grant(id).await?;
+    let mut operations = capture.request.operations;
+    operations.sort();
+    if grant.generation != capture.request.generation
+        || grant.not_after != capture.request.not_after
+        || grant.operations != operations
+    {
+        return Err(invalid());
+    }
+    Ok((client, grant))
 }
 impl Client {
     pub(super) fn retain_control(

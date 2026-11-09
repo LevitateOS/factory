@@ -15,7 +15,7 @@ mod execution;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use controller::{
-    OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
+    captured_operation_grant, OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
 };
 pub use enrollment::retained_client;
 

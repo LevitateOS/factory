@@ -121,6 +121,9 @@ impl Client {
         // The retained envelope includes its grant; the host wire carries the
         // typed request only. Neither a changed grant nor payload can reuse it.
         let claim = if first {
+            if !grant.allows_current("execution.launch") {
+                return Err(invalid());
+            }
             match self
                 .request(
                     reqwest::Method::POST,

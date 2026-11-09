@@ -2916,6 +2916,14 @@ overbroad hash assertions are retained, not counted as passes. Q26's device
 challenge expired unapproved; fresh user consent is required for authenticated
 steps, while independent Fountain implementation continues. Full Q26 remains open.
 
+Q19 captured controller source (2026-11-09): native-claim-connected3 passes
+original authorization-capture resolution after reopen, including exact native
+connection/application/enrollment/account/repository/grant and no authorization
+POST. New claims require active host permission plus the named execution scope;
+recovery remains lookup only. The current host applies a common code-write gate
+to every named operation, so no extra protocol field was introduced. Exact native
+worker launch/withdrawal/sealed-retirement integration remains the next step.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

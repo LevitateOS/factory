@@ -1220,7 +1220,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(receipt.placement.state=="active","reopened controller command not adopted")?;
         let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into(),"execution.launch".into()],not_after:epoch() as i64+90};
         let grant=client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?;
-        ensure(grant.active,"native finite operation grant inactive")?;
+        ensure(grant.active&&grant.allows_current("execution.launch")&&grant.allows_current("issue.comment.publish")&&!grant.allows_current("git.ref.publish"),"native per-operation authority missing or enlarged")?;
         let claim_request=ExecutionClaimRequest{command_id:"123456789abcdef0123456789abcdef8".into(),manifest_digest:"8".repeat(64),not_after:grant.not_after};
         let claimed=client.claim_execution(profile,&grant,&claim_request).await.map_err(|e|e.code)?;
         ensure(claimed.acquired&&claimed.state=="claimed","first native claim did not acquire exactly one dispatch")?;
@@ -1262,7 +1262,8 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(completed.effect_state=="committed"&&completed.completion_state=="complete","lost native write reply was not adopted")?;
         drop(client);drop(signer);store.retire();store=Arc::new(Credentials::open(profile,runtime)?);
         let signer=Signer::open(profile)?;
-        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let (client,captured_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&grant.id).await.map_err(|e|e.code)?;
+        ensure(captured_grant.id==grant.id&&captured_grant.not_after==grant.not_after&&captured_grant.runtime_id==grant.runtime_id,"native reopen changed the captured controller scope")?;
         let recovered=client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await.map_err(|e|e.code)?;
         ensure(recovered.intent_digest==completed.intent_digest&&recovered.receipt==completed.receipt,"native receipt changed across reopen")?;
         ensure(!client.claim_execution(profile,&grant,&lost_claim).await.map_err(|e|e.code)?.acquired,"reopen acquired an old dispatch")?;

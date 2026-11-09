@@ -1279,6 +1279,12 @@ retirement/replay and reconnected original history. Exactly two claim POSTs for
 two distinct claims; the existing completion note remains exactly one send.
 `claim-lookup-host1.log` and the same defining native check cover host scope,
 expiry, placement withdrawal, revocation/re-login and foreign-grant refusal.
+Captured-controller recovery also passes `native-claim-connected3.log`: the native
+owner loads the original connection/application/enrollment/account/repository
+and immutable grant request from its existing private authorization capture,
+then performs only GET. It does not create an enrollment or select another source.
+New reserve admission requires the host activity fact and the explicit named
+execution capability; all current named operations share the host code-write gate.
 All owned PG/keyring/bus checks joined. Manifest/no-start values in this connector
 check are declared; no worker launched or inference occurred. This qualifies the
 connector boundary, not the full Q19 worker/controller journey. Next product
@@ -1817,10 +1823,13 @@ durable profile/credential/signing key and checks the fresh bootstrap boundary.
 The earlier uncompleted Quit attempt focused a required blank form while scrolled;
 no Fountain host request was sent. Verified toolbar focus then normal Quit passed.
 These are installed UI/update/lifecycle facts, not funding or delivery completion.
-The guest at SSH22209 remains idle, updated launcher in `q25-prefix9`, original
-`q25-current9/profile`; app/backend/PG/GUI/keyring/bus are joined. No owned
-uncommitted edit or uncertain new product effect remains. Next independent work
-is Q19 native captured-controller launch/withdrawal/retirement integration.
+On the user’s explicit retry, the same installed current10 was reopened at
+SSH22209 with its original profile/keyring and a fresh unlocked-collection check.
+A new GitHub challenge is pending; no account/funding/write authority is inferred
+from the request. Actual app/backend/PG/GUI/keyring/bus remain running for that
+consent. Do not start another app or replace the challenge without recovering
+its UI result. Next independent work is Q19 native captured-controller
+launch/withdrawal/retirement integration.
 
 INCOMPLETE — actual Q25-installed `stage-current5` (engine `ce47b02c6ab16a5c85c6a46cbaf1c4d883bbfe23`
 plus its recorded docs-only patch) now proves real GitHub OAuth, encrypted desktop
