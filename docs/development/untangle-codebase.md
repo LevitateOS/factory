@@ -2456,6 +2456,36 @@ observer race; keyboard activation did not close this VM app, so its joined Quit
 is mouse evidence only. Broader degraded-host/execution/provider journeys remain
 open; this is not a release or broad security-gate completion.
 
+## Q28 installed app payload activation and retained uninstall (2026-11-09)
+
+Factory `d4d4de54753570710ef71dded61dd5d7a4a4aabe` extends the existing user
+installer with an exact-prior digest and separate retained payload paths. The
+shared prefix lock spans verification, staging and launcher-last activation.
+Unknown prior/current payloads and modified human entries refuse; original
+receipts survive interruption. Uninstall removes verified launch/menu/icon
+entries only, retains payloads/profile/keyring/system services, and replays its
+original capture. Installing that exact bundle again restores its captured
+versioned selection.
+
+`q28-upgrade/upgrade-check.log` passes a real copy SIGKILL while the prior normal
+installed app remains active, followed by activation/replay with its old process
+and full original payload unchanged. `uninstall-check.log` passes unknown digest
+and changed human-menu refusal, real SIGKILL after launcher unlink, capture
+recovery/replay and unchanged active executable/profile/payloads. The final
+capture/restore paths pass `restore-check.log`; the existing actual installer
+regressions pass `install-regression2.log`. A disposable retained profile copy
+reopened through the selected new app/backend/PostgreSQL paths
+(`active-exe-current`, `gui/current-active.png`) and Quit joined normally. Original
+profiles, uncertain Q15 publication, stashes and human fixture text remain intact.
+All owned GUI/PG/keyring/bus/VM processes are joined. Retain the failed X11 observer
+and check-script edit/read failure; neither qualifies product behavior.
+
+The check bundles are explicitly installer qualification copies of clean Q25
+payloads, not newly promoted releases. No new model/provider effect occurred.
+Q28 remains incomplete for old/schema-93 store migration/reconciliation,
+credentials/drafts/pending effects, active worker and execution-service upgrade,
+provider freshness/download/status activation and owning dependency publication.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

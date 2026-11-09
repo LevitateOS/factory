@@ -1277,7 +1277,25 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
 
-Outstanding. Use disposable profile copies. Store migration/refusal and installer recovery can proceed independently; installed upgrade/download/activation checks require known prior/current payloads. Full provider journeys are not blanket prerequisites.
+INCOMPLETE. App installer implementation `d4d4de54753570710ef71dded61dd5d7a4a4aabe`
+adds exact-prior upgrades to separate versioned payload paths, launcher-last
+activation, captured uninstall of verified launch entries and exact reinstall.
+`/home/vince/Projects/q28-upgrade/{upgrade-check.log,uninstall-check.log,restore-check.log,install-regression2.log}`
+passes real SIGKILL during upgrade copy and after launcher unlink, exact
+unknown-prior/current handling, capture replay, changed human-entry preservation
+and restoration of the original versioned selection. A normal prior installed
+app stayed alive on its unchanged original executable during activation; the
+reopened app/backend/PostgreSQL used the new installed release with the same
+disposable profile identity (`active-exe-{before,current}`, `gui/current-active.png`).
+Final app, PostgreSQL, GUI/keyring/bus and both clean Q25 VM boots are joined.
+The first X11 observation failed; a later check-owner edit caused a shell read
+failure. Those failed checks and joined cleanup are retained, not product passes.
+No inference or provider write was repeated. Original profiles and stashes remain
+untouched. This qualifies app payload/launch-entry recovery, not active worker
+upgrade, execution-service replacement/retirement, old/schema-93 migration,
+credential/draft/pending-effect reconciliation, provider download/status activation
+or dependency publication. Those remain required. Full provider journeys are not
+blanket prerequisites; the approved Q15 publication action can proceed independently.
 
 ```text
 Execute through Q28 — Retained upgrade, interrupted recovery and updates. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q28 despite the document's historical paused snapshot; it does not authorize work beyond Q28 or resuming the old product queue.
