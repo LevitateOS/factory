@@ -1,12 +1,15 @@
+import {SodaFactoryRuntimeController} from "../factory/app/browser.js";
 import type {Core} from './transport.js';
 import type {Account} from './accounts.js';
 interface View {attempt:number;phase:string;prompt:{verification_uri:string;expires_at:number}|null;error:string|null}
-interface FountainAccount extends Account {grant?:{client_id?:string;refresh_available:boolean}}
+interface FountainAccount extends Account {grant?:{client_id?:string;scope:string;refresh_available:boolean}}
+const purpose=(account:FountainAccount)=>account.grant?.scope==='write:repository'?'control':account.grant?.scope==='read:repository'?'read':'access unknown';
 interface Enrollment {active:boolean;runtime_bound:boolean;repository:{owner:string;name:string;permission:string}}
 /** Configured-host OAuth stays in Rust; the renderer receives public view state. */
 export function mountFountainLogin(core:Core){
   const form=document.querySelector<HTMLFormElement>('#fountain-login')!;
   const origin=document.querySelector<HTMLInputElement>('#fountain-origin')!;
+  const control=document.querySelector<HTMLInputElement>('#fountain-control-consent')!;
   const begin=document.querySelector<HTMLButtonElement>('#fountain-sign-in')!;
   const status=document.querySelector<HTMLElement>('#fountain-status')!;
   const open=document.querySelector<HTMLButtonElement>('#fountain-open')!;
@@ -17,21 +20,26 @@ export function mountFountainLogin(core:Core){
   const repository=document.querySelector<HTMLInputElement>('#fountain-repository')!;
   const enrollment=document.querySelector<HTMLElement>('#fountain-enrollment')!;
   const enrollButtons=['#fountain-enroll-submit','#fountain-enroll-status','#fountain-enroll-withdraw'].map(id=>document.querySelector<HTMLButtonElement>(id)!);
+  const controller=document.querySelector<SodaFactoryRuntimeController>("#fountain-controller")!;
   let selectedAccount='';
   const rows=new Map<string,{row:HTMLLIElement;label:HTMLSpanElement;refresh:HTMLButtonElement;remove:HTMLButtonElement}>();
   let ready=false,reading=false,busy=false,epoch=-1,view:View={attempt:0,phase:'idle',prompt:null,error:null},error:string|null=null,readError:string|null=null;
   const active=()=>['requesting','waiting','verifying','saving'].includes(view.phase);
   function render(){
     begin.disabled=origin.disabled=!ready||busy||active();
+    control.disabled=origin.disabled;
     open.hidden=!ready||view.phase!=='waiting'||!view.prompt;open.disabled=busy;
     cancel.hidden=!active();cancel.disabled=busy||view.phase==='saving';
     status.textContent=!ready?'Fountain accounts are unavailable until Factory is ready.':readError??error??view.error??({requesting:'Connecting to Fountain…',waiting:'Approve sign-in in your browser, then return here.',verifying:'Verifying your Fountain account…',saving:'Saving your Fountain account…',complete:'Fountain account saved. Repository enrollment grants read access only.',cancelled:'Sign-in cancelled.'}[view.phase]??'Sign in to a Fountain host configured for desktop access.');
     for(const row of rows.values()){row.refresh.disabled=row.remove.disabled=!ready||busy||active();}
     for(const button of enrollButtons)button.disabled=!ready||busy||active()||!accountSelect.value;
     accountSelect.disabled=repository.disabled=!ready||busy||active();
+    const connection=accountSelect.value,repo=repository.value.trim();
+    controller.context=ready&&connection&&repo?{scope:connection+":"+repo.toLowerCase(),generation:String(epoch),destination:"this desktop",request:command=>core.invoke("fountain_controller",{connection,repository:repo,...command})}:undefined;
+    controller.disabled=busy||active();
   }
   async function action(work:()=>Promise<unknown>){if(busy)return;busy=true;error=null;render();try{await work();}catch{error='Fountain is unavailable. Your saved accounts are kept.';}finally{busy=false;await refresh(ready,epoch);render();}}
-  form.addEventListener('submit',event=>{event.preventDefault();void action(async()=>{view=await core.invoke<View>('fountain_sign_in',{origin:origin.value.trim()});});});
+  form.addEventListener('submit',event=>{event.preventDefault();void action(async()=>{view=await core.invoke<View>('fountain_sign_in',{origin:origin.value.trim(),control:control.checked});});});
   open.addEventListener('click',()=>void action(()=>core.invoke('fountain_sign_in_open',{attempt:view.attempt})));
   cancel.addEventListener('click',()=>void action(async()=>{view=await core.invoke<View>('fountain_sign_in_cancel',{attempt:view.attempt});}));
   const enrollmentAction=(command:'enroll'|'status'|'withdraw')=>action(async()=>{
@@ -43,6 +51,7 @@ export function mountFountainLogin(core:Core){
   enroll.addEventListener('submit',event=>{event.preventDefault();void enrollmentAction('enroll');});
   enrollButtons[1]!.addEventListener('click',()=>void enrollmentAction('status'));
   enrollButtons[2]!.addEventListener('click',()=>void enrollmentAction('withdraw'));
+  repository.addEventListener("input",render);
   accountSelect.addEventListener('change',()=>{selectedAccount=accountSelect.value;enrollment.textContent='Check the selected repository’s current enrollment.';render();});
   async function refresh(available:boolean,generation:number){
     ready=available;if(generation!==epoch){epoch=generation;view={attempt:0,phase:'idle',prompt:null,error:null};error=null;readError=null;}
@@ -52,7 +61,7 @@ export function mountFountainLogin(core:Core){
       if(captured!==epoch||!ready)return;view=next;readError=null;
       const current=accounts.filter(account=>account.provider==='fountain');
       const keys=current.map(account=>account.connection).join(',');
-      if(accountSelect.dataset.accounts!==keys){accountSelect.replaceChildren(...current.map(account=>new Option(`${account.label??account.account} — ${account.origin}`,account.connection)));accountSelect.dataset.accounts=keys;if(current.some(a=>a.connection===selectedAccount))accountSelect.value=selectedAccount;else selectedAccount=accountSelect.value;}
+      if(accountSelect.dataset.accounts!==keys){accountSelect.replaceChildren(...current.map(account=>new Option(`${account.label??account.account} — ${account.origin} (${purpose(account)})`,account.connection)));accountSelect.dataset.accounts=keys;if(current.some(a=>a.connection===selectedAccount))accountSelect.value=selectedAccount;else selectedAccount=accountSelect.value;}
       for(const [connection,row]of rows)if(!current.some(a=>a.connection===connection)){row.row.remove();rows.delete(connection);}
       for(const account of current){
         let value=rows.get(account.connection);
@@ -60,7 +69,7 @@ export function mountFountainLogin(core:Core){
           refresh.addEventListener('click',()=>void action(async()=>{view=await core.invoke<View>('fountain_refresh',{connection:account.connection});}));
           remove.addEventListener('click',()=>void action(()=>core.invoke('credential_withdraw',{connection:account.connection})));
           row.append(label,refresh,remove);list.append(row);value={row,label,refresh,remove};rows.set(account.connection,value);}
-        value.label.textContent=`${account.label??account.account} — ${account.origin} (${account.state}) `;
+        value.label.textContent=`${account.label??account.account} — ${account.origin} (${purpose(account)}, ${account.state}) `;
       }
     }catch{readError='Saved Fountain account status is unavailable. Your accounts are kept.';}finally{reading=false;render();}
   }

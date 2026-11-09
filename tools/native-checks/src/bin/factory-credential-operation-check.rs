@@ -1178,6 +1178,63 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
     Ok(())
 }
 
+async fn fountain_controller(profile: &Path, origin: &str, application: &str) -> Result<()> {
+    use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization},mcp_signing::Signer};
+    prepare(profile)?;
+    let lock=fs::OpenOptions::new().create_new(true).write(true).open(profile.join("fixture.lock"))?;
+    ensure(unsafe{libc::flock(lock.as_raw_fd(),libc::LOCK_EX|libc::LOCK_NB)}==0,"controller profile lock failed")?;
+    let runtime="123456789abcdef0123456789abcdef0";
+    let enrollment="123456789abcdef0123456789abcdef2";
+    let mut store=Arc::new(Credentials::open(profile,runtime)?);
+    let mut token=Vec::new();std::io::stdin().take(65537).read_to_end(&mut token)?;
+    ensure(!token.is_empty()&&token.len()<=65536,"bounded fixture OAuth token required")?;
+    let mut parts=token.splitn(2,|b|*b==b'\n');
+    let read_token=parts.next().ok_or("read token missing")?.to_vec();
+    let control_token=parts.next().ok_or("control token missing")?.to_vec();token.fill(0);
+    let read_oauth=fountain_oauth::Client::configured(origin).await?;
+    let read_saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(read_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"read:repository".into(),client_id:Some(read_oauth.application().into())}).await?;
+    let original=store.capability(&read_saved.connection).await?;
+    let saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(control_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository".into(),client_id:Some(application.into())}).await?;
+    ensure(saved.connection!=read_saved.connection,"control sign-in replaced the original read connection")?;
+    store.with_token(&original,|bytes|!bytes.is_empty()).await?;
+    let result=async {
+        let consent=fountain_oauth::Client::configured_control(origin).await?;
+        ensure(consent.application()==application,"configured control application changed")?;
+        let pending=consent.begin().await?;
+        let url=url::Url::parse(&pending.prompt().authorization_uri)?;
+        ensure(url.query_pairs().any(|(key,value)|key=="scope"&&value=="write:repository"),"explicit native control scope missing")?;
+        drop(pending); // This check uses the actual host-exchanged fixture token.
+        let signer=Signer::open(profile)?;
+        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        ensure(client.enroll().await.map_err(|e|e.code)?.active,"control enrollment missing")?;
+        let initial=client.placement().await.map_err(|e|e.code)?;
+        ensure(initial.state=="inactive","fixture controller was not retired")?;
+        let request=Selection{command_id:"123456789abcdef0123456789abcdef3".into(),expected_revision:initial.revision,action:"activate".into(),not_after:epoch() as i64+120};
+        ensure(matches!(client.select_runtime(profile,&request).await,Err(error)if error.status==503),"lost initial controller reply was not exercised")?;
+        drop(client);drop(signer);store.retire();
+        store=Arc::new(Credentials::open(profile,runtime)?);
+        let signer=Signer::open(profile)?;
+        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let receipt=client.select_runtime(profile,&request).await.map_err(|e|e.code)?;
+        ensure(receipt.placement.state=="active","reopened controller command not adopted")?;
+        let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into()],not_after:epoch() as i64+90};
+        let grant=client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?;
+        ensure(grant.active,"native finite operation grant inactive")?;
+        let withdrawal=Selection{command_id:"123456789abcdef0123456789abcdef5".into(),expected_revision:receipt.placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
+        let receipt=client.select_runtime(profile,&withdrawal).await.map_err(|e|e.code)?;
+        ensure(!client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?.active,"old grant replay renewed withdrawal")?;
+        let retirement=Selection{command_id:"123456789abcdef0123456789abcdef6".into(),expected_revision:receipt.placement.revision,action:"retire".into(),not_after:epoch() as i64+120};
+        ensure(client.select_runtime(profile,&retirement).await.map_err(|e|e.code)?.placement.state=="inactive","native controller did not retire")?;
+        Ok::<_,Box<dyn StdError>>(())
+    }.await;
+    let withdrawn=store.withdraw(&saved.connection).await;
+    let original_preserved=store.with_token(&store.capability(&read_saved.connection).await?,|bytes|!bytes.is_empty()).await?;
+    let read_withdrawn=store.withdraw(&read_saved.connection).await;
+    store.retire();result?;withdrawn?;read_withdrawn?;ensure(original_preserved,"read credential was not preserved")?;
+    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant and controller withdrawal/retirement; no worker launch or paid inference");
+    Ok(())
+}
+
 async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path,payload:&Path)->Result<()> {
     use soda_desktop_runtime::{fountain_oauth, fountain_provider, supervisor::NativeSupervisor};
     prepare(profile)?;
@@ -1262,6 +1319,10 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
 }
 
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-controller-declared") {
+        ensure(args.len()==4,"Fountain controller requires new profile, TLS origin and control application")?;
+        return fountain_controller(Path::new(&args[1]),args[2].to_str().ok_or("origin missing")?,args[3].to_str().ok_or("application missing")?).await;
+    }
     if args.first().and_then(|arg|arg.to_str()).is_some_and(|v|matches!(v,"--github-write-retention-connected"|"--github-nosend-retention-connected")) {
         ensure(args.len()==5,"retention requires backend, PostgreSQL payload, new profile and exact fixture commit")?;
         return native_github_pull_branches::connected_retention(Path::new(&args[1]),Path::new(&args[2]),Path::new(&args[3]),args[4].to_str().ok_or("commit missing")?,args[0]=="--github-nosend-retention-connected").await;

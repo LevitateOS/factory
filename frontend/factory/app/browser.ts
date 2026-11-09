@@ -14,6 +14,8 @@ export type {IssueCommentContext, IssueCommentPorts} from '../issues/comment.js'
 export {SodaFactoryIssueCreate} from '../issues/create.js';
 export type {IssueCreateContext, IssueCreatePorts} from '../issues/create.js';
 export {SodaFactoryIssueEditor} from '../issues/editor.js';
+export {SodaFactoryRuntimeController} from '../work/runtime-controller.js';
+export type {ControllerContext} from '../work/runtime-controller.js';
 export type {IssueEditorContext, IssueEditorPorts} from '../issues/editor.js';
 export {SodaRequestError} from '../api/models.js';
 export type {FactoryAppContext, FactoryScreen} from './factory-app.js';

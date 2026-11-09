@@ -1,6 +1,6 @@
 //! Native repository enrollment against the implemented Fountain gateway.
 //! OAuth custody remains in Credentials; no token or enrollment proof is a
-//! browser/Go value. Execution and private operation delegation are not offered.
+//! browser/Go value. Privileged commands use separate public host authority.
 use crate::credentials::{Credentials, Provider, TokenCapability};
 use crate::mcp_signing::Signer;
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,11 @@ use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use zeroize::Zeroizing;
+mod controller;
 mod enrollment;
+pub use controller::{
+    OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
+};
 pub use enrollment::retained_client;
 
 const TIMEOUT: Duration = Duration::from_secs(8);
@@ -186,17 +190,25 @@ impl Client {
         resource: bool,
         body: Option<Vec<u8>>,
     ) -> Result<T> {
-        let mut url = self.base.clone();
+        let mut parts = Vec::new();
         if method != reqwest::Method::POST {
-            url.path_segments_mut()
-                .map_err(|_| invalid())?
-                .push(&self.command);
+            parts.push(self.command.as_str());
         }
         if resource {
-            url.path_segments_mut()
-                .map_err(|_| invalid())?
-                .push("repository");
+            parts.push("repository");
         }
+        self.request(method, &parts, body).await
+    }
+    async fn request<T: serde::de::DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        parts: &[&str],
+        body: Option<Vec<u8>>,
+    ) -> Result<T> {
+        let mut url = self.base.clone();
+        url.path_segments_mut()
+            .map_err(|_| invalid())?
+            .extend(parts);
         let capability = self
             .credentials
             .renew_capability(&self.capability)

@@ -425,13 +425,25 @@ impl Credentials {
             let service = SecretService::connect(EncryptionType::Dh).await?;
             let mut existing = None;
             for (item, locked) in self.items(&service, None).await? {
-                let (status, _) = self.metadata(&item, locked).await?;
+                let (status, revision) = self.metadata(&item, locked).await?;
                 if status.provider == account.provider
                     && status.origin == account.origin
                     && status.account == account.account
                 {
                     if locked {
                         return Err(Error::Locked);
+                    }
+                    // Fountain read and controller consent use distinct public
+                    // applications. Signing into one must preserve the other's
+                    // credential, revision and retained connection captures.
+                    if account.provider == Provider::Fountain {
+                        let prior = Secret::load(&item, &revision).await?.status()?;
+                        let incoming = secret.status()?;
+                        if prior.as_ref().and_then(|g| g.client_id.as_deref())
+                            != incoming.as_ref().and_then(|g| g.client_id.as_deref())
+                        {
+                            continue;
+                        }
                     }
                     if existing.replace((status.connection, item)).is_some() {
                         return Err(Error::Ambiguous);

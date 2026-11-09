@@ -16,6 +16,7 @@ const IO_LIMIT: usize = 65_536;
 const HTTP_TIMEOUT: Duration = Duration::from_secs(8);
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const SCOPE: &str = "read:repository";
+const CONTROL_SCOPE: &str = "write:repository";
 
 #[derive(Clone, Copy, Debug)]
 pub enum Error {
@@ -50,6 +51,7 @@ pub struct Client {
     http: reqwest::Client,
     origin: url::Url,
     client_id: String,
+    scope: &'static str,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -116,6 +118,14 @@ async fn json<T: serde::de::DeserializeOwned>(request: reqwest::RequestBuilder) 
 }
 impl Client {
     pub async fn configured(origin: &str) -> Result<Self> {
+        Self::configured_for(origin, false).await
+    }
+    /// Only an explicit user choice requests privileged OAuth consent. It
+    /// still creates no repository controller, operation grant or funding.
+    pub async fn configured_control(origin: &str) -> Result<Self> {
+        Self::configured_for(origin, true).await
+    }
+    async fn configured_for(origin: &str, control: bool) -> Result<Self> {
         Account::new(Provider::Fountain, origin, "origin-validation")
             .map_err(|_| Error::Invalid)?;
         let origin = url::Url::parse(origin).map_err(|_| Error::Invalid)?;
@@ -134,18 +144,24 @@ impl Client {
         let configured: Config = json(
             http.get(
                 origin
-                    .join("api/v1/factory/desktop/oauth")
+                    .join(if control {
+                        "api/v1/factory/desktop/oauth/control"
+                    } else {
+                        "api/v1/factory/desktop/oauth"
+                    })
                     .map_err(|_| Error::Invalid)?,
             ),
         )
         .await?;
-        if !client_id(&configured.client_id) || configured.scope != SCOPE {
+        let scope = if control { CONTROL_SCOPE } else { SCOPE };
+        if !client_id(&configured.client_id) || configured.scope != scope {
             return Err(Error::Invalid);
         }
         Ok(Self {
             http,
             origin,
             client_id: configured.client_id,
+            scope,
         })
     }
     pub fn origin(&self) -> String {
@@ -176,7 +192,7 @@ impl Client {
             ("client_id", self.client_id.as_str()),
             ("redirect_uri", redirect.as_str()),
             ("response_type", "code"),
-            ("scope", SCOPE),
+            ("scope", self.scope),
             ("state", state.as_str()),
             ("code_challenge_method", "S256"),
             ("code_challenge", challenge.as_str()),
@@ -445,7 +461,7 @@ impl Authorization {
                             ("code", &code),
                             ("code_verifier", &self.verifier),
                         ],
-                        SCOPE,
+                        self.client.scope,
                     )
                     .await?;
                 return self.client.verify(grant, None).await;

@@ -49,6 +49,7 @@ pub(super) async fn fountain_sign_in(
     window: WebviewWindow,
     app: tauri::AppHandle,
     origin: String,
+    control: Option<bool>,
 ) -> Result<View, String> {
     caller(&window)?;
     let desktop = app.state::<Desktop>();
@@ -61,7 +62,11 @@ pub(super) async fn fountain_sign_in(
         .start(window.label(), move |attempt| {
             tauri::async_runtime::spawn(async move {
                 let result = async {
-                    let client = Client::configured(&origin).await?;
+                    let client = if control.unwrap_or(false) {
+                        Client::configured_control(&origin).await?
+                    } else {
+                        Client::configured(&origin).await?
+                    };
                     let authorization = client.begin().await?;
                     let prompt = authorization.prompt();
                     update(
@@ -149,7 +154,22 @@ pub(super) async fn fountain_refresh(
             tauri::async_runtime::spawn(async move {
                 let result = async {
                     update(&worker, attempt, epoch, "verifying", None)?;
-                    let client = Client::configured(&cap.account().origin).await?;
+                    let saved = store
+                        .status()
+                        .await
+                        .map_err(Error::Credential)?
+                        .into_iter()
+                        .find(|value| value.connection == cap.account().connection)
+                        .ok_or(Error::Reauthorize)?;
+                    let client = match saved.grant.as_ref().map(|grant| grant.scope.as_str()) {
+                        Some("read:repository") => {
+                            Client::configured(&cap.account().origin).await?
+                        }
+                        Some("write:repository") => {
+                            Client::configured_control(&cap.account().origin).await?
+                        }
+                        _ => return Err(Error::Reauthorize),
+                    };
                     client.refresh(&store, &cap).await?;
                     update(&worker, attempt, epoch, "complete", None)
                 }
@@ -176,10 +196,31 @@ pub(super) async fn fountain_enrollment(
     if !matches!(action.as_str(), "enroll" | "status" | "withdraw") {
         return Err("Choose an enrollment action.".into());
     }
+    let desktop = app.state::<Desktop>();
+    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let client = repository_client(&app, &connection, &repository).await?;
+    let result = match action.as_str() {
+        "enroll" => client.enroll().await,
+        "status" => client.status().await,
+        _ => client.withdraw().await,
+    };
+    if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst)
+    {
+        return Err("Fountain account changed; the original enrollment command is kept.".into());
+    }
+    result.map_err(|_| {
+        "Fountain enrollment is unavailable. Retry observes the original command.".into()
+    })
+}
+
+async fn repository_client(
+    app: &tauri::AppHandle,
+    connection: &str,
+    repository: &str,
+) -> Result<soda_desktop_runtime::fountain_provider::Client, String> {
     let (owner, name) = repository.split_once('/').ok_or("Use owner/repository.")?;
     let desktop = app.state::<Desktop>();
     let store = desktop.credentials()?;
-    let epoch = desktop.generation.load(Ordering::SeqCst);
     let profile = desktop
         .status
         .lock()
@@ -191,7 +232,7 @@ pub(super) async fn fountain_enrollment(
         .capability(&connection)
         .await
         .map_err(|e| e.to_string())?;
-    let client = soda_desktop_runtime::fountain_provider::retained_client(
+    soda_desktop_runtime::fountain_provider::retained_client(
         store,
         cap,
         &desktop.paths.profile,
@@ -206,17 +247,53 @@ pub(super) async fn fountain_enrollment(
         } else {
             "Fountain enrollment is unavailable. Its original command is kept.".to_owned()
         }
-    })?;
-    let result = match action.as_str() {
-        "enroll" => client.enroll().await,
-        "status" => client.status().await,
-        _ => client.withdraw().await,
-    };
+    })
+}
+
+#[tauri::command]
+pub(super) async fn fountain_controller(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    connection: String,
+    repository: String,
+    selection: Option<soda_desktop_runtime::fountain_provider::Selection>,
+    authorization: Option<soda_desktop_runtime::fountain_provider::OperationAuthorization>,
+) -> Result<serde_json::Value, String> {
+    caller(&window)?;
+    if selection.is_some() && authorization.is_some() {
+        return Err("Choose one controller command.".into());
+    }
+    let desktop = app.state::<Desktop>();
+    let epoch = desktop.generation.load(Ordering::SeqCst);
+    let client = repository_client(&app, &connection, &repository).await?;
+    let value = if let Some(request) = selection {
+        serde_json::to_value(
+            client
+                .select_runtime(&desktop.paths.profile, &request)
+                .await
+                .map_err(|_| "Controller request is unavailable. Its original command is kept.")?,
+        )
+    } else if let Some(request) = authorization {
+        serde_json::to_value(
+            client
+                .authorize_operations(&desktop.paths.profile, &request)
+                .await
+                .map_err(|_| {
+                    "Operation authorization is unavailable. Its original command is kept."
+                })?,
+        )
+    } else {
+        serde_json::to_value(
+            client
+                .placement()
+                .await
+                .map_err(|_| "Controller status is unavailable.")?,
+        )
+    }
+    .map_err(|_| "Controller response could not be verified.")?;
     if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst)
     {
-        return Err("Fountain account changed; the original enrollment command is kept.".into());
+        return Err("Factory changed; the original controller command is kept.".into());
     }
-    result.map_err(|_| {
-        "Fountain enrollment is unavailable. Retry observes the original command.".into()
-    })
+    Ok(value)
 }

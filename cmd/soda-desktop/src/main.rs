@@ -11,10 +11,12 @@ use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_
 mod fountain_signin;
 mod muse_signin;
 use fountain_signin::{
-    fountain_enrollment, fountain_refresh, fountain_sign_in, fountain_sign_in_cancel,
-    fountain_sign_in_open, fountain_sign_in_status,
+    fountain_controller, fountain_enrollment, fountain_refresh, fountain_sign_in,
+    fountain_sign_in_cancel, fountain_sign_in_open, fountain_sign_in_status,
 };
-use muse_signin::{muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status, muse_tools_refresh};
+use muse_signin::{
+    muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status, muse_tools_refresh,
+};
 #[cfg(feature = "native-check")]
 mod check;
 #[cfg(feature = "native-check")]
@@ -518,6 +520,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         fountain_sign_in_open,
         fountain_refresh,
         fountain_enrollment,
+        fountain_controller,
         muse_sign_in,
         muse_sign_in_status,
         muse_tools_refresh,
@@ -556,6 +559,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         fountain_sign_in_open,
         fountain_refresh,
         fountain_enrollment,
+        fountain_controller,
         muse_sign_in,
         muse_sign_in_status,
         muse_tools_refresh,
