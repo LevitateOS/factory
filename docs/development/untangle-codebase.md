@@ -3103,6 +3103,15 @@ no model calls, provider-source custody or installed/full-journey claim. Origina
 normal completion evidence remains `native-worker-connected9.log`; all owned
 check processes joined. Source/read/product/preparation adapters remain next.
 
+Q19 real host source (2026-11-10): Fountain27ea15b26ecd7c717f9f1837cc61f81af4c6fb29
+shares one bounded Git source reader between callbacks and proof-bound desktop
+enrollment. Factory keeps token use and reply decoding in Rust. Existing check11
+imports the real host bundle into native preparation and executes/settles its
+finite worker; check12 also proves live placement withdrawal and exact cancelled
+accounting, with invalid-scope/proof/withdrawn enrollment refusal. No paid inference;
+setup/policy/funding are explicit fixtures. Shared product/grant integration and
+full delivery remain open; the Q19 section records exact artifacts and limits.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

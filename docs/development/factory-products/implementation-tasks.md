@@ -1301,6 +1301,24 @@ adapter and preparation grants, then expiry/competing-controller
 and retained full-journey qualification. A declared source bundle in check9 does
 not establish provider-source custody or Q19/Q21/Q22/Q23/Q27 completion.
 
+Host-source continuation: canonical Fountain27ea15b26ecd7c717f9f1837cc61f81af4c6fb29
+extracts its existing bounded Git reader into one service used by callbacks and
+the enrolled desktop source endpoint. Current code permission/account/enrollment
+is checked before and after I/O; issue-only access remains excluded. Factory's
+Rust connector validates exact repository/commit, selected files/writers and
+decoded bounds while retaining native credential custody. The existing worker
+check now imports this actual host bundle, preserving explicit declared setup/
+policy/funding. `native-source-connected11.log` passes normal completion and
+`native-source-withdraw-connected12.log` passes live central withdrawal plus
+original-source accounting. The latter also passes host invalid-path/foreign
+selector, withdrawn enrollment and missing-proof refusal. All owned check
+processes joined; no model calls or repeated uncertain sends. Exact source
+capture `native-source12-owned.patch` SHA256
+3d04edae79a7e3dadb550466bf38aec4fd0315622c18c4bf0ddb6b8c3e04052c.
+This replaces the declared source limitation of checks9/10 only; shared product
+selection, real preparation-grant admission, publication/intake/external adoption
+and installed Fountain journeys remain unfinished.
+
 **Current native claim recovery (2026-11-09):** canonical Fountain
 `b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
 execution-claim lookup through the existing profile-proof/operation-grant owner.
@@ -2115,6 +2133,17 @@ started at23:32:44Z; original11 runs/38 judgments and68-minute baseline remain.
 Current28 app240498 stays running through inference. Recover this command/run
 before any further attempt; this authorization is consumed. Retained readback:
 `q26-current28-retry-original.log`. Full delivery/review/CI/merge remains open.
+
+The Architect succeeded. Builder9bdc78d895f070207a365ca324f5f116 committed
+update-note atfea00379d2a553a3d8a898fea67d2e8cb2d9a9b4, then its captured
+filemode_check (`test -x check-note-file.sh && bash check-note-file.sh`) failed.
+Workspace edits create nonexecutable files and offered no executable-bit command;
+the subsequent IPC EOF/signal9 is cancellation aftermath, not a new framing
+failure. All13 runs are reconciled,82 minutes charged,zero publications. Preserve
+the failed checkpoint1eb6dd77047601a6ca9ee13cb1b3090c625273517b177a6eb22bee81af18b804
+and partial writes. The dependency-ready correction adds an owned regular-file
+executable-bit operation with exact content digest and retained command identity.
+No further paid Retry is authorized;8 minutes remain on the90-minute source.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

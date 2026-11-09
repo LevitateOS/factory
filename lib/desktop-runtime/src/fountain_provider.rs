@@ -12,12 +12,14 @@ mod controller;
 mod enrollment;
 mod operation;
 mod execution;
+mod source;
 pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use controller::{
     captured_operation_grant, OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
 };
 pub use enrollment::retained_client;
+pub use source::RepositorySource;
 
 const TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_REPLY: usize = 65536;
@@ -215,6 +217,15 @@ impl Client {
         parts: &[&str],
         body: Option<Vec<u8>>,
     ) -> Result<T> {
+        self.request_bounded(method, parts, body, MAX_REPLY).await
+    }
+    async fn request_bounded<T: serde::de::DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        parts: &[&str],
+        body: Option<Vec<u8>>,
+        limit: usize,
+    ) -> Result<T> {
         let mut url = self.base.clone();
         url.path_segments_mut()
             .map_err(|_| invalid())?
@@ -253,7 +264,7 @@ impl Client {
                 }
                 let mut bytes = Vec::new();
                 while let Some(chunk) = response.chunk().await.map_err(|_| unavailable())? {
-                    if bytes.len().saturating_add(chunk.len()) > MAX_REPLY {
+                    if bytes.len().saturating_add(chunk.len()) > limit {
                         return Err(unavailable());
                     }
                     bytes.extend_from_slice(&chunk);

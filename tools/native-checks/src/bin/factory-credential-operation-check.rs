@@ -1216,11 +1216,19 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     ensure(ready.profile==grant.runtime_id,"native controller profile changed")?;
     supervisor.enroll_credentials(credentials)?;
     supervisor.observe_fountain_controller(client.clone()).await?;
+    // Use the host's current code-read enrollment, not a declared local source
+    // or a private appliance callback. Setup/funding remain explicit fixtures.
+    let source=client.source("",&[],&[]).await.map_err(|e|e.code)?;
+    ensure(source.repository==grant.repository.id,"native Fountain source repository changed")?;
+    let bundle=profile.join("fountain-source.bundle");
+    let mut capture=fs::OpenOptions::new().create_new(true).write(true).mode(0o600).open(&bundle)?;
+    capture.write_all(&source.bundle)?;capture.sync_all()?;drop(capture);
+    let source_commit=source.commit.clone();
     fs::write(profile.join("controller-fixture.json"),serde_json::to_vec(&serde_json::json!({"Origin":origin,"Connection":connection,"Actor":grant.actor.id,"Repository":grant.repository.id,"Grant":grant.id}))?)?;
     let command=|operation:&str, argument:&str| {
-        let (check,profile,instance,operation,argument)=(check.clone(),profile.to_path_buf(),ready.instance.clone(),operation.to_owned(),argument.to_owned());
+        let (check,profile,instance,operation,argument,bundle,source_commit)=(check.clone(),profile.to_path_buf(),ready.instance.clone(),operation.to_owned(),argument.to_owned(),bundle.clone(),source_commit.clone());
         async move {
-            let status=tokio::task::spawn_blocking(move || Command::new(&check).env("SODA_NATIVE_CHECK_CONTROLLER","1").env("SODA_NATIVE_KEEP_PREPARATION","1").arg(profile).arg(instance).arg(operation).arg(argument).status()).await??;
+            let status=tokio::task::spawn_blocking(move || Command::new(&check).env("SODA_NATIVE_CHECK_CONTROLLER","1").env("SODA_NATIVE_KEEP_PREPARATION","1").env("SODA_NATIVE_CHECK_BUNDLE",bundle).env("SODA_NATIVE_CHECK_COMMIT",source_commit).arg(profile).arg(instance).arg(operation).arg(argument).status()).await??;
             ensure(status.success(),"connected controller native Go action failed")
         }
     };
@@ -1277,7 +1285,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     };
     supervisor.stop()?;
     if withdraw {println!("PASS: actual central placement withdrawal cancels the live native worker after MCP artifact publication; exact process/root retirement and original-source accounting retained without replay");}
-    println!("PASS: actual Fountain claim surrounds declared-source native Go admission, finite local worker/MCP and physical retirement; no inference or source-provider parity claimed");
+    println!("PASS: actual Fountain code-read enrollment/source bundle surrounds native preparation, original host claim, Go admission, finite local worker/MCP and physical retirement; setup/policy/funding declared, no inference or full delivery claimed");
     Ok(claim)
 }
 
