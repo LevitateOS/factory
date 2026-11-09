@@ -3,7 +3,7 @@ import {PendingRecord} from '../shared/retained-record.js';
 
 interface Placement {repository_id:string;runtime_id:string;owner_kind:string;owner_id:string;generation:string;revision:string;state:string}
 interface Selection {command_id:string;expected_revision:string;action:string;not_after:number}
-interface Authorization {command_id:string;expected_placement:string;generation:string;operations:string[];not_after:number}
+interface Authorization {command_id:string;expected_placement:string;generation:string;operations:string[];not_after:number;actor_binding?:string}
 interface Command {selection?:Selection;authorization?:Authorization}
 export interface ControllerContext {
   scope:string;
@@ -11,6 +11,7 @@ export interface ControllerContext {
   destination:string;
   canSelect?:boolean;
   canAuthorize?:boolean;
+  actors?:{id:string;operations:string[]}[];
   request(command:Command):Promise<unknown>;
 }
 const operations=['execution.launch','git.ref.publish','issue.comment.publish','issue.graph.mutate','issue.lifecycle.apply','pull_request.create','pull_request.merge','pull_request.review.request','pull_request.review.submit','pull_request.review.thread.resolve'];
@@ -29,8 +30,8 @@ function command(value:unknown):Command|undefined {
   if(!request||!id(request.command_id)||!Number.isSafeInteger(request.not_after)||Number(request.not_after)<=0)return;
   if(selection&&Object.keys(selection).length===4&&['activate','withdraw','retire'].includes(String(selection.action))&&
     (selection.expected_revision===''||id(selection.expected_revision)))return r as Command;
-  if(authorization&&Object.keys(authorization).length===5&&id(authorization.expected_placement)&&typeof authorization.generation==='string'&&/^[1-9]\d*$/.test(authorization.generation)&&
-    Array.isArray(authorization.operations)&&JSON.stringify(authorization.operations)===JSON.stringify(operations))return r as Command;
+  if(authorization&&Object.keys(authorization).length===(authorization.actor_binding===undefined?5:6)&&id(authorization.expected_placement)&&typeof authorization.generation==='string'&&/^[1-9]\d*$/.test(authorization.generation)&&
+    Array.isArray(authorization.operations)&&(authorization.actor_binding===undefined?JSON.stringify(authorization.operations)===JSON.stringify(operations):typeof authorization.actor_binding==='string'&&/^[1-9]\d*:[1-9]\d*$/.test(authorization.actor_binding)&&authorization.operations.length>0&&authorization.operations.length<=10&&authorization.operations.every(x=>operations.includes(x))&&new Set(authorization.operations).size===authorization.operations.length))return r as Command;
   return;
 }
 
@@ -38,7 +39,8 @@ function command(value:unknown):Command|undefined {
  * adapter. Runtime selection, operation grants and inference funding remain
  * independent decisions. The host owns every admission and durable receipt. */
 export class SodaFactoryRuntimeController extends LitElement {
-  static properties={disabled:{type:Boolean},busy:{state:true},message:{state:true},current:{state:true},pending:{state:true},blocked:{state:true}};
+  static properties={disabled:{type:Boolean},busy:{state:true},message:{state:true},current:{state:true},pending:{state:true},blocked:{state:true},actorBinding:{state:true}};
+  private actorBinding='';
   declare disabled:boolean;
   declare private busy:boolean;
   declare private message:string;
@@ -53,7 +55,7 @@ export class SodaFactoryRuntimeController extends LitElement {
   set context(value:ControllerContext|undefined){
     const prior=this.selected;this.selected=value;this.requestUpdate();
     if(prior?.scope===value?.scope&&prior?.generation===value?.generation)return;
-    this.serial++;this.busy=false;this.current=undefined;this.pending=undefined;this.record=undefined;this.blocked=false;
+    this.serial++;this.busy=false;this.current=undefined;this.pending=undefined;this.record=undefined;this.blocked=false;this.actorBinding='';
     this.message='Check the selected repository before authorizing control.';
     if(!value)return;
     if(!value.scope||value.scope.length>1024||/[\u0000-\u001f\u007f]/.test(value.scope)){this.blocked=true;return;}
@@ -91,8 +93,10 @@ export class SodaFactoryRuntimeController extends LitElement {
     const current=this.current,record=this.record;
     if(!current||!record||this.disabled||this.busy||this.selected?.canSelect===false||action==='authorize'&&this.selected?.canAuthorize===false)return;
     this.recover();if(this.blocked||this.pending)return;
+    const actor=this.selected?.actors?.find(a=>a.id===this.actorBinding);
+    if(action==='authorize'&&this.selected?.actors&&!actor){this.message='Choose the enrolled actor to authorize.';return;}
     const command_id=crypto.randomUUID().replaceAll('-',''),now=Math.floor(Date.now()/1000);
-    const next:Command=action==='authorize'?{authorization:{command_id,expected_placement:current.revision,generation:current.generation,operations,not_after:now+900}}:
+    const next:Command=action==='authorize'?{authorization:{command_id,expected_placement:current.revision,generation:current.generation,operations:actor?.operations??operations,not_after:now+900,...(actor?{actor_binding:actor.id}:{})}}:
       {selection:{command_id,expected_revision:current.revision,action,not_after:now+300}};
     if(record.retain(next)!=='saved'){this.recover();this.message='The command could not be saved. No request was sent.';return;}
     this.recover();await this.send(next);
@@ -104,6 +108,7 @@ export class SodaFactoryRuntimeController extends LitElement {
       <p>Selecting a runtime requires repository administration. A 15 minute operation grant covers execution, publication, issues, reviews and allowed merge. Funding remains separate.</p>
       <button id="fountain-controller-status" type="button" ?disabled=${unavailable} @click=${()=>this.send({})}>Check controller</button>
       <button id="fountain-controller-activate" type="button" ?disabled=${held||this.current?.state!=='inactive'} @click=${()=>this.issue('activate')}>Select ${this.selected?.destination??'runtime'}</button>
+      ${this.selected?.actors?html`<label>Enrolled operation actor <select id="fountain-controller-actor" ?disabled=${held} .value=${this.actorBinding} @change=${(event:Event)=>{this.actorBinding=(event.target as HTMLSelectElement).value;}}><option value="">Choose an actor</option>${this.selected.actors.map(actor=>html`<option value=${actor.id}>${actor.id} — ${actor.operations.join(', ')}</option>`)}</select></label>`:null}
       <button id="fountain-controller-authorize" type="button" ?disabled=${held||this.current?.state!=='active'||this.selected?.canAuthorize===false} @click=${()=>this.issue('authorize')}>Authorize operations for 15 minutes</button>
       ${this.selected?.canAuthorize===false?html`<p>Operation authorization is unavailable for this runtime.</p>`:null}
       <button id="fountain-controller-withdraw" type="button" ?disabled=${held||this.current?.state!=='active'} @click=${()=>this.issue('withdraw')}>Withdraw controller</button>
