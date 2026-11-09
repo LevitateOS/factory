@@ -2486,6 +2486,36 @@ Q28 remains incomplete for old/schema-93 store migration/reconciliation,
 credentials/drafts/pending effects, active worker and execution-service upgrade,
 provider freshness/download/status activation and owning dependency publication.
 
+## Q28 installed Muse verification status and cancellation (2026-11-09)
+
+Factory `3cb3e3ade2910725eb09d5e1ab6d237cb8f677a3` exposes the existing
+native tool selection status beside sign-in and adds a joined explicit refresh.
+The webview receives no executable selector or credentials. Current-generation
+admission and the existing sign-in task owner serialize refresh/sign-in and
+retire them on Close/Quit. Cancellation now marks native verification interrupted
+instead of leaving a stale checking/download state; captured binaries remain intact.
+
+`q28-upgrade/provider-ui/result.log` passes normal installed-app offline refusal,
+manual check, real metadata-I/O cancellation by Close, second-launch window
+restore, online acquisition/re-verification and cached reopen. The private home
+had no launcher or login. Actual installed Muse `1.4.14-R7309.1` is 414927192
+bytes with SHA256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`.
+`captured-muse.sha256`, `identity-before-online.sha256` and the rendered
+`{checking-before-close,interrupted-status,online-verified,manual-verified,cached-reopen}.png`
+retain original-byte/profile and selected/latest/last-verification evidence.
+Each phase records zero runs and zero product write commands; no login or paid
+inference was used. Native protocol verification uses the existing offline probe.
+
+`provider-build.log`, `provider-native-{final,cancel}.log`,
+`provider-typecheck.log` and `provider-boundaries.log` pass. The qualification
+bundle retains source parent `9652306`, final checked source diff/digest and
+production native bytes alongside its existing Go/PostgreSQL payload. It is
+not a promoted clean-source release, active-worker upgrade or proof of a new
+upstream version replacing a running old one. All owned app/PG/GUI/keyring/bus
+and delay-proxy processes are joined. Broader Q28 migration/active-run/service
+upgrade and dependency publication requirements remain open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

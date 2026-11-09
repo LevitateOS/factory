@@ -48,9 +48,11 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q25 clean recipient qualification and the approved Q15 fresh-publication action.**
-Q25 does not depend on a GitHub merge or Q24’s appliance. Q14’s receipts remain
-complete and preserved. Resume Q15 only from its recorded original outcomes.
+**Current work: Q28 retained-profile migration and the approved Q15 fresh-publication action.**
+Q25's clean recipient and Q28's installed payload/update-status slices have
+scoped evidence below. Q15's separate review/correction funding choice is pending;
+its original send remains fenced. Q14's receipts remain complete and preserved.
+No GitHub decision or Q24 appliance is a blanket dependency for independent work.
 
 **Retained Q14 evidence.** Q14 passed the approved append-only
 authoring contract and actual prepared/funded plan, walkthrough review, accepted
@@ -828,6 +830,11 @@ The check (session 48651) joined; its local GitHub grant is withdrawn and databa
 stopped. Temporary CI variable was removed again and original absence confirmed
 HTTP 404 in `ci-variable-restored2.*`. Q25's actual execution-service installation
 remains intentionally enabled. Do not replay models, this send or prior commands.
+The fresh publication is authorized; its old closed attempt is not renewed.
+A concrete owner question is pending about a separate finite allowance on the
+same source for subsequent independent review/correction versus publish-only
+with inference held. This decision affects that new allowance, not independent
+Fountain, package, migration or UI work.
 
 Verified production corrections: `9137c916d79412de60bfa360bc9e864ddb49f076`
 retains/polls one native coordinator startup and exposes existing dispatch waits;
@@ -1293,8 +1300,24 @@ failure. Those failed checks and joined cleanup are retained, not product passes
 No inference or provider write was repeated. Original profiles and stashes remain
 untouched. This qualifies app payload/launch-entry recovery, not active worker
 upgrade, execution-service replacement/retirement, old/schema-93 migration,
-credential/draft/pending-effect reconciliation, provider download/status activation
-or dependency publication. Those remain required. Full provider journeys are not
+credential/draft/pending-effect reconciliation or dependency publication. Those remain required.
+Installed Muse update status/cancellation implementation
+`3cb3e3ade2910725eb09d5e1ab6d237cb8f677a3` passes the actual normal installed
+app in `q28-upgrade/provider-ui/result.log`: offline refusal, manual check,
+real metadata-I/O cancellation by window Close, second-launch restore,
+online verified acquisition/manual recheck and exact cached reopen. Screenshots
+`{checking-before-close,interrupted-status,online-verified,manual-verified,cached-reopen}.png`
+show current failure/progress and latest/selected/last-verification facts.
+Muse `1.4.14-R7309.1`, 414927192 bytes, SHA256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`
+was acquired into a private profile cache with no launcher/login in its private
+home. Every phase retained zero runs and zero product write commands. Actual
+installed assets use the final production native executable with the existing
+Go/PostgreSQL payload; `provider-checked-source2.patch` and the bundle input's
+diff digest bind the checked modifications to source parent `9652306`.
+This is an installed qualification bundle, not release promotion or an active
+worker/new-upstream-release upgrade. All owned GUI/PG/keyring/bus/proxy processes
+are joined. Production build, typecheck and boundary checks pass. Full provider journeys are not
 blanket prerequisites; the approved Q15 publication action can proceed independently.
 
 ```text
