@@ -1403,7 +1403,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let replacement_delivery=retry_delivery && field(9)?=="delivery-retry-replacement";
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
-            let fund_retained=args.len()==10 && field(9)?=="delivery-fund-retained";
+            let recover_funding=args.len()==10 && field(9)?=="delivery-fund-retained-recover";
+            let fund_retained=recover_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
             let retained_delivery=fund_retained || args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire"|"delivery-publish-retained"|"delivery-publish-retained-recover");
@@ -1463,6 +1464,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         if retained_delivery && !publish_retained && !fund_retained {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
                         if publish_retained {check(if recover_publication {"publish-retained-recovery-preflight"} else {"publish-retained-preflight"},&ready.instance).await?;}
                         if fund_retained {check("fund-retained-preflight",&ready.instance).await?;}
+                        if recover_funding {check("fund-retained-reconcile",&ready.instance).await?;return Ok(());}
                         // This mode is only for the exact preflight failure: no
                         // execution exists. Live/past attempts need their own recovery.
                         if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else if !publish_retained && !fund_retained {

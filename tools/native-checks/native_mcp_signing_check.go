@@ -6493,12 +6493,35 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
-	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" {
+	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-reconcile" {
 		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
 			return errors.New("exact Q15 retained funding fixture required")
 		}
 		if err := retainedFundingRecovery(ctx, config.DatabaseDSN(), profile, in.Source, phase == "fund-retained-preflight"); err != nil {
 			return err
+		}
+		if phase == "fund-retained-reconcile" {
+			port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+			judgments := factoryruntime.NativeJudgments{NativeExecution: port}
+			judgments.ReconcilePostJudgments(ctx)
+			rawDB, e := sql.Open("pgx", config.DatabaseDSN())
+			if e != nil {
+				return e
+			}
+			defer rawDB.Close()
+			var records []byte
+			if e = rawDB.QueryRowContext(ctx, `SELECT jsonb_build_object('judgments',(SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'payload',payload,'outcome',outcome,'finished',finished,'dispatch',dispatch_state)),'[]'::jsonb) FROM factory_commands WHERE type=$2 AND created >=(SELECT created FROM factory_commands WHERE id='15151515151515151515151515151506')),'charge',(SELECT sum(minutes) FROM factory_usage WHERE repository=1 AND connection=$1),'runs',(SELECT count(*) FROM factory_run_views WHERE repository=1 AND issue=18),'allowance',(SELECT data FROM factory_attempt_allowances WHERE root_assignment='15151515151515151515151515151505'))`, in.Source, factory.CommandNativeJudgment).Scan(&records); e != nil {
+				return e
+			}
+			if e = os.WriteFile(filepath.Join(profile, "connected-delivery-funding-reconcile-"+instance+".json"), records, 0600); e != nil {
+				return e
+			}
+			pending, e := db.PendingNativeJudgments(ctx)
+			if e != nil {
+				return e
+			}
+			fmt.Printf("RECOVERED: original retirement checkpoint verified; existing native judgments inspected/adopted without Begin or new inference; pending=%d; exact private records retained\n", len(pending))
+			return nil
 		}
 		if phase == "fund-retained-preflight" {
 			fmt.Println("PASS: exact original uncertain publication, four settled runs, fifteen charged minutes and closed allowance retained before separate funding")
@@ -10518,8 +10541,44 @@ func retainedFundingRecovery(ctx context.Context, dsn, profile, source string, f
 		return err
 	}
 	if exists {
-		if !bytes.Equal(before, current) {
-			return errors.New("original Q15 publication, runs, charges or closed allowance changed; retain all outcomes")
+		if bytes.Equal(before, current) {
+			return nil
+		}
+		var oldState, newState map[string]json.RawMessage
+		if json.Unmarshal(before, &oldState) != nil || json.Unmarshal(current, &newState) != nil {
+			return errors.New("original recovery capture invalid")
+		}
+		var old, next factory.AttemptAllowance
+		if json.Unmarshal(oldState["allowance"], &old) != nil || json.Unmarshal(newState["allowance"], &next) != nil || !old.Closed || !next.Closed || !old.Active || next.Active {
+			return errors.New("original Q15 scope changed outside known retirement")
+		}
+		expected, e := old.Checkpoint(time.Unix(next.CheckpointUnix, 0), false)
+		if e != nil {
+			return e
+		}
+		expected.Revision++
+		if !reflect.DeepEqual(expected, next) {
+			return errors.New("original allowance differs from its exact retirement checkpoint")
+		}
+		var proved bool
+		if e = db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM project_preparations p JOIN factory_assignments a ON p.id=a.data->>'preparation' WHERE a.id='15151515151515151515151515151504' AND p.data#>>'{factory_admission,stopped}'='true' AND p.data#>>'{factory_admission,retirement}'='confirmed' AND soda_preparation_quiescent(p.data,p.id,p.project_id,p.role))`).Scan(&proved); e != nil || !proved {
+			return errors.New("original native preparation retirement is not proved")
+		}
+		oldState["allowance"] = newState["allowance"]
+		if !reflect.DeepEqual(oldState, newState) {
+			return errors.New("original publication, runs or fifteen-minute charge changed")
+		}
+		proofPath := filepath.Join(filepath.Dir(profile), "retained-funding-retirement.json")
+		if prior, e := os.ReadFile(proofPath); e == nil {
+			if !bytes.Equal(prior, current) {
+				return errors.New("retained retirement capture changed")
+			}
+		} else if errors.Is(e, os.ErrNotExist) {
+			if e = os.WriteFile(proofPath, current, 0600); e != nil {
+				return e
+			}
+		} else {
+			return e
 		}
 		return nil
 	}

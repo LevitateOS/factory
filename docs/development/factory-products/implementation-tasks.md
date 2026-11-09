@@ -811,8 +811,26 @@ distinct. `funding-store5.log` and `funding-ui-check3.log` pass the affected
 PostgreSQL/DOM checks, including native source shape. Next executable action: recover
 the exact original Q15 state through the normal native owner, then admit command
 `15151515151515151515151515151506` once using its saved funding capture and
-continue actual review/correction/CI/merge. No new command/inference has been sent
-yet; all original uncertain outcomes remain fenced. Q24 still has no appliance,
+continue actual review/correction/CI/merge. Command `…1506` has now committed
+in `funding-connected2.log`, with exact saved request
+`q15-connected/retained-funding-request.json` and instance receipt
+`retained-funding-result-2d51bfd197fc74ba79503af7214c40ea.json`. Preserve and replay
+that identity only. The native owner confirmed original candidate-preparation
+retirement. Its normal closed-allowance transition changed active/revision/clock
+fields; no original publication/run/usage changed and the original source charge
+remains fifteen minutes. The check incorrectly required the entire old allowance
+to remain byte-identical and stopped the new watch. `inspect-funding2.log` proves
+no new execution run and one admitted new reviewer preparation/charged review
+round. The pending record is the original fenced branch command
+`199f236017f48264f54fb9eb760e9af3`, not a new judgment. All native/PG/keyring/bus processes joined.
+`funding-recovery1.log` now verifies the exact normal retirement checkpoint
+against the original snapshot and native stop metadata, with zero pending native
+judgments, four original runs and the same fifteen-minute charge. It starts no
+coordinator, model or effect. Actual next action: resume the same command and
+reviewer preparation under the remaining finite allowance; preserve the original
+branch command and both before/retirement snapshots.
+Do not send another funding command or replace its saved capture. All original
+uncertain outcomes remain fenced. Q24 still has no appliance,
 and independent queued work remains outstanding.
 
 **INCOMPLETE; explicit fresh publication verified; continuation funding is pending.**
