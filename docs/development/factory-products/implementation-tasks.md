@@ -1288,8 +1288,16 @@ and685e1e4480fb63a91744607d4839b08e5e589356 remain. Earlier native-worker checks
 remain failed evidence: central-placement gap, stale build/blocked fixture calls,
 isolated user-manager environment, live terminal-read refusal, async watcher-drop
 panic and fixture settlement ordering. Their original operations/receipts remain;
-no uncertain old launch was retried. Next: real Fountain source/read/product
-adapter and preparation grants, then worker withdrawal/expiry/competing-controller
+no uncertain old launch was retried. `q19-authority/native-withdraw-connected10.log`
+now also passes actual central placement withdrawal after the finite native worker
+publishes its MCP artifact: the existing watcher cancels its process, joins worker/
+root retirement and retires the exact host claim. Go adopts the original cancelled
+outcome and immutable stop-based source charge without replay. The existing check
+uses one fresh claim (three claim POSTs total including its two connector cases);
+the completion note still sends once. All owned backend/PG/keyring/bus processes
+joined. This is a controlled-worker qualification, not paid inference, provider
+source custody or installed delivery. Next: real Fountain source/read/product
+adapter and preparation grants, then expiry/competing-controller
 and retained full-journey qualification. A declared source bundle in check9 does
 not establish provider-source custody or Q19/Q21/Q22/Q23/Q27 completion.
 
@@ -2098,10 +2106,15 @@ five owned paths in `task28-source.patch` (SHA256
 not a relabeled clean build. `build-current28.log`/`task28-boundaries.log` pass;
 `current28-{upgrade,execution-upgrade,durable-check}.log` retain actual activation.
 Current28 reopen is running. This qualifies the changed native component, not
-the unfinished installed delivery/MCP/model journey. No further paid Retry is
-authorized;22 minutes remain on the same90-minute source. Next: inspect current28
-original counts and current role readiness, then obtain one explicit paid Retry
-exception before repeating planning/Builder inference.
+the unfinished installed delivery/MCP/model journey. The user subsequently
+authorized one fresh Retry within the same22 remaining minutes, without a top-up.
+After clipboard comparison of the original recipe and actual two-role preparation,
+UI command1b10993649674817b6aaf9dc7449415a recorded once at23:32:05Z, targeting
+844c68da3bc1d4789492141719e1d9cc. Architect9b7557f2e39244432abe04c9fc3389b0
+started at23:32:44Z; original11 runs/38 judgments and68-minute baseline remain.
+Current28 app240498 stays running through inference. Recover this command/run
+before any further attempt; this authorization is consumed. Retained readback:
+`q26-current28-retry-original.log`. Full delivery/review/CI/merge remains open.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

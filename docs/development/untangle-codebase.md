@@ -3091,6 +3091,17 @@ task28-workspace-ready1: immutable busy replay, live workspace, distinct start
 after a trusted head change, both checkpoints/final integration and retired
 readback. Exact-prior app/helper upgrades preserve credentials and original state.
 Q26 records the actual current28 source patch/inventory and remaining paid gate.
+The owner's subsequent one-Retry authorization recorded command1b109936 once;
+Architect9b7557f2 is running in the installed app. No top-up or old-command replay.
+
+Q19 active controller withdrawal (2026-11-10): the existing native connector
+check's finite-worker mode now withdraws central placement only after actual MCP
+artifact publication. `native-withdraw-connected10.log` passes cancellation,
+joined process/root retirement, exact host-claim retirement and original-source
+stop-based accounting. Canonical host b81819dacfa759eb5fa1d0231d098181fac16678;
+no model calls, provider-source custody or installed/full-journey claim. Original
+normal completion evidence remains `native-worker-connected9.log`; all owned
+check processes joined. Source/read/product/preparation adapters remain next.
 
 ## Verification and completion
 

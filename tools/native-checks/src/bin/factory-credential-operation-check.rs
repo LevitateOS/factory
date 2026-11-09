@@ -1215,7 +1215,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let ready=supervisor.health()?;
     ensure(ready.profile==grant.runtime_id,"native controller profile changed")?;
     supervisor.enroll_credentials(credentials)?;
-    supervisor.observe_fountain_controller(client).await?;
+    supervisor.observe_fountain_controller(client.clone()).await?;
     fs::write(profile.join("controller-fixture.json"),serde_json::to_vec(&serde_json::json!({"Origin":origin,"Connection":connection,"Actor":grant.actor.id,"Repository":grant.repository.id,"Grant":grant.id}))?)?;
     let command=|operation:&str, argument:&str| {
         let (check,profile,instance,operation,argument)=(check.clone(),profile.to_path_buf(),ready.instance.clone(),operation.to_owned(),argument.to_owned());
@@ -1231,21 +1231,43 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
     let mut random=[0u8;16];getrandom::fill(&mut random)?;
     let run:String=random.iter().map(|b|format!("{b:02x}")).collect();
     let fixture=profile.join("admitted-native-fixture.json");
-    fs::write(&fixture,serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Preparation":prepared["input"]["preparation"]["id"],"Executable":finite}))?)?;
+    let withdraw = std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_WITHDRAW").is_some();
+    fs::write(&fixture,serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Withdraw":withdraw,"Preparation":prepared["input"]["preparation"]["id"],"Executable":finite}))?)?;
     command("launch-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
     let intent=LaunchIntent::from_go(&fs::read_to_string(profile.join("native-run-intents").join(format!("{run}.json")))?)?;
+    if withdraw {
+        let until=Instant::now()+Duration::from_secs(12);
+        loop {
+            let services=profile.join("native-muse-runs");
+            if services.is_dir() && fs::read_dir(&services)?.any(|entry| entry.is_ok_and(|entry| entry.path().join("work/native-fixture-ready").is_file())) {break;}
+            ensure(Instant::now()<until,"controlled worker did not reach actual MCP artifact publication")?;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        let placement=client.placement().await.map_err(|e|e.code)?;
+        let mut random=[0u8;16];getrandom::fill(&mut random)?;
+        let command_id=random.iter().map(|b|format!("{b:02x}")).collect();
+        let request=soda_desktop_runtime::fountain_provider::Selection{command_id,expected_revision:placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
+        let withdrawn=client.select_runtime(profile,&request).await.map_err(|e|e.code)?;
+        ensure(withdrawn.placement.state=="retiring","actual worker controller withdrawal failed")?;
+    }
     let until=Instant::now()+Duration::from_secs(65);
     loop {
         match supervisor.execution_outcome(&intent)? {
             ExecutionOutcome::Pending if Instant::now()<until => tokio::time::sleep(Duration::from_millis(20)).await,
-            ExecutionOutcome::MuseComplete(result) if result.root_retired && result.process.output_complete && result.process.exit_code==Some(0) => break,
+            ExecutionOutcome::MuseComplete(result) if result.root_retired && result.process.output_complete &&
+                (if withdraw {result.process.reason.as_deref()==Some("cancelled") && result.process.tree_retired} else {result.process.exit_code==Some(0)}) => break,
             _ => return Err("host-controlled native worker did not retire successfully".into()),
         }
     }
-    command("check-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
-    command("acknowledge-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
-    supervisor.start_execution_coordinator().await?;
-    command("settled-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    if withdraw {
+        command("observe-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+        command("reconcile-retained-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    } else {
+        command("check-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+        command("acknowledge-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+        supervisor.start_execution_coordinator().await?;
+        command("settled-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    }
     let wire:serde_json::Value=serde_json::from_str(intent.raw())?;
     let admitted:serde_json::Value=serde_json::from_slice(&fs::read(&fixture)?)?;
     let claim=soda_desktop_runtime::fountain_provider::ExecutionClaimRequest {
@@ -1254,6 +1276,7 @@ async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client
         not_after:admitted["DeadlineUnix"].as_i64().ok_or("worker deadline missing")?.min(grant.not_after),
     };
     supervisor.stop()?;
+    if withdraw {println!("PASS: actual central placement withdrawal cancels the live native worker after MCP artifact publication; exact process/root retirement and original-source accounting retained without replay");}
     println!("PASS: actual Fountain claim surrounds declared-source native Go admission, finite local worker/MCP and physical retirement; no inference or source-provider parity claimed");
     Ok(claim)
 }
@@ -1357,10 +1380,13 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         let lost_no_start=ExecutionRetirement{manifest_digest:lost_claim.manifest_digest.clone(),state:"not_started".into(),receipt_digest:"b".repeat(64)};
         client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?;
         ensure(!client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?.acquired,"retirement replay acquired dispatch")?;
-        let withdrawal=Selection{command_id:"123456789abcdef0123456789abcdef5".into(),expected_revision:receipt.placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
-        let receipt=client.select_runtime(profile,&withdrawal).await.map_err(|e|e.code)?;
+        let placement=client.placement().await.map_err(|e|e.code)?;
+        let placement=if placement.state=="retiring" && std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_WITHDRAW").is_some() {placement} else {
+            let withdrawal=Selection{command_id:"123456789abcdef0123456789abcdef5".into(),expected_revision:placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
+            client.select_runtime(profile,&withdrawal).await.map_err(|e|e.code)?.placement
+        };
         ensure(!client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?.active,"old grant replay renewed withdrawal")?;
-        let retirement=Selection{command_id:"123456789abcdef0123456789abcdef6".into(),expected_revision:receipt.placement.revision,action:"retire".into(),not_after:epoch() as i64+120};
+        let retirement=Selection{command_id:"123456789abcdef0123456789abcdef6".into(),expected_revision:placement.revision,action:"retire".into(),not_after:epoch() as i64+120};
         ensure(client.select_runtime(profile,&retirement).await.map_err(|e|e.code)?.placement.state=="inactive","native controller did not retire")?;
         let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;
         let original_receipt=profile.join("fountain-operations").join(format!("{operation}.receipt.json"));
