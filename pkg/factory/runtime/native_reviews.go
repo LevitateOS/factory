@@ -148,6 +148,13 @@ func (p NativeReviews) LookupOp(ctx context.Context, id string) (factory.Operati
 		return factory.OperationOutcome{}, err
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
+	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
+		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpReviewSubmit)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		lookup, err = (nativeHumanNewReviews{account}).LookupHumanReview(ctx, c)
+	}
 	return nativeReviewOutcome(w, lookup), err
 }
 func (p NativeReviews) SubmitReview(ctx context.Context, w factory.ReviewWork) (factory.OperationOutcome, error) {

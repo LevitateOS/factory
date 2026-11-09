@@ -2344,7 +2344,8 @@ absence confirmed HTTP 404 in `ci-variable-restored2.*`.
 
 ## Q18 configured Fountain login and retained enrollment (2026-11-09)
 
-Canonical Fountain `b7d7b2cbd005c41dce59cee2eb062572276d2143` preserves
+Factory `920d8c6e76b5c457f419104cd9d3b271d62d5eaf` pairs with canonical
+Fountain `b7d7b2cbd005c41dce59cee2eb062572276d2143`, preserving
 `2e57559c0e4844baba861a86632d083192537ff3` and its ownership/gateway
 ancestors. It discovers only the operator-selected public application and verifies
 the authenticated self under existing read:repository scope; no automatic
@@ -2370,6 +2371,40 @@ native/production desktop builds and TypeScript pass; existing TLS/keyring/proof
 evidence is reused. Owned runtime/PG/keyring/bus are joined, fixture credential
 withdrawn. This closes ordinary configured-host/native Q18, not installed UI
 qualification, Q19 privileged authority or broad security gates.
+
+## Q15 native causal write retention (2026-11-09)
+
+Rust retains one private immutable intent fence and causal outcome before returning
+a mutation to Go. Exact command/digest/deadline/profile/connection/account/repository
+lookup can adopt the original receipt or definitive no-send; missing/incomplete
+records remain unknown and never authorize another dispatch. Go reuses existing
+typed receipt validators and command-journal reducers for branch/transfer/PR, new
+review and merge recovery. New publication/ref/PR captures shorten the workflow
+deadline to the native five-minute maximum; adoption preserves that original
+capture instead of requiring the longer workflow deadline or renewing authority.
+
+`q15-write-recovery2/check.log` passes one actual GitHub branch creation with
+a lost native callback (initial product HTTP 503), standalone restart, typed
+product lookup adoption and replay with byte-identical native intent/outcome.
+Command `a0042305dfc7fae44a110c1440b0647c` owns fixture branch
+`q15-causal-a0042305dfc7fae44a110c1440b0647c` at immutable main commit
+`4522d2f4e33424b4965b71deda0b8953b6a70498`.
+`q15-nosend-recovery/check.log` passes original expired command
+`1933dbfcbb7ee9f8c23611bd03516fc5`, retained causal no-send after restart,
+duplicate dispatch and changed-deadline refusal, with absence still null/unknown.
+No provider mutation occurs in that case. Production Go `q15-server16-build.log`
+and locked Cargo `q15-native-receipts-build6.log` pass. Original failed builds
+and the pre-dispatch proxy permission failure are retained. All owned checks,
+runtime/PG/proxy/keyring/bus are joined and fixture credentials withdrawn.
+
+These checks qualify the changed receipt owner and branch composition, not full
+Q15, transferred-candidate publication/review/merge composition or installed use.
+Original native command `199f236017f48264f54fb9eb760e9af3` remains fenced;
+current absence and this new implementation cannot retroactively prove its outcome.
+The owner now authorizes explicit fresh publication of the retained candidate on
+a new branch/command, with original publication and inference preserved. Implement
+that action next; Q24 remains independently blocked by the owner's confirmed lack
+of a replacement appliance.
 
 ## Verification and completion
 

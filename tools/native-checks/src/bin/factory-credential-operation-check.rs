@@ -1262,6 +1262,10 @@ async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path
 }
 
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg|arg.to_str()).is_some_and(|v|matches!(v,"--github-write-retention-connected"|"--github-nosend-retention-connected")) {
+        ensure(args.len()==5,"retention requires backend, PostgreSQL payload, new profile and exact fixture commit")?;
+        return native_github_pull_branches::connected_retention(Path::new(&args[1]),Path::new(&args[2]),Path::new(&args[3]),args[4].to_str().ok_or("commit missing")?,args[0]=="--github-nosend-retention-connected").await;
+    }
     if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-desktop-login") {
         ensure(args.len()==6,"Fountain login requires new profile, configured TLS origin, application ID, backend and PostgreSQL payload")?;
         return fountain_login(Path::new(&args[1]),args[2].to_str().ok_or("origin missing")?,args[3].to_str().ok_or("application missing")?,Path::new(&args[4]),Path::new(&args[5])).await;

@@ -9,9 +9,9 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-09, Factory `90bde70` plus active implementation):** 16 queue entries remain:
-Q09–Q14 are complete within their recorded ordinary scopes. Q15–Q29 remain
-outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
+**Current snapshot (2026-11-09, Factory `920d8c6` plus active recovery):** 15 queue entries remain:
+Q09–Q14 and Q18 are complete within their recorded ordinary scopes.
+Q15–Q17 and Q19–Q29 remain outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
 instruction replaces blanket numeric sequencing: implement ready work while
 preserving actual dependencies, authorization and retained receipts.
 All 13 broad security gates remain open. The historical ordered-goal pause is
@@ -794,10 +794,28 @@ Publication `31dbde02be4170d92a37ac3da6154014` is fenced at
 `199f236017f48264f54fb9eb760e9af3` is reserved without a causal send receipt;
 its original ten-minute deadline is 1794183711. Exact branch readback was empty,
 which does not prove no-send or authorize retry. No PR, independent review, CI
-or merge has occurred. Preserve this capture and uncertain outcome. New-capture
-code is being corrected to the native writer's five-minute limit; never rewrite
-this old capture. Durable native write-outcome adoption/no-send recovery must
-be completed before a fresh publication journey. This holds this publication
+or merge has occurred. Preserve this capture and uncertain outcome. Future
+captures now use the native writer's five-minute limit without extending original
+workflow authority; the old capture is unchanged. Native causal outcomes are
+retained before returning to Go, with exact-command read-only adoption through
+the existing typed product journal. Real one-send/lost-callback/restart evidence
+is in `/home/vince/Projects/q15-write-recovery2/check.log`: branch
+`q15-causal-a0042305dfc7fae44a110c1440b0647c`, original command
+`a0042305dfc7fae44a110c1440b0647c`, commit
+`4522d2f4e33424b4965b71deda0b8953b6a70498`. Initial HTTP 503 becomes
+committed through the original native receipt after restart; replay preserves
+intent/outcome bytes. `q15-nosend-recovery/check.log` and
+`no-send-recovery.json` prove expired native command
+`1933dbfcbb7ee9f8c23611bd03516fc5` retains causal `not_sent`, original
+expiry, duplicate refusal and unknown lookup absence across restart. No model,
+PR, merge or original uncertain send was repeated. Checks/runtime/PG/proxy/keyring
+and bus joined; fixture local credentials withdrawn. The first proxy attempt
+was refused for nonprivate socket permissions before any command reservation
+(`q15-write-recovery/original-command-recovery.jsonl` is empty); it is retained.
+The owner explicitly authorizes a new “Publish retained candidate” command on a
+fresh branch/identity, preserving the old uncertain publication and reusing
+completed inference. That product action still needs implementation and its
+full publication/review/correction/CI/merge journey. This holds this publication
 and full GitHub delivery qualification in Q15/Q16/Q17/Q26, not Fountain login,
 host capability work, packaging, migrations or shared presentation work.
 
@@ -846,8 +864,9 @@ absence is confirmed in `ci-variable-restored2.*`. Checks are joined and their
 local grants withdrawn. Actual Q25 installed services replace the removed
 temporary fixture units.
 
-**Exact next action:** finish durable native write-outcome adoption for future
-captures, preserving the fenced original command and all four settled runs,
+**Exact next action:** implement the owner-approved explicit fresh publication
+command for the retained candidate, preserving the fenced original command and
+all four settled runs,
 fifteen-minute source charge and both Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
 renew retired preparation or change the original model plan. Finish paid delivery
 judgment, publication/review/correction, real checks/merge, human/pending/inline
@@ -927,7 +946,8 @@ Final reply: requested Q17, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q18 — Fountain configured-host login and grant lifecycle
 
-**Complete within ordinary configured-host/native scope (2026-11-09).** Canonical
+**Complete within ordinary configured-host/native scope (2026-11-09).** Factory
+`920d8c6e76b5c457f419104cd9d3b271d62d5eaf` pairs with canonical
 Fountain `b7d7b2cbd005c41dce59cee2eb062572276d2143` adds operator-selected
 public OAuth discovery and authenticated immutable-self identity without broader
 user scope, plus conflict-safe first reservation reads. Retained D6 ownership
@@ -1098,7 +1118,7 @@ Final reply: requested Q23, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q24 — Installed Fountain appliance/Forge journey
 
-BLOCKED for the actual installed appliance journey and shared Project stop/start: no current authorized replacement appliance is recorded. The retired `soda` target remains forbidden. This does not block Q25 or unrelated host/desktop implementation. Reconsider when a current authorized installation becomes available.
+BLOCKED for the actual installed appliance journey and shared Project stop/start: the owner confirmed on 2026-11-09 that no replacement appliance exists yet. The retired `soda` target remains forbidden. This does not block Q25 or unrelated host/desktop implementation. Reconsider when a current authorized installation becomes available.
 
 ```text
 Execute through Q24 — Installed Fountain appliance/Forge journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q24 despite the document's historical paused snapshot; it does not authorize work beyond Q24 or resuming the old product queue.

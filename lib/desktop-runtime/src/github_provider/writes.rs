@@ -152,6 +152,7 @@ pub(super) fn check_receipt(receipt: &Value) -> Result<()> {
 }
 
 /// Fixed native write vocabulary, independent of callback wire encoding and custody.
+#[derive(serde::Serialize)]
 pub(crate) enum WriteOperation {
     SetIssueDependency(super::IssueDependency),
     CreateInline(super::InlineCreate),

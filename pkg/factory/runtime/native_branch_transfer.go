@@ -94,12 +94,16 @@ func (s nativeHumanBranchCreates) submitTransfer(ctx context.Context, c factory.
 	if err != nil {
 		return empty, err
 	}
+	return nativeBranchTransferOutcome(c, p, outcome)
+}
+func nativeBranchTransferOutcome(c factory.HumanBranchCreateCapture, p nativeBranchCreatePreparation, outcome nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	record := nativeBranchCreateRecord(c)
 	if outcome.State == "applied" {
 		if outcome.Failure != nil {
 			return empty, factoryservice.ErrHumanBranchCreateUnavailable
 		}
-		if _, err = validateNativeBranchTransferReceipt(c.Request, p, outcome.Receipt); err != nil {
+		if _, err := validateNativeBranchTransferReceipt(c.Request, p, outcome.Receipt); err != nil {
 			return empty, err
 		}
 		record.Effect, record.Completion, record.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_branch_published"

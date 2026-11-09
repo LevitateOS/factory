@@ -152,14 +152,23 @@ func nativePullCreateRecord(c factory.HumanPullCreateCapture) collaboration.Oper
 }
 func (s nativeHumanPullCreates) LookupHumanPullCreate(ctx context.Context, c factory.HumanPullCreateCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil {
+		return prior, err
+	}
+	return s.recoverHumanEffect(ctx, cmd, p.NotAfter, s.repository.ExternalID, prior, func(reply nativeCreationReply) (collaboration.OperationRecord, error) {
+		return nativePullCreateOutcome(c, p, reply)
+	}, func(observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+		return s.store.ObserveHumanPullCreate(ctx, c, observation)
+	})
 }
 func validateNativePullCreateReceipt(c factory.HumanPullCreateCapture, p nativePullCreatePreparation, raw json.RawMessage) (nativePullCreateReceipt, error) {
 	var r nativePullCreateReceipt
@@ -202,6 +211,10 @@ func (s nativeHumanPullCreates) SubmitHumanPullCreate(ctx context.Context, c fac
 	if err != nil {
 		return empty, err
 	}
+	return nativePullCreateOutcome(c, p, outcome)
+}
+func nativePullCreateOutcome(c factory.HumanPullCreateCapture, p nativePullCreatePreparation, outcome nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	r := nativePullCreateRecord(c)
 	switch outcome.State {
 	case "created":

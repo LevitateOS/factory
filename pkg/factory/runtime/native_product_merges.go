@@ -148,14 +148,23 @@ func (s nativeHumanMerges) decode(ctx context.Context, c factory.HumanMergeCaptu
 	return p, nil
 }
 func (s nativeHumanMerges) LookupHumanMerge(ctx context.Context, c factory.HumanMergeCapture) (collaboration.OperationLookup, error) {
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil {
+		return prior, err
+	}
+	return s.recoverHumanEffect(ctx, cmd, p.NotAfter, s.repository.ExternalID, prior, func(reply nativeCreationReply) (collaboration.OperationRecord, error) {
+		return nativeMergeWriteOutcome(c, p, reply)
+	}, func(observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+		return s.store.ObserveHumanMerge(ctx, c, observation)
+	})
 }
 func nativeMergeRecord(c factory.HumanMergeCapture) collaboration.OperationRecord {
 	cmd, _ := c.Command()
@@ -192,6 +201,10 @@ func (s nativeHumanMerges) SubmitHumanMerge(ctx context.Context, c factory.Human
 	if err != nil {
 		return empty, err
 	}
+	return nativeMergeWriteOutcome(c, p, reply)
+}
+func nativeMergeWriteOutcome(c factory.HumanMergeCapture, p nativeMergePreparation, reply nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	r := nativeMergeRecord(c)
 	if reply.State == "applied" {
 		receipt, receiptErr := validateNativeMergeReceipt(p, reply.Receipt)

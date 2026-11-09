@@ -3071,3 +3071,119 @@ pub(super) async fn connected_writes(
     println!("PASS: connected merge records survived native restart; owned local account removed");
     Ok(())
 }
+
+/// One actual connected branch send with its native-to-Go reply deliberately
+/// lost. Restart adopts the original native causal receipt through the product
+/// command API; no model, PR, merge or uncertain prior command is repeated.
+pub(super) async fn connected_retention(production:&Path,payload:&Path,profile:&Path,commit:&str,no_send:bool)->Result<()> {
+    use soda_desktop_runtime::{credentials::{Account,Credentials,Provider},supervisor::NativeSupervisor};
+    use std::{io::Read,sync::Arc,os::unix::fs::PermissionsExt};
+    use tokio::io::{AsyncReadExt,AsyncWriteExt};
+    prepare(profile)?;
+    let mut bytes=Vec::new();std::io::stdin().take(65537).read_to_end(&mut bytes)?;
+    if bytes.last()==Some(&b'\n'){bytes.pop();}
+    let token=Token::new(bytes)?;
+    ensure(commit.len()==40&&commit.bytes().all(|b|b.is_ascii_hexdigit()),"exact fixture commit required")?;
+    let mut runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+    let mut store=Arc::new(Credentials::open(profile,&runtime.as_ref().ok_or("runtime absent")?.health()?.profile)?);
+    let saved=store.store(Account::new(Provider::Github,"https://github.com","16469623")?,token).await?;
+    async fn call(runtime:&NativeSupervisor,store:&Arc<Credentials>,connection:&str,method:&str,path:&str,body:&[u8])->Result<(u16,serde_json::Value)>{
+        let request=runtime.admit_product(store.clone(),store.capability(connection).await?,Some("1448277000".into()))?;
+        let reply=request.request(method,path,body).await?;
+        Ok((reply.status,serde_json::from_slice(&reply.body)?))
+    }
+    let result=async {
+        let catalog=call(runtime.as_ref().ok_or("runtime absent")?,&store,&saved.connection,"GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
+        ensure(catalog.0==200,"connected retention catalogue failed")?;
+        let repository=catalog.1["items"][0]["id"].as_str().ok_or("fixture repository absent")?.to_owned();
+        let mut random=[0u8;16];getrandom::fill(&mut random)?;
+        let id:String=random.iter().map(|b|format!("{b:02x}")).collect();
+        if no_send {
+            let not_after=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs()-1;
+            let digest="a".repeat(64);
+            let request=json!({"connection":saved.connection,"account":"16469623","repository":"1448277000","call":{"kind":"create_comment","command_id":id,"digest":digest,"not_after":not_after,"comment":{"repository":"1448277000","subject":"issue","subject_id":"1","number":18,"body":"Expired native check: this command must never be sent."}}});
+            let result=super::native_github_fixture::callback(runtime.as_ref().ok_or("runtime absent")?,profile,"/api/native/collaboration/background",request.clone()).await?;
+            ensure(result.0==200&&result.1["observation"]["state"]=="not_sent","expired native command did not retain causal no-send")?;
+            let outcome=result.1["observation"].clone();
+            let lookup=json!({"connection":saved.connection,"account":"16469623","repository":"1448277000","call":{"kind":"write_outcome","command_id":id,"digest":digest,"not_after":not_after}});
+            store.retire();runtime.take().ok_or("runtime absent")?.stop()?;
+            runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+            store=Arc::new(Credentials::open(profile,&runtime.as_ref().ok_or("runtime absent")?.health()?.profile)?);
+            call(runtime.as_ref().ok_or("runtime absent")?,&store,&saved.connection,"GET","/api/factory/collaboration/repositories?limit=1",&[]).await?;
+            let read=super::native_github_fixture::callback(runtime.as_ref().ok_or("runtime absent")?,profile,"/api/native/collaboration/background",lookup.clone()).await?;
+            ensure(read.0==200&&read.1["observation"]==outcome,"expired original no-send outcome did not survive restart")?;
+            let repeated=super::native_github_fixture::callback(runtime.as_ref().ok_or("runtime absent")?,profile,"/api/native/collaboration/background",request).await?;
+            ensure(repeated.0==409&&repeated.1["error"]=="native_write_history_held","original native command acquired another send")?;
+            let mut changed=lookup.clone();changed["call"]["not_after"]=json!(not_after+60);
+            ensure(super::native_github_fixture::callback(runtime.as_ref().ok_or("runtime absent")?,profile,"/api/native/collaboration/background",changed).await?.0==409,"lookup renewed the original deadline")?;
+            let mut absent=lookup;absent["call"]["command_id"]=json!("0".repeat(32));
+            let read=super::native_github_fixture::callback(runtime.as_ref().ok_or("runtime absent")?,profile,"/api/native/collaboration/background",absent).await?;
+            ensure(read.0==200&&read.1["observation"].is_null(),"lookup absence fabricated no-send")?;
+            fs::write(profile.parent().ok_or("root absent")?.join("no-send-recovery.json"),serde_json::to_vec(&json!({"command":id,"deadline":not_after,"outcome":outcome,"lookup_after_restart":true,"duplicate_refused":true,"changed_deadline_refused":true,"absence":read.1["observation"]}))?)?;
+            println!("PASS: expired native command retains causal no-send across actual standalone restart; duplicate dispatch and renewed deadline refuse; absence remains unknown; no provider mutation or model");
+            return Ok(());
+        }
+        let name=format!("q15-causal-{id}");
+        let path=format!("/api/factory/collaboration/repositories/{repository}/branches");
+        let request=serde_json::to_vec(&json!({"command_id":id,"name":name,"commit":commit}))?;
+        let original=profile.join("host.sock");let moved=profile.join("check-native-host.sock");
+        fs::rename(&original,&moved)?;
+        let listener=tokio::net::UnixListener::bind(&original)?;
+        fs::set_permissions(&original,fs::Permissions::from_mode(0o600))?;
+        let moved_copy=moved.clone();
+        let dropped=Arc::new(std::sync::atomic::AtomicBool::new(false));let lost=dropped.clone();
+        let proxy=tokio::spawn(async move {
+            loop {
+                let (mut downstream,_)=listener.accept().await?;
+                let moved=moved_copy.clone();let lost=lost.clone();
+                let exchange=async {
+                        let mut request=Vec::new();let mut chunk=[0u8;4096];
+                        let header_end=loop {
+                            let count=downstream.read(&mut chunk).await?;if count==0{return Ok::<_,std::io::Error>(());}
+                            request.extend_from_slice(&chunk[..count]);
+                            if let Some(end)=request.windows(4).position(|v|v==b"\r\n\r\n"){break end+4;}
+                            if request.len()>16384{return Err(std::io::Error::other("header bound"));}
+                        };
+                        let header=std::str::from_utf8(&request[..header_end]).map_err(std::io::Error::other)?;
+                        let count:usize=header.lines().find_map(|line|line.split_once(':').filter(|(key,_)|key.eq_ignore_ascii_case("content-length")).map(|(_,v)|v.trim().parse())).transpose().map_err(std::io::Error::other)?.ok_or_else(||std::io::Error::other("length missing"))?;
+                        if count>1024*1024{return Err(std::io::Error::other("request bound"));}
+                        while request.len()<header_end+count {let n=downstream.read(&mut chunk).await?;if n==0{return Err(std::io::Error::other("short request"));}request.extend_from_slice(&chunk[..n]);}
+                        let body:serde_json::Value=serde_json::from_slice(&request[header_end..header_end+count]).map_err(std::io::Error::other)?;
+                        let lose=body["call"]["kind"]=="create_branch";
+                        let mut upstream=tokio::net::UnixStream::connect(moved).await?;
+                        upstream.write_all(&request).await?;
+                        let mut reply=Vec::new();
+                        // Go's one-shot callback sets Connection: close.
+                        upstream.take(2*1024*1024).read_to_end(&mut reply).await?;
+                        if lose&&!lost.swap(true,std::sync::atomic::Ordering::SeqCst){return Ok(());}
+                        downstream.write_all(&reply).await?;Ok(())
+                    };
+                let _=tokio::time::timeout(Duration::from_secs(8),exchange).await;
+            }
+            #[allow(unreachable_code)] Ok::<(),std::io::Error>(())
+        });
+        let reply=call(runtime.as_ref().ok_or("runtime absent")?,&store,&saved.connection,"POST",&path,&request).await;
+        proxy.abort();let _=proxy.await;
+        fs::remove_file(&original)?;fs::rename(&moved,&original)?;
+        fs::write(profile.parent().ok_or("root absent")?.join("initial-reply.json"),serde_json::to_vec(&json!({"command":id,"branch":name,"reply":reply.as_ref().ok(),"error":reply.as_ref().err().map(|e|e.to_string())}))?)?;
+        ensure(dropped.load(std::sync::atomic::Ordering::SeqCst),"native write reply was not lost")?;
+        if let Ok(reply)=&reply {ensure(reply.0>=400||reply.1["effect"]=="indeterminate","lost reply was already adopted unexpectedly")?;}
+        let intent=fs::read(profile.join("native-write-outcomes").join(format!("{id}.intent.json")))?;
+        let outcome=fs::read(profile.join("native-write-outcomes").join(format!("{id}.outcome.json")))?;
+        fs::write(profile.parent().ok_or("root absent")?.join("retention-command.json"),serde_json::to_vec(&json!({"command":id,"branch":name,"commit":commit,"initial_status":reply.as_ref().ok().map(|v|v.0)}))?)?;
+        store.retire();runtime.take().ok_or("runtime absent")?.stop()?;
+        runtime=Some(NativeSupervisor::start(payload,production,profile)?);
+        store=Arc::new(Credentials::open(profile,&runtime.as_ref().ok_or("runtime absent")?.health()?.profile)?);
+        let command=format!("/api/factory/collaboration/repositories/{repository}/branch-creation/commands/{id}");
+        let read=call(runtime.as_ref().ok_or("runtime absent")?,&store,&saved.connection,"GET",&command,&[]).await?;
+        super::native_github_fixture::completed(&read,"committed")?;
+        ensure(read.1["branch"]["name"]==name&&read.1["branch"]["commit"]==commit,"retained causal branch changed")?;
+        let replay=call(runtime.as_ref().ok_or("runtime absent")?,&store,&saved.connection,"POST",&path,&request).await?;
+        super::native_github_fixture::completed(&replay,"committed")?;
+        ensure(intent==fs::read(profile.join("native-write-outcomes").join(format!("{id}.intent.json")))?&&outcome==fs::read(profile.join("native-write-outcomes").join(format!("{id}.outcome.json")))?,"recovery replaced native capture or outcome")?;
+        println!("PASS: one real GitHub branch creation; lost native callback; original receipt adoption after standalone restart; product replay preserves the exact native intent/outcome; no model, PR or merge");
+        Ok::<_,Box<dyn std::error::Error>>(())
+    }.await;
+    let withdrawal=store.withdraw(&saved.connection).await;store.retire();let stopped=runtime.take().map(NativeSupervisor::stop).transpose();
+    result?;withdrawal?;stopped?;Ok(())
+}

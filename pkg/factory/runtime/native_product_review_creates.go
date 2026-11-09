@@ -160,10 +160,23 @@ func nativeReviewCreateRecord(c factory.HumanReviewCapture) collaboration.Operat
 	return collaboration.OperationRecord{Host: c.Request.Host, Authority: c.Authority, OperationID: c.OperationID, Binding: &collaboration.OperationBinding{Repository: c.Request.Repository, Actor: c.Request.Actor, Kind: collaboration.SubmitReview, Atomicity: collaboration.Atomic, IntentDigest: cmd.Digest}, Effect: collaboration.EffectIndeterminate, Cancellation: collaboration.CancellationNone, Completion: collaboration.CompletionNeedsIntervention, Reason: "dispatch_history_unresolved"}
 }
 func (s nativeHumanNewReviews) LookupHumanReview(ctx context.Context, c factory.HumanReviewCapture) (collaboration.OperationLookup, error) {
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return collaboration.OperationLookup{}, err
 	}
-	return s.nativeProductAccount.humanReviewLookup(ctx, c)
+	prior, err := s.nativeProductAccount.humanReviewLookup(ctx, c)
+	if err != nil {
+		return prior, err
+	}
+	cmd, err := c.Command()
+	if err != nil {
+		return prior, err
+	}
+	return s.recoverHumanEffect(ctx, cmd, p.NotAfter, s.repository.ExternalID, prior, func(reply nativeCreationReply) (collaboration.OperationRecord, error) {
+		return nativeReviewCreateOutcome(c, p, reply)
+	}, func(observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+		return s.store.ObserveHumanReview(ctx, c, observation)
+	})
 }
 
 // A reserved dispatch or an unattributed current review can never authorize a
@@ -224,6 +237,10 @@ func (s nativeHumanNewReviews) SubmitHumanReview(ctx context.Context, c factory.
 	if err != nil {
 		return empty, err
 	}
+	return nativeReviewCreateOutcome(c, p, outcome)
+}
+func nativeReviewCreateOutcome(c factory.HumanReviewCapture, p nativeReviewCreatePreparation, outcome nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	r := nativeReviewCreateRecord(c)
 	switch outcome.State {
 	case "created":

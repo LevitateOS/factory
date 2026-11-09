@@ -40,6 +40,13 @@ func nativePublicationCommandID(profile, id string) string {
 	sum := sha256.Sum256([]byte("factory.native.publication\x00" + profile + "\x00" + id))
 	return hex.EncodeToString(sum[:16])
 }
+
+// Native mutation admission accepts at most five minutes. Bound a new capture
+// by both that transport limit and the original workflow authority; replays
+// always retain the already-captured deadline.
+func nativePublicationDeadline(notAfter int64) int64 {
+	return min(notAfter, time.Now().Add(5*time.Minute).Unix())
+}
 func (p NativePublication) registered(ctx context.Context, id string) (factory.Publication, factory.PublicationOperation, factory.PublicationWork, error) {
 	var empty factory.PublicationWork
 	publication, op, err := p.Store.PublicationOperation(ctx, id)
@@ -220,6 +227,40 @@ func (p NativePublication) LookupOp(ctx context.Context, id string) (factory.Ope
 		return factory.OperationOutcome{}, err
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
+	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
+		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), op.Kind)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		switch cmd.Type {
+		case factory.CommandHumanBranchCreate:
+			c, e := factory.DecodeHumanBranchCreateCapture(cmd)
+			if e != nil {
+				return factory.OperationOutcome{}, e
+			}
+			lookup, err = (nativeHumanBranchCreates{account}).LookupHumanBranchCreate(ctx, c)
+		case factory.CommandHumanPullCreate:
+			c, e := factory.DecodeHumanPullCreateCapture(cmd)
+			if e != nil {
+				return factory.OperationOutcome{}, e
+			}
+			lookup, err = (nativeHumanPullCreates{account}).LookupHumanPullCreate(ctx, c)
+		case factory.CommandRefPublish:
+			c, e := factory.DecodeRefPublicationCapture(cmd)
+			if e != nil {
+				return factory.OperationOutcome{}, e
+			}
+			prep, e := p.decodeRefCapture(ctx, account, c)
+			if e != nil {
+				return factory.OperationOutcome{}, e
+			}
+			lookup, err = account.recoverHumanEffect(ctx, cmd, prep.NotAfter, prep.Branch.Repository, lookup, func(reply nativeCreationReply) (collaboration.OperationRecord, error) {
+				return nativeRefPublicationOutcome(c, prep, reply)
+			}, func(observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+				return p.Store.ObserveRefPublication(ctx, c, observation)
+			})
+		}
+	}
 	return nativePublicationOutcome(w, op.Kind, lookup), err
 }
 func (p NativePublication) admitSubmit(ctx context.Context, w factory.PublicationWork, kind string) (*nativeProductAccount, error) {
@@ -286,7 +327,7 @@ func (p NativePublication) SubmitPublish(ctx context.Context, w factory.Publicat
 			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 		}
 		sum := sha256.Sum256(w.Bundle)
-		prep := nativeBranchCreatePreparation{Version: 2, Account: account.identity.Account.ExternalID, NotAfter: w.NotAfter, Branch: nativeBranchCreateWrite{Repository: raw.Repository, RepositoryNodeID: raw.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: raw.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:])}}
+		prep := nativeBranchCreatePreparation{Version: 2, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: raw.Repository, RepositoryNodeID: raw.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: raw.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:])}}
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -352,7 +393,7 @@ func (p NativePublication) SubmitPRCreate(ctx context.Context, w factory.Publica
 			if nativeDecode(c.ProviderIntent, &prep) != nil || prep.Pull.BasePin.Commit != w.ComparisonOID || prep.Pull.HeadPin.Commit != w.Candidate {
 				return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 			}
-			prep.NotAfter = w.NotAfter
+			prep.NotAfter = nativePublicationDeadline(w.NotAfter)
 			c.ProviderIntent, err = json.Marshal(prep)
 		}
 		if err == nil {
@@ -473,7 +514,7 @@ func (p NativePublication) AdoptBranch(ctx context.Context, w factory.Publicatio
 			return empty, e
 		}
 		var prep nativeBranchCreatePreparation
-		if nativeDecode(capture.ProviderIntent, &prep) != nil || prep.Version != 3 || prep.NotAfter != w.NotAfter || prep.Transfer == nil || prep.Transfer.ExpectedOld != w.ExpectedOld || prep.Transfer.Base != w.Run.InputSHA {
+		if nativeDecode(capture.ProviderIntent, &prep) != nil || prep.Version != 3 || (prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter) || prep.Transfer == nil || prep.Transfer.ExpectedOld != w.ExpectedOld || prep.Transfer.Base != w.Run.InputSHA {
 			return empty, errNativeRead
 		}
 		receipt, e := validateNativeBranchTransferReceipt(q, prep, out.Receipt)
@@ -487,7 +528,7 @@ func (p NativePublication) AdoptBranch(ctx context.Context, w factory.Publicatio
 		return empty, err
 	}
 	var prep nativeBranchCreatePreparation
-	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter != w.NotAfter {
+	if nativeDecode(c.ProviderIntent, &prep) != nil || (prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter) {
 		return empty, errNativeRead
 	}
 	raw, err := validateNativeBranchTransferReceipt(c.Request, prep, out.Receipt)
@@ -514,7 +555,7 @@ func (p NativePublication) AdoptPRCreation(ctx context.Context, w factory.Public
 		return empty, err
 	}
 	var prep nativePullCreatePreparation
-	if nativeDecode(c.ProviderIntent, &prep) != nil || prep.NotAfter != w.NotAfter {
+	if nativeDecode(c.ProviderIntent, &prep) != nil || (prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter) {
 		return empty, errNativeRead
 	}
 	raw, err := validateNativePullCreateReceipt(c, prep, out.Receipt)

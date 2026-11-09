@@ -32,6 +32,8 @@ use tokio::net::UnixListener;
 use tokio::sync::{mpsc as jobs, oneshot, watch, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinSet;
 
+mod receipts;
+
 type Result<T> = std::result::Result<T, String>;
 const MAX_OPERATIONS: usize = 16;
 const LIFETIME: Duration = Duration::from_secs(20);
@@ -514,6 +516,7 @@ struct BackgroundCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum BackgroundEffect {
+    WriteOutcome { command_id: String, digest: String, not_after: u64 },
     CreateComment {
         command_id: String,
         digest: String,
@@ -574,6 +577,7 @@ async fn background_read(state: &State, body: &[u8]) -> std::result::Result<Valu
         return Err(Failure::invalid());
     }
     let effect = match call.call {
+        BackgroundEffect::WriteOutcome {command_id,digest,not_after} => Operation::Receipt(Descriptor {command_id,digest,not_after}),
         BackgroundEffect::CreateComment {
             command_id,
             digest,
@@ -780,6 +784,7 @@ struct VerifyCall {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum Effect {
+    WriteOutcome { command_id: String, digest: String, not_after: u64 },
     SetIssueDependency {
         command_id: String,
         digest: String,
@@ -882,6 +887,8 @@ enum Effect {
     },
 }
 // Wire repetition ends here: admission and custody see one descriptor per command.
+#[derive(Clone, serde::Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 struct Descriptor {
     command_id: String,
     digest: String,
@@ -892,6 +899,7 @@ struct Command {
     operation: WriteOperation,
 }
 enum Operation {
+    Receipt(Descriptor),
     Current,
     Read(Read),
     Mutation(Command),
@@ -899,6 +907,7 @@ enum Operation {
 impl From<Effect> for Operation {
     fn from(effect: Effect) -> Self {
         match effect {
+            Effect::WriteOutcome {command_id,digest,not_after} => Self::Receipt(Descriptor {command_id,digest,not_after}),
             Effect::Current => Self::Current,
             Effect::Read { query } => Self::Read(query),
             Effect::SetIssueDependency {
@@ -1358,6 +1367,9 @@ async fn observe_scope(
     if let Operation::Mutation(command) = effect {
         validate_mutation(&scope, command)?;
     }
+    if let Operation::Receipt(descriptor) = effect {
+        if !opaque_id(&descriptor.command_id) || descriptor.digest.len()!=64 || !descriptor.digest.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)) || descriptor.not_after==0 {return Err(Failure::invalid());}
+    }
     if let Operation::Read(query) = effect {
         query.validate()?;
         let value = query.value();
@@ -1385,7 +1397,8 @@ async fn observe_scope(
                     .read_account(token, &scope.capability.account().account, query)
                     .await
             }
-            Operation::Mutation(command) => mutate(&state.provider, &scope, token, command).await,
+            Operation::Mutation(command) => mutate(state, &scope, token, command).await,
+            Operation::Receipt(descriptor) => receipts::lookup(state,&scope,descriptor),
         });
     let observation = tokio::select! {
         biased;
@@ -1404,7 +1417,7 @@ async fn observe_scope(
 }
 
 async fn mutate(
-    provider: &Client,
+    state: &State,
     scope: &Scope,
     token: &[u8],
     command: &Command,
@@ -1417,18 +1430,19 @@ async fn mutate(
     if scope.write_claimed.swap(true, Ordering::SeqCst) {
         return Err(Failure::new(409, "native_effect_already_claimed"));
     }
+    let attempt = receipts::Attempt::reserve(state,scope,command)?;
     let measured = Instant::now();
     let wall = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| Failure::unavailable())?;
     if *not_after > wall.as_secs().saturating_add(300) {
-        return Err(Failure::new(400, "invalid_native_write"));
+        return attempt.finish(json!({"command_id":command_id,"digest":digest,"state":"not_sent","receipt":null,"failure":{"status":400,"code":"invalid_native_write","retry_after":null,"reset":null}}));
     }
     let deadline = measured + Duration::from_secs(*not_after).saturating_sub(wall);
     let account = &scope.capability.account().account;
     let (success, outcome) = command
         .operation
-        .apply(provider, token, account, deadline)
+        .apply(&state.provider, token, account, deadline)
         .await;
     let (state, receipt, failure) = match outcome {
         WriteOutcome::Applied(receipt) => (success, Some(receipt), None),
@@ -1438,9 +1452,7 @@ async fn mutate(
     let failure = failure.map(
         |f| json!({"status":f.status,"code":f.code,"retry_after":f.retry_after,"reset":f.reset}),
     );
-    Ok(
-        json!({"command_id":command_id,"digest":digest,"state":state,"receipt":receipt,"failure":failure}),
-    )
+    attempt.finish(json!({"command_id":command_id,"digest":digest,"state":state,"receipt":receipt,"failure":failure}))
 }
 
 // Crash recovery is allowed only under the supervisor's exclusive profile lock,

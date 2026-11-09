@@ -82,7 +82,7 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 			return empty, &factory.PublicationWait{Reason: "native_inputs_changed"}
 		}
 		sum := sha256.Sum256(w.Bundle)
-		prep := nativeBranchCreatePreparation{Version: 3, Account: account.identity.Account.ExternalID, NotAfter: w.NotAfter, Branch: nativeBranchCreateWrite{Repository: refs.Repository, RepositoryNodeID: refs.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: refs.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:]), ExpectedOld: w.ExpectedOld}}
+		prep := nativeBranchCreatePreparation{Version: 3, Account: account.identity.Account.ExternalID, NotAfter: nativePublicationDeadline(w.NotAfter), Branch: nativeBranchCreateWrite{Repository: refs.Repository, RepositoryNodeID: refs.RepositoryNodeID, Name: q.Name, Commit: string(q.Commit)}, Transfer: &nativeBranchTransfer{Base: w.Run.InputSHA, ComparisonBranch: refs.ComparisonBranch, ComparisonOID: w.ComparisonOID, BundleSHA256: hex.EncodeToString(sum[:]), ExpectedOld: w.ExpectedOld}}
 		encoded, e := json.Marshal(prep)
 		if e != nil {
 			return empty, e
@@ -116,7 +116,7 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 		return empty, err
 	}
 	sum := sha256.Sum256(w.Bundle)
-	if prep.NotAfter != w.NotAfter || prep.Transfer.Base != w.Run.InputSHA || prep.Transfer.ComparisonOID != w.ComparisonOID || prep.Transfer.BundleSHA256 != hex.EncodeToString(sum[:]) {
+	if (prep.NotAfter <= 0 || prep.NotAfter > w.NotAfter) || prep.Transfer.Base != w.Run.InputSHA || prep.Transfer.ComparisonOID != w.ComparisonOID || prep.Transfer.BundleSHA256 != hex.EncodeToString(sum[:]) {
 		return empty, errNativeRead
 	}
 	won, err := p.Store.ReserveRefPublicationDispatch(ctx, c)
@@ -131,12 +131,23 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 	if err != nil {
 		return empty, err
 	}
+	record, err := nativeRefPublicationOutcome(c, prep, reply)
+	if err != nil {
+		return empty, err
+	}
+	lookup = collaboration.OperationLookup{Host: q.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupFound, Record: &record, Reason: record.Reason}
+	lookup, err = p.Store.ObserveRefPublication(ctx, c, lookup)
+	return nativePublicationOutcome(w, factory.OpRefPublish, lookup), err
+}
+
+func nativeRefPublicationOutcome(c factory.RefPublicationCapture, prep nativeBranchCreatePreparation, reply nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	record := nativeRefPublicationRecord(c)
 	if reply.State == "applied" {
 		if reply.Failure != nil {
 			return empty, errNativeRead
 		}
-		if _, err = validateNativeBranchTransferReceipt(c.Request, prep, reply.Receipt); err != nil {
+		if _, err := validateNativeBranchTransferReceipt(c.Request, prep, reply.Receipt); err != nil {
 			return empty, err
 		}
 		record.Effect, record.Completion, record.Reason = collaboration.EffectCommitted, collaboration.CompletionComplete, "native_ref_published"
@@ -144,7 +155,5 @@ func (p NativePublication) submitCorrectionRef(ctx context.Context, w factory.Pu
 	} else if !reply.applyFailure(&record) {
 		return empty, errNativeRead
 	}
-	lookup = collaboration.OperationLookup{Host: q.Host, Authority: c.Authority, OperationID: c.OperationID, State: collaboration.LookupFound, Record: &record, Reason: record.Reason}
-	lookup, err = p.Store.ObserveRefPublication(ctx, c, lookup)
-	return nativePublicationOutcome(w, factory.OpRefPublish, lookup), err
+	return record, record.Validate()
 }

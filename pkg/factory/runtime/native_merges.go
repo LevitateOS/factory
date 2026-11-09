@@ -90,6 +90,13 @@ func (p NativeMerges) LookupOp(ctx context.Context, id string) (factory.Operatio
 		return factory.OperationOutcome{}, err
 	}
 	lookup, err := p.Store.LookupHumanCommandDispatch(ctx, cmd)
+	if err == nil && lookup.Record != nil && lookup.Record.Effect == collaboration.EffectIndeterminate && lookup.Record.Receipt == nil {
+		account, e := p.account(ctx, strconv.FormatInt(w.Repository, 10), factory.OpMerge)
+		if e != nil {
+			return factory.OperationOutcome{}, e
+		}
+		lookup, err = (nativeHumanMerges{account}).LookupHumanMerge(ctx, c)
+	}
 	return nativeMergeOutcome(w, lookup), err
 }
 

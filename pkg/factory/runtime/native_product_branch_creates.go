@@ -170,14 +170,26 @@ func nativeBranchCreateRecord(c factory.HumanBranchCreateCapture) collaboration.
 }
 func (s nativeHumanBranchCreates) LookupHumanBranchCreate(ctx context.Context, c factory.HumanBranchCreateCapture) (collaboration.OperationLookup, error) {
 	var empty collaboration.OperationLookup
-	if _, err := s.decode(ctx, c); err != nil {
+	p, err := s.decode(ctx, c)
+	if err != nil {
 		return empty, err
 	}
 	cmd, err := c.Command()
 	if err != nil {
 		return empty, err
 	}
-	return s.store.LookupHumanCommandDispatch(ctx, cmd)
+	prior, err := s.store.LookupHumanCommandDispatch(ctx, cmd)
+	if err != nil {
+		return prior, err
+	}
+	return s.recoverHumanEffect(ctx, cmd, p.NotAfter, s.repository.ExternalID, prior, func(reply nativeCreationReply) (collaboration.OperationRecord, error) {
+		if p.Transfer != nil {
+			return nativeBranchTransferOutcome(c, p, reply)
+		}
+		return nativeBranchCreateOutcome(c, p, reply)
+	}, func(observation collaboration.OperationLookup) (collaboration.OperationLookup, error) {
+		return s.store.ObserveHumanBranchCreate(ctx, c, observation)
+	})
 }
 func (s nativeHumanBranchCreates) SubmitHumanBranchCreate(ctx context.Context, c factory.HumanBranchCreateCapture) (collaboration.OperationRecord, error) {
 	return s.submit(ctx, c, nil)
@@ -216,6 +228,10 @@ func (s nativeHumanBranchCreates) submit(ctx context.Context, c factory.HumanBra
 	if err != nil {
 		return empty, err
 	}
+	return nativeBranchCreateOutcome(c, p, outcome)
+}
+func nativeBranchCreateOutcome(c factory.HumanBranchCreateCapture, p nativeBranchCreatePreparation, outcome nativeCreationReply) (collaboration.OperationRecord, error) {
+	var empty collaboration.OperationRecord
 	r := nativeBranchCreateRecord(c)
 	switch outcome.State {
 	case "created":
