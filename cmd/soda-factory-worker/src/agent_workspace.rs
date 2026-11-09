@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -545,6 +545,7 @@ impl<'a> Workspace<'a> {
                 }
                 reply.file_digest = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
                 reply.total_bytes = Some(meta.len());
+                reply.executable = Some(meta.mode() & 0o111 != 0);
                 file.seek(SeekFrom::Start(offset as u64))?;
                 let mut bytes = vec![];
                 file.take(limit as u64).read_to_end(&mut bytes)?;
@@ -629,6 +630,31 @@ impl<'a> Workspace<'a> {
                 file.write_all(&bytes)?;
                 file.set_len(bytes.len() as u64)?;
                 file.sync_all()?;
+            }
+            Command::SetExecutable { operation_id: _, task, path, expected_digest, executable } => {
+                if self.active.map(|i| self.plan.tasks[i].id.as_str()) != Some(task.as_str())
+                    || self.frozen.is_some() || !self.owns(&path) {
+                    return Err(refused("workspace executable outside task ownership"));
+                }
+                let path=self.path(&path)?;
+                let file=OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&path)?;
+                let meta=file.metadata()?;
+                if !meta.is_file() || meta.nlink()!=1 || meta.len()>MAX_FILE {
+                    return Err(refused("workspace executable file invalid"));
+                }
+                let mut bytes=Vec::new();
+                (&file).take(MAX_FILE+1).read_to_end(&mut bytes)?;
+                if digest(&bytes)!=expected_digest {
+                    reply.status="preimage_mismatch".into();
+                    reply.events=self.events.clone();
+                    return Ok(reply);
+                }
+                // Only Git's executable bit is selectable. Strip special bits;
+                // this cannot widen file ownership or other read/write access.
+                let mode=meta.mode() & 0o666;
+                file.set_permissions(fs::Permissions::from_mode(if executable {mode | ((mode & 0o444)>>2)} else {mode}))?;
+                file.sync_all()?;
+                reply.executable=Some(executable);
             }
             Command::MakeDirectory {
                 operation_id: _,

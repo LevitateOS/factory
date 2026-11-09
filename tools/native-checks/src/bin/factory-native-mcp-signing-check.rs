@@ -1548,6 +1548,22 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             if read.content.as_deref() != Some("first\n") {
                 return Err("workspace edit readback differs".into());
             }
+            let refused_mode=WorkspaceCommand::SetExecutable {operation_id:"wrong-mode-preimage".into(),task:"first".into(),path:"native-task.txt".into(),expected_digest:"0".repeat(64),executable:true};
+            let refused=workspace.command(&refused_mode)?;
+            if refused.status!="preimage_mismatch" || serde_json::to_vec(&workspace.command(&refused_mode)?)?!=serde_json::to_vec(&refused)? {
+                return Err("executable preimage refusal/replay differs".into());
+            }
+            for (operation,enabled) in [("set-executable",true),("clear-executable",false),("restore-executable",true)] {
+                let command=WorkspaceCommand::SetExecutable {operation_id:operation.into(),task:"first".into(),path:"native-task.txt".into(),expected_digest:read.file_digest.clone(),executable:enabled};
+                let changed=workspace.command(&command)?;
+                if changed.executable!=Some(enabled) || serde_json::to_vec(&workspace.command(&command)?)?!=serde_json::to_vec(&changed)? {
+                    return Err("executable operation/replay differs".into());
+                }
+                let current=workspace.command(&WorkspaceCommand::Read {task:"first".into(),path:"native-task.txt".into(),offset:0,limit:1024})?;
+                if current.executable!=Some(enabled) || current.file_digest!=read.file_digest || current.content!=read.content {
+                    return Err("executable change altered content or readback differs".into());
+                }
+            }
             let released = workspace.command(&WorkspaceCommand::Release {
                 task: "first".into(),
             })?;
@@ -1732,7 +1748,7 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 OsStr::new("--quiet"),
                 OsStr::new(&second.head),
             ])?;
-            if fs::read(export.join("native-task.txt"))? != b"second\n" {
+            if fs::read(export.join("native-task.txt"))? != b"second\n" || fs::metadata(export.join("native-task.txt"))?.permissions().mode() & 0o111==0 {
                 return Err("exported task edits differ".into());
             }
             workspace.command(&WorkspaceCommand::Close)?;

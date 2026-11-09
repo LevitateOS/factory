@@ -3112,6 +3112,19 @@ accounting, with invalid-scope/proof/withdrawn enrollment refusal. No paid infer
 setup/policy/funding are explicit fixtures. Shared product/grant integration and
 full delivery remain open; the Q19 section records exact artifacts and limits.
 
+Q26 executable files (2026-11-10): original command1b109936's Architect succeeds;
+its Builder's required executable-file check fails because the tool had no mode
+operation. Preserve13 runs/46 judgments/82 charged minutes and partial writes.
+The correction adds an explicit executable boolean and digest-bound mutation
+through the existing tool/native receipt owners. Actual current29 production
+helpers pass mode refusal/replay/toggle, trusted checkpoints, executable candidate
+export and retained readback. Exact-prior installation/reopen preserves the
+original profile/keyring/signer. The finite MCP check remains blocked at the real
+funded plan-review gate and its failed run was recovered without replay; it is
+not a full tool or installed delivery pass. Current29 reopens with original
+accounting. Q28's separate-prefix offline-copy uninstall/refusal/replay/reinstall
+also passes without changing original profile/service state. Exact artifacts,+source/build identities and remaining ordinary gates are in the existing sections.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

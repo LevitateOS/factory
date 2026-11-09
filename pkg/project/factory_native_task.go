@@ -29,6 +29,7 @@ type FactoryNativeTaskArguments struct {
 	Expected       string `json:"expected,omitempty"`
 	Replacement    string `json:"replacement,omitempty"`
 	ExpectedDigest string `json:"expected_digest,omitempty"`
+	Executable     *bool  `json:"executable,omitempty"`
 }
 
 func (a FactoryNativeTaskArguments) ValidateWorkspace() error {
@@ -43,6 +44,9 @@ func (a FactoryNativeTaskArguments) ValidateWorkspace() error {
 	if a.Offset < 0 || a.Offset > 32*1024*1024 || len(a.Expected) > 32768 || len(a.Replacement) > 32768 {
 		return errors.New("workspace text operation exceeds its bound")
 	}
+	if a.Operation != "executable" && a.Executable != nil {
+		return errors.New("executable flag requires its file operation")
+	}
 	switch a.Operation {
 	case "read":
 		if a.Limit < 4 || a.Limit > 32768 || a.Expected != "" || a.Replacement != "" || a.ExpectedDigest != "" {
@@ -55,6 +59,10 @@ func (a FactoryNativeTaskArguments) ValidateWorkspace() error {
 	case "mkdir", "remove":
 		if !ValidInvocation(a.OperationID) || a.Offset != 0 || a.Limit != 0 || a.Expected != "" || a.Replacement != "" || a.Operation == "remove" && !ValidDigest(a.ExpectedDigest) || a.Operation == "mkdir" && a.ExpectedDigest != "" {
 			return errors.New("workspace filesystem operation is invalid")
+		}
+	case "executable":
+		if !ValidInvocation(a.OperationID) || a.Offset != 0 || a.Limit != 0 || a.Expected != "" || a.Replacement != "" || !ValidDigest(a.ExpectedDigest) || a.Executable == nil {
+			return errors.New("workspace executable operation lacks its exact file binding")
 		}
 	default:
 		return errors.New("unsupported workspace operation")

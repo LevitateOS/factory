@@ -9463,10 +9463,34 @@ func workerSequentialTasks(client *http.Client) error {
 			return err
 		}
 		var content struct {
-			Content string `json:"content"`
+			Content    string `json:"content"`
+			Digest     string `json:"file_digest"`
+			Executable *bool  `json:"executable"`
 		}
 		if json.Unmarshal(read, &content) != nil || content.Content != id+"\n" {
 			return errors.New("admitted workspace readback differs")
+		}
+		if i == 0 {
+			if content.Executable == nil || *content.Executable || !factory.ValidDigest(content.Digest) {
+				return errors.New("new workspace text file has no explicit nonexecutable readback")
+			}
+			mutation := map[string]any{"task_id": id, "operation": "executable", "path": "native-task.txt", "expected_digest": strings.Repeat("0", 64), "executable": true}
+			if _, err = workerMCPCallID(client, "factory.workspace", mutation, "native-mode-refused"); err == nil || !strings.Contains(err.Error(), "preimage differs") {
+				return errors.New("workspace executable stale digest was not refused")
+			}
+			mutation["expected_digest"] = content.Digest
+			changed, err := workerMCPCallID(client, "factory.workspace", mutation, "native-mode-enabled")
+			if err != nil {
+				return err
+			}
+			replay, err := workerMCPCallID(client, "factory.workspace", mutation, "native-mode-enabled")
+			if err != nil || !bytes.Equal(changed, replay) {
+				return errors.New("MCP executable exact receipt replay differs")
+			}
+			read, err = workerMCPCall(client, "factory.workspace", map[string]any{"task_id": id, "operation": "read", "path": "native-task.txt"})
+			if err != nil || json.Unmarshal(read, &content) != nil || content.Executable == nil || !*content.Executable || content.Content != id+"\n" {
+				return errors.New("MCP executable change/readback differs")
+			}
 		}
 		if _, err := workerMCPCall(client, "factory.submit_task_output", map[string]any{"task_id": id, "output_digest": strings.Repeat("e", 64), "evidence_refs": []string{"native-task.txt"}}); err == nil || !strings.Contains(err.Error(), "task output is not ready") {
 			return errors.New("unreleased task output was not refused before recording")

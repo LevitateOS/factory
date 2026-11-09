@@ -76,6 +76,13 @@ pub enum Command {
         task: String,
         path: String,
     },
+    SetExecutable {
+        operation_id: String,
+        task: String,
+        path: String,
+        expected_digest: String,
+        executable: bool,
+    },
     Remove {
         operation_id: String,
         task: String,
@@ -102,6 +109,7 @@ impl Command {
             Self::BindParent { .. }
                 | Self::Edit { .. }
                 | Self::MakeDirectory { .. }
+                | Self::SetExecutable { .. }
                 | Self::Remove { .. }
                 | Self::Start { .. }
                 | Self::StartAfter { .. }
@@ -114,6 +122,7 @@ impl Command {
         use sha2::{Digest, Sha256};
         if let Self::Edit { operation_id, .. }
         | Self::MakeDirectory { operation_id, .. }
+        | Self::SetExecutable { operation_id, .. }
         | Self::Remove { operation_id, .. } = self
         {
             return Ok(
@@ -132,6 +141,7 @@ impl Command {
         match self {
             Self::Edit { operation_id, .. }
             | Self::MakeDirectory { operation_id, .. }
+            | Self::SetExecutable { operation_id, .. }
             | Self::Remove { operation_id, .. } => {
                 !operation_id.is_empty()
                     && operation_id.len() <= 128
@@ -196,6 +206,8 @@ pub struct Reply {
     pub content: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub file_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub total_bytes: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

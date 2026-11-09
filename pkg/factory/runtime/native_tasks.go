@@ -43,6 +43,7 @@ type nativeTaskReply struct {
 		OutputDigest string                          `json:"output_digest,omitempty"`
 		Content      *string                         `json:"content,omitempty"`
 		FileDigest   string                          `json:"file_digest,omitempty"`
+		Executable   *bool                           `json:"executable,omitempty"`
 		TotalBytes   *int64                          `json:"total_bytes,omitempty"`
 		NextOffset   *int64                          `json:"next_offset,omitempty"`
 		Checks       []project.CheckpointCheckResult `json:"checks,omitempty"`
@@ -125,6 +126,8 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 			command["action"], command["operation_id"], command["offset"], command["expected"], command["replacement"] = "edit", args.OperationID, args.Offset, args.Expected, args.Replacement
 		case "mkdir":
 			command["action"], command["operation_id"] = "make_directory", args.OperationID
+		case "executable":
+			command["action"], command["operation_id"], command["expected_digest"], command["executable"] = "set_executable", args.OperationID, args.ExpectedDigest, *args.Executable
 		case "remove":
 			command["action"], command["operation_id"], command["expected_digest"] = "remove", args.OperationID, args.ExpectedDigest
 		}
@@ -146,6 +149,9 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "edit" {
 		return empty, errors.New("workspace edit preimage differs: expected must match at the zero-based UTF-8 byte offset; offset 0 is the beginning of the file, not a text search. Read the current file, then correct the offset or replace its complete read content at offset 0. Use a fresh operation_id; the refused edit changed nothing")
 	}
+	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "executable" {
+		return empty, errors.New("workspace executable preimage differs: read the current file and use its file_digest as expected_digest with a fresh submission_id; the refused operation changed nothing")
+	}
 	if reply.Result.Status != "ok" && !missing {
 		return empty, execution.ErrTaskUnavailable
 	}
@@ -161,6 +167,9 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 		result["file_digest"] = reply.Result.FileDigest
 		result["total_bytes"] = reply.Result.TotalBytes
 		result["next_offset"] = reply.Result.NextOffset
+	}
+	if reply.Result.Executable != nil {
+		result["executable"] = *reply.Result.Executable
 	}
 	return execution.TaskReceipt{Request: request, Result: result}, nil
 }

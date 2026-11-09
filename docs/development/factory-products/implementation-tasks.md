@@ -2145,6 +2145,34 @@ and partial writes. The dependency-ready correction adds an owned regular-file
 executable-bit operation with exact content digest and retained command identity.
 No further paid Retry is authorized;8 minutes remain on the90-minute source.
 
+Installed current29 adds `factory.workspace` operation `executable` with an
+explicit boolean, exact current content digest and existing mutation identity.
+Go validates the operation/role; native custody allows only the active task's
+unfrozen owned regular file, refuses symlinks/hardlinks and changes only executable
+bits. Readback reports the flag. Existing `task29-workspace-ready2.log` passes
+wrong-digest refusal/replay, enable/clear/enable, unchanged content, both trusted
+checkpoints, executable mode in exported candidate and retired new-process
+readback, using actual production root helpers. The first ready fixture refused
+an empty source before staging and remains retained. Build and boundaries pass
+`executable29-{go-build,native-build,boundaries}.log`/`build-current29.log`.
+Current29 is989621e plus `executable29-source.patch` SHA256
+181a5460642cf958552f2d130852ee3cef0b8b4bf11a345aa9362ff58d7934a1;
+the later supplemental Go check is separately compiled, not relabeled as a build
+input. Inventory58dab05e04e94f6815bffe85499d58a983f12eb1c0868aa569ba11428897d8c6,
+archive78adc9b41063f07a4fe8bcf2ec5888fc436c735030e9ee232fd887308ccc3cb9,
+helper manifest1bc07999b7451132af30bdb9839f8432458d3c4170629f67da2cfb7081788c4c.
+Exact-prior app/helper activation and durable credential/profile hashes pass
+`current29-{upgrade,execution-upgrade,durable-check}.log`; current28 joined normally.
+The supplemental authenticated-MCP finite check stops at the funded plan-review
+gate (no configured judgment source); it does not qualify executable MCP dispatch.
+`task29-mcp-recover1.log` adopts its original failed run/stop charge without replay;
+all of its separate native/backend/PG/keyring/bus owners joined. The actual paid
+installed journey remains required. The original Q26 profile/accounting is distinct
+and preserved; a new explicit Retry authorization is still required.
+`q26-current29-recovered-original.log` proves actual installed reopen:13 reconciled
+runs,46 finished judgments,82 charged minutes,zero publications and unchanged
+90-minute selected-source allowance. Current29 app260392/backend/PG is running.
+
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository
 `LevitateOS/factory-installed-github-check-20261109` (1451647791) was created once
@@ -2346,6 +2374,19 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Scoped uninstall qualification on the actual Debian recipient now passes in
+`/home/factory/q28-uninstall29/{result,install,unknown-refusal,uninstall,uninstall-replay,reinstall}.log`.
+It installs current29 in a separate prefix and uses offline copies of the original
+profile/keyring, never opening those copies. Exact-bundle uninstall removes only
+launch entries; unknown digest refusal, original uninstall receipt replay and
+same-bundle reinstall preserve every copied profile/keyring file hash, payload
+inventory and unrelated sentinel. The first verification assumed a versioned
+payload directory; the actual fresh install uses `lib/factory`. Original successful
+uninstall and receipt were inspected before continuing only verification/replay.
+No original profile, active-run capture or execution service was removed, and no
+model started. This qualifies safe uninstall/reinstall, not pending active-run
+upgrade/provider delivery or whole Q28.
 
 The Q26 workspace correction requires changed root-owned helper bytes. Execution
 installation now admits an explicit exact-prior manifest digest, preserves that
