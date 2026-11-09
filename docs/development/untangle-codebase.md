@@ -2676,6 +2676,21 @@ Factory `1038cc010b21f7882bd8fbb34a06c76fa19b2b29` and `host-native6.log`
 extend that proof to a locally withdrawn/reconnected credential: history lookup
 keeps original source/deadline/receipt bytes, and submit refuses source rebinding.
 
+Appliance selection now uses the same host placement/journal owner through live
+human SDK admission (Fountain `7be4d331b5`, check `ff3235bfb8`). The admitted
+installation defines the runtime; the browser cannot choose a principal or
+rebind an old runtime. SodaOS `76bfb462` / `a44aed11` map the canonical repository
+and forward native admission; Factory `4d652ee` exposes consumer capability gates
+in the shared controller. Role authorization remains explicitly unavailable on
+the appliance until its separate binding path is connected. The actual canonical
+service journey caught a missing extension route allowlist entry, now corrected.
+`q19-authority/consumer-check3.log` passes real login, bridge, both service binaries
+and PostgreSQL selection/replay/refusal/retirement. `controller-callback1.log`
+covers native role downgrade; `replay-check1.log` proves the common selection
+refactor preserves pre-existing desktop command encoding/receipt without effects.
+No worker, installed appliance or full Q19 closure is claimed; continue finite
+role-grant and captured dispatch admission, preserving these settled operations.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

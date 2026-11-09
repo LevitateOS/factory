@@ -1082,14 +1082,30 @@ profile proof. Original intent bytes, source connection, deadline and backed-up
 receipt stay exact; this is local reconnect with the fixture OAuth token, while
 actual provider revocation/re-login remains qualified by the host cases.
 
-Remaining: admitted appliance SDK/consumer authority and actual competing
+Appliance selection continuation: Fountain `7be4d331b5` / `ff3235bfb8`,
+SodaOS `76bfb462` / `a44aed11` and Factory `4d652ee` connect live human SDK
+admission, the canonical Factory API and shared settings/controller. The host
+derives runtime identity from the admitted installation; background admission
+cannot select it. `controller-callback1.log` passes the real SDK process/socket,
+native admin-to-reader loss and capability/method refusal (fixture session).
+`replay-check1.log` adopts the exact pre-refactor expired desktop command with
+unchanged operation, placement and receipt, without dispatch. `consumer-check3.log`
+passes actual native login and canonical Soda bridge/Forge/Factory binaries with
+PostgreSQL: canonical repository mapping, selection/exact replay, hidden-repository
+and stale-session refusal, withdrawal and retirement. This exposed and fixed the
+extension route allowlist omission. `ui-appliance-check1.log`, shared UI build and
+consumer Go/TypeScript checks pass. Original databases and failed attempts remain
+preserved; all owned check processes joined. These are development/DOM checks,
+not installed, worker, role-grant or full Q19 qualification.
+
+Remaining: appliance role grants/consumer execution authority and actual competing
 appliance/desktop dispatch; worker launch/retirement bound to the host claim;
 current role/permission and in-flight races; native control code exchange;
 canonical host/shared-view consumer integration and the full ordinary journey.
 The legacy signed Factory intake callback refuses when central authority is
 configured until its Q22 successor is admitted. No installed or full Q19 closure
-is claimed. **Next executable action:** extend the canonical private SDK and
-SodaOS consumer with central controller/grant admission before existing dispatch;
+is claimed. **Next executable action:** connect separately bound appliance role
+grants and captured central controller/claim admission before existing dispatch;
 reuse these journals and preserve unresolved original work. No GitHub or Q24
 appliance dependency prevents that source/integration work.
 
