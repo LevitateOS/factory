@@ -14,7 +14,7 @@ import (
 // evidence; size and encoding refusals remain ordinary prompt errors.
 var ErrPromptPrerequisiteEvidence = errors.New("dispatch prompt prerequisite evidence invalid")
 
-const DispatchPromptTemplate = "soda-f07-f2-v8"
+const DispatchPromptTemplate = "soda-f07-f2-v9"
 
 // PromptSource is one verified accepted text section: a native comment ID
 // plus the content the bracketed read verified against its digest.
@@ -345,7 +345,7 @@ func writePromptPolicy(b *strings.Builder, in PromptInputs) {
 	} else {
 		b.WriteString("Permitted actions: inspect and modify the prepared checkout to implement the accepted objective; run relevant local checks; report the resulting candidate and evidence. Do not change grants, select another provider or model, publish refs, create or merge pull requests, or expose credentials.\n")
 	}
-	b.WriteString("Recorded attempt active-time limit: " + strconv.Itoa(in.AttemptLimits.ActiveMinutes) + " minutes. Automatic retries and accepted edits do not replenish it. Only an explicit maintainer Retry starts a fresh allowance under current policy. The host enforces each run's absolute deadline within the remaining attempt and provider allowances.\n")
+	b.WriteString("Recorded time limit per run: " + strconv.Itoa(in.AttemptLimits.ActiveMinutes) + " minutes. The attempt permits at most " + strconv.Itoa(in.AttemptLimits.ReviewRounds) + " independent reviews and " + strconv.Itoa(in.AttemptLimits.CorrectionCycles) + " corrections. Waiting, automatic retries and accepted edits do not replenish those counts. Only an explicit maintainer Retry starts a fresh allowance under current policy. The host enforces each run's captured absolute deadline and the selected source allowance.\n")
 	if len(in.RequiredChecks) > 0 {
 		b.WriteString("Required evidence checks: " + strings.Join(in.RequiredChecks, "; ") + "\n")
 		b.WriteString("These are native CI status context names, not executable commands or repository paths. Do not turn a status name into a shell command. Use the recorded check evidence for its exact head; run only actual approved repository checks or commands justified by inspected source.\n")

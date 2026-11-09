@@ -60,6 +60,11 @@ interface SetupDraft {
   method: string;
   useAccount: boolean;
 }
+interface LimitDraft {
+  active_minutes: string;
+  review_rounds: string;
+  correction_cycles: string;
+}
 const mergeLabels: Record<string, string> = {
   merge: 'Merge commit',
   squash: 'Squash',
@@ -192,7 +197,7 @@ function settings(statusValue: unknown, accessValue: unknown, repository: string
 }
 
 // The existing policy command owns CAS, current permissions and actor bindings.
-// Preserve the rest of that policy while changing only its role selections.
+// Preserve unrelated policy settings while editing roles and captured limits.
 function policyChange(policy: Record<string, unknown>, roles: Selections) {
   const resolve = policy.resolve_actor == null ? {} : object(policy.resolve_actor);
   return {
@@ -227,6 +232,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     view: {state: true},
     roles: {state: true},
     setup: {state: true},
+    limits: {state: true},
     automationReviewer: {state: true},
     fundingSource: {state: true},
     busy: {state: true},
@@ -237,6 +243,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   declare private busy: boolean;
   declare private message: string;
   declare private setup: SetupDraft;
+  declare private limits: LimitDraft;
   declare private automationReviewer: boolean;
   declare private fundingSource: string;
   private current: RoleContext | undefined;
@@ -245,6 +252,7 @@ export class SodaFactoryRoleSettings extends LitElement {
   constructor() {
     super();
     this.setup = {targetBranch: '', checks: '', method: '', useAccount: false};
+    this.limits = {active_minutes: '', review_rounds: '', correction_cycles: ''};
     this.busy = false;
     this.automationReviewer = false;
     this.fundingSource = '';
@@ -310,6 +318,12 @@ export class SodaFactoryRoleSettings extends LitElement {
           'soda-coder': {account: '', harness: 'muse', model: ''},
           'soda-reviewer': {account: '', harness: 'muse', model: ''},
           [judgmentRole]: {account: '', harness: 'muse', model: ''},
+        };
+        const limits = view.policy ? object(view.policy.attempt_limits) : undefined;
+        this.limits = {
+          active_minutes: limits ? String(limits.active_minutes) : '',
+          review_rounds: limits ? String(limits.review_rounds) : '',
+          correction_cycles: limits ? String(limits.correction_cycles) : '',
         };
         if (!view.policy)
           this.setup = {targetBranch: view.options?.targetBranch ?? '', checks: '', method: '', useAccount: false};
@@ -424,6 +438,17 @@ export class SodaFactoryRoleSettings extends LitElement {
       .map((name) => name.trim())
       .filter(Boolean);
   }
+  private selectedLimits() {
+    const active = Number(this.limits.active_minutes), reviews = Number(this.limits.review_rounds), corrections = Number(this.limits.correction_cycles);
+    if (Object.values(this.limits).some(value => !value.trim()) ||
+      !Number.isSafeInteger(active) || active < 1 ||
+      !Number.isSafeInteger(reviews) || reviews < 1 || reviews > 16 ||
+      !Number.isSafeInteger(corrections) || corrections < 0) return;
+    return {
+      active_minutes: active, review_rounds: reviews, correction_cycles: corrections,
+      max_children: this.view?.policy ? object(this.view.policy.attempt_limits).max_children : 0,
+    };
+  }
   private async save(event: SubmitEvent) {
     event.preventDefault();
     const context = this.current,
@@ -432,7 +457,8 @@ export class SodaFactoryRoleSettings extends LitElement {
       disabling = event.submitter?.getAttribute('value') === 'disable',
       enrolling = event.submitter?.getAttribute('value') === 'enroll',
       roles = disabling ? view?.roles : this.roles;
-    if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal)) return;
+    const limits = this.selectedLimits();
+    if (!context || !view || !view.editable || !roles || this.busy || !this.live(context, signal) || (!disabling && !limits)) return;
     const initial = view.policy === null,
       actors = initial ? this.initialActors() : undefined;
     if (initial && (disabling || enrolling)) return;
@@ -457,6 +483,7 @@ export class SodaFactoryRoleSettings extends LitElement {
           ...actors,
         };
     if (enrolling || disabling) payload.enabled = enrolling;
+    if (!disabling) Object.assign(payload, {attempt_limits: limits});
     const reviewIdentity = view.policy?.review_actor ?? actors?.review_actor;
     const automationReviewer = disabling ? !!view.policy?.automation_reviewer : this.automationReviewer;
     Object.assign(payload, {automation_reviewer: disabling
@@ -495,6 +522,10 @@ export class SodaFactoryRoleSettings extends LitElement {
         )
       );
       check(confirmed.policy.enabled === payload.enabled);
+      if (!disabling) {
+        const savedLimits = object(confirmed.policy.attempt_limits);
+        check(['active_minutes', 'review_rounds', 'correction_cycles'].every(key => savedLimits[key] === object(limits)[key]));
+      }
       if (initial)
         check(
           confirmed.policy.enabled === false &&
@@ -529,6 +560,7 @@ export class SodaFactoryRoleSettings extends LitElement {
     const canSave =
       view?.editable &&
       roles &&
+      this.selectedLimits() &&
       (Object.keys(roleNames) as Role[]).every(
         (role) => this.validSelection(role, initial)
       ) &&
@@ -667,6 +699,19 @@ export class SodaFactoryRoleSettings extends LitElement {
                   : ''
               }
               <fieldset ?disabled=${this.busy || !view.editable}>
+                <legend>Execution limits</legend>
+                <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts; source allowance still bounds spending. Changes apply to new attempts.</p>
+                ${([
+                  ['active_minutes', 'Time limit per run in minutes', 1, undefined],
+                  ['review_rounds', 'Maximum independent reviews per attempt', 1, 16],
+                  ['correction_cycles', 'Maximum corrections per attempt', 0, undefined],
+                ] as const).map(([field, label, min, max]) => html`<label>${label}
+                  <input type="number" aria-label=${label} min=${min} max=${max ?? Number.MAX_SAFE_INTEGER} step="1" required
+                    .value=${this.limits[field]}
+                    @input=${(event: Event) => {this.limits = {...this.limits, [field]: (event.target as HTMLInputElement).value};}} />
+                </label>`)}
+              </fieldset>
+              <fieldset ?disabled=${this.busy || !view.editable}>
                 <legend>AI review publication</legend>
                 <p>Personal accounts publish AI inspection as comments. GitHub's required approvals and CI still apply.</p>
                 <label><input
@@ -725,7 +770,7 @@ export class SodaFactoryRoleSettings extends LitElement {
               })}
               <p>
                 Only Muse is currently supported.
-                ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Each role keeps its current execution limits. Saving these choices retains the current automation policy.'}
+                ${initial ? 'Automation stays disabled until execution setup and funding are ready.' : 'Saving retains the other automation policy settings and existing attempt captures.'}
               </p>
               <button type="submit" value="save" ?disabled=${this.busy || !canSave}>
                 ${initial ? 'Save disabled automation policy' : 'Save role selections'}
