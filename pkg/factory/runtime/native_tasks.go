@@ -103,7 +103,17 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	command := map[string]any{"task": args.TaskID}
 	switch request.Input.Action {
 	case "start_task":
-		command["action"] = "start"
+		observed, err := p.taskCall(ctx, run, "task", map[string]any{"action": "observe"})
+		if err != nil {
+			return empty, err
+		}
+		if observed.Result.Status != "ok" || !factory.ValidCommit(observed.Result.Head) {
+			return empty, execution.ErrTaskUnavailable
+		}
+		// A known refusal at one head stays immutable. Once the previous
+		// checkpoint commits, the next explicit call captures a different head
+		// and command identity; uncertain old starts are never replayed.
+		command["action"], command["expected_head"] = "start_after", observed.Result.Head
 	case "release_output":
 		command["action"] = "release"
 	case "workspace":
@@ -125,6 +135,14 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	}
 	read := request.Input.Action == "workspace" && args.Operation == "read"
 	missing := read && reply.Result.Status == "missing"
+	if request.Input.Action == "start_task" {
+		switch reply.Result.Status {
+		case "task_busy", "dependency_pending", "stale_head":
+			return empty, errors.New("task start is waiting for the prior committed checkpoint: inspect factory.context and factory.outputs, submit any ready task output and wait for its committed checkpoint before starting another task")
+		case "task_completed":
+			return empty, errors.New("task is already committed: inspect factory.context and choose the next unfinished task")
+		}
+	}
 	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "edit" {
 		return empty, errors.New("workspace edit preimage differs: expected must match at the zero-based UTF-8 byte offset; offset 0 is the beginning of the file, not a text search. Read the current file, then correct the offset or replace its complete read content at offset 0. Use a fresh operation_id; the refused edit changed nothing")
 	}

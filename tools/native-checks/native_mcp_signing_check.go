@@ -9477,6 +9477,11 @@ func workerSequentialTasks(client *http.Client) error {
 		if err = wait(id, store.PlanTaskOutputReady, false); err != nil {
 			return err
 		}
+		if i == 0 {
+			if _, startErr := workerMCPCall(client, "factory.start_task", map[string]any{"task_id": "second"}); startErr == nil || !strings.Contains(startErr.Error(), "task start is waiting") {
+				return errors.New("premature next task did not return its recoverable checkpoint wait")
+			}
+		}
 		if _, err = workerMCPCallID(client, "factory.submit_task_output", map[string]any{"task_id": id, "evidence_refs": []string{"native-task.txt"}}, "native-task-"+id+"-output"); err != nil {
 			return err
 		}

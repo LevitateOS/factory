@@ -465,14 +465,26 @@ impl<'a> Workspace<'a> {
         if self.invocation.is_empty() {
             return Err(refused("workspace parent not observed"));
         }
+        let guarded_start = matches!(&command, Command::StartAfter { .. });
+        if let Command::StartAfter { expected_head, .. } = &command {
+            if expected_head != &self.head {
+                reply.status = "stale_head".into();
+                return Ok(reply);
+            }
+        }
         match command {
             Command::BindParent { .. } => unreachable!(),
-            Command::Start { task } => {
+            Command::Observe => { reply.events = self.events.clone(); }
+            Command::Start { task } | Command::StartAfter { task, .. } => {
                 if self.active.map(|i| self.plan.tasks[i].id.as_str()) == Some(task.as_str()) {
                     reply.events = self.events.clone();
                     return Ok(reply);
                 }
                 if self.active.is_some() || self.completed.contains(&task) {
+                    if guarded_start {
+                        reply.status = if self.completed.contains(&task) { "task_completed" } else { "task_busy" }.into();
+                        return Ok(reply);
+                    }
                     return Err(refused("workspace task already active or complete"));
                 }
                 let i = self
@@ -486,6 +498,7 @@ impl<'a> Workspace<'a> {
                     .iter()
                     .any(|id| !self.completed.contains(id))
                 {
+                    if guarded_start { reply.status = "dependency_pending".into(); return Ok(reply); }
                     return Err(refused("workspace dependency incomplete"));
                 }
                 self.event("parent_task_started", &task, String::new())?;

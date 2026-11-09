@@ -52,6 +52,11 @@ pub enum Command {
     Start {
         task: String,
     },
+    Observe,
+    StartAfter {
+        task: String,
+        expected_head: String,
+    },
     Read {
         task: String,
         path: String,
@@ -99,6 +104,7 @@ impl Command {
                 | Self::MakeDirectory { .. }
                 | Self::Remove { .. }
                 | Self::Start { .. }
+                | Self::StartAfter { .. }
                 | Self::Release { .. }
                 | Self::Checkpoint { .. }
                 | Self::Final { .. }

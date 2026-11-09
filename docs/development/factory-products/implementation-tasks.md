@@ -1265,6 +1265,7 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 ### Q19 — Fountain placement and authenticated operations
 
 **Verified native bridge increment; full Q19 remains INCOMPLETE.**
+Factory 65f4c0ced5a9deb83aa748929ec04cf26f481dae owns this increment.
 `q19-authority/native-worker-connected9.log` passes canonical Fountain
 b81819dacfa759eb5fa1d0231d098181fac16678 (parent b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b):
 actual TLS/OAuth/keyring/profile proof, host-observed central placement, original
@@ -2077,12 +2078,30 @@ the prior checkpoint committed killed its workspace service with `workspace task
 already active or complete`. `q26-current27-final-original.log` proves11 reconciled/
 retired runs,38 finished judgments,68 charged minutes,zero publications. Original
 native receipts and systemd journal preserve the refusal and partial edits.
-Current27 app214803/backend/PG remain running, with no active inference. The
+Current27 app214803/backend/PG joined normally after all inference settled. The
 dependency-ready fix adds read-only head observation and head-bound task-start
 receipts with recoverable busy/dependency/stale refusal; changed heads require a
 new command, while old uncertain starts remain fenced. Native compilation passes
-`task28-build.log`; real workspace/MCP checks and installation are next. No further
-paid Retry is authorized. Full Q26 and the independent queue remain open.
+`task28-build.log`. Actual production helpers now pass `task28-workspace-ready1.log`:
+premature start returns an immutable busy receipt and leaves the workspace alive;
+after the first trusted commit, a distinct head-bound command starts the second
+task. Both checkpoints, final integration, exact receipt replay/import and a new
+process's post-retirement readback pass without model/provider requests. Helpers
+and app were installed through exact-prior upgrades, preserving durable profile,
+signer/keyring, previous helper manifest and broker.lock. New helper manifest
+2d74ea6c4e0a8fa4703e429697844d17ae3e1ba39efd9b7d9e452ae10fab90a8;
+app inventoryd6f579be74ab0367fd157539b941fceda82056f62c04cdcfa16441b6cf3ba082,
+archive0414e99387d233702bfa6b7de313ce2ceac28453f8bbd7bbc46a7a96ee11e476.
+Current28 build inputs are 65f4c0ced5a9deb83aa748929ec04cf26f481dae plus the
+five owned paths in `task28-source.patch` (SHA256
+38b4c9ac0bb5add9d6a2dd4009687b7f2c0c69134c6e3dffcc455cd83b82f613),
+not a relabeled clean build. `build-current28.log`/`task28-boundaries.log` pass;
+`current28-{upgrade,execution-upgrade,durable-check}.log` retain actual activation.
+Current28 reopen is running. This qualifies the changed native component, not
+the unfinished installed delivery/MCP/model journey. No further paid Retry is
+authorized;22 minutes remain on the same90-minute source. Next: inspect current28
+original counts and current role readiness, then obtain one explicit paid Retry
+exception before repeating planning/Builder inference.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

@@ -3086,7 +3086,11 @@ All11 runs and38 judgments settle,68 minutes remain charged,zero publications.
 Implement a read-only native head observation and head-bound start with immutable
 recoverable refusals; a later checkpoint creates a distinct command identity.
 Do not replay the original uncertain start, alter its receipt or fund another
-Retry without authorization. Qualification/installation are still pending.
+Retry without authorization. Production-helper workspace qualification now passes
+task28-workspace-ready1: immutable busy replay, live workspace, distinct start
+after a trusted head change, both checkpoints/final integration and retired
+readback. Exact-prior app/helper upgrades preserve credentials and original state.
+Q26 records the actual current28 source patch/inventory and remaining paid gate.
 
 ## Verification and completion
 

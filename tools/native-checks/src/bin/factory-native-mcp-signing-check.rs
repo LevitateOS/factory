@@ -1459,6 +1459,14 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             workspace.command(&WorkspaceCommand::Start {
                 task: "first".into(),
             })?;
+            let pending_start = WorkspaceCommand::StartAfter { task: "second".into(), expected_head: candidate.clone() };
+            if mode == "ready" {
+                let pending = workspace.command(&pending_start)?;
+                if pending.status != "task_busy" || serde_json::to_vec(&workspace.command(&pending_start)?)? != serde_json::to_vec(&pending)? {
+                    return Err("premature task start did not retain its exact refusal".into());
+                }
+                if workspace.command(&WorkspaceCommand::Observe)?.head != candidate { return Err("premature task start changed the candidate".into()); }
+            }
             if mode == "ownership" {
                 if workspace
                     .command(&WorkspaceCommand::Edit {
@@ -1630,8 +1638,9 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
             {
                 return Err("foreign checkpoint invocation accepted".into());
             }
-            workspace.command(&WorkspaceCommand::Start {
+            workspace.command(&WorkspaceCommand::StartAfter {
                 task: "second".into(),
+                expected_head: first.head.clone(),
             })?;
             workspace.command(&WorkspaceCommand::Edit {
                 task: "second".into(),
