@@ -1831,12 +1831,24 @@ artifacts prove 256 status/capability/secret sequences use one OpenSession, real
 daemon restart recovers the same credential, and existing withdrawal, expiry,
 out-of-band replacement, refresh reservation, crash/uncertain-send and concurrent
 writer checks pass; all owned check processes joined. No provider login is claimed
-by those dummy-grant checks. Next: build/install the clean custody correction by
-exact current17 inventory, normally reopen this profile, approve the saved offline
-recipe and recover the first admitted run/claim/receipt. Do not repeat issue
-creation, acceptance or funding. Current17 app/backend/PG/private bus remain at
-SSH22209; recovery keyring90893 owns the unlocked service, autoactivated88847 also
-remains and both need exact owned cleanup at normal Quit. No model is active.
+by those dummy-grant checks. Do not repeat issue creation, acceptance or funding.
+Clean current18/d9f70145123543ed6ff84d9e5ba25221d0ddefc1 at SSH22209
+(inventory980f6be798eea7f69d32e94ee0f17b7f79133912393e0e58b55f2852d491b3f9)
+then passed exact-prior activation and normal Quit/reopen. Both original recovery
+keyring daemons were retired; durable profile/keyring/signer and helper bytes are
+unchanged (`current18-upgrade.log`). Current instance181c635e3f1dbc33574a8995b3addd78
+has real ready Builder f610b58efc1c80fcf8b2f33dc and Reviewer
+fab7cd5c8b2e6497f6849c096, both setup/check exits0, on the same reviewed offline
+recipe/base. Original issue/acceptance, thirty-minute source allowance and dispatch
+remain; `q26-current18-{after-preparation,selected-retained,queue-retained}.log`
+retain the single selected candidate and zero runs. The shared Work summary
+discarded the backend's current dispatch diagnosis. It now exposes the bounded
+recorded stage/waits/errors in an optional Dispatch status disclosure, without
+changing authority or driving work. Types/boundaries pass in `dispatch19-*.log`.
+Next: install this shared presentation change from exact current18, inspect the
+actual hold and correct its owner; never reset the candidate or replay inference.
+The current18 installed app/backend/PG/private bus/keyring remain running. No
+model is active; remaining connected/installed queue scope stays outstanding.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

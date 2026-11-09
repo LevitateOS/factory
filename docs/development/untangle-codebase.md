@@ -2968,6 +2968,14 @@ also pass (`/home/vince/Projects/q25-package/credential18b-result.log`); all own
 processes joined. This qualifies custody transport, not the pending installed
 delivery journey. Q26 retains the original issue/acceptance/funding and next step.
 
+Q26 shared dispatch visibility (2026-11-09): the installed, funded, prepared issue
+remained queued with no runs. Repository status already provides the bounded
+coordinator observation, but the shared summary reader discarded it. Preserve and
+show that existing read in Work overview, with its last-pass time and explicit
+refresh wording; it grants no authority or implicit retry. TypeScript and ownership
+boundaries pass (`dispatch19-*.log`). Actual installed diagnosis/delivery remain
+the next Q26 step; original candidate, funding and receipts are unchanged.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

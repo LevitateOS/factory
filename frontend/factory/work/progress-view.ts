@@ -72,6 +72,7 @@ export interface WorkOverviewModel {
   readonly allowanceText: string;
   readonly outcomeNote: string;
   readonly availabilityNote: string;
+  readonly dispatch?: FactoryRepositorySummary['dispatch'];
 }
 
 const deliveryBuckets: Record<DeliveryState, keyof OverviewCounts> = {
@@ -179,6 +180,7 @@ export function describeWorkOverview(input: WorkOverviewInput): WorkOverviewMode
     allowanceText: allowanceHoldText(input.summary?.allowance ?? []),
     outcomeNote: outcomeNote(input, counts),
     availabilityNote: availabilityNote(input),
+    ...(input.summary?.dispatch ? {dispatch: input.summary.dispatch} : {}),
   };
 }
 
@@ -202,6 +204,13 @@ export function renderWorkOverview(model: WorkOverviewModel): TemplateResult {
           : ''
       }
       <p>${model.setupText}</p>
+      ${model.dispatch ? html`<details>
+        <summary>Dispatch status</summary>
+        <p>Latest observed stage: ${model.dispatch.stage.replaceAll('_', ' ')}.</p>
+        ${model.dispatch.observedAt ? html`<p>Last dispatch pass: <time datetime=${model.dispatch.observedAt}>${model.dispatch.observedAt}</time>.</p>` : ''}
+        <ul>${model.dispatch.reasons.map(reason => html`<li>${reason}</li>`)}</ul>
+        <p>This is the last recorded observation. Refresh overview to check again.</p>
+      </details>` : ''}
       <p>${model.outcomeNote}</p>
       <ul>
         ${model.dependencies.map(

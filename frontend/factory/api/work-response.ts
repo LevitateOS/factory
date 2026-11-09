@@ -514,6 +514,7 @@ export interface FactoryRepositorySummary {
   effective: FactoryEffectiveSummary;
   preparation?: FactoryPreparationSummary;
   allowance?: AllowanceHold[];
+  dispatch?: {stage: string; observedAt: string; reasons: string[]};
 }
 function effectiveSummary(value: unknown): FactoryEffectiveSummary {
   const raw = record(value);
@@ -526,6 +527,7 @@ export function factoryRepositorySummary(value: unknown, repository: string): Fa
   const queue = record(data.queue);
   const allowance = allowanceHolds(data, repository);
   const preparation = present(data.preparation) ? record(data.preparation) : undefined;
+  const dispatch = present(data.dispatch_observation) ? record(data.dispatch_observation) : undefined;
   return {
     repository,
     queue: {queued: num(queue.queued), active: num(queue.active)},
@@ -534,6 +536,15 @@ export function factoryRepositorySummary(value: unknown, repository: string): Fa
       ? {}
       : {preparation: {project: text(preparation.project), ready: flag(preparation.ready)}}),
     ...(allowance.length > 0 ? {allowance} : {}),
+    ...(dispatch === undefined ? {} : {dispatch: {
+      stage: text(dispatch.stage),
+      observedAt: text(dispatch.dispatch_at),
+      reasons: [...(Array.isArray(dispatch.waits) ? dispatch.waits : []), ...(Array.isArray(dispatch.errors) ? dispatch.errors : [])]
+        .slice(0, 64).map(value => {
+          const reason = record(value);
+          return `${text(reason.issue) ? `Issue #${text(reason.issue)}: ` : ''}${text(reason.reason).replaceAll('_', ' ')}`;
+        }),
+    }}),
   };
 }
 
