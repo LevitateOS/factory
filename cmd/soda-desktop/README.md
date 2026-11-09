@@ -19,7 +19,9 @@ or pass `--prefix /absolute/location`. It installs the app/runtime, known notice
 a `bin/factory` launcher and a desktop-menu entry/icon. No Bun, Go or Rust toolchain
 is needed to run the installer. Bash, coreutils and `ldd` are required; missing
 GTK/WebKit runtime libraries refuse installation before writes. Existing
-installation files refuse overwrite; upgrades/uninstall remain unfinished.
+installation files refuse overwrite. Verified app upgrades install a separate
+payload and activate its launcher last; uninstall retains profiles, credentials,
+payloads and execution services. See the [upgrade and uninstall commands](../../README.md).
 The bundle stage checks that the app, Go backend, PostgreSQL and native helpers
 have matching 64-bit Linux architectures. Check-feature builds omit the app
 installer and refuse reusing an installable stage. Installation does not copy
