@@ -1919,11 +1919,42 @@ settlement, operations, accounting, acceptance and authority checks remain.
 `root22-retained-original-check2.log` proves one command/adoption and idempotent
 readback against the actual disposable retained copy, with no coordinator,
 provider, dispatch or inference. Its PG joined; check1 used the wrong socket port
-and changed no product data. Go builds/boundaries pass. Next: package/install this
-correction from exact current21, normally reopen and recover the saved same Retry
-identity once; do not replace it or replay original models. Current21 app134311,
-backend134451 and its original PG remain running at SSH22209; no fresh inference
-has occurred. Automatic review rejected copying all webview storage; a targeted
+and changed no product data. Go builds/boundaries pass. bffcb9e3e906f52de806a1e1551de0589a78a1e6
+is installed as clean current22, inventory4f0569519ca44aa631477f9c4ccebf8db494adeeb30f2ad649702cb240049cd7.
+Exact-prior activation/reopen preserves durable files/helpers and current21 logs.
+Installed recovery recorded that same Retry once at20:46:48Z; original command and
+admission receipts are `q26-current22-{retry,admission}-original*.log`. Approval7
+prepared both roles exits0 in instance da9fac5af1379a11877a28a545908f35. Fresh
+Architect run3d89097cc2a94712c2380944dce7b752 retained context judgment
+f5df697060bc592e662d172538e76afb and both plan opinions:04eec5accb2c9137810c6fd3b5c3dfaf
+replan/0.9, then1863c68fae51fb308ba28d5e0fb7e8b4 complete/0.9 after revision
+within the same run. Accepted plan digest8dd81c5341d44debe240bf8dfba3a9097a67353519b4002d4120360f19906f84
+and scoped proof028c6b190b32df364cec498a5170322bea1f63d2cafa067acd982c1e0cd794b8
+admitted Builder assignment6a99af53be6f52bd49573ea55c99664b/run999863fd6e690e2a985b2c78115ee893.
+This qualifies the connected plan gate; full delivery remains unqualified.
+
+Builder ended needs-human after a stale workspace edit preimage terminated the
+agent service at20:50:57Z. Original run is sealed/retired/reconciled, native exit0
+and synthesized failed/no-report remain separate. Total23 charged minutes,
+seven remaining, no publication. `q26-current22-builder-result-original.log`,
+native task requests/receipts and systemd journal retain the failed operation;
+never replay its missing receipt or inference. The current correction returns a
+durable typed preimage refusal and keeps the workspace usable, with actionable
+worker guidance. The existing native workspace check is being extended to prove
+unchanged bytes, exact refusal replay, subsequent edits/checkpoints and cleanup
+without a model. `workspace23-native-check3.log` now passes those assertions,
+both sequential checkpoints/final export, Go receipt import and separate-process
+readback after exact root retirement. The original installed agent was restored
+byte-for-byte. Checks1/2 failed before task admission because the separate Git
+upload-pack process refused the verified read-only source owner; the fixed clone
+command supplies that process only its exact `/run/factory-source/.git` exception.
+Their roots/processes retired. This is native component evidence, not a successful
+installed Builder. Go/Cargo builds and boundaries pass. Next: clean package and
+installed helper activation using the qualified Q28 upgrade owner; further
+paid work needs a fresh Q30 exception. Current22 app147526/backend/PG remain
+running at SSH22209; both fresh workers and judgment processes are retired.
+Owned edits include these workspace changes, `install-native-execution.sh` and
+the existing Rust native check/evidence records. Automatic review rejected copying all webview storage; a targeted
 read of only the saved Retry record recovered the identity without copying other
 data. The
 session harness overwrote the original keyring.log on reopen; its crash text was
@@ -2131,6 +2162,22 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+The Q26 workspace correction requires changed root-owned helper bytes. Execution
+installation now admits an explicit exact-prior manifest digest, preserves that
+manifest and the exact target before replacements, preflights every file and
+adopts only captured prior/current bytes after interruption. User, permissions,
+paths and unknown edits cannot change implicitly. Actual-root upgrades require
+the app to Quit, quiesce broker activation and refuse active services or retained
+roots; the prior socket is restored on refusal. Under `q25-package`,
+`workspace23-upgrade-{unknown,human,interrupted,current,current-unknown}.log`
+qualify unchanged unknown/human refusal, SIGKILL after helper replacement,
+exact-prior recovery, preserved prior receipt and current replay. Actual guest
+`workspace23-active-upgrade-refusal.log` proves the running installed app, socket,
+helper and manifest remain unchanged on refusal. The no-model workspace check
+temporarily exercised the changed helper and restored its exact original bytes.
+Actual quiescent installed activation follows; active-run, dependency delivery
+and the broader Q28 gates remain outstanding.
 
 Additional scoped format check: `q28-migrate/retained100/check.log` and
 `unknown-check.log` prove actual retained99→100/current reopen, exact prior99

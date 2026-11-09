@@ -598,7 +598,9 @@ impl<'a> Workspace<'a> {
                     || !text.is_char_boundary(end)
                     || bytes.len() - expected.len() + replacement.len() > MAX_FILE as usize
                 {
-                    return Err(refused("workspace edit preimage differs"));
+                    reply.status = "preimage_mismatch".into();
+                    reply.events = self.events.clone();
+                    return Ok(reply);
                 }
                 bytes.splice(offset..end, replacement.bytes());
                 let mut file = match existing {

@@ -1379,6 +1379,9 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
     let prompt = hash(b"sequential workspace integration");
     let mut runs = Vec::new();
     for mode in ["ready", "failed", "ownership", "dependency", "cancel"] {
+        if std::env::var("SODA_NATIVE_CHECK_WORKSPACE_MODE").is_ok_and(|selected| selected != mode) {
+            continue;
+        }
         let scratch = root.join(mode);
         DirBuilder::new().mode(0o700).create(&scratch)?;
         let mut random = [0; 16];
@@ -1480,6 +1483,22 @@ fn workspace_check(root: &Path, helper: &Path) -> Result<(), Box<dyn std::error:
                 expected: String::new(),
                 replacement: "first\n".into(),
             })?;
+            let stale = WorkspaceCommand::Edit {
+                task: "first".into(), operation_id: "stale-edit".into(),
+                path: "native-task.txt".into(), offset: 0,
+                expected: "stale preimage".into(), replacement: "must not appear".into(),
+            };
+            let refused = workspace.command(&stale)?;
+            if refused.status != "preimage_mismatch"
+                || serde_json::to_vec(&workspace.command(&stale)?)? != serde_json::to_vec(&refused)? {
+                return Err("stale edit did not retain its exact refusal".into());
+            }
+            let unchanged = workspace.command(&WorkspaceCommand::Read {
+                task: "first".into(), path: "native-task.txt".into(), offset: 0, limit: 1024,
+            })?;
+            if unchanged.content.as_deref() != Some("first\n") {
+                return Err("stale edit changed the file or retired its workspace".into());
+            }
             workspace.command(&WorkspaceCommand::MakeDirectory {
                 operation_id: "mkdir".into(),
                 task: "first".into(),

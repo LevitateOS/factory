@@ -427,6 +427,7 @@ fn coder_workspace(
                 "-c",
                 "safe.directory=/run/factory-source",
                 "clone",
+                "--upload-pack=/usr/bin/git -c safe.directory=/run/factory-source/.git upload-pack",
                 "--quiet",
                 "--no-local",
                 "--no-checkout",

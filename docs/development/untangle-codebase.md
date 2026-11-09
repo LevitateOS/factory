@@ -3011,6 +3011,28 @@ single command and idempotent recovery without coordinator/provider/inference.
 Installed recovery and positive funded plan review remain the next Q26 action;
 the user's bounded Retry authorization persists. Exact references are in Q26.
 
+Q26/Q28 workspace refusal and helper activation (2026-11-09): current22 recovered
+the original saved Retry and funded plan review rejected then accepted a revised
+plan within one Architect run. Its Builder's stale edit instead killed the native
+workspace service. Return/retain a typed preimage refusal before mutation and
+tell the worker to read current bytes/use a fresh edit identity. Existing real
+workspace check3 proves unchanged bytes, exact refusal replay, subsequent task
+commits/final export and retained readback without any model/provider. Checks1/2
+uncovered the separate Git upload-pack process's source-owner refusal; its fixed
+command receives only the verified source's exact `.git` exception (see
+[Git upload-pack](https://git-scm.com/docs/git-upload-pack)). All check roots retired
+and the prior installed helper was restored. Preserve the actual paid failed run,
+23-minute total and absent publication; no inference was replayed.
+
+The existing execution installer also needs changed-byte activation. Its new
+exact-prior manifest capture reuses the installer lock, preflights every target,
+preserves prior/target receipts and resumes only old/current bytes after SIGKILL.
+It refuses unknown edits, changed user/modes/paths, a live app, active services or
+retained execution roots. Image checks qualify interruption/refusal/recovery;
+the actual installed app's active-upgrade refusal leaves app/socket/helpers and
+manifest unchanged. Actual quiescent activation and broader installed journeys
+remain next; Q26/Q28 hold the exact records.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

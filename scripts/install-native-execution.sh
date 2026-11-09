@@ -3,13 +3,16 @@
 set -euo pipefail
 execution_user=
 install_root=/
+upgrade_from=
 while (( $# )); do
   case "$1" in
     --user) [[ $# -ge 2 ]] || exit 2; execution_user=$2; shift 2 ;;
     --root) [[ $# -ge 2 ]] || exit 2; install_root=$2; shift 2 ;;
-    *) echo 'usage: install.sh --user USER [--root EXISTING_IMAGE_DIRECTORY]' >&2; exit 2 ;;
+    --upgrade-from) [[ $# -ge 2 && -z "$upgrade_from" ]] || exit 2; upgrade_from=$2; shift 2 ;;
+    *) echo 'usage: install.sh --user USER [--root EXISTING_IMAGE_DIRECTORY] [--upgrade-from PRIOR_MANIFEST_SHA256]' >&2; exit 2 ;;
   esac
 done
+[[ -z "$upgrade_from" || "$upgrade_from" =~ ^[a-f0-9]{64}$ ]] || { echo 'Execution upgrade requires the exact prior manifest digest.' >&2; exit 2; }
 [[ "$execution_user" =~ ^[a-zA-Z_][a-zA-Z0-9_.-]*$ ]] || { echo 'An explicit local desktop user is required.' >&2; exit 2; }
 execution_uid=$(id -u -- "$execution_user")
 [[ "$execution_uid" =~ ^[0-9]+$ && "$execution_uid" != 0 ]] || { echo 'The desktop execution user must not be root.' >&2; exit 2; }
@@ -103,7 +106,12 @@ exec 9>>"$state/lock"
 flock -n 9 || { echo 'Another execution installer owns this root.' >&2; exit 1; }
 stage=$(mktemp -d -- "$state/stage.XXXXXXXX")
 pending_file=
-cleanup() { if [[ -n "$pending_file" ]]; then rm -f -- "$pending_file"; fi; rm -rf -- "$stage"; }
+socket_quiesced=0
+cleanup() {
+  if [[ -n "$pending_file" ]]; then rm -f -- "$pending_file"; fi
+  rm -rf -- "$stage"
+  if (( socket_quiesced )); then systemctl start soda-factory-broker.socket; fi
+}
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -122,31 +130,88 @@ for source in "${binaries[@]}" "${units[@]}"; do
   printf '%s\t%s\t%s\n' "$digest" "$mode" "${target#"${install_root%/}"}" >> "$stage/manifest"
   ((index+=1))
 done
+prior_manifest=
+if [[ -e "$state/upgrade" || -L "$state/upgrade" ]]; then
+  [[ -f "$state/upgrade" && ! -L "$state/upgrade" ]] && cmp -s -- "$stage/manifest" "$state/upgrade" || { echo 'A different interrupted execution upgrade is retained.' >&2; exit 1; }
+fi
 if [[ -e "$state/manifest" || -L "$state/manifest" ]]; then
-  [[ -f "$state/manifest" && ! -L "$state/manifest" ]] && cmp -s -- "$stage/manifest" "$state/manifest" || { echo 'Execution installation differs; retained upgrade handling is required.' >&2; exit 1; }
+  [[ -f "$state/manifest" && ! -L "$state/manifest" && "$(stat -c %u -- "$state/manifest")" == "$EUID" ]] || exit 1
+  if ! cmp -s -- "$stage/manifest" "$state/manifest"; then
+    [[ -n "$upgrade_from" && "$(sha256sum "$state/manifest" | cut -d' ' -f1)" == "$upgrade_from" ]] || { echo 'Execution upgrade requires the exact installed prior manifest digest.' >&2; exit 1; }
+    # This upgrade changes bytes, not the selected user or installed paths.
+    cmp -s <(cut -f2,3 "$stage/manifest") <(cut -f2,3 "$state/manifest") || { echo 'Execution upgrade changes user, permissions or payload paths.' >&2; exit 1; }
+    prior_manifest="$state/prior.$upgrade_from.manifest"
+    if [[ -e "$prior_manifest" || -L "$prior_manifest" ]]; then
+      [[ -f "$prior_manifest" && ! -L "$prior_manifest" ]] && cmp -s -- "$prior_manifest" "$state/manifest" || exit 1
+    fi
+  elif [[ -n "$upgrade_from" ]]; then
+    [[ "$(sha256sum "$state/manifest" | cut -d' ' -f1)" == "$upgrade_from" || ( -f "$state/prior.$upgrade_from.manifest" && ! -L "$state/prior.$upgrade_from.manifest" && "$(sha256sum "$state/prior.$upgrade_from.manifest" | cut -d' ' -f1)" == "$upgrade_from" ) ]] || { echo 'Unknown prior execution manifest.' >&2; exit 1; }
+  fi
 else
+  [[ -z "$upgrade_from" && ! -e "$state/upgrade" ]] || { echo 'Execution upgrade requires a retained installation.' >&2; exit 1; }
   for target in "${targets[@]}"; do
     [[ ! -e "$target" && ! -L "$target" ]] || { echo "Existing installation file requires upgrade handling: $target" >&2; exit 1; }
   done
   ln -T -- "$stage/manifest" "$state/manifest"
+fi
+# Verify every destination before replacing any known prior bytes. A retained
+# upgrade accepts only its captured old or new file, never an unknown edit.
+index=0
+for target in "${targets[@]}"; do
+  if [[ -e "$target" || -L "$target" ]]; then
+    [[ -f "$target" && ! -L "$target" && "$(stat -c %u -- "$target")" == "$EUID" && "$(stat -c %a -- "$target")" == "$(stat -c %a -- "$stage/$index")" ]] || { echo "Execution installation file changed: $target" >&2; exit 1; }
+    if ! cmp -s -- "$stage/$index" "$target"; then
+      [[ -n "$prior_manifest" ]] || { echo "Execution installation file changed: $target" >&2; exit 1; }
+      expected=$(sed -n "$((index+3))p" "$state/manifest"); expected=${expected%%$'\t'*}
+      [[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$expected" ]] || { echo "Execution prior file changed: $target" >&2; exit 1; }
+    fi
+  elif [[ -n "$prior_manifest" ]]; then
+    echo "Execution prior file is missing: $target" >&2; exit 1
+  fi
+  ((index+=1))
+done
+if [[ -n "$prior_manifest" ]]; then
+  if [[ "$install_root" == / ]]; then
+    for process in /proc/[0-9]*; do
+      [[ "$(stat -c %u "$process" 2>/dev/null || true)" == "$execution_uid" ]] || continue
+      executable=$(readlink "$process/exe" 2>/dev/null || true)
+      [[ "$executable" != */soda-desktop && "$executable" != */soda-desktop\ \(deleted\) ]] || { echo 'Quit Factory before upgrading execution services.' >&2; exit 1; }
+    done
+    if systemctl is-active --quiet soda-factory-broker.socket; then
+      socket_quiesced=1
+      systemctl stop soda-factory-broker.socket
+    fi
+    [[ -z "$(systemctl list-units --type=service --state=active,activating,deactivating 'soda-factory-*' --no-legend --no-pager)" ]] || { echo 'Execution services must retire before upgrading.' >&2; exit 1; }
+    for directory in /run/soda-factory-broker/runs /run/soda-factory-broker/preparations; do
+      [[ ! -d "$directory" || -z "$(find "$directory" -mindepth 1 -maxdepth 1 -print -quit)" ]] || { echo 'Retained execution roots must retire before upgrading.' >&2; exit 1; }
+    done
+  fi
+  if [[ ! -e "$prior_manifest" ]]; then ln -T -- "$state/manifest" "$prior_manifest"; fi
+  if [[ ! -e "$state/upgrade" ]]; then ln -T -- "$stage/manifest" "$state/upgrade"; fi
+  sync -f "$state"
 fi
 for directory in "$libexec" "$systemd"; do
   if [[ ! -d "$directory" ]]; then install -d -m 0755 -- "$directory"; fi
 done
 index=0
 for target in "${targets[@]}"; do
-  if [[ ! -e "$target" && ! -L "$target" ]]; then
+  if [[ ! -e "$target" && ! -L "$target" ]] || ! cmp -s -- "$stage/$index" "$target"; then
     # Linking a complete file is atomic and refuses a competing destination.
     # Stage beside the destination: /var and /usr may be separate filesystems.
     pending_file=$(mktemp -- "${target%/*}/.soda-factory-install.XXXXXXXX")
     install -m "$(stat -c %a -- "$stage/$index")" -- "$stage/$index" "$pending_file"
-    ln -T -- "$pending_file" "$target"
+    if [[ -n "$prior_manifest" ]]; then mv -T -- "$pending_file" "$target"; else ln -T -- "$pending_file" "$target"; fi
     rm -f -- "$pending_file"
     pending_file=
   fi
   [[ -f "$target" && ! -L "$target" && "$(stat -c %u -- "$target")" == "$EUID" && "$(stat -c %a -- "$target")" == "$(stat -c %a -- "$stage/$index")" ]] && cmp -s -- "$stage/$index" "$target" || { echo "Execution installation file changed: $target" >&2; exit 1; }
   ((index+=1))
 done
+if [[ -n "$prior_manifest" ]]; then
+  mv -T -- "$stage/manifest" "$state/manifest"
+  sync -f "$state"
+fi
+if [[ -e "$state/upgrade" ]]; then rm -- "$state/upgrade"; sync -f "$state"; fi
 # Leave a complete payload available for diagnosis if service activation fails.
 if [[ "$install_root" == / ]]; then
   systemctl daemon-reload
