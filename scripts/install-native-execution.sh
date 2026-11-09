@@ -182,8 +182,14 @@ if [[ -n "$prior_manifest" ]]; then
       systemctl stop soda-factory-broker.socket
     fi
     [[ -z "$(systemctl list-units --type=service --state=active,activating,deactivating 'soda-factory-*' --no-legend --no-pager)" ]] || { echo 'Execution services must retire before upgrading.' >&2; exit 1; }
+    broker_lock=/run/soda-factory-broker/runs/.lock
+    if [[ -e "$broker_lock" || -L "$broker_lock" ]]; then
+      [[ -f "$broker_lock" && ! -L "$broker_lock" && "$(stat -c '%u:%a:%h' "$broker_lock")" == 0:600:1 ]] || { echo 'Broker metadata lock differs.' >&2; exit 1; }
+      exec 8<>"$broker_lock"
+      flock -n 8 || { echo 'A broker operation still owns the execution roots.' >&2; exit 1; }
+    fi
     for directory in /run/soda-factory-broker/runs /run/soda-factory-broker/preparations; do
-      [[ ! -d "$directory" || -z "$(find "$directory" -mindepth 1 -maxdepth 1 -print -quit)" ]] || { echo 'Retained execution roots must retire before upgrading.' >&2; exit 1; }
+      [[ ! -d "$directory" || -z "$(find "$directory" -mindepth 1 -maxdepth 1 ! -path "$broker_lock" -print -quit)" ]] || { echo 'Retained execution roots must retire before upgrading.' >&2; exit 1; }
     done
   fi
   if [[ ! -e "$prior_manifest" ]]; then ln -T -- "$state/manifest" "$prior_manifest"; fi

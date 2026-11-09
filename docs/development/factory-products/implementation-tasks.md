@@ -2178,6 +2178,13 @@ helper and manifest remain unchanged on refusal. The no-model workspace check
 temporarily exercised the changed helper and restored its exact original bytes.
 Actual quiescent installed activation follows; active-run, dependency delivery
 and the broader Q28 gates remain outstanding.
+The first production current23 activation upgraded only the app and then safely
+refused unchanged helper manifest6a0c623fd928822a3e3d0eb327ed37357b7ca521d2e169291fa599955cde4454:
+the empty runs directory retains the broker's root-owned0600 `.lock`. Preserve
+that metadata and acquire its existing lock while checking for actual roots;
+never treat it as a run or delete it. Original app/PG remain stopped, logs are
+preserved and the prior broker socket was restored. Continue helper activation
+from this exact partial state; no inference or original operation was retried.
 
 Additional scoped format check: `q28-migrate/retained100/check.log` and
 `unknown-check.log` prove actual retained99→100/current reopen, exact prior99
