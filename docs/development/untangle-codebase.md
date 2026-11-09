@@ -2516,6 +2516,41 @@ upstream version replacing a running old one. All owned app/PG/GUI/keyring/bus
 and delay-proxy processes are joined. Broader Q28 migration/active-run/service
 upgrade and dependency publication requirements remain open.
 
+## Q28 installed retained schema admission and interruption (2026-11-09)
+
+Factory `2c0cffbe7510e34ac985255d2f0472d6bc21357f` fixes an observed installed
+failure: an unknown command-payload CHECK was accepted and its schema marker
+advanced. Writer/migration admission now compares only the frozen source-version
+and known current expressions using PostgreSQL's parser before migration and
+after upgrade/race recovery. No command deadline, identity, receipt or dispatch
+state is renewed. Read-only observers retain their existing read-only path.
+
+`q28-migrate/store-check2.log` passes the existing real PostgreSQL retained text,
+receipt, schema-68/concurrent-open/rollback and unknown-bound checks. Production
+backend build and boundaries pass. Genuine schema 93 comes from exact historical
+source `8a6d7159d0cfcbb8017f7fc705c2dcbeb720e78d`, initialized through the
+existing native PostgreSQL owner (`seed93-native.log`). The normal installed app
+uses the fixed backend in `stage-store`, with source parent/diff and exact inputs
+retained; this is a qualification bundle, not release promotion.
+
+Installed `known93-fixed` migrates/reopens successfully; `unknown{93,96}-fixed`
+refuse with identical full public catalog, rows and marker. Original pre-fix
+acceptance is preserved in `s93bad`. `interrupted93` observes the actual installed
+backend in an uncommitted schema-version ALTER, verifies one backend during a
+second launch, kills only that proven child, and observes joined PostgreSQL.
+Catalog/rows roll back exactly to 93. Removing only the fixture's bounded pause
+and clicking real UI Retry reaches 96 with original held-command/opaque-credential
+bytes intact and zero runs/assignments. See its `blocked-pg.log`, `rollback.log`,
+`retried.log`, fingerprints, screenshots and `result.log`. All owned processes join.
+
+The disposable Q01 profile copy preserves real WebKit draft rows, identity and
+credential-withdrawal tombstone (`old-result.log`), including the unchanged
+original profile. Its store was already 96, so it supplies retained-state reopen
+evidence only. Synthetic inactive credential/legacy-command rows qualify store
+preservation, not live provider custody or delivery. Active-worker/global-service
+upgrade, real pending provider-effect composition, payload retirement and owning
+update/dependency publication remain Q28 requirements.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

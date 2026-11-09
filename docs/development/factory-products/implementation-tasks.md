@@ -48,7 +48,7 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q28 retained-profile migration and the approved Q15 fresh-publication action.**
+**Current work: Q19 Fountain authority and the approved Q15 fresh-publication action.**
 Q25's clean recipient and Q28's installed payload/update-status slices have
 scoped evidence below. Q15's separate review/correction funding choice is pending;
 its original send remains fenced. Q14's receipts remain complete and preserved.
@@ -1319,6 +1319,27 @@ This is an installed qualification bundle, not release promotion or an active
 worker/new-upstream-release upgrade. All owned GUI/PG/keyring/bus/proxy processes
 are joined. Production build, typecheck and boundary checks pass. Full provider journeys are not
 blanket prerequisites; the approved Q15 publication action can proceed independently.
+
+Installed retained-store checkpoint `2c0cffbe7510e34ac985255d2f0472d6bc21357f`
+fixes actual acceptance of an unknown command-payload CHECK. Writer/migration
+opens compare PostgreSQL-normalized frozen prior/current bounds before DDL and
+after upgrade/race recovery, preserving command identities/outcomes/fences.
+`q28-migrate/store-check2.log` passes retained text/receipt, 68-upgrade,
+concurrent-open/rollback and unknown-bound checks. Exact historical source
+`8a6d7159d0cfcbb8017f7fc705c2dcbeb720e78d` created genuine schema-93 fixtures;
+the normal installed app then passed `known93-fixed`, `unknown{93,96}-fixed`
+and `interrupted93` in `q28-migrate`: known upgrade/current reopen, unknown
+refusal with identical full catalog/rows/marker, verified-child kill after an
+uncommitted ALTER, exact rollback, one backend during second launch and real UI
+Retry to 96. Inactive opaque fixture credentials and held legacy command bytes
+remain exact; no runs/assignments were created. Pre-fix bad-schema acceptance
+remains retained in `s93bad`. All owned app/PG/GUI/keyring processes are joined.
+A disposable Q01 copy also preserved its actual browser drafts, native identity
+and withdrawal tombstone (`old-result.log`); its store was already 96 and is not
+counted as schema-93 migration. This does not close active-worker/service
+replacement, real pending provider-effect upgrade composition, retired-payload
+cleanup or dependency/update publication. Q18/Q27 credential evidence retains
+its scope; an opaque migration credential is not a live provider grant.
 
 ```text
 Execute through Q28 — Retained upgrade, interrupted recovery and updates. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q28 despite the document's historical paused snapshot; it does not authorize work beyond Q28 or resuming the old product queue.
