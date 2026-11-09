@@ -48,7 +48,10 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q19 central Fountain authority.**
+**Current work: Q25 independent Linux recipient qualification.** Q19's selector
+and finite actor-grant slices are committed; captured execution authority in the
+dispatch admission remains unfinished. Existing launch contracts must not acquire
+today's authority during historical recovery.
 Q25's clean recipient and Q28's installed payload/update-status slices have
 scoped evidence below. Q15's fresh publication and Q28's format-97 boundary are
 verified; Q15's separate review/correction funding choice is pending. Its original
@@ -1260,6 +1263,43 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q25"></a>
 
 ### Q25 — Fresh Linux distribution and installers
+
+Current continuation (2026-11-09): `stage-current4` from clean
+`3235d3e83a4f07632b6453c0a63c66da84e06eaa` passes actual Debian 13.7 x86_64
+installation/repeat, root-owned helpers and active broker socket, actual private
+namespaces/resource unit, production Ready, real keyboard Close/Quit,
+second-launch restoration and original-profile reboot/reopen. The current
+installer scripts match the retained Q28 interruption/recovery and Rocky
+platform-check bytes. Evidence is in `q25-package/debian-recipient`:
+`install-check1.log` (installation passed; its shell-expansion assertion failed),
+`capabilities-final.log` (corrected assertion passed), `keyboard-result.log`,
+`restart-session.log`, `reopen-inspect.log`, `retained-counts.log` (0 runs/commands),
+`final-check.log`, `shutdown.log` and `gui-evidence.tar.gz`. Root screenshot
+repaint was corrected by window capture; no product renderer defect was inferred.
+The direct psql probe needed the bundled library path, then passed. Actual acquired
+Muse is 1.4.14-R7309.1, 414927192 bytes, SHA256
+`0809aac7cb58d18f5022b6d05e02aa1974683c0ec430e5f04d25b60ed17de2da`.
+This VM is powered off and joined; its original profile/overlay remain intact.
+Official Debian TLS image/SHA512 verified; its current directory offers no signature.
+
+Full dependency discovery then found seven newer eligible Rust resolutions and
+Go YAML 3.0.6. Factory `ce47b02c6ab16a5c85c6a46cbaf1c4d883bbfe23` updates them;
+Go checks and all-feature Rust compile pass (`dependency-*-check.log`). Official
+metadata confirms all 24 directly pinned Rust crates and Bun packages current;
+older transitive versions remain exact current upstream GTK/Tauri constraints.
+Go analyzer remains official stable 0.52.0. `stage-current5` builds with current
+Go 1.27.3/Bun 1.4.4/Rust 1.99.1/PostgreSQL 18.6 (`build-current5.log`). Its only
+uncommitted build input was this task record, retained as
+`build-current5-source-docs.patch`, SHA256
+`d8abfbb053ec74ba8a46923c4d117a41fcacf8a9bd3bf25dffe929096e2dd64e`.
+All seven helper bytes changed, so the prior installed service evidence is not
+promoted to those bytes. Active work is a second fresh recipient in
+`q25-package/debian-current5`, QEMU PID file `qemu.pid` (initial PID 1523916),
+loopback SSH 22209, original cloud-init still provisioning. It uses the verified
+same backing image and its own overlay. Next: recover that process/journal,
+transfer/install stage-current5 and verify its actual installed path, then join
+the owned VM. No inference/provider write is in flight. Owned source edit is this
+task record only; all implementation/dependency changes are committed.
 
 INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; broader host/degraded-execution qualification remains. Clean-source `stage-current3`
 binds `d0d7b6b94b756478abd2e2a806d38af574d0817d` and passes actual installation,
