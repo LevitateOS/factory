@@ -460,6 +460,9 @@ export class SodaFactoryApp extends LitElement {
       ...(repository
         ? [
             {label: 'Work', route: {kind: 'work' as const, repository}},
+            ...(context && 'issue' in context.route
+              ? [{label: 'Work detail', route: {kind: 'work-detail' as const, repository, issue: context.route.issue}}]
+              : []),
             {label: 'Issues', route: {kind: 'issues' as const, repository}},
             {label: 'Pull requests', route: {kind: 'pulls' as const, repository}},
             {label: 'New issue', route: {kind: 'issue-new' as const, repository}},
@@ -476,7 +479,7 @@ export class SodaFactoryApp extends LitElement {
         ${links.map(
           (link) => html`<button
             type="button"
-            aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && (context?.route.kind === 'work-detail' || context?.route.kind === 'plan')) ? 'page' : 'false'}
+            aria-current=${context?.route.kind === link.route.kind || (link.route.kind === 'issues' && context?.route.kind === 'issue') || (link.route.kind === 'pulls' && context?.route.kind === 'pull') || (link.route.kind === 'work' && context?.route.kind === 'plan') ? 'page' : 'false'}
             ?disabled=${!context}
             @click=${() => this.navigate(link.route)}
           >

@@ -5,6 +5,7 @@ import {admitFactoryRoute} from '../factory/app/routes.js';
 import {check, id, object, readSodaJSON} from '../factory/api/models.js';
 import type {Binding, Core} from './transport.js';
 import {DesktopTransport} from './transport.js';
+import {upfrontCapabilities} from '../factory/work/work-view.js';
 
 export function routeURL(route: FactoryRoute): string {
   const query = new URLSearchParams({view: route.kind});
@@ -239,14 +240,7 @@ export class DesktopProduct {
             runIDs: [],
             commandScope,
             links: this.links(route.repository),
-            capabilities: {
-              pause: false,
-              resume: false,
-              stop: false,
-              retry: false,
-              takeover: false,
-              project_stop: false,
-            },
+            capabilities: upfrontCapabilities(undefined, false),
           },
         };
       case 'plan':
