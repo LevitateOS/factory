@@ -2837,6 +2837,17 @@ original issue closure4 retained. No model or publication replay; source19minute
 six runs and closed allowance unchanged. All owners joined. Full Q15 correction,
 paid material and remaining connected/installed gates remain open in its record.
 
+Q20 issue-only host closure (2026-11-09): Fountain7dd258c6d1 exposes ordinary
+issue capability facts through the explicitly declared issue grant; PR/check facts
+remain denied. With source023ac21efa, SodaOSaf73c91d and Factory55c5adc,
+q19-authority/q20-live14.log proves the actual PostgreSQL/native login/private
+SDK/Factory API/TLS production shared UI journey. A present nonempty code unit
+remains unreadable to the issue-writing account. Create/edit/comment/replay,
+close/reopen, lock/unlock, actor/session/permission withdrawal and restoration
+pass without execution or inference. Original Markdown and fixture permissions
+are preserved. Check processes joined. This closes ordinary Q20; installed
+consumer/native desktop enrollment and broad D5 stay open in Q27/Q29/Q24.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

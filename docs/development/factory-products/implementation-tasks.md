@@ -9,9 +9,9 @@ explicitly started the goal to execute Q01–Q30 in order. Factory is not finish
 Source/fixture completion never substitutes for connected, installed or security
 qualification.
 
-**Current snapshot (2026-11-09, Factory `3f5eb86`):** 15 queue entries remain:
-Q09–Q14 and Q18 are complete within their recorded ordinary scopes.
-Q15–Q17 and Q19–Q29 remain outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
+**Current snapshot (2026-11-09, Factory `55c5adc`):** Q09–Q14, Q18 and Q20
+are complete within their recorded ordinary scopes. Q15–Q17, Q19 and Q21–Q29
+remain outstanding; Q30 retains its final completion criteria. The owner’s 2026-11-09
 instruction replaces blanket numeric sequencing: implement ready work while
 preserving actual dependencies, authorization and retained receipts.
 All 13 broad security gates remain open. The historical ordered-goal pause is
@@ -213,7 +213,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
 | [Q18 — Fountain login](#q18) | Configured-host native OAuth/enrollment/refresh, old-format migration, expiry/withdrawal, lost-reply recovery and concurrent first reads verified; installed journeys remain Q27. | Complete within ordinary configured-host/native scope |
 | [Q19 — Fountain authority](#q19) | Complete central runtime placement, operation grants/journals/lookups and shared views; prove expiry/withdrawal and competing-controller refusal. Read enrollment grants no execution authority. | Pending |
-| [Q20 — issue-only collaboration](#q20) | Implement the separately authorized host capability and prove real issue-only reads/writes and out-of-scope denial without requiring code read or broadening execution permission. | Pending |
+| [Q20 — issue-only collaboration](#q20) | Explicit host capability, real issue-only PostgreSQL/SDK/API and production shared UI reads/writes, code/PR denial and restored permission verified. Installed desktop/appliance variants remain with their consumers. | Complete within ordinary host scope |
 | [Q21 — Fountain publication](#q21) | Complete digest-bound candidate upload/staging and conditional branch/PR publication, exact receipts and lost-upload/write/withdrawal recovery. | Pending |
 | [Q22 — automatic Fountain issues](#q22) | Prove explicit-policy automatic issue → work → review/correction/checks → merge, exact charges and no duplicate appliance/desktop dispatch. | Pending |
 | [Q23 — external Fountain PRs](#q23) | Complete eligible external PR adoption with exact fork/head/base authority, actual workflow progression, withdrawal and retained restart. | Pending |
@@ -1388,36 +1388,41 @@ Final reply: requested Q19, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q20 — Fountain issue-only collaborator capability
 
-Outstanding. Requires separately authorized issue-only host grants and an actual fixture without code-unit read. Implement and qualify that capability in its canonical host; code-reader evidence cannot close it. No GitHub prerequisite.
+**COMPLETE within ordinary host scope (2026-11-09).** Canonical Fountain
+`023ac21efabd8bfc8cfd7a180a20e4ef94d9a0a6` and
+`7dd258c6d18c6c250a5226bc8fc80f4994312421`, SodaOS
+`af73c91d283deeadcf67f0b4a44a3de2610671a2`, Factory shared-owner baseline
+`55c5adc91980dd7ea8bcd6b13b2a32e3e85fa8a7` qualify the separately declared
+`native.repository.issues.read` capability and issue-permission repository page.
+Issue-only action facts permit issue operations and keep PR/check facts denied;
+code Pull and execution CodeWrite remain false. Existing code-reader behavior
+keeps its original path. No GitHub or appliance prerequisite was used.
 
-Source commits `023ac21efabd8bfc8cfd7a180a20e4ef94d9a0a6` (Fountain) and
-`af73c91d283deeadcf67f0b4a44a3de2610671a2` (SodaOS) implement the current
-source/native slice; Factory baseline is `52d3f27b7f86f4294c8dc8cdc29de9efdf3317ea`.
-Fountain's SDK recognizes explicit
-`native.repository.issues.read`, issue-only repository metadata and page permission.
-The host allows only ordinary issue reads/snapshots/catalogue through that grant;
-code/PR/check/intake/runtime gates retain their own code/capability checks. The
-shared repository feed can admit issue-unit readers. SodaOS declares the grant
-and keeps code Pull=false for issue-only metadata. Source builds pass
-`q19-authority/q20-host-build2.log` and `q20-consumer-build1.log`. The existing
-native source check `q20-callback-check2.log` also passes with org17/repo24/user2:
-code unit present, issue write allowed, code read denied, issue-only metadata and
-create/read snapshots, journaled issue creation/replay and capability withdrawal.
-The fixture team units are restored. This uses the native SQLite fixture; no full
-PostgreSQL host/SDK/shared-UI or installed
-issue-only journey has run and Q20 is not complete. Owned Fountain paths: SDK
-contract/catalog/manifest/native/native_catalog, extension manager,
-routers/web/extensions/{extensions,callback,callback_issues,callback_comments,
-callback_catalog,callback_source_test}.go. Owned SodaOS paths: extension.json and
-internal/web/api/environment_authority.go. Next: extend the existing real native
-SQL/Git/SDK/browser check with an authorized issue-only fixture and current
-withdrawal/out-of-scope/code/execution refusal; then commit only verified scope.
-Existing human issue creation/comment/edit native/browser checks already support
-issue-unit authority, and `runIssueRoutePresentation` currently expects the old
-code-reader-only page fallback. Update that expectation only for a manifest that
-explicitly declares the new issue permission. Native desktop OAuth/enrollment
-still requires code-read and needs a separate admitted issue-only path before
-claiming desktop parity. No appliance is needed for this host/consumer work.
+Defining retained check `q19-authority/q20-live14.log` passes the existing
+`TestSodaExtensionLiveBridge` against actual PostgreSQL18.6, native human login,
+private SDK, canonical Soda/Factory services and real TLS browser requests.
+Org17/repo24/user2 has a present code unit and an actual nonempty Git repository,
+issue-write authority and no code-read permission. It proves original issue
+creation/read, title-only edit preserving Markdown, comment and exact replay,
+close/reopen, lock/unlock, account/session and issue-team withdrawal refusal,
+restoration and unchanged code/execution permission. PR reads remain unavailable
+(HTTP503 without data), action facts deny PR/check access, and native code
+navigation refuses disclosure. No runtime/background capability, grant, worker
+or inference is introduced. Original team units are restored.
+
+Production shared browser modules built with the canonical Soda asset builder
+and hash-verified locked terminal assets (`q20-ui-build1.log`). Actual keyboard
+creation, automatic canonical issue navigation, comment and reload preserve full
+Markdown in `q20-live14/a/issue-only-browser.png`; the browser and all native/
+backend/PostgreSQL owners joined. Earlier failed fixture/socket/browser checks
+remain retained; socket failures preceded user writes. API-only defining check
+`q20-live5.log` and native `q20-callback-check2.log` remain scoped evidence.
+No installed desktop/appliance claim: native desktop issue-only enrollment and
+installed parity remain Q27/Q29, with actual appliance qualification in Q24.
+Those consumer requirements keep broad security D5 open. Next ready host work:
+Q21 candidate transfer/publication through exact admitted Q19 grants; it requires
+native candidate custody, current controller and code-write authority, not this
+issue-only capability or GitHub completion.
 
 
 ```text
