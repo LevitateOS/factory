@@ -1098,7 +1098,21 @@ consumer Go/TypeScript checks pass. Original databases and failed attempts remai
 preserved; all owned check processes joined. These are development/DOM checks,
 not installed, worker, role-grant or full Q19 qualification.
 
-Remaining: appliance role grants/consumer execution authority and actual competing
+Finite role authorization continuation: Fountain `5448668474`, SodaOS
+`61c13caa` and Factory `3b662b5` add explicit enrolled actor/token selection in
+the shared settings, finite host grants and atomic human-attributed journal
+receipts. `execution.launch` requires its own administrator-enrolled binding;
+an unrelated operation binding cannot authorize a worker. `consumer-check5.log`
+passes the canonical live service journey with actual PostgreSQL token/binding
+checks: note-only execution denial, refused-grant rollback, explicit execution
+binding admission, exact replay, withdrawal refusal and original inactive grant
+adoption after token deletion. `role-ui-check2.log` passes explicit actor choice
+and exact scoped command/deadline retention after lost reply/remount. TypeScript,
+production shared UI and affected Go builds pass (`role-*` artifacts under the
+same retained root). All owned processes joined. No worker was launched, no
+model/provider call was made, and dispatch capture remains unconnected.
+
+Remaining: captured consumer execution authority and actual competing
 appliance/desktop dispatch; worker launch/retirement bound to the host claim;
 current role/permission and in-flight races; native control code exchange;
 canonical host/shared-view consumer integration and the full ordinary journey.

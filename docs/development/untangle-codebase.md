@@ -2691,6 +2691,18 @@ refactor preserves pre-existing desktop command encoding/receipt without effects
 No worker, installed appliance or full Q19 closure is claimed; continue finite
 role-grant and captured dispatch admission, preserving these settled operations.
 
+The finite role-grant continuation is Fountain `5448668474`, SodaOS `61c13caa`
+and Factory `3b662b5`. Live human admission authorizes an explicitly selected
+already-enrolled actor/token and its exact operation list; existing grants and
+the native journal own scope and human attribution. Execution now needs its own
+binding rather than any unrelated binding. Current token provenance is checked
+for new grants, while historical adoption preserves original provenance after
+token deletion and never renews authority. `consumer-check5.log` proves actual
+canonical service/PG admission, scope denial/rollback, replay, withdrawal and
+history; `role-ui-check2.log` proves explicit choice and lost-reply retention in
+the production shared DOM. Source builds pass. Worker dispatch and installed
+qualification remain unfinished; no inference or original uncertain send replay.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
