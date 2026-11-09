@@ -1845,10 +1845,27 @@ retain the single selected candidate and zero runs. The shared Work summary
 discarded the backend's current dispatch diagnosis. It now exposes the bounded
 recorded stage/waits/errors in an optional Dispatch status disclosure, without
 changing authority or driving work. Types/boundaries pass in `dispatch19-*.log`.
-Next: install this shared presentation change from exact current18, inspect the
-actual hold and correct its owner; never reset the candidate or replay inference.
-The current18 installed app/backend/PG/private bus/keyring remain running. No
-model is active; remaining connected/installed queue scope stays outstanding.
+Clean current19/ce29f36 (inventory6fe94b18f0b4a4d05428a07b502594890b2f100234486b4c19cf13f2c74545ce)
+is installed/reopened with durable files/helpers unchanged. Actual screenshots
+`current19-dispatch-{before-preparation,after-ready}.png` prove the shared
+disclosure reports preparation not ready, then authority ineffective after both
+fresh roles become ready (f8b0bc3d987f16b15c3f471c1/f455d3d9e8996513ace33def8).
+`q26-current19-authority-retained.log` proves current grants/placement/approval
+match, zero runs and no judgment commands. The policy API omitted its documented
+execution-profile default, storing `{}` for both roles; native admission correctly
+rejects that invalid profile. Policy creation now copies/resolves role/judgment
+profiles to explicit existing defaults before validation/persistence. It never
+normalizes retained commands or edits old policy rows. The shared repository-only
+overview also now uses its actual queue counts instead of claiming no recorded
+work when outcome details were not read. Go build, types and boundaries pass in
+`policy20-*.log`/`queue20-types.log`. Next: install the clean correction from exact
+current19, save a fresh policy revision through UI (same roles/limits/source,
+explicit default low effort), approve current-session preparation, then recover
+the original issue's first admission. Never recreate/refund/replay it. Current19
+app/backend/PG/private bus/keyring remain at SSH22209; no model is active. The
+session harness overwrote the original keyring.log on reopen; its crash text was
+read in-session, and original SQL receipts/session.log remain. Preserve subsequent
+session logs before restart. The full remaining queue is still outstanding.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

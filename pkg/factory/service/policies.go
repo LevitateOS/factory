@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory"
@@ -128,9 +129,20 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		}
 		execution = &ref
 	}
+	roles := maps.Clone(in.Roles)
+	for role, selection := range roles {
+		selection.Profile = factory.EffectiveExecutionProfile(&selection.Profile)
+		roles[role] = selection
+	}
+	var judgments *factory.RoleSelection
+	if in.Judgments != nil {
+		selection := *in.Judgments
+		selection.Profile = factory.EffectiveExecutionProfile(&selection.Profile)
+		judgments = &selection
+	}
 	policy := factory.RepositoryPolicy{Execution: execution,
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
-		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: in.Roles, Judgments: in.Judgments,
+		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: roles, Judgments: judgments,
 		Checks: in.RequiredChecks, MergeMethod: in.MergeMethod,
 		Publish: publish, Create: create, Review: review, Resolve: resolve, Merge: merge,
 		AttemptLimits:       factory.EffectiveAttemptLimits(in.AttemptLimits),

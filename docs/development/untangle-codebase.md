@@ -2976,6 +2976,16 @@ refresh wording; it grants no authority or implicit retry. TypeScript and owners
 boundaries pass (`dispatch19-*.log`). Actual installed diagnosis/delivery remain
 the next Q26 step; original candidate, funding and receipts are unchanged.
 
+Q26 policy-profile correction (2026-11-09): installed current19 makes the actual
+dispatch refusal visible. The API persisted empty execution profiles despite the
+existing creation-default contract; native admission correctly refuses them.
+Resolve role/judgment profiles while constructing a newly authorized policy,
+leaving historical policies/commands untouched. The next installed UI save must
+capture a fresh explicit low-effort revision before the original issue may launch.
+The shared summary also reports actual repository queue counts when no detailed
+outcomes were read. Go build, types and boundaries pass (`policy20-*.log`,
+`queue20-types.log`); installed admission/full delivery are still pending in Q26.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

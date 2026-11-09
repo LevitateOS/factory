@@ -151,6 +151,8 @@ function setupText(input: WorkOverviewInput): string {
   return input.summary.preparation.ready ? 'Project setup ready.' : 'Project setup missing: preparation incomplete.';
 }
 function outcomeNote(input: WorkOverviewInput, counts: OverviewCounts): string {
+  if (input.issues.length === 0 && input.summary && input.summary.queue.queued + input.summary.queue.active > 0)
+    return 'Work is recorded in this repository’s queue. Its outcome evidence has not been loaded.';
   if (input.issues.length === 0) return 'No work items recorded, so no outcome evidence exists yet.';
   if (counts.delivered === input.issues.length && input.unreadIssues.length === 0)
     return 'Every counted work item is delivered. Product-outcome evidence is not yet recorded separately.';
@@ -173,7 +175,9 @@ export function describeWorkOverview(input: WorkOverviewInput): WorkOverviewMode
   return {
     direction: directionText(input),
     counts,
-    countsText: countsText(counts),
+    countsText: input.issues.length === 0 && input.summary
+      ? `Repository queue: ${input.summary.queue.queued} queued · ${input.summary.queue.active} active. Work-item outcomes have not been read.`
+      : countsText(counts),
     attention,
     dependencies: dependencyRows(input),
     setupText: setupText(input),
