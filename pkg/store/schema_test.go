@@ -811,6 +811,38 @@ func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 }
 
 func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
+	t.Run("command_payload_unknown_refuses_before_upgrade", func(t *testing.T) {
+		s, dsn := postgresFixture(t)
+		defer s.Close()
+		ctx := t.Context()
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO factory_commands(id,type,target,principal,digest,payload,outcome,created,dispatch_state)
+			VALUES($1,'retained','repository/7/retained','native:42','original-digest','{"text":"preserve verbatim 🌋"}','{"effect":"indeterminate"}','2026-11-01T00:00:00Z','legacy_unknown')`, strings.Repeat("b", 32)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE factory_commands DROP CONSTRAINT factory_commands_payload_check, ADD CONSTRAINT factory_commands_payload_check CHECK(octet_length(payload)<10000000 OR TRUE)`); err != nil {
+			t.Fatal(err)
+		}
+		for _, version := range []int{93, SchemaVersion()} {
+			if _, err := s.db.ExecContext(ctx, `UPDATE schema_version SET version=$1`, version); err != nil {
+				t.Fatal(err)
+			}
+			before := retainedLedgerFingerprint(t, s)
+			opened, err := Open(dsn)
+			if opened != nil {
+				opened.Close()
+			}
+			if err == nil || !strings.Contains(err.Error(), "command payload") {
+				t.Fatalf("unknown command constraint at schema %d was not refused: %v", version, err)
+			}
+			if retainedLedgerFingerprint(t, s) != before {
+				t.Fatal("refused command constraint changed retained rows, receipts or schema marker")
+			}
+			var definition string
+			if err := s.db.QueryRowContext(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='factory_commands'::regclass AND conname='factory_commands_payload_check'`).Scan(&definition); err != nil || !strings.Contains(definition, "OR true") {
+				t.Fatalf("refused command constraint was replaced: %s %v", definition, err)
+			}
+		}
+	})
 	t.Run("factory_bigint_retained_storage", func(t *testing.T) {
 		s, dsn := postgresFixture(t)
 		ctx := t.Context()

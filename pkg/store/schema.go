@@ -367,6 +367,11 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 	if err != nil {
 		return err
 	}
+	if version >= 68 && version <= SchemaVersion() {
+		if err := verifyCommandPayloadCheck(ctx, t, version); err != nil {
+			return err
+		}
+	}
 	if version == 0 {
 		// DDL carries no parameters.
 		for _, statement := range schemaStatements {
@@ -640,6 +645,9 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 			}
 		}
 	}
+	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {
+		return err
+	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {
 		return err
 	}
@@ -665,6 +673,9 @@ func reopenAfterLostUpgradeRace(ctx context.Context, db *sql.DB, upgradeErr erro
 		return upgradeErr
 	}
 	if version != SchemaVersion() {
+		return upgradeErr
+	}
+	if err = verifyCommandPayloadCheck(ctx, t, version); err != nil {
 		return upgradeErr
 	}
 	if err = verifyCurrentSchema(ctx, t); err != nil {

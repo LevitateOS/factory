@@ -1,5 +1,94 @@
 package store
 
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+)
+
+// Historical expectations come from their frozen upgrade DDL, never the fresh
+// table text. The current known bound may already exist at an earlier marker;
+// accepting that shape never changes a command's dispatch history.
+func commandPayloadExpression(version int) (string, error) {
+	expression := "char_length(payload)<=8192" // Schemas 68–70.
+	var history []string
+	switch {
+	case version >= 68 && version <= 70:
+	case version == 71:
+		history = HumanCommentJournalUpgradeDDL
+	case version == 72:
+		history = HumanEditJournalUpgradeDDL
+	case version == 73:
+		history = HumanIssueCreateJournalUpgradeDDL
+	case version == 74:
+		history = HumanLockJournalUpgradeDDL
+	case version == 75:
+		history = HumanReviewJournalUpgradeDDL
+	case version == 76:
+		history = HumanInlineJournalUpgradeDDL
+	case version == 77:
+		history = HumanThreadJournalUpgradeDDL
+	case version == 78:
+		history = HumanReviewRequestJournalUpgradeDDL
+	case version == 79:
+		history = HumanMergeJournalUpgradeDDL
+	case version >= 80 && version <= 89:
+		history = HumanPullCreateJournalUpgradeDDL
+	case version >= 90 && version <= 96:
+		history = HumanBranchCreateDispatchUpgradeDDL
+	default:
+		return "", fmt.Errorf("command payload constraint has no schema %d contract", version)
+	}
+	if history != nil {
+		const prefix = "ALTER TABLE factory_commands ADD CONSTRAINT factory_commands_payload_check CHECK("
+		expression = ""
+		for _, statement := range history {
+			if strings.HasPrefix(statement, prefix) && strings.HasSuffix(statement, ")") {
+				expression = strings.TrimSuffix(strings.TrimPrefix(statement, prefix), ")")
+				break
+			}
+		}
+		if expression == "" {
+			return "", fmt.Errorf("command payload schema %d contract is unavailable", version)
+		}
+	}
+	return expression, nil
+}
+
+// Refuse unknown bounds before any migration can replace them. PostgreSQL's
+// parser normalizes only the two known expressions inside this transaction.
+func verifyCommandPayloadCheck(ctx context.Context, tx *sql.Tx, version int) error {
+	previous, err := commandPayloadExpression(version)
+	if err != nil {
+		return err
+	}
+	current, err := commandPayloadExpression(SchemaVersion())
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE TEMP TABLE soda_command_payload_shape(type TEXT,payload TEXT,CHECK(`+previous+`),CHECK(`+current+`)) ON COMMIT DROP`); err != nil {
+		return err
+	}
+	var known bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS (
+	 SELECT 1 FROM pg_constraint expected
+	 WHERE expected.conrelid='pg_temp.soda_command_payload_shape'::regclass AND expected.contype='c'
+	 AND pg_get_constraintdef(expected.oid)=pg_get_constraintdef(actual.oid))
+	 FROM pg_constraint actual WHERE actual.conrelid='factory_commands'::regclass
+	 AND actual.conname='factory_commands_payload_check' AND actual.contype='c' AND actual.convalidated`).Scan(&known)
+	if err != nil {
+		return fmt.Errorf("command payload constraint unavailable: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DROP TABLE pg_temp.soda_command_payload_shape`); err != nil {
+		return err
+	}
+	if !known {
+		return fmt.Errorf("command payload refuses an unknown retained schema %d constraint", version)
+	}
+	return nil
+}
+
 // Keep the same immutable identity and terminal-outcome guard on fresh and
 // upgraded databases. Only supported unfinished provider effects can acquire a
 // reservation. Unclaimed history may be conservatively fenced legacy_unknown;
