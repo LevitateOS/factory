@@ -700,7 +700,7 @@ export class SodaFactoryRoleSettings extends LitElement {
               }
               <fieldset ?disabled=${this.busy || !view.editable}>
                 <legend>Execution limits</legend>
-                <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts; source allowance still bounds spending. Changes apply to new attempts.</p>
+                <p>Each run gets its own time limit. Reviews and corrections share the captured attempt counts. Waiting does not replenish counts. Source allowance is checked before each run; an admitted run may finish its full time limit even if it exceeds the remaining allowance. Changes apply to new attempts.</p>
                 ${([
                   ['active_minutes', 'Time limit per run in minutes', 1, undefined],
                   ['review_rounds', 'Maximum independent reviews per attempt', 1, 16],
