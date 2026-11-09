@@ -2870,6 +2870,20 @@ real MCP HTTP and PostgreSQL command/merge/custody/publication checks pass.
 Existing payloads/captured executables remain immutable. Fresh schema100 package
 build and actual supported-recipient qualification follow; Q25 remains incomplete.
 
+Q25 installed genesis correction (2026-11-09): clean stage-current8 fromf9bfdd8
+installed and rendered production Ready on the disposable Debian recipient, but
+actual first-open readback was95 rather than100. A literal genesis marker had
+drifted from the current schema; derive it from the defining constant. Extend the
+existing real PG check to open genuinely empty hosted/standalone databases before
+any reopen or template clone. schema-genesis-check9 passes scope/current marker,
+retained reopen and unknown refusal. Stage8/profile/outcome stay preserved and
+are not promoted as a qualified release. Real keyboard Quit joined their owners.
+The current installers and seven helpers match current5; old Rocky helpers refuse
+replacement unchanged. A pristine Rocky recipient needs stable EPEL/CRB for its
+WebKitGTK4.1 runtime, as documented by the runtime owners and actual repository
+lookup. Continue with the corrected fresh package and supported-recipient checks;
+no provider work or original uncertain effect is replayed.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

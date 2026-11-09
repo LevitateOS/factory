@@ -47,6 +47,13 @@ runtime executables `/usr/bin/git`, `/usr/bin/bash` and `/usr/bin/timeout`;
 the installer refuses missing runtimes before writing helpers or services.
 These execution runtimes do not require a host Go/Rust/Bun compiler toolchain.
 
+The current recipient checks use Debian 13 with GTK 3/WebKitGTK 4.1 and Rocky
+Linux 10.2 with GTK 3/WebKitGTK 4.1 from stable EPEL (and CRB for its runtime
+dependencies). Rocky's base repositories do not supply `webkit2gtk4.1`; install
+the runtime prerequisites before running the app installer. The installer checks
+actual library availability and does not configure system repositories. These
+recipient checks do not establish support for other distributions or CPUs.
+
 
 ```sh
 sudo /home/USER/factory-stage/factory-runtime/execution/install.sh --user USER

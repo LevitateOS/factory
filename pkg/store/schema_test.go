@@ -811,6 +811,33 @@ func TestCollaborationRegistryRetainedDataWaitsForAdoption(t *testing.T) {
 }
 
 func TestOpenCreatesOnlyTheCurrentSchema(t *testing.T) {
+	admin, ok := TestFixtureDSN()
+	if !ok {
+		t.Skip("SODA_PG_* fixture unavailable")
+	}
+	for _, standalone := range []bool{false, true} {
+		dsn, cleanup, err := createEphemeralDatabase(t.Context(), admin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cleanup()
+		var s *Store
+		if standalone {
+			s, err = OpenStandaloneContext(t.Context(), dsn)
+		} else {
+			s, err = OpenContext(t.Context(), dsn)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		var version int
+		var hosting, appliance bool
+		err = s.db.QueryRowContext(t.Context(), `SELECT version,application_hosting,appliance_compatibility FROM schema_version`).Scan(&version, &hosting, &appliance)
+		_ = s.Close()
+		if err != nil || version != SchemaVersion() || hosting == standalone || appliance == standalone {
+			t.Fatalf("first open schema: standalone=%t version=%d hosting=%t appliance=%t error=%v", standalone, version, hosting, appliance, err)
+		}
+	}
 	t.Run("command_payload_unknown_refuses_before_upgrade", func(t *testing.T) {
 		s, dsn := postgresFixture(t)
 		defer s.Close()

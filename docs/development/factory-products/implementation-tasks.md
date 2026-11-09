@@ -1597,15 +1597,47 @@ lock and Go module/sum updates plus this evidence record. The first Cargo
 metadata scan included upstream development dependencies; its failed log stays,
 and the corrected workspace-only scan is the defining result.
 
-**Next executable action:** commit these verified inputs, then build a new
-clean `stage-current8` through the canonical desktop builder, preserving all
-older stages. Qualify this actual schema100 payload in disposable Debian13.7
-and Rocky10.2 recipient copies, with degraded/runtime/installer requirements.
-Reuse unchanged installer interruption/refusal evidence by exact bytes. Q26–Q29
-provider, active-run upgrade and installed parity requirements remain separate.
-Q21 host source `b44c7f53310021c91d797b205649da927f6ee50c` and its verified
-public conditional receive remain preserved; native transfer/worker integration
-is still outstanding. No model or original uncertain write was repeated.
+Inputs are committed in `f9bfdd8034ef35b5e5574c92261d1080c0b9f2c9`.
+Its clean production `stage-current8` built with inventory SHA256
+`e6cf0a1b6cb55a9ec4f7eff031152840f9c3ae41e29b0fae342d88c263e89f5e`.
+All seven execution helpers match current5 byte-for-byte; both installer scripts
+also match. Actual Debian fresh-prefix/repeat installation, root helpers and
+original profile/encrypted-keyring equality pass in
+`current8-debian/install-check.log`. Actual installed executable and production
+Ready/Muse current acquisition render in `loaded.png`, with zero runs/commands.
+The installed check found a real first-open schema bug: current code wrote marker95
+from the literal genesis DDL. This stage is retained but is not a qualified fresh
+release. `keyboard-quit.log` proves real keyboard Quit, joined backend/PG and
+original-state preservation. Its observed format95 profile remains untouched.
+
+Genesis now derives its marker from the current schema constant, covering future
+format changes. Existing real PG `schema-genesis-check9.log` proves the first
+open of empty hosted and standalone stores before any reopen/template clone,
+correct scope flags, current/known-prior reopen and unknown constraint refusal.
+The owned source edit is schema.go plus its existing integration check, the
+runtime-prerequisite guide and this record; no historical marker was hand-edited.
+
+Two owned KVM recipients remain: current8-debian (app/PG joined) and
+current8-rocky-clean (pristine official Rocky base, runtime prerequisites).
+The current8-rocky overlay correctly refused replacing older execution helpers
+and preserved all their bytes, then shut down normally
+(`service-refusal-check.log`); its original disk stays read-only backing.
+Rocky's clean bootstrap lacked EPEL and could not find WebKitGTK4.1. Official
+stable EPEL supplies that runtime; actual declared runtime installation is in
+`current8-rocky-clean/runtime-prerequisites.log`, with no developer/container
+packages. No appliance is used. Original Debian/Rocky disks/profiles remain.
+
+**Next executable action:** commit the verified genesis fix, build a new clean
+`stage-current9` using the same verified input selection, and qualify its true
+first-open schema100 plus installed lifecycle in the separate Debian prefix and
+pristine Rocky recipient. Recover the root runtime-install check before retrying
+it. Preserve stage8, its profile and its observed first marker. Reuse unchanged
+installer interruption/refusal evidence by exact bytes. Q21 host source
+`b44c7f53310021c91d797b205649da927f6ee50c` and its causal receipt stay;
+Rust transfer/native worker integration is still outstanding. Q15's original
+unknown branch stays fenced. All queued requests remain in their owning records;
+Q24's replacement appliance is the sole identified environment blocker. No model
+or uncertain original write was replayed.
 
 Current continuation (2026-11-09): `stage-current4` from clean
 `3235d3e83a4f07632b6453c0a63c66da84e06eaa` passes actual Debian 13.7 x86_64
