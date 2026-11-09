@@ -1576,6 +1576,37 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
+**INCOMPLETE — active package continuation (2026-11-09).** Independent of the
+missing Q24 appliance. Fresh official selection in
+`q25-package/tools-current8.json` remains Go1.27.3/Rust1.99.1/Bun1.4.4/
+PostgreSQL18.6. `direct-cargo-current8.json` verifies all24 directly pinned
+workspace crates unchanged. New frontend releases are oxfmt0.78.0,
+oxlint1.93.0 and Vite8.3.7. Go's reachable graph updates x/sys0.50.0,
+x/sync0.25.0 and x/oauth2 0.38.0; the six other old upstream graph entries
+reported by discovery are absent from the compiled backend module inventory
+`dependency-go-runtime8.txt`. No unused dependency was introduced to change
+that graph. Existing binaries, bundles and captured active-run executables stay.
+
+TypeScript and defining engine/SDK boundaries pass (`dependency-types-check8.log`,
+`dependency-boundaries-check8b.log`). Go packages passed except MCP's sandbox
+socket refusal; the same affected real HTTP check passes with local socket
+permission in `dependency-go-mcp8.log`. Real PostgreSQL merge/command/closed
+custody/publication checks pass in `dependency-store-check8.log`, using private
+ephemeral databases and joined fixture owner. Source changes are only package/
+lock and Go module/sum updates plus this evidence record. The first Cargo
+metadata scan included upstream development dependencies; its failed log stays,
+and the corrected workspace-only scan is the defining result.
+
+**Next executable action:** commit these verified inputs, then build a new
+clean `stage-current8` through the canonical desktop builder, preserving all
+older stages. Qualify this actual schema100 payload in disposable Debian13.7
+and Rocky10.2 recipient copies, with degraded/runtime/installer requirements.
+Reuse unchanged installer interruption/refusal evidence by exact bytes. Q26–Q29
+provider, active-run upgrade and installed parity requirements remain separate.
+Q21 host source `b44c7f53310021c91d797b205649da927f6ee50c` and its verified
+public conditional receive remain preserved; native transfer/worker integration
+is still outstanding. No model or original uncertain write was repeated.
+
 Current continuation (2026-11-09): `stage-current4` from clean
 `3235d3e83a4f07632b6453c0a63c66da84e06eaa` passes actual Debian 13.7 x86_64
 installation/repeat, root-owned helpers and active broker socket, actual private

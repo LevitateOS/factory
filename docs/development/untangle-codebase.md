@@ -2861,6 +2861,15 @@ full worker→transfer→PR and lost-upload/restart checks remain Q21. Real work
 qualification needs Q19's authenticated external-claim bridge, independently of
 GitHub or the absent Q24 appliance. See the single active Q21 recovery record.
 
+Q25 fresh inputs (2026-11-09): official toolchains remain Go1.27.3/Rust1.99.1/
+Bun1.4.4/PostgreSQL18.6; all24 directly pinned workspace crates remain current.
+Advance the three reachable Go modules and oxfmt/oxlint/Vite to their new stable
+releases. Current compiled-backend module inventory excludes six inactive older
+upstream graph entries. TypeScript/boundaries, Go compilation and the affected
+real MCP HTTP and PostgreSQL command/merge/custody/publication checks pass.
+Existing payloads/captured executables remain immutable. Fresh schema100 package
+build and actual supported-recipient qualification follow; Q25 remains incomplete.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
