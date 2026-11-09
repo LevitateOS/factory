@@ -194,6 +194,10 @@ export class SodaFactoryRetainedPublication extends LitElement {
         (pending.preparation
           ? receipt.command_id !== pending.command ||
             receipt.merge_id !== pending.command ||
+            (pending.preparation.retry_no_send &&
+              (typeof receipt.not_after !== 'number' ||
+                !Number.isSafeInteger(receipt.not_after) ||
+                receipt.not_after <= 0)) ||
             JSON.stringify(receipt.merge_preparation) !== JSON.stringify(pending.preparation)
           : pending.funding
             ? receipt.command_id !== pending.command ||
@@ -234,7 +238,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
       aria-label=${preparation ? 'Prepare unsent merge' : funding ? 'Fund retained candidate review' : 'Publish retained candidate'}
     >
       <p>
-        ${preparation ? `Prepare a fresh merge under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier preparation has no recorded send and stays preserved. Current review, CI and permission checks still apply; this adds no inference budget.` : funding ? (funding.carry_unused ? `Resume only unused review/correction budget on source ${funding.connection}, at ${funding.limits.active_minutes} minutes per run. Earlier spent rounds, head limits and charges carry forward; no budget is added. The earlier attempt stays closed and its incomplete result is preserved. Planning, initial Builder and completed publication do not run again.` : `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.`) : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
+        ${preparation?.retry_no_send ? `Authorize only a five-minute merge retry under policy ${preparation.policy} for reviewed commit ${preparation.head}. The confirmed no-send generation and all old receipts stay preserved. Inference funding remains closed; planning, Builder and review do not run again. Current review, CI and permission checks still apply.` : preparation ? `Prepare a fresh merge under policy ${preparation.policy} for reviewed commit ${preparation.head}. The earlier preparation has no recorded send and stays preserved. Current review, CI and permission checks still apply; this adds no inference budget.` : funding ? (funding.carry_unused ? `Resume only unused review/correction budget on source ${funding.connection}, at ${funding.limits.active_minutes} minutes per run. Earlier spent rounds, head limits and charges carry forward; no budget is added. The earlier attempt stays closed and its incomplete result is preserved. Planning, initial Builder and completed publication do not run again.` : `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.`) : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
       </p>
       <button
         class="ui button"
@@ -242,7 +246,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
         ?disabled=${this.busy || !this.ready || (!this.pending && !this.current?.detail?.capabilities.publish_retained?.available && !offer?.available && !this.current?.detail?.capabilities.prepare_merge?.available)}
         @click=${() => this.publish()}
       >
-        ${this.pending ? 'Check saved request' : preparation ? 'Prepare merge under current policy' : funding?.carry_unused ? 'Resume unused review budget' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
+        ${this.pending ? 'Check saved request' : preparation?.retry_no_send ? 'Retry confirmed unsent merge' : preparation ? 'Prepare merge under current policy' : funding?.carry_unused ? 'Resume unused review budget' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
       </button>
       <p role="status">${this.message}</p>
     </section>`;

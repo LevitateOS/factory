@@ -6524,10 +6524,15 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		fmt.Printf("Retained publication progress: %s\n", raw)
 		return nil
 	}
-	if phase == "fund-retained-unused-retirement" {
-		a, err := db.Assignment(ctx, "b740a75f383fbbcb83a724460a700422")
-		if err != nil || a.AttemptRoot != "15151515151515151515151515151508" || a.Stage != factory.AssignmentFinished || a.Reason != factory.AssignReasonNoReport {
-			return errors.New("exact incomplete reviewer required before retirement")
+	if phase == "fund-retained-unused-retirement" || phase == "merge-only-retirement" {
+		id, root := "b740a75f383fbbcb83a724460a700422", "15151515151515151515151515151508"
+		mergeOnly := phase == "merge-only-retirement"
+		if mergeOnly {
+			id, root = "6196c3fd60ea46b3714453d7f4715f9b", "15151515151515151515151515151510"
+		}
+		a, err := db.Assignment(ctx, id)
+		if err != nil || a.AttemptRoot != root || a.Stage != factory.AssignmentFinished || (!mergeOnly && a.Reason != factory.AssignReasonNoReport) || (mergeOnly && a.Outcome != factory.Succeeded) {
+			return errors.New("exact settled reviewer required before retirement")
 		}
 		run, err := db.FactoryRun(ctx, a.Run)
 		if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() {
@@ -6536,6 +6541,21 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		record, err := db.CandidatePreparation(ctx, a.Preparation)
 		if err != nil {
 			return err
+		}
+		if mergeOnly {
+			until := time.Now().Add(90 * time.Second)
+			for !record.Stopped || record.Retirement != "confirmed" {
+				if time.Now().After(until) {
+					return errors.New("normal coordinator has not retired the closed review preparation; no retry command created")
+				}
+				time.Sleep(250 * time.Millisecond)
+				record, err = db.CandidatePreparation(ctx, a.Preparation)
+				if err != nil {
+					return err
+				}
+			}
+			fmt.Println("PASS: normal coordinator retired the exact successful review preparation on its closed root; original review result retained without inference")
+			return nil
 		}
 		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
 		state, err := port.RetireWorkspacePreparation(ctx, record.Preparation.Address())
@@ -6561,7 +6581,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 				return errors.New("prior reviewer allowance is not definitively closed and inactive")
 			}
 		}
-		fmt.Println("PASS: exact incomplete reviewer run already settled; original preparation retirement adopted and closed allowance deactivated without setup, model, command renewal or repository write")
+		fmt.Println("PASS: exact reviewer run already settled; original preparation retirement adopted and closed allowance deactivated without setup, model, command renewal or repository write")
 		return nil
 	}
 	if phase == "fund-retained-target" || phase == "fund-retained-unused-target" || phase == "fund-retained-final-target" {
@@ -6872,7 +6892,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return nil
 	}
 	if phase == "retry-retirement" {
-		records, e := db.PendingRetryPreparations(ctx, 256)
+		records, e := db.PendingCandidatePreparations(ctx, 256)
 		if e != nil {
 			return e
 		}

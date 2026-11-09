@@ -22,7 +22,7 @@ func (c *Coordinator) AuthorizeMerge(ctx context.Context, publicationID string, 
 		return err
 	}
 	// Only the first generation binds, once, on an unbound row.
-	if m.Authorization.Bound() || len(m.History) != 0 || auth.Generation.Generation != 1 {
+	if m.Authorization.Bound() || auth.Generation.Generation != len(m.History)+1 {
 		return errors.New("merge authorization generation needs its ledger history")
 	}
 	return c.authorizeFirstGeneration(ctx, m, auth)

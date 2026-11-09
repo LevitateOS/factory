@@ -958,29 +958,53 @@ is reused only when every semantic field is identical: its original policy31
 capture stays immutable, while the fresh merge separately captures current
 policy34 and requires current checks/permissions.
 
-**Latest outcome:** `merge-preparation-connected6.log` / session3514 /
-instance `dc566465ff715b6ce1fedc269a16da87` is stopped and joined.
-Command/merge `15151515151515151515151515151516` bound generation1,
-recorded operation `soda-15151515151515151515151515151510-merge-1`, then
-retained a definitive not_committed/complete `invalid_native_write` outcome.
-Native `native-write-outcomes/eb73e4e6fb8b74b42dfc9882505a06c2.outcome.json`
-proves `state:not_sent`, null receipt, capture SHA
+**Current recovery — Q15 remains INCOMPLETE.** Verified source commit
+`52d3f27b7f86f4294c8dc8cdc29de9efdf3317ea` preserves retained delivery joins
+and explicit preparation. Its first real merge, command16 / operation
+`soda-15151515151515151515151515151510-merge-1`, was definitively
+not_committed/complete: native outcome
+`native-write-outcomes/eb73e4e6fb8b74b42dfc9882505a06c2.outcome.json` proves
+not_sent/invalid_native_write, null receipt, capture SHA
 `11311455f99a128b94c2328cde0251d23f91a0bc579055371b0c28cab2bb02fa`.
-The coordinator had offered ten minutes; native mutation admission caps sends
-at five. Future capture now uses five minutes and cannot outlive the already
-bound authorization. The original failed generation/deadlines stay unchanged;
-root10 is closed, source total19/six runs unchanged. No second merge send or
-model is authorized by lookup absence.
+Ten minutes exceeded native admission's five-minute cap. Future send captures
+use five minutes and cannot outlive the bound authorization; the old refusal,
+old deadlines and original uncertain branch31dbde02be4170d92a37ac3da6154014 stay.
 
-Next executable action: implement an explicit finite merge-only retry for this
-confirmed no-send predecessor through the existing bounded generation ledger,
-with original snapshot/native proof retained, current exact policy/head/base
-capture and a distinct operation. It must leave inference allowance closed and
-buy no model work. Then verify resulting commit/issue closure and merged-source
-preparation, and finish Q15's remaining funded delivery/correction/human/race
-and recovery gates. The original uncertain branch publication
-`31dbde02be4170d92a37ac3da6154014` stays fenced. Q20 host source/native
-check is independent (see its record); Q24 has no replacement appliance.
+The finite merge-only grant now preserves definitive no-effect predecessors in
+bounded history and unused preparations as exact prior-row command outcomes.
+Closed inference stays closed; only CI enumeration admits this continuation.
+Normal coordinator cleanup retired reviewer checkout ff7c5e9e987dac68fb2e43eee
+only after its actual model run settled. PG `merge-only-store-cleanup3.log`,
+production DOM `merge-only-ui-check2.log`, types/native/Go builds pass.
+Disposable retained migration `q28-migrate/retained100/{check,unknown-check}.log`
+proves99→100/current reopen, exact prior99 refusal and unknown101 refusal with
+all75 public-table hashes and original files unchanged.
+
+`merge-only-connected7.log` proves byte-identical recovery of command17's
+original receipt, then distinct explicit command18 under current policy39 with
+immutable NotAfter1794234920. Native command
+`1bf3339aa6bf111d8bffdb72b45af50b` / operation
+`soda-15151515151515151515151515151510-merge-generation-2` committed once.
+Its causal native outcome records reviewed candidate
+`84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c`, original base
+`4522d2f4e33424b4965b71deda0b8953b6a70498`, resulting merge commit
+`fa77bb3d544c7ea6d4ba36d1bd873b69fcdda135`, actor16469623, PR19,
+GitHub request E4FC:3D9802:20A08E3:2FAB4D1:6AF1D951 and applied state.
+`merge-only-after7.log` verifies product stage merged/merge_completed,
+committed/complete generation2, preserved failed generation1, original issue
+closing occurrence4 and closed/inactive allowance10 unchanged at revision4,
+ActiveSeconds5593. Source remains19 minutes/six runs; no model/review/publication
+replay. Native/backend/PostgreSQL/keyring/bus owners joined and local grant removed.
+Original uncertain branch remains fenced with its original deadline/outcome.
+
+**Next executable action:** qualify resulting-commit/next-Builder preparation
+using this exact merge receipt, then finish remaining Q15 paid delivery-material,
+actual correction and human/race gates. Full Q15 remains incomplete. Continue
+independent Q20 actual-host/SDK/shared UI and package/installed/update work on
+its own prerequisites. Q24 has no replacement appliance; it blocks only actual
+appliance/shared Project and consumers that require that installation. No owned
+native/VM process remains at this checkpoint; current finite-grant/schema100/
+closed-preparation source changes are verified for commit.
 
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
@@ -1366,7 +1390,10 @@ Final reply: requested Q19, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 Outstanding. Requires separately authorized issue-only host grants and an actual fixture without code-unit read. Implement and qualify that capability in its canonical host; code-reader evidence cannot close it. No GitHub prerequisite.
 
-Source work in progress: Fountain's SDK recognizes explicit
+Source commits `023ac21efabd8bfc8cfd7a180a20e4ef94d9a0a6` (Fountain) and
+`af73c91d283deeadcf67f0b4a44a3de2610671a2` (SodaOS) implement the current
+source/native slice; Factory baseline is `52d3f27b7f86f4294c8dc8cdc29de9efdf3317ea`.
+Fountain's SDK recognizes explicit
 `native.repository.issues.read`, issue-only repository metadata and page permission.
 The host allows only ordinary issue reads/snapshots/catalogue through that grant;
 code/PR/check/intake/runtime gates retain their own code/capability checks. The
@@ -1694,6 +1721,14 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Additional scoped format check: `q28-migrate/retained100/check.log` and
+`unknown-check.log` prove actual retained99→100/current reopen, exact prior99
+writer refusal, unknown101 refusal unchanged and current recovery. All75 public
+table hashes and original Q15 files are preserved; the copied PostgreSQL owner
+is joined and no provider/model adapter exists in this check. Format100 preserves
+finite merge-only grants separately from closed inference. Whole installed
+upgrade/active-worker/update-delivery scope remains outstanding.
 
 Installed current/prior/current upgrade slice passes in
 `q28-migrate/installed-current7/`: a disposable qcow2 overlay of the stopped

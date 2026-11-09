@@ -138,6 +138,11 @@ func (s *Store) UpdateMerge(ctx context.Context, m factory.Merge) error {
 			return err
 		}
 	}
+	if mergeBindsAuthorization(previous, m) && m.RetryCommand != "" {
+		if err := checkMergeRetryGrant(ctx, tx, m, m.Authorization.Generation.NotAfter); err != nil {
+			return err
+		}
+	}
 	registering := previous.Operation.Work == nil && m.Operation.Work != nil
 	if registering && (previous.WithdrawRequested || m.WithdrawRequested) {
 		return ErrDispatchClosed
@@ -146,7 +151,12 @@ func (s *Store) UpdateMerge(ctx context.Context, m factory.Merge) error {
 		if m.Authorization.Bound() && m.Operation.Work.NotAfter > m.Authorization.Generation.NotAfter {
 			return ErrMergeConflict
 		}
-		if err = ensureAttemptDeadlineForRegistrationTx(ctx, tx, m.AssignmentID, m.Operation.Work.NotAfter); err != nil {
+		if m.RetryCommand != "" {
+			err = checkMergeRetryGrant(ctx, tx, m, m.Operation.Work.NotAfter)
+		} else {
+			err = ensureAttemptDeadlineForRegistrationTx(ctx, tx, m.AssignmentID, m.Operation.Work.NotAfter)
+		}
+		if err != nil {
 			return err
 		}
 	}
@@ -292,7 +302,7 @@ func mergeLedgerStable(old, next factory.Merge) bool {
 }
 
 func mergeAuthorityStable(old, next factory.Merge) bool {
-	return old.CreatedUnix == next.CreatedUnix && old.Authority == next.Authority &&
+	return old.CreatedUnix == next.CreatedUnix && old.Authority == next.Authority && old.RetryCommand == next.RetryCommand && old.RetryNotAfter == next.RetryNotAfter &&
 		!(old.WithdrawRequested && !next.WithdrawRequested)
 }
 
@@ -568,19 +578,38 @@ func (s *Store) UnsentMergePreparation(ctx context.Context, publication string) 
 	if err = admitUnsentMergePreparationTx(ctx, tx, p, a, g, m); err != nil {
 		return factory.MergePreparation{}, err
 	}
-	return factory.MergePreparation{Publication: p.ID, MergeID: m.ID, Revision: m.Revision, Policy: g.policy.Revision, Head: m.HeadOID, Base: m.BaseOID}, nil
+	return factory.MergePreparation{RetryNoSend: mergeNoSendRecovery(m), Publication: p.ID, MergeID: m.ID, Revision: m.Revision, Policy: g.policy.Revision, Head: m.HeadOID, Base: m.BaseOID}, nil
 }
 
 func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment, g admissionGrants, m factory.Merge) error {
-	if m.Validate() != nil || (m.Stage != factory.MergeOpen && m.Stage != factory.MergeFenced) || m.WithdrawRequested || m.Authorization.Bound() || len(m.History) != 0 || !pristineMergeOperation(m.Operation) ||
+	retry := mergeNoSendRecovery(m)
+	expiredUnallocated := retry && m.Stage == factory.MergeWithdrawn && pristineMergeOperation(m.Operation) && m.RetryCommand != "" && time.Now().Unix() >= m.RetryNotAfter
+	if m.Validate() != nil || m.WithdrawRequested && !expiredUnallocated ||
 		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PRCreate.BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
 		return ErrMergeConflict
 	}
-	if m.Authority == retainedMergeAuthority(a, g) {
+	if !retry && ((m.Stage != factory.MergeOpen && m.Stage != factory.MergeFenced) || m.Authorization.Bound() || len(m.History) != 0 || !pristineMergeOperation(m.Operation)) {
+		return ErrMergeConflict
+	}
+	if m.Authority == retainedMergeAuthority(a, g) && (!retry || m.RetryCommand != "" && time.Now().Unix() < m.RetryNotAfter && pristineMergeOperation(m.Operation)) {
 		return ErrMergeConflict
 	}
 	allowance, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)
-	if err != nil || allowance.Closed || !allowance.Active {
+	if err != nil {
+		return err
+	}
+	if retry {
+		settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)
+		if err != nil || !settled {
+			return ErrAttemptRunsPending
+		}
+		// Closed is the authority fence. Retained closed rows can carry a
+		// frozen active checkpoint; settled run receipts, not that bookkeeping
+		// flag, prove custody ended. Preserve the row byte for byte.
+		if !allowance.Closed {
+			return ErrMergeConflict
+		}
+	} else if allowance.Closed || !allowance.Active {
 		return factory.ErrAttemptClosed
 	}
 	return checkRetainedContinuationTx(ctx, tx, a, g)
@@ -631,12 +660,23 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 	if m.ID != r.MergeID || m.Revision != r.Revision || m.HeadOID != r.Head || m.BaseOID != r.Base || g.policy.Revision != r.Policy {
 		return empty, ErrStaleRevision
 	}
+	if r.RetryNoSend != mergeNoSendRecovery(m) {
+		return empty, ErrMergeConflict
+	}
 	if err = admitUnsentMergePreparationTx(ctx, tx, p, a, g, m); err != nil {
 		return empty, err
 	}
 	var prior string
 	if err = tx.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, r.Publication).Scan(&prior); err != nil {
 		return empty, err
+	}
+	if r.RetryNoSend {
+		if m.Operation.Work != nil {
+			m.History = append(m.History, factory.SnapshotMergeGeneration(m.Authorization, m.Operation, m.Stage, m.Outcome, m.Reason, m.FinishedUnix))
+		}
+		m.Authorization, m.Operation = factory.MergeAuthorization{}, factory.MergeOperation{Kind: factory.OpMerge}
+		m.NativeRev, m.ObservedUnix = 0, 0
+		m.RetryCommand, m.RetryNotAfter = command, now.Unix()+300
 	}
 	m.ID, m.Revision, m.CreatedUnix = command, 0, now.Unix()
 	m.Stage, m.Outcome, m.Reason, m.FinishedUnix, m.WithdrawRequested = factory.MergeOpen, "", "", 0, false
@@ -652,7 +692,7 @@ func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal strin
 	if err = checkGrantRowsAffected(result, err, "unsent merge changed"); err != nil {
 		return empty, err
 	}
-	receipt := factory.MergePreparationReceipt{CommandID: command, Request: r, MergeID: m.ID}
+	receipt := factory.MergePreparationReceipt{CommandID: command, Request: r, MergeID: m.ID, NotAfter: m.RetryNotAfter}
 	outcome, err := json.Marshal(capture{Receipt: receipt, Prior: prior})
 	if err != nil || len(outcome) > 64<<10 {
 		return empty, ErrMergeConflict
@@ -672,4 +712,46 @@ func retainedMergeAuthority(a factory.Assignment, g admissionGrants) factory.Aut
 	current.Policy, current.Operator, current.Capacity = g.policy.Revision, g.operator.Revision, g.capacity.Revision
 	current.Sponsorship, current.Environment = g.sponsorship.Revision, g.environment.Revision
 	return current
+}
+
+func mergeNoSendRecovery(m factory.Merge) bool {
+	if m.Stage == factory.MergeFailed && m.Reason == factory.MergeReasonRefused && m.Authorization.Bound() && m.Operation.Work != nil && m.Operation.Attempts == 1 && m.Operation.Completion == factory.OpCompletionComplete && len(m.History)+1 < factory.MaxMergeGenerations {
+		_, err := factory.MergePredecessorProofOf(m.Authorization.Generation.Generation, m.Operation)
+		return err == nil
+	}
+	// An unallocated retry may receive a distinct explicit preparation after
+	// expiry or policy withdrawal; it never extends the earlier command.
+	unallocated := m.RetryCommand != "" && len(m.History) > 0 && pristineMergeOperation(m.Operation)
+	return unallocated && (m.Stage == factory.MergeOpen || m.Stage == factory.MergeFenced || m.Stage == factory.MergeWithdrawn && time.Now().Unix() >= m.RetryNotAfter)
+}
+
+// MergeSendDeadline admits only the finite merge grant. It never opens an
+// inference allowance, changes its counters or makes an assignment executable.
+func (s *Store) MergeSendDeadline(ctx context.Context, m factory.Merge, candidate int64) (int64, error) {
+	if m.RetryCommand == "" {
+		return s.CapAttemptDeadline(ctx, m.AssignmentID, candidate)
+	}
+	if err := checkMergeRetryGrant(ctx, s.db, m, 0); err != nil {
+		return 0, err
+	}
+	return min(candidate, m.RetryNotAfter), nil
+}
+
+func checkMergeRetryGrant(ctx context.Context, q grantCommandSQL, m factory.Merge, sendDeadline int64) error {
+	if m.Validate() != nil || m.RetryCommand == "" || time.Now().Unix() >= m.RetryNotAfter || sendDeadline > m.RetryNotAfter || sendDeadline != 0 && sendDeadline <= time.Now().Unix() {
+		return factory.ErrAttemptClosed
+	}
+	var kind, target, payload, outcome, finished string
+	if err := q.QueryRowContext(ctx, `SELECT type,target,payload,outcome,finished FROM factory_commands WHERE id=$1`, m.RetryCommand).Scan(&kind, &target, &payload, &outcome, &finished); err != nil {
+		return err
+	}
+	var request factory.MergePreparation
+	var capture struct {
+		Receipt factory.MergePreparationReceipt `json:"receipt"`
+		Prior   string                          `json:"prior"`
+	}
+	if kind != factory.CommandPrepareMerge || target != "publication/"+m.PublicationID || finished == "" || json.Unmarshal([]byte(payload), &request) != nil || !request.RetryNoSend || request.Validate() != nil || json.Unmarshal([]byte(outcome), &capture) != nil || capture.Prior == "" || capture.Receipt.CommandID != m.RetryCommand || capture.Receipt.MergeID != m.ID || capture.Receipt.NotAfter != m.RetryNotAfter || capture.Receipt.Request != request || request.Publication != m.PublicationID || request.Head != m.HeadOID || request.Base != m.BaseOID || request.Policy != m.Authority.Policy {
+		return ErrMergeConflict
+	}
+	return nil
 }

@@ -112,7 +112,7 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 	if !ok || assessment.Verdict != factory.CheckPass || assessment.ChecksDigest != acceptance.CheckDigest {
 		return &factory.PublicationWait{Reason: "check_evidence_pending"}
 	}
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, merge.AssignmentID, time.Now().Add(mergeIntentLifetime).Unix())
+	notAfter, err := c.Store.MergeSendDeadline(ctx, *merge, time.Now().Add(mergeIntentLifetime).Unix())
 	if err != nil || notAfter <= time.Now().Unix() {
 		return &factory.PublicationWait{Reason: "attempt_deadline_unavailable"}
 	}
@@ -120,12 +120,12 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 		Decision: decision,
 		Generation: factory.MergeGeneration{
 			Authority: merge.Authority, PublicationID: merge.PublicationID,
-			NativeOperationID: factory.MergeGenerationOperationID(merge.PublicationID, 1),
+			NativeOperationID: factory.MergeGenerationOperationID(merge.PublicationID, len(merge.History)+1),
 			Fingerprint:       acceptance.CoverageDigest, Head: merge.HeadOID, Base: merge.BaseOID,
 			DiffBase: acceptance.Tuple.DiffBase, ChecksDigest: assessment.ChecksDigest,
 			AcceptanceKind: acceptance.Kind, AcceptanceID: acceptance.ID,
 			AttemptRoot: acceptance.AttemptRoot, OriginReceipt: acceptance.OriginReceipt,
-			Generation: 1, ReviewRound: acceptance.Round, AssessmentRevision: assessment.Revision,
+			Generation: len(merge.History) + 1, ReviewRound: acceptance.Round, AssessmentRevision: assessment.Revision,
 			ObservedNativeRev: nativeRevision, NotAfter: notAfter,
 		},
 		ResolutionsConfirmed: true,

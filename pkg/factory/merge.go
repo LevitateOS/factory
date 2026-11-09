@@ -93,6 +93,8 @@ func MergeResolution(reason string) string {
 // confirmed completion once native bookkeeping proves the outcome.
 // Finished work is terminal and keeps its receipts for inspection.
 type Merge struct {
+	RetryCommand      string             `json:"retry_command,omitempty"`
+	RetryNotAfter     int64              `json:"retry_not_after,omitempty"`
 	WithdrawRequested bool               `json:"withdraw_requested,omitempty"`
 	Operation         MergeOperation     `json:"operation"`
 	Authority         AuthorityRef       `json:"authority"`
@@ -154,6 +156,9 @@ func (m Merge) Validate() error {
 // validateMergeIdentity refuses merges outside the admitted identity,
 // address and scope.
 func (m Merge) validateMergeIdentity() error {
+	if (m.RetryCommand == "") != (m.RetryNotAfter == 0) || m.RetryCommand != "" && (!ValidID(m.RetryCommand) || m.RetryCommand != m.ID || m.RetryNotAfter <= m.CreatedUnix || m.RetryNotAfter > m.CreatedUnix+300 || len(m.History) == 0) {
+		return errors.New("invalid merge-only retry capture")
+	}
 	if !ValidID(m.ID) || !ValidID(m.PublicationID) || !ValidID(m.AssignmentID) {
 		return errors.New("invalid merge identity")
 	}
@@ -368,6 +373,7 @@ const CommandPrepareMerge = "prepare-unsent-merge"
 // MergePreparation is a new explicit command for a definitively undriven row.
 // It never renews an existing operation or funds inference.
 type MergePreparation struct {
+	RetryNoSend bool   `json:"retry_no_send,omitempty"`
 	Publication string `json:"publication"`
 	MergeID     string `json:"merge_id"`
 	Revision    int64  `json:"revision"`
@@ -384,6 +390,7 @@ func (r MergePreparation) Validate() error {
 }
 
 type MergePreparationReceipt struct {
+	NotAfter  int64            `json:"not_after,omitempty"`
 	CommandID string           `json:"command_id"`
 	Request   MergePreparation `json:"merge_preparation"`
 	MergeID   string           `json:"merge_id"`

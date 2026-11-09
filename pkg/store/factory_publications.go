@@ -820,6 +820,17 @@ func (s *Store) OpenPublications(ctx context.Context, limit int) ([]factory.Publ
 // assignment root still owns an open active allowance and has not merged.
 // The active-attempt cap keeps this bounded without walking settled history.
 func (s *Store) ActivePublishedPublications(ctx context.Context, limit int) ([]factory.Publication, error) {
+	return s.activePublishedPublications(ctx, limit, false)
+}
+
+// CheckablePublications includes finite merge-only continuations. They can
+// refresh CI observations while their inference root remains closed; child
+// dispatch deliberately keeps the narrower active-allowance enumeration.
+func (s *Store) CheckablePublications(ctx context.Context, limit int) ([]factory.Publication, error) {
+	return s.activePublishedPublications(ctx, limit, true)
+}
+
+func (s *Store) activePublishedPublications(ctx context.Context, limit int, mergeOnly bool) ([]factory.Publication, error) {
 	if limit <= 0 || limit > storePublicationLimit {
 		return nil, errors.New("invalid active publication listing limit")
 	}
@@ -828,10 +839,13 @@ func (s *Store) ActivePublishedPublications(ctx context.Context, limit int) ([]f
 		JOIN factory_attempt_allowances l ON l.repository=p.repository AND l.issue=p.issue
 			AND l.root_assignment=a.data->>'attempt_root'
 		WHERE p.stage='published'
-		  AND l.data->>'active'='true' AND COALESCE(l.data->>'closed','false') <> 'true'
+		  AND ((l.data->>'active'='true' AND COALESCE(l.data->>'closed','false') <> 'true')
+		    OR ($2 AND EXISTS(SELECT 1 FROM factory_merges retry JOIN factory_commands c ON c.id=retry.data->>'retry_command'
+		      WHERE retry.publication=p.data->>'id' AND retry.stage='open' AND c.type='prepare-unsent-merge' AND c.finished<>''
+		      AND (retry.data->>'retry_not_after')::bigint>$3)))
 		  AND NOT EXISTS (SELECT 1 FROM factory_merges m
 			WHERE m.publication=p.data->>'id' AND m.stage='merged')
-		ORDER BY p.seq LIMIT $1`, limit)
+		ORDER BY p.seq LIMIT $1`, limit, mergeOnly, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}

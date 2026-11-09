@@ -18,11 +18,17 @@ import (
 // or planning now waits before reaching the preparation step. This runs under
 // the same progress owner and budget as dispatch, without creating new work.
 func (c *Coordinator) reconcileRetryPreparations(ctx context.Context) error {
-	records, err := c.Store.PendingRetryPreparations(ctx, MaxDispatchRecovery)
+	records, err := c.Store.PendingCandidatePreparations(ctx, MaxDispatchRecovery)
 	if err != nil {
 		return err
 	}
 	for _, record := range records {
+		if record.RetireClosed {
+			if err := c.retireCandidatePreparation(ctx, record.Preparation); err != nil {
+				return err
+			}
+			continue
+		}
 		p := record.Preparation
 		if record.NotAfter > time.Now().Unix() {
 			p.State = execution.PreparationState{}

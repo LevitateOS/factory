@@ -204,6 +204,7 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
   return value as RetainedCandidateFunding;
 }
 export interface MergePreparation {
+  retry_no_send?: true;
   publication: string;
   merge_id: string;
   revision: number;
@@ -215,7 +216,8 @@ export function mergePreparation(value: unknown): MergePreparation | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const r = value as Record<string, unknown>;
   if (
-    Object.keys(r).length !== 6 ||
+    Object.keys(r).length !== 6 + (r.retry_no_send === undefined ? 0 : 1) ||
+    (r.retry_no_send !== undefined && r.retry_no_send !== true) ||
     !['publication', 'merge_id'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) ||
     !['head', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
     typeof r.revision !== 'number' ||

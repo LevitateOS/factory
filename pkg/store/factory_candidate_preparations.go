@@ -38,11 +38,12 @@ type CandidatePreparationRegistration struct {
 // CandidatePreparationRecord joins the public preparation view with its
 // Store-owned admission and native-stop receipt.
 type CandidatePreparationRecord struct {
-	Preparation execution.PreparationRecord
-	Admission   CandidatePreparationRegistration
-	NotAfter    int64
-	Stopped     bool
-	Retirement  string
+	RetireClosed bool `json:"-"`
+	Preparation  execution.PreparationRecord
+	Admission    CandidatePreparationRegistration
+	NotAfter     int64
+	Stopped      bool
+	Retirement   string
 }
 
 // CandidatePreparation reads the exact custody owner, including retirement.
@@ -58,18 +59,26 @@ func (s *Store) CandidatePreparation(ctx context.Context, id string) (CandidateP
 	return CandidatePreparationRecord{Preparation: p, Admission: registrationFromMeta(*meta), NotAfter: meta.NotAfter, Stopped: meta.Stopped, Retirement: meta.Retirement}, nil
 }
 
-// PendingRetryPreparations includes only setup not yet transferred to a run.
-// Earliest deadlines lead the bounded page so expired custody is retired first.
-func (s *Store) PendingRetryPreparations(ctx context.Context, limit int) ([]CandidatePreparationRecord, error) {
+// PendingCandidatePreparations includes untransferred coder setup and closed
+// roots whose model runs have settled. An open root's transferred checkout
+// stays owned by its run. Retirement itself still requires native confirmation.
+func (s *Store) PendingCandidatePreparations(ctx context.Context, limit int) ([]CandidatePreparationRecord, error) {
 	if limit <= 0 || limit > 256 {
 		return nil, errors.New("invalid retry preparation limit")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT p.data FROM project_preparations p
-		WHERE p.role=$1 AND p.data ? 'factory_admission'
-		AND p.data#>>'{factory_admission,publication_id}'=''
+	rows, err := s.db.QueryContext(ctx, `WITH pending AS (SELECT p.id,p.role,p.data,
+		EXISTS(SELECT 1 FROM factory_attempt_allowances l JOIN factory_assignments root ON root.id=l.root_assignment
+		 WHERE l.root_assignment=p.data#>>'{factory_admission,attempt_root}' AND root.data->>'project_id'=p.project_id
+		 AND l.repository=(p.data#>>'{factory_admission,repository}')::bigint AND l.issue=(p.data#>>'{factory_admission,issue}')::bigint
+		 AND l.data->>'closed'='true' AND NOT EXISTS(SELECT 1 FROM factory_runs r
+		 JOIN factory_run_views v ON v.run=r.id JOIN factory_assignments a ON a.id=v.attempt
+		 WHERE a.data->>'attempt_root'=l.root_assignment AND (r.active OR NOT r.settled OR r.data->>'reconciled' IS DISTINCT FROM 'true'))
+		) AS retire_closed FROM project_preparations p
+		WHERE p.data ? 'factory_admission'
 		AND NOT (COALESCE((p.data#>>'{factory_admission,stopped}')::boolean,FALSE)
-			AND COALESCE(p.data#>>'{factory_admission,retirement}'='confirmed',FALSE))
-		AND NOT EXISTS(SELECT 1 FROM factory_assignments a WHERE a.id=p.data#>>'{factory_admission,owner_assignment}')
+			AND COALESCE(p.data#>>'{factory_admission,retirement}'='confirmed',FALSE)))
+		SELECT p.data,p.retire_closed FROM pending p WHERE p.retire_closed OR (p.role=$1 AND p.data#>>'{factory_admission,publication_id}'=''
+		AND NOT EXISTS(SELECT 1 FROM factory_assignments a WHERE a.id=p.data#>>'{factory_admission,owner_assignment}'))
 		ORDER BY (p.data#>>'{factory_admission,not_after_unix}')::bigint,p.id LIMIT $2`, project.RoleCoder, limit)
 	if err != nil {
 		return nil, err
@@ -78,14 +87,15 @@ func (s *Store) PendingRetryPreparations(ctx context.Context, limit int) ([]Cand
 	var out []CandidatePreparationRecord
 	for rows.Next() {
 		var raw []byte
-		if err = rows.Scan(&raw); err != nil {
+		var closed bool
+		if err = rows.Scan(&raw, &closed); err != nil {
 			return nil, err
 		}
 		p, meta, decodeErr := unmarshalCandidatePreparation(raw)
 		if decodeErr != nil || meta == nil {
 			return nil, errors.New("retry preparation admission is missing")
 		}
-		out = append(out, CandidatePreparationRecord{Preparation: p, Admission: registrationFromMeta(*meta), NotAfter: meta.NotAfter, Stopped: meta.Stopped, Retirement: meta.Retirement})
+		out = append(out, CandidatePreparationRecord{RetireClosed: closed, Preparation: p, Admission: registrationFromMeta(*meta), NotAfter: meta.NotAfter, Stopped: meta.Stopped, Retirement: meta.Retirement})
 	}
 	return out, rows.Err()
 }

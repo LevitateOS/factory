@@ -8,9 +8,9 @@ import (
 	"sync"
 )
 
-// Schema 98 preserves explicit controller references in policy/run captures.
-// Older writers must refuse these stores instead of dropping authority fields.
-const schemaFormatVersion = 99
+// Schema 100 preserves finite merge-only retry grants and their closed inference
+// roots. Older writers must refuse rather than discard this authority boundary.
+const schemaFormatVersion = 100
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -672,6 +672,13 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=99 WHERE version=98`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate retained review owner format: %w", err))
+		}
+		version = 99
+	}
+	if version == 99 {
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=100 WHERE version=99`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate finite merge-only retry format: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

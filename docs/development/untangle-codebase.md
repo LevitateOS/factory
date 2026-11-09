@@ -2822,6 +2822,21 @@ authorization. Original refused outcome/closed allowance remain. Explicit finite
 merge-only generation recovery is next; no model replay. Q15 remains incomplete;
 see its single active recovery record for the exact process/journal and next action.
 
+Q15 finite merge recovery (2026-11-09): a new explicit five-minute command
+archives a definitive no-send generation or an unallocated preparation; original
+authority, failed outcomes and closed inference remain immutable. Existing
+command CAS/native proof guards unknown sends. Normal coordinator cleanup retires
+closed-root preparations only after actual run settlement. PG
+merge-only-store-cleanup3, shared DOM merge-only-ui-check2 and source/native builds
+pass; schema100 disposable migration preserves all75 tables, refuses prior99 and
+unknown101 unchanged. Connected command18 recovered command17's identical receipt
+then merged PR19 once through native generation2. Causal command
+1bf3339aa6bf111d8bffdb72b45af50b records candidate84b5417/base4522d2f and
+resultfa77bb3d544c7ea6d4ba36d1bd873b69fcdda135; product adoption is committed/complete,
+original issue closure4 retained. No model or publication replay; source19minutes/
+six runs and closed allowance unchanged. All owners joined. Full Q15 correction,
+paid material and remaining connected/installed gates remain open in its record.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

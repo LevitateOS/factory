@@ -711,6 +711,46 @@ func TestPauseFreezesOnlyAfterSettledViewsAndRechecksGateRevision(t *testing.T) 
 	if _, err := db.db.ExecContext(ctx, `UPDATE project_preparations SET data=$1 WHERE id=$2`, string(raw), native.Preparation.ID); err != nil {
 		t.Fatal(err)
 	}
+	// Closed roots release transferred checkouts only after their actual run
+	// rows settle. Keep this pause fixture's original allowance unchanged.
+	var originalAllowance string
+	if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_attempt_allowances WHERE root_assignment=$1`, a.AttemptRoot).Scan(&originalAllowance); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.db.ExecContext(ctx, `UPDATE factory_attempt_allowances SET data=jsonb_set(data,'{closed}','true'::jsonb) WHERE root_assignment=$1`, a.AttemptRoot); err != nil {
+		t.Fatal(err)
+	}
+	closedRecords, err := db.PendingCandidatePreparations(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundClosed := false
+	for _, p := range closedRecords {
+		if p.Preparation.Preparation.ID == native.Preparation.ID && p.RetireClosed {
+			foundClosed = true
+		}
+	}
+	if !foundClosed {
+		t.Fatal("closed settled root did not retire its transferred checkout")
+	}
+	if _, err = db.db.ExecContext(ctx, `UPDATE factory_runs SET active=true WHERE id=$1`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	liveRecords, err := db.PendingCandidatePreparations(ctx, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range liveRecords {
+		if p.Preparation.Preparation.ID == native.Preparation.ID {
+			t.Fatal("closed root attempted retirement while its run remained active")
+		}
+	}
+	if _, err = db.db.ExecContext(ctx, `UPDATE factory_runs SET active=false WHERE id=$1`, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.db.ExecContext(ctx, `UPDATE factory_attempt_allowances SET data=$1 WHERE root_assignment=$2`, originalAllowance, a.AttemptRoot); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}

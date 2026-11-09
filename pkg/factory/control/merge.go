@@ -226,12 +226,10 @@ func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal
 	if c.Store == nil || c.Merges == nil || r.Validate() != nil {
 		return empty, store.ErrMergeConflict
 	}
-	ctx, unlock, err := c.progressPass(ctx)
-	if err != nil {
-		return empty, err
-	}
-	defer unlock()
-	if _, err = c.Store.FactoryCommand(ctx, command); err == nil {
+	// All state changes below use the store's scope locks and exact-row CAS.
+	// No native effect occurs here, so unrelated progress must not delay a
+	// saved command's admission or replay behind a provider polling pass.
+	if _, err := c.Store.FactoryCommand(ctx, command); err == nil {
 		return c.Store.PrepareUnsentMerge(ctx, command, principal, r, time.Now())
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return empty, err
@@ -252,6 +250,16 @@ func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal
 		return empty, err
 	}
 	work := c.mergeWork(m, policy)
+	if r.RetryNoSend && m.Operation.Attempts > 0 {
+		prior, err := c.Merges.LookupOp(ctx, m.Operation.OperationID)
+		if err != nil {
+			return empty, err
+		}
+		if prior.NotObserved || prior.OperationID != m.Operation.OperationID || prior.Effect != factory.OpEffectNotCommitted || prior.Completion != factory.OpCompletionComplete || prior.Reason != m.Operation.Reason || prior.Kind != factory.OpMerge || prior.ActorID != m.Operation.ActorID || prior.RepositoryID != m.Repository || prior.InstallationID != m.Operation.InstallationID {
+			return empty, store.ErrMergeConflict
+		}
+		return c.Store.PrepareUnsentMerge(ctx, command, principal, r, time.Now())
+	}
 	unsent, ok := c.Merges.(interface {
 		CheckUnsentMerge(context.Context, factory.MergeWork) error
 	})

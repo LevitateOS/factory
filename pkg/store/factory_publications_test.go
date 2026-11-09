@@ -473,6 +473,120 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 			t.Fatal("allocated operation could be replaced", err)
 		}
 		_ = tx.Rollback()
+		// Retain a definitive no-send predecessor on a closed inference root.
+		// Native receipt equality is checked by the coordinator before this
+		// store command; this fixture exercises only the atomic product ledger.
+		refused, err := db.MergeByPublication(ctx, newPublication.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused.Authorization = mergeTestAuthorization(refused)
+		retryIntent := mergeTestIntent(factory.MergeOperationIDForGeneration(refused.PublicationID, 1))
+		retryIntent.HeadOID, retryIntent.BaseOID, retryIntent.HeadRef, retryIntent.BaseRef = refused.HeadOID, refused.BaseOID, refused.HeadRef, refused.BaseRef
+		retryIntent.Repository, retryIntent.PRNumber, retryIntent.PRID, retryIntent.IssueID = refused.Repository, refused.PRNumber, refused.PRID, refused.IssueID
+		retryIntent.PRAuthorID, retryIntent.ReviewerID, retryIntent.NotAfter = refused.PRAuthorID, refused.ReviewerID, 1200
+		refused.Operation = factory.MergeOperation{Kind: factory.OpMerge, Work: retryIntent, OperationID: retryIntent.OperationID, Attempts: 1, UpdatedUnix: time.Now().Unix(), Effect: factory.OpEffectNotCommitted, Completion: factory.OpCompletionComplete, Cancellation: factory.OpCancelNone, Reason: "invalid_native_write", RepositoryID: refused.Repository, ActorID: retryIntent.ActorID, InstallationID: "native-fixture"}
+		refused.Stage, refused.Outcome, refused.Reason, refused.FinishedUnix = factory.MergeFailed, factory.Failed, factory.MergeReasonRefused, time.Now().Unix()
+		if err = refused.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		refusedRaw, _ := json.Marshal(refused)
+		if _, err = db.db.ExecContext(ctx, `UPDATE factory_merges SET stage='failed',data=$1 WHERE publication=$2`, string(refusedRaw), refused.PublicationID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.CloseAttempt(ctx, refused.AssignmentID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.db.ExecContext(ctx, `UPDATE factory_attempt_allowances SET data=jsonb_set(data,'{active}','true'::jsonb) WHERE root_assignment=$1`, freshCommand); err != nil {
+			t.Fatal(err)
+		}
+		var closedBefore, closedAfter string
+		if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_attempt_allowances WHERE root_assignment=$1`, freshCommand).Scan(&closedBefore); err != nil {
+			t.Fatal(err)
+		}
+		noSend, err := db.UnsentMergePreparation(ctx, refused.PublicationID)
+		if err != nil || !noSend.RetryNoSend {
+			t.Fatal("definitive no-send offer", err)
+		}
+		retryCommand := factory.NewID()
+		retryReceipt, err := db.PrepareUnsentMerge(ctx, retryCommand, "owner", noSend, time.Now())
+		if err != nil || retryReceipt.NotAfter <= time.Now().Unix() || retryReceipt.NotAfter > time.Now().Unix()+300 {
+			t.Fatal("finite merge-only admission", err)
+		}
+		retryReplay, err := db.PrepareUnsentMerge(ctx, retryCommand, "owner", noSend, time.Now().Add(time.Hour))
+		if err != nil || retryReplay != retryReceipt {
+			t.Fatal("merge-only replay renewed deadline", err)
+		}
+		if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_attempt_allowances WHERE root_assignment=$1`, freshCommand).Scan(&closedAfter); err != nil || closedAfter != closedBefore {
+			t.Fatal("merge-only retry renewed inference", err)
+		}
+		retried, err := db.MergeByPublication(ctx, refused.PublicationID)
+		priorGeneration := factory.SnapshotMergeGeneration(refused.Authorization, refused.Operation, refused.Stage, refused.Outcome, refused.Reason, refused.FinishedUnix)
+		if err != nil || len(retried.History) != 1 || !reflect.DeepEqual(retried.History[0], priorGeneration) || retried.Authorization.Bound() || retried.Operation.Attempts != 0 {
+			t.Fatal("no-send generation history changed", err)
+		}
+		deadline, err := db.MergeSendDeadline(ctx, retried, time.Now().Add(time.Hour).Unix())
+		if err != nil || deadline != retryReceipt.NotAfter {
+			t.Fatal("merge-only deadline", err)
+		}
+		if _, err = db.CapAttemptDeadline(ctx, retried.AssignmentID, time.Now().Add(time.Minute).Unix()); !errors.Is(err, factory.ErrAttemptClosed) {
+			t.Fatal("merge-only grant acquired model authority", err)
+		}
+		active, err = db.ActivePublishedPublications(ctx, 100)
+		if err != nil || slices.ContainsFunc(active, func(p factory.Publication) bool { return p.ID == newPublication.ID }) {
+			t.Fatal("merge-only root entered paid child enumeration", err)
+		}
+		checkable, err := db.CheckablePublications(ctx, 100)
+		if err != nil || !slices.ContainsFunc(checkable, func(p factory.Publication) bool { return p.ID == newPublication.ID }) {
+			t.Fatal("merge-only root cannot refresh CI", err)
+		}
+		renewed := retried
+		renewed.RetryNotAfter++
+		renewed.Revision++
+		if err = db.UpdateMerge(ctx, renewed); err == nil {
+			t.Fatal("ordinary merge update renewed finite retry")
+		}
+		// A lost reply can leave a bound preparation with no allocated native
+		// operation. A distinct command archives that unused authorization;
+		// it cannot alter the original command or duplicate a recorded send.
+		retried.Authorization = mergeTestAuthorization(retried)
+		retried.Authorization.Generation.Generation = 2
+		retried.Authorization.Generation.NativeOperationID = factory.MergeGenerationOperationID(retried.PublicationID, 2)
+		retried.Authorization.Generation.NotAfter = retryReceipt.NotAfter - 1
+		retried.Revision++
+		if err = db.UpdateMerge(ctx, retried); err != nil {
+			t.Fatal("bind unused retry generation", err)
+		}
+		var boundPrior string
+		if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, retried.PublicationID).Scan(&boundPrior); err != nil {
+			t.Fatal(err)
+		}
+		if err = db.SaveRepositoryPolicy(ctx, policy); err != nil {
+			t.Fatal(err)
+		}
+		unusedMerge, err := db.UnsentMergePreparation(ctx, retried.PublicationID)
+		if err != nil || !unusedMerge.RetryNoSend {
+			t.Fatal("unused bound merge preparation", err)
+		}
+		nextCommand := factory.NewID()
+		if _, err = db.PrepareUnsentMerge(ctx, nextCommand, "owner", unusedMerge, time.Now()); err != nil {
+			t.Fatal("fresh unused merge command", err)
+		}
+		freshMerge, err := db.MergeByPublication(ctx, retried.PublicationID)
+		if err != nil || freshMerge.ID != nextCommand || freshMerge.Authorization.Bound() || len(freshMerge.History) != 1 || !reflect.DeepEqual(freshMerge.History[0], priorGeneration) {
+			t.Fatal("unused preparation rewrote native history", err)
+		}
+		unusedArchive, err := db.FactoryCommand(ctx, nextCommand)
+		if err != nil || json.Unmarshal([]byte(unusedArchive.Outcome), &capture) != nil || capture.Prior != boundPrior {
+			t.Fatal("unused authorization/deadline was not archived exactly", err)
+		}
+		oldReceipt, err := db.PrepareUnsentMerge(ctx, retryCommand, "owner", noSend, time.Now().Add(time.Hour))
+		if err != nil || oldReceipt != retryReceipt {
+			t.Fatal("old retry was renewed after fresh preparation", err)
+		}
+		if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_attempt_allowances WHERE root_assignment=$1`, freshCommand).Scan(&closedAfter); err != nil || closedAfter != closedBefore {
+			t.Fatal("unused preparation changed closed inference", err)
+		}
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)
 		}

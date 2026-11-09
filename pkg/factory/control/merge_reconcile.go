@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/levitateos/factory/pkg/factory"
@@ -42,7 +43,16 @@ func (c *Coordinator) admitMergeRow(ctx context.Context, m *factory.Merge, repor
 	// Expiry withdraws an undriven merge even when review never arrives.
 	// Recorded effects still go through the same cancellation and completion
 	// reconciliation; closing a root cannot erase a committed native merge.
-	closed, err := c.Store.CloseExpiredAttempt(ctx, m.AssignmentID)
+	closed, err := false, error(nil)
+	if m.RetryCommand != "" {
+		_, err = c.Store.MergeSendDeadline(ctx, *m, time.Now().Add(mergeIntentLifetime).Unix())
+		closed = errors.Is(err, factory.ErrAttemptClosed)
+		if closed {
+			err = nil
+		}
+	} else {
+		closed, err = c.Store.CloseExpiredAttempt(ctx, m.AssignmentID)
+	}
 	if err != nil {
 		mergeError(report, m.ID, "attempt_expiry_unavailable")
 		return none, false

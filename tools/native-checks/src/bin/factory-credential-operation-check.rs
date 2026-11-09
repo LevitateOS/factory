@@ -1578,7 +1578,15 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         }
                         if unused_funding && field(9)?=="delivery-fund-retained-unused-resume" {check("fund-retained-unused-step",&ready.instance).await?;}
                         if prepare_merge {
-                            let capture_path=root.join("retained-merge-preparation-request-16.json");
+                            runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
+                            check("merge-only-retirement",&ready.instance).await?;
+                            let original=fs::read(root.join("retained-merge-preparation-request-17.json"))?;
+                            let expected=fs::read(root.join("retained-merge-result-44bac40bb8cd49ebbeb22f8b18925342.json"))?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let recovered=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&original).await?;
+                            fs::write(root.join(format!("retained-merge17-replay-{}.json",ready.instance)),&recovered.body)?;
+                            ensure(recovered.status==200 && recovered.body==expected,"original merge-only receipt replay changed its captured deadline or identity")?;
+                            let capture_path=root.join("retained-merge-preparation-request-18.json");
                             let body=if capture_path.exists() {fs::read(&capture_path)?} else {
                                 let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                                 let reply=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1586,8 +1594,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                                 ensure(reply.status==200,"merge preparation detail unavailable")?;
                                 let view:serde_json::Value=serde_json::from_slice(&reply.body)?;
                                 let offer=&view["capabilities"]["prepare_merge"];
-                                ensure(offer["available"]==true && offer["merge_preparation"]["publication"]=="15151515151515151515151515151510" && offer["merge_preparation"]["merge_id"]=="15151515151515151515151515151515","exact unsent merge preparation unavailable")?;
-                                let bytes=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151516","action":"prepare-unsent-merge","publication":"15151515151515151515151515151510","merge_preparation":offer["merge_preparation"]}))?;
+                                ensure(offer["available"]==true && offer["merge_preparation"]["publication"]=="15151515151515151515151515151510" && offer["merge_preparation"]["merge_id"]=="15151515151515151515151515151517" && offer["merge_preparation"]["retry_no_send"]==true,"exact unsent merge preparation unavailable")?;
+                                let bytes=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151518","action":"prepare-unsent-merge","publication":"15151515151515151515151515151510","merge_preparation":offer["merge_preparation"]}))?;
                                 use std::io::Write;
                                 let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&capture_path)?;
                                 file.write_all(&bytes)?;file.sync_all()?;bytes

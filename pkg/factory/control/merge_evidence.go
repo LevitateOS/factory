@@ -147,7 +147,7 @@ func (c *Coordinator) verifyFreshMergeChecks(ctx context.Context, policy factory
 
 func (c *Coordinator) persistMergeIntent(ctx context.Context, m *factory.Merge, work factory.MergeWork, observation factory.MergeObservation, report *MergeReport) bool {
 	now := time.Now()
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, m.AssignmentID, now.Add(mergeIntentLifetime).Unix())
+	notAfter, err := c.Store.MergeSendDeadline(ctx, *m, now.Add(mergeIntentLifetime).Unix())
 	if err != nil {
 		mergeWait(report, m.ID, "attempt_deadline_unavailable")
 		return false
@@ -217,7 +217,7 @@ func (c *Coordinator) mergeWork(m factory.Merge, policy factory.RepositoryPolicy
 	// generation: every generation drives its own native operation, so
 	// a crash or lost reply reconciles by exact lookup and a
 	// replacement never reuses a finalized identity.
-	generation := 1
+	generation := len(m.History) + 1
 	if m.Authorization.Bound() {
 		generation = m.Authorization.Generation.Generation
 	}
