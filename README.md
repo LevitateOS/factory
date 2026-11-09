@@ -65,8 +65,16 @@ The default prefix is `$HOME/.local`; launch `$HOME/.local/bin/factory` or its
 application-menu entry. The installer checks architecture, runtime libraries and
 the complete bundle inventory before publishing the app. Reinstalling the same
 verified bundle can recover an interrupted installation; changed or unrelated
-app/launcher/menu/icon files cause refusal. Upgrades remain unfinished. Profiles
-and credentials stay outside installation.
+app/launcher/menu/icon files cause refusal. To upgrade an existing app, pass
+`--upgrade-from SHA256` with the digest of its installed `bundle.sha256` file.
+The installer verifies that exact prior payload, publishes a separate release
+directory and switches the launcher last. Earlier payload paths remain intact for
+running apps and captured executables. Repeating the same upgrade resumes its
+retained capture; an unknown prior or changed installed file refuses activation.
+`--uninstall-from SHA256` removes only verified launch/menu/icon entries and can
+resume after interruption. It retains payloads, profiles, credentials and system
+execution services. Execution-service upgrades and payload retirement remain
+unfinished. Profiles and credentials stay outside installation.
 The separate privileged execution-service setup is described in
 [the desktop guide](cmd/soda-desktop/README.md#linux-execution-services).
 Production packaging builds release native executables and includes compiled
