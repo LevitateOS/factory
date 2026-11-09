@@ -132,6 +132,7 @@ export interface WorkCapability {
   reason?: string;
 }
 export interface RetainedCandidateFunding {
+  native?: {profile: string; authentication?: string; credential_sha256?: string};
   publication: string;
   candidate: string;
   base: string;
@@ -146,20 +147,44 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const r = value as Record<string, unknown>,
     l = r.limits as Record<string, unknown> | undefined;
+  const n = r.native as Record<string, unknown> | undefined;
+  const source =
+    n === undefined
+      ? typeof r.grant_id === 'string' &&
+        r.grant_id.length > 0 &&
+        r.grant_id.length <= 128 &&
+        typeof r.generation === 'number' &&
+        Number.isSafeInteger(r.generation) &&
+        r.generation > 0
+      : n !== null &&
+        typeof n === 'object' &&
+        !Array.isArray(n) &&
+        Object.keys(n).every((k) => ['profile', 'authentication', 'credential_sha256'].includes(k)) &&
+        typeof n.profile === 'string' &&
+        /^[a-f0-9]{32}$/.test(n.profile) &&
+        typeof r.connection === 'string' &&
+        /^[a-f0-9]{32}$/.test(r.connection) &&
+        r.grant_id === '' &&
+        r.generation === 0 &&
+        (n.authentication === 'muse_login'
+          ? n.credential_sha256 === undefined || n.credential_sha256 === ''
+          : (n.authentication === undefined || n.authentication === '') &&
+            typeof n.credential_sha256 === 'string' &&
+            /^[a-f0-9]{64}$/.test(n.credential_sha256));
   const integer = (x: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
     typeof x === 'number' && Number.isSafeInteger(x) && x >= min && x <= max;
   if (
-    Object.keys(r).length !== 9 ||
+    Object.keys(r).length !== (n === undefined ? 9 : 10) ||
+    !source ||
     typeof r.publication !== 'string' ||
     !/^[a-f0-9]{32}$/.test(r.publication) ||
     !['candidate', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
     r.candidate === r.base ||
     typeof r.acceptance !== 'string' ||
     !/^d[a-f0-9]{24}$/.test(r.acceptance) ||
-    !['connection', 'grant_id'].every(
+    !['connection'].every(
       (k) => typeof r[k] === 'string' && (r[k] as string).length > 0 && (r[k] as string).length <= 256
     ) ||
-    !integer(r.generation, 1) ||
     !integer(r.policy, 1) ||
     !l ||
     typeof l !== 'object' ||

@@ -3,7 +3,9 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -15,6 +17,35 @@ import (
 func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, principal string, funding factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error) {
 	if c.Store == nil || c.Publication == nil || c.Host == nil || c.Broker == nil {
 		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+	}
+	if _, err := c.Store.FactoryCommand(ctx, command); err == nil {
+		return c.Store.FundRetainedCandidate(ctx, command, principal, funding, time.Now())
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return factory.RetainedCandidateFundingReceipt{}, err
+	}
+	offer, err := c.Store.RetainedCandidateFundingOffer(ctx, funding.Publication)
+	if err != nil {
+		return factory.RetainedCandidateFundingReceipt{}, err
+	}
+	if funding.Validate() != nil || funding.Limits.ActiveMinutes > offer.Limits.ActiveMinutes || funding.Limits.ReviewRounds > offer.Limits.ReviewRounds || funding.Limits.CorrectionCycles > offer.Limits.CorrectionCycles || funding.Limits.MaxChildren > offer.Limits.MaxChildren {
+		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+	}
+	offer.Limits = funding.Limits
+	if !reflect.DeepEqual(offer, funding) {
+		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+	}
+	p, err := c.Store.PublicationByID(ctx, funding.Publication)
+	if err != nil {
+		return factory.RetainedCandidateFundingReceipt{}, err
+	}
+	owner, err := c.Store.Assignment(ctx, p.AssignmentID)
+	if err != nil || owner.RetainedPublication == nil {
+		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+	}
+	// Retire the original known custody before the new allowance can admit
+	// work. Lost replies resume these same native tombstones, never a new send.
+	if err = c.stopCandidatePreparationsForRoot(ctx, p.Repository, p.ProjectID, p.Issue, owner.RetainedPublication.Assignment); err != nil {
+		return factory.RetainedCandidateFundingReceipt{}, err
 	}
 	return c.Store.FundRetainedCandidate(ctx, command, principal, funding, time.Now())
 }

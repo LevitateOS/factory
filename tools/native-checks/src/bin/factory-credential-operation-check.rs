@@ -1510,7 +1510,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(view["publication"]["id"]=="15151515151515151515151515151505" && view["publication"]["stage"]=="published" && view["publication"]["run"]=="bf339c1b9a0023a95bf95ad815ca5458","shared detail lost the exact retained publication/run")?;
                             return Ok(());
                         }
-                        check("prepare",&ready.instance).await?;
+                        if !fund_retained {check("prepare",&ready.instance).await?;}
                         if retry_delivery && !pending_retry_delivery {
                             // Invoke only after explicit owner authorization for
                             // this new paid attempt; old outcomes remain immutable.
@@ -1542,6 +1542,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(reply.status==200,"funding unconfirmed; preserve original request before another attempt")?;
                             let receipt:serde_json::Value=serde_json::from_slice(&reply.body)?;
                             ensure(receipt["command_id"]==capture["command_id"] && receipt["funding"]==capture["funding"],"funding receipt differs from original capture")?;
+                            check("prepare",&ready.instance).await?;
                         }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
                         let watching=check(if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);

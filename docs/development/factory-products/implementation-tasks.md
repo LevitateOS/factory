@@ -799,7 +799,16 @@ funding-types2,funding-engine-check2,funding-native-build1,funding-boundaries2}.
 actual PostgreSQL funding/replay/source refusal, original charge preservation,
 funded reviewer packet and existing review/correction/dispatch/native guards;
 production shared DOM lost-reply/remount; source/native builds and boundaries.
-These do not qualify the connected paid journey. Next executable action: recover
+These do not qualify the connected paid journey. The first connected attempt
+(`funding-connected1.log`) passed original-state recovery and source preparation,
+then stopped before sending command `…1506` or inference: an original candidate
+preparation still needed retirement, and native Muse sources correctly have no
+broker grant/generation. `inspect-funding1.log` confirms both facts and no command.
+The continuation now captures the existing native profile/authentication binding
+and retires exact original candidate custody through the product coordinator
+before the new allowance can admit work. Broker and native authority remain
+distinct. `funding-store5.log` and `funding-ui-check3.log` pass the affected
+PostgreSQL/DOM checks, including native source shape. Next executable action: recover
 the exact original Q15 state through the normal native owner, then admit command
 `15151515151515151515151515151506` once using its saved funding capture and
 continue actual review/correction/CI/merge. No new command/inference has been sent

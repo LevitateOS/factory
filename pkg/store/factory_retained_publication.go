@@ -166,7 +166,7 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 	limits.ReviewRounds = min(limits.ReviewRounds, 2)
 	limits.CorrectionCycles = min(limits.CorrectionCycles, 1)
 	limits.MaxChildren = 1
-	f := factory.RetainedCandidateFunding{Publication: p.ID, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
+	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
 	return f, f.Validate()
 }
 
@@ -205,10 +205,6 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	owner, err := currentAttemptOwnerTx(ctx, tx, p.Repository, p.Issue, a.ID)
 	if err != nil || owner != a.ID {
 		return fail(ErrRetainedPublicationIneligible)
-	}
-	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.RetainedPublication.Assignment)
-	if err != nil || !settled {
-		return fail(ErrAttemptRunsPending)
 	}
 	var closed bool
 	if err = tx.QueryRowContext(ctx, `SELECT data->>'closed'='true' FROM factory_attempt_allowances WHERE root_assignment=$1`, a.RetainedPublication.Assignment).Scan(&closed); err != nil {
@@ -280,8 +276,12 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	if err != nil {
 		return empty, err
 	}
-	if f.Candidate != p.Candidate || f.Base != p.PRCreate.BaseOID || f.Acceptance != p.Acceptance || f.Connection != g.sponsorship.Connection || f.GrantID != g.sponsorship.GrantID || f.Generation != g.sponsorship.Generation || f.Policy != g.policy.Revision {
+	if f.Candidate != p.Candidate || f.Base != p.PRCreate.BaseOID || f.Acceptance != p.Acceptance || !f.MatchesSource(g.sponsorship) || f.Policy != g.policy.Revision {
 		return empty, ErrRetainedPublicationIneligible
+	}
+	settled, err := attemptRootRunsSettledTx(ctx, tx, p.Repository, p.Issue, a.RetainedPublication.Assignment)
+	if err != nil || !settled {
+		return empty, ErrAttemptRunsPending
 	}
 	bounds := g.policy.AttemptLimits
 	if f.Limits.ActiveMinutes > bounds.ActiveMinutes || f.Limits.ReviewRounds > bounds.ReviewRounds || f.Limits.CorrectionCycles > bounds.CorrectionCycles || f.Limits.MaxChildren > bounds.MaxChildren {
@@ -329,7 +329,7 @@ func checkRetainedContinuationTx(ctx context.Context, tx *sql.Tx, a factory.Assi
 	// Policy is the funding command's admission CAS. Each later child captures
 	// and rechecks its own current policy through the ordinary packet gate;
 	// reconnecting the writer does not refill time or rebind the funded source.
-	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || f.Connection != g.sponsorship.Connection || f.GrantID != g.sponsorship.GrantID || f.Generation != g.sponsorship.Generation || f.Acceptance != a.Acceptance {
+	if json.Unmarshal(raw, &f) != nil || f.Validate() != nil || !f.MatchesSource(g.sponsorship) || f.Acceptance != a.Acceptance {
 		return ErrAdmissionChanged
 	}
 	return nil

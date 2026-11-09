@@ -12,22 +12,35 @@ const CommandFundRetained = "fund-retained-candidate"
 // RetainedCandidateFunding authorizes only subsequent review/correction on the
 // original selected source. It never renews publication or replays execution.
 type RetainedCandidateFunding struct {
-	Publication string        `json:"publication"`
-	Candidate   string        `json:"candidate"`
-	Base        string        `json:"base"`
-	Acceptance  string        `json:"acceptance"`
-	Connection  string        `json:"connection"`
-	GrantID     string        `json:"grant_id"`
-	Generation  int64         `json:"generation"`
-	Policy      int64         `json:"policy"`
-	Limits      AttemptLimits `json:"limits"`
+	Native      *NativeSponsorship `json:"native,omitempty"`
+	Publication string             `json:"publication"`
+	Candidate   string             `json:"candidate"`
+	Base        string             `json:"base"`
+	Acceptance  string             `json:"acceptance"`
+	Connection  string             `json:"connection"`
+	GrantID     string             `json:"grant_id"`
+	Generation  int64              `json:"generation"`
+	Policy      int64              `json:"policy"`
+	Limits      AttemptLimits      `json:"limits"`
 }
 
 func (f RetainedCandidateFunding) Validate() error {
-	if !ValidID(f.Publication) || !ValidCommit(f.Candidate) || !ValidCommit(f.Base) || f.Candidate == f.Base || !project.ValidDecisionID(f.Acceptance) || f.Connection == "" || len(f.Connection) > 128 || f.GrantID == "" || len(f.GrantID) > 256 || f.Generation < 1 || f.Policy < 1 {
+	if !ValidID(f.Publication) || !ValidCommit(f.Candidate) || !ValidCommit(f.Base) || f.Candidate == f.Base || !project.ValidDecisionID(f.Acceptance) || f.Connection == "" || len(f.Connection) > 128 || f.Policy < 1 {
 		return errors.New("invalid retained candidate funding scope")
 	}
+	if f.Native != nil {
+		if f.Native.Validate() != nil || !ValidID(f.Connection) || f.GrantID != "" || f.Generation != 0 {
+			return errors.New("invalid native continuation source")
+		}
+	} else if f.GrantID == "" || len(f.GrantID) > 128 || f.Generation < 1 {
+		return errors.New("invalid broker continuation source")
+	}
 	return f.Limits.Validate()
+}
+
+func (f RetainedCandidateFunding) MatchesSource(s Sponsorship) bool {
+	return f.Connection == s.Connection && f.GrantID == s.GrantID && f.Generation == s.Generation &&
+		(f.Native == nil && s.Native == nil || f.Native != nil && s.Native != nil && *f.Native == *s.Native)
 }
 
 type RetainedCandidateFundingReceipt struct {
