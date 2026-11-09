@@ -2884,6 +2884,19 @@ WebKitGTK4.1 runtime, as documented by the runtime owners and actual repository
 lookup. Continue with the corrected fresh package and supported-recipient checks;
 no provider work or original uncertain effect is replayed.
 
+Q25 current installed qualification (2026-11-09): clean d167b557a49c stage-current9
+passes true first-open format100 on actual Debian13.7 and pristine Rocky10.2,
+matching installed app/backend/root helpers, no developer/container tools,
+production Ready/current Muse acquisition, keyboard Close/second-launch/Quit and
+retained reopen. Actual stopped broker keeps browsing and refuses execution;
+restoration plus real Retry execution returns Ready. Current inventory and scoped
+receipts are in Q25. Reuse byte-identical app-installer interruption checks and
+unchanged execution recovery body; platform preflight is separately qualified.
+Original profiles/keyrings and old-helper refusal stay preserved. Q25 closes its
+selected Linux x86_64 single-user systemd scope; Q26/Q27, retained runtime upgrades
+and release automation keep their own requirements. Q26 continues in the actual
+current9 Debian app with fresh user consent pending; no provider/model replay.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

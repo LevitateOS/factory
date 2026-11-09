@@ -218,7 +218,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q22 — automatic Fountain issues](#q22) | Prove explicit-policy automatic issue → work → review/correction/checks → merge, exact charges and no duplicate appliance/desktop dispatch. | Pending |
 | [Q23 — external Fountain PRs](#q23) | Complete eligible external PR adoption with exact fork/head/base authority, actual workflow progression, withdrawal and retained restart. | Pending |
 | [Q24 — installed appliance](#q24) | Qualify the real installed Fountain/Forge journey and shared Project stop/start, retirement/accounting and restart. Needs a current appliance; the retired `soda` host is not a test target. | Deferred; pending |
-| [Q25 — Linux package](#q25) | Ship a fresh architecture-matching app/runtime/provider bundle with notices, integrity and supported single-user systemd host checks; prove safe/interrupted install without developer tools. | Pending |
+| [Q25 — Linux package](#q25) | Ship a fresh architecture-matching app/runtime/provider bundle with notices, integrity and supported single-user systemd host checks; prove safe/interrupted install without developer tools. | COMPLETE — Linux x86_64 Debian13/Rocky10.2 scope below |
 | [Q26 — installed GitHub app](#q26) | Prove the installed full GitHub journey, real keyboard/UI, consent/revocation, execution retry, Quit/restart/wake and installed custody/recovery. | Pending |
 | [Q27 — installed Fountain app](#q27) | Prove installed Fountain login, placement, funding, execution/upload/review/merge and external adoption, grant expiry/withdrawal and credential retirement. | Pending |
 | [Q28 — upgrades and updates](#q28) | Qualify retained old/schema-93 profiles, concurrent/interrupted migrations, pending effects and active-run-safe update/uninstall; finish installed freshness/download/status activation. | Pending |
@@ -1576,7 +1576,7 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
-**INCOMPLETE — active package continuation (2026-11-09).** Independent of the
+**COMPLETE — Linux x86_64 package/installer qualification (2026-11-09).** Independent of the
 missing Q24 appliance. Fresh official selection in
 `q25-package/tools-current8.json` remains Go1.27.3/Rust1.99.1/Bun1.4.4/
 PostgreSQL18.6. `direct-cargo-current8.json` verifies all24 directly pinned
@@ -1627,17 +1627,55 @@ stable EPEL supplies that runtime; actual declared runtime installation is in
 `current8-rocky-clean/runtime-prerequisites.log`, with no developer/container
 packages. No appliance is used. Original Debian/Rocky disks/profiles remain.
 
-**Next executable action:** commit the verified genesis fix, build a new clean
-`stage-current9` using the same verified input selection, and qualify its true
-first-open schema100 plus installed lifecycle in the separate Debian prefix and
-pristine Rocky recipient. Recover the root runtime-install check before retrying
-it. Preserve stage8, its profile and its observed first marker. Reuse unchanged
-installer interruption/refusal evidence by exact bytes. Q21 host source
-`b44c7f53310021c91d797b205649da927f6ee50c` and its causal receipt stay;
-Rust transfer/native worker integration is still outstanding. Q15's original
-unknown branch stays fenced. All queued requests remain in their owning records;
-Q24's replacement appliance is the sole identified environment blocker. No model
-or uncertain original write was replayed.
+**Current qualification:** clean source
+`d167b557a49cf7b772c7337697f377c350ee001c`, including the genesis fix, produced
+`stage-current9` with 2,495 inventory entries; inventory SHA256
+`4faa35c0b724d040b492a130a3ee0b29486316c1c6cdf8466bcc327b77824d57`.
+Both actual disposable Debian13.7/systemd257 and pristine Rocky10.2/systemd257
+recipients passed fresh-prefix/repeat installation, exact root-owned helpers,
+active broker and absence of Go/Rust/C/Bun/Node/container tools. True first open
+is format100 with zero runs/commands on each; actual installed app/backend bytes
+match the selected bundle. Production Ready acquired/verified the current Muse
+without inference. Evidence under `q25-package/current8-debian` and
+`current8-rocky-clean`: `current9-install.log`, `current9-first-open.log`,
+`current9-reopen.log`, `current9-loaded.png` and retained GUI receipts.
+
+Debian `current9-lifecycle.log` and Rocky `current9-lifecycle3.log` prove real
+keyboard Close, restoration by a second installed launch with the same owners,
+keyboard Quit and externally verified app/backend/PG joining. Rocky
+`current9-capabilities.log` proves actual private PID/mount/network/IPC
+namespaces and resource unit; prior identical-helper Debian proof is reused.
+Stopping the actual unused guest broker socket preserves browsing with execution
+unavailable (`current9-degraded.png`); restoring it and the real Retry execution
+control return Ready (`current9-retried.png`). Original profile/encrypted-keyring
+hashes remain equal. Failed fixture assertions stay: the first Rocky window list
+included hidden windows; the second tried joining its parent app from the input
+child. Corrected external joining passed. No product failure is inferred from
+those harness errors.
+
+Current app installer bytes exactly match `q28-upgrade/installer3.sha256` and
+its passing interrupted-copy/publication, locks, unknown/human-file and checksum
+refusal checks. Current execution installer changes since
+`execution-recovery.log` are solely platform preflight before state/effects;
+its existing partial-publication recovery body is unchanged. Reuse that recovery,
+actual missing-Git/platform refusal and current installed success; no repeated
+interruption or paid work is needed. Old Rocky helpers correctly refuse replacement
+unchanged (upgrade handling remains Q28). This closes the selected Linux x86_64
+single-user systemd package scope; it grants no support to other OS/CPU targets,
+no installed provider-journey completion and no release/update-job publication.
+Rocky app/PG/GUI are joined and the clean guest is powered off; disks stay.
+
+**Active continuation:** Q26 uses this actual installed current9 in Debian's
+owned overlay (SSH22209), separate `/home/factory/q25-prefix9` and original
+`q25-current9/profile`. Its private default keyring is verified unlocked;
+real GitHub device consent is pending. A failed gdbus fixture preflight is retained
+and was replaced by the already available busctl, without installing developer
+tools. Do not replay old OAuth challenges or export host credentials. Q21 host
+`b44c7f53310021c91d797b205649da927f6ee50c` and causal receipt remain;
+Rust transfer/native-worker integration is outstanding. Q15's original unknown
+branch stays fenced. All remaining requests stay outstanding; Q24's absent
+replacement appliance blocks only appliance-dependent journeys. No model or
+uncertain original write was replayed.
 
 Current continuation (2026-11-09): `stage-current4` from clean
 `3235d3e83a4f07632b6453c0a63c66da84e06eaa` passes actual Debian 13.7 x86_64
