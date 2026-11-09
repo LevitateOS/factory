@@ -55,13 +55,13 @@ pub struct OperationGrant {
     pub active: bool,
 }
 impl Client {
-    fn retain_control(
+    pub(super) fn retain_control(
         &self,
         profile: &Path,
         command: &str,
         kind: &str,
         request: &impl Serialize,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<(Vec<u8>, bool)> {
         if !hex(command, 32) {
             return Err(invalid());
         }
@@ -78,19 +78,22 @@ impl Client {
         let directory = profile.join("fountain-commands");
         private_dir(&directory).map_err(|_| unavailable())?;
         let path = directory.join(format!("{command}.json"));
-        match read_bytes(&path, 8192) {
-            Ok(prior) if prior == capture => (),
+        let first = match read_bytes(&path, 8192) {
+            Ok(prior) if prior == capture => false,
             Ok(_) => return Err(invalid()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                if publish_bytes(&path, &capture).is_err()
-                    && read_bytes(&path, 8192).map_err(|_| unavailable())? != capture
-                {
-                    return Err(invalid());
+                if publish_bytes(&path, &capture).is_ok() {
+                    true
+                } else {
+                    if read_bytes(&path, 8192).map_err(|_| unavailable())? != capture {
+                        return Err(invalid());
+                    }
+                    false
                 }
             }
             Err(_) => return Err(unavailable()),
-        }
-        Ok(body)
+        };
+        Ok((body, first))
     }
     pub async fn placement(&self) -> Result<Placement> {
         let enrollment = self.status().await?;
@@ -117,7 +120,7 @@ impl Client {
             return Err(invalid());
         }
         let enrollment = self.status().await?;
-        let body = self.retain_control(
+        let (body, _) = self.retain_control(
             profile,
             &request.command_id,
             "runtime.controller.select",
@@ -133,7 +136,8 @@ impl Client {
         if receipt.command_id != request.command_id
             || !matches!(receipt.outcome.as_str(), "applied" | "refused")
             || receipt.placement.repository_id != enrollment.repository.id
-            || receipt.outcome == "applied" && request.action == "activate"
+            || receipt.outcome == "applied"
+                && request.action == "activate"
                 && (receipt.placement.owner_kind != "desktop"
                     || receipt.placement.owner_id != self.command
                     || receipt.placement.runtime_id != self.runtime)
@@ -160,7 +164,7 @@ impl Client {
             return Err(invalid());
         }
         let enrollment = self.status().await?;
-        let body = self.retain_control(
+        let (body, _) = self.retain_control(
             profile,
             &request.command_id,
             "runtime.operation.authorize",

@@ -11,6 +11,8 @@ use zeroize::Zeroizing;
 mod controller;
 mod enrollment;
 mod operation;
+mod execution;
+pub use execution::{ExecutionClaim, ExecutionClaimRequest, ExecutionRetirement};
 pub use operation::{NativeRevision, Note, OperationRecord};
 pub use controller::{
     OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,

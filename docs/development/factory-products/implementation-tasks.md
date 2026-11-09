@@ -1264,6 +1264,28 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+**Current native claim recovery (2026-11-09):** canonical Fountain
+`b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
+execution-claim lookup through the existing profile-proof/operation-grant owner.
+It returns acquired=false, preserves original scope after expiry/withdrawal and
+new OAuth consent, and refuses absent/foreign history without resubmission.
+Factory's Rust connector retains exact claim/retirement requests in the existing
+private command capture before I/O; only an original successful reserve reply
+can acquire a launch. Concurrent callers, lost replies and reopen use GET only.
+`q19-authority/native-claim-connected1.log` passes actual OAuth/TLS/PostgreSQL/
+native proof/keyring, first acquire, changed-capture refusal, lookup absence while
+send is paused, lost reply without acquired authority, reopen, exact no-start
+retirement/replay and reconnected original history. Exactly two claim POSTs for
+two distinct claims; the existing completion note remains exactly one send.
+`claim-lookup-host1.log` and the same defining native check cover host scope,
+expiry, placement withdrawal, revocation/re-login and foreign-grant refusal.
+All owned PG/keyring/bus checks joined. Manifest/no-start values in this connector
+check are declared; no worker launched or inference occurred. This qualifies the
+connector boundary, not the full Q19 worker/controller journey. Next product
+integration is binding the existing captured controller manifest into native
+launch/observation/retirement, with host withdrawal stopping its exact worker;
+ordinary Fountain reads/shared bindings and full delivery still remain.
+
 Current capture continuation: Factory `c4e328232e6db140b1b72218c34720aa2fd7c9c3`,
 Fountain `d09c7cbb009136fd0f53b19971d47bdab21dc6ca`, SodaOS
 `893b2c2a52a907909f57cec210a75927f115ee1f`. Explicit grant selection preserves

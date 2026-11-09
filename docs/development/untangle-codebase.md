@@ -2897,6 +2897,16 @@ selected Linux x86_64 single-user systemd scope; Q26/Q27, retained runtime upgra
 and release automation keep their own requirements. Q26 continues in the actual
 current9 Debian app with fresh user consent pending; no provider/model replay.
 
+Q19 execution-claim recovery (2026-11-09): Fountainb8790bcbe1a5 supplies exact
+read-only claim lookup. Rust reuses its private controller capture for reserve
+and retirement, distinguishing first publication from every recovery path.
+Actual TLS/OAuth/PG/keyring/native check native-claim-connected1 passes one send
+per distinct claim, paused absence, lost reply with no launch acquisition,
+reopen, exact retirement and reconnected history. Source/manifest and no-start
+facts are declared at this boundary; no worker/model proof is inferred. Full
+native launch/withdrawal/retirement integration remains Q19 and is the concrete
+prerequisite of native Fountain delivery, independently of the absent appliance.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
