@@ -1179,7 +1179,7 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
 }
 
 async fn fountain_controller(profile: &Path, origin: &str, application: &str) -> Result<()> {
-    use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization},mcp_signing::Signer};
+    use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization,Note},mcp_signing::Signer};
     prepare(profile)?;
     let lock=fs::OpenOptions::new().create_new(true).write(true).open(profile.join("fixture.lock"))?;
     ensure(unsafe{libc::flock(lock.as_raw_fd(),libc::LOCK_EX|libc::LOCK_NB)}==0,"controller profile lock failed")?;
@@ -1214,12 +1214,35 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         drop(client);drop(signer);store.retire();
         store=Arc::new(Credentials::open(profile,runtime)?);
         let signer=Signer::open(profile)?;
-        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let client=Arc::new(Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?);
         let receipt=client.select_runtime(profile,&request).await.map_err(|e|e.code)?;
         ensure(receipt.placement.state=="active","reopened controller command not adopted")?;
         let authorization=OperationAuthorization{command_id:"123456789abcdef0123456789abcdef4".into(),expected_placement:receipt.placement.revision.clone(),generation:receipt.placement.generation.clone(),operations:vec!["issue.comment.publish".into()],not_after:epoch() as i64+90};
         let grant=client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?;
         ensure(grant.active,"native finite operation grant inactive")?;
+        let native=client.native_revision().await.map_err(|e|e.code)?;
+        ensure(native.idle&&!native.inhibited,"native effect domain not idle")?;
+        let note=Note{issue_id:5,content:"Native controller completion-note qualification".into(),merge_ref:"native-controller-qualification".into()};
+        let operation="123456789abcdef0123456789abcdef7";
+        let not_after=grant.not_after;
+        let worker=client.clone();let owned_profile=profile.to_path_buf();let captured_grant=grant.clone();let captured_note=note.clone();
+        let first=tokio::spawn(async move{worker.submit_note(&owned_profile,&captured_grant,operation,native.revision,not_after,&captured_note).await});
+        let root=profile.parent().ok_or("native root missing")?;
+        let until=Instant::now()+Duration::from_secs(3);
+        while !root.join("effect-request-paused").is_file()&&Instant::now()<until{tokio::time::sleep(Duration::from_millis(10)).await;}
+        let paused=root.join("effect-request-paused").is_file();
+        let repeated=if paused{Some(client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await)}else{None};
+        let release=fs::write(root.join("effect-request-release"),b"release-owned-request");
+        let completed=first.await?;release?;
+        ensure(paused,"actual submitted request did not reach fixture barrier")?;
+        ensure(matches!(repeated,Some(Err(error))if error.code=="fountain_operation_unknown"),"missing lookup authorized another send")?;
+        let completed=completed.map_err(|e|e.code)?;
+        ensure(completed.effect_state=="committed"&&completed.completion_state=="complete","lost native write reply was not adopted")?;
+        drop(client);drop(signer);store.retire();store=Arc::new(Credentials::open(profile,runtime)?);
+        let signer=Signer::open(profile)?;
+        let client=Client::new(store.clone(),store.capability(&saved.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let recovered=client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await.map_err(|e|e.code)?;
+        ensure(recovered.intent_digest==completed.intent_digest&&recovered.receipt==completed.receipt,"native receipt changed across reopen")?;
         let withdrawal=Selection{command_id:"123456789abcdef0123456789abcdef5".into(),expected_revision:receipt.placement.revision,action:"withdraw".into(),not_after:epoch() as i64+120};
         let receipt=client.select_runtime(profile,&withdrawal).await.map_err(|e|e.code)?;
         ensure(!client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?.active,"old grant replay renewed withdrawal")?;
@@ -1231,7 +1254,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let original_preserved=store.with_token(&store.capability(&read_saved.connection).await?,|bytes|!bytes.is_empty()).await?;
     let read_withdrawn=store.withdraw(&read_saved.connection).await;
     store.retire();result?;withdrawn?;read_withdrawn?;ensure(original_preserved,"read credential was not preserved")?;
-    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant and controller withdrawal/retirement; no worker launch or paid inference");
+    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen and controller withdrawal/retirement; no worker launch or paid inference");
     Ok(())
 }
 

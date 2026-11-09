@@ -10,6 +10,8 @@ use std::time::Duration;
 use zeroize::Zeroizing;
 mod controller;
 mod enrollment;
+mod operation;
+pub use operation::{NativeRevision, Note, OperationRecord};
 pub use controller::{
     OperationAuthorization, OperationGrant, Placement, Selection, SelectionReceipt,
 };
