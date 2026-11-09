@@ -1446,7 +1446,43 @@ Final reply: requested Q20, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q21 — Fountain candidate transfer and conditional publication
 
-Outstanding. Native candidate execution exists within Q08/Q09 scope; Fountain publication needs admitted Q19 operation/placement authority and exact transfer receipts. Transfer/staging implementation does not depend on GitHub completion.
+**INCOMPLETE — active Q21 recovery (2026-11-09).** Host source
+`b44c7f53310021c91d797b205649da927f6ee50c` (canonical Fountain) adds public
+OAuth/native-proof conditional publication to the existing receive owner. It
+requires the exact operation grant, original OAuth principal/profile proof,
+current controller/code-write authority and original registered operation;
+appliance admission cannot substitute or mix. The SDK owns
+`X-Factory-Operation-Grant`. Existing receiver/reservation/hook/journal semantics
+remain the defining effect owner; no second send is authorized by lookup absence.
+
+`q19-authority/q21-host3.log` passes the existing real PostgreSQL
+`TestNativeDesktopEnrollment/FiniteControllerAuthority` with current canonical
+native binary/hooks and live private callback. Candidate
+`d0d828bf4cb192b12f766bc655f83e9da66b4753`, base
+`65f1bf27bc3bf70f64657658635e66094edbcb4d`, actor2, grant
+`55555555555555555555555555555555`, operation `q21-public-grant-1`
+and branch `refs/heads/q21-public-grant` have a committed/complete causal
+host receipt. Wrong profile proof refuses before receive; exact replay409
+reports already_committed. All host/PG owners joined. This local candidate was
+declared by the check; it is not native worker-to-PR or installed evidence.
+Original first attempt remains `not_committed/native_refused` in
+`q21-host2/original-publish-outcome2.txt`; its fixture hooks used the old binary
+and invalid absolute configuration path. It was not resent. The first shell
+quoting failure preceded the check and its PG owner joined.
+
+**Next executable action:** build the final SDK header alias, then integrate
+Rust-owned digest-bound candidate capture/transfer and exact host-journal adoption
+through this public operation grant. Wire publication/PR into the production
+native port. Full native execution qualification needs Q19's actual authenticated
+external-claim/native-worker bridge, not the Q19 status label; implement that
+bridge before claiming the full journey. Partial upload, lost upload/write reply,
+withdrawal/restart and native execution→candidate→PR remain required. No Q21
+model or native worker has run. Factory baseline `e7171c9`, SodaOS
+`af73c91d283deeadcf67f0b4a44a3de2610671a2` remain unchanged by this host slice;
+no owned edit or native/VM process remains after its local commits. Q15's causal
+merge and original unknown branch fence remain preserved; Q15–Q17/Q19/Q21–Q29
+remain outstanding on their concrete inputs. Q24 alone lacks its replacement
+appliance. Q30 final criteria and all broad security gates remain open.
 
 ```text
 Execute through Q21 — Fountain candidate transfer and conditional publication. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q21 despite the document's historical paused snapshot; it does not authorize work beyond Q21 or resuming the old product queue.

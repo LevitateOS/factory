@@ -2848,6 +2848,19 @@ pass without execution or inference. Original Markdown and fixture permissions
 are preserved. Check processes joined. This closes ordinary Q20; installed
 consumer/native desktop enrollment and broad D5 stay open in Q27/Q29/Q24.
 
+Q21 public conditional transport (2026-11-09): Fountainb44c7f5331 authenticates
+desktop OAuth/native profile proof and the exact registered operation grant at
+the existing conditional receive seam; appliance admission is a separate path.
+No new effect journal or historical authority renewal. Actual PG/native Git/
+current hook/private callback check q19-authority/q21-host3.log commits the exact
+actor2/head d0d828bf4cb192b12f766bc655f83e9da66b4753/base65f1bf27 pair,
+refuses wrong proof and replays the original committed/complete receipt without
+another receiver. The first original native_refused outcome is preserved. All
+owners joined. Candidate input is declared; Rust digest-bound native custody,
+full worker→transfer→PR and lost-upload/restart checks remain Q21. Real worker
+qualification needs Q19's authenticated external-claim bridge, independently of
+GitHub or the absent Q24 appliance. See the single active Q21 recovery record.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
