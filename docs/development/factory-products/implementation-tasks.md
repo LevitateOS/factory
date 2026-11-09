@@ -900,6 +900,33 @@ results and uncertain branch command remain untouched. Owned edits: context
 projection/launch guard, retained funding Go/PG/Lit paths and existing native
 check. No code or new effects belong to unrelated work.
 
+Latest Q15 recovery: `63b9b1dea6f7466d38aaca05a81c4d1d763ba954`
+commits the context/unused-budget slice. Command `…1509` admitted and retained
+the spent first review plus second charged round `55ac866ca94f9857bbb0e27f967f46ba`.
+No second reviewer run/model occurred; five total runs and seventeen source
+minutes remain. `unused-review-connected{1,2,3}.log` retains the actual sequence:
+transient tool verification held dispatch; after verification recovered, restart
+rebuilt a candidate preparation with a different native instance/admission and
+fenced it. Preparation `f42edde398a9388449094f1e1` is now stopped with confirmed
+retirement. `unused-review-inspect4.log` proves closed/inactive owner09, both spent
+rounds, no new run and unchanged usage. All native/PG/keyring/bus owners joined;
+original uncertain branch remains untouched. Candidate recovery now reuses the
+original native address, admission and deadline and rechecks that original
+authority; changed/expired/retired authority holds without renewal. The owner
+explicitly authorized a fresh bounded continuation after this failure: up to two
+reviews and one correction at15 minutes/run on the same Muse source. Fresh
+funding can adopt a fenced retained owner only with complete branch/PR receipts,
+closed settled custody, no typed findings/pending child sends or attempted merge;
+the old owner/counts remain exact. Existing real PG `fresh-fenced-store2.log`
+and source/native builds qualify this change; connected launch is still pending.
+Its first store-check fixture moved an old checkpoint backward; that fixture
+clock is corrected without weakening product monotonicity. Next executable
+action: commit the coherent recovery change, then admit fresh command
+`15151515151515151515151515151510` once with immutable capture
+`q15-connected/retained-final-review-request-10.json` through
+`q15-retained-publication/fund-final.sh`. Verify current Muse before spending;
+preserve all older commands, deadlines, model results and counts.
+
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
 reachable “Publish retained candidate” command. Command/publication
@@ -1585,6 +1612,28 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Installed current/prior/current upgrade slice passes in
+`q28-migrate/installed-current7/`: a disposable qcow2 overlay of the stopped
+Q25 Debian13.7/systemd257 guest preserves the original disk/profile/keyring.
+Production bundle source `63b9b1dea6f7466d38aaca05a81c4d1d763ba954` is clean;
+Go1.27.3, Rust1.99.1, Bun1.4.4 and official PostgreSQL18.6 inputs are captured in
+`q25-package/stage-current7/build-inputs.json`. Inventory digest
+`cbd7f44bc3c075afa3371874dc90ace13a34a86790f22b4a4dead0e5f50ede20`
+upgrades exact prior `8860ca9427688f29385a9f3abbcb73944c04a3f26378daf7768ef2ab602f9f5b`.
+`upgrade-check.log` proves unknown-prior refusal, exact-prior upgrade/replay,
+launcher activation and unchanged live prior executable. Normal Quit joined
+old app/PG; current installed reopen migrated the copied profile to99 with
+76 public tables, zero runs/commands and original saved account visible.
+`schema-read.log`, `prior-refusal.log`, `final-reopen.log` and screenshots prove
+exact prior installed backend refusal, usable current reopen and normal Quit.
+All original encrypted keyring files remain byte-identical through that lifecycle
+(`shutdown.log`); guest shut down after joined app/PG. This qualifies installed
+app/backend/profile activation and credential preservation, not active-worker,
+provider-upgrade, release-publication or full installed delivery gates. The bundle
+predates the subsequent preparation-recovery change; it is not evidence for that
+change. Existing marker-only98→99/table-preservation/prior-writer refusal remains
+in `q28-migrate/retained99/check.log`; originals were preserved.
 
 Factory `c4e3282` advances the domain format to 98 for immutable controller
 references. `q28-migrate/retained98/check.log` proves marker-only 97→98/reopen with

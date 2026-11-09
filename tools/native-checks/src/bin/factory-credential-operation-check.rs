@@ -1404,10 +1404,11 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
             let recover_funding=args.len()==10 && field(9)?=="delivery-fund-retained-recover";
-            let unused_funding=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-unused"|"delivery-fund-retained-unused-offer");
+            let unused_funding=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-unused"|"delivery-fund-retained-unused-offer"|"delivery-fund-retained-unused-resume");
             let funding_offer=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-offer"|"delivery-fund-retained-unused-offer");
             let replace_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh-replacement";
-            let fresh_funding=unused_funding || replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
+            let final_funding=args.len()==10 && field(9)?=="delivery-fund-retained-final";
+            let fresh_funding=final_funding || unused_funding || replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
             let fund_retained=recover_funding || funding_offer || fresh_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
@@ -1498,9 +1499,15 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
                         fs::write(root.join(if recover_publication {"policy-retained-publication-recovery.json"}else if publish_retained {"policy-retained-publication.json"}else{"policy-resume.json"}),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
-                        let funding_publication=if unused_funding {"15151515151515151515151515151508"}else{"15151515151515151515151515151505"};
+                        let funding_publication=if final_funding {"15151515151515151515151515151509"}else if unused_funding {"15151515151515151515151515151508"}else{"15151515151515151515151515151505"};
+                        if final_funding || unused_funding && field(9)?=="delivery-fund-retained-unused-resume" {
+                            if !final_funding {ensure(root.join("retained-unused-review-request-09.json").is_file(),"resume requires original admitted funding capture")?;}
+                            let tools=runtime.as_ref().expect("owned runtime").execution_tools()?;
+                            let selected=tools.inspect().await?;
+                            println!("PASS: current native Muse executable verified {} {}",selected.tool.version,selected.tool.sha256);
+                        }
                         if unused_funding {check("fund-retained-unused-retirement",&ready.instance).await?;}
-                        if funding_offer || fresh_funding {check(if unused_funding {"fund-retained-unused-target"}else{"fund-retained-target"},&ready.instance).await?;}
+                        if funding_offer || fresh_funding {check(if final_funding {"fund-retained-final-target"}else if unused_funding {"fund-retained-unused-target"}else{"fund-retained-target"},&ready.instance).await?;}
                         if funding_offer {
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                             let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1541,8 +1548,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
                         if fund_retained {
-                            let funding_command=if unused_funding {"15151515151515151515151515151509"}else if replace_funding {"15151515151515151515151515151508"}else if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
-                            let capture_path=root.join(if unused_funding {"retained-unused-review-request-09.json"}else if replace_funding {"retained-fresh-review-request-08.json"}else if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
+                            let funding_command=if final_funding {"15151515151515151515151515151510"}else if unused_funding {"15151515151515151515151515151509"}else if replace_funding {"15151515151515151515151515151508"}else if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
+                            let capture_path=root.join(if final_funding {"retained-final-review-request-10.json"}else if unused_funding {"retained-unused-review-request-09.json"}else if replace_funding {"retained-fresh-review-request-08.json"}else if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
                             let body=if capture_path.exists() {fs::read(&capture_path)?} else {
                                 let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                                 let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1568,8 +1575,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(receipt["command_id"]==capture["command_id"] && receipt["funding"]==capture["funding"],"funding receipt differs from original capture")?;
                             check("prepare",&ready.instance).await?;
                         }
+                        if unused_funding && field(9)?=="delivery-fund-retained-unused-resume" {check("fund-retained-unused-step",&ready.instance).await?;}
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                        let watching=check(if unused_funding {"fund-retained-unused-watch"}else if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
+                        let watching=check(if final_funding {"fund-retained-final-watch"}else if unused_funding {"fund-retained-unused-watch"}else if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);
                         loop {
                             tokio::select! {

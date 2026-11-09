@@ -204,7 +204,7 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1`, id).Scan(&raw); err != nil {
 		return fail(err)
 	}
-	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.Stage != factory.PublicationPublished || p.WithdrawRequested || p.PRNumber < 1 || p.PRCreate.BaseOID == "" {
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || (p.Stage != factory.PublicationPublished && p.Stage != factory.PublicationFenced) || p.WithdrawRequested || p.PRNumber < 1 || p.PRCreate.BaseOID == "" {
 		return fail(ErrRetainedPublicationIneligible)
 	}
 	if err := checkDispatchOpenTx(ctx, tx, p.Repository); err != nil {
@@ -213,7 +213,7 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_publications WHERE assignment=$1 FOR UPDATE`, id).Scan(&raw); err != nil {
 		return fail(err)
 	}
-	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id || p.Stage != factory.PublicationPublished || p.WithdrawRequested {
+	if json.Unmarshal(raw, &p) != nil || p.Validate() != nil || p.ID != id || (p.Stage != factory.PublicationPublished && p.Stage != factory.PublicationFenced) || p.WithdrawRequested {
 		return fail(ErrRetainedPublicationIneligible)
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT data FROM factory_assignments WHERE id=$1 FOR UPDATE`, p.AssignmentID).Scan(&raw); err != nil {
@@ -221,6 +221,11 @@ func retainedFundingScopeTx(ctx context.Context, tx *sql.Tx, id string) (factory
 	}
 	if json.Unmarshal(raw, &a) != nil || a.Validate() != nil || a.RetainedPublication == nil || a.ID != a.AttemptRoot || a.ID != a.PublicationAssignment || a.RetainedPublication.Run != p.Run || a.RetainedPublication.Candidate != p.Candidate {
 		return fail(ErrRetainedPublicationIneligible)
+	}
+	if p.Stage == factory.PublicationFenced {
+		if err := admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
+			return fail(err)
+		}
 	}
 	owner, err := currentAttemptOwnerTx(ctx, tx, p.Repository, p.Issue, a.ID)
 	if err != nil || owner != a.ID {
@@ -405,6 +410,7 @@ func insertFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, prior factory.
 	p.ID, p.AssignmentID, p.Revision, p.CreatedUnix = command, command, 0, now.Unix()
 	p.ReviewCycles = nil
 	p.Tuple = nil
+	p.Stage, p.Outcome, p.Reason, p.FinishedUnix = factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked, now.Unix()
 	if err := a.Validate(); err != nil {
 		return p, a, err
 	}

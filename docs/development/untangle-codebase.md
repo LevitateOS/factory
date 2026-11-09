@@ -2788,6 +2788,21 @@ unsettled custody. PG `unused-review-store2.log`, production DOM
 `unused-review-ui-check1.log` and types/build checks qualify this source slice.
 The second approved review remains to run; connected delivery is incomplete.
 
+Q15 continuation09 exposed preparation replay rebuilding native-instance
+identity. Recover the existing custody/admission/deadline instead; current
+checks may refuse it but cannot renew it. The original second round is spent
+without another model, source total17; owner09 is closed/inactive and its
+preparation retired. The owner authorized fresh bounded continuation10. Adoption
+of a fenced retained owner requires complete branch/PR receipts and settled,
+write-free review state; original counts and outcomes remain immutable. Real PG
+`fresh-fenced-store2.log` covers fresh adoption and old exhausted-ledger/receipt
+preservation. Full connected proof remains outstanding.
+Independent installed upgrade evidence is in Q28's existing section: clean bundle
+63b9b1d inventorycbd7f44b, exact-prior/current/prior-refusal/current lifecycle on a
+disposable Debian overlay, preserved live old executable and encrypted credentials,
+schema99, normal Quit and joined guest. It does not cover active workers or the
+later preparation fix.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

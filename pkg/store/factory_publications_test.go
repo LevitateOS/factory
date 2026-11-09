@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -106,7 +107,7 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		// An unresolved old publication may retain its accounting checkpoint.
 		// Closed still forbids new inference; this explicit publication neither
 		// requires inventing its outcome nor changes that old accounting state.
-		allowance.Active, allowance.CheckpointUnix = true, now.Unix()
+		allowance.Active, allowance.CheckpointUnix = true, max(allowance.CheckpointUnix, now.Unix())
 		allowance.Revision++
 		tx, err := db.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -366,6 +367,41 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		}
 		if _, exhausted, err := db.ChargeReviewDispatch(ctx, child.Repository, child.Issue, continuation, factory.NewID(), fresh.Candidate, false); err != nil || !exhausted {
 			t.Fatal("handoff added an unauthorized third review", err)
+		}
+		// Explicit fresh funding can adopt a definitively published candidate
+		// after a prelaunch fence. The old exhausted ledger stays closed.
+		fenced, err := db.PublicationByID(ctx, continuation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fenced.Stage, fenced.Outcome, fenced.Reason, fenced.FinishedUnix = factory.PublicationFenced, factory.NeedsHuman, factory.PublishReasonFenced, time.Now().Unix()
+		fenced.Revision++
+		if err = db.UpdatePublication(ctx, fenced); err != nil {
+			t.Fatal(err)
+		}
+		if closed, err := db.CloseAttempt(ctx, continuation); err != nil || !closed {
+			t.Fatal("prior root not closed", err)
+		}
+		freshOffer, err := db.RetainedCandidateFundingOffer(ctx, continuation)
+		if err != nil || freshOffer.CarryUnused || freshOffer.PreviousRoot != continuation {
+			t.Fatal("fenced unlaunched offer", err)
+		}
+		freshCommand := factory.NewID()
+		if _, err = db.FundRetainedCandidate(ctx, freshCommand, "owner", freshOffer, time.Now()); err != nil {
+			t.Fatal("fresh funding of confirmed publication", err)
+		}
+		newPublication, err := db.PublicationByID(ctx, freshCommand)
+		if err != nil || newPublication.Stage != factory.PublicationPublished || !reflect.DeepEqual(newPublication.Publish, fenced.Publish) || !reflect.DeepEqual(newPublication.PRCreate, fenced.PRCreate) {
+			t.Fatal("fresh owner lost confirmed receipts", err)
+		}
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spentLedger, err := lockAttemptAllowanceRootTx(ctx, tx, source.Repository, source.Issue, continuation)
+		_ = tx.Rollback()
+		if err != nil || !spentLedger.Closed || len(spentLedger.Reviews) != 2 {
+			t.Fatal("fresh funding changed old consumption", err)
 		}
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)

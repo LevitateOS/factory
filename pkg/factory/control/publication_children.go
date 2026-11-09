@@ -866,6 +866,23 @@ func (c *Coordinator) admitReviewCandidatePrep(ctx context.Context, plan *attemp
 		ref.WorktreeID = prep.ID
 		record.Native = &ref
 	}
+	// Recovery reuses the original native custody and admission, including its
+	// expiry. A current controller may inspect it, never replace its instance,
+	// grants or control capture with today's values.
+	if existing, readErr := c.Store.CandidatePreparation(ctx, prep.ID); readErr == nil {
+		prior := existing.Admission
+		if prior.Repository != registration.Repository || prior.Issue != registration.Issue || prior.ActorID != registration.ActorID || prior.Project != registration.Project || prior.OwnerAssignment != registration.OwnerAssignment || prior.ChildAssignment != registration.ChildAssignment || prior.AttemptRoot != registration.AttemptRoot || prior.PublicationID != registration.PublicationID || prior.Connection != registration.Connection {
+			return execution.PreparationRecord{}, false, store.ErrAttemptRootMismatch
+		}
+		if existing.Stopped || existing.Retirement == "confirmed" {
+			return execution.PreparationRecord{}, false, factory.ErrAttemptClosed
+		}
+		record.Native = existing.Preparation.Native
+		registration = prior
+		registration.RequestedNotAfter = existing.NotAfter
+	} else if !errors.Is(readErr, store.ErrNotFound) {
+		return execution.PreparationRecord{}, false, readErr
+	}
 	storedRecord, created, err := c.Store.AdmitCandidatePreparation(ctx, record, registration)
 	if err != nil {
 		// A changed control, lost capacity race or unavailable Store admits
