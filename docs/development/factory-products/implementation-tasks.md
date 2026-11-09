@@ -902,8 +902,10 @@ and PR #19; never publish again to compensate for `connected4.log`'s post-commit
 check failure. Its original receipts and successful `recovery2.log` settle that
 attempt. Store-version refusal is verified in `3f5eb86` on a disposable real
 profile copy; use the current backend when resuming, preserving all old captures.
-Continue ready Fountain authority work while the separate funding answer is
-pending. Preserve all four settled runs, fifteen-minute source charge and both
+The owner has now authorized finite review/correction continuation on the
+same selected source, preserving the original charge and without replaying the
+Architect or initial Builder. Implement and admit that separate explicit command;
+the publication-only command still supplies no inference authority. Preserve all four settled runs, fifteen-minute source charge and both
 Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
 renew retired preparation or change the original model plan. Finish paid delivery
 judgment, publication/review/correction, real checks/merge, human/pending/inline
@@ -1039,6 +1041,23 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q19"></a>
 
 ### Q19 — Fountain placement and authenticated operations
+
+Current capture continuation: Factory `c4e328232e6db140b1b72218c34720aa2fd7c9c3`,
+Fountain `d09c7cbb009136fd0f53b19971d47bdab21dc6ca`, SodaOS
+`893b2c2a52a907909f57cec210a75927f115ee1f`. Explicit grant selection preserves
+the captured policy revision and concurrent human changes. Admissions bind the
+exact task/source/model/runtime digest. The appliance claims once, rechecks local
+policy/funding after claim I/O and requires native stop plus sealed custody before
+retirement; absent lookup never permits a second launch. The existing private
+SDK/API journey passes in `q19-authority/consumer-check8.log`; it declares no native
+dispatch and qualifies metadata/permission/fencing and policy CAS only. Shared
+production DOM/typecheck/build and engine boundaries pass (`capture-shared-ui-*`,
+`capture-types-final.log`, `capture-boundaries-final.log`). Actual PostgreSQL
+packet/retry/native-preflight and consumer checks pass in
+`q28-migrate/retained98/{dispatch-check5,consumer-check7,current4}.log`. Native and
+appliance builds pass. Full real worker/competing-controller and installed
+qualification remain outstanding; the desktop external-claim bridge remains
+explicitly unavailable. No model or uncertain original send was replayed.
 
 **INCOMPLETE — desktop controller slice verified (2026-11-09).** Canonical
 Fountain `60844fe6b48972f9417d08222c5b96945cb5590b` and Factory
@@ -1292,14 +1311,15 @@ Go 1.27.3/Bun 1.4.4/Rust 1.99.1/PostgreSQL 18.6 (`build-current5.log`). Its only
 uncommitted build input was this task record, retained as
 `build-current5-source-docs.patch`, SHA256
 `d8abfbb053ec74ba8a46923c4d117a41fcacf8a9bd3bf25dffe929096e2dd64e`.
-All seven helper bytes changed, so the prior installed service evidence is not
-promoted to those bytes. Active work is a second fresh recipient in
-`q25-package/debian-current5`, QEMU PID file `qemu.pid` (initial PID 1523916),
-loopback SSH 22209, original cloud-init still provisioning. It uses the verified
-same backing image and its own overlay. Next: recover that process/journal,
-transfer/install stage-current5 and verify its actual installed path, then join
-the owned VM. No inference/provider write is in flight. Owned source edit is this
-task record only; all implementation/dependency changes are committed.
+All seven changed helpers were then qualified in the second fresh Debian 13.7
+recipient: `q25-package/debian-current5/{install-check,window-check,lifecycle-check}.log`
+pass actual install/repeat, root ownership/broker, private namespaces, production
+Ready, keyboard Close/Quit, second-launch restoration and original-profile reopen.
+The guest has no developer tools or container engine. Its installed stage-current5
+bytes and original overlay/profile remain preserved. The subsequent Q26 login
+check is recorded below; the guest is now powered off and all app/PG/VM processes
+are joined. Broader supported-host/degraded execution and release gates remain.
+
 
 INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; broader host/degraded-execution qualification remains. Clean-source `stage-current3`
 binds `d0d7b6b94b756478abd2e2a806d38af574d0817d` and passes actual installation,
@@ -1360,7 +1380,22 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
-Outstanding. Actual installed Q25 payload is required; sign-in/UI/lifecycle can then proceed independently. Full GitHub installed delivery needs automatic issue/PR adoption and delivery behavior, not completed unrelated Fountain tasks.
+INCOMPLETE — actual Q25-installed `stage-current5` (engine `ce47b02c6ab16a5c85c6a46cbaf1c4d883bbfe23`
+plus its recorded docs-only patch) now proves real GitHub OAuth, encrypted desktop
+credential save, keyboard fixture-repository navigation, normal Quit and retained
+credential reopen/authenticated read without another login. GitHub identified the
+approved account as `sodaos`; no identity was substituted. Evidence under
+`q25-package/debian-current5`: `keyring-login-state.png`, `repository-opened.png`,
+`credential-reopened.png`, `credential-read-result.png`,
+`credential-{quit,final-quit}.log`, `gui-credential-reopen.log`.
+The first expired code and approved-but-unsaved attempt remain retained. The guest
+check initially started an empty-passphrase keyring without a default collection;
+a fixture passphrase created its actual login collection, verified through Secret
+Service before the successful approval. No plaintext credential was read or
+logged. Normal final Quit joined app/PG; the existing guest is off, original profile
+and saved account intact. No inference, funding or provider repository write
+occurred. Full setup/accepted inputs/funding, automatic delivery/adoption and
+installed custody/revocation/worker recovery remain outstanding. Q24 is unrelated.
 
 ```text
 Execute through Q26 — Installed GitHub desktop product journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q26 despite the document's historical paused snapshot; it does not authorize work beyond Q26 or resuming the old product queue.
@@ -1434,6 +1469,14 @@ Final reply: requested Q27, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 <a id="q28"></a>
 
 ### Q28 — Retained upgrade, interrupted recovery and updates
+
+Factory `c4e3282` advances the domain format to 98 for immutable controller
+references. `q28-migrate/retained98/check.log` proves marker-only 97→98/reopen with
+all 75 retained public-table hashes unchanged; `prior-writer.log` refuses the exact
+97 owner, with unchanged before/after table+marker snapshots. `current4.log` proves
+original stopped-profile hashes unchanged and copied PG joined after affected
+checks. These disposable copies grant no historical command new authority.
+Installed format-98 and active-worker/provider update journeys remain outstanding.
 
 Factory `3f5eb86dae65f30979c759ede67cbba6a3c260d9` advances the store format
 to 97 for the new non-executing publication owner. This prevents older writers

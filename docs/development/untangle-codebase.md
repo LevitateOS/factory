@@ -2601,9 +2601,10 @@ typecheck and boundaries pass. The production component DOM check proves saved
 identity before send, remount/replay after a declared lost reply and unknown-text
 preservation; it is not an installed/native UI claim. All owned runtimes, PG,
 keyring, bus and check processes joined and fixture GitHub credentials withdrew.
-No paid inference or second send replaced missing evidence. The requested
-review/correction continuation funding answer remains pending; independent
-Q19–Q29 work remains ready on its actual dependencies. Q15 is not complete.
+No paid inference or second send replaced missing evidence. The owner has authorized separate finite review/correction continuation on the
+same selected source, preserving the fifteen-minute charge and without replaying
+the Architect or initial Builder. That command still needs implementation and
+admission; publication alone grants no inference authority. Q15 is not complete.
 
 ## Q28 retained publication format and prior-writer refusal (2026-11-09)
 
@@ -2702,6 +2703,30 @@ canonical service/PG admission, scope denial/rollback, replay, withdrawal and
 history; `role-ui-check2.log` proves explicit choice and lost-reply retention in
 the production shared DOM. Source builds pass. Worker dispatch and installed
 qualification remain unfinished; no inference or original uncertain send replay.
+
+The captured dispatch continuation is Factory `c4e3282`, Fountain `d09c7cbb00`
+and SodaOS `893b2c2a`. Explicit policy selection uses the original revision; new
+admissions retain immutable grant/task/source/model/runtime inputs. The appliance
+uses the existing private SDK transport and central one-shot claim before native
+launch, with local policy/funding rechecks around I/O. Exact native stop and sealed
+custody are required for claim settlement, including explicit no-start fences.
+`consumer-check8.log` proves real API/PG scope, replay, revoked-token refusal and
+concurrent human policy preservation; its claim/retirement facts are metadata-only,
+not native worker proof. Production shared DOM/build/typecheck/boundaries and
+`retained98/{dispatch-check5,consumer-check7,current4}.log` pass. Format 98 preserves
+all 75 retained tables, refuses the prior writer and leaves original database
+files unchanged. No provider SDK entered the standalone engine. Worker execution,
+desktop external claim integration and installed appliance competition remain.
+
+Q25's changed stage-current5 helpers pass the fresh Debian installed check; Q26
+then passes actual OAuth/save, fixture read and normal Quit/reopen/read with the
+original profile and actual `sodaos` identity. The initial empty keyring lacked its
+default collection; the corrected disposable session created and unlocked it
+before successful approval. Failed/expired attempts remain evidence. See the
+existing Q25/Q26 sections for exact artifacts and remaining scope. The VM is off
+and credentials/profile are preserved. Q15 funding is approved but not dispatched;
+resume its explicit finite continuation without replaying old work. Q24 still has
+no authorized replacement appliance. No Daybreak or final completion is claimed.
 
 ## Verification and completion
 
