@@ -11,13 +11,15 @@ import (
 // PolicyActor names an existing operation binding. Operation kind is selected
 // by its policy slot, never supplied by the command body.
 type PolicyActor struct {
-	NativeProfile    collaboration.ProfileID    `json:"native_profile,omitempty"`
-	NativeConnection collaboration.ConnectionID `json:"native_connection,omitempty"`
-	TokenID          int64                      `json:"token_id,string"`
-	ActorID          int64                      `json:"actor_id,string"`
+	ControllerGrantID string                     `json:"controller_grant_id,omitempty"`
+	NativeProfile     collaboration.ProfileID    `json:"native_profile,omitempty"`
+	NativeConnection  collaboration.ConnectionID `json:"native_connection,omitempty"`
+	TokenID           int64                      `json:"token_id,string"`
+	ActorID           int64                      `json:"actor_id,string"`
 }
 
 type PolicyChange struct {
+	ExecutionActor      *PolicyActor                     `json:"execution_actor,omitempty"`
 	AttemptLimits       *factory.AttemptLimits           `json:"attempt_limits"`
 	Roles               map[string]factory.RoleSelection `json:"roles"`
 	Judgments           *factory.RoleSelection           `json:"judgments,omitempty"`
@@ -83,7 +85,7 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 		return empty, err
 	}
 	bind := func(a PolicyActor, kind string) (factory.ActorBindingRef, error) {
-		ref := factory.ActorBindingRef{NativeProfile: a.NativeProfile, NativeConnection: a.NativeConnection, TokenID: a.TokenID, ActorID: a.ActorID, Kind: kind}
+		ref := factory.ActorBindingRef{ControllerGrantID: a.ControllerGrantID, NativeProfile: a.NativeProfile, NativeConnection: a.NativeConnection, TokenID: a.TokenID, ActorID: a.ActorID, Kind: kind}
 		if err := ref.Validate(); err != nil {
 			return factory.ActorBindingRef{}, errors.Join(ErrPolicyBindingInvalid, err)
 		}
@@ -118,7 +120,15 @@ func (s Policies) Apply(ctx context.Context, actor collaboration.ActorID, princi
 			return empty, ErrPolicyResolverActor
 		}
 	}
-	policy := factory.RepositoryPolicy{
+	var execution *factory.ActorBindingRef
+	if in.ExecutionActor != nil {
+		ref, err := bind(*in.ExecutionActor, "execution.launch")
+		if err != nil {
+			return empty, err
+		}
+		execution = &ref
+	}
+	policy := factory.RepositoryPolicy{Execution: execution,
 		Repository: int64(repository), Revision: in.ExpectedRevision, GrantedBy: int64(actor),
 		Enabled: in.Enabled, Paused: in.Paused, TargetBranch: in.TargetBranch, Roles: in.Roles, Judgments: in.Judgments,
 		Checks: in.RequiredChecks, MergeMethod: in.MergeMethod,

@@ -64,11 +64,12 @@ type Run struct {
 // Native captures the placement-bound launch inputs; nil on a native metadata
 // record preserves unplaced evidence and grants no launch authority.
 type RunAdmission struct {
-	Authority AuthorityRef               `json:"authority"`
-	Policy    RepositoryPolicy           `json:"policy"`
-	Profile   *project.Profile           `json:"profile,omitempty"`
-	Tool      *project.FactoryHarnessPin `json:"tool,omitempty"`
-	Native    *execution.NativeLaunch    `json:"native,omitempty"`
+	ControllerManifestDigest string                     `json:"controller_manifest_digest,omitempty"`
+	Authority                AuthorityRef               `json:"authority"`
+	Policy                   RepositoryPolicy           `json:"policy"`
+	Profile                  *project.Profile           `json:"profile,omitempty"`
+	Tool                     *project.FactoryHarnessPin `json:"tool,omitempty"`
+	Native                   *execution.NativeLaunch    `json:"native,omitempty"`
 }
 
 // UsageEnd excludes time after an observed native stop or the admitted deadline.
@@ -191,6 +192,12 @@ func (r Run) validateAdmission() error {
 		return nil
 	}
 	a := r.Admission
+	if a.ControllerManifestDigest != "" && !digest.MatchString(a.ControllerManifestDigest) {
+		return errors.New("invalid captured controller manifest")
+	}
+	if a.Policy.Execution != nil && a.ControllerManifestDigest == "" {
+		return errors.New("controller execution lacks its captured manifest")
+	}
 	if err := a.Policy.Validate(); err != nil {
 		return errors.New("invalid run admission policy")
 	}

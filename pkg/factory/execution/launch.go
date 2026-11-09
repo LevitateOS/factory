@@ -13,8 +13,12 @@ const NativeMuseLogin = "muse_login"
 const NativeCLIProvider = "cli_managed_provider"
 
 type ApplianceLaunch struct {
-	Profile project.Profile `json:"profile"`
-	Tool    ApplianceTool   `json:"tool"`
+	// The provider adapter owns this opaque, immutable authority reference.
+	// Historical absence never authorizes adopting a current host grant.
+	ControllerGrantID        string          `json:"controller_grant_id,omitempty"`
+	ControllerManifestDigest string          `json:"controller_manifest_digest,omitempty"`
+	Profile                  project.Profile `json:"profile"`
+	Tool                     ApplianceTool   `json:"tool"`
 }
 
 // NativeLaunch captures placement and executable identity for a new launch.
@@ -107,7 +111,7 @@ func (r LaunchRequest) Validate() error {
 	var family, version, digest string
 	switch r.Kind {
 	case collaboration.Appliance:
-		if r.Appliance == nil || r.Native != nil || r.Appliance.Profile.Validate() != nil || r.Appliance.Tool.Validate() != nil {
+		if r.Appliance == nil || r.Native != nil || r.Appliance.Profile.Validate() != nil || r.Appliance.Tool.Validate() != nil || r.Appliance.ControllerGrantID != "" && (!collaboration.ValidID(r.Appliance.ControllerGrantID) || !validDigest(r.Appliance.ControllerManifestDigest)) || r.Appliance.ControllerGrantID == "" && r.Appliance.ControllerManifestDigest != "" {
 			return ErrLaunch
 		}
 		family, version, digest = r.Appliance.Tool.Harness, r.Appliance.Tool.Version, r.Appliance.Tool.SHA256

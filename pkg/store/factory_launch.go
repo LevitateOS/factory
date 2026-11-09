@@ -10,11 +10,11 @@ import (
 	"github.com/levitateos/factory/pkg/factory/execution"
 )
 
-// AuthorizeNativeLaunch rechecks the recorded packet and current grants at the
+// AuthorizeFactoryLaunch rechecks the recorded packet and current grants at the
 // native effect boundary. This grants no process observation or MCP activation.
-func (s *Store) AuthorizeNativeLaunch(ctx context.Context, request execution.LaunchRequest) (factory.MCPCapability, error) {
+func (s *Store) AuthorizeFactoryLaunch(ctx context.Context, request execution.LaunchRequest) (factory.MCPCapability, error) {
 	var empty factory.MCPCapability
-	if request.Validate() != nil || request.Kind != collaboration.Native || request.Input.MCP == nil || request.Input.MCP.Capability != request.Input.Run.ID || !factory.ValidMCPSecret(request.Input.MCP.Secret) {
+	if request.Validate() != nil || request.Input.MCP == nil || request.Input.MCP.Capability != request.Input.Run.ID || !factory.ValidMCPSecret(request.Input.MCP.Secret) {
 		return empty, execution.ErrLaunch
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -56,17 +56,26 @@ func (s *Store) AuthorizeNativeLaunch(ctx context.Context, request execution.Lau
 	if err != nil {
 		return empty, err
 	}
-	intent, err := execution.EncodeNativeIntent(request)
-	if err != nil || run.Native == nil || run.Native.Intent != intent || expected.Native == nil || request.Native == nil || *expected.Native != *request.Native || cap.RunID != run.ID || cap.Project != run.ProjectID || cap.Repository != assignment.Repository || cap.SourceDigest != assignment.SourceCommit || cap.Profile != factory.MCPProfileOfAssignment(assignment) || !time.Now().Before(run.Deadline) {
+	if request.Kind == collaboration.Native {
+		intent, err := execution.EncodeNativeIntent(request)
+		if err != nil || run.Native == nil || run.Native.Intent != intent || expected.Native == nil || request.Native == nil || *expected.Native != *request.Native {
+			return empty, ErrAdmissionChanged
+		}
+	} else if expected.Appliance == nil || request.Appliance == nil || *expected.Appliance != *request.Appliance {
+		return empty, ErrAdmissionChanged
+	}
+	if cap.RunID != run.ID || cap.Project != run.ProjectID || cap.Repository != assignment.Repository || cap.SourceDigest != assignment.SourceCommit || cap.Profile != factory.MCPProfileOfAssignment(assignment) || !time.Now().Before(run.Deadline) {
 		return empty, ErrAdmissionChanged
 	}
 	grants, err := loadAdmissionGrantsTx(ctx, tx, assignment.Repository, assignment.Connection)
 	if err != nil {
 		return empty, err
 	}
-	account := grants.sponsorship.Native
-	if account == nil || account.Validate() != nil || account.Profile != request.Native.Workspace.Profile || !request.Native.MatchesAuthentication(account.Authentication, account.CredentialSHA256) {
-		return empty, ErrAdmissionChanged
+	if request.Kind == collaboration.Native {
+		account := grants.sponsorship.Native
+		if account == nil || account.Validate() != nil || account.Profile != request.Native.Workspace.Profile || !request.Native.MatchesAuthentication(account.Authentication, account.CredentialSHA256) {
+			return empty, ErrAdmissionChanged
+		}
 	}
 	if err = checkAssignmentAuthorityTx(ctx, tx, assignment.Authority, assignment, grants); err != nil {
 		return empty, err

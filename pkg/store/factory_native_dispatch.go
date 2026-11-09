@@ -77,6 +77,13 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	}
 	run.Native = &n
 	run.Admission = &factory.RunAdmission{Authority: a.Authority, Policy: grants.policy, Native: &native}
+	if run.Admission.Policy.Execution != nil {
+		captured, err := factory.ControllerAdmissionDigest(a, run)
+		if err != nil {
+			return refuse()
+		}
+		run.Admission.ControllerManifestDigest = captured
+	}
 	if run.RuntimeKind() != collaboration.Native || run.Validate() != nil {
 		return refuse()
 	}

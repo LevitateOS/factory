@@ -131,6 +131,15 @@ func admitLockedPreviousRunTx(ctx context.Context, tx *sql.Tx, current, retryA f
 		return err
 	}
 	run.Admission = &factory.RunAdmission{Authority: authority, Policy: grants.policy, Profile: grants.environment.Profile, Tool: &tool}
+	if run.Admission.Policy.Execution != nil {
+		capturedAssignment := retryA
+		capturedAssignment.Run = run.ID
+		captured, err := factory.ControllerAdmissionDigest(capturedAssignment, *run)
+		if err != nil {
+			return err
+		}
+		run.Admission.ControllerManifestDigest = captured
+	}
 	return run.Validate()
 }
 

@@ -29,6 +29,15 @@ func TestRecordRetryPacketBoundsAttemptsAndFinishes(t *testing.T) {
 	now := time.Now().UTC()
 	db := dispatchStoreFixture(t)
 	a, r, run, view := dispatchTestPacket(t, now)
+	policy, err := db.RepositoryPolicy(ctx, a.Repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.Execution = &factory.ActorBindingRef{TokenID: 7, ActorID: 7, Kind: "execution.launch", ControllerGrantID: strings.Repeat("9", 32)}
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	a.Authority = dispatchCurrentAuthority(t, db, a)
 	if err := recordDispatchTestPacket(t, ctx, db, a, r, run, view); err != nil {
 		t.Fatal(err)
 	}
@@ -67,8 +76,13 @@ func TestRecordRetryPacketBoundsAttemptsAndFinishes(t *testing.T) {
 	if err != nil || next.Attempts != 2 || next.Run != second.ID || len(next.RunHistory) != 2 {
 		t.Fatalf("attempt not recorded: %+v %v", next, err)
 	}
-	if _, err = db.FactoryRun(ctx, second.ID); err != nil {
+	storedRetry, err := db.FactoryRun(ctx, second.ID)
+	if err != nil {
 		t.Fatalf("retry run missing: %v", err)
+	}
+	captured, err := factory.ControllerAdmissionDigest(next, storedRetry)
+	if err != nil || captured != storedRetry.Admission.ControllerManifestDigest {
+		t.Fatal("retry did not bind its new run and original captured authority", err)
 	}
 	if _, err = db.RecordRetryPacket(ctx, a, expected, a.Authority, second, secondView, 30); !errors.Is(err, ErrStaleRevision) {
 		t.Fatalf("stale retry accepted: %v", err)

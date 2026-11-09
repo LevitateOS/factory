@@ -210,6 +210,7 @@ function policyChange(policy: Record<string, unknown>, roles: Selections) {
     create_actor: policyActor(policy.create_actor),
     review_actor: policyActor(policy.review_actor),
     merge_actor: policyActor(policy.merge_actor),
+	...(policy.execution_actor==null?{}:{execution_actor:policyActor(policy.execution_actor)}),
     ...(resolve.actor_id && resolve.actor_id !== '0' ? {resolve_actor: policyActor(resolve)} : {}),
   };
 }

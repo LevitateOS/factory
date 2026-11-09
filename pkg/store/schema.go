@@ -8,9 +8,9 @@ import (
 	"sync"
 )
 
-// Schema 97 admits explicit non-executing retained-publication owners. Older
-// writers must refuse these stores instead of dropping the new owner binding.
-const schemaFormatVersion = 97
+// Schema 98 preserves explicit controller references in policy/run captures.
+// Older writers must refuse these stores instead of dropping authority fields.
+const schemaFormatVersion = 98
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -654,6 +654,15 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=97 WHERE version=96`); err != nil {
 			rollback()
 			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate retained publication owner format: %w", err))
+		}
+		version = 97
+	}
+	if version == 97 {
+		// Older writers cannot preserve captured controller grant references.
+		// Changing the marker grants no old command new authority.
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=98 WHERE version=97`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate captured controller grant format: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {

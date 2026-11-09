@@ -276,6 +276,13 @@ func recordDispatchPacketTx(ctx context.Context, tx *sql.Tx, expected factory.Is
 		}
 		run.Admission = &factory.RunAdmission{Authority: a.Authority, Policy: grants.policy, Profile: grants.environment.Profile, Tool: &tool}
 	}
+	if run.Admission.Policy.Execution != nil {
+		captured, err := factory.ControllerAdmissionDigest(a, run)
+		if err != nil {
+			return err
+		}
+		run.Admission.ControllerManifestDigest = captured
+	}
 	if err = checkCoderPreparationCustodyTx(ctx, tx, a); err != nil {
 		return err
 	}

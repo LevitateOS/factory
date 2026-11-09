@@ -301,6 +301,16 @@ func TestRecordDispatchPacket(t *testing.T) {
 	now := time.Now().UTC()
 	db := dispatchStoreFixture(t)
 	a, r, run, view := dispatchTestPacket(t, now)
+	a.AdoptedHarness = project.FactoryHarnessPin{Harness: project.FactoryHarnessMuse, Version: a.HarnessVers, SHA256: strings.Repeat("a", 64), Image: run.Image}
+	policy, err := db.RepositoryPolicy(ctx, a.Repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.Execution = &factory.ActorBindingRef{TokenID: 7, ActorID: 7, Kind: "execution.launch", ControllerGrantID: strings.Repeat("9", 32)}
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	a.Authority = dispatchCurrentAuthority(t, db, a)
 	unselected, err := db.Sponsorship(ctx, a.Repository, a.Connection)
 	if err != nil {
 		t.Fatal(err)
@@ -333,11 +343,22 @@ func TestRecordDispatchPacket(t *testing.T) {
 	if err != nil || stored.ProjectID != a.ProjectID {
 		t.Fatalf("packet run unreadable: %+v %v", stored, err)
 	}
+	captured, err := factory.ControllerAdmissionDigest(got, stored)
+	if err != nil || captured != stored.Admission.ControllerManifestDigest || stored.Admission.Policy.Execution.ControllerGrantID != policy.Execution.ControllerGrantID {
+		t.Fatal("dispatch did not retain exact controller packet", captured, err)
+	}
+	changed := stored
+	changed.Model = "another-model"
+	altered, err := factory.ControllerAdmissionDigest(got, changed)
+	if err != nil || altered == captured {
+		t.Fatal("controller digest did not bind the selected model", err)
+	}
 	held, err := db.HeldReservations(ctx, 10)
 	if err != nil || len(held) != 1 || held[0].AssignmentID != a.ID {
 		t.Fatalf("reservation not held: %+v %v", held, err)
 	}
 	again, r2, run2, view2 := dispatchTestPacket(t, now)
+	again.Authority = a.Authority
 	again.ID, again.Run, again.RunHistory = factory.NewID(), run2.ID, []string{run2.ID}
 	again.AttemptRoot, again.PublicationAssignment = again.ID, again.ID
 	r2.AssignmentID = again.ID
@@ -346,6 +367,40 @@ func TestRecordDispatchPacket(t *testing.T) {
 		t.Fatal("second unfinished assignment for the issue accepted")
 	} else if !isAssignmentActive(err) {
 		t.Fatalf("wrong conflict error: %v", err)
+	}
+	prepared, err := db.Preparation(ctx, got.Preparation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := project.FactoryLaunch{Run: project.FactoryRun{ID: stored.ID, Project: stored.ProjectID, Role: stored.Role, Preparation: got.Preparation,
+		Harness: project.FactoryHarnessMuse, HarnessVers: got.HarnessVers, Model: got.Model, Effort: stored.Admission.Policy.Roles[got.Role].Profile.Effort,
+		Contributor: stored.Admission.Policy.Roles[got.Role].Profile.Contributor, Assignment: got.PromptSHA, SourceCommit: got.SourceCommit,
+		Connection: got.Connection, Actor: got.ActorID, Deadline: stored.Deadline, ExecutionPhase: got.Phase}, Prompt: got.Prompt,
+		HarnessSHA256: stored.Admission.Tool.SHA256, MCP: &project.FactoryMCPBinding{Capability: stored.ID, Secret: strings.Repeat("a", 64)}}
+	request, err := stored.LaunchRequest(got, input)
+	if err != nil {
+		t.Fatal("captured appliance request", err, input.Validate(), stored.Validate(), got.Validate())
+	}
+	capability := factory.MCPCapability{ID: stored.ID, AssignmentID: got.ID, RunID: stored.ID, Generation: 1,
+		Profile: factory.MCPProfileOfAssignment(got), Subject: got.Subject.SubjectKey(got.Repository), Repository: got.Repository,
+		Project: got.ProjectID, PreparationDigest: prepared.Preparation.SetupDigest, SourceDigest: got.SourceCommit, AcceptedRevision: strconv.FormatInt(got.NativeRev, 10),
+		Authority: strings.Repeat("a", 64), DeadlineUnix: stored.Deadline.Unix(), State: factory.MCPCapabilityStaged}
+	if err := db.StageMCPCapability(ctx, capability); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AuthorizeFactoryLaunch(ctx, request); err != nil {
+		t.Fatal("current appliance packet refused", err)
+	}
+	policy, err = db.RepositoryPolicy(ctx, got.Repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.Paused = true
+	if err := db.SaveRepositoryPolicy(ctx, policy); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.AuthorizeFactoryLaunch(ctx, request); err == nil {
+		t.Fatal("captured appliance packet ignored current policy withdrawal")
 	}
 }
 

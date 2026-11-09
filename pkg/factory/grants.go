@@ -95,15 +95,16 @@ func SettingsDigest(typ, target, payload string) string {
 // Desktop references name the profile/connection; appliance references retain
 // their token binding ID. Current scope is established by the host, not these IDs.
 type ActorBindingRef struct {
-	NativeProfile    collaboration.ProfileID    `json:"native_profile,omitempty"`
-	NativeConnection collaboration.ConnectionID `json:"native_connection,omitempty"`
-	TokenID          int64                      `json:"token_id,string"`
-	ActorID          int64                      `json:"actor_id,string"`
-	Kind             string                     `json:"kind"`
+	ControllerGrantID string                     `json:"controller_grant_id,omitempty"`
+	NativeProfile     collaboration.ProfileID    `json:"native_profile,omitempty"`
+	NativeConnection  collaboration.ConnectionID `json:"native_connection,omitempty"`
+	TokenID           int64                      `json:"token_id,string"`
+	ActorID           int64                      `json:"actor_id,string"`
+	Kind              string                     `json:"kind"`
 }
 
 func (a ActorBindingRef) Validate() error {
-	if a.ActorID <= 0 || !ValidOperationKind(a.Kind) {
+	if a.ActorID <= 0 || (!ValidOperationKind(a.Kind) && a.Kind != "execution.launch") || a.ControllerGrantID != "" && !ValidID(a.ControllerGrantID) {
 		return errors.New("invalid native actor binding reference")
 	}
 	if a.NativeProfile != "" || a.NativeConnection != "" {
@@ -193,6 +194,7 @@ func EffectiveReassessmentMinutes(minutes int) int {
 // enrolled native actor references. It grants no appliance capacity,
 // provider sponsorship or environment permission.
 type RepositoryPolicy struct {
+	Execution           *ActorBindingRef         `json:"execution_actor,omitempty"`
 	Roles               map[string]RoleSelection `json:"roles"`
 	Judgments           *RoleSelection           `json:"judgments,omitempty"`
 	Publish             ActorBindingRef          `json:"publish_actor"`
@@ -215,6 +217,9 @@ type RepositoryPolicy struct {
 }
 
 func (p RepositoryPolicy) Validate() error {
+	if p.Execution != nil && (p.Execution.Validate() != nil || p.Execution.Kind != "execution.launch" || p.Execution.ControllerGrantID == "") {
+		return errors.New("execution requires an explicit controller grant binding")
+	}
 	if p.Repository <= 0 || p.Revision < 0 || p.GrantedBy <= 0 {
 		return errors.New("invalid repository policy identity")
 	}

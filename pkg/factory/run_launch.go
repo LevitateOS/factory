@@ -2,6 +2,11 @@ package factory
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
 	"github.com/levitateos/factory/pkg/factory/execution"
@@ -25,6 +30,11 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 	}
 	request := execution.LaunchRequest{Input: input, Kind: r.RuntimeKind()}
 	if r.Native != nil {
+		// Remote controller claims need their native connector bridge. A local
+		// launch cannot silently ignore an explicit external execution grant.
+		if r.Admission.Policy.Execution != nil {
+			return empty, execution.ErrLaunch
+		}
 		// Historical same-user evidence remains readable, but it cannot authorize
 		// a new desktop agent launch. The selected execution boundary requires a
 		// broker run captured before the isolated worker is started.
@@ -43,9 +53,40 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 		tool := r.Admission.Tool
 		request.Kind = collaboration.Appliance
 		request.Appliance = &execution.ApplianceLaunch{Profile: *r.Admission.Profile, Tool: execution.ApplianceTool{Harness: tool.Harness, Version: tool.Version, SHA256: tool.SHA256, Image: tool.Image}}
+		if r.Admission.Policy.Execution != nil {
+			request.Appliance.ControllerGrantID = r.Admission.Policy.Execution.ControllerGrantID
+			captured, err := ControllerAdmissionDigest(a, r)
+			if err != nil || captured != r.Admission.ControllerManifestDigest {
+				return empty, execution.ErrLaunch
+			}
+			request.Appliance.ControllerManifestDigest = r.Admission.ControllerManifestDigest
+		}
 	}
 	if request.Validate() != nil {
 		return empty, execution.ErrLaunch
 	}
 	return request, nil
+}
+
+// ControllerAdmissionDigest binds the immutable execution packet before native
+// I/O. Later observations and private MCP credentials are outside this digest.
+// Recovery uses the stored digest, never a newly selected policy or grant.
+func ControllerAdmissionDigest(a Assignment, r Run) (string, error) {
+	if r.Admission == nil || r.Admission.Policy.Execution == nil || !ValidID(r.ID) || a.Run != r.ID || a.Role != r.Role || a.ProjectID != r.ProjectID || !digest.MatchString(a.PromptSHA) {
+		return "", errors.New("invalid controller admission packet")
+	}
+	admission := *r.Admission
+	admission.ControllerManifestDigest = ""
+	raw, err := json.Marshal(struct {
+		Run, Project, Role, Source, Preparation, Phase, Prompt, Connection, Harness, Model, Image string
+		Actor                                                                                     int64
+		Deadline                                                                                  time.Time
+		Admission                                                                                 RunAdmission
+		Execution, Verification                                                                   []byte
+	}{r.ID, r.ProjectID, r.Role, r.InputSHA, a.Preparation, a.Phase, a.PromptSHA, a.Connection, r.Harness, r.Model, r.Image, a.ActorID, r.Deadline, admission, r.ExecutionManifest, r.VerificationManifest})
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
 }

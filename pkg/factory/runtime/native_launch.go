@@ -26,7 +26,7 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 			return empty, errors.Join(execution.ErrLaunch, execution.ErrTaskUnavailable)
 		}
 	}
-	cap, err := p.Store.AuthorizeNativeLaunch(ctx, request)
+	cap, err := p.Store.AuthorizeFactoryLaunch(ctx, request)
 	if err != nil {
 		return empty, err
 	}
@@ -79,7 +79,7 @@ func (p NativeExecution) LaunchRun(ctx context.Context, request execution.Launch
 	if !reply.Accepted || reply.IntentDigest != hex.EncodeToString(digest[:]) {
 		return empty, execution.ErrLaunch
 	}
-	current, currentErr := p.Store.AuthorizeNativeLaunch(ctx, request)
+	current, currentErr := p.Store.AuthorizeFactoryLaunch(ctx, request)
 	if currentErr != nil || current.ScopeDigest() != cap.ScopeDigest() {
 		// Admission changed during native I/O. Cancellation targets the captured
 		// intent even if its first process observation has not arrived yet.

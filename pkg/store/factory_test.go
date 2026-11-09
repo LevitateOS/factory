@@ -217,7 +217,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	if err = s.StageMCPCapability(ctx, capability); err != nil {
 		t.Fatal("native launch capability", err)
 	}
-	if _, err = s.AuthorizeNativeLaunch(ctx, launchRequest); err != nil {
+	if _, err = s.AuthorizeFactoryLaunch(ctx, launchRequest); err != nil {
 		t.Fatal("current native launch preflight", err)
 	}
 	wrongEnvironment := *nativeEnvironment
@@ -237,7 +237,7 @@ func TestNativeCheckpointRetentionPG(t *testing.T) {
 	if _, err := s.ApplyFactoryGrant(ctx, "native-workspace-fixture", grant); err != nil {
 		t.Fatal("native permission withdrawal", err)
 	}
-	if _, err = s.AuthorizeNativeLaunch(ctx, launchRequest); err == nil {
+	if _, err = s.AuthorizeFactoryLaunch(ctx, launchRequest); err == nil {
 		t.Fatal("withdrawn native launch preflight", err)
 	}
 	withdrawnApproval := approval
