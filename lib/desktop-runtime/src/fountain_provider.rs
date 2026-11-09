@@ -8,6 +8,8 @@ use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use zeroize::Zeroizing;
+mod enrollment;
+pub use enrollment::retained_client;
 
 const TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_REPLY: usize = 65536;

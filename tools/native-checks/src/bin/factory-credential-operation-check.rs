@@ -432,6 +432,7 @@ fn grant(
     refresh_seconds: u64,
 ) -> Result<Grant> {
     Ok(Grant {
+        client_id: None,
         access: Token::new(access.to_vec())?,
         refresh: Some(Token::new(refresh.to_vec())?),
         expires_at: Some(epoch() + access_seconds),
@@ -575,6 +576,7 @@ async fn run_grant_custody(profile: &Path) -> Result<()> {
 
     let cap = store.capability(&saved.connection).await?;
     let invalid = Grant {
+        client_id: None,
         access: Token::new(access.clone())?,
         refresh: None,
         expires_at: Some(epoch() + 120),
@@ -1176,7 +1178,94 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
     Ok(())
 }
 
+async fn fountain_login(profile:&Path,origin:&str,application:&str,backend:&Path,payload:&Path)->Result<()> {
+    use soda_desktop_runtime::{fountain_oauth, fountain_provider, supervisor::NativeSupervisor};
+    prepare(profile)?;
+    let runtime=NativeSupervisor::start(payload,backend,profile)?;
+    let ready=runtime.health()?;
+    let store=Arc::new(Credentials::open(profile,&ready.profile)?);
+    let oauth=fountain_oauth::Client::configured(origin).await?;
+    ensure(oauth.application()==application,"configured public application differs")?;
+    // Migrate the actual old Secret Service formats in this disposable profile.
+    // Missing historical client metadata never implies permission to refresh.
+    let legacy_bytes=fixture()?;
+    let legacy_account=Account::new(Provider::Fountain,origin,"2")?;
+    let raw=store.store(legacy_account.clone(),Token::new(legacy_bytes.clone())?).await?;
+    let raw_cap=store.capability(&raw.connection).await?;
+    ensure(matches!(oauth.refresh(&store,&raw_cap).await,Err(fountain_oauth::Error::Reauthorize)),"legacy raw token invented OAuth refresh authority")?;
+    let legacy=store.store_grant(legacy_account,grant(&legacy_bytes,&legacy_bytes,120,180)?).await?;
+    let legacy_cap=store.capability(&legacy.connection).await?;
+    ensure(store.with_token(&legacy_cap,|bytes|bytes==legacy_bytes).await?,"legacy v1 grant lost access")?;
+    ensure(matches!(oauth.refresh(&store,&legacy_cap).await,Err(fountain_oauth::Error::Reauthorize)),"legacy v1 grant inferred a public client")?;
+    let authorization=oauth.clone().begin().await?;
+    fs::write(profile.parent().ok_or("parent missing")?.join("fountain-authorize-uri"),authorization.prompt().authorization_uri.as_bytes())?;
+    let(account,grant)=authorization.wait().await?;
+    let saved=store.store_grant(account,grant).await?;
+    ensure(saved.connection==raw.connection&&saved.connection==legacy.connection,"explicit sign-in changed the legacy connection identity")?;
+    ensure(matches!(store.with_token(&raw_cap,|_|()).await,Err(Error::Retired))&&matches!(store.with_token(&legacy_cap,|_|()).await,Err(Error::Retired)),"old credential revision survived migration")?;
+    ensure(saved.provider==Provider::Fountain&&saved.account=="2"&&saved.grant.as_ref().and_then(|g|g.client_id.as_deref())==Some(application),"real verified Fountain identity/client capture missing")?;
+    let result=async {
+        let client=fountain_provider::retained_client(store.clone(),store.capability(&saved.connection).await?,profile,&ready.profile,"user2","repo1").await.map_err(|e|e.code)?;
+        let enrolled=if std::env::var("SODA_FOUNTAIN_LOST_ENROLLMENT").as_deref()==Ok("1") {
+            ensure(client.enroll().await.is_err(),"fixture did not lose the original enrollment reply")?;
+            drop(client);
+            let recovered=fountain_provider::retained_client(store.clone(),store.capability(&saved.connection).await?,profile,&ready.profile,"user2","repo1").await.map_err(|e|e.code)?;
+            // Lookup the retained command before any repeated write.
+            recovered.status().await.map_err(|e|e.code)?
+        } else {client.enroll().await.map_err(|e|e.code)?};
+        let client=fountain_provider::retained_client(store.clone(),store.capability(&saved.connection).await?,profile,&ready.profile,"user2","repo1").await.map_err(|e|e.code)?;
+        ensure(enrolled.active&&enrolled.runtime_bound&&enrolled.runtime_id==ready.profile,"real profile proof missing")?;
+        ensure(client.repository().await.map_err(|e|e.code)?.id==enrolled.repository.id,"real enrolled repository mismatch")?;
+        drop(client);
+        let cap=store.capability(&saved.connection).await?;
+        if std::env::var("SODA_FOUNTAIN_REFRESH_RACE").as_deref()==Ok("1") {
+            let expiry=saved.grant.as_ref().and_then(|g|g.expires_at).ok_or("expiry missing")?;
+            while std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs()<expiry {tokio::time::sleep(Duration::from_millis(25)).await;}
+            ensure(matches!(store.with_token(&cap,|_|()).await,Err(Error::Expired)),"expired provider access remained usable")?;
+        }
+        let refreshed=oauth.refresh(&store,&cap).await?;
+        ensure(refreshed.connection==saved.connection&&refreshed.grant.as_ref().and_then(|g|g.client_id.as_deref())==Some(application),"provider refresh rebound client or account")?;
+        ensure(matches!(store.with_token(&cap,|_|()).await,Err(Error::Retired)),"old refresh revision retained access")?;
+        let reopened=Arc::new(Credentials::open(profile,&ready.profile)?);
+        let status=reopened.status().await?;
+        ensure(status.len()==1&&status[0].grant.as_ref().and_then(|g|g.client_id.as_deref())==Some(application),"reopened v2 client binding missing")?;
+        let client=fountain_provider::retained_client(reopened.clone(),reopened.capability(&saved.connection).await?,profile,&ready.profile,"user2","repo1").await.map_err(|e|e.code)?;
+        ensure(client.enroll().await.map_err(|e|e.code)?.id==enrolled.id,"refresh/reopen lost original enrollment command")?;
+        ensure(!client.withdraw().await.map_err(|e|e.code)?.active,"enrollment withdrawal failed")?;
+        ensure(!client.enroll().await.map_err(|e|e.code)?.active,"withdrawn enrollment reactivated")?;
+        ensure(matches!(client.repository().await,Err(e)if e.status==403),"withdrawn read admitted")?;
+        if std::env::var("SODA_FOUNTAIN_REFRESH_RACE").as_deref()==Ok("1") {
+            let cap=reopened.capability(&saved.connection).await?;
+            let worker=reopened.clone(); let oauth=oauth.clone();
+            let task=tokio::spawn(async move {oauth.refresh(&worker,&cap).await});
+            let root=profile.parent().ok_or("parent missing")?;
+            let deadline=Instant::now()+Duration::from_secs(5);
+            while !root.join("refresh-entered").is_file() {
+                ensure(Instant::now()<deadline,"actual refresh request did not enter host")?;
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+            let cap=reopened.capability(&saved.connection).await?;
+            ensure(matches!(reopened.with_token(&cap,|_|()).await,Err(Error::RefreshPending)),"in-flight refresh allowed ordinary access")?;
+            reopened.withdraw(&saved.connection).await?;
+            fs::write(root.join("refresh-release"),b"release")?;
+            ensure(matches!(task.await?,Err(fountain_oauth::Error::Credential(Error::Withdrawn))),"actual host reply resurrected withdrawn credential")?;
+            ensure(reopened.status().await?.is_empty(),"withdrawn refresh published a credential")?;
+        }
+        Ok::<_,Box<dyn StdError>>(())
+    }.await;
+    let withdrawal=store.withdraw(&saved.connection).await;
+    store.retire();
+    let stopped=runtime.stop();
+    result?;withdrawal?;stopped?;
+    println!("PASS: actual configured-host PKCE/code exchange, verified account, client-bound encrypted grant, native profile enrollment, provider refresh, old-revision refusal, reopen and irreversible enrollment withdrawal; owned login withdrawn and runtime joined");
+    Ok(())
+}
+
 async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
+    if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-desktop-login") {
+        ensure(args.len()==6,"Fountain login requires new profile, configured TLS origin, application ID, backend and PostgreSQL payload")?;
+        return fountain_login(Path::new(&args[1]),args[2].to_str().ok_or("origin missing")?,args[3].to_str().ok_or("application missing")?,Path::new(&args[4]),Path::new(&args[5])).await;
+    }
     if args.first().and_then(|arg|arg.to_str()) == Some("--fountain-desktop-declared") {
         ensure(args.len() == 4, "Fountain mode requires new profile, TLS origin and public application ID")?;
         return fountain_enrollment(Path::new(&args[1]), args[2].to_str().ok_or("origin invalid")?, args[3].to_str().ok_or("application invalid")?).await;

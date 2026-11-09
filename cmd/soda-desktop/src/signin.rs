@@ -14,6 +14,18 @@ pub(super) struct Prompt {
     verification_uri: String,
     expires_at: u64,
 }
+impl Prompt {
+    pub(super) fn browser(uri: String, expires_at: u64) -> Self {
+        Self {
+            user_code: String::new(),
+            verification_uri: uri,
+            expires_at,
+        }
+    }
+    pub(super) fn uri(&self) -> &str {
+        &self.verification_uri
+    }
+}
 #[derive(Clone, Serialize)]
 pub(super) struct View {
     attempt: u64,
@@ -40,7 +52,7 @@ pub(super) struct SignIn {
     state: Mutex<State>,
     // Storage and explicit cancellation have one linearization point. A cancel
     // during saving waits for that bounded write; a completed login wins cleanly.
-    saving: tauri::async_runtime::Mutex<()>,
+    pub(super) saving: tauri::async_runtime::Mutex<()>,
 }
 impl SignIn {
     pub fn new() -> Self {
@@ -56,14 +68,68 @@ impl SignIn {
     pub fn view(&self) -> View {
         self.state.lock().unwrap().view.clone()
     }
-    pub fn retire(&self) {
+    pub fn retire(&self) -> Option<tauri::async_runtime::JoinHandle<()>> {
         let mut state = self.state.lock().unwrap();
-        if let Some(task) = state.task.take() {
+        let task = state.task.take();
+        if let Some(task) = &task {
             task.abort();
         }
         state.view.phase = "idle".into();
         state.view.prompt = None;
         state.view.error = None;
+        task
+    }
+    pub(super) fn start(
+        &self,
+        owner: &str,
+        spawn: impl FnOnce(u64) -> tauri::async_runtime::JoinHandle<()>,
+    ) -> Result<View, String> {
+        let mut state = self.state.lock().unwrap();
+        if active(&state.view.phase) {
+            return Err("Sign-in is already in progress.".into());
+        }
+        let attempt = state
+            .view
+            .attempt
+            .checked_add(1)
+            .ok_or("Restart Factory before signing in again")?;
+        state.view = View {
+            attempt,
+            phase: "requesting".into(),
+            prompt: None,
+            error: None,
+        };
+        state.owner = owner.into();
+        state.task = Some(spawn(attempt));
+        Ok(state.view.clone())
+    }
+    pub(super) fn update(&self, attempt: u64, phase: &str, prompt: Option<Prompt>) -> bool {
+        let mut state = self.state.lock().unwrap();
+        if state.view.attempt != attempt || !active(&state.view.phase) {
+            return false;
+        }
+        state.view.phase = phase.into();
+        state.view.prompt = prompt;
+        true
+    }
+    pub(super) fn failed(&self, attempt: u64, message: String) {
+        let mut state = self.state.lock().unwrap();
+        if state.view.attempt == attempt && active(&state.view.phase) {
+            state.view.phase = "failed".into();
+            state.view.prompt = None;
+            state.view.error = Some(message);
+        }
+    }
+    pub(super) fn browser_prompt(&self, attempt: u64, owner: &str) -> Result<Prompt, String> {
+        let state = self.state.lock().unwrap();
+        if state.view.attempt != attempt || state.owner != owner || state.view.phase != "waiting" {
+            return Err("Sign-in is no longer waiting.".into());
+        }
+        state
+            .view
+            .prompt
+            .clone()
+            .ok_or("Sign-in is unavailable.".into())
     }
     pub async fn cancel(&self, attempt: Option<u64>, owner: Option<&str>) -> View {
         let _saving = self.saving.lock().await;
@@ -151,63 +217,48 @@ pub(super) async fn github_sign_in(
         .as_ref()
         .ok_or("Factory is unavailable")?
         .github_device_start();
-    let mut state = desktop.signin.state.lock().unwrap();
-    if active(&state.view.phase) {
-        return Err("GitHub sign-in is already in progress.".into());
-    }
-    let attempt = state
-        .view
-        .attempt
-        .checked_add(1)
-        .ok_or("Restart Factory before signing in again")?;
-    state.view = View {
-        attempt,
-        phase: "requesting".into(),
-        prompt: None,
-        error: None,
-    };
-    state.owner = window.label().into();
     let worker = app.clone();
-    state.task = Some(tauri::async_runtime::spawn(async move {
-        let result = async {
-            let authorization = start.await?;
-            let verifier = authorization.verifier();
-            let prompt = authorization.prompt();
-            update(
-                &worker,
-                attempt,
-                epoch,
-                "waiting",
-                Some(Prompt {
-                    user_code: prompt.user_code.clone(),
-                    verification_uri: prompt.verification_uri.clone(),
-                    expires_at: prompt.expires_at,
-                }),
-            )?;
-            let grant = authorization.wait().await?;
-            update(&worker, attempt, epoch, "verifying", None)?;
-            let (account, grant) = verifier.verify(grant).await?;
-            let owner = worker.state::<Desktop>();
-            let _saving = owner.signin.saving.lock().await;
-            update(&worker, attempt, epoch, "saving", None)?;
-            store
-                .store_grant(account, grant)
-                .await
-                .map_err(Error::Credential)?;
-            update(&worker, attempt, epoch, "complete", None)
-        }
-        .await;
-        if let Err(error) = result {
-            let owner = worker.state::<Desktop>();
-            let mut state = owner.signin.state.lock().unwrap();
-            if state.view.attempt == attempt && active(&state.view.phase) {
-                state.view.phase = "failed".into();
-                state.view.prompt = None;
-                state.view.error = Some(message(error));
+    desktop.signin.start(window.label(), move |attempt| {
+        tauri::async_runtime::spawn(async move {
+            let result = async {
+                let authorization = start.await?;
+                let verifier = authorization.verifier();
+                let prompt = authorization.prompt();
+                update(
+                    &worker,
+                    attempt,
+                    epoch,
+                    "waiting",
+                    Some(Prompt {
+                        user_code: prompt.user_code.clone(),
+                        verification_uri: prompt.verification_uri.clone(),
+                        expires_at: prompt.expires_at,
+                    }),
+                )?;
+                let grant = authorization.wait().await?;
+                update(&worker, attempt, epoch, "verifying", None)?;
+                let (account, grant) = verifier.verify(grant).await?;
+                let owner = worker.state::<Desktop>();
+                let _saving = owner.signin.saving.lock().await;
+                update(&worker, attempt, epoch, "saving", None)?;
+                store
+                    .store_grant(account, grant)
+                    .await
+                    .map_err(Error::Credential)?;
+                update(&worker, attempt, epoch, "complete", None)
             }
-        }
-    }));
-    Ok(state.view.clone())
+            .await;
+            if let Err(error) = result {
+                let owner = worker.state::<Desktop>();
+                let mut state = owner.signin.state.lock().unwrap();
+                if state.view.attempt == attempt && active(&state.view.phase) {
+                    state.view.phase = "failed".into();
+                    state.view.prompt = None;
+                    state.view.error = Some(message(error));
+                }
+            }
+        })
+    })
 }
 #[tauri::command]
 pub(super) async fn github_sign_in_cancel(

@@ -30,6 +30,25 @@
       </div>
       <button id="muse-cancel" type="button" hidden>Cancel sign-in</button>
     </section>
+    <section class="desktop-accounts" aria-labelledby="fountain-heading">
+      <h1 id="fountain-heading">Fountain</h1>
+      <p id="fountain-status" role="status">Checking saved accounts…</p>
+      <form id="fountain-login">
+        <label>Fountain address <input id="fountain-origin" type="url" placeholder="https://fountain.example" required /></label>
+        <button id="fountain-sign-in" type="submit" disabled>Sign in to Fountain</button>
+      </form>
+      <button id="fountain-open" type="button" hidden>Continue in browser</button>
+      <button id="fountain-cancel" type="button" hidden>Cancel sign-in</button>
+      <ul id="fountain-accounts" aria-label="Saved Fountain accounts"></ul>
+      <form id="fountain-enroll">
+        <label>Account <select id="fountain-account" aria-label="Fountain account"></select></label>
+        <label>Repository <input id="fountain-repository" placeholder="owner/repository" required /></label>
+        <button id="fountain-enroll-submit" type="submit" disabled>Enroll repository</button>
+        <button id="fountain-enroll-status" type="button" disabled>Check enrollment</button>
+        <button id="fountain-enroll-withdraw" type="button" disabled>Withdraw enrollment</button>
+      </form>
+      <p id="fountain-enrollment" role="status">Enrollment grants repository read access. Execution and publication need separate authorization.</p>
+    </section>
     <section class="desktop-accounts" aria-labelledby="github-heading">
       <h1 id="github-heading">GitHub</h1>
       <p id="github-status" role="status">Opening saved accounts…</p>

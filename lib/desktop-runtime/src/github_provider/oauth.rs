@@ -228,6 +228,7 @@ fn decode(reply: OAuthReply, start: u64) -> Result<Grant> {
             .transpose()
     };
     Ok(Grant {
+        client_id: None,
         access: Token::new(access.0.as_bytes().to_vec()).map_err(|_| Failure::protocol())?,
         refresh: reply
             .refresh_token

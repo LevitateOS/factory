@@ -48,7 +48,7 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q25 installed qualification and Q15 native Retry recovery.**
+**Current work: Fountain native login/enrollment and independent installed qualification.**
 Q25 does not depend on a GitHub merge or Q24’s appliance. Q14’s receipts remain
 complete and preserved. Resume Q15 only from its recorded original outcomes.
 
@@ -205,7 +205,7 @@ implemented components: finish its stated journey, not a replacement subsystem.
 | [Q15 — full GitHub delivery](#q15) | Prove one complete connected plan → Builder → publication → independent agent review/correction → real CI → allowed merge journey, with paid delivery judgment, accounting and interrupted-send recovery. | Pending |
 | [Q16 — automatic GitHub issues](#q16) | Add/qualify explicit-policy authenticated polling, cursors and wake reconciliation through the full journey, with no recursion, duplicate dispatch or unauthorized spending. | Pending |
 | [Q17 — external GitHub PRs](#q17) | Adopt eligible external changes through actual review/correction/CI, exact head/base and explicit fork-execution authority, with stale/withdrawn refusal and recovery. | Pending |
-| [Q18 — Fountain login](#q18) | Finish real configured-host OAuth/enrollment/refresh, old-install migration, expiry/withdrawal and concurrent reservation first-read behavior in canonical Fountain. | Pending |
+| [Q18 — Fountain login](#q18) | Configured-host native OAuth/enrollment/refresh, old-format migration, expiry/withdrawal, lost-reply recovery and concurrent first reads verified; installed journeys remain Q27. | Complete within ordinary configured-host/native scope |
 | [Q19 — Fountain authority](#q19) | Complete central runtime placement, operation grants/journals/lookups and shared views; prove expiry/withdrawal and competing-controller refusal. Read enrollment grants no execution authority. | Pending |
 | [Q20 — issue-only collaboration](#q20) | Implement the separately authorized host capability and prove real issue-only reads/writes and out-of-scope denial without requiring code read or broadening execution permission. | Pending |
 | [Q21 — Fountain publication](#q21) | Complete digest-bound candidate upload/staging and conditional branch/PR publication, exact receipts and lost-upload/write/withdrawal recovery. | Pending |
@@ -778,37 +778,38 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
-**INCOMPLETE, outstanding under Q30; Q14 remains complete.** The owner authorized
-Retry `15151515151515151515151515151503`. It committed but launched no model:
-native Retry omitted the native launch capture and failed packet admission.
-Its original preparation was retired by its owner; `retry-retirement.log` proves
-read-only adoption after restart, without setup/inference/authority renewal.
-The owner then authorized replacement command
-`15151515151515151515151515151504`. The guarded replacement check is running
-(session 48651, `/home/vince/Projects/q15-connected/replacement1.log`), using
-`q15-server8`/`q15-delivery9-callback` and actual Q25-installed services.
-Inspect its command and original journals before any next effect.
+**INCOMPLETE; current publication is BLOCKED by its original uncertain send.**
+Q14 is complete. Verified corrections are in `2c06d399dd6efec2687120c0561dc84469532541`.
+Owner-authorized replacement Retry `15151515151515151515151515151504`
+completed Architect `efc2a62327f2c18f7390fc1ff58a0e20` and Builder
+`fec34d4ab861894c29c38cd7edaf4db4` / `bf339c1b9a0023a95bf95ad815ca5458`
+through current native admission/retained-plan advancement. All four original
+and replacement runs are sealed, reconciled and retired. The completed candidate
+is `84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c`; actual task and integration
+checks passed. Exactly 15 minutes remain charged to source
+`4c823041ad0ba064c4f974399b0e3a2a`, including the original seven minutes.
 
-Current recovery evidence: replacement Architect run
-`efc2a62327f2c18f7390fc1ff58a0e20` succeeded and is sealed/reconciled. Its
-original paid plan is preserved. Advancing this Retry exposed two further
-integration gaps: empty priority scans retained transient capacity waits, and
-the exact investigation preparation counted a second repository slot beside
-its implementation child. Current code reobserves transient capacity and shares
-only that exact parent/implementation preparation slot. The current production
-coordinator advanced the retained plan through the live native owner into Builder
-`fec34d4ab861894c29c38cd7edaf4db4` / `bf339c1b9a0023a95bf95ad815ca5458`.
-It is running; do not send another Retry or repeat planning. Original usage stays
-on source `4c823041ad0ba064c4f974399b0e3a2a`; current totals are not final.
-`capacity-recovery{,2}.log` proves actual empty-scan retirement without inference;
-`advance-retained.log` preserves the first driver's non-successful final report
-even though the actual packet committed and the Builder launched. Do not replace
-that report with a fabricated PASS. The updated check adopts that committed
-packet before deciding whether another pass is needed. Native admission and
-phased/retry PostgreSQL checks passed (`retry-pg2.log`); production Go/locked
-native builds and original-owner retirement adoption passed. Q15's full journey
-remains open. The running check uses the earlier backend build; current code was
-exercised for retained advancement and must be in the subsequent installed bundle.
+Publication `31dbde02be4170d92a37ac3da6154014` is fenced at
+`soda-31dbde02be4170d92a37ac3da6154014-publish-1`. Native command
+`199f236017f48264f54fb9eb760e9af3` is reserved without a causal send receipt;
+its original ten-minute deadline is 1794183711. Exact branch readback was empty,
+which does not prove no-send or authorize retry. No PR, independent review, CI
+or merge has occurred. Preserve this capture and uncertain outcome. New-capture
+code is being corrected to the native writer's five-minute limit; never rewrite
+this old capture. Durable native write-outcome adoption/no-send recovery must
+be completed before a fresh publication journey. This holds this publication
+and full GitHub delivery qualification in Q15/Q16/Q17/Q26, not Fountain login,
+host capability work, packaging, migrations or shared presentation work.
+
+Evidence: `/home/vince/Projects/q15-connected/journal-after-publication-fence.json`,
+`replacement1.log`, `retry-pg2.log`, `retry-retirement.log`,
+`capacity-recovery{,2}.log` and original `advance-retained.log`. The latter
+reported failure after committing a real Builder packet; the log is preserved,
+and its check now inspects the exact admitted packet before another pass.
+The check (session 48651) joined; its local GitHub grant is withdrawn and database
+stopped. Temporary CI variable was removed again and original absence confirmed
+HTTP 404 in `ci-variable-restored2.*`. Q25's actual execution-service installation
+remains intentionally enabled. Do not replay models, this send or prior commands.
 
 Verified production corrections: `9137c916d79412de60bfa360bc9e864ddb49f076`
 retains/polls one native coordinator startup and exposes existing dispatch waits;
@@ -840,15 +841,14 @@ before dispatch (`withdrawal-{13,14,15,16}.json`). Remote CI workflow commits
 `918165b27124bcaccfec8f2a94f62a5b48e3d262` and
 `4522d2f4e33424b4965b71deda0b8953b6a70498` are additive fixture inputs.
 The first temporary CI gate was removed and original absence verified HTTP 404
-in `ci-variable-restored.*`. `Q15_EXPECT_PASS=false` is now temporarily set again
-to hold the replacement's CI for human-blocker qualification; restore original
-absence when this check settles. Earlier checks are joined and their local
-grants withdrawn. The replacement owns its current native runtime; actual Q25
-installed services replace the removed temporary fixture units.
+in `ci-variable-restored.*`. `Q15_EXPECT_PASS=false` was removed after the replacement settled; original
+absence is confirmed in `ci-variable-restored2.*`. Checks are joined and their
+local grants withdrawn. Actual Q25 installed services replace the removed
+temporary fixture units.
 
-**Exact next action:** recover the running replacement's receipts before another
-command. Preserve the original two runs, seven-minute source charge and both
-Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
+**Exact next action:** finish durable native write-outcome adoption for future
+captures, preserving the fenced original command and all four settled runs,
+fifteen-minute source charge and both Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
 renew retired preparation or change the original model plan. Finish paid delivery
 judgment, publication/review/correction, real checks/merge, human/pending/inline
 blockers, changed target/head/base, next-Builder preparation and send recovery.
@@ -927,7 +927,40 @@ Final reply: requested Q17, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q18 — Fountain configured-host login and grant lifecycle
 
-Outstanding. Canonical Fountain is at `2e57559c0e4844baba861a86632d083192537ff3`, retaining ownership `e88b50dadb91b5ea4bb39dcf80307939d3270fed` and gateway ancestors. Real configured-host OAuth/grant qualification is independent of GitHub delivery.
+**Complete within ordinary configured-host/native scope (2026-11-09).** Canonical
+Fountain `b7d7b2cbd005c41dce59cee2eb062572276d2143` adds operator-selected
+public OAuth discovery and authenticated immutable-self identity without broader
+user scope, plus conflict-safe first reservation reads. Retained D6 ownership
+`e88b50dadb91b5ea4bb39dcf80307939d3270fed` and gateway merge
+`2e57559c0e4844baba861a86632d083192537ff3` remain ancestors, including both
+gateway parents and `778e08aa98329848ddca1c07295120cf5fd082a8`.
+
+Factory's native connector now performs configured HTTPS PKCE/loopback login,
+verified actor capture and client-bound encrypted v2 grant refresh. Retained raw
+and v1 credentials keep their connection identity and require explicit sign-in
+before provider refresh. The desktop exposes login/cancel/refresh/removal and
+read-only repository enrollment using one immutable native command/proof. A lost
+enrollment reply adopts the original command by lookup; refresh/reopen/replay
+cannot reactivate a withdrawn enrollment. Read enrollment grants no execution
+or publication authority.
+
+Actual canonical TLS-host/native checks passed in
+`/home/vince/Projects/q18-fountain/journey6.log` and `native6/native-check.log`:
+old-format migration, real code/token/self exchange, native profile proof, lost
+committed enrollment reply/readback, provider access expiry/refresh, old-revision
+refusal, retained reopen and withdrawal during a real committed refresh reply.
+Exactly one original enrollment send precedes lookup; two explicit exact-command
+replays preserve the active and then withdrawn states, and two refresh requests
+include the withdrawal race.
+`reservation-check2.log` proves both concurrent first-read PostgreSQL caller
+transactions survive with one idle revision, followed by one winning ordinary
+claim. Existing TLS/keyring/proof evidence is reused. Owned native runtime,
+PostgreSQL, keyring and bus are joined and the fixture credential is withdrawn.
+Production desktop build `q18-desktop-build4.log`, locked native build
+`q18-native-build9.log` and TypeScript `q18-typecheck4.log` pass. These are
+actual host/native checks, not an installed Fountain or desktop journey; installed
+UI/provider/lifecycle evidence remains Q27/Q29, placement/privileged grants Q19,
+and all broader security gates remain open.
 
 ```text
 Execute through Q18 — Fountain configured-host login and grant lifecycle. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q18 despite the document's historical paused snapshot; it does not authorize work beyond Q18 or resuming the old product queue.

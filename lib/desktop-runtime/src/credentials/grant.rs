@@ -15,6 +15,7 @@ pub struct Grant {
     pub expires_at: Option<u64>,
     pub refresh_expires_at: Option<u64>,
     pub scope: String,
+    pub client_id: Option<String>,
 }
 
 /// Non-secret facts only. The presence of refresh authority is not a promise
@@ -25,6 +26,8 @@ pub struct GrantStatus {
     pub refresh_expires_at: Option<u64>,
     pub refresh_available: bool,
     pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
 }
 
 impl Grant {
@@ -33,6 +36,13 @@ impl Grant {
             || self.scope.chars().any(char::is_control)
             || self.expires_at == Some(0)
             || self.refresh_expires_at == Some(0)
+            || self.client_id.as_ref().is_some_and(|value| {
+                value.is_empty()
+                    || value.len() > 128
+                    || !value
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+            })
             || (self.expires_at.is_some() || self.refresh_expires_at.is_some())
                 && self.refresh.is_none()
         {
@@ -64,6 +74,7 @@ impl Secret {
     pub(super) fn format(&self) -> &'static str {
         match self {
             Self::Token(_) => "token",
+            Self::Grant(grant) if grant.client_id.is_some() => "oauth-grant-v2",
             Self::Grant(_) => "oauth-grant-v1",
         }
     }
@@ -103,6 +114,7 @@ impl Secret {
             refresh_available: grant.refresh.is_some()
                 && grant.refresh_expires_at.is_none_or(|expiry| expiry > time),
             scope: grant.scope.clone(),
+            client_id: grant.client_id.clone(),
         }))
     }
     pub(super) fn encode(&self, revision: &str) -> Result<Zeroizing<Vec<u8>>> {
@@ -119,13 +131,15 @@ impl Secret {
             expires_at: Option<u64>,
             refresh_expires_at: Option<u64>,
             scope: &'a str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            client_id: Option<&'a str>,
         }
         fn text(token: &Token) -> Result<&str> {
             std::str::from_utf8(token.as_bytes()).map_err(|_| Error::Invalid)
         }
         let json = Zeroizing::new(
             serde_json::to_vec(&Stored {
-                version: 1,
+                version: if grant.client_id.is_some() { 2 } else { 1 },
                 revision,
                 access: text(&grant.access)?,
                 refresh: grant
@@ -136,6 +150,7 @@ impl Secret {
                 expires_at: grant.expires_at,
                 refresh_expires_at: grant.refresh_expires_at,
                 scope: &grant.scope,
+                client_id: grant.client_id.as_deref(),
             })
             .map_err(|_| Error::Invalid)?,
         );
@@ -149,13 +164,15 @@ impl Secret {
         let bytes = Zeroizing::new(item.get_secret().await?);
         match attrs.get("format").map(String::as_str) {
             None | Some("token") => Token::new(bytes.to_vec()).map(Self::Token),
-            Some("oauth-grant-v1") => {
+            Some(format @ ("oauth-grant-v1" | "oauth-grant-v2")) => {
                 if bytes.len() > 65536 {
                     return Err(Error::Invalid);
                 }
                 let json = bytes.strip_prefix(MAGIC).ok_or(Error::Invalid)?;
                 let raw: Stored = serde_json::from_slice(json).map_err(|_| Error::Invalid)?;
-                if raw.version != 1 {
+                if !(format == "oauth-grant-v1" && raw.version == 1 && raw.client_id.is_none()
+                    || format == "oauth-grant-v2" && raw.version == 2 && raw.client_id.is_some())
+                {
                     return Err(Error::Invalid);
                 }
                 if raw.revision != revision {
@@ -170,6 +187,7 @@ impl Secret {
                     expires_at: raw.expires_at,
                     refresh_expires_at: raw.refresh_expires_at,
                     scope: raw.scope,
+                    client_id: raw.client_id,
                 };
                 grant.validate()?;
                 Ok(Self::Grant(grant))
@@ -195,4 +213,6 @@ struct Stored {
     expires_at: Option<u64>,
     refresh_expires_at: Option<u64>,
     scope: String,
+    #[serde(default)]
+    client_id: Option<String>,
 }

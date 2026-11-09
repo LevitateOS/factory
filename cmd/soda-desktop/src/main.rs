@@ -8,7 +8,12 @@ use product::{
 };
 mod signin;
 use signin::{github_sign_in, github_sign_in_cancel, github_sign_in_open, github_sign_in_status};
+mod fountain_signin;
 mod muse_signin;
+use fountain_signin::{
+    fountain_enrollment, fountain_refresh, fountain_sign_in, fountain_sign_in_cancel,
+    fountain_sign_in_open, fountain_sign_in_status,
+};
 use muse_signin::{muse_sign_in, muse_sign_in_cancel, muse_sign_in_open, muse_sign_in_status};
 #[cfg(feature = "native-check")]
 mod check;
@@ -58,6 +63,7 @@ struct Desktop {
     #[cfg(feature = "native-check")]
     streams: Mutex<HashMap<String, bridge::Observation>>,
     signin: signin::SignIn,
+    fountain_signin: signin::SignIn,
     muse_signin: muse_signin::MuseSignIn,
     product: product::Connections,
     #[cfg(feature = "native-check")]
@@ -131,11 +137,18 @@ impl Desktop {
     }
     fn retire_credentials(&self) -> Vec<tauri::async_runtime::JoinHandle<()>> {
         let mut tasks = self.product.retire(None);
-        if let Some(task) = self.muse_signin.retire() { tasks.push(task); }
+        if let Some(task) = self.muse_signin.retire() {
+            tasks.push(task);
+        }
         if let Some(store) = self.credentials.lock().unwrap().take() {
             store.retire();
         }
-        self.signin.retire();
+        if let Some(task) = self.signin.retire() {
+            tasks.push(task);
+        }
+        if let Some(task) = self.fountain_signin.retire() {
+            tasks.push(task);
+        }
         tasks
     }
     fn credentials(&self) -> Result<Arc<Credentials>, String> {
@@ -289,12 +302,18 @@ async fn credential_withdraw(
     let state = app.state::<Desktop>();
     let store = state.credentials()?;
     state.signin.cancel(None, None).await;
-    state.signin.retire();
+    state.fountain_signin.cancel(None, None).await;
+    let signin_task = state.signin.retire();
+    let fountain_task = state.fountain_signin.retire();
     let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     #[cfg(feature = "native-check")]
     state.cancel_streams();
     let mut tasks = state.product.retire(None);
-    if let Some(task) = state.muse_signin.retire() { tasks.push(task); }
+    tasks.extend(signin_task);
+    tasks.extend(fountain_task);
+    if let Some(task) = state.muse_signin.retire() {
+        tasks.push(task);
+    }
     state.status.lock().unwrap().generation = generation;
     for task in tasks {
         let _ = task.await;
@@ -464,6 +483,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(feature = "native-check")]
         streams: Mutex::new(HashMap::new()),
         signin: signin::SignIn::new(),
+        fountain_signin: signin::SignIn::new(),
         muse_signin: muse_signin::MuseSignIn::new(),
         product: product::Connections::new(),
         #[cfg(feature = "native-check")]
@@ -492,6 +512,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        fountain_sign_in,
+        fountain_sign_in_status,
+        fountain_sign_in_cancel,
+        fountain_sign_in_open,
+        fountain_refresh,
+        fountain_enrollment,
         muse_sign_in,
         muse_sign_in_status,
         muse_sign_in_cancel,
@@ -523,6 +549,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         github_sign_in_status,
         github_sign_in_cancel,
         github_sign_in_open,
+        fountain_sign_in,
+        fountain_sign_in_status,
+        fountain_sign_in_cancel,
+        fountain_sign_in_open,
+        fountain_refresh,
+        fountain_enrollment,
         muse_sign_in,
         muse_sign_in_status,
         muse_sign_in_cancel,
@@ -558,7 +590,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         .signin
                         .cancel(None, Some(&label))
                         .await;
-                    app.state::<Desktop>().muse_signin.cancel(None, Some(&label)).await;
+                    app.state::<Desktop>()
+                        .muse_signin
+                        .cancel(None, Some(&label))
+                        .await;
+                    app.state::<Desktop>()
+                        .fountain_signin
+                        .cancel(None, Some(&label))
+                        .await;
                 });
                 let state = window.state::<Desktop>();
                 join_streams(state.product.retire(Some(window.label())));

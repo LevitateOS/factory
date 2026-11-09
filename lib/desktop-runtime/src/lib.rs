@@ -21,6 +21,8 @@ pub mod github_device;
 #[cfg(target_os = "linux")]
 pub mod fountain_provider;
 #[cfg(target_os = "linux")]
+pub mod fountain_oauth;
+#[cfg(target_os = "linux")]
 pub mod github_provider;
 #[cfg(target_os = "linux")]
 pub mod mcp_signing;

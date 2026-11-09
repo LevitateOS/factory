@@ -2320,8 +2320,13 @@ implementation can share the preparation slot, retaining all repository/root,
 role, preparation and active reservation/run checks. Actual current coordinator
 advancement used live native/provider/source reads and admitted Builder
 `fec34d4ab861894c29c38cd7edaf4db4` / `bf339c1b9a0023a95bf95ad815ca5458`
-without another plan/Retry. Its run remains active in `replacement1.log` (session
-48651); current usage is not a final total. The first advancement check reported
+without another plan/Retry. Architect and Builder completed and all four runs
+are sealed, reconciled and retired; exactly fifteen minutes remain charged on
+the original source. Candidate `84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c` passed
+its actual task/integration checks. Publication is fenced at reserved native
+command `199f236017f48264f54fb9eb760e9af3` without a causal receipt; remote
+absence is not no-send evidence. Its exact capture is preserved in
+`q15-connected/journal-after-publication-fence.json`. The first advancement check reported
 failure after the packet committed; that original log remains unchanged and the
 check now inspects the exact admitted packet before further passes. Existing
 real PostgreSQL native/phased/retry checks passed in `retry-pg2.log`; Go and locked
@@ -2333,8 +2338,38 @@ Evidence is in `q25-package/desktop/`; no native-check binary or seeded product
 facts substituted for the installed app. Broader host/installed/provider journeys
 remain open. Q24 still needs a current authorized appliance; independent work
 continues. Preserve both stashes, all original plans and receipts, the active
-Q15 runtime, and Q25's intentionally installed execution services. Remove the
-owned temporary `Q15_EXPECT_PASS=false` variable when the connected check settles.
+Q15 receipts, and Q25's intentionally installed execution services. The check
+is joined, local credential withdrawn, database stopped and original CI variable
+absence confirmed HTTP 404 in `ci-variable-restored2.*`.
+
+## Q18 configured Fountain login and retained enrollment (2026-11-09)
+
+Canonical Fountain `b7d7b2cbd005c41dce59cee2eb062572276d2143` preserves
+`2e57559c0e4844baba861a86632d083192537ff3` and its ownership/gateway
+ancestors. It discovers only the operator-selected public application and verifies
+the authenticated self under existing read:repository scope; no automatic
+application or broader permission is created. Concurrent first reservation reads
+use conflict-safe insertion, preserving revision/generation and caller transactions.
+
+Factory Rust owns complete HTTPS PKCE/loopback login, stable numeric actor proof,
+client-bound encrypted v2 grants, bounded refresh and retained enrollment commands.
+Existing raw/v1 decoding remains valid; missing historical client metadata requires
+explicit sign-in, preserving the stable connection while retiring old revisions.
+Desktop login/refresh/cancel/remove/enroll controls share the owned sign-in lifetime;
+Quit/withdraw joins cancelled tasks. Enrollment remains repository-read only.
+
+`q18-fountain/journey6.log` and `native6/native-check.log` pass the actual
+canonical TLS host/native journey: old-format migration, OAuth exchange/self proof,
+profile enrollment, one committed send with a lost reply followed by original-command
+lookup, provider access expiry and refresh, native reopen, exact-command replay,
+irreversible enrollment withdrawal and withdrawal during a real committed refresh
+reply. The late token cannot publish; no refresh is replayed. Original failed
+attempts remain retained. `reservation-check2.log` passes concurrent first reads
+in two PostgreSQL transactions and the existing single-winner claim race. Locked
+native/production desktop builds and TypeScript pass; existing TLS/keyring/proof
+evidence is reused. Owned runtime/PG/keyring/bus are joined, fixture credential
+withdrawn. This closes ordinary configured-host/native Q18, not installed UI
+qualification, Q19 privileged authority or broad security gates.
 
 ## Verification and completion
 
