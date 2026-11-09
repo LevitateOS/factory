@@ -3057,6 +3057,19 @@ Q19's unqualified bridge is preserved in owned stashaca7e2563ec8d64d1156b371a1a4
 its next fixes are non-consuming claim capture and post-I/O Go admission before
 worker effects, followed by the real controller/worker journey.
 
+Q26 workspace byte-offset correction (2026-11-09): current26/62b12ca accepted
+the newly authorized Retry e4a966657ebc4186ac4c5828e1dfdb85 exactly once.
+Architect succeeded; Builder committed its first task, then sent two refused
+middle-of-file preimages at offset0 and ended without a finish report. Preserve
+all nine retired/reconciled runs,28 finished judgments,55 charged minutes and
+partial writes; no publication occurred. The defining tool description and error
+now state absolute UTF-8 byte offsets, whole-file replacement and append semantics.
+This clarifies new calls without searching, weakening preconditions or replaying
+old edits. No new paid Retry is authorized. Q19's latest unqualified bridge is
+owned stash04ed6c66cc8a6c4a3c091a8f1d1523ee66497095; separate claim capture,
+post-I/O Go admission and canonical scope checks build, while connected worker
+qualification remains. Its existing native claim check5 passed and joined.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

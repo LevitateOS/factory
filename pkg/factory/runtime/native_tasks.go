@@ -126,7 +126,7 @@ func (p NativeExecution) CommandTask(ctx context.Context, request execution.Task
 	read := request.Input.Action == "workspace" && args.Operation == "read"
 	missing := read && reply.Result.Status == "missing"
 	if reply.Result.Status == "preimage_mismatch" && request.Input.Action == "workspace" && args.Operation == "edit" {
-		return empty, errors.New("workspace edit preimage differs: read the current file and submit the corrected edit with a fresh operation_id")
+		return empty, errors.New("workspace edit preimage differs: expected must match at the zero-based UTF-8 byte offset; offset 0 is the beginning of the file, not a text search. Read the current file, then correct the offset or replace its complete read content at offset 0. Use a fresh operation_id; the refused edit changed nothing")
 	}
 	if reply.Result.Status != "ok" && !missing {
 		return empty, execution.ErrTaskUnavailable

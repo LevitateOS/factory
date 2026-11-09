@@ -1265,15 +1265,19 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 ### Q19 — Fountain placement and authenticated operations
 
 Native worker bridge implementation is retained, unqualified, in owned stash
-aca7e2563ec8d64d1156b371a1a43e8d89ed6615 (prior checkpoint685e1e4480fb63a91744607d4839b08e5e589356 is preserved). It adds version6 captured connection/
+04ed6c66cc8a6c4a3c091a8f1d1523ee66497095 (prior checkpoints aca7e2563ec8d64d1156b371a1a43e8d89ed6615 and 685e1e4480fb63a91744607d4839b08e5e589356 are preserved). It adds version6 captured connection/
 grant/packet binding, pre-launch claim, owned withdrawal watcher and physical
 retirement adoption across Go/Rust; it has not passed a connected worker journey
 and is not installed. `controller-bridge-final-build.log` and
 `controller-bindings1.log` under `q19-authority` pass native compilation and exact
 Go/Rust task/manifest capture/refusal, with no worker/provider admission. Before
-launch qualification, fix consumed-intent persistence (the claim capture must
-not consume the worker constructor's fresh intent) and revalidate Go authority
-after host I/O before worker effects. `native-claim-connected4.log` failed before
+launch qualification, verify the new separate immutable claim capture and private
+post-claim Go admission callback, including canonical host/account/repository
+matching and physical worker retirement. Their Go/native builds pass in
+`controller-{admission,scope}-build.log`; they are not connected execution proof.
+`native-claim-connected5.log` passes the existing actual-host TLS/keyring claim
+journey with the added wrong-connection refusal; all owned checks joined.
+`native-claim-connected4.log` failed before
 native execution because its new fixture lacked retained TLS assets; PG/bus
 joined. Reuse existing TLS assets in the next affected check. Both older user
 stashes remain intact; restore the latest owned stash to continue this slice.
@@ -2032,6 +2036,27 @@ before requesting a new paid Retry exception; the last authorization is consumed
 Current25 app191390/backend/PG remain running with no active run. The installed
 full journey, independent review/correction, CI/merge and external adoption remain
 unqualified; no new command or inference is authorized by this note.
+
+Current26 from clean 62b12ca6d76ea4ec30bb6e7030a401ae08a0c023 is installed:
+inventory b18d2b8e118ff4cdeeecb5b461c0b7e59ea077b5f28d6d54a95519fbec79cba3,
+archive SHA256 29185898d4135b8fa5cfe2855416059fa25f9a587d7c699602c3a73fee1079a5.
+Exact-prior activation/reopen preserved durable profile/keyring/signer and matching
+root helpers (`current26-{upgrade,durable-check}.log`). The user-approved fresh
+Retry e4a966657ebc4186ac4c5828e1dfdb85 recorded once at22:26:32Z through real UI.
+Architect f3f51b4cb9631d064a6d2555f92f2096 succeeded; Builder
+7f876a0a1029710baf1e18c15bbfb6dd committed note.sh at
+71ab940c163330d9d2356f7abfab4f1854f82ec6 and passed literal-check, then ended
+with no finish report after two CI preimage refusals. Both edits used offset0
+with expected text from the middle of the file. All nine runs are reconciled/
+retired,55 minutes charged,28 judgments finished,zero publications. Receipts are
+`q26-current26-{command,builder-progress}-original.log` and original native
+run/task journals. Clarify the actual workspace tool description and refusal:
+offset is an absolute UTF-8 byte position, not a text search; whole-file replacement
+or append has explicit semantics. Preserve the refused edits and partial writes.
+No further paid Retry is authorized; five minutes remain on the60-minute source.
+Current26 app202003/backend/PG remain running; next action is verify quiescence,
+snapshot original logs and install the clarified tool contract before another
+owner-approved paid attempt. Full Q26 and the independent queue remain open.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository
