@@ -3046,8 +3046,16 @@ the existing recovery owner; never actively retire an open transferred checkout.
 The existing native check proves original old-instance receipt adoption and exact
 root closure on a disposable online copy, without setup/model/retirement send;
 five core table hashes stay unchanged. Q26 records the original cancellation,
-31-minute charge and authorized unconsumed f7a9e74 request. Q19's unqualified native
-bridge is preserved separately in owned stash685e1e4480fb63a91744607d4839b08e5e589356.
+31-minute baseline. Installed current25 adopted the original preparation stop;
+the same f7a9e74 then admitted a successful Architect and a Builder that returned
+partial progress promising a later turn. All seven original runs are settled,
+41 minutes charged, no publication. Clarify the common finish reminder: final
+text ends the invocation; finish must be accepted or incompleteness reported.
+This changes new prompt captures only and does not resume an old run. Q26 retains
+the exact installed/command/run evidence and required new paid-inference exception.
+Q19's unqualified bridge is preserved in owned stashaca7e2563ec8d64d1156b371a1a43e8d89ed6615;
+its next fixes are non-consuming claim capture and post-I/O Go admission before
+worker effects, followed by the real controller/worker journey.
 
 ## Verification and completion
 

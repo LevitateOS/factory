@@ -1265,13 +1265,18 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 ### Q19 — Fountain placement and authenticated operations
 
 Native worker bridge implementation is retained, unqualified, in owned stash
-685e1e4480fb63a91744607d4839b08e5e589356. It adds version6 captured connection/
+aca7e2563ec8d64d1156b371a1a43e8d89ed6615 (prior checkpoint685e1e4480fb63a91744607d4839b08e5e589356 is preserved). It adds version6 captured connection/
 grant/packet binding, pre-launch claim, owned withdrawal watcher and physical
 retirement adoption across Go/Rust; it has not passed a connected worker journey
-and is not installed. `q19-authority/controller-bridge-build.log` compiled the
-initial native changes; final watcher changes still need affected compilation
-and real host/worker qualification. Resume that stash after the active Q26
-retirement-recovery correction. Both older user stashes remain intact.
+and is not installed. `controller-bridge-final-build.log` and
+`controller-bindings1.log` under `q19-authority` pass native compilation and exact
+Go/Rust task/manifest capture/refusal, with no worker/provider admission. Before
+launch qualification, fix consumed-intent persistence (the claim capture must
+not consume the worker constructor's fresh intent) and revalidate Go authority
+after host I/O before worker effects. `native-claim-connected4.log` failed before
+native execution because its new fixture lacked retained TLS assets; PG/bus
+joined. Reuse existing TLS assets in the next affected check. Both older user
+stashes remain intact; restore the latest owned stash to continue this slice.
 
 **Current native claim recovery (2026-11-09):** canonical Fountain
 `b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
@@ -2000,11 +2005,33 @@ effect. Confirmed native retirement updates the existing stop projection.
 native owner against a disposable online database copy: original old-instance
 receipt, idempotent adoption and root closure, with all five run/assignment/
 command/usage/publication table hashes unchanged. Copied PG joined. Go build and
-`preparation25-boundaries.log` pass. Next: install the clean corrected bundle,
-recover original f7a9e74 under its existing authorization, and follow it through
-settlement without interrupting admission/inference. It is still unconsumed;
-five runs,total31 and no publication remain. Original profiles/receipts and all
+`preparation25-boundaries.log` pass. Clean current25 from
+7fbab644301b9b38c7343f4cfbbf91db60b4a236 is installed (inventoryc2138e66af23ae596137649dfc65932e60ace7170df185a2c13914c4885ff5f1,
+archive SHA25624df46cee401aebabd1c458959fffdb5591bbb39ed5ef22d86bd7635cbf85ddd).
+`current25-upgrade.log` proves exact-prior activation, unchanged durable files and
+matching root helpers. `q26-current25-retirement-recovered-original.log` proves
+actual installed adoption of fa5e21's original retirement with five runs,total31,
+zero publications and no f7a9 command. Original profiles/receipts and all
 stashes are preserved; Q24's missing appliance blocks only its installed host work.
+
+Current25 approvald6f755f55d50b6dd8590ae660/instance8f9bc244f414897a40b0d80c7f9d4712
+prepared coderf401f31abcdf508abac268f63/reviewerfce738aba66faa84b0e5f1486, both exits0.
+The same saved f7a9e74 command recorded once at22:04:57Z. Architect
+c8babb373307bdd884968507b80589ee settled successfully with accepted plan
+a1b2c3d4e5f60718293a4b5c6d7e8f90/digest633d1cba51d583d37f63c88a5f53d71b92d44a7f604671132170d017bb8988d7.
+Builder1312ffe34d1ee107fc84106a0fb7db58/run0774bcd9cd0acea1c8e82ed5ab441aef
+made partial progress then returned a final note promising a later turn instead
+of finishing. Native exit0/24 completed model calls and the failed product result
+remain separate; no model limit or workspace failure is inferred. All seven runs
+are now sealed/retired/reconciled,total41 minutes,zero publications. Original
+receipts: `q26-current25-{f7a9-settled,builder-result}-original.log` and native
+run/task journals. The common finish reminder now explicitly states the invocation
+ends on final text and requires an accepted finish or incomplete report; prompt
+templatev10 affects only new captures. Go build passes. Install this guidance
+before requesting a new paid Retry exception; the last authorization is consumed.
+Current25 app191390/backend/PG remain running with no active run. The installed
+full journey, independent review/correction, CI/merge and external adoption remain
+unqualified; no new command or inference is authorized by this note.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository
@@ -2221,15 +2248,19 @@ exact-prior recovery, preserved prior receipt and current replay. Actual guest
 `workspace23-active-upgrade-refusal.log` proves the running installed app, socket,
 helper and manifest remain unchanged on refusal. The no-model workspace check
 temporarily exercised the changed helper and restored its exact original bytes.
-Actual quiescent installed activation follows; active-run, dependency delivery
-and the broader Q28 gates remain outstanding.
+Actual quiescent current24 activation passes in `current24-upgrade.log`, preserving
+prior manifest6a0c623fd928822a3e3d0eb327ed37357b7ca521d2e169291fa599955cde4454
+and selecting helper manifest51c479e3be06fb1047db62f270df4646aaf2268219fd7c5788ea8ed419b3c97f.
+Current25 exact-prior app activation/reopen preserves those helper bytes and all
+durable credentials/profile/signer. Active-run, dependency delivery and broader
+Q28 gates remain outstanding.
 The first production current23 activation upgraded only the app and then safely
 refused unchanged helper manifest6a0c623fd928822a3e3d0eb327ed37357b7ca521d2e169291fa599955cde4454:
 the empty runs directory retains the broker's root-owned0600 `.lock`. Preserve
 that metadata and acquire its existing lock while checking for actual roots;
-never treat it as a run or delete it. Original app/PG remain stopped, logs are
-preserved and the prior broker socket was restored. Continue helper activation
-from this exact partial state; no inference or original operation was retried.
+never treat it as a run or delete it. Original logs and refusal are preserved;
+current24 recovered that exact partial activation as recorded above. No uncertain
+original operation was retried.
 
 Additional scoped format check: `q28-migrate/retained100/check.log` and
 `unknown-check.log` prove actual retained99→100/current reopen, exact prior99

@@ -14,7 +14,7 @@ import (
 // evidence; size and encoding refusals remain ordinary prompt errors.
 var ErrPromptPrerequisiteEvidence = errors.New("dispatch prompt prerequisite evidence invalid")
 
-const DispatchPromptTemplate = "soda-f07-f2-v9"
+const DispatchPromptTemplate = "soda-f07-f2-v10"
 
 // PromptSource is one verified accepted text section: a native comment ID
 // plus the content the bracketed read verified against its digest.
@@ -398,7 +398,7 @@ func writePromptReport(b *strings.Builder, in PromptInputs) {
 
 // PromptFinishReminder closes every worker prompt: the finish call is the
 // only way a result is recorded.
-const PromptFinishReminder = "If the work cannot be completed, call factory.finish_incomplete with the concrete cause. A run that ends without a finish call records no result and settles as incomplete.\n"
+const PromptFinishReminder = "This invocation is your entire admitted run. A final text response ends it; there is no later turn or automatic continuation. Complete the required tasks and trusted checks, then wait for the advertised finish tool to accept your result before ending. If the work cannot be completed within this run's limits, call factory.finish_incomplete with the concrete remaining work. A progress summary retains no execution authority; a run ending without a finish call records no result and settles as incomplete.\n"
 
 func writeRepositoryContext(b *strings.Builder, context project.FactoryPreparationContext) {
 	b.WriteString("\n## Prepared repository context\n\n")
