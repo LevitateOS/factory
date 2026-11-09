@@ -2606,6 +2606,18 @@ same selected source, preserving the fifteen-minute charge and without replaying
 the Architect or initial Builder. That command still needs implementation and
 admission; publication alone grants no inference authority. Q15 is not complete.
 
+The owner-approved finite continuation now uses a separate immutable command
+and allowance on the retained publication root. Original accounting remains
+closed and unchanged. Source grant/generation, acceptance, head/base, policy and
+finite limits are captured before send; repeat commands cannot refill the row.
+Each new child independently checks current policy and the original funded source.
+Retained candidate and plan adoption use their actual execution owner, without
+a fabricated run or modified original plan. Capacity counts distinct issue
+sessions while actual run/preparation guards retain exclusion. Existing real PG
+checks and shared DOM/source checks pass within the scope recorded in Q15. The
+connected command `15151515151515151515151515151506` has not been sent; its
+read-only original-state preflight precedes any newly authorized inference.
+
 ## Q28 retained publication format and prior-writer refusal (2026-11-09)
 
 Factory `3f5eb86dae65f30979c759ede67cbba6a3c260d9` marks the new

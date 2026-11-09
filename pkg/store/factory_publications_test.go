@@ -76,9 +76,18 @@ func publicationTestRecord() factory.Publication {
 func TestRecordPublicationRoundTrip(t *testing.T) {
 	t.Run("fresh retained publication preserves uncertain original and paid work", func(t *testing.T) {
 		ctx, db := context.Background(), dispatchStoreFixture(t)
+		sponsor, err := db.Sponsorship(ctx, 7, "conn")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sponsor.Roles = append(sponsor.Roles, project.RoleReviewer)
+		if err = db.SaveSponsorship(ctx, sponsor); err != nil {
+			t.Fatal(err)
+		}
 		now := time.Now()
 		source := recordFinishedAssignment(t, db, now, 3, true, "completed")
 		original := publicationTestRecord()
+		original.Authority = source.Authority
 		original.AssignmentID, original.Run, original.ProjectID = source.ID, source.Run, source.ProjectID
 		original.BaseSHA, original.Candidate, original.Preparation = source.SourceCommit, source.Result.Candidate, source.Preparation
 		if err := db.RecordPublication(ctx, original); err != nil {
@@ -165,12 +174,90 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		if err != nil || string(storedAllowanceBytes) != string(allowanceBytes) {
 			t.Fatalf("renewed original allowance: %v", err)
 		}
+		fresh.Publish.Effect, fresh.Publish.Completion, fresh.Publish.Receipt = factory.OpEffectCommitted, factory.OpCompletionComplete, "fresh-branch-receipt"
+		fresh.Comparison, fresh.NativeRev, fresh.ObservedUnix = fresh.BaseSHA, 9, now.Unix()
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		fresh.PRCreate = publishedStoreOperation(fresh, factory.OpPRCreate, 1, "")
+		fresh.PRCreate.Work.NotAfter = r.NotAfter
+		fresh.PRCreate.Effect, fresh.PRCreate.Completion = factory.OpEffectPending, factory.OpCompletionPending
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		fresh.PRCreate.Effect, fresh.PRCreate.Completion, fresh.PRCreate.Receipt = factory.OpEffectCommitted, factory.OpCompletionComplete, "fresh-pr-receipt"
+		fresh.PRNumber, fresh.PRID = 19, 190
+		fresh.PRCreate.PRNumber, fresh.PRCreate.PRID, fresh.PRCreate.IssueID = 19, 190, fresh.Issue
+		fresh.PRCreate.HeadRef, fresh.PRCreate.BaseRef = factory.PublishBranchName(fresh.AssignmentID), fresh.TargetBranch
+		fresh.PRCreate.HeadOID, fresh.PRCreate.BaseOID = fresh.Candidate, fresh.BaseSHA
+		fresh.Stage, fresh.Outcome, fresh.Reason, fresh.FinishedUnix = factory.PublicationPublished, factory.Succeeded, factory.PublishReasonLinked, now.Unix()
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		funding, err := db.RetainedCandidateFundingOffer(ctx, fresh.ID)
+		if err != nil {
+			t.Fatal("funding offer", err)
+		}
+		changedFunding := funding
+		changedFunding.Generation++
+		if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", changedFunding, now); !errors.Is(err, ErrRetainedPublicationIneligible) {
+			t.Fatal("changed source funded", err)
+		}
+		fundCommand := factory.NewID()
+		receipt, err := db.FundRetainedCandidate(ctx, fundCommand, "owner", funding, now)
+		if err != nil {
+			t.Fatal("finite continuation", err)
+		}
+		replay, err := db.FundRetainedCandidate(ctx, fundCommand, "owner", funding, now.Add(time.Hour))
+		if err != nil || receipt != replay {
+			t.Fatal("funding replay changed or renewed", err)
+		}
+		if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", funding, now); err == nil {
+			t.Fatal("second command replenished continuation")
+		}
+		var oldRaw []byte
+		if err = db.db.QueryRowContext(ctx, `SELECT data FROM factory_attempt_allowances WHERE root_assignment=$1`, source.ID).Scan(&oldRaw); err != nil {
+			t.Fatal(err)
+		}
+		var old factory.AttemptAllowance
+		if json.Unmarshal(oldRaw, &old) != nil {
+			t.Fatal("old allowance unreadable")
+		}
+		oldBytes, _ := json.Marshal(old)
+		if string(oldBytes) != string(allowanceBytes) {
+			t.Fatal("funding changed old allowance")
+		}
+		if _, err = db.CapAttemptDeadline(ctx, a.ID, now.Add(time.Minute).Unix()); err != nil {
+			t.Fatal("new continuation lacks finite time", err)
+		}
+		// The actual retained owner has no run/model. Its separately funded
+		// reviewer still enters the ordinary phase and atomic packet guards.
+		inputOwner := a
+		inputOwner.Connection = source.Connection
+		child, reservation, childRun, childView := reviewCorrectChild(t, ctx, db, now, inputOwner, project.ExecutionReview, project.RoleReviewer, a.ID, "f"+strings.Repeat("d", 24))
+		childRun.Deadline = time.Unix(now.Unix()+5*60, 0)
+		reservation.PlannedMinutes = 5
+		cycle := reviewCorrectCycle(t, fresh, a, 1, child.ID, "")
+		cycle.Head, cycle.BaseOID = fresh.Candidate, fresh.PRCreate.BaseOID
+		fresh.ReviewCycles = append(fresh.ReviewCycles, cycle)
+		fresh.Revision++
+		if err = db.UpdatePublication(ctx, fresh); err != nil {
+			t.Fatal(err)
+		}
+		if err = recordDispatchTestPacket(t, ctx, db, child, reservation, childRun, childView); err != nil {
+			t.Fatal("funded retained reviewer packet", err)
+		}
+		origin, err := db.PublicationExecutionOwner(ctx, fresh, a)
+		if err != nil || origin.ID != source.ID || origin.Run != source.Run {
+			t.Fatal("original execution provenance was replaced", err)
+		}
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)
 		}
-		fresh.PRCreate = factory.PublicationOperation{Kind: factory.OpPRCreate, OperationID: "retained-pr-op", Attempts: 1, UpdatedUnix: now.Unix(), Work: publicationStoreIntent("retained-pr-op")}
-		fresh.PRCreate.Work.NotAfter = r.NotAfter
-		fresh.Revision++
+		appendPendingCorrection(&fresh)
 		if err = db.UpdatePublication(ctx, fresh); !errors.Is(err, ErrDispatchClosed) {
 			t.Fatalf("withdrawn new authority: %v", err)
 		}
@@ -248,6 +335,7 @@ func recordFinishedAssignment(t *testing.T, db *Store, now time.Time, issue int6
 	t.Helper()
 	ctx := context.Background()
 	a, r, run, view := finishedPublishableAssignment(t, now, issue, reported, status)
+	a.Authority = dispatchCurrentAuthority(t, db, a)
 	assigned := a
 	assigned.Stage, assigned.Outcome, assigned.Reason, assigned.Result, assigned.FinishedUnix = factory.AssignmentAssigned, "", "", nil, 0
 	if err := recordDispatchTestPacket(t, ctx, db, assigned, r, run, view); err != nil {

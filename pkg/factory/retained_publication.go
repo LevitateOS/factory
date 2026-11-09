@@ -7,6 +7,39 @@ import (
 )
 
 const CommandPublishRetained = "publish-retained-candidate"
+const CommandFundRetained = "fund-retained-candidate"
+
+// RetainedCandidateFunding authorizes only subsequent review/correction on the
+// original selected source. It never renews publication or replays execution.
+type RetainedCandidateFunding struct {
+	Publication string        `json:"publication"`
+	Candidate   string        `json:"candidate"`
+	Base        string        `json:"base"`
+	Acceptance  string        `json:"acceptance"`
+	Connection  string        `json:"connection"`
+	GrantID     string        `json:"grant_id"`
+	Generation  int64         `json:"generation"`
+	Policy      int64         `json:"policy"`
+	Limits      AttemptLimits `json:"limits"`
+}
+
+func (f RetainedCandidateFunding) Validate() error {
+	if !ValidID(f.Publication) || !ValidCommit(f.Candidate) || !ValidCommit(f.Base) || f.Candidate == f.Base || !project.ValidDecisionID(f.Acceptance) || f.Connection == "" || len(f.Connection) > 128 || f.GrantID == "" || len(f.GrantID) > 256 || f.Generation < 1 || f.Policy < 1 {
+		return errors.New("invalid retained candidate funding scope")
+	}
+	return f.Limits.Validate()
+}
+
+type RetainedCandidateFundingReceipt struct {
+	CommandID string                   `json:"command_id"`
+	Funding   RetainedCandidateFunding `json:"funding"`
+}
+
+// PublicationOwnerReady recognizes an explicit non-executing owner without
+// inventing a successful run. Dispatch still requires its separate allowance.
+func (a Assignment) PublicationOwnerReady() bool {
+	return a.RetainedPublication != nil && a.validateRetainedPublication() == nil || a.Stage == AssignmentFinished && a.Outcome == Succeeded
+}
 
 // RetainedPublication identifies the original execution without pretending it
 // ran again. NotAfter bounds only the new branch and PR creation authority.

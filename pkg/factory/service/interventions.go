@@ -18,10 +18,11 @@ type RepositoryCommand struct {
 }
 
 type RunCommand struct {
-	CommandID   string                         `json:"command_id,omitempty"`
-	Action      string                         `json:"action"`
-	Context     *factory.ContextCurrentRequest `json:"context,omitempty"`
-	Publication string                         `json:"publication,omitempty"`
+	Funding     *factory.RetainedCandidateFunding `json:"funding,omitempty"`
+	CommandID   string                            `json:"command_id,omitempty"`
+	Action      string                            `json:"action"`
+	Context     *factory.ContextCurrentRequest    `json:"context,omitempty"`
+	Publication string                            `json:"publication,omitempty"`
 }
 
 // InterventionWriter is the existing coordinator's settlement and workflow
@@ -110,16 +111,16 @@ func (s Interventions) Run(ctx context.Context, actor collaboration.ActorID, pri
 	if !factory.ValidID(runID) {
 		return nil, factory.ErrNotFound
 	}
-	if !factory.ValidRunAction(in.Action) && in.Action != factory.ActionContextCurrent && in.Action != factory.CommandPublishRetained {
+	if !factory.ValidRunAction(in.Action) && in.Action != factory.ActionContextCurrent && in.Action != factory.CommandPublishRetained && in.Action != factory.CommandFundRetained {
 		return nil, ErrInterventionAction
 	}
-	if (in.Action == factory.ActionRetry || in.Action == factory.CommandPublishRetained) && !factory.ValidID(in.CommandID) {
+	if (in.Action == factory.ActionRetry || in.Action == factory.CommandPublishRetained || in.Action == factory.CommandFundRetained) && !factory.ValidID(in.CommandID) {
 		return nil, ErrInterventionCommand
 	}
 	if (in.Action == factory.ActionContextCurrent) != (in.Context != nil) {
 		return nil, ErrInterventionPayload
 	}
-	if (in.Action == factory.CommandPublishRetained) != (in.Publication != "") || in.Publication != "" && !factory.ValidID(in.Publication) {
+	if (in.Action == factory.CommandPublishRetained || in.Action == factory.CommandFundRetained) != (in.Publication != "") || in.Publication != "" && !factory.ValidID(in.Publication) || (in.Action == factory.CommandFundRetained) != (in.Funding != nil) || in.Funding != nil && (in.Funding.Validate() != nil || in.Funding.Publication != in.Publication) {
 		return nil, ErrInterventionPayload
 	}
 	if s.Store == nil || s.Writer == nil || s.WriteAccess == nil || s.RunRepository == nil {
@@ -174,6 +175,18 @@ func (s Interventions) Run(ctx context.Context, actor collaboration.ActorID, pri
 		return nil, err
 	}
 	switch in.Action {
+	case factory.CommandFundRetained:
+		writer, ok := s.Writer.(interface {
+			FundRetainedCandidate(context.Context, string, string, factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error)
+		})
+		if !ok {
+			return nil, ErrInterventionUnavailable
+		}
+		publication, err := s.Store.PublicationByID(ctx, in.Publication)
+		if err != nil || publication.Run != runID || publication.Repository != int64(repository) {
+			return nil, ErrWorkJourneyScope
+		}
+		return writer.FundRetainedCandidate(ctx, in.CommandID, principal, *in.Funding)
 	case factory.CommandPublishRetained:
 		writer, ok := s.Writer.(interface {
 			PublishRetainedCandidate(context.Context, string, string, string) (factory.Publication, error)

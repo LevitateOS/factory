@@ -102,8 +102,11 @@ func dedupeCorrectionFindingKeys(findingKeys []string) []string {
 	return keys
 }
 
-func deriveCorrectionPlan(acceptance factory.Acceptance, investigation factory.InvestigationPlan, attemptRoot, head, base, preparation, cycleID, findingDigest string, findingKeys []string, policyChecks []string) (*factory.InvestigationPlan, error) {
-	if err := checkCorrectionPlanAdmission(attemptRoot, head, base, preparation, cycleID, findingDigest, acceptance, investigation, policyChecks); err != nil {
+func deriveCorrectionPlan(acceptance factory.Acceptance, investigation factory.InvestigationPlan, attemptRoot, originRoot, head, base, preparation, cycleID, findingDigest string, findingKeys []string, policyChecks []string) (*factory.InvestigationPlan, error) {
+	if !factory.ValidID(attemptRoot) {
+		return nil, errors.New("invalid correction attempt root")
+	}
+	if err := checkCorrectionPlanAdmission(originRoot, head, base, preparation, cycleID, findingDigest, acceptance, investigation, policyChecks); err != nil {
 		return nil, err
 	}
 	ownership, err := deriveCorrectionOwnership(investigation)

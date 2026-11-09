@@ -57,10 +57,6 @@ func (c *Coordinator) loadPublicationChildOwner(ctx context.Context, p factory.P
 }
 
 func (c *Coordinator) gatePublicationChildAttempt(ctx context.Context, p factory.Publication, owner factory.Assignment, report *PublishReport) (factory.AttemptAllowance, bool) {
-	if owner.RetainedPublication != nil {
-		publicationWait(report, p.ID, "retained candidate published; separately authorized review funding is required")
-		return factory.AttemptAllowance{}, true
-	}
 	latest, err := c.Store.LatestIssueAssignment(ctx, p.Repository, p.Issue)
 	if err != nil {
 		publicationError(report, p.ID, "issue_assignment_unavailable")
@@ -598,16 +594,16 @@ func (c *Coordinator) producePublicationChild(ctx context.Context, p factory.Pub
 // correction round from the accepted issue inputs and the owner's
 // immutable recorded investigation plan.
 func (c *Coordinator) correctionPlanFor(ctx context.Context, plan *attemptPlan, p factory.Publication, owner factory.Assignment, cycle factory.ReviewCycle, review ResolvedReviewVerdict) (*factory.InvestigationPlan, error) {
-	_ = ctx
-	if owner.Phase != project.ExecutionInvestigate || owner.Result == nil || owner.Result.PhaseResult == nil ||
-		owner.Result.PhaseResult.Output == nil || owner.Result.PhaseResult.Output.Plan == nil {
+	origin, err := c.Store.PublicationExecutionOwner(ctx, p, owner)
+	if err != nil || origin.Phase != project.ExecutionInvestigate || origin.Result == nil || origin.Result.PhaseResult == nil ||
+		origin.Result.PhaseResult.Output == nil || origin.Result.PhaseResult.Output.Plan == nil {
 		return nil, &correctionPlanBlocked{reason: "correction_plan_unavailable", detail: "publication owner carries no recorded investigation plan"}
 	}
 	if cycle.CorrectionAssignment == "" || cycle.Head != p.Candidate || cycle.BaseOID != p.PRCreate.BaseOID {
 		return nil, &correctionPlanBlocked{reason: "correction_plan_unavailable", detail: "correction answers another round"}
 	}
-	return deriveCorrectionPlan(plan.acceptance, *owner.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, p.Candidate, p.PRCreate.BaseOID, plan.prep.Preparation.ID,
+	return deriveCorrectionPlan(plan.acceptance, *origin.Result.PhaseResult.Output.Plan,
+		owner.AttemptRoot, origin.AttemptRoot, p.Candidate, p.PRCreate.BaseOID, plan.prep.Preparation.ID,
 		cycle.ID, cycle.FindingDigest, correctionFindingKeys(review), plan.policy.Checks)
 }
 
@@ -961,8 +957,15 @@ func (c *Coordinator) provePublishedCandidateForReview(ctx context.Context, p fa
 		return nil, errors.New("published candidate run is not settled")
 	}
 	candidateAssignment, err := c.Store.AssignmentByRun(ctx, p.Run)
+	origin := owner
+	if owner.RetainedPublication != nil && p.Run == owner.RetainedPublication.Run {
+		origin, err = c.Store.PublicationExecutionOwner(ctx, p, owner)
+		if err != nil || p.Candidate != owner.RetainedPublication.Candidate {
+			return nil, errors.New("retained candidate origin changed")
+		}
+	}
 	if err != nil || candidateAssignment.Validate() != nil || candidateAssignment.Role != project.RoleCoder ||
-		candidateAssignment.PublicationAssignment != owner.ID || candidateAssignment.AttemptRoot != owner.AttemptRoot ||
+		candidateAssignment.PublicationAssignment != origin.ID || candidateAssignment.AttemptRoot != origin.AttemptRoot ||
 		candidateAssignment.Stage != factory.AssignmentFinished || candidateAssignment.Outcome != factory.Succeeded ||
 		candidateAssignment.Result == nil || !candidateAssignment.Result.Reported || candidateAssignment.Result.Status != "completed" ||
 		candidateAssignment.Result.Candidate != p.Candidate {

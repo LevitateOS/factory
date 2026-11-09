@@ -131,7 +131,50 @@ export interface WorkCapability {
   available: boolean;
   reason?: string;
 }
+export interface RetainedCandidateFunding {
+  publication: string;
+  candidate: string;
+  base: string;
+  acceptance: string;
+  connection: string;
+  grant_id: string;
+  generation: number;
+  policy: number;
+  limits: {active_minutes: number; correction_cycles: number; review_rounds: number; max_children: number};
+}
+export function retainedCandidateFunding(value: unknown): RetainedCandidateFunding | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const r = value as Record<string, unknown>,
+    l = r.limits as Record<string, unknown> | undefined;
+  const integer = (x: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
+    typeof x === 'number' && Number.isSafeInteger(x) && x >= min && x <= max;
+  if (
+    Object.keys(r).length !== 9 ||
+    typeof r.publication !== 'string' ||
+    !/^[a-f0-9]{32}$/.test(r.publication) ||
+    !['candidate', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
+    r.candidate === r.base ||
+    typeof r.acceptance !== 'string' ||
+    !/^d[a-f0-9]{24}$/.test(r.acceptance) ||
+    !['connection', 'grant_id'].every(
+      (k) => typeof r[k] === 'string' && (r[k] as string).length > 0 && (r[k] as string).length <= 256
+    ) ||
+    !integer(r.generation, 1) ||
+    !integer(r.policy, 1) ||
+    !l ||
+    typeof l !== 'object' ||
+    Array.isArray(l) ||
+    Object.keys(l).length !== 4 ||
+    !integer(l.active_minutes, 1) ||
+    !integer(l.correction_cycles, 0) ||
+    !integer(l.review_rounds, 1, 16) ||
+    !integer(l.max_children, 1, 4)
+  )
+    return undefined;
+  return value as RetainedCandidateFunding;
+}
 export interface WorkCapabilities {
+  fund_retained?: WorkCapability & {funding: RetainedCandidateFunding};
   /** Older hosts keep this action unavailable. */
   publish_retained?: WorkCapability;
   watch: WorkCapability;
@@ -293,8 +336,13 @@ function workCorrection(value: unknown): WorkCorrection {
 function workReview(value: unknown): WorkReview {
   const raw = record(value);
   const verdict = nonEmpty(raw.agent_verdict);
-  return {run: text(raw.run), head_oid: text(raw.head_oid), event: text(raw.event),
-    ...(verdict === undefined ? {} : {agent_verdict: verdict}), ...opFields(raw)};
+  return {
+    run: text(raw.run),
+    head_oid: text(raw.head_oid),
+    event: text(raw.event),
+    ...(verdict === undefined ? {} : {agent_verdict: verdict}),
+    ...opFields(raw),
+  };
 }
 function workPublication(value: unknown): WorkPublication {
   const raw = record(value);
@@ -334,7 +382,9 @@ function workCapability(value: unknown): WorkCapability {
 }
 function workCapabilities(value: unknown): WorkCapabilities {
   const raw = record(value);
+  const funding = retainedCandidateFunding(record(raw.fund_retained).funding);
   return {
+    ...(funding ? {fund_retained: {...workCapability(raw.fund_retained), funding}} : {}),
     ...(present(raw.publish_retained) ? {publish_retained: workCapability(raw.publish_retained)} : {}),
     watch: workCapability(raw.watch),
     stop: workCapability(raw.stop),

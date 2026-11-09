@@ -824,7 +824,7 @@ func settleUnusedLaunch(ctx context.Context, deps DispatchDeps, a factory.Assign
 func validPublicationChildOwner(a, owner factory.Assignment) bool {
 	if owner.Validate() != nil || owner.ID != a.PublicationAssignment ||
 		owner.PublicationAssignment != owner.ID || owner.Role != project.RoleCoder ||
-		owner.Stage != factory.AssignmentFinished || owner.Outcome != factory.Succeeded {
+		!owner.PublicationOwnerReady() {
 		return false
 	}
 	return owner.Repository == a.Repository && owner.Issue == a.Issue &&
@@ -1043,8 +1043,9 @@ func stageCorrectionRetryManifest(ctx context.Context, deps DispatchDeps, plan *
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "correction answers an unrecorded cycle", report)
 		return nil, "", false
 	}
-	if owner.Phase != project.ExecutionInvestigate || owner.Result == nil || owner.Result.PhaseResult == nil ||
-		owner.Result.PhaseResult.Output == nil || owner.Result.PhaseResult.Output.Plan == nil {
+	origin, err := deps.Store.PublicationExecutionOwner(ctx, p, owner)
+	if err != nil || origin.Phase != project.ExecutionInvestigate || origin.Result == nil || origin.Result.PhaseResult == nil ||
+		origin.Result.PhaseResult.Output == nil || origin.Result.PhaseResult.Output.Plan == nil {
 		finishTerminal(ctx, deps, a, factory.Cancelled, factory.AssignReasonSuperseded, "recorded investigation plan is unavailable", report)
 		return nil, "", false
 	}
@@ -1055,8 +1056,8 @@ func stageCorrectionRetryManifest(ctx context.Context, deps DispatchDeps, plan *
 	}
 	verdict := reviewer.Result.PhaseResult.Output
 	keys := correctionFindingKeys(ResolvedReviewVerdict{Review: verdict.Review, Clear: verdict.Clear})
-	derived, err := deriveCorrectionPlan(plan.acceptance, *owner.Result.PhaseResult.Output.Plan,
-		owner.AttemptRoot, a.SourceCommit, p.PRCreate.BaseOID, a.Preparation,
+	derived, err := deriveCorrectionPlan(plan.acceptance, *origin.Result.PhaseResult.Output.Plan,
+		owner.AttemptRoot, origin.AttemptRoot, a.SourceCommit, p.PRCreate.BaseOID, a.Preparation,
 		cycle.ID, cycle.FindingDigest, keys, plan.policy.Checks)
 	if err != nil {
 		if reason, blocked := correctionPlanWaitReason(err); blocked {

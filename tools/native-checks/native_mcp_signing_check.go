@@ -6493,6 +6493,18 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
+	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" {
+		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
+			return errors.New("exact Q15 retained funding fixture required")
+		}
+		if err := retainedFundingRecovery(ctx, config.DatabaseDSN(), profile, in.Source, phase == "fund-retained-preflight"); err != nil {
+			return err
+		}
+		if phase == "fund-retained-preflight" {
+			fmt.Println("PASS: exact original uncertain publication, four settled runs, fifteen charged minutes and closed allowance retained before separate funding")
+			return nil
+		}
+	}
 	if phase == "publish-retained-preflight" || phase == "publish-retained-watch" || phase == "publish-retained-inspect" || phase == "publish-retained-recovery-preflight" || phase == "publish-retained-recovery-watch" {
 		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
 			return errors.New("fresh publication requires the exact retained Q15 fixture")
@@ -6885,6 +6897,9 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		}
 		status := fmt.Sprintf("assignments=%d publications=%d merges=%d", len(assignments), len(publications), len(merges))
 		for _, a := range assignments {
+			if phase == "fund-retained-watch" && a.AttemptRoot == "15151515151515151515151515151505" && a.RetainedPublication == nil && a.Phase != project.ExecutionReview && a.Phase != project.ExecutionCorrect {
+				return errors.New("retained funding attempted a new planning/initial Builder phase")
+			}
 			status += " " + a.Phase + ":" + a.Stage + ":" + string(a.Outcome)
 		}
 		for _, p := range publications {
@@ -6905,6 +6920,11 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 				}
 			}
 			if settled {
+				if phase == "fund-retained-watch" {
+					if err := retainedFundingRecovery(ctx, config.DatabaseDSN(), profile, in.Source, false); err != nil {
+						return err
+					}
+				}
 				fmt.Println("PASS: actual production coordinator reached native merge and original run settlement; full required scope still needs receipt review", merges[len(merges)-1].MergedCommit)
 				return nil
 			}
@@ -10458,4 +10478,82 @@ func progressGateFixture() error {
 	}
 	fmt.Println("PASS: real PG coordinator holds a slow check observation; expired waiter exits without commands/assessments, live nested passes reuse admission, retired contexts cannot bypass it, later valid check writes revision 2; graph observation permits independent admission and changed accepted revision refuses before journal/effects. Native observations declared.")
 	return nil
+}
+
+// Read original Q15 receipts before continuing; new paid rows never replace
+// the original comparison set. Missing first-admission evidence refuses recovery.
+func retainedFundingRecovery(ctx context.Context, dsn, profile, source string, first bool) error {
+	path := filepath.Join(filepath.Dir(profile), "retained-funding-before.json")
+	before, err := os.ReadFile(path)
+	exists := err == nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if !exists && !first {
+		return errors.New("original funding recovery capture missing")
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var sent bool
+	if err = db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_commands WHERE id='15151515151515151515151515151506')`).Scan(&sent); err != nil {
+		return err
+	}
+	if !exists && sent {
+		return errors.New("funding command already exists; original receipts must be recovered without a replacement capture")
+	}
+	prior := string(before)
+	if !exists {
+		prior = `{}`
+	}
+	var current []byte
+	err = db.QueryRowContext(ctx, `SELECT jsonb_build_object(
+ 'publication',(SELECT data FROM factory_publications WHERE data->>'id'='31dbde02be4170d92a37ac3da6154014'),
+ 'runs',(SELECT jsonb_agg(r.data ORDER BY r.id) FROM factory_runs r JOIN factory_run_views v ON v.run=r.id WHERE v.repository=1 AND v.issue=18 AND (NOT $2 OR r.id IN(SELECT j->>'id' FROM jsonb_array_elements($3::jsonb->'runs')j))),
+ 'usage',(SELECT jsonb_agg(u.data ORDER BY u.run) FROM factory_usage u WHERE u.repository=1 AND u.connection=$1 AND (NOT $2 OR u.run IN(SELECT j->>'run_id' FROM jsonb_array_elements($3::jsonb->'usage')j))),
+ 'allowance',(SELECT data FROM factory_attempt_allowances WHERE root_assignment='15151515151515151515151515151504'))`, source, exists, prior).Scan(&current)
+	if err != nil {
+		return err
+	}
+	if exists {
+		if !bytes.Equal(before, current) {
+			return errors.New("original Q15 publication, runs, charges or closed allowance changed; retain all outcomes")
+		}
+		return nil
+	}
+	var state struct {
+		Publication factory.Publication
+		Runs        []factory.Run
+		Usage       []factory.Usage
+		Allowance   factory.AttemptAllowance
+	}
+	if json.Unmarshal(current, &state) != nil || state.Publication.Stage != factory.PublicationFenced || state.Publication.Run != "bf339c1b9a0023a95bf95ad815ca5458" || state.Publication.Candidate != "84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c" || len(state.Runs) != 4 || !state.Allowance.Closed {
+		return errors.New("original funding preflight receipt scope differs")
+	}
+	minutes := int64(0)
+	for _, run := range state.Runs {
+		if !run.Reconciled || run.Native == nil || !run.Native.Settled() {
+			return errors.New("original Q15 run remains unsettled")
+		}
+	}
+	for _, u := range state.Usage {
+		if u.Connection != source {
+			return errors.New("original charged source differs")
+		}
+		minutes += int64(u.Minutes)
+	}
+	if minutes != 15 {
+		return fmt.Errorf("original Q15 charge is %d, expected fifteen retained minutes", minutes)
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if _, err = file.Write(current); err != nil {
+		return err
+	}
+	return file.Sync()
 }

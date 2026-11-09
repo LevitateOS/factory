@@ -1403,9 +1403,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let replacement_delivery=retry_delivery && field(9)?=="delivery-retry-replacement";
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
+            let fund_retained=args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
-            let retained_delivery=args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire"|"delivery-publish-retained"|"delivery-publish-retained-recover");
+            let retained_delivery=fund_retained || args.len()==10 && matches!(field(9)?,"delivery-retained"|"delivery-retry-retire"|"delivery-publish-retained"|"delivery-publish-retained-recover");
             let connected_graph=args.len()==10 && matches!(field(9)?,"authoring-graph"|"authoring-graph-recover"|"authoring-graph-review"|"authoring-graph-generate"|"authoring-graph-adopt"|"authoring-graph-retained");
             let authoring=args.len()==10 && matches!(field(9)?,"authoring"|"authoring-resume"|"authoring-recover"|"authoring-retained"|"authoring-retained-full");
             let resume_authoring=authoring && field(9)?!="authoring";
@@ -1459,11 +1460,12 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         fixture["OriginalConnection"]=fixture["Connection"].clone();
                         fixture["Connection"]=json!(saved.connection);
                         fs::write(&background,serde_json::to_vec(&fixture)?)?;
-                        if retained_delivery && !publish_retained {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
+                        if retained_delivery && !publish_retained && !fund_retained {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
                         if publish_retained {check(if recover_publication {"publish-retained-recovery-preflight"} else {"publish-retained-preflight"},&ready.instance).await?;}
+                        if fund_retained {check("fund-retained-preflight",&ready.instance).await?;}
                         // This mode is only for the exact preflight failure: no
                         // execution exists. Live/past attempts need their own recovery.
-                        if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else if !publish_retained {
+                        if retry_delivery {check(if pending_retry_delivery {"retry-pending"} else if replacement_delivery {"retry-replacement"} else {"retry-preflight"},&ready.instance).await?;} else if !publish_retained && !fund_retained {
                         check("scope",&ready.instance).await?;
                         let scope:serde_json::Value=serde_json::from_slice(&fs::read(profile.join("connected-delivery-scope.json"))?)?;
                         for control in scope["controls"].as_array().ok_or("delivery controls missing")? {
@@ -1517,8 +1519,32 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             fs::write(root.join(if replacement_delivery {"delivery-replacement-command.json"} else {"delivery-retry-command.json"}),&reply.body)?;
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
+                        if fund_retained {
+                            let capture_path=root.join("retained-funding-request.json");
+                            let body=if capture_path.exists() {fs::read(&capture_path)?} else {
+                                let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                                let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
+                                fs::write(root.join(format!("retained-funding-offer-{}.json",ready.instance)),&detail.body)?;
+                                ensure(detail.status==200,"retained funding detail unavailable")?;
+                                let detail:serde_json::Value=serde_json::from_slice(&detail.body)?;
+                                let offer=&detail["capabilities"]["fund_retained"];
+                                ensure(offer["available"]==true && offer["funding"]["publication"]=="15151515151515151515151515151505" && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original selected-source funding unavailable; inspect retained offer")?;
+                                let bytes=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151506","action":"fund-retained-candidate","publication":"15151515151515151515151515151505","funding":offer["funding"]}))?;
+                                use std::io::Write;
+                                let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&capture_path)?;
+                                file.write_all(&bytes)?;file.sync_all()?;bytes
+                            };
+                            let capture:serde_json::Value=serde_json::from_slice(&body)?;
+                            ensure(capture["command_id"]=="15151515151515151515151515151506" && capture["action"]=="fund-retained-candidate" && capture["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original funding command changed")?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
+                            fs::write(root.join(format!("retained-funding-result-{}.json",ready.instance)),&reply.body)?;
+                            ensure(reply.status==200,"funding unconfirmed; preserve original request before another attempt")?;
+                            let receipt:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                            ensure(receipt["command_id"]==capture["command_id"] && receipt["funding"]==capture["funding"],"funding receipt differs from original capture")?;
+                        }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                        let watching=check("watch",&ready.instance);
+                        let watching=check(if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);
                         loop {
                             tokio::select! {

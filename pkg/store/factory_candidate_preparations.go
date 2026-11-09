@@ -576,7 +576,11 @@ func authorizeCandidatePreparationTx(ctx context.Context, tx *sql.Tx, preparatio
 				return empty, err
 			}
 			var owner factory.Assignment
-			if err = json.Unmarshal(ownerData, &owner); err != nil || owner.NativeTool == nil {
+			if err = json.Unmarshal(ownerData, &owner); err != nil {
+				return empty, ErrAttemptRootMismatch
+			}
+			origin, err := publicationExecutionOwner(ctx, tx, publication, owner)
+			if err != nil || origin.NativeTool == nil {
 				return empty, ErrAttemptRootMismatch
 			}
 			// Authorize the correction lineage before its new checkout exists.

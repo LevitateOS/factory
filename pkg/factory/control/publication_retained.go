@@ -12,6 +12,13 @@ import (
 	"github.com/levitateos/factory/pkg/store"
 )
 
+func (c *Coordinator) FundRetainedCandidate(ctx context.Context, command, principal string, funding factory.RetainedCandidateFunding) (factory.RetainedCandidateFundingReceipt, error) {
+	if c.Store == nil || c.Publication == nil || c.Host == nil || c.Broker == nil {
+		return factory.RetainedCandidateFundingReceipt{}, store.ErrRetainedPublicationIneligible
+	}
+	return c.Store.FundRetainedCandidate(ctx, command, principal, funding, time.Now())
+}
+
 // PublishRetainedCandidate authorizes a new branch and PR, never a second send
 // of the old operation. It neither renews the closed attempt nor starts models.
 func (c *Coordinator) PublishRetainedCandidate(ctx context.Context, commandID, principal, publicationID string) (factory.Publication, error) {

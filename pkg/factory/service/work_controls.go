@@ -146,6 +146,15 @@ func (s WorkControls) project(ctx context.Context, actor collaboration.ActorID, 
 		return empty, err
 	}
 	capabilities := workCapabilitiesDTO(in)
+	mutating, _ := workCapabilityGates(in)
+	if !s.ExecutionUnavailable && mutating == "" && in.DispatchOpen && in.Member && attempt != nil && attempt.RetainedPublication != nil {
+		funding, err := s.Store.RetainedCandidateFundingOffer(ctx, attempt.ID)
+		if err == nil {
+			capabilities.FundRetained = &WorkFundingCapability{WorkCapability: WorkCapability{Available: true}, Funding: funding}
+		} else if !errors.Is(err, store.ErrRetainedPublicationIneligible) && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, store.ErrAdmissionChanged) && !errors.Is(err, store.ErrAttemptRunsPending) {
+			return empty, err
+		}
+	}
 	if s.ExecutionUnavailable {
 		unavailable := WorkCapability{Reason: WorkAuthorityUnavailable}
 		capabilities.PublishRetained = unavailable

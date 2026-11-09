@@ -1029,7 +1029,7 @@ func reviewCyclePreparationID(cycleID string) string {
 // Reviewer rounds leave CorrectionAssignment empty; correction rounds record
 // a fresh (unused) reviewer ID alongside the used correction ID so the cycle
 // always validates while reviewer/corrector sessions stay distinct.
-func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, digest, inputDigest string) (factory.ReviewCycle, string, string, bool, error) {
+func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, digest, inputDigest string, nativeCorrection bool) (factory.ReviewCycle, string, string, bool, error) {
 	var empty factory.ReviewCycle
 	if n := len(p.ReviewCycles); n > 0 {
 		last := p.ReviewCycles[n-1]
@@ -1052,7 +1052,7 @@ func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, d
 					return empty, "", "", false, errors.New("recorded cycle lacks its correction assignment")
 				}
 				prepID = owner.Preparation
-				if owner.NativeTool != nil {
+				if nativeCorrection {
 					prepID = factory.NativeCorrectionPreparationID(childID)
 				}
 			}
@@ -1067,6 +1067,11 @@ func replayReviewCycle(p *factory.Publication, owner factory.Assignment, role, d
 
 func (c *Coordinator) ensureReviewCycle(ctx context.Context, p *factory.Publication, owner factory.Assignment, role, digest, inputDigest, triggerDecision, triggerReason string) (factory.ReviewCycle, string, string, error) {
 	var empty factory.ReviewCycle
+	origin, err := c.Store.PublicationExecutionOwner(ctx, *p, owner)
+	if err != nil {
+		return empty, "", "", err
+	}
+	nativeCorrection := origin.NativeTool != nil
 	if !factory.ValidDigest(digest) || strings.TrimSpace(triggerDecision) == "" || strings.TrimSpace(triggerReason) == "" {
 		return empty, "", "", errors.New("review cycle needs its digest and triggering decision")
 	}
@@ -1080,7 +1085,7 @@ func (c *Coordinator) ensureReviewCycle(ctx context.Context, p *factory.Publicat
 	// the finding-set binding and the complete input fingerprint must
 	// match: same keys with changed review/check inputs open a new round
 	// instead of silently reusing the prior admitted correction.
-	if last, childID, prepID, replayed, err := replayReviewCycle(p, owner, role, digest, inputDigest); err != nil {
+	if last, childID, prepID, replayed, err := replayReviewCycle(p, owner, role, digest, inputDigest, nativeCorrection); err != nil {
 		return empty, "", "", err
 	} else if replayed {
 		return last, childID, prepID, nil
@@ -1130,7 +1135,7 @@ func (c *Coordinator) ensureReviewCycle(ctx context.Context, p *factory.Publicat
 			childID = correctionAssignment
 		}
 		prepID = owner.Preparation
-		if owner.NativeTool != nil {
+		if nativeCorrection {
 			prepID = factory.NativeCorrectionPreparationID(childID)
 		}
 	}

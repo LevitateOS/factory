@@ -502,8 +502,7 @@ func loadValidatedAssignmentTx(ctx context.Context, tx *sql.Tx, id string) (fact
 
 func checkReviewChildOwner(parent, a factory.Assignment) error {
 	if parent.ID != a.ParentAssignment || parent.PublicationAssignment != parent.ID ||
-		parent.Role != project.RoleCoder || parent.Stage != factory.AssignmentFinished ||
-		parent.Outcome != factory.Succeeded ||
+		parent.Role != project.RoleCoder || !parent.PublicationOwnerReady() ||
 		parent.Repository != a.Repository || parent.Issue != a.Issue ||
 		parent.ProjectID != a.ProjectID || parent.Acceptance != a.Acceptance ||
 		parent.AttemptRoot != a.AttemptRoot || a.PublicationAssignment != parent.ID {
@@ -772,8 +771,7 @@ func checkCorrectionReviewer(parent, a factory.Assignment) error {
 
 func checkCorrectionOwner(owner, a factory.Assignment) error {
 	if owner.ID != a.PublicationAssignment || owner.PublicationAssignment != owner.ID ||
-		owner.Role != project.RoleCoder || owner.Stage != factory.AssignmentFinished ||
-		owner.Outcome != factory.Succeeded ||
+		owner.Role != project.RoleCoder || !owner.PublicationOwnerReady() ||
 		owner.Repository != a.Repository || owner.Issue != a.Issue ||
 		owner.ProjectID != a.ProjectID || owner.Acceptance != a.Acceptance ||
 		owner.AttemptRoot != a.AttemptRoot {
@@ -1095,6 +1093,13 @@ func checkApplianceRunPreparationTx(ctx context.Context, tx *sql.Tx, a factory.A
 // for this admission. A retry retains its original assignment history while
 // checking the current role grant and the same approved preparation decisions.
 func checkAssignmentAuthorityTx(ctx context.Context, t *sql.Tx, expected factory.AuthorityRef, a factory.Assignment, grants admissionGrants) error {
+	if err := checkRetainedContinuationTx(ctx, t, a, grants); err != nil {
+		return err
+	}
+	return checkAssignmentStandingAuthorityTx(ctx, t, expected, a, grants)
+}
+
+func checkAssignmentStandingAuthorityTx(ctx context.Context, t *sql.Tx, expected factory.AuthorityRef, a factory.Assignment, grants admissionGrants) error {
 	if grants.policy.Roles[a.Role].Account != a.Connection {
 		return ErrAdmissionChanged
 	}
@@ -1195,14 +1200,22 @@ func checkAdmissionLimitsTx(ctx context.Context, t *sql.Tx, repository int64, co
 	if repoSessions > 1 {
 		return ErrRepositoryFull
 	}
-	activeAttempts, err := cappedCountTx(ctx, t, `SELECT 1 FROM factory_attempt_allowances WHERE data->>'active'='true'`, grants.capacity.MaxConcurrentRuns+1)
+	// Capacity counts issue sessions, not historical accounting roots. An
+	// explicit retained-candidate continuation can share its issue's slot while
+	// the closed original keeps uncertain write accounting. Actual reservations,
+	// runs and preparations above still forbid overlapping native execution.
+	activeAttempts, err := cappedCountTx(ctx, t, `SELECT DISTINCT repository,
+	 CASE WHEN issue>0 THEN 'issue:'||issue::text ELSE 'root:'||root_assignment END
+	 FROM factory_attempt_allowances WHERE data->>'active'='true'`, grants.capacity.MaxConcurrentRuns+1)
 	if err != nil {
 		return err
 	}
 	if activeAttempts > grants.capacity.MaxConcurrentRuns {
 		return ErrCapacityFull
 	}
-	repoAttempts, err := cappedCountTx(ctx, t, `SELECT 1 FROM factory_attempt_allowances WHERE repository=$1 AND data->>'active'='true'`, 2, repository)
+	repoAttempts, err := cappedCountTx(ctx, t, `SELECT DISTINCT
+	 CASE WHEN issue>0 THEN 'issue:'||issue::text ELSE 'root:'||root_assignment END
+	 FROM factory_attempt_allowances WHERE repository=$1 AND data->>'active'='true'`, 2, repository)
 	if err != nil {
 		return err
 	}

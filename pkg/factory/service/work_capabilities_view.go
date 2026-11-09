@@ -1,5 +1,7 @@
 package service
 
+import "github.com/levitateos/factory/pkg/factory"
+
 // workCapabilityReasons are the bounded codes behind one action
 // capability. Authority codes describe the viewer; state codes describe
 // the recorded work. Admission revalidates at act time.
@@ -27,13 +29,19 @@ type WorkCapability struct {
 // pause/resume. Each entry carries its refusal reason when unavailable;
 // the owning lifecycle APIs remain authoritative at act time.
 type WorkCapabilities struct {
-	PublishRetained WorkCapability `json:"publish_retained"`
-	Watch           WorkCapability `json:"watch"`
-	Stop            WorkCapability `json:"stop"`
-	Retry           WorkCapability `json:"retry"`
-	Takeover        WorkCapability `json:"takeover"`
-	Pause           WorkCapability `json:"pause"`
-	Resume          WorkCapability `json:"resume"`
+	FundRetained    *WorkFundingCapability `json:"fund_retained,omitempty"`
+	PublishRetained WorkCapability         `json:"publish_retained"`
+	Watch           WorkCapability         `json:"watch"`
+	Stop            WorkCapability         `json:"stop"`
+	Retry           WorkCapability         `json:"retry"`
+	Takeover        WorkCapability         `json:"takeover"`
+	Pause           WorkCapability         `json:"pause"`
+	Resume          WorkCapability         `json:"resume"`
+}
+
+type WorkFundingCapability struct {
+	WorkCapability
+	Funding factory.RetainedCandidateFunding `json:"funding"`
 }
 
 type workCapabilityInput struct {

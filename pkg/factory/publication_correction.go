@@ -28,7 +28,7 @@ func NativeCorrectionPreparationID(assignment string) string {
 // additionally verifies that checkout's exact publication, child and source.
 func (a Assignment) PublicationCoderPreparation(owner Assignment) bool {
 	return a.Preparation == owner.Preparation ||
-		a.Phase == project.ExecutionCorrect && a.NativeTool != nil && owner.NativeTool != nil &&
+		a.Phase == project.ExecutionCorrect && a.NativeTool != nil && (owner.NativeTool != nil || owner.RetainedPublication != nil) &&
 			a.Preparation == NativeCorrectionPreparationID(a.ID)
 }
 

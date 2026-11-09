@@ -784,6 +784,28 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
+The owner has authorized separate finite review/correction continuation for retained
+publication `15151515151515151515151515151505` on original source
+`4c823041ad0ba064c4f974399b0e3a2a`. The new explicit
+`fund-retained-candidate` UI/API command preserves original publication authority,
+receipts, plan, runs and fifteen charged minutes. Its captured offer is bounded
+to 15 active minutes, two reviews and one correction (or lower current policy
+limits), pins the source grant/generation and never refills an existing allowance.
+Original candidate/plan provenance is read without pretending the non-executing
+publication owner ran a model. Runtime capacity counts issue sessions separately
+from retained accounting roots; actual overlapping run/preparation guards remain.
+Local scope passes `q15-retained-publication/{funding-store4,funding-ui-check2,
+funding-types2,funding-engine-check2,funding-native-build1,funding-boundaries2}.log`:
+actual PostgreSQL funding/replay/source refusal, original charge preservation,
+funded reviewer packet and existing review/correction/dispatch/native guards;
+production shared DOM lost-reply/remount; source/native builds and boundaries.
+These do not qualify the connected paid journey. Next executable action: recover
+the exact original Q15 state through the normal native owner, then admit command
+`15151515151515151515151515151506` once using its saved funding capture and
+continue actual review/correction/CI/merge. No new command/inference has been sent
+yet; all original uncertain outcomes remain fenced. Q24 still has no appliance,
+and independent queued work remains outstanding.
+
 **INCOMPLETE; explicit fresh publication verified; continuation funding is pending.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
 reachable “Publish retained candidate” command. Command/publication

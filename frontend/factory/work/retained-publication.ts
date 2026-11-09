@@ -2,7 +2,11 @@ import {LitElement, html} from 'lit';
 import {object, readSodaJSON} from '../api/models.js';
 import {factoryCommandId} from '../api/run-response.js';
 import type {FactoryTransport} from '../api/transport.js';
-import type {FactoryIssueDetail} from '../api/work-response.js';
+import {
+  retainedCandidateFunding,
+  type RetainedCandidateFunding,
+  type FactoryIssueDetail,
+} from '../api/work-response.js';
 import {PendingRecord} from '../shared/retained-record.js';
 
 interface PublicationContext {
@@ -13,6 +17,7 @@ interface PublicationContext {
   commandScope?: (signal: AbortSignal) => Promise<string>;
 }
 interface Capture {
+  funding?: RetainedCandidateFunding;
   command: string;
   publication: string;
   run: string;
@@ -22,7 +27,11 @@ function valid(value: unknown): value is Capture {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const r = value as Record<string, unknown>;
   return (
-    Object.keys(r).length === 4 &&
+    Object.keys(r).length === (r.funding === undefined ? 4 : 5) &&
+    (r.funding === undefined ||
+      (retainedCandidateFunding(r.funding) !== undefined &&
+        r.publication === (r.funding as RetainedCandidateFunding).publication &&
+        r.candidate === (r.funding as RetainedCandidateFunding).candidate)) &&
     ['command', 'publication', 'run'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) &&
     typeof r.candidate === 'string' &&
     /^[a-f0-9]{40,64}$/.test(r.candidate)
@@ -99,8 +108,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
           return valid(value) ? value : undefined;
         },
         (value) => JSON.stringify(value),
-        (a, b) =>
-          a.command === b.command && a.publication === b.publication && a.run === b.run && a.candidate === b.candidate
+        (a, b) => JSON.stringify(a) === JSON.stringify(b)
       );
       const saved = this.record.read();
       if (saved.blocked) throw Error('saved record');
@@ -116,7 +124,12 @@ export class SodaFactoryRetainedPublication extends LitElement {
       serial = this.serial;
     if (!context || !record || !this.ready || this.busy) return;
     const publication = context.detail?.publication;
-    if (!this.pending && (!publication || !context.detail?.capabilities.publish_retained?.available)) return;
+    const funding = context.detail?.capabilities.fund_retained;
+    if (
+      !this.pending &&
+      (!publication || (!context.detail?.capabilities.publish_retained?.available && !funding?.available))
+    )
+      return;
     const captured = record.read();
     if (captured.blocked) {
       this.ready = false;
@@ -130,6 +143,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
         publication: publication.id,
         run: publication.run,
         candidate: publication.candidate,
+        ...(funding?.available ? {funding: structuredClone(funding.funding)} : {}),
       });
     if (!pending || !valid(pending) || record.retain(pending) !== 'saved') {
       this.message = 'The publication identity could not be saved. No request was sent.';
@@ -137,13 +151,16 @@ export class SodaFactoryRetainedPublication extends LitElement {
     }
     this.pending = pending;
     this.busy = true;
-    this.message = 'Publication requested; waiting for confirmation.';
+    this.message = pending.funding
+      ? 'Funding requested; waiting for confirmation.'
+      : 'Publication requested; waiting for confirmation.';
     try {
       const response = await context.transport.request(`factory/runs/${pending.run}/actions`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          action: 'publish-retained-candidate',
+          action: pending.funding ? 'fund-retained-candidate' : 'publish-retained-candidate',
+          ...(pending.funding ? {funding: pending.funding} : {}),
           command_id: pending.command,
           publication: pending.publication,
         }),
@@ -153,41 +170,46 @@ export class SodaFactoryRetainedPublication extends LitElement {
       if (!this.live(serial)) return;
       if (
         !response.ok ||
-        receipt.id !== pending.command ||
-        receipt.assignment_id !== pending.command ||
-        receipt.run !== pending.run ||
-        receipt.candidate !== pending.candidate
+        (pending.funding
+          ? receipt.command_id !== pending.command ||
+            JSON.stringify(receipt.funding) !== JSON.stringify(pending.funding)
+          : receipt.id !== pending.command ||
+            receipt.assignment_id !== pending.command ||
+            receipt.run !== pending.run ||
+            receipt.candidate !== pending.candidate)
       )
         throw Error('unconfirmed');
       const saved = record.read();
       if (saved.blocked || saved.pending?.command !== pending.command) throw Error('changed record');
       record.settle(pending);
       this.pending = undefined;
-      this.message = 'Fresh publication recorded. Review and correction require separate funding.';
+      this.message = pending.funding
+        ? 'Finite review/correction funding recorded on the selected source. Earlier charges and publication authority remain unchanged.'
+        : 'Fresh publication recorded. Review and correction require separate funding.';
       this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
     } catch {
       if (this.live(serial))
-        this.message =
-          'Publication was not confirmed. The saved request is preserved; check the same request to recover its result.';
+        this.message = `${pending.funding ? 'Funding' : 'Publication'} was not confirmed. The saved request is preserved; check the same request to recover its result.`;
     } finally {
       if (this.live(serial)) this.busy = false;
     }
   }
   protected render() {
     const publication = this.current?.detail?.publication;
-    if (!this.pending && publication?.stage !== 'fenced') return html``;
-    return html`<section aria-label="Publish retained candidate">
+    const offer = this.current?.detail?.capabilities.fund_retained;
+    const funding = this.pending?.funding ?? offer?.funding;
+    if (!this.pending && publication?.stage !== 'fenced' && !offer?.available) return html``;
+    return html`<section aria-label=${funding ? 'Fund retained candidate review' : 'Publish retained candidate'}>
       <p>
-        Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No
-        planning or Builder work runs again.
+        ${funding ? `Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} active minutes, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. The earlier charge is preserved. Planning and the initial Builder do not run again.` : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
       </p>
       <button
         class="ui button"
         type="button"
-        ?disabled=${this.busy || !this.ready || (!this.pending && !this.current?.detail?.capabilities.publish_retained?.available)}
+        ?disabled=${this.busy || !this.ready || (!this.pending && !this.current?.detail?.capabilities.publish_retained?.available && !offer?.available)}
         @click=${() => this.publish()}
       >
-        ${this.pending ? 'Check saved publication request' : 'Publish retained candidate'}
+        ${this.pending ? 'Check saved request' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
       </button>
       <p role="status">${this.message}</p>
     </section>`;
