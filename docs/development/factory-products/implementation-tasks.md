@@ -1264,23 +1264,33 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
-Native worker bridge implementation is retained, unqualified, in owned stash
-04ed6c66cc8a6c4a3c091a8f1d1523ee66497095 (prior checkpoints aca7e2563ec8d64d1156b371a1a43e8d89ed6615 and 685e1e4480fb63a91744607d4839b08e5e589356 are preserved). It adds version6 captured connection/
-grant/packet binding, pre-launch claim, owned withdrawal watcher and physical
-retirement adoption across Go/Rust; it has not passed a connected worker journey
-and is not installed. `controller-bridge-final-build.log` and
-`controller-bindings1.log` under `q19-authority` pass native compilation and exact
-Go/Rust task/manifest capture/refusal, with no worker/provider admission. Before
-launch qualification, verify the new separate immutable claim capture and private
-post-claim Go admission callback, including canonical host/account/repository
-matching and physical worker retirement. Their Go/native builds pass in
-`controller-{admission,scope}-build.log`; they are not connected execution proof.
-`native-claim-connected5.log` passes the existing actual-host TLS/keyring claim
-journey with the added wrong-connection refusal; all owned checks joined.
-`native-claim-connected4.log` failed before
-native execution because its new fixture lacked retained TLS assets; PG/bus
-joined. Reuse existing TLS assets in the next affected check. Both older user
-stashes remain intact; restore the latest owned stash to continue this slice.
+**Verified native bridge increment; full Q19 remains INCOMPLETE.**
+`q19-authority/native-worker-connected9.log` passes canonical Fountain
+b81819dacfa759eb5fa1d0231d098181fac16678 (parent b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b):
+actual TLS/OAuth/keyring/profile proof, host-observed central placement, original
+grant/connection/packet claim, post-claim Go policy/funding/secret and canonical
+host/account/repository checks, finite local worker/MCP artifact/result, physical
+retirement, exact host claim retirement and coordinator settlement. Three distinct
+claim POSTs (including the earlier lost-reply case), one completion-note POST;
+lookup/reopen never dispatches again. All native/backend/PG/keyring/bus owners
+joined. Source patch `controller-qualified9.patch` SHA256
+80646288725c0332f949d0aa51c0d986bd2b128323c82a14679f7a05d422b16e;
+`controller-bindings1.log` separately verifies Go/Rust v5/v6 task captures and
+historical/missing-authority refusal. No paid inference or installed proof.
+
+Central placement is observed, never selected locally; native Fountain dispatch
+requires a separately captured execution grant. Claim capture no longer consumes
+the worker intent. Retirement recovery waits for terminal proof without blocking
+live inspection; its owned watcher joins on an independent executor. Existing
+stashes 04ed6c66cc8a6c4a3c091a8f1d1523ee66497095, aca7e2563ec8d64d1156b371a1a43e8d89ed6615
+and685e1e4480fb63a91744607d4839b08e5e589356 remain. Earlier native-worker checks1–8
+remain failed evidence: central-placement gap, stale build/blocked fixture calls,
+isolated user-manager environment, live terminal-read refusal, async watcher-drop
+panic and fixture settlement ordering. Their original operations/receipts remain;
+no uncertain old launch was retried. Next: real Fountain source/read/product
+adapter and preparation grants, then worker withdrawal/expiry/competing-controller
+and retained full-journey qualification. A declared source bundle in check9 does
+not establish provider-source custody or Q19/Q21/Q22/Q23/Q27 completion.
 
 **Current native claim recovery (2026-11-09):** canonical Fountain
 `b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
@@ -2048,15 +2058,31 @@ Architect f3f51b4cb9631d064a6d2555f92f2096 succeeded; Builder
 71ab940c163330d9d2356f7abfab4f1854f82ec6 and passed literal-check, then ended
 with no finish report after two CI preimage refusals. Both edits used offset0
 with expected text from the middle of the file. All nine runs are reconciled/
-retired,55 minutes charged,28 judgments finished,zero publications. Receipts are
+retired,55 minutes charged,31 judgments finished,zero publications. Receipts are
 `q26-current26-{command,builder-progress}-original.log` and original native
 run/task journals. Clarify the actual workspace tool description and refusal:
 offset is an absolute UTF-8 byte position, not a text search; whole-file replacement
 or append has explicit semantics. Preserve the refused edits and partial writes.
 No further paid Retry is authorized; five minutes remain on the60-minute source.
-Current26 app202003/backend/PG remain running; next action is verify quiescence,
-snapshot original logs and install the clarified tool contract before another
-owner-approved paid attempt. Full Q26 and the independent queue remain open.
+Current26 joined before exact-prior current27 activation from
+bfb9fe05aad829b524ec7cb910420c51f2a5d6ea (inventory68f8231065f8f1a92b19a67ed5783c5e96b250a1d096148ff4d8ef4e3a335909,
+archive0f8a86576493cd5c2f1dc7bba01d7b32b58ad917ce516a5952c8671f5f14822f).
+`current27-{upgrade,durable-check}.log` and `q26-current27-recovered-original.log`
+prove unchanged profile/password/signer/keyring and original nine-run accounting.
+The next owner authorization saved90 minutes total on the same source, revision3,
+then UI Retry e49b93213a574e04b48bdfe6f12f84ee recorded once at22:49:38Z.
+Architect844c68da3bc1d4789492141719e1d9cc succeeded; Builder
+cbff71940983098a42f2142f9c2bc978 made partial writes, then starting docs-ci before
+the prior checkpoint committed killed its workspace service with `workspace task
+already active or complete`. `q26-current27-final-original.log` proves11 reconciled/
+retired runs,38 finished judgments,68 charged minutes,zero publications. Original
+native receipts and systemd journal preserve the refusal and partial edits.
+Current27 app214803/backend/PG remain running, with no active inference. The
+dependency-ready fix adds read-only head observation and head-bound task-start
+receipts with recoverable busy/dependency/stale refusal; changed heads require a
+new command, while old uncertain starts remain fenced. Native compilation passes
+`task28-build.log`; real workspace/MCP checks and installation are next. No further
+paid Retry is authorized. Full Q26 and the independent queue remain open.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

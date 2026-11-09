@@ -3070,6 +3070,24 @@ owned stash04ed6c66cc8a6c4a3c091a8f1d1523ee66497095; separate claim capture,
 post-I/O Go admission and canonical scope checks build, while connected worker
 qualification remains. Its existing native claim check5 passed and joined.
 
+Q19 native controller bridge (2026-11-10): native-worker-connected9 passes the
+canonical Fountain b81819dacfa759eb5fa1d0231d098181fac16678 TLS/keyring/native
+placement → original claim → Go admission → finite worker/MCP → physical/host
+retirement → settlement. No paid inference; source is declared, not fetched from
+Fountain. The Q19 record retains exact patch/check references and earlier failures.
+Missing source/product/preparation adapters and full withdrawal/competing-owner/
+installed journeys remain ordinary work. The independent watcher executor fixes
+actual async retirement, and terminal-only recovery preserves live observation.
+
+Q26 installed task-start recovery (2026-11-10): current27/bfb9fe0 preserves prior
+state and records the newly authorized90-minute allowance and e49b932 Retry once.
+Its Architect succeeds; Builder loses its workspace on a premature next-task start.
+All11 runs and38 judgments settle,68 minutes remain charged,zero publications.
+Implement a read-only native head observation and head-bound start with immutable
+recoverable refusals; a later checkpoint creates a distinct command identity.
+Do not replay the original uncertain start, alter its receipt or fund another
+Retry without authorization. Qualification/installation are still pending.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

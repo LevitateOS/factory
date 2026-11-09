@@ -27,6 +27,9 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 	if err := requireNativeDecisionTx(ctx, tx, a.ProjectID, env.Native); err != nil {
 		return factory.Run{}, err
 	}
+	if err := checkNativeControllerTx(ctx, tx, a.Repository, native.Workspace.Profile, grants.policy.Execution); err != nil {
+		return factory.Run{}, err
+	}
 	if _, err := lockAttemptAllowanceRootTx(ctx, tx, a.Repository, a.Issue, a.AttemptRoot); err != nil && (a.AttemptRoot != a.ID || !errors.Is(err, sql.ErrNoRows)) {
 		return factory.Run{}, err
 	}
@@ -71,21 +74,53 @@ func admitNativeDispatchTx(ctx context.Context, tx *sql.Tx, a factory.Assignment
 		intent.ExecutionPhase = a.Phase
 		intent.ManifestDigest = project.ExecutionManifestDigest(run.ExecutionManifest)
 	}
-	n.Intent, err = intent.Encode()
-	if err != nil {
-		return factory.Run{}, err
-	}
-	run.Native = &n
 	run.Admission = &factory.RunAdmission{Authority: a.Authority, Policy: grants.policy, Native: &native}
-	if run.Admission.Policy.Execution != nil {
+	if ref := run.Admission.Policy.Execution; ref != nil {
+		if ref.Validate() != nil || ref.NativeProfile != native.Workspace.Profile || ref.NativeConnection == "" || native.TrustMode != execution.NativeCLIProvider {
+			return refuse()
+		}
 		captured, err := factory.ControllerAdmissionDigest(a, run)
 		if err != nil {
 			return refuse()
 		}
 		run.Admission.ControllerManifestDigest = captured
+		intent.Version = 6
+		intent.Controller = &execution.NativeController{Connection: string(ref.NativeConnection), GrantID: ref.ControllerGrantID, ManifestDigest: captured}
 	}
+	n.Intent, err = intent.Encode()
+	if err != nil {
+		return factory.Run{}, err
+	}
+	run.Native = &n
 	if run.RuntimeKind() != collaboration.Native || run.Validate() != nil {
 		return refuse()
 	}
 	return run, nil
+}
+
+// Central placement is an observation, never execution authority. Only a
+// captured Fountain operation grant can enter the host-controlled native lane.
+func checkNativeControllerTx(ctx context.Context, tx *sql.Tx, repository int64, profile collaboration.ProfileID, ref *factory.ActorBindingRef) error {
+	var host collaboration.HostID
+	var provider collaboration.Provider
+	if err := tx.QueryRowContext(ctx, `SELECT h.id,h.provider FROM collaboration_repositories r JOIN collaboration_hosts h ON h.id=r.host WHERE r.id=$1`, repository).Scan(&host, &provider); err != nil {
+		return err
+	}
+	if provider != collaboration.Fountain {
+		if ref != nil {
+			return ErrAdmissionChanged
+		}
+		return nil
+	}
+	if ref == nil || ref.Validate() != nil || ref.Kind != "execution.launch" || ref.ControllerGrantID == "" || ref.NativeProfile != profile {
+		return ErrAdmissionChanged
+	}
+	var matches bool
+	if err := tx.QueryRowContext(ctx, `SELECT host=$2 AND actor=$3 AND profile=$4 FROM collaboration_connections WHERE id=$1`, ref.NativeConnection, host, ref.ActorID, profile).Scan(&matches); err != nil {
+		return err
+	}
+	if !matches {
+		return ErrAdmissionChanged
+	}
+	return nil
 }

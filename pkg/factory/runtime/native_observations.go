@@ -12,9 +12,54 @@ import (
 	"time"
 
 	"github.com/levitateos/factory/pkg/collaboration"
+	"github.com/levitateos/factory/pkg/factory"
 	factoryservice "github.com/levitateos/factory/pkg/factory/service"
 	"github.com/levitateos/factory/pkg/strictjson"
 )
+
+// Only the authenticated native connector supplies this fresh central fact.
+// The browser cannot select a Fountain placement in the standalone store.
+func nativeFountainPlacement(p NativeExecution) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/native/collaboration/placement" || r.URL.RawQuery != "" || r.URL.ForceQuery || len(r.Header.Values("X-Soda-Native-Instance")) != 1 || r.Header.Get("X-Soda-Native-Instance") != p.Instance {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_native_placement"})
+			return
+		}
+		var input struct {
+			Connection string                 `json:"connection"`
+			Origin     string                 `json:"origin"`
+			Actor      string                 `json:"actor"`
+			Login      string                 `json:"login"`
+			Repository string                 `json:"repository"`
+			Name       string                 `json:"name"`
+			Enrollment string                 `json:"enrollment"`
+			Runtime    string                 `json:"runtime"`
+			OwnerKind  string                 `json:"owner_kind"`
+			OwnerID    string                 `json:"owner_id"`
+			Generation int64                  `json:"generation,string"`
+			State      factory.PlacementState `json:"state"`
+			Revision   collaboration.Revision `json:"revision"`
+		}
+		if strictjson.Decode(http.MaxBytesReader(w, r.Body, 8192), &input) != nil || input.Runtime != string(p.Config.Profile) || input.OwnerKind != "desktop" || !collaboration.ValidID(input.Enrollment) || input.OwnerID != input.Enrollment {
+			nativeResponse(w, 400, map[string]string{"error": "invalid_native_placement"})
+			return
+		}
+		mapping, err := p.Store.ApplyCollaborationObservation(r.Context(), collaboration.ConnectionObservationBatch{
+			Connection:   collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: p.Config.Profile, Name: "This computer"}, Provider: collaboration.Fountain, APIBase: input.Origin, Connection: collaboration.ConnectionID(input.Connection), Account: input.Actor, Login: input.Login},
+			Repositories: []collaboration.ObservedRepository{{ExternalID: input.Repository, Name: input.Name}},
+		})
+		if err != nil || len(mapping.Repositories) != 1 {
+			nativeResponse(w, 409, map[string]string{"error": "canonical_placement_unavailable"})
+			return
+		}
+		placement := factory.Placement{Host: mapping.Binding.Host.ID, Repository: mapping.Repositories[0].ID, Runtime: collaboration.RuntimeID(input.Runtime), Generation: input.Generation, State: input.State, Coordination: factory.FountainCentral, SelectedBy: mapping.Binding.Actor.ID, Revision: input.Revision, UpdatedAt: time.Now().UTC()}
+		if err = p.Store.ObserveFountainPlacement(r.Context(), placement, p.Config.Profile); err != nil {
+			nativeResponse(w, 409, map[string]string{"error": "central_placement_unavailable"})
+			return
+		}
+		nativeResponse(w, 200, map[string]string{"revision": string(placement.Revision)})
+	})
+}
 
 type NativeObservationStore interface {
 	ApplyCollaborationObservation(context.Context, collaboration.ConnectionObservationBatch) (collaboration.ConnectionObservationMapping, error)

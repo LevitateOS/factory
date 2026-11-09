@@ -2755,6 +2755,18 @@ fn task_manifest_bindings(profile: &Path) -> Result<(), Box<dyn std::error::Erro
     for fixture in bindings {
         let raw = fixture["intent"].as_str().ok_or("binding intent missing")?;
         let wire: serde_json::Value = serde_json::from_str(raw)?;
+        if wire["version"] == 6 {
+            let mut historical = wire.clone();
+            historical["version"] = serde_json::json!(5);
+            if soda_desktop_runtime::factory_provider::LaunchIntent::from_go(&serde_json::to_string(&historical)?).is_ok() {
+                return Err("historical intent acquired controller authority".into());
+            }
+            let mut missing = wire.clone();
+            missing.as_object_mut().ok_or("wire missing")?.remove("controller");
+            if soda_desktop_runtime::factory_provider::LaunchIntent::from_go(&serde_json::to_string(&missing)?).is_ok() {
+                return Err("controller intent accepted missing authority".into());
+            }
+        }
         let field =
             |value: &serde_json::Value, key: &str| -> Result<String, Box<dyn std::error::Error>> {
                 Ok(value[key]
@@ -2816,7 +2828,7 @@ fn task_manifest_bindings(profile: &Path) -> Result<(), Box<dyn std::error::Erro
             return Err("exact manifest readback failed".into());
         }
     }
-    println!("PASS: exact Go task intent/manifest readback for token and CLI sources; altered bytes and a pending manifest marker refused; no task or provider admitted");
+    println!("PASS: exact Go task intent/manifest readback for token, CLI and captured controller sources; historical/missing authority, altered bytes and a pending manifest marker refused; no task or provider admitted");
     Ok(())
 }
 

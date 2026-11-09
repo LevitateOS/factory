@@ -189,6 +189,17 @@ pub(super) fn retained(profile: &Path, intent: &LaunchIntent) -> io::Result<Opti
     }
     result(profile, intent, header.process, output).map(Some)
 }
+
+// A live process need not have a terminal result yet. Controller retirement
+// recovery must not turn that absence into failed live observation.
+pub(super) fn retired(profile: &Path, intent: &LaunchIntent) -> io::Result<Option<MuseRun>> {
+    match read(&path(profile, intent, "retired")?, 1024) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+        Ok(_) => (),
+    }
+    retained(profile, intent)
+}
 fn result(
     profile: &Path,
     intent: &LaunchIntent,

@@ -42,6 +42,26 @@ type syntheticCapability struct{ current factory.MCPCapability }
 
 type pendingProductJudgment struct{}
 
+// Public scope from the connected Fountain fixture; credentials stay in Rust.
+type nativeControllerFixture struct {
+	Origin, Connection, Actor, Repository, Grant string
+}
+
+func controllerFixture(profile string) (*nativeControllerFixture, error) {
+	if os.Getenv("SODA_NATIVE_CHECK_CONTROLLER") != "1" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(filepath.Join(profile, "controller-fixture.json"))
+	var capture nativeControllerFixture
+	if err != nil {
+		return nil, err
+	}
+	if json.Unmarshal(raw, &capture) != nil || capture.Origin == "" || capture.Actor == "" || capture.Repository == "" || !factory.ValidID(capture.Connection) || !factory.ValidID(capture.Grant) {
+		return nil, errors.New("connected controller fixture scope missing")
+	}
+	return &capture, nil
+}
+
 func (pendingProductJudgment) Select(context.Context, any, string, map[string]any) (factory.PriorityAnswer, error) {
 	return factory.PriorityAnswer{}, factoryservice.ErrPostJudgmentPending
 }
@@ -4052,6 +4072,13 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	binding, err := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Native source fixture"},
 		Provider: collaboration.GitHub, APIBase: "https://api.github.com", Connection: collaboration.ConnectionID(factory.NewID()), Account: "native-source-owner", Login: "native-source-owner"})
+	controller, controllerErr := controllerFixture(profile)
+	if controllerErr != nil {
+		return controllerErr
+	}
+	if controller != nil {
+		binding, err = db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Native source fixture"}, Provider: collaboration.Fountain, APIBase: controller.Origin, Connection: collaboration.ConnectionID(controller.Connection), Account: controller.Actor, Login: "user2"})
+	}
 	if os.Getenv("SODA_NATIVE_CHECK_PRIORITY") == "1" {
 		var connected struct{ Repository, Connection string }
 		raw, e := os.ReadFile(filepath.Join(profile, "connected-queue.json"))
@@ -4075,6 +4102,11 @@ func admittedNativeFixture(profile, instance, path string, action string) error 
 	}
 	policy := factory.RepositoryPolicy{Repository: repository, GrantedBy: actor, Enabled: true, TargetBranch: "refs/heads/main", Roles: roles, Checks: []string{"fixture/check"}, MergeMethod: factory.MergeFastForward,
 		Publish: ref(factory.OpRefPublish), Create: ref(factory.OpPRCreate), Review: ref(factory.OpReviewSubmit), Merge: ref(factory.OpMerge), AttemptLimits: factory.DefaultAttemptLimits(), ReassessmentMinutes: factory.DefaultReassessmentMinutes}
+	if controller != nil {
+		executionRef := ref("execution.launch")
+		executionRef.ControllerGrantID = controller.Grant
+		policy.Execution = &executionRef
+	}
 	if prior, err := db.RepositoryPolicy(ctx, repository); err == nil {
 		policy.Revision = prior.Revision
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -5483,6 +5515,18 @@ func nativePreparationFixture(profile, instance, mode string) error {
 		if e != nil {
 			return e
 		}
+	} else if controller, e := controllerFixture(profile); e != nil {
+		return e
+	} else if controller != nil {
+		binding, e := db.BindCollaborationConnection(ctx, collaboration.ConnectionObservation{Profile: collaboration.Profile{ID: config.Profile, Name: "Native source fixture"}, Provider: collaboration.Fountain, APIBase: controller.Origin, Connection: collaboration.ConnectionID(controller.Connection), Account: controller.Actor, Login: "user2"})
+		if e != nil {
+			return e
+		}
+		host, actor = binding.Host, binding.Actor
+		repo, err = db.ObserveCollaborationRepository(ctx, host.ID, controller.Repository, "user2/repo1")
+		if err != nil {
+			return err
+		}
 	} else {
 		host, err = db.PutCollaborationHost(ctx, collaboration.Host{ID: collaboration.HostID(factory.NewID()), Provider: collaboration.GitHub, APIBase: "https://api.github.com"})
 		if err != nil {
@@ -5500,7 +5544,17 @@ func nativePreparationFixture(profile, instance, mode string) error {
 	if err = db.PutCollaborationProfile(ctx, collaboration.Profile{ID: config.Profile, Name: "Native source fixture"}); err != nil {
 		return err
 	}
-	placement, err := db.SelectPlacement(ctx, host.ID, repo.ID, actor.ID, collaboration.RuntimeRef{ID: collaboration.RuntimeID(config.Profile), Profile: config.Profile, Kind: collaboration.Native, Name: "Native source fixture"}, "", factory.PlacementActive)
+	var placement factory.Placement
+	if controller, e := controllerFixture(profile); e != nil {
+		return e
+	} else if controller != nil {
+		placement, err = db.Placement(ctx, repo.ID)
+		if err == nil && (placement.Coordination != factory.FountainCentral || placement.RequireDispatch(host.ID, repo.ID, collaboration.RuntimeID(config.Profile), placement.Generation) != nil) {
+			return factory.ErrPlacement
+		}
+	} else {
+		placement, err = db.SelectPlacement(ctx, host.ID, repo.ID, actor.ID, collaboration.RuntimeRef{ID: collaboration.RuntimeID(config.Profile), Profile: config.Profile, Kind: collaboration.Native, Name: "Native source fixture"}, "", factory.PlacementActive)
+	}
 	if err != nil {
 		return err
 	}
@@ -9730,9 +9784,11 @@ func writeTaskManifestBindings(profile string, intent execution.NativeIntent) er
 	for _, mode := range []struct {
 		authentication, phase string
 		children              int
+		controller            bool
 	}{
-		{"token", project.ExecutionImplement, 0}, {"muse_login", project.ExecutionImplement, 0},
-		{"token", project.ExecutionImplement, 1}, {"muse_login", project.ExecutionCorrect, 0},
+		{"token", project.ExecutionImplement, 0, false}, {"muse_login", project.ExecutionImplement, 0, false},
+		{"token", project.ExecutionImplement, 1, false}, {"muse_login", project.ExecutionCorrect, 0, false},
+		{"muse_login", project.ExecutionImplement, 0, true}, {"muse_login", project.ExecutionCorrect, 0, true},
 	} {
 		bound := intent
 		bound.Version, bound.Run, bound.Role = 5, factory.NewID(), project.RoleCoder
@@ -9751,6 +9807,20 @@ func writeTaskManifestBindings(profile string, intent execution.NativeIntent) er
 			return encodeErr
 		}
 		bound.ExecutionPhase, bound.ManifestDigest = phase, project.ExecutionManifestDigest(exact)
+		if mode.controller {
+			bound.Version = 6
+			bound.Controller = &execution.NativeController{Connection: strings.Repeat("c", 32), GrantID: strings.Repeat("d", 32), ManifestDigest: strings.Repeat("e", 64)}
+			old := bound
+			old.Version = 5
+			if _, err := old.Encode(); err == nil {
+				return errors.New("historical intent acquired controller authority")
+			}
+			missing := bound
+			missing.Controller = nil
+			if _, err := missing.Encode(); err == nil {
+				return errors.New("controller intent lost its authority capture")
+			}
+		}
 		encoded, encodeErr := bound.Encode()
 		if encodeErr != nil {
 			return encodeErr

@@ -1200,6 +1200,64 @@ async fn fountain_enrollment(profile: &Path, origin: &str, application: &str) ->
     Ok(())
 }
 
+async fn controller_worker(profile: &Path, credentials: Arc<Credentials>, client: Arc<soda_desktop_runtime::fountain_provider::Client>, origin: &str, connection: &str, grant: &soda_desktop_runtime::fountain_provider::OperationGrant) -> Result<soda_desktop_runtime::fountain_provider::ExecutionClaimRequest> {
+    use soda_desktop_runtime::{supervisor::NativeSupervisor, factory_provider::{LaunchIntent,ExecutionOutcome}};
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::io::Write;
+    use std::process::Command;
+    let payload=std::env::var("FACTORY_FOUNTAIN_CONTROLLER_PAYLOAD")?;
+    let backend=std::env::var("FACTORY_FOUNTAIN_CONTROLLER_BACKEND")?;
+    let check=std::env::var("FACTORY_FOUNTAIN_CONTROLLER_GO_CHECK")?;
+    let finite=std::env::var("FACTORY_FOUNTAIN_CONTROLLER_FINITE")?;
+    let mut identity=fs::OpenOptions::new().create_new(true).write(true).mode(0o600).open(profile.join("profile.id"))?;
+    identity.write_all(grant.runtime_id.as_bytes())?;identity.sync_all()?;drop(identity);
+    let supervisor=NativeSupervisor::start(Path::new(&payload),Path::new(&backend),profile)?;
+    let ready=supervisor.health()?;
+    ensure(ready.profile==grant.runtime_id,"native controller profile changed")?;
+    supervisor.enroll_credentials(credentials)?;
+    supervisor.observe_fountain_controller(client).await?;
+    fs::write(profile.join("controller-fixture.json"),serde_json::to_vec(&serde_json::json!({"Origin":origin,"Connection":connection,"Actor":grant.actor.id,"Repository":grant.repository.id,"Grant":grant.id}))?)?;
+    let command=|operation:&str, argument:&str| {
+        let (check,profile,instance,operation,argument)=(check.clone(),profile.to_path_buf(),ready.instance.clone(),operation.to_owned(),argument.to_owned());
+        async move {
+            let status=tokio::task::spawn_blocking(move || Command::new(&check).env("SODA_NATIVE_CHECK_CONTROLLER","1").env("SODA_NATIVE_KEEP_PREPARATION","1").arg(profile).arg(instance).arg(operation).arg(argument).status()).await??;
+            ensure(status.success(),"connected controller native Go action failed")
+        }
+    };
+    command("check-native-preparation","ready").await?;
+    let preparations=fs::read_dir(profile.join("native-preparations"))?.collect::<std::result::Result<Vec<_>,_>>()?;
+    ensure(preparations.len()==1,"controller preparation missing")?;
+    let prepared:serde_json::Value=serde_json::from_slice(&fs::read(preparations[0].path().join("request.json"))?)?;
+    let mut random=[0u8;16];getrandom::fill(&mut random)?;
+    let run:String=random.iter().map(|b|format!("{b:02x}")).collect();
+    let fixture=profile.join("admitted-native-fixture.json");
+    fs::write(&fixture,serde_json::to_vec(&serde_json::json!({"Run":run,"MuseLogin":true,"Preparation":prepared["input"]["preparation"]["id"],"Executable":finite}))?)?;
+    command("launch-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    let intent=LaunchIntent::from_go(&fs::read_to_string(profile.join("native-run-intents").join(format!("{run}.json")))?)?;
+    let until=Instant::now()+Duration::from_secs(65);
+    loop {
+        match supervisor.execution_outcome(&intent)? {
+            ExecutionOutcome::Pending if Instant::now()<until => tokio::time::sleep(Duration::from_millis(20)).await,
+            ExecutionOutcome::MuseComplete(result) if result.root_retired && result.process.output_complete && result.process.exit_code==Some(0) => break,
+            _ => return Err("host-controlled native worker did not retire successfully".into()),
+        }
+    }
+    command("check-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    command("acknowledge-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    supervisor.start_execution_coordinator().await?;
+    command("settled-admitted-native",fixture.to_str().ok_or("fixture path invalid")?).await?;
+    let wire:serde_json::Value=serde_json::from_str(intent.raw())?;
+    let admitted:serde_json::Value=serde_json::from_slice(&fs::read(&fixture)?)?;
+    let claim=soda_desktop_runtime::fountain_provider::ExecutionClaimRequest {
+        command_id:run,
+        manifest_digest:wire["controller"]["manifest_digest"].as_str().ok_or("controller capture missing")?.into(),
+        not_after:admitted["DeadlineUnix"].as_i64().ok_or("worker deadline missing")?.min(grant.not_after),
+    };
+    supervisor.stop()?;
+    println!("PASS: actual Fountain claim surrounds declared-source native Go admission, finite local worker/MCP and physical retirement; no inference or source-provider parity claimed");
+    Ok(claim)
+}
+
 async fn fountain_controller(profile: &Path, origin: &str, application: &str) -> Result<()> {
     use soda_desktop_runtime::{fountain_oauth, fountain_provider::{Client,Selection,OperationAuthorization,Note,ExecutionClaimRequest,ExecutionRetirement},mcp_signing::Signer};
     prepare(profile)?;
@@ -1284,10 +1342,17 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(completed.effect_state=="committed"&&completed.completion_state=="complete","lost native write reply was not adopted")?;
         drop(client);drop(signer);store.retire();store=Arc::new(Credentials::open(profile,runtime)?);
         let signer=Signer::open(profile)?;
-        let (client,captured_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&grant.id).await.map_err(|e|e.code)?;
+        ensure(soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&"0".repeat(32),&grant.id).await.is_err(),"another native connection adopted the captured controller")?;
+        let (client,captured_grant)=soda_desktop_runtime::fountain_provider::captured_operation_grant(store.clone(),profile,runtime,&saved.connection,&grant.id).await.map_err(|e|e.code)?;
+        let client=Arc::new(client);
         ensure(captured_grant.id==grant.id&&captured_grant.not_after==grant.not_after&&captured_grant.runtime_id==grant.runtime_id,"native reopen changed the captured controller scope")?;
         let recovered=client.submit_note(profile,&grant,operation,native.revision,not_after,&note).await.map_err(|e|e.code)?;
         ensure(recovered.intent_digest==completed.intent_digest&&recovered.receipt==completed.receipt,"native receipt changed across reopen")?;
+        if std::env::var_os("FACTORY_FOUNTAIN_CONTROLLER_PAYLOAD").is_some() {
+            let worker=controller_worker(profile,store.clone(),client.clone(),origin,&saved.connection,&grant).await?;
+            let retired=client.execution_claim(&grant,&worker).await.map_err(|e|e.code)?;
+            ensure(retired.state=="retired"&&!retired.acquired&&retired.retirement_digest.len()==64,"native physical retirement did not settle the exact host claim")?;
+        }
         ensure(!client.claim_execution(profile,&grant,&lost_claim).await.map_err(|e|e.code)?.acquired,"reopen acquired an old dispatch")?;
         let lost_no_start=ExecutionRetirement{manifest_digest:lost_claim.manifest_digest.clone(),state:"not_started".into(),receipt_digest:"b".repeat(64)};
         client.retire_execution(profile,&grant,&lost_claim,&lost_no_start).await.map_err(|e|e.code)?;
@@ -1324,7 +1389,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let original_preserved=store.with_token(&store.capability(&read_saved.connection).await?,|bytes|!bytes.is_empty()).await?;
     let read_withdrawn=store.withdraw(&read_saved.connection).await;
     store.retire();result?;withdrawn?;read_withdrawn?;ensure(original_preserved,"read credential was not preserved")?;
-    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen, controller withdrawal/retirement and reconnected read-only history without source rebinding; no worker launch or paid inference");
+    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen, controller withdrawal/retirement and reconnected read-only history without source rebinding; connector-only unless finite-worker evidence is printed above; no paid inference");
     Ok(())
 }
 

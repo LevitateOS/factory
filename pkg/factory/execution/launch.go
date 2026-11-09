@@ -21,6 +21,21 @@ type ApplianceLaunch struct {
 	Tool                     ApplianceTool   `json:"tool"`
 }
 
+// NativeController binds a separately authorized host operation to this exact
+// admitted packet. Read enrollment and the inference source confer no control.
+type NativeController struct {
+	Connection     string `json:"connection"`
+	GrantID        string `json:"grant_id"`
+	ManifestDigest string `json:"manifest_digest"`
+}
+
+func (c NativeController) Validate() error {
+	if !collaboration.ValidID(c.Connection) || !collaboration.ValidID(c.GrantID) || !validDigest(c.ManifestDigest) {
+		return ErrLaunch
+	}
+	return nil
+}
+
 // NativeLaunch captures placement and executable identity for a new launch.
 // An unplaced NativeRecord cannot synthesize these fields or gain authority by
 // being observed. The admitting store/gateway owns the placement exclusion gate.
@@ -94,10 +109,11 @@ func (n NativeLaunch) matchesRecord(record NativeRecord) bool {
 // LaunchRequest reuses the semantic prompt/manifest contract. Runtime-specific
 // captured inputs stay in exactly one variant; no OS identity is a default.
 type LaunchRequest struct {
-	Input     project.FactoryLaunch     `json:"input"`
-	Kind      collaboration.RuntimeKind `json:"kind"`
-	Appliance *ApplianceLaunch          `json:"appliance,omitempty"`
-	Native    *NativeLaunch             `json:"native,omitempty"`
+	Input      project.FactoryLaunch     `json:"input"`
+	Kind       collaboration.RuntimeKind `json:"kind"`
+	Appliance  *ApplianceLaunch          `json:"appliance,omitempty"`
+	Native     *NativeLaunch             `json:"native,omitempty"`
+	Controller *NativeController         `json:"controller,omitempty"`
 }
 
 func (r LaunchRequest) Address() RunAddress {
@@ -111,7 +127,7 @@ func (r LaunchRequest) Validate() error {
 	var family, version, digest string
 	switch r.Kind {
 	case collaboration.Appliance:
-		if r.Appliance == nil || r.Native != nil || r.Appliance.Profile.Validate() != nil || r.Appliance.Tool.Validate() != nil || r.Appliance.ControllerGrantID != "" && (!collaboration.ValidID(r.Appliance.ControllerGrantID) || !validDigest(r.Appliance.ControllerManifestDigest)) || r.Appliance.ControllerGrantID == "" && r.Appliance.ControllerManifestDigest != "" {
+		if r.Appliance == nil || r.Native != nil || r.Controller != nil || r.Appliance.Profile.Validate() != nil || r.Appliance.Tool.Validate() != nil || r.Appliance.ControllerGrantID != "" && (!collaboration.ValidID(r.Appliance.ControllerGrantID) || !validDigest(r.Appliance.ControllerManifestDigest)) || r.Appliance.ControllerGrantID == "" && r.Appliance.ControllerManifestDigest != "" {
 			return ErrLaunch
 		}
 		family, version, digest = r.Appliance.Tool.Harness, r.Appliance.Tool.Version, r.Appliance.Tool.SHA256
@@ -119,6 +135,9 @@ func (r LaunchRequest) Validate() error {
 		// A LaunchRequest is an active execution instruction, unlike the
 		// retained NativeLaunch metadata on a historical RunAdmission.
 		if r.Native == nil || r.Appliance != nil || !r.Native.Active() || r.Native.PromptSHA256 != r.Input.Run.Assignment {
+			return ErrLaunch
+		}
+		if r.Controller != nil && (r.Controller.Validate() != nil || r.Native.TrustMode != NativeCLIProvider) {
 			return ErrLaunch
 		}
 		family, version, digest = r.Native.Tool.Harness, r.Native.Tool.Version, r.Native.Tool.SHA256

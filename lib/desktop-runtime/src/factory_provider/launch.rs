@@ -59,6 +59,7 @@ pub(crate) struct Input {
     pub capability: String,
     pub secret: String,
     pub tools: Vec<String>,
+    pub admission: Option<Value>,
 }
 
 pub(crate) async fn launch(
@@ -67,9 +68,13 @@ pub(crate) async fn launch(
     executions: Arc<Mutex<Executions>>,
     preparations: Arc<super::preparations::Preparations>,
     accounts: Arc<RwLock<BTreeMap<String, Arc<Account>>>>,
+    credentials: Option<Arc<Credentials>>,
     input: Input,
 ) -> io::Result<Value> {
     let intent = LaunchIntent::from_go(&input.intent)?;
+    if intent.controller().is_some() != input.admission.is_some() {
+        return Err(denied());
+    }
     if input.manifest.len() > soda_execution_protocol::MAX_TASK_MANIFEST.div_ceil(3) * 4 {
         return Err(denied());
     }
@@ -114,12 +119,16 @@ pub(crate) async fn launch(
         let helper = super::muse_helper()?;
         let binding = super::ExecutionBinding::from_intent(&intent)?;
         let digest = intent.digest();
+        let mut controller = if intent.controller().is_some() {
+            Some(super::controller::Lease::admit(credentials.ok_or_else(denied)?, directory.clone(), &intent, alive.clone(), channel.clone(), input.admission.ok_or_else(denied)?).await?)
+        } else { None };
         let mut executions = executions.lock().map_err(|_| denied())?;
         if !alive.load(Ordering::SeqCst) {
             return Err(denied());
         }
         executions.ensure_attempt(binding, move |cancel| {
-            super::muse_attempt::MuseAttempt::start(
+            if let Some(controller) = &mut controller { controller.enter(cancel.clone())?; }
+            let attempt = super::muse_attempt::MuseAttempt::start(
                 directory,
                 helper,
                 intent,
@@ -130,7 +139,10 @@ pub(crate) async fn launch(
                 mcp,
                 cancel,
             )
-            .map(super::executions::OwnedAttempt::Muse)
+            .map(super::executions::OwnedAttempt::Muse)?;
+            Ok(if let Some(controller) = controller {
+                super::executions::OwnedAttempt::Controlled(Box::new(attempt), controller)
+            } else { attempt })
         })?;
         return Ok(json!({"accepted":true,"intent_digest":digest}));
     }

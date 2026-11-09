@@ -91,15 +91,22 @@ impl AttemptView {
 pub(super) enum OwnedAttempt {
     Worker(RunExecution),
     Muse(super::muse_attempt::MuseAttempt),
+    Controlled(Box<OwnedAttempt>, super::controller::Lease),
 }
 impl OwnedAttempt {
     fn view(&self) -> AttemptView {
         match self {
             Self::Worker(run) => AttemptView::Worker(run.view()),
             Self::Muse(run) => AttemptView::Muse(run.view()),
+            Self::Controlled(run, _) => run.view(),
         }
     }
     fn finish(self) -> ExecutionOutcome {
+        if let Self::Controlled(run, lease) = self {
+            let outcome = run.finish();
+            drop(lease);
+            return outcome;
+        }
         match self {
             Self::Worker(run) => run
                 .finish()
@@ -107,6 +114,7 @@ impl OwnedAttempt {
             Self::Muse(run) => run
                 .finish()
                 .map(|run| ExecutionOutcome::MuseComplete(Arc::new(run))),
+            Self::Controlled(..) => unreachable!(),
         }
         .unwrap_or(ExecutionOutcome::Uncertain)
     }

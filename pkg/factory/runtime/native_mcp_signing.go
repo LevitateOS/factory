@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -102,12 +103,18 @@ func nativeHostCall(ctx context.Context, config NativeConfig, instance, route st
 	request.Header.Set("Content-Type", "application/json")
 	response, err := client.Do(request)
 	if err != nil {
-		return errors.New("native host callback unavailable")
+		return errors.New("native host callback transport unavailable")
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(response.Body, int64(responseLimit+1)))
-	if err != nil || len(raw) > responseLimit || response.StatusCode != http.StatusOK || ctx.Err() != nil || nativeDecode(raw, result) != nil {
-		return errors.New("native host callback unavailable")
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("native host callback unavailable (HTTP %d)", response.StatusCode)
+	}
+	if err != nil || len(raw) > responseLimit || ctx.Err() != nil {
+		return errors.New("native host callback response unavailable")
+	}
+	if nativeDecode(raw, result) != nil {
+		return errors.New("native host callback response schema unavailable")
 	}
 	return nil
 }

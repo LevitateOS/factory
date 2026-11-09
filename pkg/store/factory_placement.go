@@ -47,6 +47,70 @@ func (s *Store) Placement(ctx context.Context, repository collaboration.Reposito
 	return p, err
 }
 
+// ObserveFountainPlacement retains a fresh central observation for this native
+// profile. It never selects a host runtime or grants execution/publication.
+// The native connector verifies the exact enrollment owner before calling it;
+// dispatch still needs an original host claim and current operation grant.
+func (s *Store) ObserveFountainPlacement(ctx context.Context, p factory.Placement, profile collaboration.ProfileID) error {
+	if p.Validate() != nil || p.Coordination != factory.FountainCentral || string(p.Runtime) != string(profile) {
+		return factory.ErrPlacement
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, _, _, err = ensureDispatchGateTx(ctx, tx, int64(p.Repository)); err != nil {
+		return err
+	}
+	var provider collaboration.Provider
+	if err = tx.QueryRowContext(ctx, `SELECT h.provider FROM collaboration_repositories r JOIN collaboration_hosts h ON h.id=r.host WHERE r.id=$1 AND r.host=$2`, p.Repository, p.Host).Scan(&provider); err != nil {
+		return err
+	}
+	if provider != collaboration.Fountain {
+		return factory.ErrPlacement
+	}
+	var raw []byte
+	err = tx.QueryRowContext(ctx, `SELECT data FROM factory_placements WHERE repository=$1 FOR UPDATE`, p.Repository).Scan(&raw)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil {
+		var prior factory.Placement
+		if json.Unmarshal(raw, &prior) != nil || prior.Validate() != nil || prior.Coordination != factory.FountainCentral || p.Generation < prior.Generation || p.Runtime != prior.Runtime {
+			return factory.ErrPlacement
+		}
+		if p.Generation == prior.Generation {
+			rank := func(state factory.PlacementState) int {
+				switch state {
+				case factory.PlacementActive:
+					return 0
+				case factory.PlacementRetiring:
+					return 1
+				default:
+					return 2
+				}
+			}
+			if rank(p.State) < rank(prior.State) || p.State == prior.State && p.Revision != prior.Revision {
+				return factory.ErrPlacement
+			}
+		} else if err = placementQuiescentTx(ctx, tx, p.Repository); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO collaboration_runtimes(id,profile,kind,name) VALUES($1,$2,'native','This computer') ON CONFLICT(id) DO NOTHING`, p.Runtime, profile); err != nil {
+		return err
+	}
+	var matches bool
+	if err = tx.QueryRowContext(ctx, `SELECT profile=$2 AND kind='native' FROM collaboration_runtimes WHERE id=$1`, p.Runtime, profile).Scan(&matches); err != nil || !matches {
+		return factory.ErrPlacement
+	}
+	if err = saveFactoryPlacementTx(ctx, tx, p); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // SelectPlacement serializes with dispatch, grant changes and publication. The
 // caller supplies current administration; a stored selection grants no spending
 // or credentials and is not a cross-installation GitHub lease.
@@ -120,19 +184,23 @@ func (s *Store) SelectPlacement(ctx context.Context, host collaboration.HostID, 
 	if p.Validate() != nil {
 		return empty, factory.ErrPlacement
 	}
-	raw, err = json.Marshal(p)
-	if err != nil {
-		return empty, err
-	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO factory_placements(repository,host,runtime,generation,state,selected_by,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
- ON CONFLICT(repository) DO UPDATE SET runtime=excluded.runtime,generation=excluded.generation,state=excluded.state,selected_by=excluded.selected_by,revision=excluded.revision,data=excluded.data`, p.Repository, p.Host, p.Runtime, p.Generation, p.State, p.SelectedBy, p.Revision, string(raw))
-	if err != nil {
+	if err = saveFactoryPlacementTx(ctx, tx, p); err != nil {
 		return empty, err
 	}
 	if err = tx.Commit(); err != nil {
 		return empty, err
 	}
 	return p, nil
+}
+
+func saveFactoryPlacementTx(ctx context.Context, tx *sql.Tx, p factory.Placement) error {
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO factory_placements(repository,host,runtime,generation,state,selected_by,revision,data) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+ ON CONFLICT(repository) DO UPDATE SET runtime=excluded.runtime,generation=excluded.generation,state=excluded.state,selected_by=excluded.selected_by,revision=excluded.revision,data=excluded.data`, p.Repository, p.Host, p.Runtime, p.Generation, p.State, p.SelectedBy, p.Revision, string(raw))
+	return err
 }
 
 func placementQuiescentTx(ctx context.Context, tx *sql.Tx, repository collaboration.RepositoryID) error {

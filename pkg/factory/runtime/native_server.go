@@ -127,6 +127,8 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 	db := application.application.Store
 	worker := nativeWorkerMCP(lifetime, NativeExecution{Config: config, Instance: instance, Store: db})
 	mux.Handle("/api/native/execution/mcp", application.application.Coordinator.AdmitHTTP(worker))
+	mux.Handle("/api/native/execution/launch-admission", application.application.Coordinator.AdmitHTTP(nativeLaunchAdmission(NativeExecution{Config: config, Instance: instance, Store: db})))
+	mux.Handle("/api/native/collaboration/placement", application.application.Coordinator.AdmitHTTP(nativeFountainPlacement(NativeExecution{Config: config, Instance: instance, Store: db})))
 	product := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if values := r.Header.Values("X-Soda-Native-Instance"); len(values) != 1 || values[0] != instance {
 			nativeResponse(w, 401, map[string]string{"error": "retired_native_instance"})
@@ -240,7 +242,7 @@ func nativeHandler(lifetime context.Context, config NativeConfig, instance strin
 			return
 		}
 		limit := int64(65536)
-		if r.URL.Path == "/api/native/collaboration/observe" {
+		if r.URL.Path == "/api/native/collaboration/observe" || r.URL.Path == "/api/native/execution/launch-admission" {
 			limit = 2 << 20
 		} else if factoryhttp.IsWorkspaceSetupSubmission(r) {
 			limit = factoryhttp.WorkspaceSetupRequestLimit

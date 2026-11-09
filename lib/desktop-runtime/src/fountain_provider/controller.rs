@@ -87,6 +87,7 @@ pub async fn captured_operation_grant(
     credentials: Arc<Credentials>,
     profile: &Path,
     runtime: &str,
+    connection: &str,
     id: &str,
 ) -> Result<(Client, OperationGrant)> {
     if !hex(id, 32) || !credentials.is_profile(runtime) {
@@ -102,6 +103,7 @@ pub async fn captured_operation_grant(
         || capture.profile != runtime
         || capture.kind != "runtime.operation.authorize"
         || capture.request.command_id != id
+        || capture.connection != connection
         || !hex(&capture.connection, 32)
         || !hex(&capture.enrollment, 32)
         || !hex(&capture.request.expected_placement, 32)

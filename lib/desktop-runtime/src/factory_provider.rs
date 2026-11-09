@@ -5,6 +5,7 @@ mod attempt;
 mod broker;
 mod candidate;
 mod custody;
+mod controller;
 mod executions;
 mod intent;
 pub(crate) mod judgment;

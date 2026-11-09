@@ -112,7 +112,14 @@ impl Desktop {
                 }) {
                     Ok(ready) => {
                         match Credentials::open(&state.paths.profile, &ready.profile) {
-                            Ok(store) => *state.credentials.lock().unwrap() = Some(Arc::new(store)),
+                            Ok(store) => {
+                                let store = Arc::new(store);
+                                if let Err(error) = owner.enroll_credentials(store.clone()) {
+                                    eprintln!("native credential enrollment: {error}");
+                                } else {
+                                    *state.credentials.lock().unwrap() = Some(store);
+                                }
+                            }
                             Err(error) => eprintln!("native credentials: {error}"),
                         }
                         *state.status.lock().unwrap() = Status {

@@ -47,7 +47,16 @@ struct Wire {
     execution_phase: String,
     #[serde(default)]
     manifest_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    controller: Option<Controller>,
     native: Native,
+}
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Controller {
+    pub connection: String,
+    pub grant_id: String,
+    pub manifest_digest: String,
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -91,7 +100,7 @@ pub struct LaunchIntent {
 
 impl LaunchIntent {
     pub(super) fn has_tasks(&self) -> bool {
-        self.wire.version == 5
+        !self.wire.manifest_digest.is_empty()
     }
     pub fn from_go(raw: &str) -> io::Result<Self> {
         if raw.is_empty() || raw.len() > 16384 {
@@ -101,7 +110,7 @@ impl LaunchIntent {
             serde_json::from_str(raw).map_err(|_| refused("native intent shape invalid"))?;
         let n = &wire.native;
         if wire.kind != "factory_native_launch_intent"
-            || !matches!(wire.version, 1 | 2 | 3 | 4 | 5)
+            || !matches!(wire.version, 1..=6)
             || !hex(&wire.run, 32)
             || !text(&wire.workspace, 128)
             || !hex(&wire.connection, 32)
@@ -113,7 +122,7 @@ impl LaunchIntent {
                 n.trust_mode.as_str(),
                 "isolated_system_worker" | "cli_managed_provider"
             )
-            || (wire.version == 4 || wire.version == 5 && n.trust_mode == "cli_managed_provider")
+            || (wire.version == 4 || wire.version >= 5 && n.trust_mode == "cli_managed_provider")
                 != (n.trust_mode == "cli_managed_provider")
             || !text(&n.tool.harness, 128)
             || !text(&n.tool.version, 128)
@@ -135,15 +144,23 @@ impl LaunchIntent {
             return Err(refused("native intent harness profile invalid"));
         }
         if wire.version < 3 && !n.credential_sha256.is_empty()
-            || (wire.version == 3 || wire.version == 5 && n.trust_mode != "cli_managed_provider")
+            || (wire.version == 3 || wire.version >= 5 && n.trust_mode != "cli_managed_provider")
                 && !hex(&n.credential_sha256, 64)
             || n.trust_mode != "cli_managed_provider" && !n.authentication.is_empty()
-            || (wire.version == 4 || wire.version == 5 && n.trust_mode == "cli_managed_provider")
+            || (wire.version == 4 || wire.version >= 5 && n.trust_mode == "cli_managed_provider")
                 && (n.authentication != "muse_login" || !n.credential_sha256.is_empty())
         {
             return Err(refused("native intent credential binding invalid"));
         }
-        if wire.version == 5 {
+        if wire.version == 6 {
+            if n.trust_mode != "cli_managed_provider" || !wire.controller.as_ref().is_some_and(|c|
+                hex(&c.connection, 32) && hex(&c.grant_id, 32) && hex(&c.manifest_digest, 64)) {
+                return Err(refused("native controller binding invalid"));
+            }
+        } else if wire.controller.is_some() {
+            return Err(refused("historical intent cannot acquire host authority"));
+        }
+        if wire.version == 5 || wire.version == 6 && !wire.execution_phase.is_empty() {
             if !matches!(wire.execution_phase.as_str(), "implement" | "correct")
                 || !hex(&wire.manifest_digest, 64)
             {
@@ -160,7 +177,7 @@ impl LaunchIntent {
         Ok(intent)
     }
     pub(super) fn validate_manifest(&self, bytes: &[u8]) -> io::Result<()> {
-        if self.wire.version != 5 {
+        if !self.has_tasks() {
             return if bytes.is_empty() {
                 Ok(())
             } else {
@@ -247,7 +264,7 @@ impl LaunchIntent {
         private_directory(&root)?;
         absent(&root.join(format!("{}.manifest.pending", self.run())))?;
         let path = root.join(format!("{}.manifest", self.run()));
-        if self.wire.version != 5 {
+        if !self.has_tasks() {
             absent(&path)?;
             return Ok(Vec::new());
         }
@@ -298,6 +315,14 @@ impl LaunchIntent {
     }
     pub fn connection(&self) -> &str {
         &self.wire.connection
+    }
+    pub(super) fn controller(&self) -> Option<&Controller> {
+        self.wire.controller.as_ref()
+    }
+    pub(super) fn deadline_unix(&self) -> io::Result<i64> {
+        OffsetDateTime::parse(&self.wire.deadline, &Rfc3339)
+            .map(|deadline| deadline.unix_timestamp())
+            .map_err(|_| refused("native intent deadline invalid"))
     }
     pub(crate) fn muse_login(&self) -> bool {
         self.wire.native.trust_mode == "cli_managed_provider"

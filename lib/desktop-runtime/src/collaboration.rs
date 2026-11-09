@@ -235,6 +235,13 @@ impl Port {
         }
         Ok(())
     }
+    pub fn enroll_credentials(&self, credentials: Arc<Credentials>) -> Result<()> {
+        if !self.0.alive.load(Ordering::SeqCst) || !credentials.is_profile(&self.0.channel.profile) {
+            return Err("native credential owner unavailable".into());
+        }
+        *self.0.background_credentials.write().map_err(|_| "native credential owner unavailable")? = Some(credentials);
+        Ok(())
+    }
     pub fn retire(&self) {
         self.0.preparations.cancel_all();
         self.0.alive.store(false, Ordering::SeqCst);
@@ -293,11 +300,7 @@ impl Port {
             return Err("native operation admission unavailable".into());
         }
         scopes.insert(id.clone(), Arc::downgrade(&scope));
-        *self
-            .0
-            .background_credentials
-            .write()
-            .map_err(|_| "native credential owner unavailable")? = Some(credentials);
+        self.enroll_credentials(credentials)?;
         Ok(NativeRequest {
             id,
             scope,
@@ -1275,6 +1278,7 @@ async fn dispatch(
             tools: &state.tools,
             preparations: &state.preparations,
             execution_accounts: &state.execution_accounts,
+            credentials: &state.background_credentials,
             work: &state.work,
         }
         .call(call)

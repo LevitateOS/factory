@@ -62,6 +62,8 @@ pub(crate) enum Call {
         secret: String,
         scope_digest: String,
         tools: Vec<String>,
+        #[serde(default)]
+        admission: Option<Value>,
     },
     Inspect {
         intent: String,
@@ -483,6 +485,7 @@ pub(crate) struct Callbacks<'a> {
     pub execution_accounts:
         &'a Arc<std::sync::RwLock<std::collections::BTreeMap<String, Arc<super::launch::Account>>>>,
     pub work: &'a Arc<super::work::Work>,
+    pub credentials: &'a std::sync::RwLock<Option<Arc<crate::credentials::Credentials>>>,
 }
 impl Callbacks<'_> {
     pub(crate) async fn call(
@@ -611,6 +614,7 @@ impl Callbacks<'_> {
                 secret,
                 scope_digest,
                 tools,
+                admission,
             } => {
                 if self
                     .execution_error
@@ -626,12 +630,14 @@ impl Callbacks<'_> {
                 {
                     return Err(Failure::invalid());
                 }
+                let credentials = self.credentials.read().map_err(|_| Failure::unavailable())?.clone();
                 return crate::factory_provider::launch::launch(
                     self.channel.clone(),
                     self.alive.clone(),
                     self.executions.clone(),
                     self.preparations.clone(),
                     self.execution_accounts.clone(),
+                    credentials,
                     crate::factory_provider::launch::Input {
                         intent,
                         manifest,
@@ -639,6 +645,7 @@ impl Callbacks<'_> {
                         capability,
                         secret,
                         tools,
+                        admission,
                     },
                 )
                 .await
@@ -648,20 +655,29 @@ impl Callbacks<'_> {
                 });
             }
             call => {
+                let retained = match &call {
+                    Call::Inspect { intent } | Call::InspectRetained { intent } | Call::Cancel { intent } => {
+                        Some(LaunchIntent::from_go(intent).map_err(|_| Failure::invalid())?)
+                    }
+                    _ => None,
+                };
+                let profile = self.channel.socket.parent().ok_or_else(Failure::unavailable)?.to_path_buf();
+                let credentials = self.credentials.read().map_err(|_| Failure::unavailable())?.clone();
+                if let Some(intent) = &retained {
+                    if intent.controller().is_some() {
+                        super::controller::recover(credentials.clone().ok_or_else(Failure::unavailable)?, &profile, intent).await.map_err(|_| Failure::new(503, "native_controller_retirement_unavailable"))?;
+                    }
+                }
                 let tools = self
                     .tools
                     .read()
                     .map_err(|_| Failure::unavailable())?
                     .clone();
-                return crate::factory_provider::port::call(
+                let observed = crate::factory_provider::port::call(
                     self.executions.clone(),
                     self.alive.clone(),
                     tools,
-                    self.channel
-                        .socket
-                        .parent()
-                        .ok_or_else(Failure::unavailable)?
-                        .to_path_buf(),
+                    profile.clone(),
                     self.channel.profile.clone(),
                     call,
                 )
@@ -669,7 +685,13 @@ impl Callbacks<'_> {
                 .map_err(|error| {
                     eprintln!("native execution callback: {error}");
                     Failure::new(503, "native_execution_unavailable")
-                });
+                })?;
+                if let Some(intent) = &retained {
+                    if intent.controller().is_some() {
+                        super::controller::recover(credentials.ok_or_else(Failure::unavailable)?, &profile, intent).await.map_err(|_| Failure::new(503, "native_controller_retirement_unavailable"))?;
+                    }
+                }
+                return Ok(observed);
             }
         }
     }

@@ -80,6 +80,11 @@ func (s *Store) AuthorizeFactoryLaunch(ctx context.Context, request execution.La
 	if err = checkAssignmentAuthorityTx(ctx, tx, assignment.Authority, assignment, grants); err != nil {
 		return empty, err
 	}
+	if request.Kind == collaboration.Native {
+		if err = checkNativeControllerTx(ctx, tx, assignment.Repository, request.Native.Workspace.Profile, grants.policy.Execution); err != nil {
+			return empty, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return empty, err
 	}

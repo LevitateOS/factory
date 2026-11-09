@@ -99,6 +99,12 @@ pub struct Client {
     repository_id: Mutex<Option<String>>,
 }
 impl Client {
+    pub(crate) fn origin(&self) -> &str {
+        &self.capability.account().origin
+    }
+    pub(crate) fn connection(&self) -> &str {
+        &self.capability.account().connection
+    }
     /// The caller holds the native profile owner. Both account scope and
     /// request lifetime are rechecked by the existing custody lease per call.
     pub fn new(

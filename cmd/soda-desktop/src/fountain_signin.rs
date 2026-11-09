@@ -266,6 +266,7 @@ pub(super) async fn fountain_controller(
     let desktop = app.state::<Desktop>();
     let epoch = desktop.generation.load(Ordering::SeqCst);
     let client = repository_client(&app, &connection, &repository).await?;
+    let client = Arc::new(client);
     let value = if let Some(request) = selection {
         serde_json::to_value(
             client
@@ -295,5 +296,8 @@ pub(super) async fn fountain_controller(
     {
         return Err("Factory changed; the original controller command is kept.".into());
     }
+    let observed = desktop.runtime.lock().unwrap().as_ref().ok_or("Factory is unavailable.")?.observe_fountain_controller(client);
+    observed.await.map_err(|_| "Central placement could not be recorded. The original controller command is kept.")?;
+    if epoch != desktop.generation.load(Ordering::SeqCst) || desktop.quitting.load(Ordering::SeqCst) { return Err("Factory changed; the original controller command is kept.".into()); }
     Ok(value)
 }

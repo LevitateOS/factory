@@ -268,7 +268,16 @@ func (r Run) validateProvenance() error {
 		}
 		if r.Native.Intent != "" {
 			intent, err := execution.ParseNativeIntent(r.Native.Intent)
-			if err == nil && intent.Version == 5 {
+			if err == nil && intent.Controller != nil {
+				if r.Admission == nil || r.Admission.Policy.Execution == nil ||
+					intent.Controller.ManifestDigest != r.Admission.ControllerManifestDigest ||
+					intent.Controller.GrantID != r.Admission.Policy.Execution.ControllerGrantID ||
+					intent.Controller.Connection != string(r.Admission.Policy.Execution.NativeConnection) ||
+					r.Admission.Policy.Execution.NativeProfile != intent.Native.Workspace.Profile {
+					return execution.ErrNativeIntent
+				}
+			}
+			if err == nil && intent.ManifestDigest != "" {
 				manifest, parseErr := project.ParseExecutionManifest(r.ExecutionManifest)
 				if parseErr != nil || intent.ExecutionPhase != manifest.Phase || intent.ManifestDigest != project.ExecutionManifestDigest(r.ExecutionManifest) {
 					return execution.ErrNativeIntent

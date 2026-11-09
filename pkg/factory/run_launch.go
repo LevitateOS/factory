@@ -30,11 +30,6 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 	}
 	request := execution.LaunchRequest{Input: input, Kind: r.RuntimeKind()}
 	if r.Native != nil {
-		// Remote controller claims need their native connector bridge. A local
-		// launch cannot silently ignore an explicit external execution grant.
-		if r.Admission.Policy.Execution != nil {
-			return empty, execution.ErrLaunch
-		}
 		// Historical same-user evidence remains readable, but it cannot authorize
 		// a new desktop agent launch. The selected execution boundary requires a
 		// broker run captured before the isolated worker is started.
@@ -46,6 +41,13 @@ func (r Run) LaunchRequest(a Assignment, input project.FactoryLaunch) (execution
 		}
 		native := *r.Admission.Native
 		request.Native = &native
+		if ref := r.Admission.Policy.Execution; ref != nil {
+			captured, err := ControllerAdmissionDigest(a, r)
+			if err != nil || captured != r.Admission.ControllerManifestDigest || ref.Validate() != nil || ref.NativeProfile != native.Workspace.Profile || ref.NativeConnection == "" {
+				return empty, execution.ErrLaunch
+			}
+			request.Controller = &execution.NativeController{Connection: string(ref.NativeConnection), GrantID: ref.ControllerGrantID, ManifestDigest: captured}
+		}
 	} else {
 		if r.Admission.Profile == nil || r.Admission.Tool == nil {
 			return empty, execution.ErrLaunch

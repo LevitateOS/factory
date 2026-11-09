@@ -397,6 +397,33 @@ impl NativeSupervisor {
             .ok_or("native execution enrollment unavailable")?
             .enroll_execution_account(credentials, capability)
     }
+    pub fn enroll_credentials(&self, credentials: Arc<crate::credentials::Credentials>) -> Result<()> {
+        self.collaboration.as_ref().ok_or("native credential owner unavailable")?.enroll_credentials(credentials)
+    }
+    /// Project only this enrollment's freshly observed central placement. The
+    /// host still owns selection, claims and operation authority.
+    pub fn observe_fountain_controller(&self, client: Arc<crate::fountain_provider::Client>) -> impl std::future::Future<Output = Result<()>> + Send + 'static {
+        let channel = self.github_channel();
+        async move {
+            let (channel,alive)=channel?;
+            let channel=channel.await.map_err(|_| "native placement owner unavailable")??;
+            let enrollment=client.status().await.map_err(|_| "Fountain enrollment unavailable")?;
+            let placement=client.placement().await.map_err(|_| "Fountain placement unavailable")?;
+            if placement.runtime_id!=channel.profile || placement.owner_kind!="desktop" || placement.owner_id!=enrollment.id {
+                return Ok(()); // A competing host owner is never adopted locally.
+            }
+            if !enrollment.active || !enrollment.runtime_bound || enrollment.runtime_id!=channel.profile || !alive.load(Ordering::SeqCst) { return Err("native placement owner retired".into()); }
+            let body=serde_json::to_vec(&serde_json::json!({
+                "connection":client.connection(),"origin":client.origin(),"actor":enrollment.actor.id,"login":enrollment.actor.username,
+                "repository":enrollment.repository.id,"name":format!("{}/{}",enrollment.repository.owner,enrollment.repository.name),
+                "enrollment":enrollment.id,"runtime":placement.runtime_id,"owner_kind":placement.owner_kind,"owner_id":placement.owner_id,
+                "generation":placement.generation,"state":placement.state,"revision":placement.revision,
+            })).map_err(|_| "native placement encoding unavailable")?;
+            let response=soda_unix_http::request_authenticated_async(&channel.socket,"POST","/api/native/collaboration/placement","soda-native",&body,&channel.key,&[("X-Soda-Native-Instance",channel.instance.as_str())],Duration::from_secs(20),soda_unix_http::Limits{header_bytes:8192,body_bytes:8192}).await.map_err(|_| "native placement observation unavailable")?;
+            if response.status!=200 || !alive.load(Ordering::SeqCst) { return Err("native placement observation unavailable".into()); }
+            Ok(())
+        }
+    }
     /// The native receiver chooses an empty owned directory. Recovery publishes
     /// a fresh `checkout` child; only the registration ID crosses to Go.
     pub fn register_recovery_checkout(&self, path: &Path) -> Result<String> {
