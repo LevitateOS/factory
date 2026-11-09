@@ -43,7 +43,9 @@ func (c *Coordinator) CheckPass(ctx context.Context) CheckReport {
 		report.Unavailable = true
 		return report
 	}
-	pubs, err := c.Store.MergeablePublications(ctx, reviewCyclePassLimit)
+	// A recorded merge can still be waiting for fresh policy/check evidence.
+	// Its existence must not remove the active candidate from assessment.
+	pubs, err := c.Store.ActivePublishedPublications(ctx, reviewCyclePassLimit)
 	if err != nil {
 		checkError(&report, "", "store_unavailable")
 		return report

@@ -199,6 +199,20 @@ func finishClearAcceptance(published factory.Publication, in ClearAdmissionInput
 	if err := acceptance.Validate(); err != nil {
 		return published, empty, err
 	}
+	// A clean acceptance records reviewed content, not send authority. A fresh
+	// merge preparation can capture a later policy while using the exact same
+	// review, scope and check definitions. Preserve the first acceptance and its
+	// original policy capture; the merge gate independently requires current
+	// authority and checks. Changed semantic evidence still conflicts.
+	for _, recorded := range published.DeliveryAcceptances {
+		if recorded.ID == acceptance.ID {
+			acceptance.PolicyRevision = recorded.PolicyRevision
+			if !reflect.DeepEqual(recorded, acceptance) {
+				return published, empty, errors.New("clean delivery acceptance evidence changed")
+			}
+			return published, recorded, nil
+		}
+	}
 	if err := appendDeliveryAcceptance(&published, acceptance); err != nil {
 		return published, empty, err
 	}

@@ -72,6 +72,8 @@ func lifecycleControlError(w http.ResponseWriter, err error) {
 		writeError(w, 409, "retry_ineligible", "The prior attempt is not eligible for retry; refresh its settlement and current inputs.")
 	case errors.Is(err, store.ErrRetainedPublicationIneligible):
 		writeError(w, 409, "retained_publication_ineligible", err.Error())
+	case errors.Is(err, store.ErrMergeConflict), errors.Is(err, factory.ErrAttemptClosed), errors.Is(err, store.ErrAdmissionChanged):
+		writeError(w, 409, "preparation_changed", "The preparation or its authority changed; refresh the current work. Saved uncertain operations remain preserved.")
 	case errors.Is(err, store.ErrContextResolutionIneligible):
 		writeError(w, 409, "context_resolution_ineligible", "The held current context changed or cannot be selected; refresh this run.")
 	case errors.Is(err, store.ErrCompletionRetryIneligible):

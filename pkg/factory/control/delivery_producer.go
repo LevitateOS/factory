@@ -38,11 +38,15 @@ func (c *Coordinator) recordCleanDeliveryAcceptance(ctx context.Context, publica
 	if err != nil || owner.AttemptRoot != cycle.AttemptRoot || owner.Acceptance != publication.Acceptance {
 		return publication, nil, errors.New("clear delivery lacks its publication owner")
 	}
-	head, _, err := c.Store.PlanHead(ctx, owner.AttemptRoot)
+	origin, err := c.Store.PublicationExecutionOwner(ctx, publication, owner)
 	if err != nil {
 		return publication, nil, err
 	}
-	plan, err := c.Store.InvestigationPlan(ctx, owner.AttemptRoot, head)
+	head, _, err := c.Store.PlanHead(ctx, origin.AttemptRoot)
+	if err != nil {
+		return publication, nil, err
+	}
+	plan, err := c.Store.InvestigationPlan(ctx, origin.AttemptRoot, head)
 	if err != nil || plan.Validate() != nil {
 		return publication, nil, errors.New("clear delivery lacks its admitted plan scope")
 	}
@@ -108,7 +112,7 @@ func (c *Coordinator) authorizeCleanDeliveryMerge(ctx context.Context, merge *fa
 	if !ok || assessment.Verdict != factory.CheckPass || assessment.ChecksDigest != acceptance.CheckDigest {
 		return &factory.PublicationWait{Reason: "check_evidence_pending"}
 	}
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, merge.AssignmentID, time.Now().Add(10*time.Minute).Unix())
+	notAfter, err := c.Store.CapAttemptDeadline(ctx, merge.AssignmentID, time.Now().Add(mergeIntentLifetime).Unix())
 	if err != nil || notAfter <= time.Now().Unix() {
 		return &factory.PublicationWait{Reason: "attempt_deadline_unavailable"}
 	}

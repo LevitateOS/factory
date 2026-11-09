@@ -132,8 +132,8 @@ export interface WorkCapability {
   reason?: string;
 }
 export interface RetainedCandidateFunding {
-	previous_root?: string;
-	carry_unused?: boolean;
+  previous_root?: string;
+  carry_unused?: boolean;
   native?: {profile: string; authentication?: string; credential_sha256?: string};
   publication: string;
   candidate: string;
@@ -176,7 +176,8 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
   const integer = (x: unknown, min: number, max = Number.MAX_SAFE_INTEGER) =>
     typeof x === 'number' && Number.isSafeInteger(x) && x >= min && x <= max;
   if (
-    Object.keys(r).length !== (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) + (r.carry_unused === undefined ? 0 : 1) ||
+    Object.keys(r).length !==
+      (n === undefined ? 9 : 10) + (r.previous_root === undefined ? 0 : 1) + (r.carry_unused === undefined ? 0 : 1) ||
     (r.previous_root !== undefined && r.previous_root !== r.publication) ||
     (r.carry_unused !== undefined && (r.carry_unused !== true || r.previous_root === undefined)) ||
     !source ||
@@ -202,7 +203,33 @@ export function retainedCandidateFunding(value: unknown): RetainedCandidateFundi
     return undefined;
   return value as RetainedCandidateFunding;
 }
+export interface MergePreparation {
+  publication: string;
+  merge_id: string;
+  revision: number;
+  policy: number;
+  head: string;
+  base: string;
+}
+export function mergePreparation(value: unknown): MergePreparation | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const r = value as Record<string, unknown>;
+  if (
+    Object.keys(r).length !== 6 ||
+    !['publication', 'merge_id'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{32}$/.test(r[k] as string)) ||
+    !['head', 'base'].every((k) => typeof r[k] === 'string' && /^[a-f0-9]{40,64}$/.test(r[k] as string)) ||
+    typeof r.revision !== 'number' ||
+    !Number.isSafeInteger(r.revision) ||
+    r.revision < 0 ||
+    typeof r.policy !== 'number' ||
+    !Number.isSafeInteger(r.policy) ||
+    r.policy < 1
+  )
+    return undefined;
+  return value as MergePreparation;
+}
 export interface WorkCapabilities {
+  prepare_merge?: WorkCapability & {merge_preparation: MergePreparation};
   fund_retained?: WorkCapability & {funding: RetainedCandidateFunding};
   /** Older hosts keep this action unavailable. */
   publish_retained?: WorkCapability;
@@ -412,7 +439,9 @@ function workCapability(value: unknown): WorkCapability {
 function workCapabilities(value: unknown): WorkCapabilities {
   const raw = record(value);
   const funding = retainedCandidateFunding(record(raw.fund_retained).funding);
+  const preparation = mergePreparation(record(raw.prepare_merge).merge_preparation);
   return {
+    ...(preparation ? {prepare_merge: {...workCapability(raw.prepare_merge), merge_preparation: preparation}} : {}),
     ...(funding ? {fund_retained: {...workCapability(raw.fund_retained), funding}} : {}),
     ...(present(raw.publish_retained) ? {publish_retained: workCapability(raw.publish_retained)} : {}),
     watch: workCapability(raw.watch),

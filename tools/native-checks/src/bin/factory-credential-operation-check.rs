@@ -1407,7 +1407,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let unused_funding=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-unused"|"delivery-fund-retained-unused-offer"|"delivery-fund-retained-unused-resume");
             let funding_offer=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-offer"|"delivery-fund-retained-unused-offer");
             let replace_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh-replacement";
-            let final_funding=args.len()==10 && field(9)?=="delivery-fund-retained-final";
+            let prepare_merge=args.len()==10 && field(9)?=="delivery-prepare-unsent-merge";
+            let final_funding=prepare_merge || args.len()==10 && field(9)?=="delivery-fund-retained-final";
             let fresh_funding=final_funding || unused_funding || replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
             let fund_retained=recover_funding || funding_offer || fresh_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
@@ -1576,6 +1577,30 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             check("prepare",&ready.instance).await?;
                         }
                         if unused_funding && field(9)?=="delivery-fund-retained-unused-resume" {check("fund-retained-unused-step",&ready.instance).await?;}
+                        if prepare_merge {
+                            let capture_path=root.join("retained-merge-preparation-request-16.json");
+                            let body=if capture_path.exists() {fs::read(&capture_path)?} else {
+                                let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                                let reply=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
+                                fs::write(root.join(format!("retained-merge-offer-{}.json",ready.instance)),&reply.body)?;
+                                ensure(reply.status==200,"merge preparation detail unavailable")?;
+                                let view:serde_json::Value=serde_json::from_slice(&reply.body)?;
+                                let offer=&view["capabilities"]["prepare_merge"];
+                                ensure(offer["available"]==true && offer["merge_preparation"]["publication"]=="15151515151515151515151515151510" && offer["merge_preparation"]["merge_id"]=="15151515151515151515151515151515","exact unsent merge preparation unavailable")?;
+                                let bytes=serde_json::to_vec(&json!({"command_id":"15151515151515151515151515151516","action":"prepare-unsent-merge","publication":"15151515151515151515151515151510","merge_preparation":offer["merge_preparation"]}))?;
+                                use std::io::Write;
+                                let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&capture_path)?;
+                                file.write_all(&bytes)?;file.sync_all()?;bytes
+                            };
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let reply=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
+                            fs::write(root.join(format!("retained-merge-result-{}.json",ready.instance)),&reply.body)?;
+                            ensure(reply.status==200,"merge preparation unconfirmed; preserve original command and inspect")?;
+                            let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
+                            let replay=admitted.request("POST","/api/factory/runs/bf339c1b9a0023a95bf95ad815ca5458/actions",&body).await?;
+                            ensure(replay.status==200 && replay.body==reply.body,"merge preparation replay changed receipt")?;
+                            println!("PASS: exact unsent merge archived; fresh current preparation and replay confirmed without funding or inference");
+                        }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
                         let watching=check(if final_funding {"fund-retained-final-watch"}else if unused_funding {"fund-retained-unused-watch"}else if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);

@@ -29,14 +29,20 @@ type WorkCapability struct {
 // pause/resume. Each entry carries its refusal reason when unavailable;
 // the owning lifecycle APIs remain authoritative at act time.
 type WorkCapabilities struct {
-	FundRetained    *WorkFundingCapability `json:"fund_retained,omitempty"`
-	PublishRetained WorkCapability         `json:"publish_retained"`
-	Watch           WorkCapability         `json:"watch"`
-	Stop            WorkCapability         `json:"stop"`
-	Retry           WorkCapability         `json:"retry"`
-	Takeover        WorkCapability         `json:"takeover"`
-	Pause           WorkCapability         `json:"pause"`
-	Resume          WorkCapability         `json:"resume"`
+	PrepareMerge    *WorkMergePreparationCapability `json:"prepare_merge,omitempty"`
+	FundRetained    *WorkFundingCapability          `json:"fund_retained,omitempty"`
+	PublishRetained WorkCapability                  `json:"publish_retained"`
+	Watch           WorkCapability                  `json:"watch"`
+	Stop            WorkCapability                  `json:"stop"`
+	Retry           WorkCapability                  `json:"retry"`
+	Takeover        WorkCapability                  `json:"takeover"`
+	Pause           WorkCapability                  `json:"pause"`
+	Resume          WorkCapability                  `json:"resume"`
+}
+
+type WorkMergePreparationCapability struct {
+	WorkCapability
+	Preparation factory.MergePreparation `json:"merge_preparation"`
 }
 
 type WorkFundingCapability struct {

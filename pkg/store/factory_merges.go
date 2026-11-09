@@ -143,6 +143,9 @@ func (s *Store) UpdateMerge(ctx context.Context, m factory.Merge) error {
 		return ErrDispatchClosed
 	}
 	if registering {
+		if m.Authorization.Bound() && m.Operation.Work.NotAfter > m.Authorization.Generation.NotAfter {
+			return ErrMergeConflict
+		}
 		if err = ensureAttemptDeadlineForRegistrationTx(ctx, tx, m.AssignmentID, m.Operation.Work.NotAfter); err != nil {
 			return err
 		}
@@ -172,7 +175,7 @@ func applyMergeUpdateTx(ctx context.Context, tx *sql.Tx, m factory.Merge, regist
 		 AND EXISTS(SELECT 1 FROM factory_operator_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_environment_grants WHERE repository=$7 AND COALESCE((data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM factory_sponsorships s JOIN factory_assignments a
-		   ON a.id=$14 AND s.connection=a.data->>'connection'
+		   ON a.id=$14 AND s.connection=COALESCE(NULLIF(a.data->>'connection',''),a.data#>>'{retained_publication,connection}')
 		   WHERE s.repository=$7 AND COALESCE((s.data->>'active')::boolean,FALSE))
 		 AND EXISTS(SELECT 1 FROM project_requirement_heads WHERE project_id=$15 AND decision=$16)
 		 AND EXISTS(SELECT 1 FROM project_approval_heads WHERE project_id=$15 AND decision=$17)
@@ -544,4 +547,129 @@ func (s *Store) IssueMergeCompletion(ctx context.Context, repository, issue int6
 		err = json.Unmarshal(data, &m)
 	}
 	return m, err
+}
+
+// UnsentMergePreparation offers only a new command. The eventual command
+// repeats these checks inside its transaction; lookup absence is not proof.
+func (s *Store) UnsentMergePreparation(ctx context.Context, publication string) (factory.MergePreparation, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return factory.MergePreparation{}, err
+	}
+	defer tx.Rollback()
+	p, a, g, err := retainedFundingScopeTx(ctx, tx, publication)
+	if err != nil {
+		return factory.MergePreparation{}, err
+	}
+	m, err := loadPreviousMergeTx(ctx, tx, publication)
+	if err != nil {
+		return factory.MergePreparation{}, err
+	}
+	if err = admitUnsentMergePreparationTx(ctx, tx, p, a, g, m); err != nil {
+		return factory.MergePreparation{}, err
+	}
+	return factory.MergePreparation{Publication: p.ID, MergeID: m.ID, Revision: m.Revision, Policy: g.policy.Revision, Head: m.HeadOID, Base: m.BaseOID}, nil
+}
+
+func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment, g admissionGrants, m factory.Merge) error {
+	if m.Validate() != nil || (m.Stage != factory.MergeOpen && m.Stage != factory.MergeFenced) || m.WithdrawRequested || m.Authorization.Bound() || len(m.History) != 0 || !pristineMergeOperation(m.Operation) ||
+		m.AssignmentID != a.ID || m.PublicationID != p.ID || m.Repository != p.Repository || m.Issue != p.Issue || m.PRID != p.PRID || m.PRNumber != p.PRNumber || m.HeadOID != p.Candidate || m.BaseOID != p.PRCreate.BaseOID || m.BaseRef != g.policy.TargetBranch || m.ReviewerID != g.policy.Review.ActorID {
+		return ErrMergeConflict
+	}
+	if m.Authority == retainedMergeAuthority(a, g) {
+		return ErrMergeConflict
+	}
+	allowance, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.AttemptRoot)
+	if err != nil || allowance.Closed || !allowance.Active {
+		return factory.ErrAttemptClosed
+	}
+	return checkRetainedContinuationTx(ctx, tx, a, g)
+}
+
+// PrepareUnsentMerge archives the exact old row in the existing command's
+// outcome, then creates a new identity under current authority. This is only
+// possible before any operation identity, binding, work, attempt or effect.
+func (s *Store) PrepareUnsentMerge(ctx context.Context, command, principal string, r factory.MergePreparation, now time.Time) (factory.MergePreparationReceipt, error) {
+	empty := factory.MergePreparationReceipt{}
+	if r.Validate() != nil {
+		return empty, ErrMergeConflict
+	}
+	raw, err := json.Marshal(r)
+	if err != nil {
+		return empty, err
+	}
+	cmd := factory.Command{ID: command, Type: factory.CommandPrepareMerge, Target: "publication/" + r.Publication, Principal: principal, Payload: string(raw)}
+	cmd.Digest = factory.SettingsDigest(cmd.Type, cmd.Target, cmd.Payload)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return empty, err
+	}
+	defer tx.Rollback()
+	stored, created, err := recordFactoryCommandTx(ctx, tx, cmd, now)
+	if err != nil {
+		return empty, err
+	}
+	type capture struct {
+		Receipt factory.MergePreparationReceipt `json:"receipt"`
+		Prior   string                          `json:"prior"`
+	}
+	if !created {
+		var c capture
+		if stored.Type != cmd.Type || stored.Target != cmd.Target || stored.Principal != principal || stored.Finished == "" || json.Unmarshal([]byte(stored.Outcome), &c) != nil || c.Receipt.CommandID != command || c.Receipt.Request != r || c.Receipt.MergeID != command || c.Prior == "" {
+			return empty, ErrCommandConflict
+		}
+		return c.Receipt, nil
+	}
+	p, a, g, err := retainedFundingScopeTx(ctx, tx, r.Publication)
+	if err != nil {
+		return empty, err
+	}
+	m, err := loadPreviousMergeTx(ctx, tx, r.Publication)
+	if err != nil {
+		return empty, err
+	}
+	if m.ID != r.MergeID || m.Revision != r.Revision || m.HeadOID != r.Head || m.BaseOID != r.Base || g.policy.Revision != r.Policy {
+		return empty, ErrStaleRevision
+	}
+	if err = admitUnsentMergePreparationTx(ctx, tx, p, a, g, m); err != nil {
+		return empty, err
+	}
+	var prior string
+	if err = tx.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, r.Publication).Scan(&prior); err != nil {
+		return empty, err
+	}
+	m.ID, m.Revision, m.CreatedUnix = command, 0, now.Unix()
+	m.Stage, m.Outcome, m.Reason, m.FinishedUnix, m.WithdrawRequested = factory.MergeOpen, "", "", 0, false
+	m.Authority = retainedMergeAuthority(a, g)
+	if err = m.Validate(); err != nil {
+		return empty, err
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		return empty, err
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE factory_merges SET stage=$1,revision=0,data=$2 WHERE publication=$3 AND revision=$4 AND data->>'id'=$5`, m.Stage, string(data), r.Publication, r.Revision, r.MergeID)
+	if err = checkGrantRowsAffected(result, err, "unsent merge changed"); err != nil {
+		return empty, err
+	}
+	receipt := factory.MergePreparationReceipt{CommandID: command, Request: r, MergeID: m.ID}
+	outcome, err := json.Marshal(capture{Receipt: receipt, Prior: prior})
+	if err != nil || len(outcome) > 64<<10 {
+		return empty, ErrMergeConflict
+	}
+	result, err = tx.ExecContext(ctx, `UPDATE factory_commands SET outcome=$1,finished=$2 WHERE id=$3 AND finished=''`, string(outcome), now.UTC().Format(time.RFC3339Nano), command)
+	if err = checkGrantRowsAffected(result, err, "unsent merge command finish failed"); err != nil {
+		return empty, err
+	}
+	if err = tx.Commit(); err != nil {
+		return empty, err
+	}
+	return receipt, nil
+}
+
+func retainedMergeAuthority(a factory.Assignment, g admissionGrants) factory.AuthorityRef {
+	current := a.Authority
+	current.Policy, current.Operator, current.Capacity = g.policy.Revision, g.operator.Revision, g.capacity.Revision
+	current.Sponsorship, current.Environment = g.sponsorship.Revision, g.environment.Revision
+	return current
 }

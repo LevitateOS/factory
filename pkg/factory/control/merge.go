@@ -33,6 +33,9 @@ type MergeExecutor interface {
 // mergeable publications.
 const mergePassLimit = 256
 
+// Native mutation admission bounds each new merge send to five minutes.
+const mergeIntentLifetime = 5 * time.Minute
+
 // MergeLink is one exact merged PR with its dispatch receipts.
 type MergeLink struct {
 	AssignmentID  string `json:"assignment_id"`
@@ -212,4 +215,51 @@ func (c *Coordinator) finishMerge(ctx context.Context, m factory.Merge, stage st
 		report.Fenced = append(report.Fenced, m.ID)
 	}
 	return true
+}
+
+// PrepareUnsentMerge authorizes a new identity only after the ledger proves
+// the predecessor never allocated an operation. Native absence alone is not
+// authority. The normal merge pass still observes current review/CI/permission
+// facts before binding any send; preparing a row dispatches nothing.
+func (c *Coordinator) PrepareUnsentMerge(ctx context.Context, command, principal string, r factory.MergePreparation) (factory.MergePreparationReceipt, error) {
+	empty := factory.MergePreparationReceipt{}
+	if c.Store == nil || c.Merges == nil || r.Validate() != nil {
+		return empty, store.ErrMergeConflict
+	}
+	ctx, unlock, err := c.progressPass(ctx)
+	if err != nil {
+		return empty, err
+	}
+	defer unlock()
+	if _, err = c.Store.FactoryCommand(ctx, command); err == nil {
+		return c.Store.PrepareUnsentMerge(ctx, command, principal, r, time.Now())
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return empty, err
+	}
+	offer, err := c.Store.UnsentMergePreparation(ctx, r.Publication)
+	if err != nil {
+		return empty, err
+	}
+	if offer != r {
+		return empty, store.ErrStaleRevision
+	}
+	m, err := c.Store.MergeByPublication(ctx, r.Publication)
+	if err != nil {
+		return empty, err
+	}
+	policy, err := c.Store.RepositoryPolicy(ctx, m.Repository)
+	if err != nil {
+		return empty, err
+	}
+	work := c.mergeWork(m, policy)
+	unsent, ok := c.Merges.(interface {
+		CheckUnsentMerge(context.Context, factory.MergeWork) error
+	})
+	if !ok {
+		return empty, store.ErrMergeConflict
+	}
+	if err := unsent.CheckUnsentMerge(ctx, work); err != nil {
+		return empty, err
+	}
+	return c.Store.PrepareUnsentMerge(ctx, command, principal, r, time.Now())
 }

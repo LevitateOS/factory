@@ -147,9 +147,16 @@ func (c *Coordinator) verifyFreshMergeChecks(ctx context.Context, policy factory
 
 func (c *Coordinator) persistMergeIntent(ctx context.Context, m *factory.Merge, work factory.MergeWork, observation factory.MergeObservation, report *MergeReport) bool {
 	now := time.Now()
-	notAfter, err := c.Store.CapAttemptDeadline(ctx, m.AssignmentID, now.Add(10*time.Minute).Unix())
+	notAfter, err := c.Store.CapAttemptDeadline(ctx, m.AssignmentID, now.Add(mergeIntentLifetime).Unix())
 	if err != nil {
 		mergeWait(report, m.ID, "attempt_deadline_unavailable")
+		return false
+	}
+	if m.Authorization.Bound() {
+		notAfter = min(notAfter, m.Authorization.Generation.NotAfter)
+	}
+	if notAfter <= now.Unix() {
+		mergeWait(report, m.ID, "merge_authorization_expired")
 		return false
 	}
 	work.NativeRev, work.NotAfter = observation.NativeRev, notAfter

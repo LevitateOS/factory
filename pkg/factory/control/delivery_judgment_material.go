@@ -38,6 +38,7 @@ type deliverySourceMaterial struct {
 type deliveryJudgmentMaterial struct {
 	Input       factory.DeliveryFingerprintInput `json:"identity"`
 	Accepted    DispatchInputs                   `json:"accepted"`
+	PlanOrigin  string                           `json:"plan_origin,omitempty"`
 	Plan        factory.InvestigationPlan        `json:"admitted_plan"`
 	Findings    []factory.Finding                `json:"canonical_findings"`
 	Review      ResolvedReviewVerdict            `json:"current_review"`
@@ -72,8 +73,12 @@ func (m *deliveryJudgmentMaterial) semanticDigest() string {
 }
 
 func (m *deliveryJudgmentMaterial) validate() error {
+	origin := m.Input.AttemptRoot
+	if m.PlanOrigin != "" {
+		origin = m.PlanOrigin
+	}
 	if m.Input.Validate() != nil || m.Plan.Validate() != nil || m.Input.ScopeDigest != m.Plan.ScopeDigest ||
-		m.Input.AttemptRoot != m.Plan.AttemptRoot || m.Native.Revision < 1 || m.Native.Head != m.Input.Head || m.Native.Base != m.Input.Base ||
+		origin != m.Plan.AttemptRoot || m.Native.Revision < 1 || m.Native.Head != m.Input.Head || m.Native.Base != m.Input.Base ||
 		m.Source.Head != m.Input.Head || m.Source.Diff == "" || m.Source.Setup == "" || m.Source.Check == "" ||
 		m.Checks.Validate() != nil || m.Checks.Verdict != factory.CheckPass || m.Checks.HeadOID != m.Input.Head || m.Checks.BaseOID != m.Input.Base ||
 		len(m.Input.Constraints) != 1 || m.Input.Constraints[0] != "complete-material-sha256:"+m.semanticDigest() {
@@ -106,6 +111,12 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 		return nil, emptyCycle, emptyPolicy, err
 	}
 	merge := factory.Merge{Authority: p.Authority, ID: p.ID, ProjectID: p.ProjectID, AssignmentID: p.AssignmentID, Acceptance: p.Acceptance, Repository: p.Repository, Issue: p.Issue, PRNumber: p.PRNumber, PRID: p.PRID, IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID, ReviewerID: policy.Review.ActorID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID}
+	if owner.RetainedPublication != nil {
+		merge, err = c.Store.MergeByPublication(ctx, p.ID)
+		if err != nil || merge.AssignmentID != owner.ID || merge.HeadOID != p.Candidate || merge.BaseOID != p.PRCreate.BaseOID {
+			return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
+		}
+	}
 	gate := MergeReport{}
 	policy, revision, valid := c.mergeAuthority(ctx, merge, &gate)
 	if !valid {
@@ -135,11 +146,15 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	if wait, failed := readAttemptInputs(ctx, c.dispatchDeps(), attempt, p.Repository, p.Issue); wait != nil || failed != nil || attempt.inputs.Revision != revision {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
-	head, _, err := c.Store.PlanHead(ctx, owner.AttemptRoot)
+	origin, err := c.Store.PublicationExecutionOwner(ctx, p, owner)
 	if err != nil {
 		return nil, emptyCycle, emptyPolicy, err
 	}
-	plan, err := c.Store.InvestigationPlan(ctx, owner.AttemptRoot, head)
+	head, _, err := c.Store.PlanHead(ctx, origin.AttemptRoot)
+	if err != nil {
+		return nil, emptyCycle, emptyPolicy, err
+	}
+	plan, err := c.Store.InvestigationPlan(ctx, origin.AttemptRoot, head)
 	if err != nil || plan.Validate() != nil {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
 	}
@@ -221,6 +236,9 @@ func (c *Coordinator) deliveryMaterial(ctx context.Context, p factory.Publicatio
 	}
 	if len(run.ExecutionManifest) != 0 && (run.FinalCheckpoint == nil || run.FinalCheckpoint.Status != "committed" || run.FinalCheckpoint.Candidate != p.Candidate) {
 		return nil, emptyCycle, emptyPolicy, ErrDeliveryUnavailable
+	}
+	if origin.AttemptRoot != owner.AttemptRoot {
+		material.PlanOrigin = origin.AttemptRoot
 	}
 	material.Final = run.FinalCheckpoint
 	// Poll time/revision fields are mutation guards, not semantic changes.

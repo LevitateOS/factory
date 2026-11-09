@@ -2803,6 +2803,25 @@ disposable Debian overlay, preserved live old executable and encrypted credentia
 schema99, normal Quit and joined guest. It does not cover active workers or the
 later preparation fix.
 
+Q15 retained delivery joins (2026-11-09): preserve execution/plan provenance
+through the existing retained owner, and preserve a clean acceptance's original
+policy capture when all semantic evidence is unchanged. Fresh send authority
+belongs to a distinct explicit merge preparation. The existing command outcome
+archives the exact never-driven row; any operation/history/authorization/effect
+or native command presence refuses replacement. API/UI share saved immutable
+requests and exact replay. PG merge-preparation-store3, production DOM
+merge-preparation-ui-check2 and types/native/Go builds pass. Active candidates
+remain in CI assessment after a merge row exists; real current policy34 CI now
+passes. Paired provider reads retain their deadlines and bracket checks while
+independent inputs run concurrently; Go receives the native timeout refusal
+instead of racing its timer. Original reviewer clear/COMMENT receipt and total19
+minutes/six runs remain. Command16 recorded its first merge operation, then the native journal proved
+not_sent/invalid_native_write: the proposed ten minutes exceeded native admission's
+five-minute cap. Future captures use five minutes and cannot outlive their bound
+authorization. Original refused outcome/closed allowance remain. Explicit finite
+merge-only generation recovery is next; no model replay. Q15 remains incomplete;
+see its single active recovery record for the exact process/journal and next action.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

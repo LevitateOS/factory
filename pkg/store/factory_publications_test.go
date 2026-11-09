@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -403,6 +404,75 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		if err != nil || !spentLedger.Closed || len(spentLedger.Reviews) != 2 {
 			t.Fatal("fresh funding changed old consumption", err)
 		}
+		policy, err := db.RepositoryPolicy(ctx, newPublication.Repository)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := mergeTestRecord()
+		m.PublicationID, m.AssignmentID, m.ProjectID, m.Acceptance = newPublication.ID, newPublication.AssignmentID, newPublication.ProjectID, newPublication.Acceptance
+		m.Repository, m.Issue, m.PRNumber, m.PRID = newPublication.Repository, newPublication.Issue, newPublication.PRNumber, newPublication.PRID
+		m.IssueID, m.PRAuthorID, m.ReviewerID = newPublication.PRCreate.IssueID, newPublication.PRCreate.Work.ActorID, policy.Review.ActorID
+		m.HeadOID, m.BaseOID, m.HeadRef, m.BaseRef = newPublication.Candidate, newPublication.PRCreate.BaseOID, newPublication.PRCreate.HeadRef, newPublication.PRCreate.BaseRef
+		m.Authority = newPublication.Authority
+		m.Authority.Policy = policy.Revision + 1 // a stale, never-authorized preparation
+		if err = db.RecordMerge(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+		var prior string
+		if err = db.db.QueryRowContext(ctx, `SELECT data::text FROM factory_merges WHERE publication=$1`, m.PublicationID).Scan(&prior); err != nil {
+			t.Fatal(err)
+		}
+		prepare, err := db.UnsentMergePreparation(ctx, m.PublicationID)
+		if err != nil {
+			t.Fatal("unsent merge offer", err)
+		}
+		stalePrepare := prepare
+		stalePrepare.Revision++
+		if _, err = db.PrepareUnsentMerge(ctx, factory.NewID(), "owner", stalePrepare, time.Now()); !errors.Is(err, ErrStaleRevision) {
+			t.Fatal("stale merge preparation", err)
+		}
+		mergeCommand := factory.NewID()
+		mergeReceipt, err := db.PrepareUnsentMerge(ctx, mergeCommand, "owner", prepare, time.Now())
+		if err != nil {
+			t.Fatal("fresh unsent merge preparation", err)
+		}
+		mergeReplay, err := db.PrepareUnsentMerge(ctx, mergeCommand, "owner", prepare, time.Now().Add(time.Hour))
+		if err != nil || mergeReplay != mergeReceipt {
+			t.Fatal("merge preparation replay", err)
+		}
+		archived, err := db.FactoryCommand(ctx, mergeCommand)
+		var capture struct {
+			Prior string `json:"prior"`
+		}
+		if err != nil || json.Unmarshal([]byte(archived.Outcome), &capture) != nil || capture.Prior != prior {
+			t.Fatal("old merge preparation changed", err)
+		}
+		prepared, err := db.MergeByPublication(ctx, m.PublicationID)
+		if err != nil || prepared.ID != mergeCommand || prepared.Authority.Policy != policy.Revision || prepared.Operation.OperationID != "" || prepared.Operation.Attempts != 0 {
+			t.Fatal("fresh merge identity/authority", err)
+		}
+		active, err := db.ActivePublishedPublications(ctx, 100)
+		if err != nil || !slices.ContainsFunc(active, func(p factory.Publication) bool { return p.ID == newPublication.ID }) {
+			t.Fatal("recorded undriven merge excluded from current check assessment", err)
+		}
+		if _, err = db.UnsentMergePreparation(ctx, m.PublicationID); !errors.Is(err, ErrMergeConflict) {
+			t.Fatal("current merge offered needless replacement", err)
+		}
+		// Even a pending allocated operation cannot be replaced on lookup absence.
+		tx, err = db.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, owner, grants, err := retainedFundingScopeTx(ctx, tx, m.PublicationID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared.Authority.Policy++
+		prepared.Operation.OperationID = factory.MergeOperationIDForGeneration(prepared.PublicationID, 1)
+		if err = admitUnsentMergePreparationTx(ctx, tx, newPublication, owner, grants, prepared); !errors.Is(err, ErrMergeConflict) {
+			t.Fatal("allocated operation could be replaced", err)
+		}
+		_ = tx.Rollback()
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)
 		}

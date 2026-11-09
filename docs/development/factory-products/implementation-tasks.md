@@ -927,6 +927,61 @@ action: commit the coherent recovery change, then admit fresh command
 `q15-retained-publication/fund-final.sh`. Verify current Muse before spending;
 preserve all older commands, deadlines, model results and counts.
 
+**Active recovery — INCOMPLETE (2026-11-09):** continuation
+`15151515151515151515151515151510` completed reviewer run
+`0e330a1183d43779a8847b6a03790f92` / assignment
+`6196c3fd60ea46b3714453d7f4715f9b`, reconciled and retired. Its exact
+clear coverage is `b9bd804e14baf6c6fdd941b1a33dd18d695e7602b8182b94ca1d6e86c253c07e`;
+GitHub COMMENT review5825933008 has a committed causal native receipt. Context
+judgment `168d7fb7b0ce145bc459d34fd33831c0` and reviewer each cost one
+minute: source total19, six execution runs. No review/model was replayed.
+
+The delivery joins now resolve the original Builder/plan owner. A distinct
+`prepare-unsent-merge` command preserves the exact old row in the existing
+command outcome and captures current authority only before any operation,
+authorization, history, attempt or effect. Native command-journal presence
+refuses replacement. Command13 and its exact API replay passed; commands14–16
+preserve each prior unsent preparation across fixture connection/policy changes.
+Failed request11 was unadmitted; request12 timed out before changing the old row;
+both original requests remain. The shared UI saves exact requests before send
+and recovers identical captures after lost replies/remount, including newer offers.
+Existing PG `merge-preparation-store3.log`, production DOM
+`merge-preparation-ui-check2.log`, types3 and native/Go builds pass under
+`q15-retained-publication/`. No whole installed or Q15 completion claim.
+
+CI assessment now retains active candidates that already have a merge row;
+current real check evidence passed policy33 and then34. Independent CI reads
+run concurrently inside unchanged paired snapshots/native deadlines; Go allows
+one second to receive native timeout refusals. The fixture's exhausted GitHub
+rate budget reset at14:23:42 CET; no inference was repeated. A clean acceptance
+is reused only when every semantic field is identical: its original policy31
+capture stays immutable, while the fresh merge separately captures current
+policy34 and requires current checks/permissions.
+
+**Latest outcome:** `merge-preparation-connected6.log` / session3514 /
+instance `dc566465ff715b6ce1fedc269a16da87` is stopped and joined.
+Command/merge `15151515151515151515151515151516` bound generation1,
+recorded operation `soda-15151515151515151515151515151510-merge-1`, then
+retained a definitive not_committed/complete `invalid_native_write` outcome.
+Native `native-write-outcomes/eb73e4e6fb8b74b42dfc9882505a06c2.outcome.json`
+proves `state:not_sent`, null receipt, capture SHA
+`11311455f99a128b94c2328cde0251d23f91a0bc579055371b0c28cab2bb02fa`.
+The coordinator had offered ten minutes; native mutation admission caps sends
+at five. Future capture now uses five minutes and cannot outlive the already
+bound authorization. The original failed generation/deadlines stay unchanged;
+root10 is closed, source total19/six runs unchanged. No second merge send or
+model is authorized by lookup absence.
+
+Next executable action: implement an explicit finite merge-only retry for this
+confirmed no-send predecessor through the existing bounded generation ledger,
+with original snapshot/native proof retained, current exact policy/head/base
+capture and a distinct operation. It must leave inference allowance closed and
+buy no model work. Then verify resulting commit/issue closure and merged-source
+preparation, and finish Q15's remaining funded delivery/correction/human/race
+and recovery gates. The original uncertain branch publication
+`31dbde02be4170d92a37ac3da6154014` stays fenced. Q20 host source/native
+check is independent (see its record); Q24 has no replacement appliance.
+
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
 reachable “Publish retained candidate” command. Command/publication
@@ -1310,6 +1365,33 @@ Final reply: requested Q19, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 ### Q20 — Fountain issue-only collaborator capability
 
 Outstanding. Requires separately authorized issue-only host grants and an actual fixture without code-unit read. Implement and qualify that capability in its canonical host; code-reader evidence cannot close it. No GitHub prerequisite.
+
+Source work in progress: Fountain's SDK recognizes explicit
+`native.repository.issues.read`, issue-only repository metadata and page permission.
+The host allows only ordinary issue reads/snapshots/catalogue through that grant;
+code/PR/check/intake/runtime gates retain their own code/capability checks. The
+shared repository feed can admit issue-unit readers. SodaOS declares the grant
+and keeps code Pull=false for issue-only metadata. Source builds pass
+`q19-authority/q20-host-build2.log` and `q20-consumer-build1.log`. The existing
+native source check `q20-callback-check2.log` also passes with org17/repo24/user2:
+code unit present, issue write allowed, code read denied, issue-only metadata and
+create/read snapshots, journaled issue creation/replay and capability withdrawal.
+The fixture team units are restored. This uses the native SQLite fixture; no full
+PostgreSQL host/SDK/shared-UI or installed
+issue-only journey has run and Q20 is not complete. Owned Fountain paths: SDK
+contract/catalog/manifest/native/native_catalog, extension manager,
+routers/web/extensions/{extensions,callback,callback_issues,callback_comments,
+callback_catalog,callback_source_test}.go. Owned SodaOS paths: extension.json and
+internal/web/api/environment_authority.go. Next: extend the existing real native
+SQL/Git/SDK/browser check with an authorized issue-only fixture and current
+withdrawal/out-of-scope/code/execution refusal; then commit only verified scope.
+Existing human issue creation/comment/edit native/browser checks already support
+issue-unit authority, and `runIssueRoutePresentation` currently expects the old
+code-reader-only page fallback. Update that expectation only for a manifest that
+explicitly declares the new issue permission. Native desktop OAuth/enrollment
+still requires code-read and needs a separate admitted issue-only path before
+claiming desktop parity. No appliance is needed for this host/consumer work.
+
 
 ```text
 Execute through Q20 — Fountain issue-only collaborator capability. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q20 despite the document's historical paused snapshot; it does not authorize work beyond Q20 or resuming the old product queue.

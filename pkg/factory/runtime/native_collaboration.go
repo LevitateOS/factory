@@ -208,13 +208,15 @@ func (p *NativeCollaboration) call(ctx context.Context, effect any, observation 
 	if err != nil || len(body) > limit {
 		return zero, errors.New("invalid native operation")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	// Leave room to receive the native owner's bounded refusal, including its
+	// eight-second deadline, rather than losing that outcome to a tied timer.
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return nativePortDial(ctx, p.operation.config)
 		},
-		DisableKeepAlives: true, MaxResponseHeaderBytes: 16384, ResponseHeaderTimeout: 8 * time.Second,
+		DisableKeepAlives: true, MaxResponseHeaderBytes: 16384, ResponseHeaderTimeout: 9 * time.Second,
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

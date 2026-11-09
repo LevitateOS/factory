@@ -102,12 +102,14 @@ impl Reader<'_> {
         {
             return Err(Failure::new(409, "github_automation_pull_unavailable"));
         }
-        let issue = self.raw_subject(false, number).await?;
+        let (issue, head_tip, base_tip) = tokio::try_join!(
+            self.raw_subject(false, number),
+            self.automation_branch_tip(head_ref),
+            self.automation_branch_tip(base_ref)
+        )?;
         if issue["pull_request"]["url"] != self.url(&format!("/pulls/{number}")) {
             return Err(Failure::protocol());
         }
-        let head_tip = self.automation_branch_tip(head_ref).await?;
-        let base_tip = self.automation_branch_tip(base_ref).await?;
         if head_tip != head || base_tip != base {
             return Err(Failure::new(409, "github_automation_checks_changed"));
         }
@@ -254,8 +256,10 @@ impl Reader<'_> {
     }
 
     pub(super) async fn automation_check_snapshot(&self, number: u64) -> Result<Value> {
-        let mut snapshot = self.automation_review_snapshot(number).await?;
-        let binding = self.check_evaluation(number).await?;
+        let (mut snapshot, binding) = tokio::try_join!(
+            self.automation_review_snapshot(number),
+            self.check_evaluation(number)
+        )?;
         if snapshot["head_tip"] != binding["head"] || snapshot["base_tip"] != binding["base"] {
             return Err(Failure::new(409,"github_checks_changed"));
         }

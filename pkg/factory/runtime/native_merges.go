@@ -22,6 +22,23 @@ type NativeMerges struct{ NativeInputSource }
 
 var _ control.MergeExecutor = NativeMerges{}
 
+// CheckUnsentMerge reads the command journal before a new merge preparation.
+// Normal LookupOp requires a registered operation; an undriven row has none.
+// Any existing command, including an unknown or pending capture, refuses.
+func (p NativeMerges) CheckUnsentMerge(ctx context.Context, w factory.MergeWork) error {
+	q, err := p.request(ctx, w)
+	if err != nil {
+		return err
+	}
+	if _, err = p.Store.FactoryCommand(ctx, q.ID); errors.Is(err, store.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return store.ErrMergeConflict
+}
+
 func (p NativeMerges) request(ctx context.Context, w factory.MergeWork) (factory.HumanMergeCommand, error) {
 	repo, err := p.Store.CollaborationRepository(ctx, collaboration.RepositoryID(w.Repository))
 	if err != nil {

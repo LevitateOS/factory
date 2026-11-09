@@ -362,3 +362,29 @@ func MergeTargetChanged(m Merge, p Publication) bool {
 		p.PRCreate.HeadRef != m.HeadRef || p.PRCreate.BaseRef != m.BaseRef ||
 		p.Candidate != m.HeadOID || p.PRCreate.BaseOID != m.BaseOID
 }
+
+const CommandPrepareMerge = "prepare-unsent-merge"
+
+// MergePreparation is a new explicit command for a definitively undriven row.
+// It never renews an existing operation or funds inference.
+type MergePreparation struct {
+	Publication string `json:"publication"`
+	MergeID     string `json:"merge_id"`
+	Revision    int64  `json:"revision"`
+	Policy      int64  `json:"policy"`
+	Head        string `json:"head"`
+	Base        string `json:"base"`
+}
+
+func (r MergePreparation) Validate() error {
+	if !ValidID(r.Publication) || !ValidID(r.MergeID) || r.Revision < 0 || r.Policy < 1 || !ValidCommit(r.Head) || !ValidCommit(r.Base) {
+		return errors.New("invalid unsent merge preparation")
+	}
+	return nil
+}
+
+type MergePreparationReceipt struct {
+	CommandID string           `json:"command_id"`
+	Request   MergePreparation `json:"merge_preparation"`
+	MergeID   string           `json:"merge_id"`
+}
