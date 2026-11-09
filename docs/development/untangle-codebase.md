@@ -2406,6 +2406,35 @@ a new branch/command, with original publication and inference preserved. Impleme
 that action next; Q24 remains independently blocked by the owner's confirmed lack
 of a replacement appliance.
 
+## Q25/Q27 current installed Fountain login slice (2026-11-09)
+
+Factory `72dadae8fcf4fc218b371b839b63cdf9e8b74ac9` is the clean source of
+`q25-package/stage-current2`, built after official Go/Bun/Rust/PostgreSQL
+freshness revalidation. Canonical Fountain `e5bca684cdad387b2debcb0d23c38ce88236e0ee`
+adds the optional actual-installed-UI mode to the existing canonical TLS OAuth
+check and documents operator configuration. `recipient-install3.log` passes
+installation with developer tools/headers/checkout hidden.
+
+`fountain-ui2/journey.log`, normal installed app and real XTest inputs pass
+configured OAuth, exact native account, committed enrollment/lost reply/UI
+lookup, refresh, Quit/reopen, identical profile/enrollment captures, exact replay,
+withdrawal/inactive replay, account removal and final joined Quit. Original
+enrollment `565d402ec14da213d9ae832e4a5a0fb2` belongs to profile
+`fd603439a25a8c024594153ff80b5dbb`; three enrollment sends and one refresh
+are asserted by the actual host. The app uses embedded production assets, its
+installed backend/PostgreSQL and isolated encrypted keyring. No native-check
+executable, renderer injection, phase seeding or model substituted for the app.
+Original failed recipient/tool-input attempts remain preserved; all owned
+GUI/native/PG/keyring/bus processes are joined.
+
+This closes the installed login/enrollment/lifecycle slice, not full Q25/Q27,
+installed Fountain-host delivery or the remaining broad security gates. The
+restricted recipient used bubblewrap; a genuine clean systemd VM remains
+necessary for the separate no-developer-tools/no-container host qualification.
+Q24's unavailable replacement appliance does not block that VM or other desktop
+work. The approved Q15 fresh-publication command remains to implement without
+renewing its closed original attempt or replaying original inference/sends.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

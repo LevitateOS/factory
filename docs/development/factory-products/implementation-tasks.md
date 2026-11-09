@@ -48,7 +48,7 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Fountain native login/enrollment and independent installed qualification.**
+**Current work: Q25 clean recipient qualification and the approved Q15 fresh-publication action.**
 Q25 does not depend on a GitHub merge or Q24’s appliance. Q14’s receipts remain
 complete and preserved. Resume Q15 only from its recorded original outcomes.
 
@@ -1143,7 +1143,20 @@ Final reply: requested Q24, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q25 — Fresh Linux distribution and installers
 
-INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; supported-host qualification remains. `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final2.log`, `boundaries-final.log`). The actual installed app rendered production UI using its bundled backend/PostgreSQL, reopened its original profile, accepted real XTest keyboard Close/Quit, restored the existing window on second launch and joined its database on Quit (`desktop/{loaded,second-launch,keyboard-quit-focus}.png`, `input.log`, `session2.log`, original PostgreSQL shutdown log). The first root-window capture failed on headless Xwayland; window capture corrected the check after verifying clean original shutdown. No native-check/development executable or seeded phase facts were used. This qualifies the changed packaging/recovery and installed lifecycle boundary on Rocky x86_64, not full Q26/Q27 or the supported-host matrix. Next: finish runtime/capability checks without development tools and supported-host evidence; package the subsequent native Retry fixes before installed delivery. Q15/Q24 do not block independent installation work.
+INCOMPLETE — verified packaging checkpoint `957996876c042214a6adc09fb1652068a4337360`; supported-host qualification remains. New clean-source release `stage-current2` binds engine
+`72dadae8fcf4fc218b371b839b63cdf9e8b74ac9`;
+`upstream-current2.json` rechecks official current Go/Bun/Rust metadata and the
+packager rechecks official PostgreSQL stable before selecting the retained
+checksummed inputs. `build-current2.log`, `recipient-install3.log` and the
+[Q27 installed UI check](#q27) pass with developer tools/headers/source hidden.
+A genuine clean systemd VM is being prepared in `q25-package/recipient-vm`;
+its official Rocky 10.2 image checksum signature is authenticated by published
+fingerprint `FC226859C0860BF0DDB95B085B106C736FEDFC85` using Sequoia (the
+existing GnuPG could not parse its additional v6 key block). Existing guests,
+including the retired stopped soda demo, are untouched. Full clean-host and
+execution-service qualification is pending.
+
+Historical retained packaging evidence:  `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final2.log`, `boundaries-final.log`). The actual installed app rendered production UI using its bundled backend/PostgreSQL, reopened its original profile, accepted real XTest keyboard Close/Quit, restored the existing window on second launch and joined its database on Quit (`desktop/{loaded,second-launch,keyboard-quit-focus}.png`, `input.log`, `session2.log`, original PostgreSQL shutdown log). The first root-window capture failed on headless Xwayland; window capture corrected the check after verifying clean original shutdown. No native-check/development executable or seeded phase facts were used. This qualifies the changed packaging/recovery and installed lifecycle boundary on Rocky x86_64, not full Q26/Q27 or the supported-host matrix. Next: finish runtime/capability checks without development tools and supported-host evidence; package the subsequent native Retry fixes before installed delivery. Q15/Q24 do not block independent installation work.
 
 ```text
 Execute through Q25 — Fresh Linux distribution and installers. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q25 despite the document's historical paused snapshot; it does not authorize work beyond Q25 or resuming the old product queue.
@@ -1189,7 +1202,36 @@ Final reply: requested Q26, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q27 — Installed Fountain desktop product journey
 
-Outstanding. Requires actual installed desktop assets and current Fountain login/placement/grant/publication/adoption behavior. No GitHub qualification prerequisite; preserve actual host and app revisions.
+INCOMPLETE — the installed login/enrollment/lifecycle slice passes; the full
+Fountain delivery journey remains outstanding. Actual installed app source
+`72dadae8fcf4fc218b371b839b63cdf9e8b74ac9`, immutable
+`/home/vince/Projects/q25-package/stage-current2`, and canonical host
+`e5bca684cdad387b2debcb0d23c38ce88236e0ee` pass
+`q25-package/fountain-ui2/journey.log` using the normal installed executable,
+production embedded UI and bundled Go/PostgreSQL. Real XTest keyboard and mouse
+input proves configured TLS-host OAuth/account capture, one committed enrollment
+with a lost reply, original-command UI readback, provider refresh, Quit/reopen
+with the original profile/keyring/enrollment, exact replay, withdrawal, inactive
+replay, local account removal and final Quit. Command
+`565d402ec14da213d9ae832e4a5a0fb2` and profile
+`fd603439a25a8c024594153ff80b5dbb` remain retained;
+`before-restart.sha256` verifies unchanged profile/enrollment capture. The host
+asserts three enrollment sends and one refresh; readback never sends a second
+enrollment. Screenshots and `input.log` retain the actual views/inputs. All
+own app, PostgreSQL, Mutter, keyring and bus processes are joined; the local
+account is removed and host enrollment remains withdrawn.
+
+The recipient filesystem view hides all PATH copies of compilers/interpreters,
+headers/toolchain roots and the developer checkout. It is a scoped bubblewrap
+check on the real host, not a clean VM or installed Fountain appliance. The first
+UI attempt typed an incomplete public address and made no OAuth/enrollment
+request; its failed log/profile and clean shutdown are preserved in
+`fountain-ui1/`. Corrected keyboard pacing and clipboard comparison verify the
+exact public origin before sign-in in `fountain-ui2/`. No development/native-check
+executable, renderer injection or seeded product phase substituted for the app.
+Actual source/setup/funding, placement, upload/publication/review/check/merge,
+external adoption, issue-only collaboration and the remaining installed recovery
+gates still need their implemented host/runtime authority.
 
 ```text
 Execute through Q27 — Installed Fountain desktop product journey. Work in /home/vince/Projects/factory and only canonical owning repositories required by the task. Read AGENTS.md and /home/vince/Projects/factory/docs/development/factory-products/implementation-tasks.md, including owner decisions, mapped requirements and current evidence. This submitted prompt authorizes missing prerequisites and Q27 despite the document's historical paused snapshot; it does not authorize work beyond Q27 or resuming the old product queue.

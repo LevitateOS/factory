@@ -62,18 +62,33 @@ GTK/WebKit runtime libraries available, run:
 ```
 
 The default prefix is `$HOME/.local`; launch `$HOME/.local/bin/factory` or its
-application-menu entry. Existing app/launcher/menu/icon files cause refusal;
-upgrades remain unfinished. Profiles and credentials stay outside installation.
+application-menu entry. The installer checks architecture, runtime libraries and
+the complete bundle inventory before publishing the app. Reinstalling the same
+verified bundle can recover an interrupted installation; changed or unrelated
+app/launcher/menu/icon files cause refusal. Upgrades remain unfinished. Profiles
+and credentials stay outside installation.
 The separate privileged execution-service setup is described in
 [the desktop guide](cmd/soda-desktop/README.md#linux-execution-services).
-This is an installable development bundle, not a qualified release. A fresh
-distribution baseline, complete dependency notices and installed journeys remain
-required. The desktop shell supports GitHub
+Production packaging builds release native executables and includes compiled
+dependency notices, required covered source, compiler/PostgreSQL notices,
+`build-inputs.json` and complete SHA-256/link inventories. A checksummed PostgreSQL
+payload matching official current stable is required. The current package has
+installed and reopened on Rocky Linux 10.2 x86_64 with developer tools and the
+source checkout hidden. Broader host, execution, upgrade and full provider journeys
+remain unqualified; this is not a qualified release. The desktop shell supports GitHub
 device sign-in, verification, native encrypted credential storage and saved-account
 removal. Click **Sign in to GitHub**, open the verification page in your browser
 and enter the displayed code. Choose a saved account and repository to connect the
 shared application. Signing in alone does not authorize execution: local resource
 and workspace consent, policy, funding and run admission are separate requirements.
+For Fountain, enter the HTTPS address of a host configured for desktop access and
+choose **Sign in to Fountain**, then **Continue in browser**. Select the saved
+account and enter an `owner/repository` to enroll. **Check enrollment** reads the
+original retained command after a lost reply or restart. **Withdraw enrollment**
+keeps it inactive; replay cannot reactivate it. Refreshing or signing in does not
+authorize execution or publication. Older saved accounts require explicit sign-in
+before refresh because their public-client identity was not captured.
+
 Native fixture execution is not proof of real provider inference.
 [The desktop guide](cmd/soda-desktop/README.md) describes lifecycle,
 credential custody and opt-in native acceptance checks.
