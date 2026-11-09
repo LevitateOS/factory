@@ -1804,15 +1804,22 @@ and granted the existing fixture team write access only there (HTTP204). Origina
 team permission is unchanged; actual sodaos write and real green Actions run
 42661269477 are retained under `q26-installed-fixture`. No old issue was edited.
 
-Installed current12, clean source d92c6d8da48f6bb03b7f694044fd5db6b8c010e5,
-inventory 554cd4391766ac6df99f5fc1668076ba66c3969026b2b231f7b8cb478a2d15a4,
+Installed current13, clean source e2c5ca2f84e1fd88136d3c231bd16140a0fe6ced,
+inventory 4818c14206f9ef868c62a6e1268e285811b5bcc6c074e9febbb16000e69ae5e8,
 preserves encrypted GitHub/Muse login and durable profile/signer across exact-prior
-updates and normal Quit/reopen. `current12-upgrade.log` and
-`current12-fresh-reopened.png` retain actual executable/reconnect proof.
+updates and normal Quit/reopen. `current13-upgrade.log` and
+`current13-retained-preparation-phases.png` retain actual executable/reconnect
+and corrected interrupted-phase presentation proof.
 3fdb2f1f52ff043bd2ac0fcaafa5a6d92349a92c exposes explicit per-run/review/correction
 limits in the shared policy form; d92c6d8 states the existing soft source-admission
 cap accurately. No default policy limit was silently changed. Type checks and
-clean production builds pass; installed limit-command qualification is next.
+clean production builds pass. `q26-current12-policy-original.log` proves the
+single actual installed disabled-policy save: canonical repository734, revision1,
+15 minutes/run, two reviews, one correction, three independently selected roles
+on source 3d34808251c58eb6555cad0ea58065b9, actual GitHub actor/connection, merge
+method/real CI context and no automation-reviewer designation. Current13 reopens
+that exact policy without another PUT. The fresh repository's own 30-minute
+allowance is separate from repository1's earlier unused allowance.
 The earlier current10 source allowance is 30 minutes on connection
 3d34808251c58eb6555cad0ea58065b9 for old repository1, with zero runs and no policy;
 it cannot fund the new repository. No paid inference has occurred in this profile.
@@ -1825,13 +1832,17 @@ before starting because both 1 GiB role reservations overlapped on 2 GiB `/run`.
 preserve that partial outcome. The installer now preflights both simultaneous
 roles plus the unchanged broker reserve; actual guest `q26-preflight13/result.log`
 proves 2 GiB refusal with unchanged targets and 3 GiB exact installation success.
-The setup UI now retains the interrupted phase instead of falsely classifying
-an observation failure as another source/session. Next: qualify this shared UI
-correction in the installed app, configure 15 minutes/run, two reviews and one
-correction with a separate fresh 30-minute source allowance, then the new eligible
-issue journey. Automation is unconfigured/disabled and no model or uncertain write
-was replayed. The original profile and actual app/backend/PG/private bus/keyring
-remain running at SSH22209; current12 partial preparations stay retained.
+The corrected installed UI retains the actual interrupted phase. A fresh current13
+approval on the exact retained recipe passes both isolated roles on the qualified
+3 GiB runtime: Builder f49383045abd2627dee683ae2, Reviewer fb7cc42b7743e361a5ece8f10,
+approval de3459457db120ab6e58fd8b1, requirement de379cd5786dc2cf526bfe491,
+instance119e4508b3fe8493dbb3190d9cf34f56. Both real setup/check exits are zero;
+original partial outcomes stay unchanged. `q26-current13-preparation-original.log`
+and `current13-preparation-original-result.png` retain the proof. Next: enroll
+the saved policy through the actual UI, create the reviewed fresh own issue once,
+and recover its intake/model/publication receipts before any further effect.
+Automation remains disabled with zero runs. App/backend/PG/private bus/keyring
+remain running at SSH22209; no paid inference or uncertain write was replayed.
 
 **Installed continuation (2026-11-09), still INCOMPLETE:** current10 saved the
 approved GitHub account as `sodaos` (353332758), not the account named in the

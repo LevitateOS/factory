@@ -2946,6 +2946,16 @@ soft source-admission wording are built in clean current12; actual policy-comman
 qualification remains next. User-authorized isolated repository avoids old Q14
 intake/inference replay. Exact installed/source/fixture references are in Q26.
 
+Q26 installed integration proof (2026-11-09): clean current13/e2c5ca2 runs the
+corrected shared presentation in the installed app. Actual prior ready/interrupted
+phases stay visible after reopen without granting work authority. Actual installed
+policy command/readback captures 15 minutes per run, two reviews, one correction,
+three exact Muse selections and COMMENT-only agent inspection; it remains disabled
+and reopens without another PUT. A fresh recipe approval on the qualified 3 GiB
+runtime produces two real ready preparations with setup/check exits0, preserving
+the original one-role refusal. Q26 holds exact identities and receipts; fresh
+automatic issue delivery/adoption and remaining installed gates are still open.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
