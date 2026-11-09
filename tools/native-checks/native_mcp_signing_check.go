@@ -1246,6 +1246,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == "retained-root-retry" {
+		if err := retainedRootRetry(os.Args[2], os.Args[3]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 4 && os.Args[1] == "retired-plan-review" {
 		if err := retiredPlanReview(os.Args[2], os.Args[3]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1420,6 +1427,60 @@ func (s retainedPlanAssignments) Assignment(ctx context.Context, id string) (fac
 		err = json.Unmarshal(raw, &owner)
 	}
 	return owner, err
+}
+
+func retainedRootRetry(dsnFile, assignment string) error {
+	if !strings.Contains(dsnFile, "/current20-receipt-inspection/") {
+		return errors.New("requires the disposable original-receipt inspection copy")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	dsn, err := os.ReadFile(dsnFile)
+	if err != nil {
+		return err
+	}
+	db, err := store.OpenStandaloneContext(ctx, string(dsn))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	owner, err := db.Assignment(ctx, assignment)
+	if err != nil {
+		return err
+	}
+	latest, err := db.LatestIssueAttempt(ctx, owner.Repository, owner.Issue)
+	if err != nil || latest.ID == owner.ID || latest.AttemptRoot != owner.ID || latest.Stage != factory.AssignmentFinished {
+		return errors.New("requires actual settled root and later child receipts")
+	}
+	run, err := db.FactoryRun(ctx, owner.Run)
+	if err != nil || !run.Reconciled {
+		return errors.New("original root is not reconciled")
+	}
+	if _, err = db.CloseAttempt(ctx, owner.ID); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(map[string]string{"prior_run": run.ID, "prior_outcome": string(run.Outcome)})
+	if err != nil {
+		return err
+	}
+	cmd := factory.Command{ID: factory.NewID(), Type: factory.CommandRetry, Target: "run/" + run.ID, Principal: "1", Payload: string(payload)}
+	cmd.Digest = factory.SettingsDigest(cmd.Type, cmd.Target, cmd.Payload)
+	decision, err := cmd.RetryDecision()
+	if err != nil {
+		return err
+	}
+	for i := 0; i < 2; i++ {
+		stored, created, e := db.RecordExplicitRetryCommand(ctx, cmd, decision, owner.Repository, owner.Issue, owner.Acceptance, time.Now())
+		if e != nil || created != (i == 0) || stored.ID != cmd.ID || stored.Finished == "" {
+			return fmt.Errorf("root retry admission/replay: created=%v error=%v", created, e)
+		}
+	}
+	pending, err := db.PendingExplicitRetry(ctx, owner.Repository, owner.Issue, owner.Acceptance)
+	if err != nil || pending.CommandID != cmd.ID || pending.Prior != run.ID {
+		return fmt.Errorf("root retry recovery: %v", err)
+	}
+	fmt.Println("PASS: original settled root with later failed child admits one fresh Retry and recovers the same command; disposable copy only, no coordinator, provider, model or dispatch")
+	return nil
 }
 
 func retiredPlanReview(dsnFile, assignment string) error {

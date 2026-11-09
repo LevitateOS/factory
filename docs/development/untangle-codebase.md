@@ -3001,6 +3001,16 @@ receipts. The disposable-copy native check6 proves idempotence, unchanged origin
 run/assignment/command/charge/publication records and refusal to reuse completed
 authority; no provider or model ran. Exact artifacts and the next action are in Q26.
 
+Q26 displayed-root Retry recovery (2026-11-09): the installed issue view exposes
+its publication root, while Retry admission required the latest child. Preserve
+saved command54dfafb7679c429683795e9a851b9430 and its original target. Accept that
+exact current root after the existing full-attempt settlement/operation/accounting
+checks; child targets still require the latest assignment, and another root or
+acceptance cannot inherit authority. The actual retained-copy check proves a
+single command and idempotent recovery without coordinator/provider/inference.
+Installed recovery and positive funded plan review remain the next Q26 action;
+the user's bounded Retry authorization persists. Exact references are in Q26.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

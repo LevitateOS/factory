@@ -1898,13 +1898,34 @@ completed original cannot fund another review and no provider/model/proposal is
 created. Earlier harness failures remain in checks1–5; actual retired native runs
 had active capability columns, not retired columns. Build/boundaries pass;
 `plan21-types-check.log` only compiled packages with no test files and is not
-behavior evidence. Fresh positive connected plan review still requires a newly
-authorized Retry; do not replay these models. Next: commit/package this correction,
-install from exact current20, reopen/reconcile retained state without Retry, then
-ask for the Q30 paid-planning exception. Current20 app/coordinator and inspection
-PG are stopped at SSH22209. Owned edits are this record and the plan-review /
-capability-retirement changes under `pkg/factory`, `pkg/store` and the existing
-`tools/native-checks/native_mcp_signing_check.go`. The
+behavior evidence. c5c8e4c7409a9b636ed1adf98cc8bcdccab7c31f is installed as clean
+current21, inventory37b82075dfe886c1cf7d5395fc2d2185764fa77da55c912e444d158966b31cda.
+Exact-prior activation/reopen preserves durable files/helpers and original logs;
+`q26-current21-recovery-original.log` confirms both capabilities retired with
+the same runs, judgments and ten-minute charge. The user authorized a fresh Retry
+on the same source/remaining20-minute allowance, 15 minutes per run/two reviews/
+one correction, including the plan-completeness opinion. Actual current-session
+approval6/instance86564f83cf8f570a9735444ebc58521d prepared coder
+f389021f4e9568bbd2d2d0cef and reviewer f6f5932c9059c2fe33ac0f164, both exits0
+(`q26-current21-preparation-original.log`). An older interrupted reviewer row was
+initially misread as current; its original receipt remains untouched.
+
+The installed UI saved Retry54dfafb7679c429683795e9a851b9430 against displayed
+root runf28e6614fd6ecee4a7a6141933691f96, but no command/charge was recorded:
+admission required the latest child even though the issue view exposes its root.
+Root Retry now accepts only that current publication root and its same-lineage
+latest assignment; child targets still require the latest row. Existing all-run
+settlement, operations, accounting, acceptance and authority checks remain.
+`root22-retained-original-check2.log` proves one command/adoption and idempotent
+readback against the actual disposable retained copy, with no coordinator,
+provider, dispatch or inference. Its PG joined; check1 used the wrong socket port
+and changed no product data. Go builds/boundaries pass. Next: package/install this
+correction from exact current21, normally reopen and recover the saved same Retry
+identity once; do not replace it or replay original models. Current21 app134311,
+backend134451 and its original PG remain running at SSH22209; no fresh inference
+has occurred. Automatic review rejected copying all webview storage; a targeted
+read of only the saved Retry record recovered the identity without copying other
+data. The
 session harness overwrote the original keyring.log on reopen; its crash text was
 read in-session, and original SQL receipts/session.log remain. Preserve subsequent
 session logs before restart. The full remaining queue is still outstanding.

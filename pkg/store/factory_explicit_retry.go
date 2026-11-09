@@ -274,7 +274,7 @@ func loadRetryOwnerTx(ctx context.Context, tx *sql.Tx, priorAssignment factory.A
 		return empty, err
 	}
 	var latest factory.Assignment
-	if err = json.Unmarshal(latestData, &latest); err != nil || latest.Validate() != nil || latest.ID != priorAssignment.ID {
+	if err = json.Unmarshal(latestData, &latest); err != nil || latest.Validate() != nil {
 		return empty, ErrExplicitRetryIneligible
 	}
 	var ownerData []byte
@@ -289,9 +289,13 @@ func loadRetryOwnerTx(ctx context.Context, tx *sql.Tx, priorAssignment factory.A
 	}
 	if err = owner.Validate(); err != nil || owner.Stage != factory.AssignmentFinished || owner.Role != project.RoleCoder ||
 		owner.Acceptance != acceptance || owner.AttemptRoot != owner.ID || priorAssignment.AttemptRoot != owner.ID ||
-		priorAssignment.PublicationAssignment != owner.ID {
+		priorAssignment.PublicationAssignment != owner.ID || latest.AttemptRoot != owner.ID || latest.PublicationAssignment != owner.ID ||
+		latest.Acceptance != acceptance || (latest.ID != priorAssignment.ID && priorAssignment.ID != owner.ID) {
 		return empty, ErrExplicitRetryIneligible
 	}
+	// The issue view exposes its publication root. Retrying that exact root
+	// restarts the fully settled attempt, including a failed child. A child
+	// target must still be the newest assignment; older roots stay refused.
 	return owner, nil
 }
 
