@@ -241,6 +241,7 @@ export class DesktopProduct {
             commandScope,
             links: this.links(route.repository),
             capabilities: upfrontCapabilities(undefined, false),
+            watchAvailable: false,
           },
         };
       case 'plan':

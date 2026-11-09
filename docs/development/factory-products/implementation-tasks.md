@@ -1796,6 +1796,30 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
+**Latest recovery, INCOMPLETE:** the actual current13 UI enrolled policy revision2
+and created fresh issue #1 once, command2653c89429774dbaa331ecc0444c155a,
+external6291314439. The committed causal GitHub receipt is retained in
+`q26-current13-issue-original.log`; never recreate it. Automatic polling advanced
+cursor734→1 and admitted original unedited inputs as d879d5ca043c26553343c6e9f.
+`q26-current13-admission-original.log` records the actual hold `dispatch_closed`;
+there are zero runs/charges. The desktop composition still disabled every native
+intervention and supplied no issue→Work-detail navigation. b583a91 connects the
+existing backend-gated controls and shared contextual navigation, retaining
+Project stop=false; 64f14c2 removes an unrelated hard-coded refusal label. Types,
+ownership boundaries and clean production current15 pass. Current15 is installed
+and reopened with durable profile/keyring/signer unchanged. Work detail also needs
+the current run from its authenticated issue response: desktop supplies no initial
+run IDs. The shared view now loads and targets that observed run while preserving
+explicit host selections and backend gates. Native live terminal has no adapter
+and stays explicitly unavailable. An exact-optional-field type failure was fixed;
+the dirty current16 stage is unqualified and must not be installed. Next: install
+clean current17 by exact current15
+inventory, normal Quit/reopen the same profile, then use the
+actual Work detail Resume command and current setup to resume this retained issue.
+Do not repeat creation, acceptance or funding. Current15 app/backend/PG/private
+bus/keyring remain at SSH22209; no model process is active. Product edits and this
+recovery record belong to the current run-control integration slice.
+
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository
 `LevitateOS/factory-installed-github-check-20261109` (1451647791) was created once

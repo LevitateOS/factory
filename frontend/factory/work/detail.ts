@@ -82,6 +82,7 @@ export interface WorkDetailContext {
   issue: string;
   runIDs: string[];
   capabilities: Record<InterventionKind, boolean>;
+  readonly watchAvailable?: boolean;
   runID?: string;
   projectID?: string;
   environmentID?: string;
@@ -109,6 +110,7 @@ function detailSignature(context: WorkDetailContext): string {
     context.runIDs.join(','),
     context.projectID ?? '',
     context.environmentID ?? '',
+    context.watchAvailable === false ? '0' : '1',
     ...kinds.map((kind) => (context.capabilities[kind] ? '1' : '0')),
   ].join('|');
 }
@@ -265,6 +267,12 @@ export class SodaFactoryWorkDetail extends LitElement {
         readDetailRuns(context, signal),
       ]);
       if (!current()) return;
+      const observedRun = detail.detail?.attempt?.run;
+      if (factoryRunID(observedRun) && !runs.some(entry => entry.id === observedRun)) {
+        const observed = await readDetailRuns(context, signal, [observedRun]);
+        if (!current()) return;
+        runs.unshift(...observed);
+      }
       const ready = !!detail.detail && !!accessResult;
       this.detail = detail.detail ?? this.detail;
       this.runs = runs;
@@ -375,7 +383,7 @@ export class SodaFactoryWorkDetail extends LitElement {
       )
         return;
       if (!this.live(serial, context) || !this.backendGate(kind).available) return;
-      const runID = kind === 'retry' ? this.retryRunID() : context.runID;
+      const runID = kind === 'retry' ? this.retryRunID() : this.selectedRunID();
       if ((kind === 'stop' || kind === 'retry' || kind === 'takeover') && !runID) {
         this.setMark(kind, 'failed', 'No recorded run is available for this action on this work.');
         return;
@@ -473,6 +481,7 @@ export class SodaFactoryWorkDetail extends LitElement {
     const context = this.current;
     if (
       !context ||
+      context.watchAvailable === false ||
       !this.live(this.serial, context) ||
       this.observation?.state !== 'ready' ||
       !this.detail?.capabilities.watch.available ||
@@ -496,11 +505,16 @@ export class SodaFactoryWorkDetail extends LitElement {
     if (context?.runID) return context.runID;
     return this.runs.find((entry) => entry.detail?.reconciled)?.id;
   }
+  private selectedRunID(): string | undefined {
+    if (this.current?.runID) return this.current.runID;
+    const observed = this.detail?.attempt?.run;
+    return this.observation?.state === 'ready' && factoryRunID(observed) ? observed : undefined;
+  }
   private interventionMarks(kind: InterventionKind) {
     const context = this.current;
     const gate = this.backendGate(kind);
     const mark = this.marks[kind] ?? {result: 'idle' as InterventionResult, text: 'Not requested.'};
-    const runID = kind === 'retry' ? this.retryRunID() : context?.runID;
+    const runID = kind === 'retry' ? this.retryRunID() : this.selectedRunID();
     return describeIntervention({
       kind,
       enabled:
@@ -515,6 +529,7 @@ export class SodaFactoryWorkDetail extends LitElement {
     });
   }
   private watchNote(): string {
+    if (this.current?.watchAvailable === false) return 'Live output is unavailable in this app.';
     const watch = this.detail?.capabilities.watch;
     if (!watch || watch.available) return '';
     return `Watch unavailable: ${capabilityReasonText(watch.reason)}`;
@@ -522,7 +537,7 @@ export class SodaFactoryWorkDetail extends LitElement {
   protected render() {
     const context = this.current;
     if (!context) return html``;
-    const watchable = this.observation?.state === 'ready' && (this.detail?.capabilities.watch.available ?? false);
+    const watchable = context.watchAvailable !== false && this.observation?.state === 'ready' && (this.detail?.capabilities.watch.available ?? false);
     return html`<section aria-label="Factory work detail" @soda-factory-work-refresh=${() => this.load()}>
       <p data-work-message aria-live="polite">${this.message}</p>
       <button type="button" class="ui button" ?disabled=${this.busy} @click=${() => this.load()}>Refresh detail</button>
@@ -595,8 +610,8 @@ async function readDetailIssue(
   }
 }
 
-async function readDetailRuns(context: WorkDetailContext, signal: AbortSignal): Promise<RunEntry[]> {
-  const runIDs = [...new Set([...context.runIDs, ...(context.runID ? [context.runID] : [])])];
+async function readDetailRuns(context: WorkDetailContext, signal: AbortSignal, selected = [...context.runIDs, ...(context.runID ? [context.runID] : [])]): Promise<RunEntry[]> {
+  const runIDs = [...new Set(selected)];
   const settled = await Promise.allSettled(
     runIDs.map((runID) => getJSON(context.transport, `factory/runs/${runID}`, signal))
   );
