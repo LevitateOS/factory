@@ -2924,6 +2924,17 @@ recovery remains lookup only. The current host applies a common code-write gate
 to every named operation, so no extra protocol field was introduced. Exact native
 worker launch/withdrawal/sealed-retirement integration remains the next step.
 
+Q26 installed preparation (2026-11-09): actual current10 saves approved GitHub
+identity sodaos and the approved Muse login without inference. UI-selected exact
+source/scripts/tools/limits expose a real missing installer check: default Debian
+`/run` is smaller than the broker's 1 GiB preparation plus reserve. New preflight
+refuses before changing helpers/units/manifest; explicit owned-guest tmpfs sizing
+then admits exact unchanged installation. Original interrupted preparations stay
+retained. A distinct keyboard-reviewed approval produces two actual isolated
+preparer successes and ready roles. Evidence/identities are in Q26; finite source
+funding and the installed delivery journey remain next. No weaker runtime bound,
+source fallback, uncertain send or model replay was introduced.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

@@ -33,6 +33,13 @@ if [[ "$install_root" == / ]]; then
   for controller in cpu memory pids; do
     [[ "$controllers" == *" $controller "* ]] || { echo "Execution requires the cgroup v2 $controller controller." >&2; exit 1; }
   done
+  read -r runtime_type runtime_blocks runtime_free runtime_block_size < <(stat -f -c '%T %b %a %S' -- /run)
+  [[ "$runtime_type" == tmpfs && "$runtime_blocks" =~ ^[0-9]+$ && "$runtime_free" =~ ^[0-9]+$ && "$runtime_block_size" =~ ^[0-9]+$ ]] || { echo 'Execution requires /run on tmpfs.' >&2; exit 1; }
+  # Admit one preparer's 1 GiB ceiling plus the broker's independent reserve.
+  # The broker rechecks current space and all retained reservations per launch.
+  runtime_reserve=$((runtime_blocks * runtime_block_size / 4))
+  (( runtime_reserve >= 268435456 )) || runtime_reserve=268435456
+  (( runtime_free * runtime_block_size >= runtime_reserve + 1073741824 )) || { echo 'Execution requires free /run tmpfs space for a 1 GiB preparation plus the larger of 256 MiB or one quarter of /run. Enlarge /run before installing execution services.' >&2; exit 1; }
   runtime_directory="/run/user/$execution_uid"
   [[ -d "$runtime_directory" && ! -L "$runtime_directory" && "$(realpath -e -- "$runtime_directory")" == "$runtime_directory" && "$(stat -c %u -- "$runtime_directory")" == "$execution_uid" && "$(stat -c %a -- "$runtime_directory")" == 700 ]] || { echo 'Execution requires the selected user’s private /run/user/UID session directory.' >&2; exit 1; }
   # These are fixed runtime paths in the native preparer/worker, independent

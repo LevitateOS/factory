@@ -1796,6 +1796,35 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
+**Installed continuation (2026-11-09), still INCOMPLETE:** current10 saved the
+approved GitHub account as `sodaos` (353332758), not the account named in the
+challenge instructions; its actual identity is preserved. Muse device approval
+completed in the installed app. Real keyboard UI selected repository 1448277000,
+local controller generation1, capacity1 and explicit operator/environment grants.
+No inference or allowance was started. Source fa77bb3d544c7ea6d4ba36d1bd873b69fcdda135
+and the exact README/workflow/note.sh inputs were loaded and reviewed. Keyboard
+clipboard readback proved the offline setup/check scripts exactly before consent.
+The original preparations ff78e9972e992ad383592edf3/f13d3a25ab37135babe6b3b12
+stopped before setup: the actual broker journal refused the guest's 392 MiB
+`/run` tmpfs. Original state/receipts remain in
+`q25-package/current8-debian/q26-preparation-original.log`; no model or task launched.
+
+The execution installer now rejects this host condition before writing state.
+Actual guest `q26-preflight11/refused.log` and `before.sha256` prove refusal and
+unchanged helpers/units/manifest. Explicitly enlarging only this owned guest's
+tmpfs to 2 GiB admits exact installation with all those bytes unchanged. This
+corrects Q25's missing dependency preflight; it does not lower the broker reserve.
+A distinct fresh UI approval keeps both original interrupted identities and uses
+the same verified scripts, 10-second limits and git/bash tools. Actual isolated
+preparer services e2b626d53e76eb3ec815017d8b45f438/8cf96a811ad0c70ac55d40173a74d6d0
+exit successfully; `current10-preparation-after-resize.png` shows both roles ready.
+Fresh preparations f090c9affc501c87ca21226c6/f2b2560713ef06bf2a051ab97 bind approval
+db21befdfae8a04b4958d80ea and exact source/recipe. Next: configure sequential
+role/source choices and finite funding through this actual installed UI, then
+eligible issue intake/delivery. The same app/backend/PG/private bus/keyring remain
+running at SSH22209; no paid inference, repository write or uncertain resend has
+occurred. Full delivery/adoption/custody qualification remains outstanding.
+
 **Current installed continuation (2026-11-09), INCOMPLETE:** production current9
 from d167b557a49c installed in the Debian overlay passed fresh/reopen and actual
 keyboard lifecycle (Q25). Its real GitHub challenge expired unapproved;
