@@ -1197,6 +1197,7 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
     let saved=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:Token::new(control_token)?,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository".into(),client_id:Some(application.into())}).await?;
     ensure(saved.connection!=read_saved.connection,"control sign-in replaced the original read connection")?;
     store.with_token(&original,|bytes|!bytes.is_empty()).await?;
+    let mut reconnected_connection=None;
     let result=async {
         let consent=fountain_oauth::Client::configured_control(origin).await?;
         ensure(consent.application()==application,"configured control application changed")?;
@@ -1248,13 +1249,32 @@ async fn fountain_controller(profile: &Path, origin: &str, application: &str) ->
         ensure(!client.authorize_operations(profile,&authorization).await.map_err(|e|e.code)?.active,"old grant replay renewed withdrawal")?;
         let retirement=Selection{command_id:"123456789abcdef0123456789abcdef6".into(),expected_revision:receipt.placement.revision,action:"retire".into(),not_after:epoch() as i64+120};
         ensure(client.select_runtime(profile,&retirement).await.map_err(|e|e.code)?.placement.state=="inactive","native controller did not retire")?;
+        let original_intent=fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?;
+        let original_receipt=profile.join("fountain-operations").join(format!("{operation}.receipt.json"));
+        let receipt_backup=profile.join("fountain-operations").join(format!("{operation}.receipt.original.json"));
+        let original_receipt_bytes=fs::read(&original_receipt)?;
+        fs::rename(&original_receipt,&receipt_backup)?;
+        let replacement=store.with_token(&store.capability(&saved.connection).await?,|bytes|Token::new(bytes.to_vec())).await??;
+        store.withdraw(&saved.connection).await?;
+        let rebound=store.store_grant(Account::new(Provider::Fountain,origin,"2")?,Grant{access:replacement,refresh:None,expires_at:None,refresh_expires_at:None,scope:"write:repository".into(),client_id:Some(application.into())}).await?;
+        reconnected_connection=Some(rebound.connection.clone());
+        ensure(rebound.connection!=saved.connection,"withdrawn source connection was reused")?;
+        let rebound_client=Client::new(store.clone(),store.capability(&rebound.connection).await?,&signer,runtime,application,"user2","repo1",enrollment).map_err(|e|e.code)?;
+        let original_grant=rebound_client.operation_grant(&grant.id).await.map_err(|e|e.code)?;
+        ensure(!original_grant.active,"retired controller grant regained authority")?;
+        ensure(matches!(rebound_client.submit_note(profile,&original_grant,operation,native.revision,not_after,&note).await,Err(error)if error.status==400),"a new connection rebound the old captured source")?;
+        let history=rebound_client.recover_note(profile,&original_grant,operation).await.map_err(|e|e.code)?;
+        ensure(history.intent_digest==completed.intent_digest&&history.receipt==completed.receipt,"reconnected read changed the original effect")?;
+        ensure(fs::read(profile.join("fountain-operations").join(format!("{operation}.intent.json")))?==original_intent,"history lookup rewrote the captured source/deadline")?;
+        ensure(fs::read(&receipt_backup)?==original_receipt_bytes&&fs::read(&original_receipt)?==original_receipt_bytes,"original receipt was not preserved")?;
         Ok::<_,Box<dyn StdError>>(())
     }.await;
+    if let Some(connection)=reconnected_connection {store.withdraw(&connection).await?;}
     let withdrawn=store.withdraw(&saved.connection).await;
     let original_preserved=store.with_token(&store.capability(&read_saved.connection).await?,|bytes|!bytes.is_empty()).await?;
     let read_withdrawn=store.withdraw(&read_saved.connection).await;
     store.retire();result?;withdrawn?;read_withdrawn?;ensure(original_preserved,"read credential was not preserved")?;
-    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen and controller withdrawal/retirement; no worker launch or paid inference");
+    println!("PASS: actual TLS control discovery and explicit consent URL, native-held fixture OAuth/profile proof, saved-before-send command, lost initial reply/reopen/exact replay, finite grant, actual typed completion note, lookup absence while original send is paused, lost write reply/adoption, exact receipt reopen, controller withdrawal/retirement and reconnected read-only history without source rebinding; no worker launch or paid inference");
     Ok(())
 }
 

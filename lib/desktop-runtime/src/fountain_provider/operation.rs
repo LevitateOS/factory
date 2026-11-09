@@ -64,6 +64,28 @@ fn unknown() -> Failure {
     }
 }
 impl Client {
+    pub async fn operation_grant(&self, id: &str) -> Result<OperationGrant> {
+        if !hex(id, 32) {
+            return Err(invalid());
+        }
+        let grant: OperationGrant = self
+            .request(
+                reqwest::Method::GET,
+                &[&self.command, "operations", id],
+                None,
+            )
+            .await?;
+        if grant.id != id
+            || grant.enrollment_id != self.command
+            || grant.runtime_id != self.runtime
+            || grant.actor.id != self.capability.account().account
+            || grant.repository.owner.to_ascii_lowercase() != self.owner
+            || grant.repository.name.to_ascii_lowercase() != self.repository
+        {
+            return Err(invalid());
+        }
+        Ok(grant)
+    }
     pub async fn native_revision(&self) -> Result<NativeRevision> {
         self.status().await?;
         let revision: NativeRevision = self
@@ -141,6 +163,87 @@ impl Client {
             return Err(invalid());
         }
         self.check_note_record(grant, operation, note, &record)?;
+        Ok(record)
+    }
+    /// A fresh login may read the original profile's history. It cannot replace
+    /// the captured source, deadline or grant, and this method never submits.
+    pub async fn recover_note(
+        &self,
+        profile: &Path,
+        grant: &OperationGrant,
+        operation: &str,
+    ) -> Result<OperationRecord> {
+        if !hex(operation, 32)
+            || grant.enrollment_id != self.command
+            || grant.runtime_id != self.runtime
+            || grant.actor.id != self.capability.account().account
+        {
+            return Err(invalid());
+        }
+        let directory = profile.join("fountain-operations");
+        let bytes = read_bytes(&directory.join(format!("{operation}.intent.json")), 16384)
+            .map_err(|_| unavailable())?;
+        let capture: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        let scope = capture.as_object().ok_or_else(invalid)?;
+        let text = |key: &str| scope.get(key).and_then(|v| v.as_str());
+        if scope.len() != 8
+            || scope.get("version").and_then(|v| v.as_u64()) != Some(1)
+            || text("profile") != Some(self.runtime.as_str())
+            || text("origin") != Some(self.capability.account().origin.as_str())
+            || text("account") != Some(self.capability.account().account.as_str())
+            || text("application") != Some(self.application.as_str())
+            || text("enrollment") != Some(self.command.as_str())
+            || !text("source_connection").is_some_and(|value| hex(value, 32))
+        {
+            return Err(invalid());
+        }
+        let intent = scope
+            .get("intent")
+            .and_then(|v| v.as_object())
+            .ok_or_else(invalid)?;
+        let field = |key: &str| intent.get(key).and_then(|v| v.as_str());
+        if intent.len() != 10
+            || field("operation_id") != Some(operation)
+            || field("controller_grant_id") != Some(grant.id.as_str())
+            || field("installation_id") != Some(grant.installation_id.as_str())
+            || field("actor_id") != Some(grant.actor.id.as_str())
+            || field("repository_id") != Some(grant.repository.id.as_str())
+            || field("kind") != Some("issue.comment.publish")
+            || field("authorization_revision") != Some(grant.id.as_str())
+            || intent
+                .get("expected_native_revision")
+                .and_then(|v| v.as_i64())
+                .filter(|n| *n > 0)
+                .is_none()
+            || intent
+                .get("not_after")
+                .and_then(|v| v.as_i64())
+                .filter(|n| *n > 0 && *n <= grant.not_after)
+                .is_none()
+        {
+            return Err(invalid());
+        }
+        let note: Note = serde_json::from_value(intent.get("payload").ok_or_else(invalid)?.clone())
+            .map_err(|_| invalid())?;
+        let receipt_path = directory.join(format!("{operation}.receipt.json"));
+        let record = match read_bytes(&receipt_path, 65536) {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|_| invalid())?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.lookup_note(grant, operation, &note).await?
+            }
+            Err(_) => return Err(unavailable()),
+        };
+        self.check_note_record(grant, operation, &note, &record)?;
+        if record.effect_state == "not_committed"
+            || record.effect_state == "committed" && record.completion_state == "complete"
+        {
+            let bytes = serde_json::to_vec(&record).map_err(|_| invalid())?;
+            if publish_bytes(&receipt_path, &bytes).is_err()
+                && read_bytes(&receipt_path, 65536).map_err(|_| unavailable())? != bytes
+            {
+                return Err(unknown());
+            }
+        }
         Ok(record)
     }
     /// Append one typed completion note through the existing native effect
