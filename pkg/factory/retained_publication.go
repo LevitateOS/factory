@@ -15,6 +15,7 @@ type RetainedCandidateFunding struct {
 	Native       *NativeSponsorship `json:"native,omitempty"`
 	Publication  string             `json:"publication"`
 	PreviousRoot string             `json:"previous_root,omitempty"`
+	CarryUnused  bool               `json:"carry_unused,omitempty"`
 	Candidate    string             `json:"candidate"`
 	Base         string             `json:"base"`
 	Acceptance   string             `json:"acceptance"`
@@ -26,6 +27,9 @@ type RetainedCandidateFunding struct {
 }
 
 func (f RetainedCandidateFunding) Validate() error {
+	if f.CarryUnused && f.PreviousRoot == "" {
+		return errors.New("unused review budget requires its prior owner")
+	}
 	if f.PreviousRoot != "" && f.PreviousRoot != f.Publication {
 		return errors.New("continuation must capture its previous publication owner")
 	}

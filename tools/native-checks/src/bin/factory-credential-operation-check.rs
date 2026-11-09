@@ -1404,9 +1404,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let pending_retry_delivery=retry_delivery && field(9)?=="delivery-retry-pending";
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
             let recover_funding=args.len()==10 && field(9)?=="delivery-fund-retained-recover";
-            let funding_offer=args.len()==10 && field(9)?=="delivery-fund-retained-offer";
+            let unused_funding=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-unused"|"delivery-fund-retained-unused-offer");
+            let funding_offer=args.len()==10 && matches!(field(9)?,"delivery-fund-retained-offer"|"delivery-fund-retained-unused-offer");
             let replace_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh-replacement";
-            let fresh_funding=replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
+            let fresh_funding=unused_funding || replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
             let fund_retained=recover_funding || funding_offer || fresh_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
@@ -1497,7 +1498,9 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
                         fs::write(root.join(if recover_publication {"policy-retained-publication-recovery.json"}else if publish_retained {"policy-retained-publication.json"}else{"policy-resume.json"}),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
-                        if funding_offer || fresh_funding {check("fund-retained-target",&ready.instance).await?;}
+                        let funding_publication=if unused_funding {"15151515151515151515151515151508"}else{"15151515151515151515151515151505"};
+                        if unused_funding {check("fund-retained-unused-retirement",&ready.instance).await?;}
+                        if funding_offer || fresh_funding {check(if unused_funding {"fund-retained-unused-target"}else{"fund-retained-target"},&ready.instance).await?;}
                         if funding_offer {
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                             let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1505,7 +1508,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(detail.status==200,"fresh review offer unavailable")?;
                             let view:serde_json::Value=serde_json::from_slice(&detail.body)?;
                             let offer=&view["capabilities"]["fund_retained"];
-                            ensure(offer["available"]==true && offer["funding"]["previous_root"]=="15151515151515151515151515151505" && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","closed prior owner is not eligible for fresh review-only continuation")?;
+                            ensure(offer["available"]==true && offer["funding"]["previous_root"]==funding_publication && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a" && (!unused_funding || offer["funding"]["carry_unused"]==true),"closed prior owner is not eligible for the captured review-only continuation")?;
                             println!("PASS: actual authenticated shared API offers a distinct review-only continuation of PR19; no funding command, coordinator, inference or repository write");
                             return Ok(());
                         }
@@ -1538,8 +1541,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
                         if fund_retained {
-                            let funding_command=if replace_funding {"15151515151515151515151515151508"}else if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
-                            let capture_path=root.join(if replace_funding {"retained-fresh-review-request-08.json"}else if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
+                            let funding_command=if unused_funding {"15151515151515151515151515151509"}else if replace_funding {"15151515151515151515151515151508"}else if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
+                            let capture_path=root.join(if unused_funding {"retained-unused-review-request-09.json"}else if replace_funding {"retained-fresh-review-request-08.json"}else if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
                             let body=if capture_path.exists() {fs::read(&capture_path)?} else {
                                 let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                                 let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1547,9 +1550,10 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                                 ensure(detail.status==200,"retained funding detail unavailable")?;
                                 let detail:serde_json::Value=serde_json::from_slice(&detail.body)?;
                                 let offer=&detail["capabilities"]["fund_retained"];
-                                ensure(offer["available"]==true && offer["funding"]["publication"]=="15151515151515151515151515151505" && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original selected-source funding unavailable; inspect retained offer")?;
-                                ensure(!fresh_funding || offer["funding"]["previous_root"]=="15151515151515151515151515151505","fresh review cannot renew prior funding")?;
-                                let bytes=serde_json::to_vec(&json!({"command_id":funding_command,"action":"fund-retained-candidate","publication":"15151515151515151515151515151505","funding":offer["funding"]}))?;
+                                ensure(offer["available"]==true && offer["funding"]["publication"]==funding_publication && offer["funding"]["connection"]=="4c823041ad0ba064c4f974399b0e3a2a","original selected-source funding unavailable; inspect retained offer")?;
+                                ensure(!fresh_funding || offer["funding"]["previous_root"]==funding_publication,"fresh review cannot renew prior funding")?;
+                                ensure(!unused_funding || offer["funding"]["carry_unused"]==true,"unused review cannot add budget")?;
+                                let bytes=serde_json::to_vec(&json!({"command_id":funding_command,"action":"fund-retained-candidate","publication":funding_publication,"funding":offer["funding"]}))?;
                                 use std::io::Write;
                                 let mut file=fs::OpenOptions::new().write(true).create_new(true).open(&capture_path)?;
                                 file.write_all(&bytes)?;file.sync_all()?;bytes
@@ -1565,7 +1569,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             check("prepare",&ready.instance).await?;
                         }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                        let watching=check(if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
+                        let watching=check(if unused_funding {"fund-retained-unused-watch"}else if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);
                         loop {
                             tokio::select! {

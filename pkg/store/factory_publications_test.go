@@ -325,6 +325,48 @@ func TestRecordPublicationRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal("fresh correction used original publication deadline", err)
 		}
+		// An explicitly incomplete reviewer may hand off only its unused
+		// budget. Its charged identity/head ledger remains cumulative and the
+		// earlier result is immutable; this cannot buy another full allowance.
+		if _, exhausted, err := db.ChargeReviewDispatch(ctx, child.Repository, child.Issue, child.AttemptRoot, child.ID, fresh.Candidate, false); err != nil || exhausted {
+			t.Fatal("review charge", err)
+		}
+		childRun.Outcome, childRun.Reconciled = factory.Succeeded, true
+		if err = db.SaveFactoryRun(ctx, childRun); err != nil {
+			t.Fatal(err)
+		}
+		if err = db.ConsumeReservation(ctx, child.ID); err != nil {
+			t.Fatal(err)
+		}
+		child.Stage, child.Outcome, child.Reason, child.FinishedUnix = factory.AssignmentFinished, factory.NeedsHuman, factory.AssignReasonNoReport, time.Now().Unix()
+		child.Result = &factory.AssignmentResult{AssignmentID: child.ID, RunID: child.Run, Status: "blocked", Summary: "context unavailable", RecordedUnix: time.Now().Unix(), Findings: []string{}}
+		if err = db.FinishAssignment(ctx, child); err != nil {
+			t.Fatal(err)
+		}
+		unused, err := db.RetainedCandidateFundingOffer(ctx, fresh.ID)
+		if err != nil || !unused.CarryUnused {
+			t.Fatal("unused review offer", err)
+		}
+		refill := unused
+		refill.CarryUnused = false
+		if _, err = db.FundRetainedCandidate(ctx, factory.NewID(), "owner", refill, time.Now()); err == nil {
+			t.Fatal("incomplete reviewer bought a fresh full allowance")
+		}
+		continuation := factory.NewID()
+		if _, err = db.FundRetainedCandidate(ctx, continuation, "owner", unused, time.Now()); err != nil {
+			t.Fatal("unused review handoff", err)
+		}
+		carried, err := db.AttemptAllowance(ctx, a.Repository, a.Issue)
+		if err != nil || carried.RootAssignment != continuation || len(carried.Reviews) != 1 || carried.Reviews[0] != child.ID || carried.ReviewedHeads[fresh.Candidate] != child.ID || carried.Limits != unused.Limits {
+			t.Fatal("unused handoff refunded a round/head or changed bounds", err)
+		}
+		lastReview := factory.NewID()
+		if _, exhausted, err := db.ChargeReviewDispatch(ctx, child.Repository, child.Issue, continuation, lastReview, fresh.Candidate, false); err != nil || exhausted {
+			t.Fatal("remaining review withheld", err)
+		}
+		if _, exhausted, err := db.ChargeReviewDispatch(ctx, child.Repository, child.Issue, continuation, factory.NewID(), fresh.Candidate, false); err != nil || !exhausted {
+			t.Fatal("handoff added an unauthorized third review", err)
+		}
 		if _, err = db.WithdrawDispatch(ctx, source.Repository, factory.CauseControlPaused, "owner"); err != nil {
 			t.Fatal(err)
 		}

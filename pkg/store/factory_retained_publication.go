@@ -171,6 +171,22 @@ func (s *Store) RetainedCandidateFundingOffer(ctx context.Context, publication s
 	limits.CorrectionCycles = min(limits.CorrectionCycles, 1)
 	limits.MaxChildren = 1
 	f := factory.RetainedCandidateFunding{Native: g.sponsorship.Native, Publication: p.ID, PreviousRoot: previous, Candidate: p.Candidate, Base: p.PRCreate.BaseOID, Acceptance: p.Acceptance, Connection: g.sponsorship.Connection, GrantID: g.sponsorship.GrantID, Generation: g.sponsorship.Generation, Policy: g.policy.Revision, Limits: limits}
+	if exists {
+		prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
+		if err != nil {
+			return f, err
+		}
+		var launched bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1)`, a.ID).Scan(&launched); err != nil {
+			return f, err
+		}
+		if launched {
+			f.CarryUnused, f.Limits = true, prior.Limits
+			if len(prior.Reviews) >= prior.Limits.ReviewRounds || prior.Limits.ActiveMinutes > limits.ActiveMinutes || prior.Limits.ReviewRounds > limits.ReviewRounds || prior.Limits.CorrectionCycles > limits.CorrectionCycles {
+				return f, ErrRetainedPublicationIneligible
+			}
+		}
+	}
 	return f, f.Validate()
 }
 
@@ -302,6 +318,13 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 		if err = admitFreshRetainedReviewTx(ctx, tx, p, a); err != nil {
 			return empty, err
 		}
+		var launched bool
+		if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1)`, a.ID).Scan(&launched); err != nil {
+			return empty, err
+		}
+		if launched != f.CarryUnused {
+			return empty, ErrRetainedPublicationIneligible
+		}
 		p, a, err = insertFreshRetainedReviewTx(ctx, tx, p, a, command, now)
 		if err != nil {
 			return empty, err
@@ -309,8 +332,23 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	}
 	// The new root is distinct from the original closed/uncertain attempt. An
 	// existing allowance, even closed or exhausted, can never be replenished.
-	if err = insertAttemptAllowanceTx(ctx, tx, p.Repository, p.Issue, a.ID, f.Limits, time.Unix(now.Unix()+int64(f.Limits.ActiveMinutes)*60, 0), now); err != nil {
-		return empty, err
+	if f.CarryUnused {
+		prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, f.PreviousRoot)
+		if err != nil || prior.Limits != f.Limits || len(prior.Reviews) >= prior.Limits.ReviewRounds {
+			return empty, ErrRetainedPublicationIneligible
+		}
+		prior.RootAssignment, prior.Revision, prior.Closed, prior.Active, prior.CheckpointUnix = a.ID, 0, false, true, now.Unix()
+		raw, err := json.Marshal(prior)
+		if err != nil {
+			return empty, err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO factory_attempt_allowances(repository,issue,root_assignment,revision,data) VALUES($1,$2,$3,0,$4)`, prior.Repository, prior.Issue, prior.RootAssignment, string(raw)); err != nil {
+			return empty, err
+		}
+	} else {
+		if err = insertAttemptAllowanceTx(ctx, tx, p.Repository, p.Issue, a.ID, f.Limits, time.Unix(now.Unix()+int64(f.Limits.ActiveMinutes)*60, 0), now); err != nil {
+			return empty, err
+		}
 	}
 	if err = finishFactoryCommandTx(ctx, tx, command, now); err != nil {
 		return empty, err
@@ -321,9 +359,9 @@ func (s *Store) FundRetainedCandidate(ctx context.Context, command, principal st
 	return receipt, nil
 }
 
-// Only a definitively unlaunched review continuation can use this path. Real
-// reviews/corrections need their own result-driven recovery; their findings and
-// pending sends can never disappear into a fresh owner.
+// Unlaunched work can receive explicit fresh funding. An incomplete reviewer
+// can carry only unused budget; typed findings and pending sends require their
+// own result-driven recovery and never disappear into a fresh owner.
 func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publication, a factory.Assignment) error {
 	prior, err := lockAttemptAllowanceRootTx(ctx, tx, p.Repository, p.Issue, a.ID)
 	if err != nil {
@@ -336,15 +374,19 @@ func admitFreshRetainedReviewTx(ctx context.Context, tx *sql.Tx, p factory.Publi
 	if err != nil || !settled {
 		return ErrAttemptRunsPending
 	}
-	var launched bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1)`, a.ID).Scan(&launched); err != nil {
+	var unsafe bool
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_assignments WHERE data->>'attempt_root'=$1 AND id<>$1
+		AND NOT COALESCE(stage='finished' AND data->>'phase'='review' AND data->>'outcome'='needs-human' AND data->>'reason'=$2
+		AND data#>>'{result,status}'='blocked' AND data#>>'{result,reported}'='false'
+		AND NOT (data->'result' ? 'phase_result') AND NOT (data->'result' ? 'review')
+		AND COALESCE(jsonb_array_length(data#>'{result,findings}'),0)=0,FALSE))`, a.ID, factory.AssignReasonNoReport).Scan(&unsafe); err != nil {
 		return err
 	}
-	if launched {
+	if unsafe {
 		return ErrRetainedPublicationIneligible
 	}
 	var pending bool
-	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND (data#>>'{operation,attempts}')::int>0)`, p.ID).Scan(&pending); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_merges WHERE publication=$1 AND COALESCE((data#>>'{operation,attempts}')::int,1)>0)`, p.ID).Scan(&pending); err != nil {
 		return err
 	}
 	if pending {

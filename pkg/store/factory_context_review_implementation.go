@@ -20,9 +20,13 @@ func currentPublishedImplementationTx(ctx context.Context, tx *sql.Tx, a, owner 
 		return errors.New("published implementation lacks its original candidate binding")
 	}
 	publishedHead := p.PRCreate.Work.Candidate
+	origin, err := publicationExecutionOwner(ctx, tx, p, owner)
+	if err != nil {
+		return err
+	}
 	var source factory.Assignment
-	err := contextJSONRow(ctx, tx, &source, `SELECT data FROM factory_assignments WHERE repository=$1 AND issue=$2 AND data->>'publication_assignment'=$3 AND data->>'phase'='implement' AND data#>>'{result,candidate}'=$4 ORDER BY seq DESC LIMIT 1`, a.Repository, a.Issue, a.PublicationAssignment, publishedHead)
-	if errors.Is(err, sql.ErrNoRows) && owner.Result != nil && owner.Result.Candidate == publishedHead {
+	err = contextJSONRow(ctx, tx, &source, `SELECT data FROM factory_assignments WHERE repository=$1 AND issue=$2 AND data->>'publication_assignment'=$3 AND data->>'phase'='implement' AND data#>>'{result,candidate}'=$4 ORDER BY seq DESC LIMIT 1`, a.Repository, a.Issue, origin.ID, publishedHead)
+	if errors.Is(err, sql.ErrNoRows) && origin.Result != nil && origin.Result.Candidate == publishedHead {
 		return nil // A legacy direct candidate has no execution manifest.
 	}
 	if err != nil {
@@ -35,7 +39,7 @@ func currentPublishedImplementationTx(ctx context.Context, tx *sql.Tx, a, owner 
 	if len(run.ExecutionManifest) == 0 {
 		return nil
 	}
-	if source.Phase != project.ExecutionImplement || source.Repository != a.Repository || source.Issue != a.Issue || source.ActorID != a.ActorID || source.ProjectID != a.ProjectID || source.AttemptRoot != a.AttemptRoot || source.PublicationAssignment != a.PublicationAssignment || source.Acceptance != a.Acceptance || source.Stage != factory.AssignmentFinished || source.Outcome != factory.Succeeded || source.Result == nil || !source.Result.Reported || source.Result.Candidate != publishedHead || !run.Reconciled || run.Outcome != factory.Succeeded || run.ProjectID != a.ProjectID {
+	if source.Phase != project.ExecutionImplement || source.Repository != a.Repository || source.Issue != a.Issue || source.ActorID != a.ActorID || source.ProjectID != a.ProjectID || source.AttemptRoot != origin.AttemptRoot || source.PublicationAssignment != origin.ID || source.Acceptance != a.Acceptance || source.Stage != factory.AssignmentFinished || source.Outcome != factory.Succeeded || source.Result == nil || !source.Result.Reported || source.Result.Candidate != publishedHead || !run.Reconciled || run.Outcome != factory.Succeeded || run.ProjectID != a.ProjectID {
 		return errors.New("published implementation evidence is outside review grant")
 	}
 	var projected factory.CurrentContext

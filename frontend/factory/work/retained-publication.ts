@@ -184,7 +184,9 @@ export class SodaFactoryRetainedPublication extends LitElement {
       record.settle(pending);
       this.pending = undefined;
       this.message = pending.funding
-        ? 'Finite review/correction funding recorded on the selected source. Earlier charges and publication authority remain unchanged.'
+        ? pending.funding.carry_unused
+          ? 'Unused review/correction budget carried forward. Earlier results, spent rounds and charges remain unchanged.'
+          : 'Finite review/correction funding recorded on the selected source. Earlier charges and publication authority remain unchanged.'
         : 'Fresh publication recorded. Review and correction require separate funding.';
       this.dispatchEvent(new CustomEvent('soda-factory-work-refresh', {bubbles: true, composed: true}));
     } catch {
@@ -201,7 +203,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
     if (!this.pending && publication?.stage !== 'fenced' && !offer?.available) return html``;
     return html`<section aria-label=${funding ? 'Fund retained candidate review' : 'Publish retained candidate'}>
       <p>
-        ${funding ? `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.` : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
+        ${funding ? funding.carry_unused ? `Resume only unused review/correction budget on source ${funding.connection}, at ${funding.limits.active_minutes} minutes per run. Earlier spent rounds, head limits and charges carry forward; no budget is added. The earlier attempt stays closed and its incomplete result is preserved. Planning, initial Builder and completed publication do not run again.` : `${funding.previous_root ? 'Start a fresh review continuation for the published PR. The earlier attempt stays closed. ' : ''}Fund review and correction on source ${funding.connection}: ${funding.limits.active_minutes} minutes per run, ${funding.limits.review_rounds} reviews and ${funding.limits.correction_cycles} corrections. Earlier charges and spent review rounds are preserved. Planning, initial Builder and completed publication do not run again.` : 'Publish the completed candidate on a fresh branch. The earlier uncertain publication remains preserved. No planning or Builder work runs again.'}
       </p>
       <button
         class="ui button"
@@ -209,7 +211,7 @@ export class SodaFactoryRetainedPublication extends LitElement {
         ?disabled=${this.busy || !this.ready || (!this.pending && !this.current?.detail?.capabilities.publish_retained?.available && !offer?.available)}
         @click=${() => this.publish()}
       >
-        ${this.pending ? 'Check saved request' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
+        ${this.pending ? 'Check saved request' : funding?.carry_unused ? 'Resume unused review budget' : funding ? 'Fund review and correction' : 'Publish retained candidate'}
       </button>
       <p role="status">${this.message}</p>
     </section>`;

@@ -2775,6 +2775,19 @@ so fresh `…1508` captures current authority for the same owner-approved budget
 with a mandatory no-admission check for07. No original authority is renewed and
 no inference replay is authorized. All prior allowances/receipts/markers remain.
 
+Q15 retained review recovery (2026-11-09): actual command08 spent one reviewer
+and one context-judgment minute (source total17), then retained an incomplete
+no-report result because implementation context searched the fresh publication
+owner rather than its original execution owner. Resolve original implementation
+through existing retained provenance and hold paid launch when mandatory current
+facts are unreadable. The exact retired capability read now passes with original
+trusted task receipts/cycle/head/coverage. A distinct explicit unused-budget
+continuation carries all prior consumption and head limits; it never refills or
+reopens the old closed owner and refuses typed findings, pending sends and
+unsettled custody. PG `unused-review-store2.log`, production DOM
+`unused-review-ui-check1.log` and types/build checks qualify this source slice.
+The second approved review remains to run; connected delivery is incomplete.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

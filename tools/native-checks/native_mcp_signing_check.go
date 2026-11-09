@@ -6506,8 +6506,42 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		fmt.Println("PASS: funding command07 definitively never admitted a journal, owner or allowance; no coordinator/model was started by its failed request")
 		return nil
 	}
-	if phase == "fund-retained-target" {
-		p, err := db.PublicationByID(ctx, "15151515151515151515151515151505")
+	if phase == "fund-retained-unused-retirement" {
+		a, err := db.Assignment(ctx, "b740a75f383fbbcb83a724460a700422")
+		if err != nil || a.AttemptRoot != "15151515151515151515151515151508" || a.Stage != factory.AssignmentFinished || a.Reason != factory.AssignReasonNoReport {
+			return errors.New("exact incomplete reviewer required before retirement")
+		}
+		run, err := db.FactoryRun(ctx, a.Run)
+		if err != nil || !run.Reconciled || run.Native == nil || !run.Native.Settled() {
+			return errors.New("incomplete reviewer process is not settled")
+		}
+		record, err := db.CandidatePreparation(ctx, a.Preparation)
+		if err != nil {
+			return err
+		}
+		port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+		state, err := port.RetireWorkspacePreparation(ctx, record.Preparation.Address())
+		if err != nil {
+			return err
+		}
+		if !state.Stopped || state.Retirement != "confirmed" {
+			return errors.New("incomplete reviewer preparation retirement unconfirmed")
+		}
+		if err = db.RecordCandidatePreparationStop(ctx, a.Preparation, state); err != nil {
+			return err
+		}
+		if closed, err := db.CloseExpiredAttempt(ctx, a.ID); err != nil || !closed {
+			return fmt.Errorf("closed reviewer allowance settlement: %v", err)
+		}
+		fmt.Println("PASS: exact incomplete reviewer run already settled; original preparation retirement adopted and closed allowance deactivated without setup, model, command renewal or repository write")
+		return nil
+	}
+	if phase == "fund-retained-target" || phase == "fund-retained-unused-target" {
+		publication := "15151515151515151515151515151505"
+		if phase == "fund-retained-unused-target" {
+			publication = "15151515151515151515151515151508"
+		}
+		p, err := db.PublicationByID(ctx, publication)
 		if err != nil || p.PRCreate.Work == nil {
 			return errors.New("retained PR target unavailable")
 		}
@@ -6531,7 +6565,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		fmt.Println("PASS: authenticated exact retained PR target read without a fabricated verdict; target-only submission and author self-approval refused; no write or inference")
 		return nil
 	}
-	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-fresh-watch" || phase == "fund-retained-replacement-watch" || phase == "fund-retained-reconcile" {
+	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-fresh-watch" || phase == "fund-retained-replacement-watch" || phase == "fund-retained-unused-watch" || phase == "fund-retained-reconcile" {
 		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
 			return errors.New("exact Q15 retained funding fixture required")
 		}
@@ -6864,6 +6898,9 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 	if phase == "fund-retained-replacement-watch" {
 		stopName += "-15151515151515151515151515151508"
 	}
+	if phase == "fund-retained-unused-watch" {
+		stopName += "-15151515151515151515151515151509"
+	}
 	stopPath := filepath.Join(filepath.Dir(profile), stopName)
 	for ctx.Err() == nil {
 		if _, e := os.Stat(stopPath); e == nil {
@@ -6969,7 +7006,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		}
 		status := fmt.Sprintf("assignments=%d publications=%d merges=%d", len(assignments), len(publications), len(merges))
 		for _, a := range assignments {
-			fundedRoot := a.AttemptRoot == "15151515151515151515151515151505" || a.AttemptRoot == "15151515151515151515151515151507" || a.AttemptRoot == "15151515151515151515151515151508"
+			fundedRoot := a.AttemptRoot == "15151515151515151515151515151505" || a.AttemptRoot == "15151515151515151515151515151507" || a.AttemptRoot == "15151515151515151515151515151508" || a.AttemptRoot == "15151515151515151515151515151509"
 			if strings.HasPrefix(phase, "fund-retained-") && fundedRoot && a.RetainedPublication == nil && a.Phase != project.ExecutionReview && a.Phase != project.ExecutionCorrect {
 				return errors.New("retained funding attempted a new planning/initial Builder phase")
 			}

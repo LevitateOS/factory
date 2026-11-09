@@ -728,9 +728,21 @@ func launchTail(ctx context.Context, deps DispatchDeps, a factory.Assignment, ru
 		}
 	}
 	// The context classifier picks how much history the worker sees. Its
-	// answer is advice: a failed or unsure choice serves current context,
-	// and the run starts either way.
+	// answer is advice: a failed or unsure choice serves current context.
+	// Required current facts must still be readable before paid execution.
 	_, _, _ = PrepareContextBundleSelection(ctx, deps.Store, deps.ContextChooser, a, run, deps.ContextVerification)
+	if deps.mcpConfigured() {
+		capability, err := deps.Store.GetMCPCapability(ctx, run.ID)
+		if err != nil {
+			report.Errors = append(report.Errors, DispatchError{Repository: a.Repository, Issue: a.Issue, Reason: DispatchErrStore, Detail: "worker context capability unavailable"})
+			return
+		}
+		current, _, _, err := loadContextBundleState(ctx, deps.Store, capability, a, deps.ContextVerification)
+		if err != nil || current.Current.Availability != "complete" {
+			report.Waits = append(report.Waits, DispatchWait{Repository: a.Repository, Issue: a.Issue, Reason: "context_selection_hold", Detail: "required current worker context is unavailable"})
+			return
+		}
+	}
 	if run.ContextPending {
 		run.ContextPending = false
 		if err := deps.Store.SaveFactoryRun(ctx, run); err != nil {

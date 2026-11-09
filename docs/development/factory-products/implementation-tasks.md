@@ -871,6 +871,35 @@ replacement first requires definitive no-admission proof for `…1507`. No paid
 inference has been repeated. All check owners joined; no code edits remain after
 this checkpoint. Independent queued work remains authorized; Q24 lacks an appliance.
 
+**Current recovery (supersedes the preceding next action):** command
+`15151515151515151515151515151508` admitted the approved finite continuation.
+Reviewer `60bb3689d3464ee3e9b88a9a11a2049c` and context judgment
+`c412cb61fb5454147ac7e739c6523faa` each cost one minute; source total is
+seventeen minutes, including the preserved original fifteen. The reviewer
+finished `needs-human / harness_no_report`: required current context looked
+under the new publication owner instead of the original Builder owner. Its
+incomplete result is retained; it is no approval and authorized no provider
+review, correction or merge. `review-context-retained1.log` now proves the exact
+retired capability reads the original trusted two-task implementation, cycle,
+head and coverage digest at its original bounded historical time. Required
+current context is checked before paid worker launch. The unused-budget command
+carries prior spent review/head/correction/accounting fields into a distinct
+owner; it adds no rounds, minutes per run or correction allowance. Real PG
+`unused-review-store2.log`, production DOM `unused-review-ui-check1.log` and
+types `unused-review-types2.log` pass; source/native builds pass. The first actual
+offer refused while the closed reviewer root remained active with unrecorded
+workspace retirement; recovery now retires that exact settled preparation and
+closes its accounting checkpoint through existing owners. No new inference has
+run. `unused-review-connected-offer2.log` passes exact native preparation
+retirement, closed-allowance deactivation and the actual authenticated UI/API
+unused-budget offer; all owners joined. Next executable action: commit this
+slice, then use the already authorized second review through fresh command
+`15151515151515151515151515151509` and its immutable capture
+`q15-connected/retained-unused-review-request-09.json`. Old authority, model
+results and uncertain branch command remain untouched. Owned edits: context
+projection/launch guard, retained funding Go/PG/Lit paths and existing native
+check. No code or new effects belong to unrelated work.
+
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
 reachable “Publish retained candidate” command. Command/publication
