@@ -8,7 +8,9 @@ import (
 	"sync"
 )
 
-const schemaFormatVersion = 96
+// Schema 97 admits explicit non-executing retained-publication owners. Older
+// writers must refuse these stores instead of dropping the new owner binding.
+const schemaFormatVersion = 97
 
 // schemaStatements creates the shared PostgreSQL schema in dependency
 // order: tables, indexes, guard functions, then triggers. JSON payloads
@@ -643,6 +645,15 @@ func initializeSchema(ctx context.Context, db *sql.DB, standalone bool) error {
 				rollback()
 				return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate issue dependency dispatch: %w", err))
 			}
+		}
+		version = 96
+	}
+	if version == 96 {
+		// This is a domain-format boundary, not new authority. Existing command
+		// payloads, receipts, deadlines and dispatch states remain unchanged.
+		if _, err = t.ExecContext(ctx, `UPDATE schema_version SET version=97 WHERE version=96`); err != nil {
+			rollback()
+			return reopenAfterLostUpgradeRace(ctx, db, fmt.Errorf("migrate retained publication owner format: %w", err))
 		}
 	}
 	if err = verifyCommandPayloadCheck(ctx, t, SchemaVersion()); err != nil {
