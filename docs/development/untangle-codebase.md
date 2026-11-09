@@ -2551,6 +2551,60 @@ preservation, not live provider custody or delivery. Active-worker/global-servic
 upgrade, real pending provider-effect composition, payload retirement and owning
 update/dependency publication remain Q28 requirements.
 
+## Q15 explicit retained-candidate publication (2026-11-09)
+
+Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` adds the owner-approved
+UI/API command without replaying execution. A typed non-executing owner retains
+the original publication/assignment/run/candidate/source and a five-minute bound
+for new branch/PR intents only. It has no run, prompt, model result, reservation
+or inference allowance. Current grants, account permissions, accepted inputs,
+requirements/approval and target still apply. Native custody/export and the
+existing one-shot/causal-outcome journals own effects. Review/correction/merge
+cannot inherit this publication-only authority. Missing live worker preparation
+does not prevent exporting a sealed candidate; it still prevents execution.
+
+The real command/publication is `15151515151515151515151515151505`, branch
+`soda/factory/15151515151515151515151515151505`,
+[PR #19](https://github.com/LevitateOS/factory-team-public-check-20261106/pull/19).
+Its head is `84b5417756ceb4fa7b4ea574a56b4dc9a50ea26c`, base
+`4522d2f4e33424b4965b71deda0b8953b6a70498`, original Builder run
+`bf339c1b9a0023a95bf95ad815ca5458`, provider actor `veighnsche`/`16469623`,
+repository `1448277000`, and exported bundle SHA256
+`3d53d5aa65df88bdd4112a96da7992a7d24ceaa4659c30d931dfc2d3f3171029`.
+Branch and PR causal receipts are committed/complete, including provider request
+`9AE6:166BFE:697DB96:9DB87A8:6AF14919`. GitHub independently confirms the
+head/base and successful real Actions run `42560897307`; native check assessment,
+Factory review/correction, paid delivery judgment and merge are still required.
+Automatic external bot comments are retained and do not substitute for Factory's
+independent reviewer or its source/accounting proof.
+
+Artifacts: `q15-connected/retained-publication-{command,replay,result,detail,observed}.json`,
+original `retained-publication-before.json` and all dated/instance recovery
+snapshots; `q15-retained-publication/{connected4,recovery2,store-check5,ui-check4}.log`.
+`connected4.log` failed after the PR committed because existing reconciliation
+repeatedly changed the old fence's `finished_unix`, operation `updated_unix` and
+revision. No old intent/deadline/receipt/outcome, run, source charge or allowance
+changed. Those observed updates remain history; they were not restored or hidden.
+Known-identical outcomes, empty receipt adoption and repeated fencing now avoid
+those writes. `recovery2.log` proves same-command API replay after native reopen,
+exact current original-journal preservation, the published shared issue view,
+four settled execution runs and fifteen source-wide charged minutes (six run,
+nine judgment) on `4c823041ad0ba064c4f974399b0e3a2a`. Original publication
+`31dbde02be4170d92a37ac3da6154014` remains indeterminate/fenced; lookup absence
+never becomes no-send. Its closed allowance's still-active accounting checkpoint
+is preserved and grants no further inference.
+
+The PostgreSQL check extends the existing real publication fixture with closed
+but unresolved accounting, replay/conflict, distinct branch, no new run/reservation/
+allowance, fixed deadline and withdrawal refusal. Production Go/Cargo/UI builds,
+typecheck and boundaries pass. The production component DOM check proves saved
+identity before send, remount/replay after a declared lost reply and unknown-text
+preservation; it is not an installed/native UI claim. All owned runtimes, PG,
+keyring, bus and check processes joined and fixture GitHub credentials withdrew.
+No paid inference or second send replaced missing evidence. The requested
+review/correction continuation funding answer remains pending; independent
+Q19–Q29 work remains ready on its actual dependencies. Q15 is not complete.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,

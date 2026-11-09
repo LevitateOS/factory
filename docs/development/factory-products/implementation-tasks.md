@@ -48,7 +48,7 @@ recorded scope, including the canonical Fountain ownership/gateway references.
 These are completed prerequisites, not work to repeat merely because broader
 milestones remain open.
 
-**Current work: Q19 Fountain authority and the approved Q15 fresh-publication action.**
+**Current work: Q15 retained-publication recovery, then independent Q19 authority.**
 Q25's clean recipient and Q28's installed payload/update-status slices have
 scoped evidence below. Q15's separate review/correction funding choice is pending;
 its original send remains fenced. Q14's receipts remain complete and preserved.
@@ -780,7 +780,28 @@ Final reply: requested Q14, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q15 — Complete connected GitHub delivery and correction
 
-**INCOMPLETE; current publication is BLOCKED by its original uncertain send.**
+**INCOMPLETE; explicit fresh publication verified; continuation funding is pending.**
+Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved
+reachable “Publish retained candidate” command. Command/publication
+`15151515151515151515151515151505` created
+[PR #19](https://github.com/LevitateOS/factory-team-public-check-20261106/pull/19)
+on its own branch, reusing the exact completed candidate and original Builder run.
+Native branch/PR receipts are committed and complete. Real reopen/API replay and
+shared issue detail pass in `q15-retained-publication/recovery2.log`; production
+UI retained-command/lost-reply checks pass in `ui-check4.log` (DOM fixture only).
+The original uncertain publication remains fenced with its original intent,
+deadline and receipts. All four execution runs, source-wide fifteen minutes
+(six execution plus nine judgment minutes) and closed allowance are unchanged.
+The allowance still retains its unresolved accounting checkpoint; it was not
+renewed. Before the idempotence fix, lookups changed only the old fence's
+timestamps/revision; those before/after records are preserved, not rewritten.
+Fixed recovery now preserves the current original journal byte-for-byte.
+GitHub reports successful real workflow run `42560897307` for this exact candidate;
+this is not yet a recorded native check assessment or the full delivery journey.
+No new inference, independent Factory review, correction or merge ran. The
+separate finite review/correction funding decision remains pending. Q24's missing
+appliance does not block this or independent Fountain/package/migration work.
+
 Q14 is complete. Verified corrections are in `2c06d399dd6efec2687120c0561dc84469532541`.
 Owner-authorized replacement Retry `15151515151515151515151515151504`
 completed Architect `efc2a62327f2c18f7390fc1ff58a0e20` and Builder
@@ -795,8 +816,8 @@ Publication `31dbde02be4170d92a37ac3da6154014` is fenced at
 `soda-31dbde02be4170d92a37ac3da6154014-publish-1`. Native command
 `199f236017f48264f54fb9eb760e9af3` is reserved without a causal send receipt;
 its original ten-minute deadline is 1794183711. Exact branch readback was empty,
-which does not prove no-send or authorize retry. No PR, independent review, CI
-or merge has occurred. Preserve this capture and uncertain outcome. Future
+which does not prove no-send or authorize retry. At that historical fence no PR,
+independent review, CI or merge had occurred. Preserve this capture and uncertain outcome. Future
 captures now use the native writer's five-minute limit without extending original
 workflow authority; the old capture is unchanged. Native causal outcomes are
 retained before returning to Go, with exact-command read-only adoption through
@@ -816,10 +837,11 @@ was refused for nonprivate socket permissions before any command reservation
 (`q15-write-recovery/original-command-recovery.jsonl` is empty); it is retained.
 The owner explicitly authorizes a new “Publish retained candidate” command on a
 fresh branch/identity, preserving the old uncertain publication and reusing
-completed inference. That product action still needs implementation and its
-full publication/review/correction/CI/merge journey. This holds this publication
-and full GitHub delivery qualification in Q15/Q16/Q17/Q26, not Fountain login,
-host capability work, packaging, migrations or shared presentation work.
+completed inference. That publication action is now verified above; the full
+review/correction/CI/merge journey remains incomplete. The old uncertain send
+holds only its original operation. Actual delivery/installed dependencies remain
+with their consumers; intake/adoption implementation and independent Fountain,
+packaging, migration and shared presentation work can proceed.
 
 Evidence: `/home/vince/Projects/q15-connected/journal-after-publication-fence.json`,
 `replacement1.log`, `retry-pg2.log`, `retry-retirement.log`,
@@ -871,10 +893,13 @@ absence is confirmed in `ci-variable-restored2.*`. Checks are joined and their
 local grants withdrawn. Actual Q25 installed services replace the removed
 temporary fixture units.
 
-**Exact next action:** implement the owner-approved explicit fresh publication
-command for the retained candidate, preserving the fenced original command and
-all four settled runs,
-fifteen-minute source charge and both Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
+**Exact next action:** retain/adopt command `15151515151515151515151515151505`
+and PR #19; never publish again to compensate for `connected4.log`'s post-commit
+check failure. Its original receipts and successful `recovery2.log` settle that
+attempt. Verify store-version refusal for the new non-executing owner, then
+continue ready Fountain authority work while the separate funding answer is
+pending. Preserve all four settled runs, fifteen-minute source charge and both
+Retry identities. Do not use zero-execution `delivery-resume`, recreate #18,
 renew retired preparation or change the original model plan. Finish paid delivery
 judgment, publication/review/correction, real checks/merge, human/pending/inline
 blockers, changed target/head/base, next-Builder preparation and send recovery.
