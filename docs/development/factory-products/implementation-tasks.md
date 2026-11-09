@@ -1061,6 +1061,20 @@ The failed revocation check's nil-grant panic is fixed; its original receipts an
 stopped database remain in `failed-check4-receipts.json` and `failed-check4-pgdata`.
 All owned PG/native/keyring/bus checks joined; no uncertain new effect remains.
 
+Native effect continuation: Factory `92c350927eafd5ffaed776e2cac635e0cd2e89e0`
+and Fountain check `c26c897fcc5ebc88df9dc4b44b81db47687ea4a2` qualify the typed
+native completion-note connector through the existing host journal.
+`host-native5.log` passes an actual committed note, lookup absence while the
+original send is paused, deliberately lost write reply/adoption, exact receipt
+after native reopen and **one** counted effect submission. Native intents and
+terminal receipts remain in `native4/profile/fountain-operations`; original
+deadline, profile/account/source/grant and command identity are preserved.
+This also runs the host revocation/configuration/expiry cases above; no worker
+or paid inference is claimed. The canonical SodaOS consumer at
+`e931481ab52922f20c9e21b4f512be3537fbc369` builds against the current local
+Factory/SDK owners (`soda-consumer-build.log`); it has no new edits or installed
+qualification. All owned checks joined.
+
 Remaining: admitted appliance SDK/consumer authority and actual competing
 appliance/desktop dispatch; worker launch/retirement bound to the host claim;
 current role/permission and in-flight races; native control code exchange;

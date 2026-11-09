@@ -2665,6 +2665,14 @@ appliance competition, installed parity or complete Q19 evidence. Failed fixture
 history was preserved before another check; no paid inference or uncertain
 publication was retried. Continue the canonical SDK/consumer admission path.
 
+The typed native completion-note continuation is Factory
+`92c350927eafd5ffaed776e2cac635e0cd2e89e0`, with Fountain check
+`c26c897fcc5ebc88df9dc4b44b81db47687ea4a2`. `host-native5.log` proves a real
+host effect, absent lookup while its original request is paused, lost reply
+adoption and exact receipt after reopen with one counted submission. An existing
+native intent permits lookup only. This advances authenticated effects and
+recovery; it does not qualify worker admission, publication or complete Q19.
+
 ## Verification and completion
 
 Use existing affected checks: production Go build and dependency boundaries,
