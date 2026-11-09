@@ -3030,8 +3030,24 @@ preserves prior/target receipts and resumes only old/current bytes after SIGKILL
 It refuses unknown edits, changed user/modes/paths, a live app, active services or
 retained execution roots. Image checks qualify interruption/refusal/recovery;
 the actual installed app's active-upgrade refusal leaves app/socket/helpers and
-manifest unchanged. Actual quiescent activation and broader installed journeys
-remain next; Q26/Q28 hold the exact records.
+manifest unchanged. Actual current24 quiescent activation now passes with matching
+root helpers, preserved prior manifest and original durable profile/keyring/signer
+(`current24-upgrade.log`). Reopened recovery preserves all four original runs,
+23 charged minutes and no publication. The user authorized a same-source30-minute
+top-up and one fresh bounded Retry; Q26 retains the original command/funding
+receipts. Broader installed journeys remain outstanding.
+
+Q26 private-preparation recovery (2026-11-09): after premature normal Quit
+cancelled newly admitted c6e791's Architect, original native retirement was
+confirmed but its transferred private preparation remained ready in SQL. The
+recovery listing excluded open transferred roots, while Retry correctly required
+their confirmed stop. Observe settled consumers' original native receipts through
+the existing recovery owner; never actively retire an open transferred checkout.
+The existing native check proves original old-instance receipt adoption and exact
+root closure on a disposable online copy, without setup/model/retirement send;
+five core table hashes stay unchanged. Q26 records the original cancellation,
+31-minute charge and authorized unconsumed f7a9e74 request. Q19's unqualified native
+bridge is preserved separately in owned stash685e1e4480fb63a91744607d4839b08e5e589356.
 
 ## Verification and completion
 

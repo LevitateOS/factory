@@ -1264,6 +1264,15 @@ Final reply: requested Q18, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q19 — Fountain placement and authenticated operations
 
+Native worker bridge implementation is retained, unqualified, in owned stash
+685e1e4480fb63a91744607d4839b08e5e589356. It adds version6 captured connection/
+grant/packet binding, pre-launch claim, owned withdrawal watcher and physical
+retirement adoption across Go/Rust; it has not passed a connected worker journey
+and is not installed. `q19-authority/controller-bridge-build.log` compiled the
+initial native changes; final watcher changes still need affected compilation
+and real host/worker qualification. Resume that stash after the active Q26
+retirement-recovery correction. Both older user stashes remain intact.
+
 **Current native claim recovery (2026-11-09):** canonical Fountain
 `b8790bcbe1a5b900f8ef1a40e2493f25e3d9c49b` adds authenticated read-only
 execution-claim lookup through the existing profile-proof/operation-grant owner.
@@ -1949,17 +1958,53 @@ byte-for-byte. Checks1/2 failed before task admission because the separate Git
 upload-pack process refused the verified read-only source owner; the fixed clone
 command supplies that process only its exact `/run/factory-source/.git` exception.
 Their roots/processes retired. This is native component evidence, not a successful
-installed Builder. Go/Cargo builds and boundaries pass. Next: clean package and
-installed helper activation using the qualified Q28 upgrade owner; further
-paid work needs a fresh Q30 exception. Current22 app147526/backend/PG remain
-running at SSH22209; both fresh workers and judgment processes are retired.
-Owned edits include these workspace changes, `install-native-execution.sh` and
-the existing Rust native check/evidence records. Automatic review rejected copying all webview storage; a targeted
+installed Builder. Go/Cargo builds and boundaries pass. Verified changes are
+committed in 685b43d27376af8cc4e131005fe92a3bb36cad9e and
+3e31f23ef293a7d53b1462373c8acf4591cd6ffb. Clean current24 is fully installed,
+including matching root execution helpers (inventory09b901f66aef57a3b5f45727685a61de60d5f99636dcedcf77e99b976e481c33,
+archive SHA2561418271d3e0b0d01e8aa3fa3339347616a373c2e512e410d8eca7f09165cb0eb).
+`current24-upgrade.log` proves exact-prior recovery, preserved durable profile/
+keyring/signer and prior helper manifest; `q26-current24-recovery-original.log`
+confirms four sealed/retired/reconciled runs,23 charged minutes and no publication.
+Current24's later recovery session app178223/backend/PG/private session remain
+running at SSH22209.
+The user explicitly authorized another30 minutes on the same Muse source (total60)
+and one fresh Retry,15 minutes/run,two reviews,one correction. Recover the original
+funding/Retry receipts before another effect; no old inference or failed edit may
+be replayed. Automatic review rejected copying all webview storage; a targeted
 read of only the saved Retry record recovered the identity without copying other
 data. The
 session harness overwrote the original keyring.log on reopen; its crash text was
 read in-session, and original SQL receipts/session.log remain. Preserve subsequent
 session logs before restart. The full remaining queue is still outstanding.
+
+The approved top-up saved sponsorship revision2,total60 on the same Muse source;
+`q26-current24-approved-funding-original.log` preserves the unchanged23-minute
+baseline. Retry c6e791f67c684fe6ab8cd1d5ff61a540 admitted Architect
+9cdbd3dbdf56406131fdc24a14599785 at21:27:29Z. The agent prematurely diagnosed
+delayed dispatch as a lookup bug and requested normal Quit; native cancellation
+and physical retirement were adopted on unchanged installed reopen. The speculative
+lookup edits were removed. `q26-current24-original-recovered.log` retains the
+cancelled/sealed/retired/reconciled fifth run and total31-minute charge. No original
+inference was replayed. The user then authorized one fresh Retry within the same
+remaining29 minutes and15-minute/two-review/one-correction limits.
+
+Installed UI saved f7a9e74f65544768bd5d169add63cc7f against that cancelled run,
+but admission refused before recording a command: private preparation
+fa5e21cf849b6c09c680418e8 remained projected ready on the open root despite its
+original native retirement marker (native-preparations/9e9dbb1ae9e4b7104ed97e171f54bc39).
+Recovery now includes transferred native preparations with settled consumers and
+only inspects their original receipts; an open root grants no new retirement
+effect. Confirmed native retirement updates the existing stop projection.
+`preparation25-retained-original-check.log` passes through the actual current
+native owner against a disposable online database copy: original old-instance
+receipt, idempotent adoption and root closure, with all five run/assignment/
+command/usage/publication table hashes unchanged. Copied PG joined. Go build and
+`preparation25-boundaries.log` pass. Next: install the clean corrected bundle,
+recover original f7a9e74 under its existing authorization, and follow it through
+settlement without interrupting admission/inference. It is still unconsumed;
+five runs,total31 and no publication remain. Original profiles/receipts and all
+stashes are preserved; Q24's missing appliance blocks only its installed host work.
 
 **Current operative continuation:** user approved an isolated public fixture to
 prevent fresh-profile intake from replaying old Q14 work. Repository

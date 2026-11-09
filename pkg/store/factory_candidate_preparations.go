@@ -60,8 +60,9 @@ func (s *Store) CandidatePreparation(ctx context.Context, id string) (CandidateP
 }
 
 // PendingCandidatePreparations includes untransferred coder setup and closed
-// roots whose model runs have settled. An open root's transferred checkout
-// stays owned by its run. Retirement itself still requires native confirmation.
+// roots whose model runs have settled. Transferred native preparations with
+// settled consumers are also observed for original retirement receipts; an
+// open root never authorizes actively retiring their checkout.
 func (s *Store) PendingCandidatePreparations(ctx context.Context, limit int) ([]CandidatePreparationRecord, error) {
 	if limit <= 0 || limit > 256 {
 		return nil, errors.New("invalid retry preparation limit")
@@ -79,6 +80,12 @@ func (s *Store) PendingCandidatePreparations(ctx context.Context, limit int) ([]
 			AND COALESCE(p.data#>>'{factory_admission,retirement}'='confirmed',FALSE)))
 		SELECT p.data,p.retire_closed FROM pending p WHERE p.retire_closed OR (p.role=$1 AND p.data#>>'{factory_admission,publication_id}'=''
 		AND NOT EXISTS(SELECT 1 FROM factory_assignments a WHERE a.id=p.data#>>'{factory_admission,owner_assignment}'))
+		OR (NULLIF(p.data->'native','null'::jsonb) IS NOT NULL AND EXISTS(
+		 SELECT 1 FROM factory_assignments a JOIN factory_runs r ON r.id=a.run
+		 WHERE a.id=p.data#>>'{factory_admission,child_assignment}' AND a.stage='finished'
+		 AND a.repository=(p.data#>>'{factory_admission,repository}')::bigint
+		 AND a.data->>'attempt_root'=p.data#>>'{factory_admission,attempt_root}'
+		 AND r.settled AND NOT r.active AND r.data->>'reconciled'='true'))
 		ORDER BY (p.data#>>'{factory_admission,not_after_unix}')::bigint,p.id LIMIT $2`, project.RoleCoder, limit)
 	if err != nil {
 		return nil, err

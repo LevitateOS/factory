@@ -30,6 +30,26 @@ func (c *Coordinator) reconcileRetryPreparations(ctx context.Context) error {
 			continue
 		}
 		p := record.Preparation
+		// A packet transferred this checkout to its run. Only observe its
+		// original native receipt: an open root grants no new retirement effect.
+		if _, err := c.Store.Assignment(ctx, record.Admission.OwnerAssignment); err == nil {
+			if p.Native != nil {
+				if budget := readinessBudgetFrom(ctx); budget != nil && !budget.reserveNativeRPC(1) {
+					return ErrReadinessPassPending
+				}
+				state, inspectErr := c.Host.InspectWorkspacePreparation(ctx, p.Address())
+				if inspectErr == nil && state.Stopped && state.Retirement == "confirmed" {
+					if err = c.Store.RecordCandidatePreparationStop(ctx, p.Preparation.ID, state); err != nil {
+						return err
+					}
+				} else if inspectErr != nil && !errors.Is(inspectErr, execution.ErrPreparationNotObserved) {
+					return inspectErr
+				}
+			}
+			continue
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
 		if record.NotAfter > time.Now().Unix() {
 			p.State = execution.PreparationState{}
 			if _, _, err := c.Store.AdmitCandidatePreparation(ctx, p, record.Admission); err == nil {
@@ -37,14 +57,6 @@ func (c *Coordinator) reconcileRetryPreparations(ctx context.Context) error {
 			} else if !retryPreparationInvalidated(err) {
 				return err
 			}
-		}
-		// A committed packet transfers ownership to its recorded run; a lost
-		// reply or concurrent request must not retire that run's checkout.
-		if _, err := c.Store.Assignment(ctx, record.Admission.OwnerAssignment); !errors.Is(err, store.ErrNotFound) {
-			if err != nil {
-				return err
-			}
-			continue
 		}
 		if err := c.retireCandidatePreparation(ctx, record.Preparation); err != nil {
 			return err

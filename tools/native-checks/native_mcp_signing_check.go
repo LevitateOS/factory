@@ -1246,6 +1246,13 @@ func ownedExecutionFixture(profile, instance, mode string) error {
 }
 
 func main() {
+	if len(os.Args) == 6 && os.Args[1] == "retained-preparation-stop" {
+		if err := retainedPreparationStop(os.Args[2], os.Args[3], os.Args[4], os.Args[5]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) == 4 && os.Args[1] == "retained-root-retry" {
 		if err := retainedRootRetry(os.Args[2], os.Args[3]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -1418,6 +1425,77 @@ func main() {
 // Retained-copy qualification: only confirmed capability projection retirement
 // may change; no coordinator, provider or fixture phase mutation is constructed.
 type retainedPlanAssignments struct{ db *sql.DB }
+
+// Observe the actual original native retirement through the running owner,
+// changing only a disposable store copy. No setup, retirement send, coordinator,
+// model or provider is constructed by this qualification.
+func retainedPreparationStop(dsnFile, profile, instance, id string) error {
+	if !strings.Contains(dsnFile, "/current20-receipt-inspection/") {
+		return errors.New("requires the disposable original-receipt inspection copy")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	dsn, err := os.ReadFile(dsnFile)
+	if err != nil {
+		return err
+	}
+	db, err := store.OpenStandaloneContext(ctx, string(dsn))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	record, err := db.CandidatePreparation(ctx, id)
+	if err != nil || record.Stopped || record.Preparation.Native == nil || record.Preparation.Native.InstanceID == instance {
+		return errors.New("requires original unprojected retirement from a prior native instance")
+	}
+	before, err := db.AttemptAllowance(ctx, record.Admission.Repository, record.Admission.Issue)
+	if err != nil || before.Closed {
+		return errors.New("original attempt must remain open")
+	}
+	pending, err := db.PendingCandidatePreparations(ctx, 256)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, candidate := range pending {
+		if candidate.Preparation.Preparation.ID == id {
+			found = !candidate.RetireClosed
+		}
+	}
+	if !found {
+		return errors.New("transferred native preparation was hidden from original-receipt recovery")
+	}
+	config, err := factoryruntime.LoadNative(filepath.Join(profile, "backend.json"))
+	if err != nil {
+		return err
+	}
+	port := factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}
+	state, err := port.InspectWorkspacePreparation(ctx, record.Preparation.Address())
+	if err != nil {
+		return err
+	}
+	if !state.Stopped || state.Retirement != "confirmed" || state.ValidateFor(record.Preparation.Address()) != nil {
+		return errors.New("original native owner has no exact confirmed retirement")
+	}
+	for i := 0; i < 2; i++ {
+		if err = db.RecordCandidatePreparationStop(ctx, id, state); err != nil {
+			return err
+		}
+	}
+	projected, err := db.CandidatePreparation(ctx, id)
+	if err != nil || !projected.Stopped || projected.Retirement != "confirmed" {
+		return errors.New("original retirement was not projected")
+	}
+	if _, err = db.CloseAttempt(ctx, record.Admission.OwnerAssignment); err != nil {
+		return err
+	}
+	closed, err := db.AttemptAllowance(ctx, record.Admission.Repository, record.Admission.Issue)
+	if err != nil || !closed.Closed || closed.Active {
+		return errors.New("exact settled root remains blocked after confirmed retirement")
+	}
+	fmt.Println("PASS: transferred native preparation on an open settled root is visible; original prior-instance retirement is read/adopted idempotently; exact root can close without renewed setup, model, provider or retirement send; disposable store only")
+	return nil
+}
 
 func (s retainedPlanAssignments) Assignment(ctx context.Context, id string) (factory.Assignment, error) {
 	var raw []byte
