@@ -168,17 +168,13 @@ func (op ReviewOperation) WithOutcome(outcome OperationOutcome) (ReviewOperation
 }
 
 // ValidateTarget checks the exact target before findings or operation identity
-// exist. The author's account may publish agent inspection as a comment;
-// it cannot submit an approval or request changes on its own PR.
+// exist. Reading the target creates no verdict or submission authority.
 func (w ReviewWork) ValidateTarget() error {
 	if w.VoteBinding != nil && (w.VoteBinding.Validate() != nil || w.VoteBinding.Kind != OpReviewSubmit || w.VoteBinding.ActorID != w.ActorID || w.Event == "COMMENT") {
 		return errors.New("invalid automation vote binding")
 	}
 	if w.Repository <= 0 || w.ActorID <= 0 || w.PRNumber <= 0 || w.PRID <= 0 || w.IssueID <= 0 || w.PRAuthorID <= 0 {
 		return errors.New("invalid review target")
-	}
-	if w.ActorID == w.PRAuthorID && (w.Event != "COMMENT" || (w.AgentVerdict != "APPROVED" && w.AgentVerdict != "REQUEST_CHANGES")) {
-		return errors.New("author account inspection requires an explicit agent verdict and comment review")
 	}
 	if !ValidTargetBranch(w.HeadRef) || !ValidTargetBranch(w.BaseRef) || w.HeadRef == w.BaseRef || !ValidCommit(w.HeadOID) || !ValidCommit(w.BaseOID) {
 		return errors.New("invalid exact review candidate")
@@ -191,6 +187,9 @@ func (w ReviewWork) ValidateTarget() error {
 func (w ReviewWork) Validate() error {
 	if err := w.ValidateTarget(); err != nil {
 		return err
+	}
+	if w.ActorID == w.PRAuthorID && (w.Event != "COMMENT" || (w.AgentVerdict != "APPROVED" && w.AgentVerdict != "REQUEST_CHANGES")) {
+		return errors.New("author account inspection requires an explicit agent verdict and comment review")
 	}
 	if !ValidPublicationOperationID(w.OperationID) || strings.TrimSpace(w.AuthRevision) == "" || len(w.AuthRevision) > 512 || w.NativeRev < 1 || w.NotAfter <= 0 || len(w.Body) > 65536 {
 		return errors.New("invalid review authorization")

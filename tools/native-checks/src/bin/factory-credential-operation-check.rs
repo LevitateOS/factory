@@ -1405,7 +1405,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
             let retire_retry_delivery=args.len()==10 && field(9)?=="delivery-retry-retire";
             let recover_funding=args.len()==10 && field(9)?=="delivery-fund-retained-recover";
             let funding_offer=args.len()==10 && field(9)?=="delivery-fund-retained-offer";
-            let fresh_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
+            let replace_funding=args.len()==10 && field(9)?=="delivery-fund-retained-fresh-replacement";
+            let fresh_funding=replace_funding || args.len()==10 && field(9)?=="delivery-fund-retained-fresh";
             let fund_retained=recover_funding || funding_offer || fresh_funding || args.len()==10 && field(9)?=="delivery-fund-retained";
             let recover_publication=args.len()==10 && field(9)?=="delivery-publish-retained-recover";
             let publish_retained=args.len()==10 && matches!(field(9)?,"delivery-publish-retained"|"delivery-publish-retained-recover");
@@ -1466,6 +1467,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         if retained_delivery && !publish_retained && !fund_retained {check(if retire_retry_delivery {"retry-retirement"} else {"retained"},&ready.instance).await?;return Ok(());}
                         if publish_retained {check(if recover_publication {"publish-retained-recovery-preflight"} else {"publish-retained-preflight"},&ready.instance).await?;}
                         if fund_retained {check("fund-retained-preflight",&ready.instance).await?;}
+                        if replace_funding {check("fund-retained-no-fund7",&ready.instance).await?;}
                         if recover_funding {check("fund-retained-reconcile",&ready.instance).await?;return Ok(());}
                         // This mode is only for the exact preflight failure: no
                         // execution exists. Live/past attempts need their own recovery.
@@ -1495,6 +1497,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                         let reply=admitted.request("PUT",&format!("{status_path}/policy"),&serde_json::to_vec(&policy)?).await?;
                         fs::write(root.join(if recover_publication {"policy-retained-publication-recovery.json"}else if publish_retained {"policy-retained-publication.json"}else{"policy-resume.json"}),&reply.body)?;
                         ensure(reply.status==200,"fresh delivery connection could not bind original unlaunched acceptance")?;
+                        if funding_offer || fresh_funding {check("fund-retained-target",&ready.instance).await?;}
                         if funding_offer {
                             let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                             let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1535,8 +1538,8 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             ensure(reply.status==200,"fresh delivery Retry refused; inspect command before another effect")?;
                         }
                         if fund_retained {
-                            let funding_command=if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
-                            let capture_path=root.join(if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
+                            let funding_command=if replace_funding {"15151515151515151515151515151508"}else if fresh_funding {"15151515151515151515151515151507"}else{"15151515151515151515151515151506"};
+                            let capture_path=root.join(if replace_funding {"retained-fresh-review-request-08.json"}else if fresh_funding {"retained-fresh-review-request.json"}else{"retained-funding-request.json"});
                             let body=if capture_path.exists() {fs::read(&capture_path)?} else {
                                 let admitted=runtime.as_ref().expect("owned runtime").admit_product(store.clone(),store.capability(&saved.connection).await?,Some(field(5)?.into()))?;
                                 let detail=admitted.request("GET",&format!("/api/repositories/{repository}/factory/issues/18"),&[]).await?;
@@ -1562,7 +1565,7 @@ async fn run_selected(args: &[std::ffi::OsString]) -> Result<()> {
                             check("prepare",&ready.instance).await?;
                         }
                         runtime.as_ref().expect("owned runtime").start_execution_coordinator().await?;
-                        let watching=check(if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
+                        let watching=check(if replace_funding {"fund-retained-replacement-watch"}else if fresh_funding {"fund-retained-fresh-watch"}else if fund_retained {"fund-retained-watch"}else{"watch"},&ready.instance);
                         tokio::pin!(watching);
                         loop {
                             tokio::select! {

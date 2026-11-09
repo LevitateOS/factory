@@ -2764,8 +2764,16 @@ ui-check1}.log` and production builds/types/boundaries pass; actual native/share
 API `fresh-owner-connected-offer1.log` offers the scoped continuation without a
 funding command or model. Format 99 is marker-only: `retained99/check.log` proves
 98→99/reopen/all75-table preservation, prior98 refusal and original-file equality.
-Fresh command `…1507` awaits explicit paid authorization; no capture/send exists.
-Q15's closed allowance, all earlier commands and both stop markers stay retained.
+The owner approved the fresh continuation. Command `…1507` failed definitively
+before funding because read-only target validation demanded a verdict; the full
+submission validator now separately owns that restriction. Actual native check
+`target-read-connected1.log` proves target-only observation and unchanged
+self-approval/submission refusal, without inference. `definitive-no-fund7.log`
+proves no command/owner/allowance07 and unchanged four runs/fifteen-minute charge.
+Preserve its saved capture/response. Reconnecting changes the writer-policy CAS,
+so fresh `…1508` captures current authority for the same owner-approved budget,
+with a mandatory no-admission check for07. No original authority is renewed and
+no inference replay is authorized. All prior allowances/receipts/markers remain.
 
 ## Verification and completion
 

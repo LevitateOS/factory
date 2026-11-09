@@ -855,12 +855,21 @@ DOM checks; builds/types/boundaries pass. `q28-migrate/retained99/check.log` pro
 and unchanged original database files. `fresh-owner-connected-offer1.log` proves
 the real UI/API offer: same native Muse source, 15 minutes per run, two fresh
 reviews and one correction; no funding command/coordinator/model/repository write.
-**Q15 awaits explicit authorization for fresh command `…1507` under this offer**;
-the previous fifteen-minute charge and closed spent round remain. Its exact next
-action is `delivery-fund-retained-fresh`, capturing the current offer once in
-`q15-connected/retained-fresh-review-request.json` (not yet created). Only that
-paid continuation and full delivery evidence using it depend on this answer.
-Independent queued work remains authorized. Q24 still has no appliance.
+The owner approved that fresh review-only continuation. Command `…1507`'s saved
+request then failed before funding: target-read validation required a fabricated
+verdict on a self-authored PR. `definitive-no-fund7.log` proves no command, owner
+or allowance was admitted, with four original runs and fifteen charged minutes.
+The failed request/response remain exact. Target observation now validates only
+identity/head/base; full submission keeps COMMENT/verdict and self-vote refusal.
+`target-read-connected1.log` proves the actual authenticated read, target-only
+submission/self-approval refusal and current UI/API offer, without funding/model.
+**Next:** the same approved finite continuation uses fresh command `…1508` and
+`delivery-fund-retained-fresh-replacement`, capturing its current policy once in
+`q15-connected/retained-fresh-review-request-08.json`; the original `…1507`
+capture cannot be edited after reconnect changes its policy revision. The
+replacement first requires definitive no-admission proof for `…1507`. No paid
+inference has been repeated. All check owners joined; no code edits remain after
+this checkpoint. Independent queued work remains authorized; Q24 lacks an appliance.
 
 **INCOMPLETE; explicit fresh publication and continuation funding verified; connected review remains.**
 Factory `e68c4e65b81d5780cc938262cffedc9e3bb22685` implements the owner-approved

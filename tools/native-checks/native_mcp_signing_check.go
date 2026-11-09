@@ -6493,7 +6493,45 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		return err
 	}
 	phase := os.Getenv("SODA_NATIVE_DELIVERY_PHASE")
-	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-fresh-watch" || phase == "fund-retained-reconcile" {
+	if phase == "fund-retained-no-fund7" {
+		rawDB, err := sql.Open("pgx", config.DatabaseDSN())
+		if err != nil {
+			return err
+		}
+		defer rawDB.Close()
+		var admitted bool
+		if err = rawDB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM factory_commands WHERE id=$1) OR EXISTS(SELECT 1 FROM factory_assignments WHERE id=$1) OR EXISTS(SELECT 1 FROM factory_attempt_allowances WHERE root_assignment=$1)`, "15151515151515151515151515151507").Scan(&admitted); err != nil || admitted {
+			return errors.New("command 07 may have admitted authority; replacement refused")
+		}
+		fmt.Println("PASS: funding command07 definitively never admitted a journal, owner or allowance; no coordinator/model was started by its failed request")
+		return nil
+	}
+	if phase == "fund-retained-target" {
+		p, err := db.PublicationByID(ctx, "15151515151515151515151515151505")
+		if err != nil || p.PRCreate.Work == nil {
+			return errors.New("retained PR target unavailable")
+		}
+		policy, err := db.RepositoryPolicy(ctx, p.Repository)
+		if err != nil {
+			return err
+		}
+		w := factory.ReviewWork{Repository: p.Repository, ActorID: policy.Review.ActorID, PRNumber: p.PRNumber, PRID: p.PRID,
+			IssueID: p.PRCreate.IssueID, PRAuthorID: p.PRCreate.Work.ActorID, HeadRef: p.PRCreate.HeadRef, BaseRef: p.PRCreate.BaseRef, HeadOID: p.Candidate, BaseOID: p.PRCreate.BaseOID}
+		if w.Validate() == nil {
+			return errors.New("target-only read acquired review submission authority")
+		}
+		port := factoryruntime.NativeReviews{NativeInputSource: factoryruntime.NativeInputSource{NativeExecution: factoryruntime.NativeExecution{Config: config, Instance: instance, Store: db}}}
+		if _, err := port.ObserveReview(ctx, w); err != nil {
+			return err
+		}
+		w.OperationID, w.AuthRevision, w.NativeRev, w.NotAfter, w.Event = "probe-self-vote", "probe", 1, time.Now().Add(time.Minute).Unix(), "APPROVED"
+		if w.Validate() == nil {
+			return errors.New("author account self approval admitted")
+		}
+		fmt.Println("PASS: authenticated exact retained PR target read without a fabricated verdict; target-only submission and author self-approval refused; no write or inference")
+		return nil
+	}
+	if phase == "fund-retained-preflight" || phase == "fund-retained-watch" || phase == "fund-retained-fresh-watch" || phase == "fund-retained-replacement-watch" || phase == "fund-retained-reconcile" {
 		if repository != 1 || issue != 18 || config.Profile != "58dbb6051262e8a338cb861e359a0ac5" || in.Source != "4c823041ad0ba064c4f974399b0e3a2a" {
 			return errors.New("exact Q15 retained funding fixture required")
 		}
@@ -6823,6 +6861,9 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 	if phase == "fund-retained-fresh-watch" {
 		stopName += "-15151515151515151515151515151507"
 	}
+	if phase == "fund-retained-replacement-watch" {
+		stopName += "-15151515151515151515151515151508"
+	}
 	stopPath := filepath.Join(filepath.Dir(profile), stopName)
 	for ctx.Err() == nil {
 		if _, e := os.Stat(stopPath); e == nil {
@@ -6928,7 +6969,7 @@ func connectedDeliveryFixture(profile, instance, path string) error {
 		}
 		status := fmt.Sprintf("assignments=%d publications=%d merges=%d", len(assignments), len(publications), len(merges))
 		for _, a := range assignments {
-			fundedRoot := a.AttemptRoot == "15151515151515151515151515151505" || a.AttemptRoot == "15151515151515151515151515151507"
+			fundedRoot := a.AttemptRoot == "15151515151515151515151515151505" || a.AttemptRoot == "15151515151515151515151515151507" || a.AttemptRoot == "15151515151515151515151515151508"
 			if strings.HasPrefix(phase, "fund-retained-") && fundedRoot && a.RetainedPublication == nil && a.Phase != project.ExecutionReview && a.Phase != project.ExecutionCorrect {
 				return errors.New("retained funding attempted a new planning/initial Builder phase")
 			}
