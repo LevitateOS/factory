@@ -26,6 +26,11 @@ read -r platform < "$distribution/platform"
 [[ "$platform" == "$(uname -s)-$(uname -m)" ]] || { echo 'This execution bundle does not match this computer.' >&2; exit 1; }
 if [[ "$install_root" == / ]]; then
   [[ -d /run/systemd/system && -f /sys/fs/cgroup/cgroup.controllers ]] && systemctl --version >/dev/null || { echo 'Execution installation requires systemd and cgroup v2.' >&2; exit 1; }
+  # These are fixed runtime paths in the native preparer/worker, independent
+  # of developer toolchains and the installing shell's PATH.
+  for runtime in /usr/bin/git /usr/bin/bash /usr/bin/timeout; do
+    [[ -x "$runtime" ]] && "$runtime" --version >/dev/null 2>&1 || { echo "Execution runtime is unavailable: $runtime" >&2; exit 1; }
+  done
 fi
 binaries=()
 units=()

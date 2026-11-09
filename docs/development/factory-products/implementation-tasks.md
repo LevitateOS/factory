@@ -1153,8 +1153,15 @@ A genuine clean systemd VM is being prepared in `q25-package/recipient-vm`;
 its official Rocky 10.2 image checksum signature is authenticated by published
 fingerprint `FC226859C0860BF0DDB95B085B106C736FEDFC85` using Sequoia (the
 existing GnuPG could not parse its additional v6 key block). Existing guests,
-including the retired stopped soda demo, are untouched. Full clean-host and
-execution-service qualification is pending.
+including the retired stopped soda demo, are untouched. The genuine KVM guest is running at private localhost SSH port 22159, with
+PID in `recipient-vm/qemu.pid` (initial PID 966981), original verified backing
+image and independent overlay/seed. `recipient-vm/missing-runtime.log` proves
+actual root installation refuses absent `/usr/bin/git` before creating any
+installation state or helper; the guest has no compiler or container engine.
+The execution installer now checks its fixed Git/Bash/timeout runtime paths
+before target writes. Full clean-host app/execution qualification remains
+pending after runtime provisioning. Inspect the original VM process and cloud-init
+journal before starting any new guest or repeating installation.
 
 Historical retained packaging evidence:  `/home/vince/Projects/q25-package/stage-release` contains production UI, release native assets, Go 1.27.3, source-built PostgreSQL 18.6 and the complete compiled/runtime dependency notices/source inventory, with 2,499 SHA-256 entries. Engine source is `90bde70cbf78d3dddd34d725e220b6cf874dd33e`; `build-inputs.json` records the original dirty packaging paths and exact compiler/package inputs. Official Go/Bun archives and PostgreSQL source passed their published checksums; Rust 1.99.1 matches stable. Host package installation and PostgreSQL build completed; signed Rocky 10.2 runtime GTK/WebKit dependencies are present. `install-recovery.log` proves actual SIGKILL during copy, recovery after app publication, concurrent lock refusal, unchanged human/unknown files and corrupt-bundle refusal. `execution-recovery.log` proves hard interruption after first helper publication, exact manifest adoption, repeat install, changed service preservation and concurrent refusal. `execution-host.log` proves actual `/etc/systemd/system` installation for vince/UID 1000, enabled/active broker socket and repeated installation; these installed services remain intentionally available. Typecheck and language boundaries passed (`typecheck-final2.log`, `boundaries-final.log`). The actual installed app rendered production UI using its bundled backend/PostgreSQL, reopened its original profile, accepted real XTest keyboard Close/Quit, restored the existing window on second launch and joined its database on Quit (`desktop/{loaded,second-launch,keyboard-quit-focus}.png`, `input.log`, `session2.log`, original PostgreSQL shutdown log). The first root-window capture failed on headless Xwayland; window capture corrected the check after verifying clean original shutdown. No native-check/development executable or seeded phase facts were used. This qualifies the changed packaging/recovery and installed lifecycle boundary on Rocky x86_64, not full Q26/Q27 or the supported-host matrix. Next: finish runtime/capability checks without development tools and supported-host evidence; package the subsequent native Retry fixes before installed delivery. Q15/Q24 do not block independent installation work.
 
