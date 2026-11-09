@@ -2672,6 +2672,9 @@ host effect, absent lookup while its original request is paused, lost reply
 adoption and exact receipt after reopen with one counted submission. An existing
 native intent permits lookup only. This advances authenticated effects and
 recovery; it does not qualify worker admission, publication or complete Q19.
+Factory `1038cc010b21f7882bd8fbb34a06c76fa19b2b29` and `host-native6.log`
+extend that proof to a locally withdrawn/reconnected credential: history lookup
+keeps original source/deadline/receipt bytes, and submit refuses source rebinding.
 
 ## Verification and completion
 

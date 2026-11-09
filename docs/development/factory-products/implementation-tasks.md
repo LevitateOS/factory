@@ -1074,6 +1074,13 @@ or paid inference is claimed. The canonical SodaOS consumer at
 `e931481ab52922f20c9e21b4f512be3537fbc369` builds against the current local
 Factory/SDK owners (`soda-consumer-build.log`); it has no new edits or installed
 qualification. All owned checks joined.
+Factory `1038cc010b21f7882bd8fbb34a06c76fa19b2b29` adds explicit read-only
+history recovery after local credential withdrawal/reconnect. `host-native6.log`
+passes with one counted effect submission: a new connection cannot rebind the
+old submit capture, but reads the original grant/receipt through the original
+profile proof. Original intent bytes, source connection, deadline and backed-up
+receipt stay exact; this is local reconnect with the fixture OAuth token, while
+actual provider revocation/re-login remains qualified by the host cases.
 
 Remaining: admitted appliance SDK/consumer authority and actual competing
 appliance/desktop dispatch; worker launch/retirement bound to the host claim;
