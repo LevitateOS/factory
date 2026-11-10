@@ -1862,7 +1862,7 @@ Final reply: requested Q25, actual task reached, COMPLETE/INCOMPLETE/BLOCKED, co
 
 ### Q26 — Installed GitHub desktop product journey
 
-**Active recovery — INCOMPLETE, current29:** installed app260392/backend/PG is
+**Active recovery — INCOMPLETE, current30:** installed app283905/backend/PG is
 running with matching production helpers. Executable-bit correction48e7b9d is
 installed and its production-native check passes. The owner authorized30 additional
 minutes and one fresh Retry: UI saved sponsorship revision4,total120 on the same
@@ -1882,6 +1882,22 @@ reason is null and does not prove that cause. Preserve its original partial work
 Actual window minimize, second installed launch and restore passed on the same
 app/window while the original Architect continued (`current29-minimize-restore2.log`).
 Keyboard Alt+F9 did not minimize; that failed attempt remains retained.
+
+The fresh production current30 build uses7c042e4 plus `steps30-source.patch`
+(SHA256 fc292a0c2d152626f9b9e8f8495fae7e357a198859736eacb404b0aa184d803e).
+Inventory fe73f5f20d7859787ccd28d181948ba302b23c7ab0b9f13c31c583c8b7369e77;
+archive49996408cd44ea679ab3d435e1074831ad3a639b9eb80d48c8142d01af5c75c8.
+New task invocations allow128 model steps; judgment remains1 and original
+invocations/deadlines are unchanged. This removes the32-step restriction from
+multi-task work without asserting it caused the original normal ending.
+`steps30-connector2.log` passes the actual installed helper with128, cancellation,
+lost initial/observation replies, retirement and retained original receipts, no
+inference. First scratch refused its non-private empty directory before dispatch;
+it remains preserved. Exact-prior app/helper upgrade, normal Quit/reopen and
+durable profile/password/signer/keyring checks pass in
+`current30-{upgrade,execution-upgrade,durable-check}.log` and
+`q26-current30-recovered-original.log`:15 settled runs,55 judgments,97 minutes,
+same120-minute allowance. No new Retry has been sent.
 
 **Retained current13 recovery:** the actual current13 UI enrolled policy revision2
 and created fresh issue #1 once, command2653c89429774dbaa331ecc0444c155a,

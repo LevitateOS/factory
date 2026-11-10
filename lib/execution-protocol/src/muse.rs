@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const MAX_MUSE_INPUT: usize = 6 * MAX_PROMPT + 32 * 1024;
-pub const MAX_MUSE_MODEL_STEPS: u8 = 32;
+// A multi-task Builder needs room for reads, edits, checks and checkpoints.
+// The captured per-run deadline remains the execution and spending bound.
+pub const MAX_MUSE_MODEL_STEPS: u8 = 128;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

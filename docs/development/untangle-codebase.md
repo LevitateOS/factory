@@ -1,5 +1,15 @@
 # Factory untangling decisions
 
+Q26 task step budget (2026-11-10): the original Builder ended after31 completed
+model calls with two tasks committed and one unfinished; terminal reason remains
+null. Raise new native task invocations from32 to128 model steps while preserving
+the captured per-run deadline, funding limit and all old invocation bytes.
+Judgment stays1 step. Production current30's finite native connector passes128,
+cancellation and original lost-reply/retirement recovery without inference
+(`q25-current9/steps30-connector2.log`). Installed reopen retains15 settled runs,
+55 judgments and97 charged minutes. This verifies the input/owner change, not a
+successful paid delivery or a definitive diagnosis of the original ending.
+
 Standing native preparation admission (2026-11-10): immutable human setup
 decisions must be paired with current workspace authority. Reuse the existing
 transactional native decision check instead of accepting a saved native decision

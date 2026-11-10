@@ -507,7 +507,7 @@ fn muse_fixture(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     if option("--preset")? != "empty"
         || option("--approval-mode")? != "never"
-        || !matches!(option("--max-model-steps")?, "1" | "3")
+        || !matches!(option("--max-model-steps")?, "1" | "128")
         || option("--model")? != "muse-spark-1.3-contributor"
         || option("--reasoning-effort")? != "low"
         || option("--contributor-mode")? != "on"
@@ -747,7 +747,7 @@ fn muse_connector(
                 },
                 duration_ms: if live { 30_000 } else { 10_000 },
                 deadline_unix_ms: 0,
-                max_model_steps: if live { 1 } else { 3 },
+                max_model_steps: if live { 1 } else { soda_execution_protocol::MAX_MUSE_MODEL_STEPS },
                 output_bytes: 1024 * 1024,
                 mcp: None,
             },
