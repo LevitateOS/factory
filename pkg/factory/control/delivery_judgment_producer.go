@@ -130,7 +130,7 @@ func (c *Coordinator) advisePublicationDelivery(ctx context.Context, p factory.P
 	fingerprint, _ := factory.DeliveryFingerprint(material.Input)
 	requestID := deliveryContentDigest("soda-funded-delivery-v1:" + fingerprint)[:32]
 	allowance, err := c.Store.AttemptAllowance(ctx, p.Repository, p.Issue)
-	if err != nil || allowance.RootAssignment != cycle.AttemptRoot || allowance.Closed || !allowance.Active {
+	if err != nil || allowance.RootAssignment != cycle.AttemptRoot || allowance.Closed {
 		return factory.DeliveryDecision{}, "", ErrDeliveryUnavailable
 	}
 	decision, _, err := c.AdviseDelivery(ctx, DeliveryAdvice{Input: material.Input, State: material, Repository: p.Repository, Issue: p.Issue, AttemptRoot: cycle.AttemptRoot, ReviewsFit: allowance.ReviewFits(p.Candidate, false, time.Now()), ObservedNativeRevision: material.Native.Revision, Chooser: chooser, Funding: c.Store})

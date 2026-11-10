@@ -102,8 +102,12 @@ func (c *Coordinator) publishAfterDispatch(ctx context.Context, report DispatchR
 	// timed-out publication pass can still report its hold without new effects.
 	scopeContext := bounded
 	if budget := readinessBudgetFrom(bounded); budget != nil {
+		deadline := time.Now().Add(readinessCleanupReserve)
+		if budget.outerDeadline.Before(deadline) {
+			deadline = budget.outerDeadline
+		}
 		var cancel context.CancelFunc
-		scopeContext, cancel = context.WithDeadline(context.WithoutCancel(bounded), budget.outerDeadline)
+		scopeContext, cancel = context.WithDeadline(context.WithoutCancel(bounded), deadline)
 		defer cancel()
 	}
 	for _, wait := range publication.Waits {

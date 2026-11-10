@@ -691,7 +691,7 @@ func checkCandidatePreparationOwnerTx(ctx context.Context, tx *sql.Tx, preparati
 		return err
 	}
 	if allowance.Repository != r.Repository || allowance.Issue != r.Issue || allowance.RootAssignment != r.AttemptRoot ||
-		allowance.Closed || !allowance.Active {
+		allowance.Closed {
 		return factory.ErrAttemptClosed
 	}
 	owner, err := currentAttemptOwnerTx(ctx, tx, r.Repository, r.Issue, r.AttemptRoot)

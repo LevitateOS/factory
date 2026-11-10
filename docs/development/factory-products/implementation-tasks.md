@@ -1236,10 +1236,22 @@ Real CI42819121752/job129839777446/q15-note-example passes on that candidate.
 Review cycled1bf0bf25658e812b138d8934327d746 allocates reviewer7df478987f01a8016f224266a6cc2dd8
 but has no preparation/assignment yet. Read-only `review-source51.log` confirms
 current reviewer authority and both source preparations; no inference is replayed.
-All23 runs and84 judgments are settled,147 minutes charged. The existing
+All23 runs and84 judgments are settled,147 minutes charged. Current52 installs
+cleanb648dae0f8167ed7099237d5a5f0d6ff93056727 (inventory
+4ec87da546c394c24028f9fc1e76034c77430a324fe537519dcd5958852962b0,
+archive0abb80f8d43c89e65d8bcc68262dddc097ee08f56df4b8fc0d1e0e7ac97bd77d).
+Actual fresh standing preparationsfc342547c321d44908ff31032 and
+ff3919df194251b2c8280632d are ready. Diagnostic readback and the retained root
+prove the hold: open issue allowancef848 is accounting-idle, so publication
+enumeration excludes it before child admission. Align those gates with the
+selected per-run contract; preserve Closed/current grants/exact bindings/counts
+and all old send deadlines. Existing real PostgreSQL allowance, publication,
+review/correction and merge checks pass (`intake49-fixture/idle53-pg.log`), as does
+the existing candidate-owner/read-failure check (`idle53-owner-pg.log`); affected
+Go compilation passes. Next: install current53 and resume the retained review
+cycle on PR#55; no fresh Retry, new publication or replay is needed. The existing
 dispatch diagnostic now retains publication wait reasons without raw Detail;
-affected Go checks pass. Next: install that correction and read the actual hold,
-then resume this original review cycle. Current51 app/backend/PG remain under
+affected Go checks pass. Current52 app/backend/PG remain under
 `/home/factory/q28-format102`; no new provider write/model is pending beyond the
 separately fenced original3ddb87ba.
 no fixture cleanup or diagnostic process remains. Original unknown publication

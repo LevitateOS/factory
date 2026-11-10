@@ -158,8 +158,10 @@ type AttemptAllowance struct {
 	Revision       int64                  `json:"revision"`
 	ActiveSeconds  int64                  `json:"active_seconds"`
 	CheckpointUnix int64                  `json:"checkpoint_unix"`
-	Active         bool                   `json:"active"`
-	Closed         bool                   `json:"closed"`
+	// Active records the accounting clock, not permission for a later issue
+	// phase. Closed fences admission; every new effect still checks its grants.
+	Active bool `json:"active"`
+	Closed bool `json:"closed"`
 }
 
 func (a AttemptAllowance) Validate() error {

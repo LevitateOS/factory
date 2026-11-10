@@ -1,5 +1,20 @@
 # Factory untangling decisions
 
+Open issue phase admission (2026-11-10): actual current52 preserves PR#55,
+23 settled runs/84 finished judgments/147 charged minutes and ready standing
+preparations, but cannot start its allocated reviewer. Rootf848 is open with an
+idle accounting clock; publication enumeration and child/native admission
+incorrectly require that clock to be active. Apply the selected per-run contract
+consistently: Closed fences later issue phases, with current grants, exact owner,
+source/setup and bounded rounds still checked. Issue-zero time-only grants retain
+active/aggregate deadlines; existing operation deadlines/receipts never renew.
+Existing PostgreSQL allowance/publication/review/correction/merge cases pass in
+`q25-package/intake49-fixture/idle53-pg.log`; the existing candidate-owner case
+also proves idle admission without masking read failures (`idle53-owner-pg.log`).
+Affected Go compilation passes. The diagnostic cleanup read is capped at the
+existing cleanup reserve. Next: install current53 and resume the original review
+cycle, without Retry or publication replay. Installed qualification remains open.
+
 Publication hold visibility (2026-11-10): current51's actual automatic Retry
 completes Architect/Builder, checked candidate54b82ef2 and one causal branch/PR#55
 publication. Real CI42819121752/job129839777446 passes. Its first review cycle is

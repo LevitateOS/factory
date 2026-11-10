@@ -86,9 +86,6 @@ func (c *Coordinator) gatePublicationChildAttempt(ctx context.Context, p factory
 		publicationWait(report, p.ID, "attempt is closed; maintainer intervention is required")
 		return factory.AttemptAllowance{}, true
 	}
-	if !allowance.Active {
-		return factory.AttemptAllowance{}, true
-	}
 	if allowance.RemainingSeconds(time.Now()) <= 0 {
 		closed, closeErr := c.Store.CloseExpiredAttempt(ctx, owner.ID)
 		if closeErr != nil {
@@ -669,7 +666,7 @@ func (c *Coordinator) recheckPublicationChild(ctx context.Context, p factory.Pub
 	if err != nil {
 		return nil, err
 	}
-	if allowance.RootAssignment != owner.AttemptRoot || allowance.Closed || !allowance.Active ||
+	if allowance.RootAssignment != owner.AttemptRoot || allowance.Closed ||
 		allowance.RemainingSeconds(time.Now()) <= 0 {
 		return waitFor("child_dispatch_inputs_changed", "attempt allowance changed before launch"), nil
 	}

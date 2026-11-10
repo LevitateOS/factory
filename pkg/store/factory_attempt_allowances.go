@@ -171,7 +171,7 @@ func attemptDeadlineUnix(allowance factory.AttemptAllowance, now time.Time) (int
 	if allowance.Closed {
 		return 0, factory.ErrAttemptClosed
 	}
-	if !allowance.Active {
+	if allowance.Issue == 0 && !allowance.Active {
 		return 0, factory.ErrAttemptTimeExhausted
 	}
 	remaining := int64(allowance.Limits.ActiveMinutes) * 60

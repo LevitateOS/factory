@@ -817,7 +817,8 @@ func (s *Store) OpenPublications(ctx context.Context, limit int) ([]factory.Publ
 }
 
 // ActivePublishedPublications returns published candidates whose exact
-// assignment root still owns an open active allowance and has not merged.
+// assignment root still owns an open issue allowance and has not merged.
+// An idle accounting clock does not withdraw its bounded later phases.
 // The active-attempt cap keeps this bounded without walking settled history.
 func (s *Store) ActivePublishedPublications(ctx context.Context, limit int) ([]factory.Publication, error) {
 	return s.activePublishedPublications(ctx, limit, false)
@@ -839,7 +840,7 @@ func (s *Store) activePublishedPublications(ctx context.Context, limit int, merg
 		JOIN factory_attempt_allowances l ON l.repository=p.repository AND l.issue=p.issue
 			AND l.root_assignment=a.data->>'attempt_root'
 		WHERE p.stage='published'
-		  AND ((l.data->>'active'='true' AND COALESCE(l.data->>'closed','false') <> 'true')
+		  AND ((l.issue>0 AND COALESCE(l.data->>'closed','false') <> 'true')
 		    OR ($2 AND EXISTS(SELECT 1 FROM factory_merges retry JOIN factory_commands c ON c.id=retry.data->>'retry_command'
 		      WHERE retry.publication=p.data->>'id' AND retry.stage='open' AND c.type='prepare-unsent-merge' AND c.finished<>''
 		      AND (retry.data->>'retry_not_after')::bigint>$3)))

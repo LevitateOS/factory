@@ -47,6 +47,10 @@ func TestCandidatePreparationOwnerPreservesReadFailure(t *testing.T) {
 	if _, err = db.db.ExecContext(ctx, `UPDATE factory_assignments SET data=$2 WHERE id=$1`, a.ID, string(data)); err != nil {
 		t.Fatal(err)
 	}
+	// Restart may leave the current open owner with an idle accounting clock.
+	if _, err = db.db.ExecContext(ctx, `UPDATE factory_attempt_allowances SET data=jsonb_set(data,'{active}','false') WHERE root_assignment=$1`, a.ID); err != nil {
+		t.Fatal(err)
+	}
 	if err = check(); err != nil {
 		t.Fatalf("recovered exact owner remains unavailable: %v", err)
 	}
@@ -827,6 +831,7 @@ func TestCapAttemptDeadlineUsesPerRunTimeAndPreservesTimeOnlyGrants(t *testing.T
 		t.Fatal(err)
 	}
 	allowance.ActiveSeconds = int64(allowance.Limits.ActiveMinutes*60) + 30
+	allowance.Active = false // A settled earlier run leaves the issue attempt open.
 	// Admission may cross a second boundary after now was sampled. Keep
 	// its recorded checkpoint instead of rewinding the fixture's clock.
 	allowance.Revision++
@@ -858,6 +863,10 @@ func TestCapAttemptDeadlineUsesPerRunTimeAndPreservesTimeOnlyGrants(t *testing.T
 	timeOnly.Limits = factory.AttemptLimits{ActiveMinutes: allowance.Limits.ActiveMinutes}
 	timeOnly.ActiveSeconds = seconds - 30
 	timeOnly.CheckpointUnix = time.Now().Unix()
+	if _, err := attemptDeadlineUnix(timeOnly, time.Now()); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+		t.Fatalf("inactive time-only grant renewed: %v", err)
+	}
+	timeOnly.Active = true
 	if deadline, err := attemptDeadlineUnix(timeOnly, time.Now()); err != nil || deadline != timeOnly.CheckpointUnix+30 {
 		t.Fatalf("time-only aggregate grant changed: %d %v", deadline, err)
 	}
@@ -963,12 +972,12 @@ func TestPublicationRegistrationCapsDeadlineAndRecoversRecordedReceipt(t *testin
 	}
 }
 
-func TestPublicationRegistrationRefusesInactiveOrMissingRoot(t *testing.T) {
+func TestPublicationRegistrationPreservesIdleRootAndRefusesMissingRoot(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		mode string
 	}{
-		{name: "inactive", mode: "inactive"},
+		{name: "idle", mode: "idle"},
 		{name: "missing", mode: "missing"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -980,7 +989,7 @@ func TestPublicationRegistrationRefusesInactiveOrMissingRoot(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch tc.mode {
-			case "inactive":
+			case "idle":
 				allowance.Active = false
 			}
 			if tc.mode == "missing" {
@@ -1003,14 +1012,27 @@ func TestPublicationRegistrationRefusesInactiveOrMissingRoot(t *testing.T) {
 			}
 			appendPendingCorrection(&p)
 			p.Corrections[len(p.Corrections)-1].Work.NotAfter = time.Now().Add(10 * time.Minute).Unix()
-			if err = db.UpdatePublication(ctx, p); !errors.Is(err, factory.ErrAttemptTimeExhausted) {
+			err = db.UpdatePublication(ctx, p)
+			if tc.mode == "idle" && err != nil || tc.mode == "missing" && !errors.Is(err, factory.ErrAttemptTimeExhausted) {
 				t.Fatalf("registration with %s root = %v", tc.mode, err)
 			}
 			stored, err := db.PublicationByAssignment(ctx, p.AssignmentID)
-			if err != nil || len(stored.Corrections) != 0 {
-				t.Fatalf("refused registration changed publication: %+v %v", stored.Corrections, err)
+			wantCorrections := 0
+			if tc.mode == "idle" {
+				wantCorrections = 1
 			}
-			if tc.mode == "inactive" {
+			if err != nil || len(stored.Corrections) != wantCorrections {
+				t.Fatalf("registered corrections with %s root: %+v %v", tc.mode, stored.Corrections, err)
+			}
+			if tc.mode == "idle" {
+				active, err := db.ActivePublishedPublications(ctx, 100)
+				found := false
+				for _, item := range active {
+					found = found || item.ID == p.ID
+				}
+				if err != nil || !found {
+					t.Fatalf("idle open publication omitted: %v", err)
+				}
 				if closed, err := db.CloseExpiredAttempt(ctx, p.AssignmentID); err != nil || closed {
 					t.Fatalf("inactive positive allowance closed: %t %v", closed, err)
 				}

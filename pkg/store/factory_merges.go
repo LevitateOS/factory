@@ -610,7 +610,7 @@ func admitUnsentMergePreparationTx(ctx context.Context, tx *sql.Tx, p factory.Pu
 		if !allowance.Closed && !(expiredUnallocatedMerge(m) || expiredUnallocated) {
 			return ErrMergeConflict
 		}
-	} else if allowance.Closed || !allowance.Active {
+	} else if allowance.Closed {
 		return factory.ErrAttemptClosed
 	}
 	return checkRetainedContinuationTx(ctx, tx, a, g)
