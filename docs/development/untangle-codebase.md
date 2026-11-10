@@ -1,5 +1,21 @@
 # Factory untangling decisions
 
+Installed retained delivery and Muse1.4.15 (2026-11-10): preserve the offline
+original profile and qualify upgrades on its disposable copy. Current40's real
+fresh logins restore workflow permission and the selected Muse source. A new
+explicit publication reuses the original complete candidate, with causal branch
+and PR#2 receipts and successful real CI; the original unknown send stays fenced.
+The separately funded reviewer retires without a typed report: the current CLI
+withholds configured MCP in an untrusted workspace. A credential-free local
+protocol probe proves per-run trust of the newly created empty native facade
+exposes the exact admitted catalog. Apply that trust only to MCP invocations;
+retain disabled shell/write, source isolation, hooks overrides and independent
+current tool admission. Preserve the failed round/output/charge; a new bounded
+command may continue under standing authorization, never renew its old identity.
+Q26 retains exact receipts, accounting, package identity and next action. The
+selected-repository request correction3cd82de also preserves existing drafts'
+original repository; new planning captures the selected project for funding.
+
 Fountain delivery observations (2026-11-10): reuse public host snapshots and
 authenticated review reads for complete current opinions, native official/stale
 state, digest-checked conversations and issuer-bound CI presentation. Go's

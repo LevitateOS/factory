@@ -2167,8 +2167,43 @@ and2256891b9266953ae939d8c6a33e4fb16d8f1d7e341043875394e1bc443d54f5).
 The independent Fountain source changes are still being qualified; this installed
 refresh proves no full Q26 or Fountain delivery closure.
 
-**Active recovery — INCOMPLETE:** installed current36 app431452/backend/PG is
-running after normal GUI Quit of current33 and exact-prior upgrade. Source is
+**Active recovery — INCOMPLETE (2026-11-10):** the original `q25-current9`
+profile is stopped and unchanged. Actual installed current40 (clean
+`3cd82de1746b444b7992a591308ba9e1d7be7d2e`, inventory
+`9bcb993317080de13d49913476c24a831a0592fd19e767f4ce4a0745b9761334`, archive
+`ec09590eab7b03c2bb612732821313ce0f73199c2a817f9c50092bb7b16cfecd`)
+runs on its offline disposable copy `/home/factory/q28-active40`, app564368,
+with its own08:59UTC cutoff timer. Both fresh installed logins succeeded;
+the sodaos grant explicitly includes workflow permission. UI command
+`ca9eb0374e4a4bc6b73dab688b6aa266` reused the completed candidate once on a
+fresh branch. Native branch78028c7487a71e5eaf9e543ab8d7e269 and
+PRce657c63cb22fd570b4b10d4bf41108d have committed causal receipts; PR#2 is
+`LevitateOS/factory-installed-github-check-20261109/pull/2`. Original uncertain
+command3ddb87ba4098c2d9345586a007776461 remains fenced. Real CI42783336397 /
+job129718401993 passed both original and added file-mode checks on candidate
+6241464c348deb8bd88b1d54116a47986f8ec085 against basefa77bb3d544c7ea6d4ba36d1bd873b69fcdda135.
+Fresh bounded review/correction command9704f6ca488e4322ace3c145b1d8474f
+captured15 minutes/run, two reviews and one correction on the same source.
+New standing preparations passed; reviewf0c081281abc429efca7ca9b583efa87
+retired but produced no typed report because Muse1.4.15 withheld MCP tools in
+the untrusted empty native facade. Preserve its original output and spent round:
+18 settled runs,117 charged minutes,64 finished judgments on the copy. The earlier
+Q28 question83d7dea71894e583ae2a34012bc968ab failed catalog authentication and
+remains charged; neither attempt was replayed. Credential-free local contract
+probe `q25-package/muse41-contract/` proves per-run trust of that empty facade
+admits exactly `mcp__factory.factory_context`, with shell/write disabled; the
+untrusted baseline exposes no tools. No real provider request or credential in
+that probe. Owned fix: `cmd/soda-factory-worker/src/bin/soda-factory-muse.rs`.
+Next: package/install that fix, normal Quit/reopen, fresh standing preparations,
+then an explicit bounded retained-review continuation using remaining authority;
+never restart the failed reviewer or original branch send. Current artifacts:
+copy `current40-{publication-original,publication-receipts,review-original}.log`
+(publication receipts have `.json` extension), UI screenshots and original receipt
+manifests. Review/CI/merge composition, correction and external adoption remain
+required; Q24's absent appliance blocks only appliance-dependent journeys.
+
+Prior current36 checkpoint: installed app431452/backend/PG ran
+after normal GUI Quit of current33 and exact-prior upgrade. Source is
 `7f8f6d3e6c1b483e89c1a2d731dbab04c87aa7f4`, inventory
 `9ad259cc5c9323ea74fe7ccfa180b28406d40811dae3df6c9c828250b5ee2fb2`, archive
 `14d05502112bccbfa4ce84399086574205355113595bcac3526c6214736b9931`.

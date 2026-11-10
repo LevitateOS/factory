@@ -183,6 +183,10 @@ mod connector {
             format!("run.toolset={}", serde_json::to_string(&tools)?).into(),
         ]);
         if let Some(mcp) = &request.mcp {
+            // This is the newly created, empty native facade, not repository
+            // content. Muse requires per-run trust to load the admitted MCP
+            // server; shell/write and the exact tool catalog remain bounded.
+            arguments.push(OsString::from("--trust-workspace"));
             let server = serde_json::json!({"enabled":true,"transport":"streamable_http",
                 "url":format!("http://127.0.0.1:{}/mcp",mcp.port),
                 "headers":{"Authorization":"${SODA_FACTORY_RUN_AUTH}"}});
